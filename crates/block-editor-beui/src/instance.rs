@@ -97,19 +97,6 @@ struct Views<A: BeuiApp> {
     app: PhantomData<A>,
 }
 
-fn follow_host_theme(document: &mut beui::Document) {
-    use beui::styled::*;
-    let theme = match block_editor_plugin::host_theme() {
-        block_plugin_api::Theme::Dark => Theme::DARK,
-        block_plugin_api::Theme::OledDark => Theme::OLED,
-        block_plugin_api::Theme::Light => Theme::LIGHT,
-        block_plugin_api::Theme::EInk => Theme::EINK,
-    };
-    if document.theme() != theme {
-        document.set_theme(theme);
-    }
-}
-
 impl<A: BeuiApp> Views<A> {
     fn preview(&mut self, context: &beui::Context, rect: beui::Rect) {
         let Some(editor) = self.preview.as_deref().copied() else {
@@ -125,7 +112,6 @@ impl<A: BeuiApp> Views<A> {
             })
         });
         editor.begin_frame();
-        follow_host_theme(document);
         document.show(context, rect);
         editor.end_frame(document);
     }
@@ -136,7 +122,6 @@ impl<A: BeuiApp> Views<A> {
         };
         let creation = creation.clone();
         creation.begin_frame();
-        follow_host_theme(dialog);
         dialog.show(context, rect);
         let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
         measured
@@ -165,7 +150,6 @@ impl<A: BeuiApp> Views<A> {
             })
         });
         artifacts.receive_settings(&std::mem::take(draft));
-        follow_host_theme(document);
         document.show(context, rect);
         *draft = artifacts
             .take_settings_edit()
@@ -223,7 +207,6 @@ impl<A: BeuiApp> Views<A> {
         if let Some(editor) = &editor {
             editor.begin_frame();
         }
-        follow_host_theme(chrome.document_mut());
         chrome.document_mut().show(context, rect);
         if let Some(editor) = &editor {
             editor.end_frame(chrome.document());

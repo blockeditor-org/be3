@@ -157,6 +157,8 @@ pub struct Document {
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
+    theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
+    preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<String>>,
     animations: Rc<Cell<usize>>,
 }
@@ -368,6 +370,8 @@ impl Document {
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
+            theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
         }
@@ -795,9 +799,38 @@ impl Document {
         self.motion.read_only()
     }
 
-    fn set_motion(&mut self, motion: crate::animation::Motion) {
-        self.arena.invalidate();
-        self.motion.set(motion);
+    pub fn preferences(&self) -> crate::preferences::Preferences {
+        crate::preferences::Preferences {
+            theme: self.theme.get_untracked(),
+            motion: self.motion.get_untracked(),
+        }
+    }
+
+    pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
+        self.theme.read_only()
+    }
+
+    pub fn watch_preference_layers(
+        &self,
+    ) -> ::reactive::ReadSignal<crate::preferences::PreferenceLayers> {
+        self.preference_layers.read_only()
+    }
+
+    fn follow_preferences(&mut self, layers: crate::preferences::PreferenceLayers) {
+        if self.preference_layers.get_untracked() == layers {
+            return;
+        }
+        let preferences = layers.resolve();
+        crate::current::run_in(self, |document| {
+            document.preference_layers.set(layers);
+            if document.motion() != preferences.motion {
+                document.arena.invalidate();
+                document.motion.set(preferences.motion);
+            }
+            if document.theme.get_untracked() != preferences.theme {
+                document.theme.set(preferences.theme);
+            }
+        });
     }
 
     pub fn track_damage(&mut self, enabled: bool) {
@@ -1161,10 +1194,7 @@ impl Document {
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect) {
         self.now = ctx.now();
-        let motion = ctx.motion();
-        if self.motion() != motion {
-            crate::current::run_in(self, |document| document.set_motion(motion));
-        }
+        self.follow_preferences(ctx.preference_layers());
         if std::mem::take(&mut self.hidden) {
             ctx.report_damage(rect);
             self.conceal_embeds(false);

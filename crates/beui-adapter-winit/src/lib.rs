@@ -3,6 +3,7 @@
 mod accessibility;
 mod clipboard;
 mod file_picker;
+mod preferences;
 #[cfg(test)]
 mod tests;
 
@@ -48,6 +49,7 @@ use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
 use beui_core::window::WindowState;
 use clipboard::Clipboard;
+use preferences::SystemPreferences;
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
 #[cfg(target_os = "linux")]
@@ -103,6 +105,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         next_update: None,
         prepared: false,
         clipboard: Clipboard::new(),
+        preferences: SystemPreferences::default(),
         proxy: event_loop.create_proxy(),
         outcome: outcome.clone(),
     };
@@ -132,6 +135,7 @@ struct Runner {
     next_update: Option<Instant>,
     prepared: bool,
     clipboard: Clipboard,
+    preferences: SystemPreferences,
     proxy: EventLoopProxy,
     outcome: Outcome,
 }
@@ -510,6 +514,12 @@ impl ApplicationHandler for Runner {
             Err(error) => return self.fail(event_loop, error),
         };
         self.runner.reports().scaled(window.scale_factor() as f32);
+        self.preferences.window_theme(window.theme());
+        let proxy = self.proxy.clone();
+        self.preferences.watch_desktop(move || proxy.wake_up());
+        self.runner
+            .reports()
+            .system_preferences(self.preferences.layer());
         let proxy = self.proxy.clone();
         let mut setup = Setup::new(Waker::new(move || proxy.wake_up()));
         setup.provide(window.clone());
@@ -534,6 +544,9 @@ impl ApplicationHandler for Runner {
     }
 
     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        self.runner
+            .reports()
+            .system_preferences(self.preferences.layer());
         self.prepared = false;
         self.request_redraw();
         let Some(surface) = &self.surface else {
@@ -586,6 +599,13 @@ impl ApplicationHandler for Runner {
                 self.request_redraw();
             }
             WindowEvent::Focused(focused) => self.push(Event::Focus(focused)),
+            WindowEvent::ThemeChanged(theme) => {
+                self.preferences.window_theme(Some(theme));
+                self.runner
+                    .reports()
+                    .system_preferences(self.preferences.layer());
+                self.request_redraw();
+            }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();
                 self.push(Event::Modifiers(Modifiers::with_meta(

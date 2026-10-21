@@ -9,17 +9,15 @@ pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;
-mod motion;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod plugin;
+mod preferences;
 pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
 mod screens;
 pub mod session;
-mod theme;
-pub use motion::{Motion, motion};
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
@@ -61,7 +59,10 @@ pub use host::{
 pub use plugin::{Claim, Frame, Ime, Instance, Plugin, Region, RegionMonitor, WindowRequests};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
-pub use theme::host_theme;
+pub use block_plugin_api::{
+    HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
+};
+pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 

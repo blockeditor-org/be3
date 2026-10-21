@@ -11,8 +11,8 @@ mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
-    Administrator, Contacts, HostAction, HostContact, HostImage, HostValue, LinkBase, decode_host,
-    encode_host,
+    Administrator, Contacts, HostAction, HostContact, HostImage, HostPreferenceSources, HostValue,
+    LinkBase, PreferenceSources, decode_host, encode_host,
 };
 pub use linux::{
     AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostInputDevice,
@@ -32,6 +32,7 @@ pub use ui_types::{
     BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Key, KeyChord,
     Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
 };
+pub use ui_types::{Motion, PreferenceLayer, Preferences, ThemeKind};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
@@ -1703,8 +1704,7 @@ pub struct AudioStatus {
 pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
-    Theme(Theme),
-    Motion(Motion),
+    Preferences(Preferences),
     UtcOffset(i32),
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
@@ -1770,8 +1770,7 @@ impl Message {
     pub fn direction(&self) -> Direction {
         match self {
             Self::HelloAccepted(_)
-            | Self::Motion(_)
-            | Self::Theme(_)
+            | Self::Preferences(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::Screens(_)
@@ -1898,24 +1897,7 @@ pub struct Hello {
 pub struct HelloAccepted {
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
-    pub theme: Theme,
-    pub motion: Motion,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Motion {
-    #[default]
-    Animated,
-    Instant,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Theme {
-    #[default]
-    Dark,
-    OledDark,
-    Light,
-    EInk,
+    pub preferences: Preferences,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -34,6 +34,7 @@ pub mod painter;
 pub mod painting;
 pub mod performance;
 pub mod pixel_grid;
+pub mod preferences;
 pub mod renderer;
 pub mod rich;
 pub mod runner;

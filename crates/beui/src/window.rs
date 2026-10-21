@@ -30,14 +30,21 @@ pub fn run_with_renderers(
     let open_device = renderers.iter().find_map(|renderer| match renderer {
         WindowRenderer::Wgpu { open_device } => open_device.clone(),
     });
-    let adapter = match from_environment(&mut options, open_device)? {
-        Some(headless) => headless,
-        None => window_adapter(renderers),
+    let (adapter, app): (Box<dyn Adapter>, Box<dyn App>) = match (
+        from_environment(&mut options, open_device)?,
+        options.saved_preferences.clone(),
+    ) {
+        (Some(headless), _) => (headless, Box::new(app)),
+        (None, Some(path)) => (
+            window_adapter(renderers),
+            Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
+        ),
+        (None, None) => (window_adapter(renderers), Box::new(app)),
     };
     let launch = Launch {
         options,
         context: crate::system_context(),
-        app: Box::new(app),
+        app,
     };
     pollster::block_on(adapter.run(launch))
 }

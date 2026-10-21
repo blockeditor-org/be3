@@ -87,12 +87,18 @@ fn demo(size: Vec2) -> DocumentTest {
     DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
 }
 
-fn demo_in(size: Vec2, theme: beui::styled::Theme) -> DocumentTest {
-    use beui::styled::DocumentTheme;
+fn demo_in(size: Vec2, theme: beui::ThemeKind) -> DocumentTest {
     let (year, month, day) = TODAY;
-    let mut app = DemoApp::on(Date::new(year, month, day));
-    app.document.set_theme(theme);
-    DocumentTest::new(app.document, size)
+    let mut test = DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size);
+    test.context().set_preference_layer(
+        beui::PreferenceSource::App,
+        beui::PreferenceLayer {
+            theme: Some(theme),
+            ..beui::PreferenceLayer::EMPTY
+        },
+    );
+    test.frame(Vec::new());
+    test
 }
 
 fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {

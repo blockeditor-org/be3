@@ -447,7 +447,6 @@ mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod changing_a_filter_damages_only_the_region_it_covers;
 mod changing_one_span_of_a_long_text_shapes_only_that_span;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
-mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
 mod clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed;
 mod clicking_a_checkbox_toggles_it;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
@@ -739,6 +738,7 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
+mod the_inspectors_theme_overrides_the_apps_until_it_is_cleared;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
 mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
@@ -1223,8 +1223,8 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn animation_toggle_center(&self) -> Pos2 {
-        self.inspector_center("inspector.simulation.disable_animations")
+    pub(crate) fn reduce_motion_toggle_center(&self) -> Pos2 {
+        self.inspector_center("inspector.simulation.reduce_motion")
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {

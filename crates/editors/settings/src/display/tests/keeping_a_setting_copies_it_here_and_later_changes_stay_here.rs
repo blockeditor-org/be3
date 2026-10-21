@@ -11,17 +11,17 @@ fn keeping_a_setting_copies_it_here_and_later_changes_stay_here() {
     settings.run();
     assert_eq!(
         settings.here().theme,
-        Some(Theme::Light),
+        Some(ThemeKind::Light),
         "keeping copies the theme in use"
     );
     assert!(settings.says("Kept on this device"));
     settings.editor.snapshot("a_setting_kept_on_this_device");
 
     settings.choose(THEME, 3);
-    assert_eq!(settings.here().theme, Some(Theme::OledDark));
+    assert_eq!(settings.here().theme, Some(ThemeKind::OledDark));
     assert_eq!(
         settings.every_device().theme,
-        Some(Theme::Light),
+        Some(ThemeKind::Light),
         "the other devices keep theirs"
     );
 

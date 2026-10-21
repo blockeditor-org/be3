@@ -1,12 +1,12 @@
 use super::*;
-use block_editor_beui::be_block::Theme;
+use block_editor_beui::be_block::ThemeKind;
 
 #[test]
 fn a_new_e_paper_tablet_is_set_up_with_only_the_settings_that_differ() {
     let mut setup = SetUp::new(
         DeviceClass::EpaperTablet,
         DisplaySettings {
-            theme: Some(Theme::EInk),
+            theme: Some(ThemeKind::EPaper),
             ..DisplaySettings::default()
         },
     );

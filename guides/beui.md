@@ -1226,19 +1226,43 @@ clamping away elapsed time. Retarget a spring by changing its target while keepi
 current value and velocity. `Fling` supplies the shared inertia curve. Components keep
 interaction decisions and semantic completion actions, not their own frame scheduling.
 
-`Context::set_motion(Motion::Instant)` finishes active animations and completes new ones
-without scheduling animation frames. The default is `Animated`. Each document exposes
-`motion()` and the reactive `watch_motion()` preference; the inspector Simulation tab's
-Disable animations checkbox changes the context preference. Instant mode disables inertia
+`Motion::Instant` finishes active animations and completes new ones without scheduling
+animation frames; the default is `Animated`. It is one of the preferences (below). Each
+document exposes `motion()` and the reactive `watch_motion()`. Instant mode disables inertia
 and rubber-banding, keeps carets visible and spinners static, and leaves held gestures
 following input normally. Functional timers (expiry, key repeat, media and clocks) still
 run; keep visibility delays separate from the fade that follows them. Switching back does
 not replay completed transitions; repeating indicators explicitly resume. Appearance and
-motion are independent, including the EInk theme.
+motion are independent preferences, even for the e-paper theme.
 
-The host supplies the framework-independent motion preference in plugin acceptance and
-live `Message::Motion` updates. The plugin adapter applies it to every surface context
-before running a frame. Plugin tests can send it with `BeuiTest::set_motion`.
+### Preferences
+
+`Preferences` (a `ThemeKind` and a `Motion`) is what every document follows. Their types live
+in `crates/ui-types`, which the plugin protocol shares, so a plugin's preferences are the
+host's without conversion. A `Context` holds three `PreferenceLayer`s, each an `Option` per
+preference, and resolves them top down, falling back to `Preferences::default()`:
+
+- `PreferenceSource::Developer`: the inspector's Simulation tab. Never saved; its No override
+  choices clear it.
+- `PreferenceSource::App`: what the app chose, from its own settings.
+- `PreferenceSource::System`: what the platform prefers. Adapters report it with
+  `WindowReports::system_preferences`: winit from the window's theme and, on Linux, the
+  desktop portal's `color-scheme` and `reduced-motion`; the web adapter from
+  `prefers-color-scheme` and `prefers-reduced-motion`; Android from night mode and a zero
+  animator scale; the DRM adapter says e-paper and instant motion on an e-paper panel; the
+  plugin adapter reports the host's resolved preferences, which reach a plugin in its
+  acceptance and in `Message::Preferences`; plugin tests send them with
+  `BeuiTest::set_preferences`.
+
+Set a layer with `Context::set_preference_layer(source, layer)` and read them with
+`preference_layers()`. Each document mirrors them at the start of a frame;
+`Document::watch_preference_layers()` is that, reactively, for settings that show where a value
+comes from. `styled::PreferencesSection` is a settings section over the app layer, with a
+`styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
+below, and notes a developer override. An app that keeps its own choices passes
+`RunOptions::saving_preferences(name)`, which loads and saves the app layer in the platform's
+config folder (beui-demo does); one that does not still follows the system. block-app stores
+them in its display settings instead (guides/the_new_block_stack.md).
 
 `pixels_per_point()` is the document's scale as a signal, for layout that
 depends on it.
@@ -3028,13 +3052,11 @@ rather than designed: labels on a zoomable canvas, a terminal, a game board.
 
 `styled::Theme` holds the color tokens. The built-in themes are `Theme::DARK`,
 `Theme::OLED` (dark on pure black, so OLED screens leave most pixels off),
-`Theme::LIGHT`, and `Theme::EINK`; `Theme::BUILT_IN` lists them with their
-names. A theme's `kind` says which of these it is or derives from, for code
-that must tell them apart without comparing colors. Every `Document` owns a theme that styled components use when no provider
-covers them. Change it with `set_theme` and read it with
-`theme`, both from the `styled::DocumentTheme` trait, for example to pick an
-app's clear color. The
-inspector's Sim tab switches it at runtime.
+`Theme::LIGHT`, and `Theme::EPAPER`, one for each `ThemeKind`; `Theme::of(kind)` picks one,
+and a theme's `kind` says which it is, for code that must tell them apart without comparing
+colors. Styled components that no provider covers use the document's theme, the one its
+preferences choose (Preferences, above); `theme()` from the `styled::DocumentTheme` trait reads
+it, for example to pick an app's clear color.
 
 `ThemeProvider` overrides the theme for the subtree written between its tags and
 follows the `Prop<Theme>` it is given:

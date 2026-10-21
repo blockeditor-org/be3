@@ -12,7 +12,7 @@ use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion,
     FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message,
     Monitor, PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
-    SessionState, SurfaceFormat, SurfaceSpec, Theme, ViewChange, decode_host, encode_host,
+    SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 
@@ -141,8 +141,7 @@ pub(super) struct Runtime {
     sent: Vec<ScreenRequest>,
     error: Option<String>,
     pacing: Pacing,
-    theme: Theme,
-    motion: block_plugin_api::Motion,
+    preferences: block_plugin_api::Preferences,
     utc_offset: Option<i32>,
     fonts_sent: bool,
     described: bool,
@@ -264,8 +263,7 @@ impl Runtime {
             sent: Vec::new(),
             error: None,
             pacing: Pacing::default(),
-            theme: theme(),
-            motion: host::motion(),
+            preferences: host::preferences(),
             utc_offset: None,
             fonts_sent: false,
             described: false,
@@ -296,8 +294,7 @@ impl Runtime {
         self.layout = ScreenLayout::default();
         self.sent.clear();
         self.pacing.reset();
-        self.theme = theme();
-        self.motion = host::motion();
+        self.preferences = host::preferences();
         self.utc_offset = None;
         self.fonts_sent = false;
         self.described = false;
@@ -325,15 +322,10 @@ impl Runtime {
             self.described = describing;
             messages.push(Message::Describe(describing));
         }
-        let motion = host::motion();
-        if self.motion != motion {
-            self.motion = motion;
-            messages.push(Message::Motion(motion));
-        }
-        let theme = theme();
-        if self.theme != theme {
-            self.theme = theme;
-            messages.push(Message::Theme(theme));
+        let preferences = host::preferences();
+        if self.preferences != preferences {
+            self.preferences = preferences;
+            messages.push(Message::Preferences(preferences));
         }
         let utc_offset = crate::platform::utc_offset();
         if *self.session.state() == SessionState::Running && self.utc_offset != Some(utc_offset) {
@@ -1622,13 +1614,7 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session() -> HostSession {
-    let mut session = HostSession::new(HOST_NAME, Some(SURFACE), theme());
-    session.set_motion(host::motion());
-    session
-}
-
-fn theme() -> Theme {
-    host::theme()
+    HostSession::new(HOST_NAME, Some(SURFACE), host::preferences())
 }
 
 thread_local! {

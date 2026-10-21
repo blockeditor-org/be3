@@ -136,11 +136,8 @@ impl PluginSurface {
 
     pub fn update(&mut self, region: &Region) -> Frame {
         self.runner
-            .context()
-            .set_motion(match block_editor_plugin::motion() {
-                block_editor_plugin::Motion::Animated => beui_core::animation::Motion::Animated,
-                block_editor_plugin::Motion::Instant => beui_core::animation::Motion::Instant,
-            });
+            .reports()
+            .system_preferences(block_editor_plugin::host_preferences().into());
         let [width, height] = region.pixels;
         let resized = {
             let mut surface = self.surface.borrow_mut();

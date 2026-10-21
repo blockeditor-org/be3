@@ -12,7 +12,7 @@ use block_editor_beui::{
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
     FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, ScreenId, ScreenRequest, ScreenSet,
-    SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    SurfaceFormat, SurfaceSpec, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -236,8 +236,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,
             }),
-            theme: Theme::default(),
-            motion: block_plugin_api::Motion::default(),
+            preferences: block_plugin_api::Preferences::default(),
         }));
         test.deliver(Message::Editor(open));
         test.place();
@@ -624,8 +623,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn set_motion(&mut self, motion: block_plugin_api::Motion) {
-        self.inbox.push(Message::Motion(motion));
+    pub fn set_preferences(&mut self, preferences: block_plugin_api::Preferences) {
+        self.inbox.push(Message::Preferences(preferences));
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {

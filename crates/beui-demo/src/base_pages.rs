@@ -716,9 +716,11 @@ fn AnimationSample() -> NodeId {
             <Checkbox
                 @test_id="animation.instant"
                 label="Disable animations"
-                checked={Binding::new(create_memo(move || !preference.get().animates()), move |disabled| with_document(|document| {
+                checked={Binding::new(create_memo(move || !preference.get().animates()), move |disabled: bool| with_document(|document| {
                     if let Some(context) = document.context() {
-                        context.set_motion(if disabled { Motion::Instant } else { Motion::Animated });
+                        let app = context.preference_layer(PreferenceSource::App);
+                        let motion = disabled.then_some(Motion::Instant);
+                        context.set_preference_layer(PreferenceSource::App, PreferenceLayer { motion, ..app });
                     }
                 }))}
             />

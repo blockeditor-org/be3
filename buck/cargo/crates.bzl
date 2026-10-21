@@ -120,6 +120,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -137,6 +138,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -154,6 +156,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -171,6 +174,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -188,6 +192,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -205,6 +210,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -222,6 +228,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -239,6 +246,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -256,6 +264,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3717,6 +3726,7 @@ crates = {
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "examples": {
                     "survey": {
@@ -3735,6 +3745,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -3759,6 +3770,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -3800,6 +3812,7 @@ crates = {
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "examples": {
                     "survey": {
@@ -3819,6 +3832,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -3844,6 +3858,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -3885,6 +3900,7 @@ crates = {
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "examples": {
                     "survey": {
@@ -3904,6 +3920,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -3929,6 +3946,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -3970,6 +3988,7 @@ crates = {
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "examples": {
                     "survey": {
@@ -3989,6 +4008,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4014,6 +4034,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4055,6 +4076,7 @@ crates = {
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "examples": {
                     "survey": {
@@ -4074,6 +4096,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4099,6 +4122,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4189,6 +4213,7 @@ crates = {
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "examples": {
                     "survey": {
@@ -4208,6 +4233,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4233,6 +4259,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4274,6 +4301,7 @@ crates = {
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "examples": {
                     "survey": {
@@ -4293,6 +4321,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4318,6 +4347,7 @@ crates = {
                             "//third-party/rust:accesskit-0.24.1",
                             "//third-party/rust:pollster-0.4.0",
                             "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:wgpu-29.0.3",
                         ],
                         "features": [
@@ -4900,6 +4930,7 @@ crates = {
                     "//third-party/rust:accesskit_unix-0.22.1",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
+                    "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:winit-0.31.0-beta.3",
@@ -4917,6 +4948,7 @@ crates = {
                     "//third-party/rust:accesskit_unix-0.22.1",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
+                    "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:winit-0.31.0-beta.3",
@@ -65914,6 +65946,7 @@ third_party = {
                     "InputEvent",
                     "KeyboardEvent",
                     "Location",
+                    "MediaQueryList",
                     "MessageEvent",
                     "MouseEvent",
                     "Navigator",

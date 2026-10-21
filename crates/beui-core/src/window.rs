@@ -65,6 +65,7 @@ struct Reported {
     size: std::cell::Cell<Option<(u32, u32)>>,
     scale: std::cell::Cell<Option<f32>>,
     keyboard: std::cell::Cell<Option<bool>>,
+    preferences: std::cell::Cell<Option<crate::preferences::PreferenceLayer>>,
 }
 
 #[derive(Clone, Default)]
@@ -87,6 +88,14 @@ impl WindowReports {
         self.0.keyboard.set(Some(attached));
     }
 
+    pub fn system_preferences(&self, preferences: crate::preferences::PreferenceLayer) {
+        self.0.preferences.set(Some(preferences));
+    }
+
+    pub(crate) fn take_system_preferences(&self) -> Option<crate::preferences::PreferenceLayer> {
+        self.0.preferences.take()
+    }
+
     pub(crate) fn take_keyboard(&self) -> Option<bool> {
         self.0.keyboard.take()
     }
@@ -96,6 +105,7 @@ impl WindowReports {
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
             || self.0.keyboard.get().is_some()
+            || self.0.preferences.get().is_some()
     }
 
     pub(crate) fn take_fullscreen(&self) -> Option<bool> {

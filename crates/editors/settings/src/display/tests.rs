@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation, ScreenOff};
 use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent, SettingsProfile,
-    SettingsProfileContent, Theme,
+    SettingsProfileContent, ThemeKind,
 };
 use block_editor_beui::beui::{Document, Key, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
@@ -86,7 +86,7 @@ impl Harness {
         harness
     }
 
-    fn in_a_profile_over(mut self, defaults: Theme) -> Self {
+    fn in_a_profile_over(mut self, defaults: ThemeKind) -> Self {
         let store = self.editor.store();
         let (settings, profile, shared) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
         store.add_block(BlockInfo::new(

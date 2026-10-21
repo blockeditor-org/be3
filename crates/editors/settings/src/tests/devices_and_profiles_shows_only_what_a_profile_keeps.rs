@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::Theme;
+use block_editor_beui::be_block::ThemeKind;
 
 #[test]
 fn devices_and_profiles_shows_only_what_a_profile_keeps() {
@@ -57,7 +57,7 @@ fn devices_and_profiles_shows_only_what_a_profile_keeps() {
     store.hold(
         Some(shared),
         DisplaySettingsContent::new(&DisplaySettings {
-            theme: Some(Theme::Light),
+            theme: Some(ThemeKind::Light),
             ..DisplaySettings::default()
         }),
     );
@@ -75,7 +75,7 @@ fn devices_and_profiles_shows_only_what_a_profile_keeps() {
     assert_eq!(settings.label("devices.theme.all"), "Light");
     assert_eq!(
         settings.label(&format!("devices.theme.{tablet}")),
-        "E-ink kept since setup"
+        "E-paper kept since setup"
     );
     assert_eq!(settings.label(&format!("devices.theme.{desktop}")), "same");
     assert_eq!(settings.label("devices.scale.all"), "not set");

@@ -1,4 +1,5 @@
 use super::*;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn an_instant_sheet_follows_dragging_and_snaps_on_release() {
@@ -7,7 +8,13 @@ fn an_instant_sheet_follows_dragging_and_snaps_on_release() {
     let closed = create_signal(0);
     let document = sheet_of_rows(0.5, sheet, closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.settle();
     let sheet = sheet.get();
     let height = |harness: &Harness| harness.rect(sheet).height();

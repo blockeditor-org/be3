@@ -32,6 +32,7 @@ pub struct RunOptions {
     pub size: Vec2,
     pub accessibility_tree: bool,
     pub automation: Option<Inbox>,
+    pub saved_preferences: Option<std::path::PathBuf>,
 }
 
 impl Default for RunOptions {
@@ -41,8 +42,32 @@ impl Default for RunOptions {
             size: Vec2::new(1280.0, 800.0),
             accessibility_tree: false,
             automation: None,
+            saved_preferences: None,
         }
     }
+}
+
+impl RunOptions {
+    pub fn saving_preferences(mut self, app: &str) -> Self {
+        self.saved_preferences =
+            config_directory().map(|directory| directory.join(app).join("preferences.json"));
+        self
+    }
+}
+
+fn config_directory() -> Option<std::path::PathBuf> {
+    let variable = |name: &str| {
+        std::env::var_os(name)
+            .filter(|value| !value.is_empty())
+            .map(std::path::PathBuf::from)
+    };
+    if cfg!(target_os = "windows") {
+        return variable("APPDATA");
+    }
+    if cfg!(target_os = "macos") {
+        return variable("HOME").map(|home| home.join("Library/Application Support"));
+    }
+    variable("XDG_CONFIG_HOME").or_else(|| variable("HOME").map(|home| home.join(".config")))
 }
 
 pub struct Launch {
@@ -431,6 +456,10 @@ impl Runner {
         }
         if let Some(attached) = self.reports.take_keyboard() {
             self.context.set_keyboard_attached(attached);
+        }
+        if let Some(preferences) = self.reports.take_system_preferences() {
+            self.context
+                .set_preference_layer(crate::preferences::PreferenceSource::System, preferences);
         }
         let pixels_per_point = self.native;
         let Some(physical) = renderers.physical() else {

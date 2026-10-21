@@ -61,7 +61,7 @@ pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
 pub use device_class::{ClassDefault, DeviceClass};
-pub use display_settings::{DisplaySettings, DisplaySettingsContent, Theme};
+pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_settings::{EditorSettings, EditorSettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};

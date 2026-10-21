@@ -14,6 +14,7 @@ use beui::{
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
+use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Keystroke, Runner, panic_message};
 use beui_core::window::WindowState;
@@ -200,6 +201,12 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     )?;
     runner.reports().fullscreen(true);
     runner.reports().scaled(displays.borrow().scale);
+    if epaper.is_some() {
+        runner.reports().system_preferences(PreferenceLayer {
+            theme: Some(ThemeKind::EPaper),
+            motion: Some(Motion::Instant),
+        });
+    }
     let input = InputConfig::default();
     let platform = Seat {
         clipboard: None,

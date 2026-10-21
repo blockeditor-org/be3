@@ -704,6 +704,7 @@ dependencies = [
  "memchr",
  "postcard",
  "serde",
+ "ui-types",
  "uuid",
 ]
 
@@ -1016,6 +1017,7 @@ dependencies = [
  "pollster",
  "raw-window-handle",
  "reactive",
+ "serde_json",
  "text-editor-core",
  "wasm-bindgen",
  "web-sys",
@@ -1094,6 +1096,7 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
+ "futures-util",
  "image",
  "pollster",
  "rfd",

@@ -35,15 +35,6 @@ pub(crate) fn take_commands() -> Vec<UiCommand> {
     COMMANDS.with(|commands| std::mem::take(&mut *commands.borrow_mut()))
 }
 
-pub(crate) fn styled_theme(theme: be_block::Theme) -> beui::styled::Theme {
-    match theme {
-        be_block::Theme::Dark => beui::styled::Theme::DARK,
-        be_block::Theme::OledDark => beui::styled::Theme::OLED,
-        be_block::Theme::Light => beui::styled::Theme::LIGHT,
-        be_block::Theme::EInk => beui::styled::Theme::EINK,
-    }
-}
-
 pub(crate) fn account_key(account: &SavedAccount) -> String {
     format!("{}\u{0}{}", account.server.key(), account.id)
 }

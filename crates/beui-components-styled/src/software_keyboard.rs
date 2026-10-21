@@ -18,7 +18,6 @@ use crate::frame::{ColorRole, Frame, Radius};
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{DocumentTheme, Theme};
 
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: f32 = 4.0;
@@ -365,7 +364,6 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
 #[derive(Default)]
 pub struct KeyboardWindow {
     document: Option<Document>,
-    theme: Option<Theme>,
 }
 
 impl KeyboardHost for KeyboardWindow {
@@ -373,7 +371,7 @@ impl KeyboardHost for KeyboardWindow {
         keyboard_height(width)
     }
 
-    fn show(&mut self, ctx: &Context, rect: Rect, app: &Document) {
+    fn show(&mut self, ctx: &Context, rect: Rect) {
         let document = self.document.get_or_insert_with(|| {
             let mut document = Document::new();
             let root = enter(&mut document, || {
@@ -384,17 +382,11 @@ impl KeyboardHost for KeyboardWindow {
             document.set_root(root);
             document
         });
-        let theme = app.theme();
-        if self.theme != Some(theme) {
-            self.theme = Some(theme);
-            document.set_theme(theme);
-        }
         document.show_content(ctx, rect);
     }
 
     fn closed(&mut self) {
         self.document = None;
-        self.theme = None;
     }
 }
 
