@@ -11329,6 +11329,7 @@ crates = {
                     "local-tools": [
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
+                        "//crates/fix-rust-source:fix-rust-source",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
@@ -11346,6 +11347,7 @@ crates = {
                 "deps": [
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
+                    "//crates/fix-rust-source:fix-rust-source",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
@@ -11369,6 +11371,7 @@ crates = {
                     "local-tools": [
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
+                        "//crates/fix-rust-source:fix-rust-source",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
@@ -11386,6 +11389,7 @@ crates = {
                 "deps": [
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
+                    "//crates/fix-rust-source:fix-rust-source",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
@@ -11409,6 +11413,7 @@ crates = {
                     "local-tools": [
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
+                        "//crates/fix-rust-source:fix-rust-source",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
@@ -11426,6 +11431,7 @@ crates = {
                 "deps": [
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
+                    "//crates/fix-rust-source:fix-rust-source",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
@@ -11449,6 +11455,7 @@ crates = {
                     "local-tools": [
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
+                        "//crates/fix-rust-source:fix-rust-source",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
@@ -11466,6 +11473,7 @@ crates = {
                 "deps": [
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
+                    "//crates/fix-rust-source:fix-rust-source",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
@@ -11489,6 +11497,7 @@ crates = {
                     "local-tools": [
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
+                        "//crates/fix-rust-source:fix-rust-source",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
@@ -11506,6 +11515,7 @@ crates = {
                 "deps": [
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
+                    "//crates/fix-rust-source:fix-rust-source",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
@@ -11529,6 +11539,7 @@ crates = {
                     "local-tools": [
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
+                        "//crates/fix-rust-source:fix-rust-source",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
@@ -11545,6 +11556,7 @@ crates = {
                 "deps": [
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
+                    "//crates/fix-rust-source:fix-rust-source",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
@@ -11567,6 +11579,7 @@ crates = {
                     "local-tools": [
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
+                        "//crates/fix-rust-source:fix-rust-source",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
@@ -11583,6 +11596,7 @@ crates = {
                 "deps": [
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
+                    "//crates/fix-rust-source:fix-rust-source",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",

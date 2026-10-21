@@ -9,6 +9,7 @@ license.workspace = true
 base64 = "0.22"
 beui-html = { path = "../beui-html" }
 build-id = { path = "../build-id" }
+fix-rust-source = { path = "../fix-rust-source" }
 paint-snapshot = { path = "../paint-snapshot" }
 prompt = { path = "../prompt" }
 jks = { version = "0.3", default-features = false }

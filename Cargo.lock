@@ -4332,6 +4332,7 @@ dependencies = [
  "base64",
  "beui-html",
  "build-id",
+ "fix-rust-source",
  "image",
  "jks",
  "libc",

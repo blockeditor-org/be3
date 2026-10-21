@@ -549,6 +549,10 @@ impl Run {
             .ok_or("could not count the lines that changed")?;
         let mut comment = "## Lines of code\n\n".to_owned();
         comment.push_str(&lines::summary(&numstat));
+        comment.push_str(&unsafe_counts::summary(
+            &unsafe_at(from)?,
+            &unsafe_at("HEAD")?,
+        ));
         let renderers = self.built("browser-rasterizer");
         comment.push_str(&crate::previews::generate(
             &before,
@@ -560,6 +564,26 @@ impl Run {
         fs::write(path, comment).map_err(|error| error.to_string())?;
         Ok(())
     }
+}
+
+fn unsafe_at(commit: &str) -> Result<unsafe_counts::Counts, String> {
+    let listed = git(&[
+        "grep",
+        "-l",
+        "-w",
+        "unsafe",
+        commit,
+        "--",
+        ":(glob)crates/**/*.rs",
+    ])
+    .unwrap_or_default();
+    let mut sources = Vec::new();
+    for line in listed.lines() {
+        let source = git(&["show", line])
+            .ok_or_else(|| format!("could not read {line} to count its unsafe sites"))?;
+        sources.push(source);
+    }
+    Ok(unsafe_counts::count(sources.iter().map(String::as_str)))
 }
 
 fn git(arguments: &[&str]) -> Option<String> {
@@ -739,6 +763,7 @@ fn clear_executable(_: &Path) -> io::Result<()> {
 
 mod bootstrap;
 mod lines;
+mod unsafe_counts;
 
 #[cfg(test)]
 mod tests;
