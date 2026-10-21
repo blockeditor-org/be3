@@ -456,19 +456,6 @@ impl CanvasState {
         let entered_group = create_signal(None);
         let gesture = create_signal(None);
         let typed = create_signal(None::<CanvasEntity>);
-        create_binding(move || {
-            let mut previews = gesture.with(|gesture: &Option<Gesture>| {
-                gesture.as_ref().map(preview_entities).unwrap_or_default()
-            });
-            if let Some(typed) = typed.get() {
-                match previews.iter_mut().find(|entity| entity.id == typed.id) {
-                    Some(previewed) => *previewed = typed,
-                    None if entities.get_untracked(typed.id).is_some() => previews.push(typed),
-                    None => {}
-                }
-            }
-            entities.preview(previews);
-        });
         let focused_editor = create_signal(None);
         let editing_text = create_signal(None);
         let import_error = create_signal(None);
@@ -540,7 +527,7 @@ impl CanvasState {
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
         });
-        Self {
+        let state = Self {
             cells,
             editor,
             preview,
@@ -563,7 +550,41 @@ impl CanvasState {
             presence,
             peers: editor.peers::<CanvasCursor>(),
             drafts: editor.peers::<CanvasDraft>(),
+        };
+        create_binding(move || {
+            let mut previews = gesture.with(|gesture: &Option<Gesture>| {
+                gesture.as_ref().map(preview_entities).unwrap_or_default()
+            });
+            previews.extend(state.drawn_shape());
+            if let Some(typed) = typed.get() {
+                match previews.iter_mut().find(|entity| entity.id == typed.id) {
+                    Some(previewed) => *previewed = typed,
+                    None if entities.get_untracked(typed.id).is_some() => previews.push(typed),
+                    None => {}
+                }
+            }
+            entities.preview(previews);
+        });
+        state
+    }
+
+    fn drawn_shape(&self) -> Option<CanvasEntity> {
+        let Some(Gesture::Create {
+            id,
+            tool,
+            start,
+            current,
+            from_center,
+            ..
+        }) = self.gesture.get()
+        else {
+            return None;
+        };
+        if !tool.drafts_a_shape() && tool != Tool::Frame {
+            return None;
         }
+        let entity = self.created_entity(tool, start, current, from_center)?;
+        Some(drafted(entity, id, start))
     }
 
     pub(crate) fn is_alive(&self) -> bool {
@@ -2490,16 +2511,8 @@ impl CanvasState {
                 ));
                 Some((id, parts))
             }
-            Some(Gesture::Create {
-                id,
-                tool,
-                start,
-                current,
-                from_center,
-                ..
-            }) if tool.drafts_a_shape() => {
-                let entity = self.created_entity(tool, start, current, from_center)?;
-                let entity = drafted(entity, id, start);
+            Some(Gesture::Create { id, tool, .. }) if tool.drafts_a_shape() => {
+                let entity = untrack(|| self.drawn_shape())?;
                 Some((id, vec![CanvasDraft::Shape(Box::new(entity))]))
             }
             Some(_) => None,

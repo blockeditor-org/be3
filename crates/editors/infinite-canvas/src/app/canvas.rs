@@ -167,7 +167,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
             presence: state.presence.get(),
             tool: state.tool.get(),
             pointer: state.pointer.get(),
-            pen_width: state.default_style().stroke_width,
+            pen: state.default_style(),
         };
         if shown.borrow().as_ref() == Some(&overlay) {
             return;

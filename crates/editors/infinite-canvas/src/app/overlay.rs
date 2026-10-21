@@ -1,5 +1,5 @@
 use block_editor_beui::ResizeMode;
-use block_editor_beui::be_block::canvas::CanvasPoint;
+use block_editor_beui::be_block::canvas::{CanvasPoint, CanvasStyle};
 use block_editor_beui::beui::{
     Color32, FillRule, FontId, LineJoin, Painter, Path, Pos2, Rect, Stroke, TextAlign, TextLayout,
     Vec2, pos2,
@@ -100,7 +100,7 @@ pub(crate) struct Overlay {
     pub(crate) presence: Presence,
     pub(crate) tool: Tool,
     pub(crate) pointer: Option<CanvasPoint>,
-    pub(crate) pen_width: f32,
+    pub(crate) pen: CanvasStyle,
 }
 
 impl Overlay {
@@ -140,27 +140,16 @@ impl Overlay {
     }
 
     fn draw_gesture(&self, painter: &Painter) {
-        let color = self.palette.auto;
         match &self.gesture {
             Some(Gesture::Create {
-                tool,
+                tool: Tool::Text,
                 start,
                 current,
-                from_center,
                 ..
-            }) => match tool {
-                Tool::Line | Tool::Arrow => {
-                    painter.line(self.camera.at(*start), self.camera.at(*current), 2.0, color)
-                }
-                Tool::Rectangle | Tool::Ellipse | Tool::Diamond | Tool::Text | Tool::Frame => {
-                    let bounds = match tool {
-                        Tool::Text => WorldRect::from_points(*start, *current),
-                        _ => gesture_rect(*start, *current, *from_center),
-                    };
-                    painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, color);
-                }
-                Tool::Select | Tool::Lasso | Tool::Pen => {}
-            },
+            }) => {
+                let bounds = WorldRect::from_points(*start, *current);
+                painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, self.palette.auto);
+            }
             Some(Gesture::Pen {
                 points,
                 pressures,
@@ -177,8 +166,8 @@ impl Overlay {
                     self.camera,
                     &points,
                     &pressures,
-                    self.pen_width,
-                    color,
+                    self.pen.stroke_width,
+                    stroke_ink(&self.pen, &self.palette),
                 );
             }
             Some(Gesture::SelectBox {
@@ -202,7 +191,8 @@ impl Overlay {
                     SELECTION,
                 );
             }
-            Some(Gesture::Move { .. })
+            Some(Gesture::Create { .. })
+            | Some(Gesture::Move { .. })
             | Some(Gesture::Resize { .. })
             | Some(Gesture::Rotate { .. })
             | Some(Gesture::Endpoint { .. })
@@ -295,10 +285,7 @@ impl Overlay {
                 style,
                 ..
             } => {
-                let color = with_opacity(
-                    resolve_color(style.stroke_color, self.palette.auto),
-                    style.opacity,
-                );
+                let color = stroke_ink(style, &self.palette);
                 live_stroke(
                     painter,
                     self.camera,
@@ -350,6 +337,13 @@ impl Overlay {
             self.palette.auto,
         );
     }
+}
+
+fn stroke_ink(style: &CanvasStyle, palette: &Palette) -> Color32 {
+    with_opacity(
+        resolve_color(style.stroke_color, palette.auto),
+        style.opacity,
+    )
 }
 
 fn live_stroke(
