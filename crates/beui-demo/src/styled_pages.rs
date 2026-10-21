@@ -819,6 +819,9 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Sliders and progress" code={vec![LoadSliders::SOURCE]}>
                 <LoadSliders />
             </Sample>
+            <Sample title="Waiting for data" code={vec![SlowGreeting::SOURCE]}>
+                <SlowGreeting />
+            </Sample>
             <Sample
                 title="Disabled controls"
                 code={vec![LockedControls::SOURCE, LabelledSwitch::SOURCE]}
@@ -961,6 +964,30 @@ fn LoadSliders() -> NodeId {
             />
             <Text style=TextStyle::CAPTION string="Something that takes as long as it takes" />
             <Spinner width=SPINNER_WIDTH label="Working" />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn SlowGreeting() -> NodeId {
+    let answer = create_signal::<Ready<String>>(Err(Pending::Loading));
+    let arrive = move || answer.set(Ok("Hello, the data is here".to_owned()));
+    let fail = move || answer.set(Err(Pending::Failed("The server said no".to_owned())));
+    let fallback = |pending: Pending| match pending {
+        Pending::Loading => view! { <Spinner width=SPINNER_WIDTH label="Waiting" /> },
+        Pending::Failed(error) => view! { <Text style=TextStyle::CAPTION string={error} /> },
+    };
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button label="Arrive" variant=ButtonVariant::Primary on_click={arrive} @test_id="demo.loading.arrive" />
+                <Button label="Fail" variant=ButtonVariant::Secondary on_click={fail} />
+            </List>
+            <Loading fallback>|| {
+                let greeting = create_memo(move || answer.get());
+                view! { <Text string={greeting} @test_id="demo.loading.content" /> }
+            }</Loading>
         </List>
     }
 }
