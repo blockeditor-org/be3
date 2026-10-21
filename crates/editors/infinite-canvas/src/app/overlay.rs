@@ -309,7 +309,7 @@ impl Overlay {
                 );
             }
             Draft::Shape(entity) => EntityPaint {
-                entity: entity.clone(),
+                entity: (**entity).clone(),
                 camera: self.camera,
                 palette: self.palette.clone(),
                 title: String::new(),

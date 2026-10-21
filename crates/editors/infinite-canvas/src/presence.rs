@@ -46,7 +46,7 @@ pub(crate) enum Draft {
         pressures: Vec<f32>,
         style: CanvasStyle,
     },
-    Shape(CanvasEntity),
+    Shape(Box<CanvasEntity>),
 }
 
 impl Draft {
@@ -110,7 +110,7 @@ fn assemble_one(drafts: &[&CanvasDraft]) -> Option<Draft> {
     })?;
     let Some(style) = style else {
         return drafts.iter().find_map(|draft| match draft {
-            CanvasDraft::Shape(entity) => Some(Draft::Shape((**entity).clone())),
+            CanvasDraft::Shape(entity) => Some(Draft::Shape(entity.clone())),
             CanvasDraft::Stroke { .. } => None,
         });
     };
