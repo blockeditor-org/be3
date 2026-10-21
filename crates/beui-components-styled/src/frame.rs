@@ -3,8 +3,8 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::{
-    Align2, Child, Corners, Extent, Get, IntoProp, Memo, Outline, Prop, Shadow, Sides,
-    create_memo, focus_ring,
+    Align2, Child, Corners, Extent, Get, IntoProp, Memo, Outline, Prop, Shadow, Sides, create_memo,
+    focus_ring,
 };
 
 use crate::theme::{

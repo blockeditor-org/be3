@@ -33,8 +33,16 @@ impl Pin {
             rect.center().y > within.center().y,
         ];
         let edge = pos2(
-            if from_end[0] { within.max.x } else { within.min.x },
-            if from_end[1] { within.max.y } else { within.min.y },
+            if from_end[0] {
+                within.max.x
+            } else {
+                within.min.x
+            },
+            if from_end[1] {
+                within.max.y
+            } else {
+                within.min.y
+            },
         );
         Self {
             from_end,
@@ -45,8 +53,16 @@ impl Pin {
 
     fn place(self, within: Rect) -> Rect {
         let edge = pos2(
-            if self.from_end[0] { within.max.x } else { within.min.x },
-            if self.from_end[1] { within.max.y } else { within.min.y },
+            if self.from_end[0] {
+                within.max.x
+            } else {
+                within.min.x
+            },
+            if self.from_end[1] {
+                within.max.y
+            } else {
+                within.min.y
+            },
         );
         Rect::from_min_size(edge + self.offset, self.size)
     }

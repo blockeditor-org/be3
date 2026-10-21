@@ -58,10 +58,9 @@ fn a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab() {
         !open.get_untracked(),
         "a press on its own tab closes the card"
     );
-    assert_eq!(
-        pressed.get_untracked(),
-        vec![3],
-        "without reaching the tab"
+    assert_eq!(pressed.get_untracked(), vec![3], "without reaching the tab");
+    assert!(
+        attended.with_untracked(Vec::is_empty),
+        "or calling attention"
     );
-    assert!(attended.with_untracked(Vec::is_empty), "or calling attention");
 }
