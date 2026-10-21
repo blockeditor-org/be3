@@ -1113,8 +1113,8 @@ pub fn Sheet(
     let dragging = create_signal(false);
     let shift = create_signal(HIDDEN_SHIFT);
     let gone = create_signal(true);
+    let present = create_memo(move || !gone.get());
     let sheet_sizing = create_memo(move || match rest_at.get() {
-        _ if gone.get() => ItemSize::Fixed(0.0).into(),
         Rest::Share(share) => ItemSize::Intrinsic.max(share * extent.get()).shrink(1.0),
         Rest::Fitted => ItemSize::Intrinsic.shrink(1.0),
         Rest::Free(height) => ItemSize::Fixed(height).shrink(1.0),
@@ -1185,51 +1185,53 @@ pub fn Sheet(
     });
     view! {
         <List spacing=0.0>
-            <BackHandler
-                @sizing={sheet_sizing}
-                enabled={open}
-                on_gesture={move |gesture: BackGesture| motion.value().back(gesture)}
-            >
-                <Shift @node_ref=&slot by={shifted}>
-                    {panel.call(view! {
-                        <Frame>
-                            <Interactive
-                                scroll_axis={axis}
-                                @node_ref=&catcher
-                                claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                                    motion.value().flinging() && super::scroll::under(&catcher, pos)
-                                }}
-                                on_press={move |_: PointerPress| motion.value().stop_fling()}
-                                on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
-                                on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
-                            >
-                                <List spacing=0.0>
-                                    <Interactive
-                                        @test_id={"sheet.handle"}
-                                        cursor=CursorIcon::ResizeVertical
-                                        scroll_axis={axis}
-                                        on_scroll_drag={move |gesture: DragGesture| motion.value().outside_drag(gesture)}
-                                        on_press={move |press: PointerPress| motion.value().handle_press(press)}
-                                        on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
-                                        on_cancel={move || motion.value().handle_cancel()}
-                                        on_active_change={move |active: bool| motion.value().handle_active(active)}
-                                        children={Some(grip)}
-                                    />
-                                    <Fade edges @sizing={ItemSize::Intrinsic.shrink(1.0)}>
-                                        <Offset
-                                            @node_ref=&content
-                                            fit=true
-                                            on_change={move |value| position.set(Some(value))}
-                                        >
-                                            {children}
-                                        </Offset>
-                                    </Fade>
-                                </List>
-                            </Interactive>
-                        </Frame>
-                    })}
-                </Shift>
-            </BackHandler>
+            <ShowKeepAlive condition={present}>
+                <BackHandler
+                    @sizing={sheet_sizing}
+                    enabled={open}
+                    on_gesture={move |gesture: BackGesture| motion.value().back(gesture)}
+                >
+                    <Shift @node_ref=&slot by={shifted}>
+                        {panel.call(view! {
+                            <Frame>
+                                <Interactive
+                                    scroll_axis={axis}
+                                    @node_ref=&catcher
+                                    claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                                        motion.value().flinging() && super::scroll::under(&catcher, pos)
+                                    }}
+                                    on_press={move |_: PointerPress| motion.value().stop_fling()}
+                                    on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
+                                    on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
+                                >
+                                    <List spacing=0.0>
+                                        <Interactive
+                                            @test_id={"sheet.handle"}
+                                            cursor=CursorIcon::ResizeVertical
+                                            scroll_axis={axis}
+                                            on_scroll_drag={move |gesture: DragGesture| motion.value().outside_drag(gesture)}
+                                            on_press={move |press: PointerPress| motion.value().handle_press(press)}
+                                            on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
+                                            on_cancel={move || motion.value().handle_cancel()}
+                                            on_active_change={move |active: bool| motion.value().handle_active(active)}
+                                            children={Some(grip)}
+                                        />
+                                        <Fade edges @sizing={ItemSize::Intrinsic.shrink(1.0)}>
+                                            <Offset
+                                                @node_ref=&content
+                                                fit=true
+                                                on_change={move |value| position.set(Some(value))}
+                                            >
+                                                {children}
+                                            </Offset>
+                                        </Fade>
+                                    </List>
+                                </Interactive>
+                            </Frame>
+                        })}
+                    </Shift>
+                </BackHandler>
+            </ShowKeepAlive>
         </List>
     }
 }
