@@ -50,7 +50,7 @@ impl ChildHost for CanvasNode {
     }
 
     fn children_changed(&mut self) {
-        self.index.built = false;
+        self.index.stale = true;
     }
 }
 
@@ -96,7 +96,9 @@ impl Cells {
 #[derive(Default)]
 struct ItemIndex {
     built: bool,
+    stale: bool,
     read: u64,
+    listed: Vec<NodeId>,
     order: HashMap<NodeId, usize>,
     held: HashMap<NodeId, Option<Cells>>,
     cells: HashMap<(i32, i32), Vec<NodeId>>,
@@ -109,9 +111,49 @@ impl ItemIndex {
             built: true,
             ..Self::default()
         };
-        for (at, item) in items.iter().enumerate() {
+        self.relist(doc, items);
+    }
+
+    fn relist(&mut self, doc: &Document, items: &ChildList<NodeId>) {
+        self.stale = false;
+        let items: Vec<NodeId> = items.iter().copied().collect();
+        let old = std::mem::take(&mut self.listed);
+        let start = old.iter().zip(&items).take_while(|(a, b)| a == b).count();
+        let end = old[start..]
+            .iter()
+            .rev()
+            .zip(items[start..].iter().rev())
+            .take_while(|(a, b)| a == b)
+            .count();
+        let added = &items[start..items.len() - end];
+        let kept: HashSet<NodeId> = added.iter().copied().collect();
+        for item in &old[start..old.len() - end] {
+            if !kept.contains(item) {
+                self.order.remove(item);
+                self.forget(*item);
+            }
+        }
+        for (at, item) in items.iter().enumerate().skip(start) {
             self.order.insert(*item, at);
-            self.insert(*item, doc.canvas_item_rect(NodeOf::assumed(*item)));
+            if !self.held.contains_key(item) {
+                self.insert(*item, doc.canvas_item_rect(NodeOf::assumed(*item)));
+            }
+        }
+        self.listed = items;
+    }
+
+    fn forget(&mut self, item: NodeId) {
+        match self.held.remove(&item) {
+            Some(Some(held)) => held.each(|cell| {
+                if let Some(items) = self.cells.get_mut(&cell) {
+                    items.retain(|other| *other != item);
+                    if items.is_empty() {
+                        self.cells.remove(&cell);
+                    }
+                }
+            }),
+            Some(None) => self.large.retain(|other| *other != item),
+            None => {}
         }
     }
 
@@ -128,21 +170,10 @@ impl ItemIndex {
         let Some(held) = self.held.get(&item).copied() else {
             return;
         };
-        let cells = Cells::of(rect);
-        if cells == held {
+        if Cells::of(rect) == held {
             return;
         }
-        match held {
-            Some(held) => held.each(|cell| {
-                if let Some(items) = self.cells.get_mut(&cell) {
-                    items.retain(|other| *other != item);
-                    if items.is_empty() {
-                        self.cells.remove(&cell);
-                    }
-                }
-            }),
-            None => self.large.retain(|other| *other != item),
-        }
+        self.forget(item);
         self.insert(item, rect);
     }
 
@@ -261,6 +292,9 @@ impl Element for CanvasNode {
             .and_then(|from| doc.canvas_moves.get(from as usize..));
         match unread {
             Some(moved) if self.index.built => {
+                if self.index.stale {
+                    self.index.relist(doc, &self.items);
+                }
                 for item in moved {
                     if self.index.order.contains_key(item) && doc.arena.contains(*item) {
                         let rect = doc.canvas_item_rect(NodeOf::assumed(*item));
