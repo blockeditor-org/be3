@@ -200,6 +200,7 @@ impl Intake {
                 pressure,
                 pen,
             }),
+            Event::Predicted(pos) => events.push(Event::Predicted(points(pos))),
             Event::Focus(false) => {
                 self.held = 0;
                 self.left = false;

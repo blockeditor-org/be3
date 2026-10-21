@@ -125,8 +125,27 @@ impl InputAdapter {
         zoom: f32,
         output: &mut Vec<InputEvent>,
     ) {
-        let position = (event.pos - rect.min) / zoom;
+        let at = |pos: Pos2| (pos - rect.min) / zoom;
+        let position = at(event.pos);
         let (x, y) = (position.x, position.y);
+        self.pointer_event(event, x, y, zoom, output);
+        if let (PointerPhase::Move, Some(predicted)) = (event.phase, event.predicted) {
+            let predicted = at(predicted);
+            output.push(InputEvent::Predicted {
+                x: predicted.x,
+                y: predicted.y,
+            });
+        }
+    }
+
+    fn pointer_event(
+        &mut self,
+        event: &PointerEvent,
+        x: f32,
+        y: f32,
+        zoom: f32,
+        output: &mut Vec<InputEvent>,
+    ) {
         if let PointerId::Touch(id) = event.pointer {
             let phase = match event.phase {
                 PointerPhase::Down(_) => TouchPhase::Start,

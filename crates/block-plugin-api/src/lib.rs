@@ -2067,6 +2067,10 @@ pub enum InputEvent {
         tilt_y: f32,
         eraser: bool,
     },
+    Predicted {
+        x: f32,
+        y: f32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

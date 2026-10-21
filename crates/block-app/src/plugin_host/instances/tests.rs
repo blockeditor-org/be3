@@ -63,6 +63,7 @@ fn moved(pos: Pos2) -> beui::Forwarded {
             clicks: 0,
             force: None,
             pen: None,
+            predicted: None,
             source: 0,
         },
         over: None,

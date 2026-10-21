@@ -233,6 +233,7 @@ pub fn press_at(
         touch,
         pressure: None,
         pen: None,
+        predicted: None,
     }
 }
 

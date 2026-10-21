@@ -30,6 +30,7 @@ pub struct PointerPress {
     pub touch: bool,
     pub pressure: Option<f32>,
     pub pen: Option<Pen>,
+    pub predicted: Option<Pos2>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -128,6 +129,7 @@ pub enum Event {
         pressure: f32,
         pen: Pen,
     },
+    Predicted(Pos2),
     Zoom(f32),
     Ime(ImeEvent),
     FileHovered,
@@ -165,6 +167,7 @@ impl Event {
                 | Self::ScrollEnded
                 | Self::Touch { .. }
                 | Self::Pen { .. }
+                | Self::Predicted(_)
                 | Self::Zoom(_)
         )
     }
@@ -248,6 +251,7 @@ pub struct PointerEvent {
     pub clicks: u32,
     pub force: Option<f32>,
     pub pen: Option<Pen>,
+    pub predicted: Option<Pos2>,
     pub source: usize,
 }
 
@@ -295,13 +299,15 @@ impl InputState {
                 Event::PointerMoved(pos)
                 | Event::PointerButton { pos, .. }
                 | Event::Touch { pos, .. }
-                | Event::Pen { pos, .. } => *pos = scale(*pos),
+                | Event::Pen { pos, .. }
+                | Event::Predicted(pos) => *pos = scale(*pos),
                 Event::Scroll(delta) => *delta *= factor,
                 _ => {}
             }
         }
         for event in &mut input.pointer_events {
             event.pos = scale(event.pos);
+            event.predicted = event.predicted.map(scale);
             match &mut event.phase {
                 PointerPhase::Scroll(delta) | PointerPhase::ScrollEnded { fling: delta } => {
                     *delta *= factor;
@@ -470,6 +476,7 @@ impl InputState {
                     self.pen = Some(*pen);
                     self.pen_event(*phase, *pos, now);
                 }
+                Event::Predicted(pos) => self.predict(source, *pos),
                 _ => {}
             }
         }
@@ -504,8 +511,19 @@ impl InputState {
             clicks: self.pointer.clicks,
             force: self.force,
             pen: self.pen,
+            predicted: None,
             source: self.source,
         });
+    }
+
+    fn predict(&mut self, source: usize, pos: Pos2) {
+        if let Some(moved) = self
+            .pointer_events
+            .last_mut()
+            .filter(|moved| moved.phase == PointerPhase::Move && moved.source + 1 == source)
+        {
+            moved.predicted = Some(pos);
+        }
     }
 
     fn pen_event(&mut self, phase: PenPhase, pos: Pos2, now: Instant) {

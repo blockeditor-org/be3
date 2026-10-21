@@ -156,6 +156,7 @@ struct Session {
     clicks: u32,
     pressure: Option<f32>,
     pen: Option<Pen>,
+    predicted: Option<Pos2>,
     dragged: bool,
     axis: Option<Direction>,
     drag_target: Option<NodeId>,
@@ -174,6 +175,7 @@ impl Session {
         PointerPress {
             pressure: self.pressure,
             pen: self.pen,
+            predicted: self.predicted,
             ..press_at(rect, pos, self.clicks, self.modifiers, self.kind.finger)
         }
     }
@@ -493,6 +495,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         clicks: event.clicks,
         pressure: event.force,
         pen: event.pen,
+        predicted: None,
         dragged: false,
         axis: None,
         drag_target: None,
@@ -704,6 +707,7 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
             let pos = event.pos + session.shift;
             session.pressure = event.force;
             session.pen = event.pen;
+            session.predicted = event.predicted.map(|predicted| predicted + session.shift);
             follow(doc, frame, session, pos, false);
         });
     }
@@ -888,6 +892,7 @@ fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerBut
     let sink = kind.held_sink(doc, event.pointer).or(session.sink);
     doc.pointers.route(sink);
     let pos = event.pos + session.shift;
+    session.predicted = None;
     follow(doc, frame, &mut session, pos, true);
     end(doc, frame, session, false);
     if let PointerId::Touch(id) = event.pointer {

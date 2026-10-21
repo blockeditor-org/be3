@@ -9,6 +9,7 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Input {
     let at = |x: f32, y: f32| pos2((x + origin.x) * scale, (y + origin.y) * scale);
     match event {
         InputEvent::PointerMoved { x, y } => Event::PointerMoved(at(*x, *y)).into(),
+        InputEvent::Predicted { x, y } => Event::Predicted(at(*x, *y)).into(),
         InputEvent::PointerLeft => Event::PointerGone.into(),
         InputEvent::PointerButton {
             button,

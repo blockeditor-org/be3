@@ -88,6 +88,7 @@ impl Input {
                 tilt_y: pen.tilt.y,
                 eraser: pen.eraser,
             }),
+            Event::Predicted(pos) => output.push(InputEvent::Predicted { x: pos.x, y: pos.y }),
             Event::Key { press, text, .. } => {
                 self.modifiers(press.modifiers, output);
                 match press.key {

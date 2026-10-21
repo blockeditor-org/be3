@@ -1347,6 +1347,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         });
     }
 
+    pub fn predict(&mut self, pos: Pos2) {
+        self.push(Event::Predicted(pos));
+    }
+
     pub fn key_press(&mut self, key: Key) {
         self.key_press_modifiers(Modifiers::NONE, key);
     }
