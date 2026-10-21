@@ -343,7 +343,10 @@ impl beui::App for Shell {
             be::seal_owed();
         }
         wayland::before(context, rect, &mut self.document);
-        self.app.touched = self.document.last_pointer.is_some_and(|pointer| pointer.touch);
+        self.app.touched = self
+            .document
+            .last_pointer
+            .is_some_and(|pointer| pointer.touch);
         self.app.frame(context);
         self.app.sync_ui_settings();
         if let Some(theme) = self.app.theme.take() {

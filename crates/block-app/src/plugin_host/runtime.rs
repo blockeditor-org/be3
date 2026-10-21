@@ -2222,7 +2222,10 @@ pub(crate) fn take_region_actions(
 fn in_host(runtime: &Runtime, instance: EditorInstanceId, anchor: ChildRect) -> Option<Rect> {
     let placed = runtime.placements.get(&(instance, EditorRegion::Frame))?;
     let min = placed.rect.min + vec2(anchor.x, anchor.y) * placed.zoom;
-    let rect = Rect::from_min_size(min, vec2(anchor.width, anchor.height).max(Vec2::ZERO) * placed.zoom);
+    let rect = Rect::from_min_size(
+        min,
+        vec2(anchor.width, anchor.height).max(Vec2::ZERO) * placed.zoom,
+    );
     [rect.min.x, rect.min.y, rect.max.x, rect.max.y]
         .iter()
         .all(|value| value.is_finite())

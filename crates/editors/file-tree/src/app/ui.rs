@@ -206,7 +206,11 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                     />
                 </Toolbar>
                 <Show condition={titled}>
-                    <PhoneTitle on_new_workspace={new_workspace} menu_button={phone_menu} on_menu={app_menu(phone_menu)} />
+                    <PhoneTitle
+                        on_new_workspace={new_workspace}
+                        menu_button={phone_menu}
+                        on_menu={app_menu(phone_menu)}
+                    />
                 </Show>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <BackSlide enabled={swipes} on_back={move || zoom.up()}>

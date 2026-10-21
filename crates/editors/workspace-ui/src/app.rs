@@ -14,7 +14,7 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, Pickers, PickerDialog,
+    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialog, Pickers,
     REVISIONS, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
 };
 

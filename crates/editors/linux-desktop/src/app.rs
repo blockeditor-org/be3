@@ -24,7 +24,7 @@ use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_editor_beui::{Media, Power};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, Pickers, PickerDialog,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialog, Pickers,
     Workspace, WorkspaceDialogs,
 };
 

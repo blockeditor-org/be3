@@ -1,4 +1,3 @@
-use beui::{NodeId, OverlayAnchor, Pos2};
 use beui::icons::{
     ICON_BUG_REPORT, ICON_CHECK, ICON_CONTACTS, ICON_GPP_MAYBE, ICON_GROUP, ICON_INFO, ICON_KEY,
     ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY,
@@ -7,6 +6,7 @@ use beui::icons::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{Container, MenuItem};
+use beui::{NodeId, OverlayAnchor, Pos2};
 use block_plugin_api::HostPanel;
 
 use super::debug::DebugPanels;

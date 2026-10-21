@@ -107,7 +107,10 @@ fn handoffs() -> Handoffs {
     with_document(|document| document.extension_or_insert_with(Handoffs::default))
 }
 
-fn claim(me: Stored<Motion>, wanted: impl Fn(&Handoff) -> Option<Stored<Motion>>) -> Option<Rc<Motion>> {
+fn claim(
+    me: Stored<Motion>,
+    wanted: impl Fn(&Handoff) -> Option<Stored<Motion>>,
+) -> Option<Rc<Motion>> {
     let offered = handoffs().0.take()?;
     let other = wanted(&offered).filter(|other| *other != me)?;
     other.try_value()
