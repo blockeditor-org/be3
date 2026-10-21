@@ -132,7 +132,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 disabled={clear_disabled}
                                 @test_id={"checklist.clear-done"}
                                 on_click={move || {
-                                    if let Some(edit) = checklist.read(|content| content.root().clear_done()) {
+                                    if let Ok(edit) = checklist.read(|content| content.root().clear_done()) {
                                         checklist.operate(edit);
                                     }
                                 }}

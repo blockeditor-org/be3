@@ -49,7 +49,6 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     let formats = format_actions(state);
 
     let hex = state.hex_view;
-    let loaded = state.loaded;
     let text_shown = create_memo(move || !hex.get());
     let hex_shown = create_memo(move || hex.get());
     let text_surface = move || {
@@ -66,12 +65,15 @@ pub fn TextEditor(editor: Editor) -> NodeId {
         <List @node_ref=&content spacing=0.0>
             <EditorMenu state={state} />
             <ImportError state={state} />
-            <Loaded @sizing=ItemSize::Percent(100.0) loaded={loaded} label="Loading the text">
-                <List spacing=0.0>
-                    <Show condition={text_shown} then={text_surface} />
-                    <Show condition={hex_shown} then={hex_surface} />
-                </List>
-            </Loaded>
+            <Loaded @sizing=ItemSize::Percent(100.0) label="Loading the text">|| {
+                editor.block_content::<TextContent>();
+                view! {
+                    <List spacing=0.0>
+                        <Show condition={text_shown} then={text_surface} />
+                        <Show condition={hex_shown} then={hex_surface} />
+                    </List>
+                }
+            }</Loaded>
             <FormatBar state={state} formats />
         </List>
     }

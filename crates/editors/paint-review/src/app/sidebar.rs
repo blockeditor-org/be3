@@ -11,21 +11,15 @@ use block_editor_beui::beui::TextAlign;
 #[component]
 pub(crate) fn PaintingList(review: Review) -> NodeId {
     let entries = create_memo(move || review.entries());
-    let ready = create_memo(move || entries.get().is_some());
-    let waiting = create_memo(move || !ready.get());
-    let empty = create_memo(move || entries.get().is_some_and(|entries| entries.is_empty()));
+    let empty = create_memo(move || entries.with(Vec::is_empty));
     let downloading = review.downloading;
     let searching = create_memo(move || empty.get() && downloading.get());
     let barren = create_memo(move || empty.get() && !downloading.get());
-    let opening = TextColor::Muted;
     let looking = TextColor::Muted;
     let nothing = format!("No paintings on the {BRANCH} branch");
 
     view! {
         <List spacing=8.0>
-            <Show condition={waiting}>
-                <Text style=TextStyle::CAPTION string="Opening the review" color={opening} />
-            </Show>
             <ForEach keys={Status::ALL.to_vec()}>|status: Status|
                 <StatusGroup review entries status />
             </ForEach>
@@ -46,13 +40,12 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
 #[component]
 fn StatusGroup(
     review: Review,
-    entries: block_editor_beui::beui::reactive::Memo<Option<Vec<super::state::Entry>>>,
+    entries: block_editor_beui::beui::reactive::Memo<Vec<super::state::Entry>>,
     status: Status,
 ) -> NodeId {
     let paths = create_memo(move || {
         entries
             .get()
-            .unwrap_or_default()
             .into_iter()
             .filter(|entry| entry.status == status)
             .map(|entry| entry.path)

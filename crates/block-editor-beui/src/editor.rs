@@ -592,6 +592,15 @@ impl Editor {
     }
 
     pub fn raw_block_content(&self) -> ReadSignal<Option<RawContent>> {
+        let raw = self.raw_content();
+        wait_for(move || match raw.with(Option::is_some) {
+            true => Ok(()),
+            false => Err(Pending::Loading),
+        });
+        raw
+    }
+
+    fn raw_content(&self) -> ReadSignal<Option<RawContent>> {
         let state = self.state();
         let cached = state
             .contents
@@ -741,7 +750,10 @@ impl Editor {
                 host.version_known()
             }
         });
-        wait_for(move || if known.get() { Ok(()) } else { Err(Pending::Loading) });
+        wait_for(move || match known.get() {
+            true => Ok(()),
+            false => Err(Pending::Loading),
+        });
         create_memo(move || {
             revision.get();
             host.version_status()
@@ -849,10 +861,15 @@ impl Editor {
     pub fn block_types_known(&self) -> Memo<bool> {
         let host = self.state().host.clone();
         let revision = self.pushed(Pushed::Catalog);
-        create_memo(move || {
+        let known = create_memo(move || {
             revision.get();
             host.block_types_known()
-        })
+        });
+        wait_for(move || match known.get() {
+            true => Ok(()),
+            false => Err(Pending::Loading),
+        });
+        known
     }
 
     pub fn set_intrinsic_size(&self, size: Option<Vec2>) {

@@ -2,13 +2,12 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_beui::BlockList;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
-use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::{BlockFilter, ChildRect, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
@@ -44,7 +43,6 @@ impl TileState {
 
 struct MapInner {
     block: ContentProjection<MapContent>,
-    dependencies: BlockList,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
     used: RefCell<HashMap<TileId, u64>>,
@@ -67,7 +65,7 @@ pub(crate) struct MapState {
     pub(crate) visible_region: Signal<MapRegion>,
     pub(crate) last_error: Signal<Option<String>>,
     pub(crate) import_error: Signal<Option<String>>,
-    pub(crate) labels: Signal<HashMap<Uuid, BlockLabel>>,
+    pub(crate) labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
     pub(crate) revision: Signal<u64>,
     pub(crate) reloads: Signal<u64>,
     pub(crate) anchor: Signal<[f64; 2]>,
@@ -84,7 +82,14 @@ impl MapState {
         let visible_region = create_signal(MapRegion::WORLD);
         let last_error = create_signal(None);
         let import_error = create_signal(None);
-        let labels = create_signal(HashMap::new());
+        let references = editor.watch_blocks(BlockQuery::References(editor.block_id()));
+        let labels = create_memo(move || {
+            let types = editor.block_types();
+            Ok(references.get()?
+                .into_iter()
+                .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
+                .collect())
+        });
         let revision = create_signal(0);
         let reloads = create_signal(0);
         let fit_requested = create_signal(true);
@@ -105,9 +110,6 @@ impl MapState {
             reloads,
             anchor,
             inner: store(MapInner {
-                dependencies: editor
-                    .blocks()
-                    .watch(BlockQuery::References(editor.block_id())),
                 block,
                 worker: RefCell::new(None),
                 tiles: RefCell::new(HashMap::new()),
@@ -127,10 +129,6 @@ impl MapState {
 
     pub(crate) fn block_id(&self) -> Uuid {
         self.editor.block_id()
-    }
-
-    pub(crate) fn types(&self) -> Rc<BlockCatalog> {
-        self.editor.block_types()
     }
 
     pub(crate) fn with_tiles<R>(&self, read: impl FnOnce(&HashMap<TileId, TileState>) -> R) -> R {
@@ -317,8 +315,20 @@ impl MapState {
         }
     }
 
-    pub(crate) fn label_of(&self, block: Uuid) -> Option<BlockLabel> {
-        self.labels.get().get(&block).cloned()
+    pub(crate) fn label_of(&self, block: Uuid) -> Ready<BlockLabel> {
+        self.labels
+            .get()?
+            .get(&block)
+            .cloned()
+            .ok_or(Pending::Loading)
+    }
+
+    pub(crate) fn name_of(&self, block: Uuid) -> String {
+        match self.label_of(block) {
+            Ok(label) => label.name,
+            Err(Pending::Loading) => "Loading…".to_owned(),
+            Err(Pending::Failed(error)) => error,
+        }
     }
 
     pub(crate) fn press(&self, at: Pos2) {
@@ -391,7 +401,6 @@ impl MapState {
             let drop = files.get();
             untrack(|| self.take_files(drop));
         });
-        create_effect(move || self.publish_references());
         if self.preview {
             return;
         }
@@ -446,20 +455,6 @@ impl MapState {
             (available.x / shown.width().max(0.01)).min(available.y / shown.height().max(0.01));
         self.editor.zoom(factor);
         self.editor.pan((clip.center() - shown.center()) * factor);
-    }
-
-    fn publish_references(&self) {
-        let inner = self.inner.value();
-        let types = self.types();
-        let labels: HashMap<Uuid, BlockLabel> = inner
-            .dependencies
-            .read()
-            .into_iter()
-            .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
-            .collect();
-        if self.labels.get_untracked() != labels {
-            self.labels.set(labels);
-        }
     }
 
     fn take_drag(&self, drag: Option<Drag>) {

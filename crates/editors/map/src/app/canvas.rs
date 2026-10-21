@@ -169,13 +169,9 @@ fn PointMarker(
         })
     });
     let label = create_memo(move || {
-        let Some(point) = point.get() else {
-            return String::new();
-        };
-        match state.label_of(point.block_id) {
-            Some(label) => label.name,
-            None => "Loading…".to_owned(),
-        }
+        point
+            .get()
+            .map_or_else(String::new, |point| state.name_of(point.block_id))
     });
     view! {
         <Marker tip={tip} scale={scale} color={color} selected={selected} label={label} />

@@ -80,7 +80,6 @@ pub(crate) enum Shown {
 #[derive(Clone, Copy)]
 pub(crate) struct Review {
     editor: Editor,
-    loaded: ReadSignal<bool>,
     pub(crate) found: Signal<Vec<Painting>>,
     pub(crate) approved: ReadSignal<Vec<ApprovedPainting>>,
     pub(crate) error: Signal<Option<String>>,
@@ -110,7 +109,6 @@ impl Review {
     pub(crate) fn new(editor: Editor, source: Source) -> Self {
         let block = editor.block_content::<PaintReviewContent>();
         let approved = block.project(|review| review.root().approved());
-        let loaded = block.loaded();
         let found = create_signal(Vec::new());
         let error = create_signal(None);
         let selected = create_signal(None);
@@ -124,7 +122,6 @@ impl Review {
         let revision = create_signal(0);
         Self {
             editor,
-            loaded,
             found,
             approved,
             error,
@@ -179,7 +176,7 @@ impl Review {
             self.pending.with(|_| ());
             self.found.with(|_| ());
             editable.with(|_| ());
-            self.inner.with(|inner| inner.block.revision());
+            let _ = self.inner.with(|inner| inner.block.revision());
             untrack(|| self.settle());
         });
         create_effect(move || {
@@ -246,10 +243,7 @@ impl Review {
         self.fetch();
     }
 
-    pub(crate) fn entries(&self) -> Option<Vec<Entry>> {
-        if !self.loaded.get() {
-            return None;
-        }
+    pub(crate) fn entries(&self) -> Vec<Entry> {
         let approvals = self.approved.get();
         let found = self.found.get();
         let mut entries: Vec<Entry> = found
@@ -276,11 +270,11 @@ impl Review {
                 }),
         );
         entries.sort_by(|left, right| left.path.cmp(&right.path));
-        Some(entries)
+        entries
     }
 
     pub(crate) fn status(&self, path: &str) -> Option<Status> {
-        self.entries()?
+        self.entries()
             .into_iter()
             .find(|entry| entry.path == path)
             .map(|entry| entry.status)
@@ -339,7 +333,7 @@ impl Review {
         let Some(painting) = found.iter().find(|found| found.path == path) else {
             return true;
         };
-        let Some(approved) = inner.block.read(|review| {
+        let Ok(approved) = inner.block.read(|review| {
             review
                 .root()
                 .approval(path)
@@ -413,7 +407,10 @@ impl Review {
                 self.editor
                     .content_of::<PaintSnapshotContent>(id)
                     .read(|snapshot| snapshot.data().to_vec())
-                    .ok_or(None)
+                    .map_err(|pending| match pending {
+                        Pending::Loading => None,
+                        Pending::Failed(error) => Some(error),
+                    })
             }
             _ => self
                 .found

@@ -34,18 +34,16 @@ pub struct PixelArtApp;
 
 impl block_editor_beui::BeuiApp for PixelArtApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::PixelArtContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <PixelArtEditor editor={editor} />
             </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::PixelArtContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <PixelArtPreview editor={editor} />
             </Loaded>
         }

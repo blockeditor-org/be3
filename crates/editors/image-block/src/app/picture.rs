@@ -40,7 +40,7 @@ pub(crate) fn watch(editor: Editor, block: ContentProjection<ImageContent>) -> M
             shown.set(cached.clone());
             return;
         }
-        let Some(result) = block.read(|image| crate::decode::decode(image.data())) else {
+        let Ok(result) = block.read(|image| crate::decode::decode(image.data())) else {
             return;
         };
         let (found, decoded_shown) = match result {
@@ -85,7 +85,7 @@ pub(crate) fn watch(editor: Editor, block: ContentProjection<ImageContent>) -> M
 pub(crate) fn thumbhash(editor: Editor) -> Memo<Option<Thumbhash>> {
     let info = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
     create_memo(move || {
-        info.get()?
+        info.get().ok()?
             .into_iter()
             .next()
             .and_then(|info| info.thumbhash())

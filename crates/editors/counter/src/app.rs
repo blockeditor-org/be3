@@ -13,9 +13,8 @@ pub struct CounterApp;
 
 impl block_editor_beui::BeuiApp for CounterApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::CounterContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <Counter editor={editor} />
             </Loaded>
         }

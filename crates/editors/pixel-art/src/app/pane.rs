@@ -65,7 +65,7 @@ impl Pane {
         pixels: &[(u16, u16)],
         color: PixelColor,
     ) {
-        let Some(revision) = block.revision() else {
+        let Ok(revision) = block.revision() else {
             return;
         };
         let cells = self.cells.value();

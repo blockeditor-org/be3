@@ -206,7 +206,7 @@ impl RayState {
         inner
             .block
             .read()
-            .map_or_else(RaySettings::default, |scene| match view {
+            .map_or_else(|_| RaySettings::default(), |scene| match view {
                 true => scene.view_ray_settings(),
                 false => scene.lighting_ray_settings(),
             })
@@ -536,7 +536,7 @@ impl RayState {
             self.tool.with(|_| ());
             self.selected.with(|_| ());
             self.color_index.with(|_| ());
-            self.inner.with(|inner| inner.block.content.revision());
+            let _ = self.inner.with(|inner| inner.block.content.revision());
             untrack(|| self.settle());
         });
     }
@@ -575,7 +575,7 @@ impl RayState {
 
     fn settle_lighting(&self) {
         let inner = self.inner.value();
-        let Some(scene) = inner.block.read() else {
+        let Ok(scene) = inner.block.read() else {
             return;
         };
         let key = LightingKey {
@@ -657,7 +657,7 @@ impl RayState {
             return;
         };
         self.land_rays();
-        let Some(scene) = inner.block.read() else {
+        let Ok(scene) = inner.block.read() else {
             return;
         };
         let settings = scene.view_ray_settings();
@@ -829,11 +829,11 @@ impl Scenes {
         }
     }
 
-    fn read(&self) -> Option<Snapshot> {
+    fn read(&self) -> Ready<Snapshot> {
         let revision = self.content.revision()?;
         let mut cached = self.cached.borrow_mut();
         if let Some(held) = cached.as_ref().filter(|held| held.revision == revision) {
-            return Some(held.clone());
+            return Ok(held.clone());
         }
         let scene = Rc::new(self.content.read(|content| content.root().scene())?);
         let lighting_revision = match cached.as_ref() {
@@ -853,11 +853,11 @@ impl Scenes {
             lighting_revision,
         };
         *cached = Some(snapshot.clone());
-        Some(snapshot)
+        Ok(snapshot)
     }
 
     fn operate(&self, operation: PixelRayTracerOperation) {
-        let Some(edit) = self
+        let Ok(edit) = self
             .content
             .read(|content| content.root().edit_for(&operation))
         else {
