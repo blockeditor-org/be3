@@ -48,7 +48,7 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
         "the panel reaches the top of the window, with no title bar above it"
     );
 
-    let grip = pos2(tab.left() + 8.0, tab.top() - 16.0);
+    let grip = grip_nearest(&harness, dock, pos2(tab.left(), tab.top()));
     harness.frame(vec![Event::PointerMoved(grip)]);
     harness.frame(vec![Event::PointerButton {
         pos: grip,

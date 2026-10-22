@@ -158,8 +158,7 @@ pub struct DockStackHandle {
     pub backward: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
-    pub others: Memo<usize>,
-    pub switchable: Memo<bool>,
+    pub closable_tabs: Memo<usize>,
     pub switch_label: Memo<String>,
     pub open_switcher: ClickCallback,
 }
@@ -366,6 +365,7 @@ struct State {
     offers: Signal<HashMap<TabId, u64>>,
     thickness: f32,
     reach: f32,
+    tab_bleed: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
@@ -1143,6 +1143,7 @@ pub(crate) struct DockConfig {
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
     pub(crate) splitter_thickness: f32,
     pub(crate) splitter_reach: f32,
+    pub(crate) tab_bleed: f32,
     pub(crate) group_inset: f32,
     pub(crate) inset: Prop<f32>,
     pub(crate) tab: RenderFn<DockTabHandle>,
@@ -1185,6 +1186,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         drag_modifier,
         splitter_thickness,
         splitter_reach,
+        tab_bleed,
         group_inset,
         inset,
         tab,
@@ -1262,6 +1264,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 remembered: store(RefCell::default()),
                 thickness: splitter_thickness,
                 reach: splitter_reach,
+                tab_bleed,
                 group_inset,
                 rect: dock_rect,
                 panes: store(RefCell::default()),
@@ -1525,21 +1528,12 @@ fn stack_handle(
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
     let closable = dock.closable;
-    let others = create_memo(move || {
-        let shown = shown.get();
-        tabs.with(|tabs| {
-            tabs.iter()
-                .filter(|tab| Some(**tab) != shown && closable.call(**tab))
-                .count()
-        })
+    let closable_tabs = create_memo(move || {
+        tabs.with(|tabs| tabs.iter().filter(|tab| closable.call(**tab)).count())
     });
-    let switchable = create_memo(move || {
-        let shown = shown.get();
-        tabs.with(|tabs| tabs.iter().any(|tab| Some(*tab) != shown))
-    });
-    let switch_label = create_memo(move || match others.get() {
-        1 => "1 other open tab".to_owned(),
-        count => format!("{count} other open tabs"),
+    let switch_label = create_memo(move || match closable_tabs.get() {
+        1 => "1 open tab".to_owned(),
+        count => format!("{count} open tabs"),
     });
     DockStackHandle {
         title,
@@ -1547,8 +1541,7 @@ fn stack_handle(
         backward,
         menu,
         back: ClickCallback::new(move || dock.go_back()),
-        others,
-        switchable,
+        closable_tabs,
         switch_label,
         open_switcher: ClickCallback::new(move || switching.set(true)),
     }
@@ -2080,8 +2073,12 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let state = dock.state;
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let selected = create_memo(move || Some(state.with(|state| state.active_index(leaf))));
+    let bleed = match vertical {
+        true => Sides::horizontal(dock.tab_bleed),
+        false => Sides::vertical(dock.tab_bleed),
+    };
     view! {
-        <Scroll direction @node_ref=&strip>
+        <Scroll direction bleed @node_ref=&strip>
             <Choice
                 @node_ref=&tab_list
                 options={view! {

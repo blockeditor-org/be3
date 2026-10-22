@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::focus_ring::FocusRing;
-use crate::text::{Icon, Text, TextColor, TextSize, TextStyle, TextStyleProvider};
+use crate::text::{Icon, Text, TextColor};
 use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_core::base::{ItemSize, TextAlign};
@@ -15,32 +15,7 @@ use beui_view::reactive::*;
 const GLYPH_SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 16.0;
 const PADDING_VERTICAL: f32 = 9.0;
-const COMPACT_PADDING_HORIZONTAL: f32 = 10.0;
-const COMPACT_PADDING_VERTICAL: f32 = 5.0;
 const FOCUS_RING_OFFSET: f32 = 6.0;
-
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub enum ButtonSize {
-    #[default]
-    Regular,
-    Compact,
-}
-
-impl ButtonSize {
-    fn padding(self) -> (f32, f32) {
-        match self {
-            ButtonSize::Regular => (PADDING_HORIZONTAL, PADDING_VERTICAL),
-            ButtonSize::Compact => (COMPACT_PADDING_HORIZONTAL, COMPACT_PADDING_VERTICAL),
-        }
-    }
-
-    fn text(self) -> TextStyle {
-        match self {
-            ButtonSize::Regular => TextStyle::new(),
-            ButtonSize::Compact => TextStyle::new().size(TextSize::Sm),
-        }
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ButtonVariant {
@@ -92,7 +67,6 @@ impl ButtonVariant {
 pub fn Button(
     #[prop(default = String::new())] label: Prop<String>,
     variant: Prop<ButtonVariant>,
-    #[prop(default = ButtonSize::Regular)] size: ButtonSize,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
@@ -101,7 +75,7 @@ pub fn Button(
 ) -> NodeId {
     view! {
         <unstyled::Button label glyph action disabled focused on_click={on_click}>|handle|
-            <ButtonFace handle variant size />
+            <ButtonFace handle variant />
         </unstyled::Button>
     }
 }
@@ -110,7 +84,6 @@ pub fn Button(
 pub fn ButtonFace(
     handle: unstyled::ButtonHandle,
     variant: Prop<ButtonVariant>,
-    #[prop(default = ButtonSize::Regular)] size: ButtonSize,
     #[prop(default = String::new())] trailing_glyph: Prop<String>,
     #[prop(default = false)] icon_only: Prop<bool>,
 ) -> NodeId {
@@ -136,12 +109,10 @@ pub fn ButtonFace(
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || !trailing.get().is_empty());
     let labelled = create_memo(move || !icon_only.get());
-    let (horizontal, vertical) = size.padding();
     let padding = create_memo(move || match icon_only.get() {
-        true => Sides::symmetric(vertical, vertical),
-        false => Sides::symmetric(horizontal, vertical),
+        true => Sides::symmetric(PADDING_VERTICAL, PADDING_VERTICAL),
+        false => Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL),
     });
-    let text = size.text();
     view! {
         <FocusRing focused radius={Radius::custom(Radius::Md.px() + 4.0)} offset=FOCUS_RING_OFFSET>
             <Frame
@@ -150,30 +121,28 @@ pub fn ButtonFace(
                 radius=Radius::Md
                 padding={padding}
             >
-                <TextStyleProvider style={text}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
-                        <Show condition={has_glyph}>
-                            <Text color={label_color} align=TextAlign::Center>
-                                <Icon glyph={glyph} />
-                            </Text>
-                        </Show>
-                        <Show condition={labelled}>
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                color={label_color}
-                                align=TextAlign::Center
-                                ellipsis=true
-                            >
-                                {label}
-                            </Text>
-                        </Show>
-                        <Show condition={has_trailing}>
-                            <Text color={label_color} align=TextAlign::Center>
-                                <Icon glyph={trailing} />
-                            </Text>
-                        </Show>
-                    </List>
-                </TextStyleProvider>
+                <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
+                    <Show condition={has_glyph}>
+                        <Text color={label_color} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
+                    </Show>
+                    <Show condition={labelled}>
+                        <Text
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            color={label_color}
+                            align=TextAlign::Center
+                            ellipsis=true
+                        >
+                            {label}
+                        </Text>
+                    </Show>
+                    <Show condition={has_trailing}>
+                        <Text color={label_color} align=TextAlign::Center>
+                            <Icon glyph={trailing} />
+                        </Text>
+                    </Show>
+                </List>
             </Frame>
         </FocusRing>
     }

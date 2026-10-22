@@ -73,6 +73,11 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
         !laid_out(&harness, "dock.back"),
         "the first tab shown has nowhere to go back to"
     );
+    assert_eq!(
+        count(&harness),
+        "0",
+        "the switcher shows even with nothing to close, and counts no tab that cannot be closed"
+    );
 
     open.update(|open| open.push(2));
     harness.settle();
@@ -85,8 +90,8 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     );
     assert_eq!(
         count(&harness),
-        "1",
-        "the count leaves out the tab on show and the tab that cannot be closed"
+        "2",
+        "the count takes in every tab that can be closed, the one on show too"
     );
     let action = harness.rect(harness.find("dock.pin.action.3"));
     let content = harness.rect(harness.find("content.3"));

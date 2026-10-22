@@ -5,9 +5,9 @@ use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::sheet::ModalSheet;
 use beui_macros::{component, view};
 
-use crate::button::{Button, ButtonSize, ButtonVariant};
+use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
-use crate::icon_button::{IconButton, IconButtonSize};
+use crate::icon_button::IconButton;
 use crate::menu_button::IconMenuButton;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
@@ -34,9 +34,10 @@ use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
-const TAB_HEIGHT: f32 = 33.0;
+const TAB_HEIGHT: f32 = 40.0;
+const TAB_RING_ROOM: f32 = 6.0;
 const TAB_SPACING: f32 = 6.0;
-const BAR_PADDING: f32 = 4.0;
+const BAR_PADDING: f32 = TAB_RING_ROOM;
 const BAR_SPACING: f32 = 4.0;
 const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
@@ -87,6 +88,7 @@ where
             drag_modifier
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
+            tab_bleed=TAB_RING_ROOM
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
@@ -287,7 +289,6 @@ fn DockTabChrome(
                         @test_id={close_test_id.clone()}
                         glyph=ICON_CLOSE
                         label="Close tab"
-                        size=IconButtonSize::Compact
                         variant=ButtonVariant::Ghost
                         capture_presses=true
                         on_click={close}
@@ -444,7 +445,6 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                                 @test_id={format!("dock.dialog.{}.close", tab.value())}
                                 glyph=ICON_CLOSE
                                 label="Close"
-                                size=IconButtonSize::Compact
                                 variant=ButtonVariant::Ghost
                                 capture_presses=true
                                 on_click={close}
@@ -566,11 +566,7 @@ fn DockSideBar(
 }
 
 #[component]
-pub(crate) fn DockMenu(
-    menu: Memo<Vec<MenuNode>>,
-    #[prop(default = IconButtonSize::Compact)] size: IconButtonSize,
-    #[prop(default = false)] labels: bool,
-) -> NodeId {
+pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, #[prop(default = false)] labels: bool) -> NodeId {
     let pins = create_memo(move || menu.with(|nodes| pinned(nodes)));
     let keys =
         create_memo(move || pins.with(|pins| pins.iter().map(Action::key).collect::<Vec<_>>()));
@@ -582,7 +578,7 @@ pub(crate) fn DockMenu(
                 let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
                 match action {
                     Some(action) => view! {
-                        <DockPin action size labels />
+                        <DockPin action labels />
                     },
                     None => view! {
                         <Frame />
@@ -594,7 +590,6 @@ pub(crate) fn DockMenu(
                     @test_id={"dock.menu"}
                     label="More"
                     glyph=ICON_MORE_VERT
-                    size
                     items={view! {
                         <MenuNodes nodes={rest} test_prefix={"dock.menu".to_owned()} />
                     }}
@@ -605,19 +600,14 @@ pub(crate) fn DockMenu(
 }
 
 #[component]
-fn DockPin(action: Action, size: IconButtonSize, labels: bool) -> NodeId {
+fn DockPin(action: Action, labels: bool) -> NodeId {
     let id = format!("dock.pin.{}", action.id());
     match labels && action.pinned() == Some(Pin::Label) {
         true => view! {
-            <Button
-                @test_id={id}
-                action={action}
-                variant=ButtonVariant::Primary
-                size=ButtonSize::Compact
-            />
+            <Button @test_id={id} action={action} variant=ButtonVariant::Primary />
         },
         false => view! {
-            <IconButton @test_id={id} action={action} variant=ButtonVariant::Ghost size />
+            <IconButton @test_id={id} action={action} variant=ButtonVariant::Ghost />
         },
     }
 }
@@ -656,7 +646,6 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListC
                 <IconButton
                     glyph=ICON_CLOSE
                     label="Close pane"
-                    size=IconButtonSize::Compact
                     variant=ButtonVariant::Ghost
                     capture_presses=true
                     on_click={close}

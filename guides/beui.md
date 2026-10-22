@@ -1797,8 +1797,8 @@ the state is kept, so widening it tiles the layout again. The dock picks the mod
 from its own width (the unstyled `Docking` stacks below its `stack_below`), and
 `DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
-square counting the other tabs that can be closed, shown while any other tab
-exists (so it can read 0), which opens a sheet to show or close them
+square counting the open tabs that can be closed, the one on show included, always shown
+(so it reads 0 while only tabs like Files are open), which opens a sheet to show or close them
 (a card for each tab with a close button, from the one shown last, and below
 them a row for each tab without one, such as the workspace's Files and
 Settings, in layout order), and a back button while `DockState::back` has somewhere to go, which
@@ -1813,7 +1813,7 @@ tab bar or at the top of its sidebar, and so does a window. An action built with
 `.pin(Pin::Icon)` or `.pin(Pin::Label)` leaves the More menu and sits in the bar
 beside it, in every mode: `Pin::Label` shows its label in a tiled tab bar
 (the workspace's Share) and an icon where there is less room, the stacked bar and
-a sidebar. Pinning is how a tab puts its few most used controls in reach without
+a sidebar. The bar's controls are regular-sized buttons, and a tab's close button too. Pinning is how a tab puts its few most used controls in reach without
 giving the dock a node; everything else stays in the menu, and the tab keeps the
 rest of its page for its own toolbar. A menu is a list of
 actions rather than a node, so a dock that lays out tabs built somewhere else

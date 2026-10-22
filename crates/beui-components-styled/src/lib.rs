@@ -69,7 +69,7 @@ pub use beui_view::primitives::{
     SystemBars, TextItem, Turn, VirtualList,
 };
 pub use border::{Bordered, Separator};
-pub use button::{Button, ButtonSize, ButtonVariant};
+pub use button::{Button, ButtonVariant};
 pub use calendar::Calendar;
 pub use card::Card;
 pub use checkbox::Checkbox;
