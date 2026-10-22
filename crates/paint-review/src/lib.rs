@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use beui::reactive::*;
 use beui::styled::*;
+use beui::unstyled::{Container, DockMode, DockPane, DockSplit, DockTab, narrower_than};
 use beui::{Context, Document, Key, KeyPress, NodeId, Rect};
 
 mod images;
@@ -17,7 +18,7 @@ use painting::PaintingView;
 use review::{Mode, Review};
 use sidebar::PaintingList;
 
-const SIDEBAR_WIDTH: f32 = 300.0;
+const NARROW_WIDTH: f32 = 700.0;
 const MESSAGE_SPACING: f32 = 8.0;
 const MESSAGE_PADDING: f32 = 24.0;
 
@@ -44,7 +45,13 @@ impl PaintReviewApp {
             document: build(move || {
                 view! {
                     <Root title="Paintings" clear_color=ColorRole::Background>
-                        <PaintReview manifest={shown} images={table} painting={painting} />
+                        <Container>|_|
+                            <PaintReview
+                                manifest={shown}
+                                images={table}
+                                painting={painting.clone()}
+                            />
+                        </Container>
                     </Root>
                 }
             }),
@@ -74,7 +81,18 @@ fn PaintReview(
     images: Images,
     painting: Prop<Option<String>>,
 ) -> NodeId {
-    let review = Review::new(manifest, images, painting.get_untracked());
+    let initial = painting.get_untracked();
+    let focus = if initial.is_some() { 2u64 } else { 1u64 };
+    let review = Review::new(manifest, images, initial);
+    let narrow = narrower_than(NARROW_WIDTH);
+    let mode = create_memo(move || {
+        if narrow.get() {
+            DockMode::Stacked
+        } else {
+            DockMode::Tiled
+        }
+    });
+    let layout = review.layout;
     on_shortcut(move |press: KeyPress| shortcut(review, press));
     let loading = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Loading)));
     let failure = create_memo(move || match manifest.get() {
@@ -120,17 +138,20 @@ fn PaintReview(
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <List
-                        @sizing=ItemSize::Percent(100.0)
-                        direction=Direction::Horizontal
-                        spacing=0.0
-                    >
-                        <Frame @sizing={ItemSize::Fixed(SIDEBAR_WIDTH)} fill=ColorRole::Surface>
-                            <PaintingList review={review} />
-                        </Frame>
-                        <Separator direction=Direction::Vertical />
-                        <PaintingView @sizing=ItemSize::Percent(100.0) review={review} />
-                    </List>
+                    <Docking @sizing=ItemSize::Percent(100.0) layout mode focus>
+                        <DockSplit id="review" fraction=0.28>
+                            <DockPane id="paintings">
+                                <DockTab id=1u64 title="Paintings">
+                                    <PaintingList review={review} />
+                                </DockTab>
+                            </DockPane>
+                            <DockPane id="painting">
+                                <DockTab id=2u64 title="Painting">
+                                    <PaintingView review={review} />
+                                </DockTab>
+                            </DockPane>
+                        </DockSplit>
+                    </Docking>
                 </Show>
             </List>
         </Frame>

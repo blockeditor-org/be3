@@ -11,6 +11,7 @@ use sha2::{Digest as _, Sha256};
 const ROOT: &str = "PREVIEW_ROOT";
 const MAX_FRAMES: usize = 500;
 const MAX_LISTED: usize = 100;
+const MAX_INLINE_FRAMES: usize = 30;
 
 pub fn generate(
     before: &Path,
@@ -106,6 +107,7 @@ pub fn generate(
             "{omitted} frames past the first {MAX_FRAMES} were not drawn.\n"
         );
     }
+    let mut inline_frames = 0;
     for painting in manifest.paintings.iter().take(MAX_LISTED) {
         let name = match &page {
             Some(page) => format!("[`{0}`]({page}&painting={0})", painting.name),
@@ -122,9 +124,53 @@ pub fn generate(
             detail => format!(": {}", escaped(&detail.replace('\n', " "))),
         };
         let _ = writeln!(comment, "- {name} {status}{detail}");
+        if !painting.frames.is_empty() && inline_frames < MAX_INLINE_FRAMES {
+            let _ = writeln!(
+                comment,
+                "\n<details{}><summary>Preview</summary>\n\n<table><tr><th>Frame</th><th>Before</th><th>After</th><th>Changes</th></tr>",
+                if total <= 5 { " open" } else { "" }
+            );
+            for frame in &painting.frames {
+                if inline_frames >= MAX_INLINE_FRAMES {
+                    break;
+                }
+                inline_frames += 1;
+                let _ = write!(comment, "<tr><td>{}</td>", frame.number);
+                for (label, hash) in [
+                    ("Before", &frame.before),
+                    ("After", &frame.after),
+                    ("Changes", &frame.changes),
+                ] {
+                    match hash {
+                        Some(hash) => {
+                            let _ = write!(
+                                comment,
+                                "<td><img alt=\"{label}\" src=\"{ROOT}/{hash}.png\" width=\"320\"></td>"
+                            );
+                        }
+                        None => comment.push_str("<td></td>"),
+                    }
+                }
+                comment.push_str("</tr>\n");
+            }
+            comment
+                .push_str("</table>\n\nMagenta marks every pixel that differs.\n\n</details>\n\n");
+        }
     }
     if total > MAX_LISTED {
         let _ = writeln!(comment, "- and {} more", total - MAX_LISTED);
+    }
+    let available_frames: usize = manifest
+        .paintings
+        .iter()
+        .map(|painting| painting.frames.len())
+        .sum();
+    if available_frames > inline_frames {
+        let _ = writeln!(
+            comment,
+            "\n{} more frames are available on the review page; inline previews stop at {MAX_INLINE_FRAMES} frames.",
+            available_frames - inline_frames
+        );
     }
     println!("{total} paintings differ");
     Ok(comment)
