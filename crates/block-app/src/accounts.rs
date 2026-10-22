@@ -85,15 +85,17 @@ pub(crate) async fn create_local_profile(
     server_url: String,
     display_name: String,
 ) -> Result<Session, AccountError> {
-    let connection = Connection::connect(&socket_url(&server_url)).await?;
-    session_of(
+    let connection = crate::link::connect(&server_url).await?;
+    let session = session_of(
         connection
             .request(|request| ClientMessage::CreateLocalProfile {
                 request,
                 display_name,
             })
             .await?,
-    )
+    )?;
+    crate::link::adopt(&server_url, &session.token, session.account, connection).await;
+    Ok(session)
 }
 
 pub(crate) async fn browser_login(
@@ -103,7 +105,7 @@ pub(crate) async fn browser_login(
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<Session, String> {
     let login = async {
-        let mut connection = Connection::connect(&socket_url(&server_url))
+        let mut connection = crate::link::connect(&server_url)
             .await
             .map_err(|error| error.to_string())?;
         let mut events = connection.subscribe();
@@ -122,7 +124,7 @@ pub(crate) async fn browser_login(
             if !approval_pushed(&mut events, connection.closed()).await {
                 connection = loop {
                     crate::be::sleep(std::time::Duration::from_secs(2)).await;
-                    match Connection::connect(&socket_url(&server_url)).await {
+                    match crate::link::connect(&server_url).await {
                         Ok(connection) => break connection,
                         Err(ClientError::Disconnected(_)) => {}
                         Err(error) => return Err(error.to_string()),
@@ -139,7 +141,12 @@ pub(crate) async fn browser_login(
                 .await
             {
                 Ok(ServerMessage::Ok { .. }) | Err(ClientError::Disconnected(_)) => {}
-                Ok(response) => return session_of(response).map_err(|error| error.to_string()),
+                Ok(response) => {
+                    let session = session_of(response).map_err(|error| error.to_string())?;
+                    crate::link::adopt(&server_url, &session.token, session.account, connection)
+                        .await;
+                    return Ok(session);
+                }
                 Err(error) => return Err(error.to_string()),
             }
         }
@@ -177,15 +184,12 @@ async fn authenticated(
     server_url: &str,
     token: String,
 ) -> Result<std::sync::Arc<Connection>, AccountError> {
-    let connection = Connection::connect(&socket_url(server_url)).await?;
-    connection
-        .request(|request| ClientMessage::Authenticate { request, token })
-        .await?;
-    Ok(connection)
+    Ok(crate::link::signed_in(server_url, &token).await?.connection)
 }
 
 pub(crate) async fn logout(server_url: String, token: String) -> Result<(), AccountError> {
-    let connection = authenticated(&server_url, token).await?;
+    let connection = authenticated(&server_url, token.clone()).await?;
+    crate::link::forget(&server_url, &token).await;
     connection
         .request(|request| ClientMessage::Logout { request })
         .await?;
@@ -395,13 +399,11 @@ pub(crate) struct Keys {
 }
 
 pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
-    let connection = Connection::connect(&socket_url(&server_url)).await?;
-    let ServerMessage::Authenticated { account, .. } = connection
-        .request(|request| ClientMessage::Authenticate { request, token })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
+    let crate::link::Link {
+        connection,
+        account,
+        ..
+    } = crate::link::signed_in(&server_url, &token).await?;
     let ServerMessage::RecoveryKey {
         public,
         sealed,

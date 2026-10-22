@@ -358,6 +358,10 @@ pub enum ClientMessage {
         request: u64,
         organization: Uuid,
     },
+    ReadEscrows {
+        request: u64,
+        organization: Uuid,
+    },
     Invite {
         request: u64,
         invitation: Uuid,
@@ -686,6 +690,7 @@ impl ClientMessage {
             | Self::ListOrganizations { request }
             | Self::CreateOrganization { request, .. }
             | Self::OpenOrganization { request, .. }
+            | Self::ReadEscrows { request, .. }
             | Self::PutObjects { request, .. }
             | Self::GetObject { request, .. }
             | Self::MissingObjects { request, .. }
@@ -780,6 +785,12 @@ pub enum ServerMessage {
         organization: Uuid,
         role: OrganizationRole,
         kind: OrganizationKind,
+        escrows: Vec<EscrowKey>,
+        #[serde(with = "serde_bytes")]
+        pinned: Vec<u8>,
+    },
+    Escrows {
+        request: u64,
         escrows: Vec<EscrowKey>,
         #[serde(with = "serde_bytes")]
         pinned: Vec<u8>,
@@ -920,6 +931,7 @@ impl ServerMessage {
             | Self::Organizations { request, .. }
             | Self::Invitation { request, .. }
             | Self::OrganizationOpened { request, .. }
+            | Self::Escrows { request, .. }
             | Self::Stored { request, .. }
             | Self::Contents { request, .. }
             | Self::Object { request, .. }

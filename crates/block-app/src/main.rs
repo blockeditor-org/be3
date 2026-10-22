@@ -16,6 +16,7 @@ mod host;
 mod input;
 mod invite_link;
 mod keys;
+mod link;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod media;

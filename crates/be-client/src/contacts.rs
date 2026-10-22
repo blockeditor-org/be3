@@ -63,10 +63,10 @@ pub async fn verified_escrow(
     identity: &RecoverySecret,
     organization: Uuid,
 ) -> Result<Option<EscrowKey>, ClientError> {
-    let ServerMessage::OrganizationOpened {
+    let ServerMessage::Escrows {
         escrows, pinned, ..
     } = connection
-        .request(|request| ClientMessage::OpenOrganization {
+        .request(|request| ClientMessage::ReadEscrows {
             request,
             organization,
         })

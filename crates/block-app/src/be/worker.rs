@@ -912,8 +912,8 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             return Outcome::Lost;
         }
     };
-    let peer = match connect(config, store).await {
-        Ok(peer) => {
+    let (peer, _open) = match connect(config, store).await {
+        Ok((peer, open)) => {
             let resolving = Arc::clone(shared);
             peer.set_resolver(Arc::new(move |block, references| {
                 let held = resolving.lock().unwrap_or_else(PoisonError::into_inner);
@@ -931,7 +931,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     })
                     .collect()
             }));
-            Arc::new(peer)
+            (Arc::new(peer), open)
         }
         Err(error) => {
             fail(shared, error.to_string());
@@ -2302,8 +2302,16 @@ struct Published {
     content: Option<PublishedContent>,
 }
 
-async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientError> {
-    Peer::connect(
+async fn connect(
+    config: &Config,
+    store: Store,
+) -> Result<(Peer<Store>, tokio::sync::OwnedMutexGuard<()>), ClientError> {
+    let link = crate::link::signed_in(&config.server_url, &config.token).await?;
+    let open = link.open_organization().await;
+    let peer = Peer::signed_in(
+        link.connection,
+        link.account,
+        config.token.clone(),
         PeerConfig::new(
             config.socket_url(),
             be_keys::RecoverySecret::from_bytes(config.identity),
@@ -2312,7 +2320,8 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
         .organization(Some(config.organization)),
         store,
     )
-    .await
+    .await?;
+    Ok((peer, open))
 }
 
 fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
