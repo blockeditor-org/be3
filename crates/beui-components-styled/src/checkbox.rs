@@ -9,7 +9,6 @@ use crate::text::{Text, TextColor};
 use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -94,8 +93,8 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     }
 }
 
-pub fn checkbox_checked(document: &Document, checkbox: NodeId) -> bool {
-    unstyled::toggle_checked(document, checkbox).get()
+pub fn checkbox_checked(tree: &impl Inspect, checkbox: NodeId) -> bool {
+    unstyled::toggle_checked(tree, checkbox).get()
 }
 
 fn box_fill(theme: &ThemeStore, disabled: bool, checked: bool, hovered: bool) -> Color32 {

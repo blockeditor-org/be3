@@ -18,7 +18,7 @@ fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
     harness.frame(Vec::new());
     let window = dock_state(harness.document(), dock).windows()[0];
     let floated = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
-    let accent = harness.document().theme().accent;
+    let accent = Theme::of(harness.document().preferences().theme).accent;
 
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     let over = pos2(floated.right() + 20.0, floated.center().y);

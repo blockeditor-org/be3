@@ -92,7 +92,7 @@ fn choice_at<V: Copy>(choices: &[V], index: Option<usize>) -> Option<V> {
 pub fn PreferencesSection(
     #[prop(default = String::from("Appearance"))] title: Prop<String>,
 ) -> NodeId {
-    let layers = with_document(|document| document.watch_preference_layers());
+    let layers = use_preference_layers();
     let app = create_memo(move || layers.get().layer(PreferenceSource::App));
     let inherited = create_memo(move || layers.get().below(PreferenceSource::App).resolve());
     let developer = create_memo(move || layers.get().layer(PreferenceSource::Developer));
@@ -173,10 +173,5 @@ fn overridden(by_developer: Memo<bool>) -> Memo<String> {
 }
 
 fn change_app_layer(change: impl FnOnce(PreferenceLayer) -> PreferenceLayer) {
-    with_document(|document| {
-        if let Some(context) = document.context() {
-            let layer = context.preference_layer(PreferenceSource::App);
-            context.set_preference_layer(PreferenceSource::App, change(layer));
-        }
-    });
+    update_preference_layer(PreferenceSource::App, change);
 }

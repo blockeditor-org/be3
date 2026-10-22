@@ -5,7 +5,6 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::text::TextNode;
 use beui_core::base::{Align, ItemSize};
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId, TextAlign};
@@ -423,10 +422,7 @@ fn RowText(
             && text.borrow().is_none()
             && let Some(id) = node.try_get()
         {
-            *text.borrow_mut() = with_document(|document| {
-                let text = document.arena.kind_of::<TextNode>(id)?;
-                Some(document.text_geometry(text))
-            });
+            *text.borrow_mut() = text_geometry(id);
         }
     });
     let keys = create_memo(move || piece_keys(&model.get(), layer));

@@ -1,7 +1,6 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{CursorIcon, Key, PointerPress};
 use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
@@ -249,13 +248,13 @@ pub fn NumberInput(
     }
 }
 
-pub fn number_input_field(document: &Document, input: NodeId) -> Option<NodeId> {
-    let parts = document.component_state::<Parts>(input);
+pub fn number_input_field(tree: &impl Inspect, input: NodeId) -> Option<NodeId> {
+    let parts = tree.component_state::<Parts>(input);
     parts.editing.get_untracked().then_some(parts.field)
 }
 
-pub fn number_input_face(document: &Document, input: NodeId) -> Option<NodeId> {
-    let parts = document.component_state::<Parts>(input);
+pub fn number_input_face(tree: &impl Inspect, input: NodeId) -> Option<NodeId> {
+    let parts = tree.component_state::<Parts>(input);
     (!parts.editing.get_untracked()).then_some(parts.face)
 }
 

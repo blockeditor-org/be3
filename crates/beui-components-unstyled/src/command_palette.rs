@@ -2,9 +2,8 @@ use beui_core::layer::Dismiss;
 use std::cell::RefCell;
 
 use accesskit::{Node, Role, Toggled};
-use beui_core::base::overlay::{OverlayAnchor, OverlayNode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{Key, KeyPress};
 use beui_core::keys::{KeyAt, KeyPhase};
@@ -211,7 +210,7 @@ fn find(state: State, key: u64) -> Option<Action> {
 }
 
 fn start(state: State) {
-    let path = with_document(|document| document.focus_ancestry());
+    let path = focus_ancestry();
     let mut actions = active_actions_from(&path);
     actions.sort_by_key(|action| !action.is_enabled());
     *state.actions.value().borrow_mut() = actions;
@@ -224,12 +223,9 @@ fn start(state: State) {
 fn close(state: State) {
     state.searching.set(false);
     state.open.set(false);
-    let overlay = state.overlay.try_get();
-    with_document(|document| {
-        if let Some(overlay) = overlay.and_then(|id| document.arena.kind_of::<OverlayNode>(id)) {
-            document.close_overlay(overlay);
-        }
-    });
+    if let Some(overlay) = state.overlay.try_get() {
+        close_overlay(overlay);
+    }
 }
 
 fn dismiss(state: State) {
@@ -320,12 +316,12 @@ fn reveal_reader(state: State) -> Prop<Option<usize>> {
     })
 }
 
-pub fn command_palette_search(document: &Document, palette: NodeId) -> NodeId {
-    document.component_state::<State>(palette).search.get()
+pub fn command_palette_search(tree: &impl Inspect, palette: NodeId) -> NodeId {
+    tree.component_state::<State>(palette).search.get()
 }
 
-pub fn command_palette_shown(document: &Document, palette: NodeId) -> Vec<String> {
-    let state = *document.component_state::<State>(palette);
+pub fn command_palette_shown(tree: &impl Inspect, palette: NodeId) -> Vec<String> {
+    let state = *tree.component_state::<State>(palette);
     let actions = state.actions.value();
     let actions = actions.borrow();
     state
@@ -337,14 +333,14 @@ pub fn command_palette_shown(document: &Document, palette: NodeId) -> Vec<String
         .collect()
 }
 
-pub fn command_palette_highlighted(document: &Document, palette: NodeId) -> Option<String> {
-    let state = *document.component_state::<State>(palette);
+pub fn command_palette_highlighted(tree: &impl Inspect, palette: NodeId) -> Option<String> {
+    let state = *tree.component_state::<State>(palette);
     let key = state.highlighted.get_untracked()?;
     find(state, key).map(|action| action.id().to_owned())
 }
 
-pub fn command_palette_row(document: &Document, palette: NodeId, id: &str) -> Option<NodeId> {
-    let state = *document.component_state::<State>(palette);
+pub fn command_palette_row(tree: &impl Inspect, palette: NodeId, id: &str) -> Option<NodeId> {
+    let state = *tree.component_state::<State>(palette);
     let key = state
         .actions
         .value()

@@ -27,13 +27,12 @@ use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::file_picker::PickedFile;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_core::layer::Dismiss;
-use beui_core::node::{NodeId, Rects};
+use beui_core::node::NodeId;
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -118,8 +117,8 @@ impl RowEntry {
         self.model.get_untracked()
     }
 
-    fn rect(&self, rects: &Rects) -> Option<Rect> {
-        rects.get(&self.row.try_get()?)
+    fn rect(&self, placements: &Placements) -> Option<Rect> {
+        placements.rect(self.row.try_get()?)
     }
 
     fn text(&self) -> Option<TextGeometry> {
@@ -130,7 +129,7 @@ impl RowEntry {
 struct Held {
     rows: RefCell<BTreeMap<usize, RowEntry>>,
     registered: Cell<u64>,
-    rects: Rc<Rects>,
+    placements: Placements,
     reveal_attempts: Cell<u8>,
     row_cache: RefCell<lines::RowCache>,
 }
@@ -215,11 +214,14 @@ impl AreaGeometry for Surface {
 
 impl Surface {
     fn canvas_rect(&self) -> Option<Rect> {
-        self.held.value().rects.get(&self.state.canvas().try_get()?)
+        self.held
+            .value()
+            .placements
+            .rect(self.state.canvas().try_get()?)
     }
 
     fn node_rect(&self, node: &NodeRef) -> Option<Rect> {
-        self.held.value().rects.get(&node.try_get()?)
+        self.held.value().placements.rect(node.try_get()?)
     }
 
     fn row_estimate(&self) -> f32 {
@@ -251,9 +253,8 @@ impl Surface {
         let line = self.line_of(byte);
         let list = self.list.try_get()?;
         let canvas = self.canvas_rect()?;
-        let rect = self.held.value().rects.get(&list)?;
-        let offset =
-            try_with_document(|document| document.virtual_list_offset::<usize>(list, &line))??;
+        let rect = self.held.value().placements.rect(list)?;
+        let offset = virtual_list_offset::<usize>(list, &line)?;
         Some(rect.min.y - canvas.min.y + offset)
     }
 
@@ -262,7 +263,7 @@ impl Surface {
         let rows = held.rows.borrow();
         let placed: Vec<(Rect, &RowEntry)> = rows
             .values()
-            .filter_map(|entry| Some((entry.rect(&held.rects)?, entry)))
+            .filter_map(|entry| Some((entry.rect(&held.placements)?, entry)))
             .collect();
         placed
             .iter()
@@ -285,7 +286,7 @@ impl Surface {
     fn below_end(&self, pos: Pos2) -> bool {
         let last = self.starts.get_untracked().len().saturating_sub(1);
         self.entry(last)
-            .and_then(|entry| entry.rect(&self.held.value().rects))
+            .and_then(|entry| entry.rect(&self.held.value().placements))
             .is_some_and(|rect| pos.y > rect.max.y)
     }
 
@@ -309,7 +310,7 @@ impl Surface {
     fn gutter_arrow_at(&self, pos: Pos2) -> Option<usize> {
         let gutter = self.gutter.get_untracked();
         let entry = self.row_at(pos)?;
-        let rect = entry.rect(&self.held.value().rects)?;
+        let rect = entry.rect(&self.held.value().placements)?;
         if pos.x < rect.min.x || pos.x > rect.min.x + gutter {
             return None;
         }
@@ -417,7 +418,7 @@ impl Surface {
             Key::Enter | Key::Tab => self.complete(highlighted),
             _ => match self.completion_layer.try_get() {
                 Some(layer) => {
-                    with_document(|document| document.dismiss_overlay(layer, Dismiss::Escape));
+                    dismiss_overlay(layer, Dismiss::Escape);
                 }
                 None => self.dismiss(),
             },
@@ -1105,7 +1106,7 @@ pub fn TextArea(
                     false => area.get(),
                 });
                 let scale = pixels_per_point();
-                let attached = with_document(|document| document.watch_context());
+                let attached = use_attached();
                 let scroll = create_signal(ScrollPosition::ZERO);
                 let offset = create_signal(0.0_f32);
                 let shift = create_signal(0.0_f32);
@@ -1282,7 +1283,7 @@ pub fn TextArea(
                     held: store(Held {
                         rows: RefCell::new(BTreeMap::new()),
                         registered: Cell::new(0),
-                        rects: with_document(|document| Rc::clone(&document.rects)),
+                        placements: placements(),
                         reveal_attempts: Cell::new(0),
                         row_cache: RefCell::default(),
                     }),
@@ -1597,24 +1598,21 @@ fn Editing(field: Field) -> NodeId {
     }
 }
 
-pub fn text_area_shown(document: &Document, area: NodeId) -> String {
-    document
-        .component_state::<Parts>(area)
-        .shown
-        .get_untracked()
+pub fn text_area_shown(tree: &impl Inspect, area: NodeId) -> String {
+    tree.component_state::<Parts>(area).shown.get_untracked()
 }
 
-pub fn text_area_index_at(document: &Document, area: NodeId, pos: Pos2) -> usize {
-    let cx = document.component_state::<Parts>(area).cx;
-    area_hit(document, &cx, pos).unwrap_or(0)
+pub fn text_area_index_at(tree: &impl Inspect, area: NodeId, pos: Pos2) -> usize {
+    let cx = tree.component_state::<Parts>(area).cx;
+    area_hit(tree, &cx, pos).unwrap_or(0)
 }
 
-fn area_hit(document: &Document, cx: &Context, pos: Pos2) -> Option<usize> {
+fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
     let held = cx.held.value();
     let rows = held.rows.borrow();
     let placed: Vec<(Rect, &RowEntry)> = rows
         .values()
-        .filter_map(|entry| Some((entry.rect(&document.rects)?, entry)))
+        .filter_map(|entry| Some((tree.node_rect(entry.row.try_get()?)?, entry)))
         .collect();
     let (_, entry) = placed
         .iter()
@@ -1624,20 +1622,19 @@ fn area_hit(document: &Document, cx: &Context, pos: Pos2) -> Option<usize> {
     Some(entry.row().to_source(display))
 }
 
-pub fn text_area_remote_cursors(document: &Document, area: NodeId) -> Vec<RemoteTextCursor> {
-    document
-        .component_state::<Parts>(area)
+pub fn text_area_remote_cursors(tree: &impl Inspect, area: NodeId) -> Vec<RemoteTextCursor> {
+    tree.component_state::<Parts>(area)
         .cx
         .remote_cursors
         .get_untracked()
 }
 
-pub fn text_area_state(document: &Document, area: NodeId) -> TextAreaState {
-    document.component_state::<Parts>(area).cx.state
+pub fn text_area_state(tree: &impl Inspect, area: NodeId) -> TextAreaState {
+    tree.component_state::<Parts>(area).cx.state
 }
 
-pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
-    let cx = document.component_state::<Parts>(area).cx;
+pub fn text_area_handles(tree: &impl Inspect, area: NodeId) -> Vec<Pos2> {
+    let cx = tree.component_state::<Parts>(area).cx;
     let held = cx.held.value();
     let rows = held.rows.borrow();
     cx.handles()
@@ -1648,10 +1645,7 @@ pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
             let caret = entry
                 .text()?
                 .caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
-            let viewport = cx
-                .viewport
-                .try_get()
-                .and_then(|node| document.node_rect(node));
+            let viewport = cx.viewport.try_get().and_then(|node| tree.node_rect(node));
             let shown = viewport.is_none_or(|viewport| match cx.single_line {
                 true => (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)
                     .contains(&caret.min.x),

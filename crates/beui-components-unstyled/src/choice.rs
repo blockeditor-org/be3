@@ -7,7 +7,6 @@ use crate as unstyled;
 use crate::ButtonHandle;
 use crate::typeahead::Typeahead;
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -161,8 +160,8 @@ pub fn Choice(
     }
 }
 
-pub fn choice_selected(document: &Document, choice: NodeId) -> Option<usize> {
-    let state = *document.component_state::<State>(choice);
+pub fn choice_selected(tree: &impl Inspect, choice: NodeId) -> Option<usize> {
+    let state = *tree.component_state::<State>(choice);
     state
         .selected
         .get_untracked()

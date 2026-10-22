@@ -9,12 +9,12 @@ use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
 use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
-use beui_core::base::offset::{OffsetNode, ScrollPosition};
+use beui_core::base::offset::ScrollPosition;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_core::node::{NodeId, NodeOf};
+use beui_core::node::NodeId;
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -104,7 +104,7 @@ enum Handoff {
 struct Handoffs(Rc<Cell<Option<Handoff>>>);
 
 fn handoffs() -> Handoffs {
-    with_document(|document| document.extension_or_insert_with(Handoffs::default))
+    tree_local(Handoffs::default)
 }
 
 fn claim(
@@ -152,27 +152,22 @@ struct Motion {
 }
 
 fn banding() -> bool {
-    with_document(|document| document.motion().animates())
+    motion().animates()
 }
 
 impl Motion {
-    fn node(&self) -> Option<NodeOf<OffsetNode>> {
-        let content = self.content.try_get()?;
-        with_document(|document| document.first_offset_within(content))
+    fn node(&self) -> Option<NodeId> {
+        first_offset_within(self.content.try_get()?)
     }
 
     fn laid_out(&self) -> (Option<Rect>, Option<Rect>, ScrollPosition) {
         let node = self.node();
         let slot = self.slot.try_get();
-        with_document(|document| {
-            let sheet = slot.and_then(|slot| document.node_rect(slot));
-            let node = node.filter(|node| document.contains(*node));
-            let body = node.and_then(|node| document.node_rect(node));
-            let position = node
-                .and_then(|node| document.offset_position(node))
-                .unwrap_or_default();
-            (sheet, body, position)
-        })
+        let placements = placements();
+        let sheet = slot.and_then(|slot| placements.rect(slot));
+        let body = node.and_then(|node| placements.rect(node));
+        let position = node.and_then(offset_position).unwrap_or_default();
+        (sheet, body, position)
     }
 
     fn height(&self) -> f32 {
@@ -229,27 +224,18 @@ impl Motion {
         let Some(node) = self.node() else {
             return (0.0, 0.0);
         };
-        with_document(|document| {
-            if !document.contains(node) {
-                return (0.0, 0.0);
-            }
-            (
-                document.offset_value(node),
-                document.scroll_overscroll(node.id()),
-            )
-        })
+        match offset_value(node) {
+            Some(offset) => (offset, offset_overscroll(node)),
+            None => (0.0, 0.0),
+        }
     }
 
     fn place_content(&self, offset: f32, overscroll: f32) {
         let Some(node) = self.node() else {
             return;
         };
-        with_document(|document| {
-            if document.contains(node) {
-                document.drive_offset(node, offset);
-                document.set_offset_overscroll(node, overscroll);
-            }
-        });
+        drive_offset(node, offset);
+        set_offset_overscroll(node, overscroll);
     }
 
     fn place_height(&self, rest: Rest) {
@@ -1157,7 +1143,7 @@ pub fn Sheet(
         move || motion.value().finish(),
     );
     motion.with(|motion| motion.animation.set(Some(animation)));
-    let preference = with_document(|document| document.watch_motion());
+    let preference = use_motion();
     create_effect(move || {
         if !preference.get().animates() {
             let motion = motion.value();

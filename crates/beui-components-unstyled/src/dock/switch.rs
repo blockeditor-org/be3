@@ -76,7 +76,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         if press.key != Key::Escape || !press.pressed || !open.get_untracked() {
             return false;
         }
-        with_document(|document| document.dismiss_overlay(overlay, Dismiss::Escape));
+        dismiss_overlay(overlay, Dismiss::Escape);
         true
     });
     view! {

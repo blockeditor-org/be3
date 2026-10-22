@@ -1,7 +1,6 @@
 use accesskit::{Node, Role, Toggled};
 use beui_core::base::grid::Track;
 use beui_core::base::overlay::Placement;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
@@ -487,7 +486,7 @@ fn MenuBackRow(
         />
     };
     if !test_id.is_empty() {
-        with_document(|document| document.set_test_id(built, test_id));
+        bind_test_id(built, Prop::Static(test_id));
     }
     built
 }
@@ -616,7 +615,7 @@ fn MenuGridRow(
         </List>
     };
     if let Some(test_id) = item.test_id.clone() {
-        with_document(|document| document.set_test_id(built, test_id));
+        bind_test_id(built, Prop::Static(test_id));
     }
     built
 }
@@ -660,7 +659,7 @@ fn MenuTile(
         />
     };
     if let Some(test_id) = test_id {
-        with_document(|document| document.set_test_id(built, test_id));
+        bind_test_id(built, Prop::Static(test_id));
     }
     built
 }
@@ -763,7 +762,7 @@ fn MenuRow(
         </List>
     };
     if let Some(test_id) = test_id {
-        with_document(|document| document.set_test_id(button.get(), test_id));
+        bind_test_id(button.get(), Prop::Static(test_id));
     }
     built
 }
@@ -801,64 +800,55 @@ fn lose_focus(state: State, at: Focus, has_focus: bool) {
     }
 }
 
-pub fn menu_list_len(document: &Document, menu: NodeId) -> usize {
-    document
-        .component_state::<State>(menu)
+pub fn menu_list_len(tree: &impl Inspect, menu: NodeId) -> usize {
+    tree.component_state::<State>(menu)
         .rows
         .value()
         .borrow()
         .len()
 }
 
-pub fn menu_list_row_button(document: &Document, menu: NodeId, index: usize) -> NodeId {
-    document
-        .component_state::<State>(menu)
-        .rows
-        .value()
-        .borrow()[index]
+pub fn menu_list_row_button(tree: &impl Inspect, menu: NodeId, index: usize) -> NodeId {
+    tree.component_state::<State>(menu).rows.value().borrow()[index]
         .button
         .get()
 }
 
 pub fn menu_list_tile_button(
-    document: &Document,
+    tree: &impl Inspect,
     menu: NodeId,
     index: usize,
     tile: usize,
 ) -> NodeId {
-    let rows = document.component_state::<State>(menu).rows.value();
+    let rows = tree.component_state::<State>(menu).rows.value();
     let rows = rows.borrow();
     let button = rows[index].tiles.value().borrow()[tile].button;
     button.get()
 }
 
-pub fn menu_list_back_button(document: &Document, menu: NodeId) -> Option<NodeId> {
-    document.component_state::<State>(menu).back.try_get()
+pub fn menu_list_back_button(tree: &impl Inspect, menu: NodeId) -> Option<NodeId> {
+    tree.component_state::<State>(menu).back.try_get()
 }
 
-pub fn menu_list_page(document: &Document, menu: NodeId) -> Option<NodeId> {
-    let state = document.component_state::<State>(menu);
+pub fn menu_list_page(tree: &impl Inspect, menu: NodeId) -> Option<NodeId> {
+    let state = tree.component_state::<State>(menu);
     state.page.get_untracked()?;
     state.page_content.try_get()
 }
 
 pub fn menu_list_row_submenu_content(
-    document: &Document,
+    tree: &impl Inspect,
     menu: NodeId,
     index: usize,
 ) -> Option<NodeId> {
-    document
-        .component_state::<State>(menu)
-        .rows
-        .value()
-        .borrow()[index]
+    tree.component_state::<State>(menu).rows.value().borrow()[index]
         .submenu
         .content
         .try_get()
 }
 
-pub fn menu_list_root_focusable(document: &Document, menu: NodeId) -> NodeId {
-    document.component_state::<State>(menu).root.get()
+pub fn menu_list_root_focusable(tree: &impl Inspect, menu: NodeId) -> NodeId {
+    tree.component_state::<State>(menu).root.get()
 }
 
 fn open_submenu(state: State, index: usize) -> bool {

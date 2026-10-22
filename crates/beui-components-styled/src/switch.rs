@@ -8,7 +8,6 @@ use beui_core::color::Color32;
 use crate::theme::{ThemeStore, control_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -85,8 +84,8 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     }
 }
 
-pub fn switch_on(document: &Document, switch: NodeId) -> bool {
-    unstyled::toggle_checked(document, switch).get()
+pub fn switch_on(tree: &impl Inspect, switch: NodeId) -> bool {
+    unstyled::toggle_checked(tree, switch).get()
 }
 
 fn knob_align(on: bool, mixed: bool) -> Align {

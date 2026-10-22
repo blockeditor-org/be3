@@ -3,7 +3,6 @@ use beui_macros::{component, view};
 
 use crate as unstyled;
 use crate::button::ButtonHandle;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -59,6 +58,6 @@ pub fn Disclosure(
     }
 }
 
-pub fn disclosure_open(document: &Document, disclosure: NodeId) -> bool {
-    document.component_state::<State>(disclosure).open.get()
+pub fn disclosure_open(tree: &impl Inspect, disclosure: NodeId) -> bool {
+    tree.component_state::<State>(disclosure).open.get()
 }

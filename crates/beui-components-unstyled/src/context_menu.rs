@@ -8,7 +8,6 @@ use crate::button::ButtonHandle;
 use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, pos2};
 use beui_core::icons::ICON_MORE_HORIZ;
 use beui_core::input::PointerPress;
@@ -113,11 +112,10 @@ pub fn ContextMenu(
                 open.set(true);
             }}
             on_press_outside={move |pos: Pos2| {
-                let on_bar = with_document(|document| {
-                    bar.try_get()
-                        .and_then(|bar| document.node_rect(bar))
-                        .is_some_and(|rect| rect.contains(pos))
-                });
+                let on_bar = bar
+                    .try_get()
+                    .and_then(|bar| placements().rect(bar))
+                    .is_some_and(|rect| rect.contains(pos));
                 let on_selection = toolbar_at
                     .get_untracked()
                     .is_some_and(|rect| rect.contains(pos));
@@ -266,36 +264,28 @@ fn ToolbarButton(
     }
 }
 
-pub fn context_menu_menu(document: &Document, context_menu: NodeId) -> NodeId {
-    document
-        .component_state::<State>(context_menu)
-        .content
-        .get()
+pub fn context_menu_menu(tree: &impl Inspect, context_menu: NodeId) -> NodeId {
+    tree.component_state::<State>(context_menu).content.get()
 }
 
-pub fn context_menu_overlay(document: &Document, context_menu: NodeId) -> NodeId {
-    document
-        .component_state::<State>(context_menu)
-        .overlay
-        .get()
+pub fn context_menu_overlay(tree: &impl Inspect, context_menu: NodeId) -> NodeId {
+    tree.component_state::<State>(context_menu).overlay.get()
 }
 
-pub fn context_menu_open(document: &Document, context_menu: NodeId) -> bool {
-    document
-        .component_state::<State>(context_menu)
+pub fn context_menu_open(tree: &impl Inspect, context_menu: NodeId) -> bool {
+    tree.component_state::<State>(context_menu)
         .overlay
         .try_get()
-        .is_some_and(|overlay| document.is_overlay_open(overlay))
+        .is_some_and(|overlay| tree.is_overlay_open(overlay))
 }
 
-pub fn context_menu_toolbar(document: &Document, context_menu: NodeId) -> Option<NodeId> {
-    document
-        .component_state::<State>(context_menu)
+pub fn context_menu_toolbar(tree: &impl Inspect, context_menu: NodeId) -> Option<NodeId> {
+    tree.component_state::<State>(context_menu)
         .toolbar
         .try_get()
-        .filter(|toolbar| document.is_overlay_open(*toolbar))
+        .filter(|toolbar| tree.is_overlay_open(*toolbar))
 }
 
-pub fn context_menu_more(document: &Document, context_menu: NodeId) -> NodeId {
-    document.component_state::<State>(context_menu).more.get()
+pub fn context_menu_more(tree: &impl Inspect, context_menu: NodeId) -> NodeId {
+    tree.component_state::<State>(context_menu).more.get()
 }

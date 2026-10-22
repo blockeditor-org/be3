@@ -16,7 +16,6 @@ use beui_components_unstyled::{
     TreeRowHandle, TreeToggleHandle,
 };
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::font::TextAlign;
 use beui_core::geometry::{Pos2, pos2};
 use beui_core::icons::{
@@ -185,22 +184,22 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
     }
 }
 
-pub fn tree_row_node<K>(document: &Document, tree: NodeId, key: &K) -> Option<NodeId>
+pub fn tree_row_node<K>(built: &impl Inspect, tree: NodeId, key: &K) -> Option<NodeId>
 where
     K: Clone + Eq + Hash + 'static,
 {
-    unstyled::tree_row_node::<K>(document, tree_rows(document, tree), key)
+    unstyled::tree_row_node::<K>(built, tree_rows(built, tree), key)
 }
 
-pub fn tree_focused<K>(document: &Document, tree: NodeId) -> Option<K>
+pub fn tree_focused<K>(built: &impl Inspect, tree: NodeId) -> Option<K>
 where
     K: Clone + Eq + Hash + 'static,
 {
-    unstyled::tree_focused::<K>(document, tree_rows(document, tree))
+    unstyled::tree_focused::<K>(built, tree_rows(built, tree))
 }
 
-pub fn tree_rows(document: &Document, tree: NodeId) -> NodeId {
-    document.component_state::<Parts>(tree).rows.get()
+pub fn tree_rows(built: &impl Inspect, tree: NodeId) -> NodeId {
+    built.component_state::<Parts>(tree).rows.get()
 }
 
 #[component]
@@ -360,8 +359,7 @@ fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
 fn RowMenuButton(named: String, sized: Memo<Metrics>, on_open: Callback<Pos2>) -> NodeId {
     let button = NodeRef::new();
     let open = move || {
-        let placed =
-            with_document(|document| button.try_get().and_then(|node| document.node_rect(node)));
+        let placed = button.try_get().and_then(|node| placements().rect(node));
         if let Some(rect) = placed {
             on_open.call(pos2(rect.left(), rect.bottom()));
         }

@@ -43,7 +43,7 @@ pub fn Spinner(
         },
         move || phase.set(0.5),
     );
-    let preference = with_document(|document| document.watch_motion());
+    let preference = use_motion();
     create_effect(move || {
         let animate = preference.get().animates();
         if placed.get() && animate {

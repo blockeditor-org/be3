@@ -265,7 +265,7 @@ direction:
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
-| `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, and layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
+| `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`, and the node functions and `Inspect` through which components reach the tree); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
@@ -292,8 +292,8 @@ hooks the higher crates fill in:
   runners use, adds the system's own fonts for whatever the bundled ones do
   not cover. The fonts live in a `FontLibrary` that contexts can share and
   that can be given more fonts later, which lays their text out again.
-- The document's theme lives in a typed slot on the document
-  (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
+- The document's theme store lives in a typed slot on the document
+  (`Document::extension`, which components reach as `tree_local`).
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
 - Each platform is a `beui_core::runner::Adapter`, a trait object the facade
@@ -1335,7 +1335,8 @@ Set a layer with `Context::set_preference_layer(source, layer)` and read them wi
 `preference_layers()`. Each document mirrors them at the start of a frame (`preferences()`, and
 `watch_theme()`, `watch_motion()` and `watch_canvas_touch()` for one each);
 `Document::watch_preference_layers()` is that, reactively, for settings that show where a value
-comes from. `styled::PreferencesSection` is a settings section over the app layer, with a
+comes from; components read these as `use_theme_kind()`, `use_motion()` and
+`use_preference_layers()`. `styled::PreferencesSection` is a settings section over the app layer, with a
 `styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
 below, and notes a developer override. An app that keeps its own choices passes
 `RunOptions::saving_preferences(name)`, which loads and saves the app layer in the platform's
@@ -3071,7 +3072,24 @@ without undoing visual decisions.
 State that belongs to the component's own handlers should be captured directly.
 Use `set_component_state` only when tests or host integration need to read the
 state from the component's `NodeId`, and expose a focused helper such as
-`toggle_checked(&Document, NodeId)`. State the user changes is a `Binding<T>`
+`toggle_checked(tree: &impl Inspect, NodeId)`. `Inspect` (in `beui::reactive`)
+is what a test holds of a built tree: `component_state`, `node_rect` and
+`is_overlay_open`, which `Document` implements; a helper asks nothing else of it.
+
+The styled and unstyled crates never name `Document`, `with_document` or
+`NodeOf` outside their tests, so their components can be built on another
+backend; `fix-rust-source` reports it when they do. They reach the tree they
+were built into through the node functions in `beui::reactive`
+(`beui-view/src/nodes.rs`), which take a plain `NodeId` and answer `None`,
+`false` or nothing for a node of another kind or one that is gone:
+`placements()` for where nodes were laid out, `focus_is_within`, `focus_node`
+and the other focus calls, `raise_overlay`, `dismiss_overlay` and
+`stacked_at` for layers, `first_offset_within`, `drive_offset` and the other
+offset calls for scrolling, `texts_within`, `text_index_at` and the other text
+calls, `component_state` for another component's state, `use_motion` and the
+other preference signals, and `tree_local` for a value kept once per tree.
+When a component needs something the document has and these do not offer, add
+a function there rather than reaching for the document. State the user changes is a `Binding<T>`
 prop that the component reads and writes, with no copy of it kept in sync; see
 `unstyled::Toggle` for the pattern.
 
@@ -3171,7 +3189,7 @@ and a theme's `kind` says which it is, for code that must tell them apart withou
 colors. What dims the app under an overlay is a theme colour too: `scrim` under a dialog,
 sheet or dock dialog, `scrim_soft` under the command palette and launcher, which leave
 the app readable, and `scrim_strong` under `Fullscreen`. Styled components that no provider covers use the document's theme, the one its
-preferences choose (Preferences, above); `theme()` from the `styled::DocumentTheme` trait reads
+preferences choose (Preferences, above); `Theme::of(document.preferences().theme)` reads
 it, for example to pick an app's clear color.
 
 `ThemeProvider` overrides the theme for the subtree written between its tags and

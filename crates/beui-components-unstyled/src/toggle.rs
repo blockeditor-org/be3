@@ -3,7 +3,6 @@ use beui_macros::{component, view};
 
 use beui_core::input::CursorIcon;
 
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -123,6 +122,6 @@ pub fn Toggle(
     }
 }
 
-pub fn toggle_checked(document: &Document, toggle: NodeId) -> Binding<bool> {
-    *document.component_state::<Binding<bool>>(toggle)
+pub fn toggle_checked(tree: &impl Inspect, toggle: NodeId) -> Binding<bool> {
+    *tree.component_state::<Binding<bool>>(toggle)
 }

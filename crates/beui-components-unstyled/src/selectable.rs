@@ -2,13 +2,11 @@ use std::cell::{Cell, RefCell};
 
 use beui::primitives::*;
 use beui::reactive::*;
-use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Key, KeyPress, PointerPress};
 use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::{NodeId, NodeOf};
+use beui_core::node::NodeId;
 use beui_core::rich::{CaretHandle, handle_center, toolbar_anchor};
 use beui_macros::{component, view};
 
@@ -17,7 +15,7 @@ const CARET_WIDTH: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Caret {
-    text: NodeOf<TextNode>,
+    text: NodeId,
     index: usize,
 }
 
@@ -55,33 +53,34 @@ struct Inner {
     grab: Cell<Option<Grab>>,
     unit: Cell<Unit>,
     origin: Cell<Option<(Caret, Caret)>>,
-    painted: RefCell<Vec<NodeOf<TextNode>>>,
-    handled: RefCell<Vec<NodeOf<TextNode>>>,
+    painted: RefCell<Vec<NodeId>>,
+    handled: RefCell<Vec<NodeId>>,
+    copied: RefCell<String>,
 }
 
 impl SelectableState {
-    fn texts(&self, document: &Document) -> Vec<NodeOf<TextNode>> {
+    fn texts(&self) -> Vec<NodeId> {
         self.0
             .value()
             .region
             .try_get()
-            .map_or_else(Vec::new, |region| document.texts_within(region))
+            .map_or_else(Vec::new, texts_within)
     }
 
-    fn caret_at(&self, document: &Document, pos: Pos2) -> Option<Caret> {
+    fn caret_at(&self, pos: Pos2) -> Option<Caret> {
         let text = self
-            .texts(document)
+            .texts()
             .into_iter()
-            .filter_map(|text| Some((text, distance(document.node_rect(text)?, pos))))
+            .filter_map(|text| Some((text, distance(placements().rect(text)?, pos))))
             .min_by(|(_, left), (_, right)| left.total_cmp(right))?
             .0;
-        let index = document.text_index_at(text, pos)?;
+        let index = text_index_at(text, pos)?;
         Some(Caret { text, index })
     }
 
-    fn word_at(&self, document: &Document, pos: Pos2) -> Option<(Caret, Caret)> {
-        let caret = self.caret_at(document, pos)?;
-        let (start, end) = word_bounds(document.text(caret.text), caret.index);
+    fn word_at(&self, pos: Pos2) -> Option<(Caret, Caret)> {
+        let caret = self.caret_at(pos)?;
+        let (start, end) = word_bounds(&text_content(caret.text), caret.index);
         Some((
             Caret {
                 text: caret.text,
@@ -94,13 +93,13 @@ impl SelectableState {
         ))
     }
 
-    fn unit_at(&self, document: &Document, pos: Pos2, unit: Unit) -> Option<(Caret, Caret)> {
+    fn unit_at(&self, pos: Pos2, unit: Unit) -> Option<(Caret, Caret)> {
         match unit {
-            Unit::Character => self.caret_at(document, pos).map(|caret| (caret, caret)),
-            Unit::Word => self.word_at(document, pos),
+            Unit::Character => self.caret_at(pos).map(|caret| (caret, caret)),
+            Unit::Word => self.word_at(pos),
             Unit::Text => {
-                let caret = self.caret_at(document, pos)?;
-                let end = document.text(caret.text).len();
+                let caret = self.caret_at(pos)?;
+                let end = text_content(caret.text).len();
                 Some((
                     Caret {
                         text: caret.text,
@@ -115,18 +114,18 @@ impl SelectableState {
         }
     }
 
-    fn toolbar_rect(&self, document: &Document) -> Option<Rect> {
-        let texts = self.texts(document);
+    fn toolbar_rect(&self) -> Option<Rect> {
+        let texts = self.texts();
         let (start, end, ..) = self.ordered(&texts)?;
         if start == end {
             return None;
         }
-        let first = document.text_caret_rect(start.text, start.index, CARET_WIDTH)?;
-        let last = document.text_caret_rect(end.text, end.index, CARET_WIDTH)?;
+        let first = text_caret_rect(start.text, start.index, CARET_WIDTH)?;
+        let last = text_caret_rect(end.text, end.index, CARET_WIDTH)?;
         Some(toolbar_anchor(first.union(last)))
     }
 
-    fn ordered(&self, texts: &[NodeOf<TextNode>]) -> Option<(Caret, Caret, usize, usize)> {
+    fn ordered(&self, texts: &[NodeId]) -> Option<(Caret, Caret, usize, usize)> {
         let (anchor, focus) = (self.0.value().anchor.get()?, self.0.value().focus.get()?);
         let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
         let (from, to) = (at(anchor)?, at(focus)?);
@@ -136,10 +135,10 @@ impl SelectableState {
         }
     }
 
-    fn selected(&self, document: &Document, pos: Pos2) -> bool {
-        let texts = self.texts(document);
+    fn selected(&self, pos: Pos2) -> bool {
+        let texts = self.texts();
         let (Some((start, end, from, to)), Some(caret)) =
-            (self.ordered(&texts), self.caret_at(document, pos))
+            (self.ordered(&texts), self.caret_at(pos))
         else {
             return false;
         };
@@ -151,8 +150,8 @@ impl SelectableState {
             && (start != end)
     }
 
-    fn ranges(&self, document: &Document) -> Vec<(NodeOf<TextNode>, std::ops::Range<usize>)> {
-        let texts = self.texts(document);
+    fn ranges(&self) -> Vec<(NodeId, std::ops::Range<usize>)> {
+        let texts = self.texts();
         let Some((start, end, from, to)) = self.ordered(&texts) else {
             return Vec::new();
         };
@@ -162,7 +161,7 @@ impl SelectableState {
                 let begin = if *text == start.text { start.index } else { 0 };
                 let finish = match *text == end.text {
                     true => end.index,
-                    false => document.text(*text).len(),
+                    false => text_content(*text).len(),
                 };
                 (*text, begin..finish)
             })
@@ -170,11 +169,11 @@ impl SelectableState {
             .collect()
     }
 
-    fn handles(&self, document: &Document) -> Vec<(CaretHandle, Caret)> {
+    fn handles(&self) -> Vec<(CaretHandle, Caret)> {
         if !self.0.value().touch.get() {
             return Vec::new();
         }
-        let texts = self.texts(document);
+        let texts = self.texts();
         match self.ordered(&texts) {
             Some((start, end, ..)) if start != end => {
                 vec![(CaretHandle::Start, start), (CaretHandle::End, end)]
@@ -183,11 +182,11 @@ impl SelectableState {
         }
     }
 
-    fn handle_at(&self, document: &Document, pos: Pos2) -> Option<(CaretHandle, Caret)> {
-        self.handles(document)
+    fn handle_at(&self, pos: Pos2) -> Option<(CaretHandle, Caret)> {
+        self.handles()
             .into_iter()
             .filter_map(|(handle, caret)| {
-                let rect = document.text_caret_rect(caret.text, caret.index, CARET_WIDTH)?;
+                let rect = text_caret_rect(caret.text, caret.index, CARET_WIDTH)?;
                 if pos.y < rect.max.y {
                     return None;
                 }
@@ -198,29 +197,29 @@ impl SelectableState {
             .map(|(handle, caret, _)| (handle, caret))
     }
 
-    fn paint(&self, document: &mut Document) {
-        let ranges = self.ranges(document);
+    fn paint(&self) {
+        let ranges = self.ranges();
         let color = self.0.value().color.get();
         let previous = std::mem::take(&mut *self.0.value().painted.borrow_mut());
         for text in previous {
-            if document.contains(text) && !ranges.iter().any(|(held, _)| *held == text) {
-                document.set_text_selection(text, None);
+            if node_exists(text) && !ranges.iter().any(|(held, _)| *held == text) {
+                set_text_selection(text, None);
             }
         }
         for (text, range) in &ranges {
-            document.set_text_selection(*text, Some((range.clone(), color)));
+            set_text_selection(*text, Some((range.clone(), color)));
         }
         *self.0.value().painted.borrow_mut() = ranges.into_iter().map(|(text, _)| text).collect();
 
-        let handles = self.handles(document);
+        let handles = self.handles();
         let handle_color = self.0.value().handle_color.get();
         let previous = std::mem::take(&mut *self.0.value().handled.borrow_mut());
         for text in previous {
-            if document.contains(text) {
-                document.set_text_selection_handles(text, Vec::new());
+            if node_exists(text) {
+                set_text_selection_handles(text, Vec::new());
             }
         }
-        let mut handled: Vec<NodeOf<TextNode>> = Vec::new();
+        let mut handled: Vec<NodeId> = Vec::new();
         for (_, caret) in &handles {
             if !handled.contains(&caret.text) {
                 handled.push(caret.text);
@@ -232,19 +231,20 @@ impl SelectableState {
                 .filter(|(_, caret)| caret.text == *text)
                 .map(|(handle, caret)| (caret.index, *handle, handle_color))
                 .collect();
-            document.set_text_selection_handles(*text, on_text);
+            set_text_selection_handles(*text, on_text);
         }
         *self.0.value().handled.borrow_mut() = handled;
+        *self.0.value().copied.borrow_mut() = self.copied();
     }
 
-    fn select(&self, document: &mut Document, anchor: Option<Caret>, focus: Option<Caret>) {
+    fn select(&self, anchor: Option<Caret>, focus: Option<Caret>) {
         self.0.value().anchor.set(anchor);
         self.0.value().focus.set(focus);
-        self.paint(document);
+        self.paint();
     }
 
-    fn select_all(&self, document: &mut Document) {
-        let texts = self.texts(document);
+    fn select_all(&self) {
+        let texts = self.texts();
         let (Some(first), Some(last)) = (texts.first(), texts.last()) else {
             return;
         };
@@ -254,31 +254,35 @@ impl SelectableState {
         };
         let focus = Caret {
             text: *last,
-            index: document.text(*last).len(),
+            index: text_content(*last).len(),
         };
-        self.select(document, Some(anchor), Some(focus));
+        self.select(Some(anchor), Some(focus));
     }
 
-    fn select_word(&self, document: &mut Document, pos: Pos2) {
-        let Some((start, end)) = self.word_at(document, pos) else {
+    fn select_word(&self, pos: Pos2) {
+        let Some((start, end)) = self.word_at(pos) else {
             return;
         };
         self.0.value().touch.set(true);
-        self.select(document, Some(start), Some(end));
+        self.select(Some(start), Some(end));
     }
 
-    pub fn selected_text(&self, document: &Document) -> String {
+    pub fn selected_text(&self) -> String {
+        self.0.value().copied.borrow().clone()
+    }
+
+    fn copied(&self) -> String {
         let mut copied = String::new();
         let mut above: Option<Rect> = None;
-        for (text, range) in self.ranges(document) {
-            let rect = document.node_rect(text).unwrap_or(Rect::NOTHING);
+        for (text, range) in self.ranges() {
+            let rect = placements().rect(text).unwrap_or(Rect::NOTHING);
             if let Some(above) = above {
                 copied.push(match rect.top() >= above.bottom() - 1.0 {
                     true => '\n',
                     false => ' ',
                 });
             }
-            copied.push_str(document.text(text).get(range).unwrap_or_default());
+            copied.push_str(text_content(text).get(range).unwrap_or_default());
             above = Some(rect);
         }
         copied
@@ -327,7 +331,7 @@ fn key(state: SelectableState, press: KeyPress) -> bool {
     }
     match press.key {
         Key::C => {
-            let text = with_document(|document| state.selected_text(document));
+            let text = state.selected_text();
             if text.is_empty() {
                 return false;
             }
@@ -335,7 +339,7 @@ fn key(state: SelectableState, press: KeyPress) -> bool {
             true
         }
         Key::A => {
-            with_document(|document| state.select_all(document));
+            state.select_all();
             true
         }
         _ => false,
@@ -343,23 +347,22 @@ fn key(state: SelectableState, press: KeyPress) -> bool {
 }
 
 pub fn copy_selection(state: SelectableState) {
-    let text = with_document(|document| state.selected_text(document));
+    let text = state.selected_text();
     if !text.is_empty() {
         copy_text(text);
     }
 }
 
 pub fn select_all(state: SelectableState) {
-    with_document(|document| state.select_all(document));
+    state.select_all();
 }
 
-pub fn selectable_text(document: &Document, selectable: NodeId) -> String {
-    document
-        .component_state::<SelectableState>(selectable)
-        .selected_text(document)
+pub fn selectable_text(tree: &impl Inspect, selectable: NodeId) -> String {
+    tree.component_state::<SelectableState>(selectable)
+        .selected_text()
 }
 
-fn precedes(texts: &[NodeOf<TextNode>], left: Caret, right: Caret) -> bool {
+fn precedes(texts: &[NodeId], left: Caret, right: Caret) -> bool {
     let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
     (at(left), left.index) < (at(right), right.index)
 }
@@ -370,124 +373,111 @@ fn press(
     on_toolbar: Callback<Option<Rect>>,
     press: PointerPress,
 ) {
-    with_document(|document| {
-        if press.touch {
-            state.0.value().grab.set(None);
-            let Some((handle, moving)) = state.handle_at(document, press.pos) else {
-                return;
-            };
-            let texts = state.texts(document);
-            let Some((start, end, ..)) = state.ordered(&texts) else {
-                return;
-            };
-            let fixed = match handle {
-                CaretHandle::Start => end,
-                _ => start,
-            };
-            let offset = document
-                .text_caret_rect(moving.text, moving.index, CARET_WIDTH)
-                .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
-            state.0.value().grab.set(Some(Grab { fixed, offset }));
-            on_toolbar.call(None);
+    if press.touch {
+        state.0.value().grab.set(None);
+        let Some((handle, moving)) = state.handle_at(press.pos) else {
             return;
-        }
-        if let Some(target) = focusable.try_get() {
-            document.focus_focusable(target);
-        }
-        state.0.value().touch.set(false);
-        on_toolbar.call(None);
-        if press.modifiers.shift {
-            let caret = state.caret_at(document, press.pos);
-            let anchor = state.0.value().anchor.get().or(caret);
-            state.0.value().unit.set(Unit::Character);
-            state
-                .0
-                .value()
-                .origin
-                .set(anchor.map(|anchor| (anchor, anchor)));
-            state.select(document, anchor, caret);
-            return;
-        }
-        let unit = match press.clicks {
-            0 | 1 => Unit::Character,
-            2 => Unit::Word,
-            _ => Unit::Text,
         };
-        let origin = state.unit_at(document, press.pos, unit);
-        state.0.value().unit.set(unit);
-        state.0.value().origin.set(origin);
-        state.select(
-            document,
-            origin.map(|(start, _)| start),
-            origin.map(|(_, end)| end),
-        );
-    });
+        let texts = state.texts();
+        let Some((start, end, ..)) = state.ordered(&texts) else {
+            return;
+        };
+        let fixed = match handle {
+            CaretHandle::Start => end,
+            _ => start,
+        };
+        let offset = text_caret_rect(moving.text, moving.index, CARET_WIDTH)
+            .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
+        state.0.value().grab.set(Some(Grab { fixed, offset }));
+        on_toolbar.call(None);
+        return;
+    }
+    if let Some(target) = focusable.try_get() {
+        focus_node(target);
+    }
+    state.0.value().touch.set(false);
+    on_toolbar.call(None);
+    if press.modifiers.shift {
+        let caret = state.caret_at(press.pos);
+        let anchor = state.0.value().anchor.get().or(caret);
+        state.0.value().unit.set(Unit::Character);
+        state
+            .0
+            .value()
+            .origin
+            .set(anchor.map(|anchor| (anchor, anchor)));
+        state.select(anchor, caret);
+        return;
+    }
+    let unit = match press.clicks {
+        0 | 1 => Unit::Character,
+        2 => Unit::Word,
+        _ => Unit::Text,
+    };
+    let origin = state.unit_at(press.pos, unit);
+    state.0.value().unit.set(unit);
+    state.0.value().origin.set(origin);
+    state.select(origin.map(|(start, _)| start), origin.map(|(_, end)| end));
 }
 
 fn drag(state: SelectableState, press: PointerPress) {
-    with_document(|document| {
-        if let Some(grab) = state.0.value().grab.get() {
-            if let Some(caret) = state.caret_at(document, press.pos - grab.offset) {
-                state.select(document, Some(grab.fixed), Some(caret));
-            }
-            return;
+    if let Some(grab) = state.0.value().grab.get() {
+        if let Some(caret) = state.caret_at(press.pos - grab.offset) {
+            state.select(Some(grab.fixed), Some(caret));
         }
-        if press.touch {
-            return;
-        }
-        let (Some((start, end)), Some(reached)) = (
-            state.0.value().origin.get(),
-            state.unit_at(document, press.pos, state.0.value().unit.get()),
-        ) else {
-            return;
-        };
-        let texts = state.texts(document);
-        let (anchor, focus) = match precedes(&texts, reached.0, start) {
-            true => (end, reached.0),
-            false => (start, reached.1),
-        };
-        state.select(document, Some(anchor), Some(focus));
-    });
+        return;
+    }
+    if press.touch {
+        return;
+    }
+    let (Some((start, end)), Some(reached)) = (
+        state.0.value().origin.get(),
+        state.unit_at(press.pos, state.0.value().unit.get()),
+    ) else {
+        return;
+    };
+    let texts = state.texts();
+    let (anchor, focus) = match precedes(&texts, reached.0, start) {
+        true => (end, reached.0),
+        false => (start, reached.1),
+    };
+    state.select(Some(anchor), Some(focus));
 }
 
-fn show_toolbar(state: SelectableState, document: &Document, on_toolbar: Callback<Option<Rect>>) {
-    on_toolbar.call(state.toolbar_rect(document));
+fn show_toolbar(state: SelectableState, on_toolbar: Callback<Option<Rect>>) {
+    on_toolbar.call(state.toolbar_rect());
 }
 
 fn tap(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press: PointerPress) {
     if !press.touch {
         return;
     }
-    with_document(|document| {
-        if state.0.value().grab.take().is_some() {
-            show_toolbar(state, document, on_toolbar);
-            return;
-        }
-        if press.clicks >= 2 {
-            state.select_word(document, press.pos);
-            show_toolbar(state, document, on_toolbar);
-            return;
-        }
-        if state.selected(document, press.pos) {
-            show_toolbar(state, document, on_toolbar);
-            return;
-        }
-        state.0.value().touch.set(false);
-        state.select(document, None, None);
-        on_toolbar.call(None);
-    });
+    if state.0.value().grab.take().is_some() {
+        show_toolbar(state, on_toolbar);
+        return;
+    }
+    if press.clicks >= 2 {
+        state.select_word(press.pos);
+        show_toolbar(state, on_toolbar);
+        return;
+    }
+    if state.selected(press.pos) {
+        show_toolbar(state, on_toolbar);
+        return;
+    }
+    state.0.value().touch.set(false);
+    state.select(None, None);
+    on_toolbar.call(None);
 }
 
 fn long_press(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press: PointerPress) {
     if !press.touch {
         return;
     }
-    with_document(|document| {
-        if !state.selected(document, press.pos) {
-            state.select_word(document, press.pos);
-        }
-        show_toolbar(state, document, on_toolbar);
-    });
+    if !state.selected(press.pos) {
+        state.select_word(press.pos);
+    }
+    show_toolbar(state, on_toolbar);
 }
 
 #[component]
@@ -507,7 +497,7 @@ pub fn Selectable(
         untrack(|| {
             state.0.value().color.set(color);
             state.0.value().handle_color.set(handle_color);
-            with_document(|document| state.paint(document));
+            state.paint();
         });
     });
     on_key(KeyAt::Node(focusable), KeyPhase::Bubble, move |event| {
@@ -520,7 +510,7 @@ pub fn Selectable(
             tab_stop=false
             claims_touch=false
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                with_document(|document| state.handle_at(document, pos).is_some())
+                state.handle_at(pos).is_some()
             }}
             on_press={move |event: PointerPress| press(state, &focusable, on_toolbar, event)}
             on_drag={move |event: PointerPress| drag(state, event)}
@@ -528,7 +518,7 @@ pub fn Selectable(
             on_secondary_press={move |event: PointerPress| long_press(state, on_toolbar, event)}
             on_active_change={move |active: bool| {
                 if !active && state.0.value().grab.take().is_some() {
-                    with_document(|document| show_toolbar(state, document, on_toolbar));
+                    show_toolbar(state, on_toolbar);
                 }
             }}
         >

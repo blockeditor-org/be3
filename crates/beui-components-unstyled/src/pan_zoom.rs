@@ -2,7 +2,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::base::canvas::CanvasView;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
 use beui_core::node::NodeId;
@@ -197,6 +196,6 @@ pub fn PanZoom(
     }
 }
 
-pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> Binding<PanZoomView> {
-    *document.component_state::<Binding<PanZoomView>>(pan_zoom)
+pub fn pan_zoom_view(tree: &impl Inspect, pan_zoom: NodeId) -> Binding<PanZoomView> {
+    *tree.component_state::<Binding<PanZoomView>>(pan_zoom)
 }

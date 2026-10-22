@@ -9,7 +9,6 @@ use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 use beui_core::base::ItemSize;
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 
 use crate::Prose;
@@ -285,32 +284,32 @@ fn text_of(state: TextAreaState) -> String {
     })
 }
 
-fn input(document: &Document, input: NodeId) -> &Input {
-    document.component_state::<Input>(input)
+fn input(tree: &impl Inspect, input: NodeId) -> &Input {
+    tree.component_state::<Input>(input)
 }
 
-pub fn text_input_text(document: &Document, input_node: NodeId) -> NodeId {
-    input(document, input_node).state.canvas().get()
+pub fn text_input_text(tree: &impl Inspect, input_node: NodeId) -> NodeId {
+    input(tree, input_node).state.canvas().get()
 }
 
-pub fn text_input_shown(document: &Document, input_node: NodeId) -> String {
-    text_area_shown(document, input(document, input_node).area.get())
+pub fn text_input_shown(tree: &impl Inspect, input_node: NodeId) -> String {
+    text_area_shown(tree, input(tree, input_node).area.get())
 }
 
-pub fn text_input_index_at(document: &Document, input_node: NodeId, pos: Pos2) -> usize {
-    text_area_index_at(document, input(document, input_node).area.get(), pos)
+pub fn text_input_index_at(tree: &impl Inspect, input_node: NodeId, pos: Pos2) -> usize {
+    text_area_index_at(tree, input(tree, input_node).area.get(), pos)
 }
 
-pub fn text_input_value(document: &Document, input_node: NodeId) -> String {
-    text_of(input(document, input_node).state)
+pub fn text_input_value(tree: &impl Inspect, input_node: NodeId) -> String {
+    text_of(input(tree, input_node).state)
 }
 
-pub fn text_input_focused(document: &Document, input_node: NodeId) -> ReadSignal<bool> {
-    input(document, input_node).focused
+pub fn text_input_focused(tree: &impl Inspect, input_node: NodeId) -> ReadSignal<bool> {
+    input(tree, input_node).focused
 }
 
-pub fn text_input_caret(document: &Document, input_node: NodeId) -> usize {
-    input(document, input_node)
+pub fn text_input_caret(tree: &impl Inspect, input_node: NodeId) -> usize {
+    input(tree, input_node)
         .state
         .caret_indices()
         .first()
@@ -318,12 +317,12 @@ pub fn text_input_caret(document: &Document, input_node: NodeId) -> usize {
         .unwrap_or(0)
 }
 
-pub fn text_input_state(document: &Document, input_node: NodeId) -> TextAreaState {
-    input(document, input_node).state
+pub fn text_input_state(tree: &impl Inspect, input_node: NodeId) -> TextAreaState {
+    input(tree, input_node).state
 }
 
-pub fn text_input_selection(document: &Document, input_node: NodeId) -> Vec<Range<usize>> {
-    input(document, input_node)
+pub fn text_input_selection(tree: &impl Inspect, input_node: NodeId) -> Vec<Range<usize>> {
+    input(tree, input_node)
         .state
         .selection_ranges()
         .into_iter()
@@ -332,23 +331,23 @@ pub fn text_input_selection(document: &Document, input_node: NodeId) -> Vec<Rang
 }
 
 pub fn text_input_menu_row(
-    document: &Document,
+    tree: &impl Inspect,
     input_node: NodeId,
     index: usize,
 ) -> Option<NodeId> {
-    let menu = input(document, input_node).menu.try_get()?;
-    if !context_menu_open(document, menu) {
+    let menu = input(tree, input_node).menu.try_get()?;
+    if !context_menu_open(tree, menu) {
         return None;
     }
-    let list = context_menu_menu(document, menu);
-    (index < menu_list_len(document, list)).then(|| menu_list_row_button(document, list, index))
+    let list = context_menu_menu(tree, menu);
+    (index < menu_list_len(tree, list)).then(|| menu_list_row_button(tree, list, index))
 }
 
-pub fn text_input_toolbar(document: &Document, input_node: NodeId) -> Option<NodeId> {
-    let menu = input(document, input_node).menu.try_get()?;
-    context_menu_toolbar(document, menu)
+pub fn text_input_toolbar(tree: &impl Inspect, input_node: NodeId) -> Option<NodeId> {
+    let menu = input(tree, input_node).menu.try_get()?;
+    context_menu_toolbar(tree, menu)
 }
 
-pub fn text_input_handles(document: &Document, input_node: NodeId) -> Vec<Pos2> {
-    crate::text_area_handles(document, input(document, input_node).area.get())
+pub fn text_input_handles(tree: &impl Inspect, input_node: NodeId) -> Vec<Pos2> {
+    crate::text_area_handles(tree, input(tree, input_node).area.get())
 }

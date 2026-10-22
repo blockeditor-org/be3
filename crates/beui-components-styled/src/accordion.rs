@@ -8,7 +8,6 @@ use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
-use beui_core::document::Document;
 use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -71,8 +70,8 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     }
 }
 
-pub fn accordion_open(document: &Document, accordion: NodeId) -> bool {
-    unstyled::disclosure_open(document, accordion)
+pub fn accordion_open(tree: &impl Inspect, accordion: NodeId) -> bool {
+    unstyled::disclosure_open(tree, accordion)
 }
 
 fn glyph(open: bool) -> &'static str {

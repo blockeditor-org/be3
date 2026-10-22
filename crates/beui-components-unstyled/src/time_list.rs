@@ -6,7 +6,6 @@ use crate::ButtonHandle;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
 use crate::scroll::ScrollbarStyle;
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -210,11 +209,8 @@ fn TimeOption(
     }
 }
 
-pub fn time_list_selected(document: &Document, list: NodeId) -> Option<Time> {
-    document
-        .component_state::<State>(list)
-        .selected
-        .get_untracked()
+pub fn time_list_selected(tree: &impl Inspect, list: NodeId) -> Option<Time> {
+    tree.component_state::<State>(list).selected.get_untracked()
 }
 
 fn choose(state: State, time: Time) {

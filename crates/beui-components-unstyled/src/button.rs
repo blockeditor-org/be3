@@ -3,7 +3,6 @@ use beui_macros::{component, view};
 
 use beui_core::input::{CursorIcon, KeyPress, PointerPress};
 
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -135,10 +134,10 @@ pub fn Button(
     }
 }
 
-pub fn button_active(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).active
+pub fn button_active(tree: &impl Inspect, button: NodeId) -> ReadSignal<bool> {
+    tree.component_state::<State>(button).active
 }
 
-pub fn button_focused(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).focused
+pub fn button_focused(tree: &impl Inspect, button: NodeId) -> ReadSignal<bool> {
+    tree.component_state::<State>(button).focused
 }

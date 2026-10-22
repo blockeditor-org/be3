@@ -4,7 +4,6 @@ use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
 use crate::text_input::{TextInputHandle, TextInputStyle};
 use beui_core::base::overlay::Placement;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::layer::Dismiss;
@@ -311,39 +310,34 @@ fn blur(state: State, has_focus: bool, target: Focus) {
     }
 }
 
-pub fn select_selected(document: &Document, select: NodeId) -> Option<usize> {
-    let state = *document.component_state::<State>(select);
+pub fn select_selected(tree: &impl Inspect, select: NodeId) -> Option<usize> {
+    let state = *tree.component_state::<State>(select);
     state
         .selected
         .get_untracked()
         .filter(|index| *index < state.options.value().get_untracked().len())
 }
 
-pub fn select_open(document: &Document, select: NodeId) -> bool {
-    document.component_state::<State>(select).open.get()
+pub fn select_open(tree: &impl Inspect, select: NodeId) -> bool {
+    tree.component_state::<State>(select).open.get()
 }
 
-pub fn select_trigger(document: &Document, select: NodeId) -> NodeId {
-    document.component_state::<State>(select).trigger.get()
+pub fn select_trigger(tree: &impl Inspect, select: NodeId) -> NodeId {
+    tree.component_state::<State>(select).trigger.get()
 }
 
-pub fn select_search(document: &Document, select: NodeId) -> NodeId {
-    document.component_state::<State>(select).search.get()
+pub fn select_search(tree: &impl Inspect, select: NodeId) -> NodeId {
+    tree.component_state::<State>(select).search.get()
 }
 
-pub fn select_option_button(document: &Document, select: NodeId, index: usize) -> NodeId {
-    document
-        .component_state::<State>(select)
-        .rows
-        .value()
-        .borrow()[index]
+pub fn select_option_button(tree: &impl Inspect, select: NodeId, index: usize) -> NodeId {
+    tree.component_state::<State>(select).rows.value().borrow()[index]
         .button
         .get()
 }
 
-pub fn select_highlighted(document: &Document, select: NodeId) -> Option<usize> {
-    document
-        .component_state::<State>(select)
+pub fn select_highlighted(tree: &impl Inspect, select: NodeId) -> Option<usize> {
+    tree.component_state::<State>(select)
         .highlighted
         .get_untracked()
 }

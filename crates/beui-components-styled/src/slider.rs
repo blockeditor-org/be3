@@ -6,7 +6,6 @@ use beui_core::color::Color32;
 use crate::theme::{ThemeStore, knob_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -93,8 +92,8 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     }
 }
 
-pub fn slider_value(document: &Document, slider: NodeId) -> f32 {
-    unstyled::slider_value(document, slider).get()
+pub fn slider_value(tree: &impl Inspect, slider: NodeId) -> f32 {
+    unstyled::slider_value(tree, slider).get()
 }
 
 fn filled_size(value: f32) -> ItemSize {

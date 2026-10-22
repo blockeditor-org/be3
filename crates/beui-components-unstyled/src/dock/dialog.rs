@@ -181,14 +181,12 @@ impl super::State {
         else {
             return;
         };
-        with_document(|document| {
-            if document.focus_is_within(frame) || document.focus_pending_within(frame) {
-                return;
-            }
-            if let Some(first) = document.focusables_within(frame).first().copied() {
-                document.focus_focusable(first);
-            }
-        });
+        if focus_is_within(frame) || focus_pending_within(frame) {
+            return;
+        }
+        if let Some(first) = focusables_within(frame).first().copied() {
+            focus_node(first);
+        }
     }
 
     fn anchor_ref(&self, parent: TabId) -> Option<NodeRef> {
@@ -436,7 +434,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             return;
         }
         if let Some(overlay) = overlay.try_get() {
-            with_document(|document| document.raise_overlay(overlay));
+            raise_overlay(overlay);
         }
     });
     create_effect(move || {

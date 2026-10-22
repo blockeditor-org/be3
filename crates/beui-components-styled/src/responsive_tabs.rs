@@ -4,7 +4,6 @@ use crate::Select;
 use crate::Tabs;
 use crate::theme::NARROW_WIDTH;
 use beui_components_unstyled::{ChoiceOption, narrower_than};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -49,6 +48,6 @@ pub fn ResponsiveTabs(
     }
 }
 
-pub fn responsive_tabs_selected(document: &Document, tabs: NodeId) -> usize {
-    document.component_state::<Binding<usize>>(tabs).get()
+pub fn responsive_tabs_selected(tree: &impl Inspect, tabs: NodeId) -> usize {
+    tree.component_state::<Binding<usize>>(tabs).get()
 }

@@ -5,7 +5,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::Hsva;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
@@ -177,8 +176,6 @@ fn thumb_centre(size: Vec2, color: Hsva) -> Pos2 {
     pos2(color.saturation * size.x, (1.0 - color.value) * size.y)
 }
 
-pub fn color_area_value(document: &Document, area: NodeId) -> Hsva {
-    document
-        .component_state::<Binding<Hsva>>(area)
-        .get_untracked()
+pub fn color_area_value(tree: &impl Inspect, area: NodeId) -> Hsva {
+    tree.component_state::<Binding<Hsva>>(area).get_untracked()
 }

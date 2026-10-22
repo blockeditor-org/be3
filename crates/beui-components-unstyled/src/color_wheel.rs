@@ -4,7 +4,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::{Hsva, Oklch};
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
@@ -352,8 +351,7 @@ pub fn ColorWheel(
     }
 }
 
-pub fn color_wheel_value(document: &Document, wheel: NodeId) -> WheelPoint {
-    document
-        .component_state::<Binding<WheelPoint>>(wheel)
+pub fn color_wheel_value(tree: &impl Inspect, wheel: NodeId) -> WheelPoint {
+    tree.component_state::<Binding<WheelPoint>>(wheel)
         .get_untracked()
 }

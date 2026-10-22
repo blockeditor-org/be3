@@ -6,7 +6,6 @@ use beui_macros::{component, view};
 
 use crate::datetime::{Date, DateTime, HourCycle, MONTH_NAMES, Time, days_in_month, twelve_hour};
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{CursorIcon, Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -319,15 +318,12 @@ fn SegmentView(
     }
 }
 
-pub fn date_time_field_value(document: &Document, field: NodeId) -> Option<DateTime> {
-    document
-        .component_state::<State>(field)
-        .value
-        .get_untracked()
+pub fn date_time_field_value(tree: &impl Inspect, field: NodeId) -> Option<DateTime> {
+    tree.component_state::<State>(field).value.get_untracked()
 }
 
-pub fn date_time_field_text(document: &Document, field: NodeId) -> String {
-    let state = document.component_state::<State>(field);
+pub fn date_time_field_text(tree: &impl Inspect, field: NodeId) -> String {
+    let state = tree.component_state::<State>(field);
     let values = state.values.get_untracked();
     let typing = state.typing.get_untracked();
     let mut text = String::new();

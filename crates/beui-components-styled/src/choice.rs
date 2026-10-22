@@ -1,7 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
@@ -94,8 +93,8 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
     }
 }
 
-pub(super) fn selected_index(document: &Document, choice: NodeId) -> Option<usize> {
-    unstyled::choice_selected(document, choice)
+pub(super) fn selected_index(tree: &impl Inspect, choice: NodeId) -> Option<usize> {
+    unstyled::choice_selected(tree, choice)
 }
 
 fn ring(theme: &ThemeStore, checked: bool) -> Color32 {

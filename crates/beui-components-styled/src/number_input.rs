@@ -9,7 +9,6 @@ use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -116,11 +115,11 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
     }
 }
 
-pub fn number_input_field(document: &Document, input: NodeId) -> Option<NodeId> {
-    unstyled::number_input_field(document, input)
+pub fn number_input_field(tree: &impl Inspect, input: NodeId) -> Option<NodeId> {
+    unstyled::number_input_field(tree, input)
 }
 
-pub fn number_input_text(document: &Document, input: NodeId) -> Option<NodeId> {
-    unstyled::number_input_face(document, input)?;
-    Some(document.component_state::<FaceText>(input).0.get())
+pub fn number_input_text(tree: &impl Inspect, input: NodeId) -> Option<NodeId> {
+    unstyled::number_input_face(tree, input)?;
+    Some(tree.component_state::<FaceText>(input).0.get())
 }

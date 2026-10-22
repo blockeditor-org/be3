@@ -15,7 +15,6 @@ use beui_components_unstyled::{
 };
 use beui_core::base::ItemSize;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::file_picker::PickedFile;
 use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
@@ -124,6 +123,6 @@ fn blank_widget() -> RenderFn<usize> {
     })
 }
 
-pub fn text_area_surface(document: &Document, area: NodeId) -> NodeId {
-    document.component_state::<NodeRef>(area).get()
+pub fn text_area_surface(tree: &impl Inspect, area: NodeId) -> NodeId {
+    tree.component_state::<NodeRef>(area).get()
 }

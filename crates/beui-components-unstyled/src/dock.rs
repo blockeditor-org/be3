@@ -34,7 +34,6 @@ use crate::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::image::Image;
 use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
@@ -555,7 +554,7 @@ impl State {
 
     fn pane_rect(&self, tree: Tree) -> Option<Rect> {
         let node = self.panes.value().borrow().get(&tree)?.try_get()?;
-        with_document(|document| document.node_rect(node))
+        placements().rect(node)
     }
 
     fn raise_window(&self, window: NodeRef) {
@@ -566,12 +565,10 @@ impl State {
             .fullscreen_layer
             .try_get()
             .filter(|_| self.fullscreen_in_front());
-        with_document(|document| {
-            document.raise_overlay(window);
-            if let Some(fullscreen) = fullscreen {
-                document.raise_overlay(fullscreen);
-            }
-        });
+        raise_overlay(window);
+        if let Some(fullscreen) = fullscreen {
+            raise_overlay(fullscreen);
+        }
     }
 
     fn surface_node(&self, surface: SurfaceId) -> Option<NodeId> {
@@ -591,31 +588,21 @@ impl State {
     }
 
     fn surfaces_at(&self, state: &DockState, pos: Pos2) -> Vec<SurfaceId> {
-        with_document(|document| {
-            let layers = document.layers();
-            let mut placed: Vec<(usize, SurfaceId)> = state
-                .surfaces()
-                .into_iter()
-                .filter_map(|surface| {
-                    let node = self.surface_node(surface)?;
-                    Some((document.layer_of(&layers, node)?, surface))
-                })
-                .collect();
-            placed.sort_by_key(|(layer, _)| std::cmp::Reverse(*layer));
-            let foreign = (1..layers.len()).rev().find(|index| {
-                layers[*index].policy != LayerPolicy::Inert
-                    && !placed.iter().any(|(layer, _)| layer == index)
-                    && document
-                        .layer_covers(&layers[*index])
-                        .iter()
-                        .any(|cover| cover.contains(pos))
-            });
-            placed
-                .into_iter()
-                .filter(|(layer, _)| foreign.is_none_or(|foreign| *layer > foreign))
-                .map(|(_, surface)| surface)
-                .collect()
-        })
+        let surfaces: Vec<(NodeId, SurfaceId)> = state
+            .surfaces()
+            .into_iter()
+            .filter_map(|surface| Some((self.surface_node(surface)?, surface)))
+            .collect();
+        let nodes: Vec<NodeId> = surfaces.iter().map(|(node, _)| *node).collect();
+        stacked_at(&nodes, pos)
+            .into_iter()
+            .filter_map(|node| {
+                surfaces
+                    .iter()
+                    .find(|(held, _)| *held == node)
+                    .map(|(_, surface)| *surface)
+            })
+            .collect()
     }
 
     fn surface_rect(&self, surface: SurfaceId) -> Option<Rect> {
@@ -626,7 +613,7 @@ impl State {
             .get(&surface)
             .and_then(NodeRef::try_get);
         match window {
-            Some(window) => with_document(|document| document.node_rect(window)),
+            Some(window) => placements().rect(window),
             None => self.pane_rect(Tree::Surface(surface)),
         }
     }
@@ -641,13 +628,11 @@ impl State {
         else {
             return Vec::new();
         };
-        with_document(|document| {
-            document
-                .children(node)
-                .into_iter()
-                .filter_map(|child| document.node_rect(child))
-                .collect()
-        })
+        let placements = placements();
+        node_children(node)
+            .into_iter()
+            .filter_map(|child| placements.rect(child))
+            .collect()
     }
 
     fn over_window_bar(&self, surface: SurfaceId, pos: Pos2) -> bool {
@@ -666,7 +651,7 @@ impl State {
 
     fn bar_rect(&self, leaf: LeafId) -> Option<Rect> {
         let node = self.bars.value().borrow().get(&leaf)?.strip.try_get()?;
-        with_document(|document| document.node_rect(node))
+        placements().rect(node)
     }
 
     fn toggle_vertical(&self, leaf: LeafId) {
@@ -1411,7 +1396,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
             return;
         }
         if let Some(layer) = layer.try_get() {
-            untrack(|| with_document(|document| document.raise_overlay(layer)));
+            untrack(|| raise_overlay(layer));
         }
     });
     let body = move || {
@@ -2093,7 +2078,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     dock.release_dialog_focus();
                     let picked = tab_list
                         .try_get()
-                        .is_some_and(|tabs| with_document(|document| document.focus_is_within(tabs)));
+                        .is_some_and(focus_is_within);
                     let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
                     if let Some(tab) = shown.filter(|_| !picked) {
                         dock.give_keyboard(tab);
@@ -2574,7 +2559,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             let limit = |origin: Pos2| {
                 reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
             };
-            let banding = with_document(|document| document.motion().animates());
+            let banding = motion().animates();
             let mut origin = window.min;
             if !band.step(frame.now, &mut origin, limit, banding) {
                 return false;
@@ -2592,7 +2577,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             overshoot.set(Vec2::ZERO);
         },
     );
-    let preference = with_document(|document| document.watch_motion());
+    let preference = use_motion();
     create_effect(move || {
         if !preference.get().animates() {
             band.value().borrow_mut().settle();
@@ -2714,7 +2699,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                 Rect::from_min_size(start.min + (press.pos - from), start.size());
                                             let bounds = dock.rect.get_untracked().size();
                                             let origin = reachable_origin(placed, bounds, reach());
-                                            let banding = with_document(|document| document.motion().animates());
+                                            let banding = motion().animates();
                                             let band = band.value();
                                             let mut band = band.borrow_mut();
                                             band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
@@ -2864,11 +2849,9 @@ fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
     let (Some(frame), Some(grip)) = (frame.try_get(), grip.try_get()) else {
         return 0.0;
     };
-    try_with_document(|document| {
-        Some(document.node_rect(grip)?.bottom() - document.node_rect(frame)?.top())
-    })
-    .flatten()
-    .unwrap_or(0.0)
+    let placements = placements();
+    let reach = || Some(placements.rect(grip)?.bottom() - placements.rect(frame)?.top());
+    reach().unwrap_or(0.0)
 }
 
 #[component]
@@ -2904,6 +2887,6 @@ fn DockDragLayer(dock: State) -> NodeId {
     }
 }
 
-pub fn dock_state(document: &Document, dock: NodeId) -> DockState {
-    document.component_state::<State>(dock).state.get()
+pub fn dock_state(tree: &impl Inspect, dock: NodeId) -> DockState {
+    tree.component_state::<State>(dock).state.get()
 }

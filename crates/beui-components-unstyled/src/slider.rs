@@ -6,7 +6,6 @@ use beui_macros::{component, view};
 
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -187,8 +186,8 @@ pub fn Slider(
     }
 }
 
-pub fn slider_value(document: &Document, slider: NodeId) -> Binding<f32> {
-    *document.component_state::<Binding<f32>>(slider)
+pub fn slider_value(tree: &impl Inspect, slider: NodeId) -> Binding<f32> {
+    *tree.component_state::<Binding<f32>>(slider)
 }
 
 fn curved(fraction: f32, base: f32) -> f32 {

@@ -2,7 +2,6 @@ use beui_macros::{component, view};
 
 use crate::choice::{self, Kind, OptionFace};
 use beui_components_unstyled::{Choice, ChoiceOption};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -26,6 +25,6 @@ pub fn Tabs(
     }
 }
 
-pub fn tabs_selected(document: &Document, tabs: NodeId) -> usize {
-    choice::selected_index(document, tabs).unwrap_or(0)
+pub fn tabs_selected(tree: &impl Inspect, tabs: NodeId) -> usize {
+    choice::selected_index(tree, tabs).unwrap_or(0)
 }

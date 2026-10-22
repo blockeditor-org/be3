@@ -9,7 +9,6 @@ use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -107,6 +106,6 @@ fn fill_for(theme: &ThemeStore, pressed: bool, hovered: bool) -> Color32 {
     }
 }
 
-pub fn toggle_button_pressed(document: &Document, button: NodeId) -> bool {
-    unstyled::toggle_checked(document, button).get()
+pub fn toggle_button_pressed(tree: &impl Inspect, button: NodeId) -> bool {
+    unstyled::toggle_checked(tree, button).get()
 }

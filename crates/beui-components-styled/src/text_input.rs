@@ -7,7 +7,6 @@ use crate::context_menu::menu_style;
 use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
-use beui_core::document::Document;
 use beui_core::icons::{ICON_CLOSE, ICON_CONTENT_COPY};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -186,6 +185,6 @@ pub fn text_input_style() -> TextInputStyle {
     }
 }
 
-pub fn text_input_value(document: &Document, input: NodeId) -> String {
-    unstyled::text_input_value(document, input)
+pub fn text_input_value(tree: &impl Inspect, input: NodeId) -> String {
+    unstyled::text_input_value(tree, input)
 }

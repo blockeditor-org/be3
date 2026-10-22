@@ -8,18 +8,16 @@ use beui_macros::{component, view};
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband};
 use beui_core::base::Sides;
-use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{
     AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
 };
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::{NodeId, NodeOf};
+use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -251,11 +249,11 @@ fn autoscroll_speed(distance: f32) -> f32 {
 }
 
 fn rubber_banding() -> bool {
-    with_document(|document| document.motion().animates())
+    motion().animates()
 }
 
 struct Motion {
-    node: Option<NodeOf<OffsetNode>>,
+    node: Option<NodeId>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
     momentum: RefCell<Momentum>,
@@ -272,7 +270,7 @@ impl Motion {
     fn placed(&self) -> Option<ScrollPosition> {
         let reported = self.reported.get_untracked()?;
         let node = self.node?;
-        let offset = with_document(|document| document.offset_value(node));
+        let offset = offset_value(node)?;
         Some(ScrollPosition { offset, ..reported })
     }
 
@@ -280,10 +278,8 @@ impl Motion {
         let Some(node) = self.node else {
             return;
         };
-        with_document(|document| {
-            document.drive_offset(node, offset);
-            document.set_offset_overscroll(node, momentum.overscroll);
-        });
+        drive_offset(node, offset);
+        set_offset_overscroll(node, momentum.overscroll);
     }
 
     fn flinging(&self) -> bool {
@@ -430,11 +426,7 @@ impl Motion {
         if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
             momentum.rest();
         }
-        with_document(|document| {
-            if document.contains(node) {
-                document.set_offset_overscroll(node, 0.0);
-            }
-        });
+        set_offset_overscroll(node, 0.0);
     }
 
     fn finish(&self) {
@@ -450,7 +442,7 @@ impl Motion {
 
     fn step(&self, elapsed: f32) -> Option<Duration> {
         let node = self.node?;
-        if !with_document(|document| document.contains(node)) {
+        if !node_exists(node) {
             return None;
         }
         let mut momentum = self.momentum.borrow_mut();
@@ -485,7 +477,7 @@ fn Scrolling(
         on_change.call(position);
     }));
     let motion = store(Motion {
-        node: with_document(|document| document.first_offset_within(node)),
+        node: first_offset_within(node),
         reported: reported.read_only(),
         direction,
         momentum: RefCell::new(Momentum::new()),
@@ -507,16 +499,14 @@ fn Scrolling(
     });
     motion.with(|motion| motion.autoscrolling.set(Some(autoscrolling)));
     motion.with(|motion| motion.animation.set(Some(animation)));
-    let preference = with_document(|document| document.watch_motion());
+    let preference = use_motion();
     create_effect(move || {
         if !preference.get().animates() {
             motion.value().finish();
         }
     });
     if let Some(offset) = motion.with(|motion| motion.node) {
-        with_document(|document| {
-            document.set_offset_on_steer(offset, move |()| motion.value().steer());
-        });
+        on_offset_steer(offset, move |()| motion.value().steer());
     }
     set_component_state(motion);
 
@@ -727,12 +717,9 @@ pub fn Scroll(
             return;
         };
         let rows = rows.get();
-        with_document(|document| {
-            let row = document.arena.get(rows).children().get(index).copied();
-            if let Some(row) = row {
-                document.reveal_node(row);
-            }
-        });
+        if let Some(row) = node_children(rows).get(index).copied() {
+            reveal_node(row);
+        }
     });
     scroll
 }
@@ -771,9 +758,8 @@ pub(crate) fn fade_edges(
     }
 }
 
-pub fn scroll_animating(document: &Document, scroll: NodeId) -> bool {
-    document
-        .component_state::<Stored<Motion>>(scroll)
+pub fn scroll_animating(tree: &impl Inspect, scroll: NodeId) -> bool {
+    tree.component_state::<Stored<Motion>>(scroll)
         .with(|motion| motion.momentum.borrow().moving())
 }
 
@@ -813,7 +799,9 @@ fn across(direction: &Prop<Direction>) -> Memo<Direction> {
 
 pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
     node.try_get().is_some_and(|node| {
-        with_document(|document| document.node_rect(node)).is_some_and(|rect| rect.contains(pos))
+        placements()
+            .rect(node)
+            .is_some_and(|rect| rect.contains(pos))
     })
 }
 

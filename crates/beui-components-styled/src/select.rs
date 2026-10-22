@@ -11,7 +11,6 @@ use beui_components_unstyled::{
 };
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -186,12 +185,12 @@ fn SelectPopup(children: Child) -> NodeId {
     }
 }
 
-pub fn select_selected(document: &Document, select: NodeId) -> Option<usize> {
-    unstyled::select_selected(document, select)
+pub fn select_selected(tree: &impl Inspect, select: NodeId) -> Option<usize> {
+    unstyled::select_selected(tree, select)
 }
 
-pub fn select_open(document: &Document, select: NodeId) -> bool {
-    unstyled::select_open(document, select)
+pub fn select_open(tree: &impl Inspect, select: NodeId) -> bool {
+    unstyled::select_open(tree, select)
 }
 
 fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {

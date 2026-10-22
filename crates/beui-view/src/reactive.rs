@@ -319,6 +319,7 @@ pub use crate::actions::{
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
 };
+pub use crate::nodes::*;
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};

@@ -10,7 +10,6 @@ use crate::button::{Button, ButtonHandle};
 use crate::floating::{Edge, Floating};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::keys::{KeyAt, KeyPhase};
@@ -438,7 +437,7 @@ pub fn TreeRowEditor(
     let placed = create_memo(move || field.try_get().is_some_and(|node| node_placed(node).get()));
     create_effect(move || {
         if placed.get() {
-            with_document(|document| document.reveal_node(field.get()));
+            reveal_node(field.get());
         }
     });
     let keyboard = use_keyboard();
@@ -482,7 +481,7 @@ where
     K: Clone + Eq + Hash + 'static,
 {
     let (list, scroll) = (tree.get(), viewport.get());
-    let state = with_document(|document| *document.component_state::<State<K>>(list));
+    let state = component_state::<State<K>>(list);
     let (keys, shown, buried, selected) = (state.keys, state.shown, state.buried, state.selected);
     let astray = create_memo(move || {
         let key = shown.get()?;
@@ -522,7 +521,7 @@ where
         if !node_placed(row).get() {
             return;
         }
-        with_document(|document| document.reveal_node(row));
+        reveal_node(row);
         pending.set(None);
     });
     let open = create_memo(move || astray.get().is_some());
@@ -567,21 +566,21 @@ fn stray_edge(row: Rect, viewport: Rect, buried: bool) -> Option<Edge> {
     None
 }
 
-pub fn tree_row_node<K>(document: &Document, tree: NodeId, key: &K) -> Option<NodeId>
+pub fn tree_row_node<K>(built: &impl Inspect, tree: NodeId, key: &K) -> Option<NodeId>
 where
     K: Clone + Eq + Hash + 'static,
 {
-    document
+    built
         .component_state::<State<K>>(tree)
         .nodes
         .with(|nodes| nodes.borrow().get(key).and_then(NodeRef::try_get))
 }
 
-pub fn tree_focused<K>(document: &Document, tree: NodeId) -> Option<K>
+pub fn tree_focused<K>(built: &impl Inspect, tree: NodeId) -> Option<K>
 where
     K: Clone + Eq + Hash + 'static,
 {
-    document.component_state::<State<K>>(tree).focus.get()
+    built.component_state::<State<K>>(tree).focus.get()
 }
 
 fn track_focus<K>(state: State<K>, key: &K, has_focus: bool)

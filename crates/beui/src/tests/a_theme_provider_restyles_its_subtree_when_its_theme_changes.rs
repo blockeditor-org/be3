@@ -34,7 +34,7 @@ fn a_theme_provider_restyles_its_subtree_when_its_theme_changes() {
     assert_eq!(fills(&epaper, Theme::DARK.accent), 0);
     assert_eq!(fills(&epaper, Theme::EPAPER.accent), 1);
     assert_eq!(
-        harness.document().theme(),
+        Theme::of(harness.document().preferences().theme),
         Theme::DARK,
         "a provider restyles its subtree without changing the document theme"
     );

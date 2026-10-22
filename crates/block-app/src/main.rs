@@ -362,7 +362,7 @@ impl beui::App for Shell {
         plugin_host::place_screens(
             &plugin_host::shown_blits(),
             context.pixels_per_point() / context.native_pixels_per_point(),
-            beui::styled::DocumentTheme::theme(&self.document).background,
+            beui::styled::Theme::of(self.document.preferences().theme).background,
         );
         self.document.show(context, rect);
         plugin_host::describe(context);

@@ -7,7 +7,6 @@ use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{Date, Weekday};
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -544,25 +543,20 @@ fn toggle_accessibility(label: Memo<String>, choose: &'static str, open: Memo<bo
     })
 }
 
-pub fn calendar_selected(document: &Document, calendar: NodeId) -> Option<Date> {
-    document
-        .component_state::<State>(calendar)
+pub fn calendar_selected(tree: &impl Inspect, calendar: NodeId) -> Option<Date> {
+    tree.component_state::<State>(calendar)
         .selected
         .get_untracked()
 }
 
-pub fn calendar_active(document: &Document, calendar: NodeId) -> Date {
-    document
-        .component_state::<State>(calendar)
+pub fn calendar_active(tree: &impl Inspect, calendar: NodeId) -> Date {
+    tree.component_state::<State>(calendar)
         .active
         .get_untracked()
 }
 
-pub fn calendar_mode(document: &Document, calendar: NodeId) -> CalendarMode {
-    document
-        .component_state::<State>(calendar)
-        .mode
-        .get_untracked()
+pub fn calendar_mode(tree: &impl Inspect, calendar: NodeId) -> CalendarMode {
+    tree.component_state::<State>(calendar).mode.get_untracked()
 }
 
 fn in_range(state: State, date: Date) -> bool {
