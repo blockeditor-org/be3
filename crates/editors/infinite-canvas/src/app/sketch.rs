@@ -49,11 +49,13 @@ pub(crate) struct SketchKey {
     points: Vec<CanvasPathPoint>,
     pressures: Vec<f32>,
     style: CanvasStyle,
+    drawing: bool,
 }
 
 impl SketchKey {
-    pub(crate) fn of(entity: &CanvasEntity) -> Self {
+    pub(crate) fn of(entity: &CanvasEntity, drawing: bool) -> Self {
         Self {
+            drawing,
             shape: entity.shape,
             transform: entity.transform,
             points: entity.points.clone(),
@@ -72,7 +74,7 @@ fn round(width: f32) -> Stroke {
 }
 
 impl Sketch {
-    pub(crate) fn of(entity: &CanvasEntity) -> Self {
+    pub(crate) fn of(entity: &CanvasEntity, drawing: bool) -> Self {
         let style = entity.style;
         let hand = style.look == CanvasLook::HandDrawn;
         let mut sketch = Self::default();
@@ -83,7 +85,7 @@ impl Sketch {
                     .iter()
                     .map(|point| at(point.at()))
                     .collect();
-                sketch.freehand(&points, &entity.pressures, style.stroke_width);
+                sketch.freehand(&points, &entity.pressures, style.stroke_width, drawing);
             }
             CanvasShape::Rectangle | CanvasShape::Ellipse | CanvasShape::Diamond => {
                 sketch.closed(entity, hand)
@@ -95,8 +97,8 @@ impl Sketch {
         sketch
     }
 
-    fn freehand(&mut self, points: &[Pos2], pressures: &[f32], width: f32) {
-        let outline = freehand::stroke(points, pressures, width.max(0.1), true);
+    fn freehand(&mut self, points: &[Pos2], pressures: &[f32], width: f32, drawing: bool) {
+        let outline = freehand::stroke(points, pressures, width.max(0.1), !drawing);
         self.push(Ink::Stroke, Mark::Fill(outline));
     }
 

@@ -11,6 +11,7 @@ pub struct CanvasCursor {
     pub pointer: Option<CanvasPoint>,
     pub selection: Vec<Uuid>,
     pub caret: Option<CanvasCaret>,
+    pub drawing: Option<Uuid>,
     pub color: PresenceColor,
 }
 

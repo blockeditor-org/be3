@@ -96,6 +96,7 @@ impl PartialEq for EntityPaint {
             && self.automatic == other.automatic
             && self.covered == other.covered
             && self.placeholder == other.placeholder
+            && Rc::ptr_eq(&self.sketch, &other.sketch)
     }
 }
 

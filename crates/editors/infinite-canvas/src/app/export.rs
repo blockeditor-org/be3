@@ -458,7 +458,9 @@ fn draw(
         automatic: false,
         covered: false,
         placeholder: None,
-        sketch: Rc::new(Sketch::of(entity).translated(Vec2::new(camera.origin.x, camera.origin.y))),
+        sketch: Rc::new(
+            Sketch::of(entity, false).translated(Vec2::new(camera.origin.x, camera.origin.y)),
+        ),
     }
     .draw(painter);
     paint_written(&turned, entity, ink, camera);
@@ -640,7 +642,7 @@ fn svg_entity(
         return;
     }
     let fill = with_opacity(resolve_color(style.fill_color, scene.palette.auto), opacity);
-    for part in &Sketch::of(entity).parts {
+    for part in &Sketch::of(entity, false).parts {
         let color = match part.ink {
             Ink::Stroke => ink,
             Ink::Fill => fill,

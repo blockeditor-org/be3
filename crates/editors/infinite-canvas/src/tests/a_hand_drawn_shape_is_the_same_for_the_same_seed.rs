@@ -12,11 +12,11 @@ fn a_hand_drawn_shape_is_the_same_for_the_same_seed() {
         entity.style.look = CanvasLook::HandDrawn;
         entity.style.fill = CanvasFill::Hatched;
         entity.style.seed = 7;
-        let drawn = Sketch::of(&entity);
+        let drawn = Sketch::of(&entity, false);
         assert!(!drawn.parts.is_empty(), "{shape:?} draws something");
         assert_eq!(
             drawn,
-            Sketch::of(&entity.clone()),
+            Sketch::of(&entity.clone(), false),
             "{shape:?} is drawn the same again"
         );
 
@@ -24,7 +24,7 @@ fn a_hand_drawn_shape_is_the_same_for_the_same_seed() {
         reseeded.style.seed = 8;
         assert_ne!(
             drawn,
-            Sketch::of(&reseeded),
+            Sketch::of(&reseeded, false),
             "another seed draws {shape:?} differently"
         );
 
@@ -32,7 +32,7 @@ fn a_hand_drawn_shape_is_the_same_for_the_same_seed() {
         stored.text = "a label".into();
         assert_eq!(
             drawn,
-            Sketch::of(&stored),
+            Sketch::of(&stored, false),
             "a label leaves the {shape:?} as it was"
         );
     }

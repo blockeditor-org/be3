@@ -450,6 +450,8 @@ pub(crate) struct CanvasState {
     pub(crate) presence: Signal<Presence>,
     peer_carets: Memo<Vec<(CanvasCaret, PresenceColor)>>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
+    own_stroke: Memo<Option<Uuid>>,
+    strokes: Memo<Vec<Uuid>>,
 }
 
 impl CanvasState {
@@ -543,6 +545,20 @@ impl CanvasState {
             stage: Cell::new(Rect::ZERO),
         });
 
+        let peers = editor.peers::<CanvasCursor>();
+        let own_stroke = create_memo(move || {
+            gesture.with(|gesture| match gesture {
+                Some(Gesture::Pen { id, .. }) => Some(*id),
+                _ => None,
+            })
+        });
+        let strokes = create_memo(move || {
+            let mut strokes: Vec<Uuid> = own_stroke.get().into_iter().collect();
+            peers.with(|peers| {
+                strokes.extend(peers.iter().filter_map(|(_, cursor)| cursor.drawing));
+            });
+            strokes
+        });
         Self {
             cells,
             editor,
@@ -567,7 +583,9 @@ impl CanvasState {
             child_states,
             presence,
             peer_carets,
-            peers: editor.peers::<CanvasCursor>(),
+            peers,
+            own_stroke,
+            strokes,
         }
     }
 
@@ -1171,6 +1189,10 @@ impl CanvasState {
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
         self.cells.value().context_position.set(at);
+    }
+
+    pub(crate) fn being_drawn(&self, id: Uuid) -> bool {
+        self.strokes.with(|strokes| strokes.contains(&id))
     }
 
     pub(crate) fn peer_carets(&self) -> Memo<Vec<(CanvasCaret, PresenceColor)>> {
@@ -2587,6 +2609,7 @@ impl CanvasState {
             state.pointer.with(|_| ());
             state.caret.with(|_| ());
             state.selection.with(|_| ());
+            state.own_stroke.with(|_| ());
             untrack(|| state.publish_presence());
         });
         let state = self;
@@ -2705,6 +2728,7 @@ impl CanvasState {
                 pointer: self.pointer.get_untracked(),
                 selection: self.selection.get_untracked().iter().copied().collect(),
                 caret: self.caret.get_untracked(),
+                drawing: self.own_stroke.get_untracked(),
                 color,
             }
         });

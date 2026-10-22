@@ -422,6 +422,14 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         }
     });
     let scales = create_memo(move || !editing.get());
+    let drawing = create_memo(move || {
+        let freehand = entity.with(|entity| {
+            entity
+                .as_ref()
+                .is_some_and(|entity| entity.shape == CanvasShape::Freehand)
+        });
+        freehand && state.being_drawn(id)
+    });
     let unit = create_memo(move || match editing.get() {
         true => camera.get().scale.max(f32::EPSILON),
         false => 1.0,
@@ -437,10 +445,11 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             return;
         };
         let corner = bounds.get().min;
-        let key = SketchKey::of(&entity);
+        let drawing = drawing.get();
+        let key = SketchKey::of(&entity, drawing);
         let mut held = sketched.borrow_mut();
         if held.as_ref().is_none_or(|(held_key, ..)| *held_key != key) {
-            *held = Some((key, Sketch::of(&entity), None));
+            *held = Some((key, Sketch::of(&entity, drawing), None));
         }
         let Some((_, world, placed)) = held.as_mut() else {
             return;
