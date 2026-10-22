@@ -39,7 +39,7 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
             .any(|(_, node)| node.role() == Role::Group && node.label() == Some("Due"))
     );
 
-    harness.context.accessibility_action(ActionRequest {
+    harness.context().accessibility_action(ActionRequest {
         action: Action::Increment,
         target_tree: TreeId::ROOT,
         target_node: *month_id,

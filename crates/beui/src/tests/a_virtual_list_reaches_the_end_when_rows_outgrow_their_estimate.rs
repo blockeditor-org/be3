@@ -40,20 +40,20 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(
-        harness.rect(harness.document.children(list)[1]).top(),
+        harness.rect(harness.document().children(list)[1]).top(),
         ACTUAL
     );
 
     for _ in 0..SETTLING_FRAMES {
-        harness.document.set_scroll_offset(scroll, f32::MAX);
+        harness.document_mut().set_scroll_offset(scroll, f32::MAX);
         harness.frame(Vec::new());
     }
 
     assert_eq!(built.get_untracked().last(), Some(&(ROWS - 1)));
-    let last = *harness.document.children(list).last().unwrap();
+    let last = *harness.document().children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y);
     assert_eq!(
-        harness.document.scroll_offset(scroll),
+        harness.document().scroll_offset(scroll),
         harness.rect(list).height() - VIEWPORT.y
     );
 }

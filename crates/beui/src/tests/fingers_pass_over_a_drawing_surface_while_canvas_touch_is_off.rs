@@ -51,7 +51,7 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
         "a finger draws by default"
     );
 
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::App,
         PreferenceLayer {
             canvas_touch: Some(CanvasTouch::Off),

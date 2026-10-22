@@ -862,7 +862,6 @@ const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
 const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
-const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 fn flattened(input: crate::ForwardedInput) -> Vec<Event> {
     use crate::input::{PointerId, PointerPhase};
@@ -912,28 +911,16 @@ pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
 }
 
 pub(crate) struct Harness {
-    context: Context,
-    document: Document,
-    viewport: Vec2,
-    typed: Vec<Event>,
+    stepped: crate::testing::Stepped,
 }
 
 impl Harness {
-    pub(crate) fn new(mut document: Document) -> Self {
-        crate::verify_paint(true);
-        crate::inspector::install(&mut document);
-        let context = Context::new(crate::FreetypeFonts::default());
-        context.stop_clock();
-        Self {
-            context,
-            document,
-            viewport: VIEWPORT,
-            typed: Vec::new(),
-        }
+    pub(crate) fn new(document: Document) -> Self {
+        Self::sized(document, VIEWPORT)
     }
 
     pub(crate) fn advance(&mut self, by: Duration) {
-        self.context.advance_clock(by);
+        self.stepped.context().advance_clock(by);
     }
 
     pub(crate) fn settle(&mut self) -> usize {
@@ -947,33 +934,41 @@ impl Harness {
         panic!("still animating after {LIMIT} frames");
     }
 
-    pub(crate) fn sized(document: Document, viewport: Vec2) -> Self {
+    pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
+        crate::verify_paint(true);
+        crate::inspector::install(&mut document);
+        let window = beui_core::app::automation::WindowSize {
+            size: viewport,
+            scale: 1.0,
+        };
         Self {
-            viewport,
-            ..Self::new(document)
+            stepped: crate::testing::Stepped::new(
+                context(),
+                crate::testing::Showing(document),
+                window,
+                None,
+            ),
         }
     }
 
-    pub(crate) fn viewport_mut(&mut self) -> &mut Vec2 {
-        &mut self.viewport
+    pub(crate) fn viewport(&self) -> Vec2 {
+        self.stepped.size()
+    }
+
+    pub(crate) fn resize(&mut self, viewport: Vec2) {
+        self.stepped.resize(viewport);
+    }
+
+    pub(crate) fn run(&mut self, words: &[&str]) -> String {
+        self.stepped.run(words)
+    }
+
+    pub(crate) fn rescale(&mut self, scale: f32) {
+        self.stepped.rescale(scale);
     }
 
     pub(crate) fn frame(&mut self, events: Vec<Event>) -> crate::FrameOutput {
-        let Self {
-            context,
-            document,
-            viewport,
-            typed,
-        } = self;
-        let mut held = std::mem::take(typed);
-        held.extend(events);
-        let input = RawInput { events: held };
-        context.advance_clock(FRAME_INTERVAL);
-        let mut output = context.run(input, |context| {
-            document.show(context, Rect::from_min_size(Pos2::ZERO, *viewport));
-        });
-        *typed = std::mem::take(&mut output.typed);
-        output
+        self.stepped.step(events)
     }
 
     pub(crate) fn click(&mut self, pos: Pos2) {
@@ -1133,7 +1128,7 @@ impl Harness {
     }
 
     pub(crate) fn shown_screen(&self) -> Rect {
-        self.document
+        self.stepped.document()
             .shown_screen()
             .expect("a screen is simulated")
             .shown()
@@ -1141,12 +1136,12 @@ impl Harness {
 
     pub(crate) fn assert_screen_size(&self, size: Vec2) {
         let simulation = self
-            .context
+            .stepped.context()
             .screen_simulation()
             .expect("a screen is simulated");
         assert_eq!(simulation.size, size);
-        let root = self.document.root().expect("the document has a root");
-        let pixel = (self.document.screen_scale() * self.context.pixels_per_point()).recip();
+        let root = self.stepped.document().root().expect("the document has a root");
+        let pixel = (self.stepped.document().screen_scale() * self.stepped.context().pixels_per_point()).recip();
         let laid_out = self.rect(root).size();
         assert!(
             (laid_out.x - size.x).abs() <= pixel && (laid_out.y - size.y).abs() <= pixel,
@@ -1158,7 +1153,7 @@ impl Harness {
         self.inspector()
             .toolbar_rect(test_id)
             .expect("the control was not laid out")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.stepped.context()))
     }
 
     pub(crate) fn toggle_inspector_focus(&mut self) {
@@ -1178,7 +1173,7 @@ impl Harness {
 
     pub(crate) fn accessible(&self) -> Vec<accesskit::Node> {
         ::reactive::flush();
-        self.document
+        self.stepped.document()
             .accessibility_view()
             .map(|view| view.nodes().cloned().collect())
             .unwrap_or_default()
@@ -1186,28 +1181,28 @@ impl Harness {
 
     pub(crate) fn document(&self) -> &Document {
         ::reactive::flush();
-        &self.document
+        self.stepped.document()
     }
 
     pub(crate) fn context(&self) -> &Context {
-        &self.context
+        self.stepped.context()
     }
 
     pub(crate) fn document_mut(&mut self) -> &mut Document {
         ::reactive::flush();
-        &mut self.document
+        self.stepped.document_mut()
     }
 
     pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
         ::reactive::flush();
-        self.document
+        self.stepped.document()
             .node_rect(id)
             .expect("the node was not laid out")
     }
 
     pub(crate) fn find(&self, test_id: &str) -> NodeId {
         ::reactive::flush();
-        self.document
+        self.stepped.document()
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
     }
@@ -1218,14 +1213,14 @@ impl Harness {
 
     pub(crate) fn inspector_open(&self) -> bool {
         ::reactive::flush();
-        self.document
+        self.stepped.document()
             .tools::<InspectorTools>()
             .is_some_and(|tools| tools.inspector.is_some())
     }
 
     pub(crate) fn inspector(&self) -> &Inspector {
         ::reactive::flush();
-        self.document
+        self.stepped.document()
             .tools::<InspectorTools>()
             .and_then(|tools| tools.inspector.as_deref())
             .expect("the inspector is closed")
@@ -1240,7 +1235,7 @@ impl Harness {
     }
 
     pub(crate) fn selected_row(&self) -> Option<String> {
-        self.inspector().selected_row(&self.document)
+        self.inspector().selected_row(self.stepped.document())
     }
 
     pub(crate) fn row_center(&self, index: usize) -> Pos2 {
@@ -1280,7 +1275,7 @@ impl Harness {
     }
 
     fn click_in_inspector(&mut self, node: NodeId) {
-        self.document
+        self.stepped.document_mut()
             .tools_mut::<InspectorTools>()
             .and_then(|tools| tools.inspector.as_deref_mut())
             .expect("the inspector is closed")
@@ -1302,7 +1297,7 @@ impl Harness {
         self.inspector()
             .bar_rect("inspector.bar.close")
             .expect("the inspector's tab bar has no close button")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.stepped.context()))
     }
 
     pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
@@ -1313,22 +1308,22 @@ impl Harness {
         self.inspector()
             .bar_option_rect(index)
             .expect("the inspector has no tab bar")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.stepped.context()))
     }
 
     pub(crate) fn inspector_panel_rect(&self) -> Rect {
         self.inspector()
             .panel_rect()
             .expect("the inspector panel was not laid out")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.stepped.context()))
     }
 
     pub(crate) fn mouse_simulation(&self) -> bool {
-        self.context.mouse_simulation()
+        self.stepped.context().mouse_simulation()
     }
 
     fn simulation<R>(&self, read: impl FnOnce(&MouseSimulation) -> R) -> R {
-        self.context
+        self.stepped.context()
             .input_simulation_as(read)
             .expect("the mouse is simulated")
     }
@@ -1422,9 +1417,9 @@ impl Harness {
     }
 
     pub(crate) fn document_bottom(&self) -> f32 {
-        self.document
+        self.stepped.document()
             .root()
-            .and_then(|root| self.document.node_rect(root))
+            .and_then(|root| self.stepped.document().node_rect(root))
             .expect("the document laid out no root")
             .bottom()
     }
@@ -1482,7 +1477,7 @@ impl Harness {
             .document
             .node_rect(inspector.find(test_id))
             .expect("the control was not laid out");
-        rect.scaled(crate::inspector::scale(&self.context))
+        rect.scaled(crate::inspector::scale(self.stepped.context()))
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {
@@ -1503,7 +1498,7 @@ impl Harness {
     }
 
     pub(crate) fn touch_emulation(&self) -> bool {
-        self.context.touch_emulation()
+        self.stepped.context().touch_emulation()
     }
 
     pub(crate) fn chevron_center(&self, index: usize) -> Pos2 {
@@ -1531,7 +1526,7 @@ impl Harness {
             .node_rect(id)
             .expect("the row was not laid out")
             .center();
-        let scale = crate::inspector::scale(&self.context);
+        let scale = crate::inspector::scale(self.stepped.context());
         pos2(center.x * scale, center.y * scale)
     }
 }

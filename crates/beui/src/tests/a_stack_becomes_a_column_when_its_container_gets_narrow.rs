@@ -34,7 +34,7 @@ fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
     assert_eq!(harness.rect(right).left(), WIDE_VIEWPORT.x / 2.0);
     assert_eq!(harness.rect(right).top(), harness.rect(left).top());
 
-    *harness.viewport_mut() = VIEWPORT;
+    harness.resize(VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(left).width(), VIEWPORT.x);

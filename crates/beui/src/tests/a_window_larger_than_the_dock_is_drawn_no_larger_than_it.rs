@@ -40,7 +40,7 @@ fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {
     let content = |harness: &Harness| harness.rect(harness.find("content.2"));
     let chrome = stored.size() - content(&harness).size();
 
-    *harness.viewport_mut() = SMALLER;
+    harness.resize(SMALLER);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

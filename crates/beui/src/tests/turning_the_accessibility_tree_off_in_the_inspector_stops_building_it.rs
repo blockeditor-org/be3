@@ -25,7 +25,7 @@ fn turning_the_accessibility_tree_off_in_the_inspector_stops_building_it() {
         assert_eq!(output.accessibility_tree("Test", VIEWPORT).nodes.len(), 1);
     }
 
-    harness.context.set_accessibility_active(true);
+    harness.context().set_accessibility_active(true);
     let output = harness.frame(Vec::new());
     let tree = output.accessibility_tree("Test", VIEWPORT);
     assert!(

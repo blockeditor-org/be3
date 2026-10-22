@@ -38,7 +38,7 @@ fn setting_a_scroll_offset_during_a_fling_stops_the_fling() {
             .animating()
     );
 
-    harness.document.set_scroll_offset(scroll, 100.0);
+    harness.document_mut().set_scroll_offset(scroll, 100.0);
     assert!(
         !harness
             .document()

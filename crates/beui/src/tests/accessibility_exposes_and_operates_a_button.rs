@@ -35,7 +35,7 @@ fn accessibility_exposes_and_operates_a_button() {
     assert!(label.is_some());
     let button_id = *button_id;
 
-    harness.context.accessibility_action(ActionRequest {
+    harness.context().accessibility_action(ActionRequest {
         action: Action::Click,
         target_tree: TreeId::ROOT,
         target_node: button_id,

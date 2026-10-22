@@ -27,10 +27,10 @@ fn tab_focus_stays_in_the_active_document_when_the_inspector_is_open() {
     harness.click(accesskit_tab);
     let inspector_focus = harness.inspector().document.focused_node();
     assert!(inspector_focus.is_some());
-    assert_eq!(harness.document.focused_node(), None);
+    assert_eq!(harness.document().focused_node(), None);
 
     harness.key(Key::Tab, Modifiers::NONE);
 
-    assert_eq!(harness.document.focused_node(), None);
+    assert_eq!(harness.document().focused_node(), None);
     assert_ne!(harness.inspector().document.focused_node(), inspector_focus);
 }

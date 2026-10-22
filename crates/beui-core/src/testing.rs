@@ -116,6 +116,8 @@ pub struct Stepped<A: App = Showing> {
     app: PhantomData<A>,
     runner: Runner,
     window: Window,
+    size: Vec2,
+    painted: bool,
     inbox: Inbox,
     steps: Vec<String>,
     closed: bool,
@@ -123,19 +125,20 @@ pub struct Stepped<A: App = Showing> {
 
 impl<A: App + 'static> Stepped<A> {
     pub fn new(context: Context, app: A, window: WindowSize, screen: Option<Vec2>) -> Self {
-        Self::start(context, app, window.size * window.scale, |runner| {
+        Self::start(context, app, window.size, window.scale, |runner| {
             Window::Simulated(Simulation::new(window, screen, runner.reports().clone()))
         })
     }
 
     pub fn on(context: Context, app: A, size: Vec2, platform: impl Platform + 'static) -> Self {
-        Self::start(context, app, size, |_| Window::Other(Box::new(platform)))
+        Self::start(context, app, size, 1.0, |_| Window::Other(Box::new(platform)))
     }
 
     fn start(
         context: Context,
         app: A,
-        physical: Vec2,
+        size: Vec2,
+        scale: f32,
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
@@ -151,23 +154,23 @@ impl<A: App + 'static> Stepped<A> {
         runner
             .start(
                 vec![Loaded {
-                    renderer: Box::new(Screen(physical)),
+                    renderer: Box::new(Screen(size * scale)),
                     fonts: None,
                 }],
                 Setup::new(Waker::new(|| {})),
             )
             .expect("a screen without a gpu always loads");
         runner.context().stop_clock();
-        let mut stepped = Self {
+        Self {
             app: PhantomData,
             runner,
             window,
+            size,
+            painted: false,
             inbox,
             steps: Vec::new(),
             closed: false,
-        };
-        stepped.paint();
-        stepped
+        }
     }
 
     pub fn app(&self) -> &A {
@@ -221,18 +224,40 @@ impl<A: App + 'static> Stepped<A> {
             .expect("a started runner that has not exited draws every frame")
     }
 
+    pub fn size(&self) -> Vec2 {
+        match &self.window {
+            Window::Simulated(simulation) => simulation.shown(),
+            Window::Other(_) => self.size,
+        }
+    }
+
     pub fn resize(&mut self, size: Vec2) {
+        let scale = self.scale();
+        self.resize_window(WindowSize { size, scale });
+    }
+
+    pub fn rescale(&mut self, scale: f32) {
+        let size = self.size();
+        self.resize_window(WindowSize { size, scale });
+    }
+
+    pub fn scale(&self) -> f32 {
+        match &self.window {
+            Window::Simulated(simulation) => simulation.window.scale,
+            Window::Other(_) => 1.0,
+        }
+    }
+
+    fn resize_window(&mut self, window: WindowSize) {
         let resized = match &mut self.window {
-            Window::Simulated(simulation) => simulation.resize(Resize::Window(WindowSize {
-                size,
-                scale: simulation.window.scale,
-            })),
+            Window::Simulated(simulation) => simulation.resize(Resize::Window(window)),
             Window::Other(_) => Err("only a simulated window resizes".to_owned()),
         };
         resized.unwrap_or_else(|error| panic!("{error}"));
     }
 
     fn paint(&mut self) {
+        self.painted = true;
         self.runner.context().advance_clock(FRAME_INTERVAL);
         let platform: &mut dyn Platform = match &mut self.window {
             Window::Simulated(simulation) => simulation,
@@ -253,6 +278,9 @@ impl<A: App + 'static> Stepped<A> {
                 .collect::<Vec<_>>()
                 .join(" "),
         );
+        if !self.painted {
+            self.paint();
+        }
         let owned = words.iter().map(|word| (*word).to_owned()).collect();
         let mut answered = pin!(ask(&self.inbox, owned));
         let mut waiting = TaskContext::from_waker(TaskWaker::noop());

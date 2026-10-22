@@ -31,5 +31,5 @@ fn an_overflowing_scroll_of_plain_text_is_a_tab_stop() {
             .contains(&focused)
     );
     harness.key(Key::PageDown, Modifiers::NONE);
-    assert_eq!(harness.document.scroll_offset(scroll), 100.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 100.0);
 }

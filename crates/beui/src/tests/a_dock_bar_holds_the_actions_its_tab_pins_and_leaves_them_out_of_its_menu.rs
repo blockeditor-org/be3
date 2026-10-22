@@ -66,7 +66,7 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     harness.key(Key::Escape, Modifiers::NONE);
     harness.settle();
 
-    *harness.viewport_mut() = PHONE;
+    harness.resize(PHONE);
     harness.settle();
     assert!(
         !laid_out(&harness, "dock.pin.share"),

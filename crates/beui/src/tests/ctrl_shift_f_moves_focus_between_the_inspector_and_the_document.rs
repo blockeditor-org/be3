@@ -15,7 +15,7 @@ fn ctrl_shift_f_moves_focus_between_the_inspector_and_the_document() {
 
     assert!(harness.inspector().document.focused_node().is_some());
     assert_eq!(harness.focused_row_index(), Some(0));
-    assert_eq!(harness.document.focused_node(), None);
+    assert_eq!(harness.document().focused_node(), None);
 
     harness.toggle_inspector_focus();
 

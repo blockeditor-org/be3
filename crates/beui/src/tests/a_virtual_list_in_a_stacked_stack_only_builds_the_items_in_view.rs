@@ -56,14 +56,14 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     harness.frame(Vec::new());
 
     let wide = (WIDE_VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;
-    assert_eq!(harness.document.children(scroll.get()).len(), wide);
+    assert_eq!(harness.document().children(scroll.get()).len(), wide);
 
     built.update(|built| built.clear());
-    *harness.viewport_mut() = VIEWPORT;
+    harness.resize(VIEWPORT);
     harness.frame(Vec::new());
 
     let stacked = (STACKED_LIST_HEIGHT / VIRTUAL_ITEM_HEIGHT) as usize;
     assert_eq!(harness.rect(scroll.get()).height(), STACKED_LIST_HEIGHT);
-    assert_eq!(harness.document.children(scroll.get()).len(), stacked);
+    assert_eq!(harness.document().children(scroll.get()).len(), stacked);
     assert_eq!(built.get_untracked(), Vec::<usize>::new());
 }

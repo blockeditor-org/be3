@@ -39,7 +39,7 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
                 harness.touch(TouchPhase::Move, pos2(200.0, 310.0));
                 harness.touch(TouchPhase::Cancel, pos2(200.0, 310.0));
             }
-            _ => harness.context.set_preference_layer(
+            _ => harness.context().set_preference_layer(
                 PreferenceSource::System,
                 PreferenceLayer {
                     motion: Some(Motion::Instant),

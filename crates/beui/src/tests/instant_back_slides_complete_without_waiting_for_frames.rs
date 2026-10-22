@@ -16,7 +16,7 @@ fn instant_back_slides_complete_without_waiting_for_frames() {
         }
     });
     let mut harness = Harness::new(document);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Instant),

@@ -30,7 +30,7 @@ fn responsive_design_mode_lays_the_app_out_at_the_chosen_device_size() {
             .center(),
     );
     harness.frame(vec![]);
-    assert!(harness.context.screen_simulation().is_none());
+    assert!(harness.context().screen_simulation().is_none());
     assert_eq!(
         harness.rect(root).width(),
         WIDE_VIEWPORT.x - harness.inspector().width

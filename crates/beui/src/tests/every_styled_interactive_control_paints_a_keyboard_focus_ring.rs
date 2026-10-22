@@ -97,7 +97,7 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
         assert!(
             rings(&focused) > rings(&initial),
             "{} has no focus ring",
-            harness.document.node_kind(control)
+            harness.document().node_kind(control)
         );
     }
 }

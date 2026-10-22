@@ -33,7 +33,7 @@ fn a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced() {
         "the tiled dock lays out the home tab beside the other"
     );
 
-    *harness.viewport_mut() = VIEWPORT;
+    harness.resize(VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(

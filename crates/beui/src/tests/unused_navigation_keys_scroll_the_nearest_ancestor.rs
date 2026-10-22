@@ -38,9 +38,9 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
             .unwrap_or(0),
         0
     );
-    assert_eq!(harness.document.scroll_offset(scroll), 40.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 40.0);
     harness.key(Key::PageUp, Modifiers::NONE);
-    assert_eq!(harness.document.scroll_offset(scroll), 0.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert!(
@@ -51,5 +51,5 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
             .get()
             < 0.5
     );
-    assert_eq!(harness.document.scroll_offset(scroll), 0.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
 }

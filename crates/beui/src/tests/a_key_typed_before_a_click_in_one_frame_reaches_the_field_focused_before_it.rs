@@ -35,6 +35,7 @@ fn a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it()
         },
         Event::Text("b".to_owned()),
     ]);
+    harness.frame(Vec::new());
     assert_eq!(
         harness
             .document()

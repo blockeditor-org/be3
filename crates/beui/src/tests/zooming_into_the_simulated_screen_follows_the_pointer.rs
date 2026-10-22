@@ -19,7 +19,7 @@ fn zooming_into_the_simulated_screen_follows_the_pointer() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let margin = vec2(MARGIN, MARGIN);
     harness
-        .context
+        .context()
         .set_screen_simulation(Some(ScreenSimulation {
             size: WIDE_VIEWPORT - margin * 2.0,
             zoom: Some(2.0),

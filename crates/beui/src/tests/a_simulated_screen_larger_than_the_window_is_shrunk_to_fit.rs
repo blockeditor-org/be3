@@ -18,7 +18,7 @@ fn a_simulated_screen_larger_than_the_window_is_shrunk_to_fit() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness
-        .context
+        .context()
         .set_screen_simulation(Some(ScreenSimulation {
             size: WIDE_VIEWPORT * 2.0,
             zoom: None,

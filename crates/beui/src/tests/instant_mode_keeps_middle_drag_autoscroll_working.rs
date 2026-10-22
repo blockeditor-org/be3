@@ -30,7 +30,7 @@ fn instant_mode_keeps_middle_drag_autoscroll_working() {
     harness.frame(Vec::new());
     assert!(harness.document().api::<ScrollApi>(scroll).animating());
     let before = harness.document().scroll_offset(scroll);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Instant),

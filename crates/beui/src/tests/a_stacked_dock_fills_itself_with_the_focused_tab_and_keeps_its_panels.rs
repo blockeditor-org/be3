@@ -55,7 +55,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
         "a stacked dock draws no tab bars"
     );
 
-    *harness.viewport_mut() = WIDE_VIEWPORT;
+    harness.resize(WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
@@ -69,7 +69,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     );
     harness.find("content.1");
 
-    *harness.viewport_mut() = PHONE;
+    harness.resize(PHONE);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
