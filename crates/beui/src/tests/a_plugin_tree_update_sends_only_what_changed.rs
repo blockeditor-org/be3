@@ -39,12 +39,13 @@ fn a_plugin_tree_update_sends_only_what_changed() {
         let fragment = embedded.fragment("Tasks", area, origin, 1.0, false, full);
         let sent = fragment.nodes.len();
         dump.update(tree_update("Test", VIEWPORT, 1.0, vec![fragment]));
-        let milk = dump
+        let rendered = dump.rendered();
+        let milk = rendered
             .lines()
             .iter()
             .find(|line| line.label == "Milk")
             .map(|line| line.id);
-        (sent, dump.text().to_owned(), milk)
+        (sent, rendered.text().to_owned(), milk)
     };
     embedded.update(update(
         vec![(1, parent(&[2])), (2, check("Milk", Toggled::False, 0.0))],

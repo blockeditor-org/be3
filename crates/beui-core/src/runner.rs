@@ -322,7 +322,8 @@ impl Runner {
     }
 
     pub fn accessibility_text(&self) -> Option<String> {
-        self.accessibility().map(|dump| dump.text().to_owned())
+        self.accessibility()
+            .map(|dump| dump.rendered().text().to_owned())
     }
 
     pub fn os_close(&mut self) -> bool {
@@ -416,9 +417,10 @@ impl Runner {
         if let Some(automation) = &mut self.automation
             && let Some(dump) = self.context.kept_accessibility()
         {
+            let rendered = dump.rendered();
             let view = View {
-                lines: dump.lines(),
-                tree: dump.text(),
+                lines: rendered.lines(),
+                tree: rendered.text(),
                 pixels_per_point: self.context.pixels_per_point(),
                 now: self.context.now(),
                 size: renderers.physical().map_or(Vec2::ZERO, |physical| {
@@ -590,9 +592,10 @@ impl Runner {
             && let Some(dump) = self.context.kept_accessibility()
         {
             self.actions = std::mem::take(&mut output.actions);
+            let rendered = dump.rendered();
             let view = View {
-                lines: dump.lines(),
-                tree: dump.text(),
+                lines: rendered.lines(),
+                tree: rendered.text(),
                 pixels_per_point: scale,
                 now: self.context.now(),
                 size: screen,

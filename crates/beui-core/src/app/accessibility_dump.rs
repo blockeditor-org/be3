@@ -1,4 +1,5 @@
 use foldhash::{HashMap, HashSet};
+use std::cell::RefCell;
 use std::fmt::Write as _;
 use std::rc::Rc;
 
@@ -29,14 +30,44 @@ pub fn action_named(name: &str) -> Option<accesskit::Action> {
         .find(|action| format!("{action:?}") == name)
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct AccessibilityDump {
+    held: Rc<Held>,
+}
+
+#[derive(Default)]
+struct Held {
+    tree: RefCell<Nodes>,
+    rendered: RefCell<Option<Rc<Rendered>>>,
+}
+
+#[derive(Default)]
+struct Nodes {
     nodes: HashMap<NodeId, Node>,
     root: Option<NodeId>,
     focus: Option<NodeId>,
+    kept: usize,
+}
+
+#[derive(Default)]
+pub struct Rendered {
     written: String,
     lines: Vec<Line>,
     test_ids: Rc<TestIds>,
+}
+
+impl Rendered {
+    pub fn text(&self) -> &str {
+        &self.written
+    }
+
+    pub fn lines(&self) -> &[Line] {
+        &self.lines
+    }
+
+    pub fn test_ids(&self) -> &Rc<TestIds> {
+        &self.test_ids
+    }
 }
 
 #[derive(Default)]
@@ -92,27 +123,66 @@ impl AccessibilityDump {
     }
 
     pub fn update(&mut self, update: TreeUpdate) {
-        let root = update.tree.map(|tree| tree.root).or(self.root);
-        let changed = root != self.root
-            || self.focus != Some(update.focus)
+        let mut tree = self.held.tree.borrow_mut();
+        let root = update.tree.map(|tree| tree.root).or(tree.root);
+        let changed = root != tree.root
+            || tree.focus != Some(update.focus)
             || update
                 .nodes
                 .iter()
-                .any(|(id, node)| self.nodes.get(id) != Some(node));
-        self.root = root;
-        self.focus = Some(update.focus);
-        self.nodes.extend(update.nodes);
+                .any(|(id, node)| tree.nodes.get(id) != Some(node));
+        tree.root = root;
+        tree.focus = Some(update.focus);
+        tree.nodes.extend(update.nodes);
         if !changed {
             return;
         }
+        *self.held.rendered.borrow_mut() = None;
+        if tree.nodes.len() > 2 * tree.kept + 1024 {
+            tree.prune();
+        }
+    }
+
+    pub fn rendered(&self) -> Rc<Rendered> {
+        if let Some(rendered) = &*self.held.rendered.borrow() {
+            return Rc::clone(rendered);
+        }
+        let rendered = Rc::new(self.held.tree.borrow_mut().render());
+        *self.held.rendered.borrow_mut() = Some(Rc::clone(&rendered));
+        rendered
+    }
+}
+
+impl Nodes {
+    fn reach(&self, id: NodeId, reached: &mut HashSet<NodeId>) {
+        let mut pending = vec![id];
+        while let Some(id) = pending.pop() {
+            if let Some(node) = self.nodes.get(&id)
+                && reached.insert(id)
+            {
+                pending.extend(node.children().iter().copied());
+            }
+        }
+    }
+
+    fn prune(&mut self) {
+        let mut reached = HashSet::default();
+        if let Some(root) = self.root {
+            self.reach(root, &mut reached);
+        }
+        self.nodes.retain(|id, _| reached.contains(id));
+        self.kept = self.nodes.len();
+    }
+
+    fn render(&mut self) -> Rendered {
         let Some(root) = self.root else {
-            return;
+            return Rendered::default();
         };
         let mut reached = HashSet::default();
         let mut text = String::new();
         let mut lines = Vec::new();
         let everywhere = Rect::new(f64::MIN, f64::MIN, f64::MAX, f64::MAX);
-        self.render(
+        self.render_node(
             root,
             Affine::IDENTITY,
             everywhere,
@@ -122,6 +192,7 @@ impl AccessibilityDump {
             &mut lines,
         );
         self.nodes.retain(|id, _| reached.contains(id));
+        self.kept = self.nodes.len();
         let scale = self
             .nodes
             .get(&root)
@@ -139,24 +210,14 @@ impl AccessibilityDump {
                 });
             }
         }
-        self.test_ids = Rc::new(TestIds { named });
-        self.lines = lines;
-        self.written = text;
+        Rendered {
+            written: text,
+            lines,
+            test_ids: Rc::new(TestIds { named }),
+        }
     }
 
-    pub fn test_ids(&self) -> &Rc<TestIds> {
-        &self.test_ids
-    }
-
-    pub fn text(&self) -> &str {
-        &self.written
-    }
-
-    pub fn lines(&self) -> &[Line] {
-        &self.lines
-    }
-
-    fn render(
+    fn render_node(
         &self,
         id: NodeId,
         parent: Affine,
@@ -273,7 +334,7 @@ impl AccessibilityDump {
             _ => clip,
         };
         for child in node.children() {
-            self.render(*child, transform, clip, depth, reached, text, lines);
+            self.render_node(*child, transform, clip, depth, reached, text, lines);
         }
     }
 }

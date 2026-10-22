@@ -186,7 +186,7 @@ pub struct ActionGroup {
 
 pub struct FrameOutput {
     pub layers: Rc<Vec<Layer>>,
-    test_ids: Rc<TestIds>,
+    dump: Option<AccessibilityDump>,
     pub window: WindowState,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
@@ -244,12 +244,15 @@ impl FrameOutput {
         bounds.is_positive().then_some(bounds)
     }
 
-    pub fn test_ids(&self) -> &TestIds {
-        &self.test_ids
+    pub fn test_ids(&self) -> Rc<TestIds> {
+        self.dump
+            .as_ref()
+            .map(|dump| Rc::clone(dump.rendered().test_ids()))
+            .unwrap_or_default()
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
-        self.test_ids.rect(test_id)
+        self.test_ids().rect(test_id)
     }
 
     pub fn accessibility_tree(&self, title: &str, viewport: crate::geometry::Vec2) -> TreeUpdate {
@@ -624,7 +627,7 @@ impl Context {
             }
         }
         let accessibility = std::mem::take(&mut *self.inner.accessibility.borrow_mut());
-        let test_ids = match &mut *self.inner.kept.borrow_mut() {
+        let dump = match &mut *self.inner.kept.borrow_mut() {
             Some(kept) => {
                 let window = self.inner.window.borrow();
                 kept.dump.update(accessibility::tree_update(
@@ -633,15 +636,15 @@ impl Context {
                     scale,
                     accessibility.clone(),
                 ));
-                Rc::clone(kept.dump.test_ids())
+                Some(kept.dump.clone())
             }
-            None => Rc::default(),
+            None => None,
         };
         FrameOutput {
             layers,
             damage,
             moved,
-            test_ids,
+            dump,
             copied_text,
             copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
