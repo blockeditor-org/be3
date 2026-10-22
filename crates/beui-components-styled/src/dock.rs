@@ -5,12 +5,12 @@ use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::sheet::ModalSheet;
 use beui_macros::{component, view};
 
-use crate::button::{Button, ButtonVariant};
+use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{POINTER_REACH, use_theme};
+use crate::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
@@ -62,7 +62,6 @@ const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 #[component]
 pub fn Docking<K>(
     layout: DockingLayout<K>,
-    #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     children: Children<DockNode<K>>,
@@ -70,7 +69,7 @@ pub fn Docking<K>(
 where
     K: DockKey,
 {
-    let mode = create_memo(move || mode.get());
+    let mode = layout.mode();
     let padding = create_memo(move || match mode.get() {
         DockMode::Tiled => DOCK_INSET,
         DockMode::Stacked => 0.0,
@@ -85,7 +84,7 @@ where
     view! {
         <unstyled::Docking
             layout
-            mode
+            stack_below=NARROW_WIDTH
             focus
             drag_modifier
             inset={padding}
@@ -509,7 +508,7 @@ fn DockTitleBar(
                                 <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
                             }
                         }</Show>
-                        <DockMenu menu />
+                        <DockMenu menu labels=true />
                         <DockClose closable close={close} />
                     </List>
                 </Frame>
@@ -573,21 +572,83 @@ fn DockSideBar(
 pub(crate) fn DockMenu(
     menu: Memo<Vec<MenuNode>>,
     #[prop(default = IconButtonSize::Compact)] size: IconButtonSize,
-) -> DynamicSegment<ListChild> {
-    let offered = create_memo(move || menu.with(|items| !items.is_empty()));
+    #[prop(default = false)] labels: bool,
+) -> NodeId {
+    let pins = create_memo(move || menu.with(|nodes| pinned(nodes)));
+    let keys =
+        create_memo(move || pins.with(|pins| pins.iter().map(Action::key).collect::<Vec<_>>()));
+    let rest = create_memo(move || unpinned(menu.get()));
+    let offered = create_memo(move || rest.with(|items| !items.is_empty()));
     view! {
-        <Show condition={offered}>
-            <IconMenuButton
-                @test_id={"dock.menu"}
-                label="More"
-                glyph=ICON_MORE_VERT
-                size
-                items={view! {
-                    <MenuNodes nodes={menu} test_prefix={"dock.menu".to_owned()} />
-                }}
-            />
-        </Show>
+        <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+            <ForEach keys={keys}>|key: u64| {
+                let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
+                match action {
+                    Some(action) => view! {
+                        <DockPin action size labels />
+                    },
+                    None => view! {
+                        <Frame />
+                    },
+                }
+            }</ForEach>
+            <Show condition={offered}>
+                <IconMenuButton
+                    @test_id={"dock.menu"}
+                    label="More"
+                    glyph=ICON_MORE_VERT
+                    size
+                    items={view! {
+                        <MenuNodes nodes={rest} test_prefix={"dock.menu".to_owned()} />
+                    }}
+                />
+            </Show>
+        </List>
     }
+}
+
+#[component]
+fn DockPin(action: Action, size: IconButtonSize, labels: bool) -> NodeId {
+    let id = format!("dock.pin.{}", action.id());
+    match labels && action.pinned() == Some(Pin::Label) {
+        true => view! {
+            <Button
+                @test_id={id}
+                action={action}
+                variant=ButtonVariant::Primary
+                size=ButtonSize::Compact
+            />
+        },
+        false => view! {
+            <IconButton @test_id={id} action={action} variant=ButtonVariant::Ghost size />
+        },
+    }
+}
+
+fn pinned(nodes: &[MenuNode]) -> Vec<Action> {
+    nodes
+        .iter()
+        .flat_map(|node| match node {
+            MenuNode::Action { action, .. } if action.pinned().is_some() => vec![action.clone()],
+            MenuNode::Submenu(submenu) => pinned(&submenu.items),
+            MenuNode::Action { .. } | MenuNode::Separator => Vec::new(),
+        })
+        .collect()
+}
+
+fn unpinned(nodes: Vec<MenuNode>) -> Vec<MenuNode> {
+    let kept = nodes
+        .into_iter()
+        .filter_map(|node| match node {
+            MenuNode::Action { action, .. } if action.pinned().is_some() => None,
+            MenuNode::Submenu(mut submenu) => {
+                submenu.items = unpinned(std::mem::take(&mut submenu.items));
+                Some(MenuNode::Submenu(submenu))
+            }
+            node => Some(node),
+        })
+        .collect();
+    tidy_menu(kept)
 }
 
 #[component]

@@ -272,6 +272,7 @@ struct LayoutInner<K> {
 
 pub struct DockingLayout<K: 'static> {
     state: Signal<DockState>,
+    mode: Signal<DockMode>,
     restores: Signal<u64>,
     inner: Stored<LayoutInner<K>>,
 }
@@ -333,6 +334,7 @@ impl<K: DockKey> DockingLayout<K> {
     fn parts() -> (impl FnOnce(Stored<LayoutInner<K>>) -> Self, LayoutInner<K>) {
         let owner = RootScope::new();
         let state = create_signal(DockState::default());
+        let mode = create_signal(DockMode::Tiled);
         let restores = create_signal(0);
         let inner = LayoutInner {
             _scope: owner.into_scope(),
@@ -340,6 +342,7 @@ impl<K: DockKey> DockingLayout<K> {
         };
         let layout = move |inner| Self {
             state,
+            mode,
             restores,
             inner,
         };
@@ -385,6 +388,10 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn state(&self) -> ReadSignal<DockState> {
         self.state.read_only()
+    }
+
+    pub fn mode(&self) -> ReadSignal<DockMode> {
+        self.mode.read_only()
     }
 
     pub fn tab_of(&self, key: &K) -> Option<TabId> {
@@ -680,7 +687,7 @@ impl<K: 'static> Found<K> {
 pub fn Docking<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DockApi>,
     layout: DockingLayout<K>,
-    #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
+    #[prop(default = 0.0)] stack_below: f32,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
@@ -795,7 +802,8 @@ where
                 picture,
                 closable,
                 menu,
-                mode,
+                stack_below,
+                mode: layout.mode,
                 drag_modifier,
                 splitter_thickness,
                 group_inset,

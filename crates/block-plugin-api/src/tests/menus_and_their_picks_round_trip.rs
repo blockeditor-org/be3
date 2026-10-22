@@ -8,6 +8,7 @@ fn command(id: &str, label: &str, check: MenuCheck) -> MenuEntry {
         enabled: true,
         check,
         shortcut: None,
+        pin: MenuPin::None,
     })
 }
 
@@ -40,6 +41,7 @@ fn menus_and_their_picks_round_trip() {
                 },
                 tap: false,
             }),
+            pin: MenuPin::Icon,
         }),
         MenuEntry::Separator,
         MenuEntry::Submenu(MenuSubmenu {

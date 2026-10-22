@@ -6,12 +6,12 @@ use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_HISTORY, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than, use_dock_tab,
+    Container, DockMode, DockPane, DockSplit, DockTab, TabId, use_dock_tab,
 };
 use block_editor_beui::root_settings::own_settings_blocks;
 use block_editor_beui::{
     ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
-    NARROW_WIDTH, TopBar,
+    TopBar,
 };
 use block_shell::{
     AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialog, Pickers,
@@ -51,22 +51,17 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
 
 #[component]
 pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
-    let narrow = narrower_than(NARROW_WIDTH);
-    let was_narrow = Cell::new(false);
+    let layout = workspace.layout();
+    let mode = layout.mode();
+    let was_stacked = Cell::new(false);
     create_effect(move || {
-        let now = narrow.get();
-        if was_narrow.replace(now) != now {
+        let now = mode.get() == DockMode::Stacked;
+        if was_stacked.replace(now) != now {
             untrack(|| workspace.set_phone(now));
         }
     });
-    let phone = workspace.phone();
-    let mode = create_memo(move || match phone.get() {
-        true => DockMode::Stacked,
-        false => DockMode::Tiled,
-    });
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
-    let layout = workspace.layout();
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
@@ -79,7 +74,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
         <Frame @node_ref={&surface}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode>
+                <Docking @sizing=ItemSize::Percent(100.0) layout>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
                         <DockPane id="files">
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>

@@ -13,11 +13,11 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use super::artifact::ArtifactBar;
+use super::block_menu::with_block_menu;
 use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
 use super::phone::DetailsSheet;
 use super::revisions::RevisionPreviewBar;
-use super::status::StatusBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
 
@@ -194,10 +194,20 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         item.block_type
             == <block_editor_beui::be_block::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE
     });
-    let desktop = create_memo(move || !phone.get() && !session);
     let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
     let previewing = create_memo(move || preview.get().is_some());
     let live = create_memo(move || !previewing.get());
+    let child_menu = create_signal(Vec::<MenuNode>::new());
+    dock_menu(create_memo(move || {
+        let nodes = child_menu.get();
+        match session {
+            true => nodes,
+            false => info.with(|info| match info {
+                Some(info) => with_block_menu(workspace, info, nodes),
+                None => nodes,
+            }),
+        }
+    }));
     let top = NodeRef::new();
     workspace.register_tab_node(tab, top);
     on_cleanup(move || workspace.forget_tab_node(tab, top));
@@ -229,6 +239,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                                         @sizing=ItemSize::Percent(100.0)
                                         editor={editor}
                                         info={info.read_only()}
+                                        menu={child_menu}
                                         top_bar={top_bar}
                                         on_bar={move |action: BarAction| match action {
                                             BarAction::Details => {
@@ -254,9 +265,6 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                         <PanelStatus state={handle.state} loading="Loading revision…" />
                     </ChildBlock>
                 </Show>
-                <Show condition={desktop}>
-                    <StatusBar workspace={workspace} info={info.read_only()} />
-                </Show>
                 <DetailsSheet workspace={workspace} tab={tab} />
             </List>
         </Frame>
@@ -267,6 +275,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
 fn BlockChild(
     editor: Editor,
     info: ReadSignal<Option<Info>>,
+    menu: Signal<Vec<MenuNode>>,
     top_bar: Memo<TopBar>,
     on_bar: block_editor_beui::beui::reactive::Callback<BarAction>,
 ) -> NodeId {
@@ -294,7 +303,9 @@ fn BlockChild(
             on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
             @test_id={"workspace.block"}
         >|handle: ChildBlockHandle| {
-            dock_menu(handle.menu);
+            let own = handle.menu;
+            create_effect(move || menu.set(own.get()));
+            on_cleanup(move || menu.set(Vec::new()));
             view! {
                 <PanelStatus state={handle.state} loading="This block is loading…" />
             }

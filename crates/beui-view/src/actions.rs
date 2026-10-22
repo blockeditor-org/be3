@@ -184,6 +184,12 @@ thread_local! {
     static DETACHED: Cell<u64> = const { Cell::new(1 << 63) };
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pin {
+    Icon,
+    Label,
+}
+
 struct ActionData {
     key: Cell<u64>,
     id: String,
@@ -193,6 +199,7 @@ struct ActionData {
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
     radio: bool,
+    pin: Option<Pin>,
     at: Option<KeyAt>,
     capture: bool,
     run: Rc<dyn Fn()>,
@@ -222,6 +229,7 @@ impl Action {
             enabled: Prop::Static(true),
             checked: None,
             radio: false,
+            pin: None,
             at: None,
             capture: false,
             run: Rc::new(run),
@@ -266,6 +274,10 @@ impl Action {
 
     pub fn is_radio(&self) -> bool {
         self.0.radio
+    }
+
+    pub fn pinned(&self) -> Option<Pin> {
+        self.0.pin
     }
 
     pub fn is_global(&self) -> bool {
@@ -315,6 +327,7 @@ pub struct ActionBuilder {
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
     radio: bool,
+    pin: Option<Pin>,
     at: Option<KeyAt>,
     capture: bool,
     run: Rc<dyn Fn()>,
@@ -348,6 +361,11 @@ impl ActionBuilder {
         self
     }
 
+    pub fn pin(mut self, pin: Pin) -> Self {
+        self.pin = Some(pin);
+        self
+    }
+
     pub fn at(mut self, at: KeyAt) -> Self {
         self.at = match at {
             KeyAt::Root => None,
@@ -371,6 +389,7 @@ impl ActionBuilder {
             enabled: self.enabled,
             checked: self.checked,
             radio: self.radio,
+            pin: self.pin,
             at: self.at,
             capture: self.capture,
             run: self.run,

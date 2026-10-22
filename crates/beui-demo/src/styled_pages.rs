@@ -109,7 +109,7 @@ pub(crate) fn DockingPage() -> NodeId {
                          tab of its own instead."
                     </Text>
                     <Text style=TextStyle::CAPTION wrap=true>
-                        "Mobile, in the toolbar, stacks the panes as a phone would."
+                        "A dock narrower than a phone's width stacks its panes: one tab fills it, and the bar goes back or switches tabs."
                     </Text>
                 </List>
             </Sample>
@@ -352,23 +352,18 @@ fn EditCounter() -> NodeId {
     let count = create_signal(0u32);
     let counted = create_memo(move || format!("{} edits", count.get()));
     let moved = create_memo(move || count.get() > 0);
-    dock_actions(move || {
-        view! {
-            <IconButton
-                glyph=ICON_EDIT
-                label="Edit"
-                on_click={move || count.update(|count| *count += 1)}
-            />
-        }
-    });
+    let edit = Action::new("demo.edit", "Edit", move || {
+        count.update(|count| *count += 1)
+    })
+    .glyph(ICON_EDIT)
+    .pin(Pin::Icon)
+    .detached();
+    let pinned = edit.clone();
+    dock_menu(create_memo(move || vec![MenuNode::action(&pinned)]));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Button
-                    label="Edit"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || count.update(|count| *count += 1)}
-                />
+                <Button action={edit} variant=ButtonVariant::Secondary />
                 <Text style=TextStyle::CAPTION>{counted}</Text>
             </List>
             <Show condition={moved}>

@@ -94,10 +94,16 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     );
     assert_eq!(fixture.shown(), vec![second], "and leaves the file on show");
 
+    tap(&mut fixture, "dock.menu");
+    let document = fixture.test.document();
+    let root = document.root().expect("the workspace has a root");
     assert!(
-        !fixture.test.shown("dock.menu"),
-        "the dock bar offers no menu before the block hands one over"
+        text_within(document, root, "Access").is_some()
+            && text_within(document, root, "Rename").is_none(),
+        "before the block hands its menu over, the dock bar offers only the workspace's part of it"
     );
+    fixture.test.back();
+    fixture.settle();
     let child = placed(&fixture, second)
         .expect("the block is on show")
         .child;

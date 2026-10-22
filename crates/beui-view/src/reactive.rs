@@ -312,9 +312,9 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 }
 
 pub use crate::actions::{
-    Action, ActionBuilder, ActionScope, Chord, MenuNode, Submenu, action_checked, action_disabled,
-    action_glyph, action_label, action_scope, action_tooltip, active_actions, active_actions_from,
-    add_to_menu, document_menu, menu_action, tidy_menu,
+    Action, ActionBuilder, ActionScope, Chord, MenuNode, Pin, Submenu, action_checked,
+    action_disabled, action_glyph, action_label, action_scope, action_tooltip, active_actions,
+    active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
 };
 pub use crate::component_ref::ComponentRef;
 pub use crate::file_picker::{
