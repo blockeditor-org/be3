@@ -21,7 +21,8 @@ pub fn Floating(
     #[prop(default = Edge::Bottom)] edge: Prop<Edge>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = true)] interactive: Prop<bool>,
-    children: Child,
+    #[prop(default = false)] keep_alive: bool,
+    #[prop(children)] content: RenderFn<()>,
 ) -> NodeId {
     let placement = edge.map(|edge| match edge {
         Edge::Top => Placement::InsideTop,
@@ -34,8 +35,14 @@ pub fn Floating(
         false => LayerPolicy::Inert,
     });
     view! {
-        <Overlay anchor=anchor placement={placement} policy={mode} traps_focus=false open={open}>
-            {children}
-        </Overlay>
+        <Overlay
+            anchor=anchor
+            placement={placement}
+            policy={mode}
+            traps_focus=false
+            open={open}
+            keep_alive
+            content={move || content.call(())}
+        />
     }
 }

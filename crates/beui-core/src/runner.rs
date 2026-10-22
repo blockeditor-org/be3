@@ -28,23 +28,46 @@ pub use intake::{Input, Keystroke, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Scroll
 type Answered = (FilePickId, FilePick);
 
 pub struct RunOptions {
-    pub title: String,
     pub app_id: Option<String>,
     pub size: Vec2,
     pub accessibility_tree: bool,
     pub automation: Option<Inbox>,
+    pub saved_preferences: Option<std::path::PathBuf>,
 }
 
-impl RunOptions {
-    pub fn new(title: impl Into<String>) -> Self {
+impl Default for RunOptions {
+    fn default() -> Self {
         Self {
-            title: title.into(),
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
             accessibility_tree: false,
             automation: None,
+            saved_preferences: None,
         }
     }
+}
+
+impl RunOptions {
+    pub fn saving_preferences(mut self, app: &str) -> Self {
+        self.saved_preferences =
+            config_directory().map(|directory| directory.join(app).join("preferences.json"));
+        self
+    }
+}
+
+fn config_directory() -> Option<std::path::PathBuf> {
+    let variable = |name: &str| {
+        std::env::var_os(name)
+            .filter(|value| !value.is_empty())
+            .map(std::path::PathBuf::from)
+    };
+    if cfg!(target_os = "windows") {
+        return variable("APPDATA");
+    }
+    if cfg!(target_os = "macos") {
+        return variable("HOME").map(|home| home.join("Library/Application Support"));
+    }
+    variable("XDG_CONFIG_HOME").or_else(|| variable("HOME").map(|home| home.join(".config")))
 }
 
 pub struct Launch {
@@ -63,6 +86,8 @@ pub trait Adapter {
 
 pub trait Platform {
     fn copy(&mut self, _text: String) {}
+
+    fn copy_image(&mut self, _png: Vec<u8>) {}
 
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
         let _ = kinds;
@@ -130,7 +155,6 @@ impl App for Exited {
 pub struct Runner {
     app: Box<dyn App>,
     context: Context,
-    title: String,
     renderers: Option<Renderers>,
     waker: Option<Waker>,
     events: Vec<Event>,
@@ -178,7 +202,6 @@ impl Runner {
         Self {
             app,
             context,
-            title: options.title,
             renderers: None,
             waker: None,
             events: Vec::new(),
@@ -206,10 +229,6 @@ impl Runner {
 
     pub fn context(&self) -> &Context {
         &self.context
-    }
-
-    pub fn title(&self) -> &str {
-        &self.title
     }
 
     pub fn start(&mut self, loaded: Vec<Loaded>, mut setup: Setup) -> Result<(), Box<dyn Error>> {
@@ -303,7 +322,8 @@ impl Runner {
     }
 
     pub fn accessibility_text(&self) -> Option<String> {
-        self.accessibility().map(|dump| dump.text().to_owned())
+        self.accessibility()
+            .map(|dump| dump.rendered().text().to_owned())
     }
 
     pub fn os_close(&mut self) -> bool {
@@ -397,9 +417,10 @@ impl Runner {
         if let Some(automation) = &mut self.automation
             && let Some(dump) = self.context.kept_accessibility()
         {
+            let rendered = dump.rendered();
             let view = View {
-                lines: dump.lines(),
-                tree: dump.text(),
+                lines: rendered.lines(),
+                tree: rendered.text(),
                 pixels_per_point: self.context.pixels_per_point(),
                 now: self.context.now(),
                 size: renderers.physical().map_or(Vec2::ZERO, |physical| {
@@ -439,6 +460,10 @@ impl Runner {
         }
         if let Some(attached) = self.reports.take_keyboard() {
             self.context.set_keyboard_attached(attached);
+        }
+        if let Some(preferences) = self.reports.take_system_preferences() {
+            self.context
+                .set_preference_layer(crate::preferences::PreferenceSource::System, preferences);
         }
         let pixels_per_point = self.native;
         let Some(physical) = renderers.physical() else {
@@ -481,18 +506,26 @@ impl Runner {
                 .as_ref()
                 .is_some_and(Automation::wants_sight);
         self.context.set_seen(seen);
-        self.context.set_accessibility_window(&self.title, screen);
+        self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;
         let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
-        let title = &self.title;
         if self.publishing_accessibility {
+            let title = output
+                .window
+                .appearance
+                .title
+                .as_deref()
+                .unwrap_or_default();
             platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
         }
 
         if let Some(text) = &output.copied_text {
             platform.copy(text.clone());
+        }
+        if let Some(png) = output.copied_image.take() {
+            platform.copy_image(png);
         }
         for request in std::mem::take(&mut output.file_picks) {
             let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
@@ -538,10 +571,11 @@ impl Runner {
             platform.set_fullscreen(fullscreen);
         }
 
+        let background = output.window.appearance.clear_color;
         let pending = match seen {
-            true => renderers.prepare(&output, scale, self.app.clear_color()),
+            true => renderers.prepare(&output, scale, background),
             false => {
-                renderers.note(&output, scale, self.app.clear_color());
+                renderers.note(&output, scale, background);
                 false
             }
         };
@@ -558,9 +592,10 @@ impl Runner {
             && let Some(dump) = self.context.kept_accessibility()
         {
             self.actions = std::mem::take(&mut output.actions);
+            let rendered = dump.rendered();
             let view = View {
-                lines: dump.lines(),
-                tree: dump.text(),
+                lines: rendered.lines(),
+                tree: rendered.text(),
                 pixels_per_point: scale,
                 now: self.context.now(),
                 size: screen,
@@ -596,7 +631,7 @@ impl Runner {
                     &output,
                     screen,
                     scale,
-                    self.app.clear_color(),
+                    background,
                     crate::painting::Punches::Erase,
                 ));
             }
@@ -623,7 +658,7 @@ impl Runner {
         if self.occluded && !self.unpresented {
             return false;
         }
-        let background = self.app.clear_color();
+        let background = self.asked.appearance.clear_color;
         let Some(renderers) = self.renderers.as_mut() else {
             return false;
         };

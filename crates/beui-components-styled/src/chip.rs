@@ -19,7 +19,7 @@ pub fn Chip(label: Prop<String>) -> NodeId {
             radius=Radius::Sm
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
-            <Text string={label_text} size=TextSize::Sm align=TextAlign::Center />
+            <Text size=TextSize::Sm align=TextAlign::Center>{label_text}</Text>
         </Frame>
     }
 }

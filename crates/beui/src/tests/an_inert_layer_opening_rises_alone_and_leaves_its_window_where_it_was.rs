@@ -15,7 +15,7 @@ fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
         NodeRef::new(),
         NodeRef::new(),
     );
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Overlay

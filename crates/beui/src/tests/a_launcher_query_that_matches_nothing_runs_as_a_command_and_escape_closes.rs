@@ -11,7 +11,7 @@ fn a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes() {
         title: "Files".to_owned(),
         ..LauncherItem::default()
     }]);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Launcher
                 open=true

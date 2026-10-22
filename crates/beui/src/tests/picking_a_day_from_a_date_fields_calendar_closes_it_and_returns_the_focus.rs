@@ -10,15 +10,14 @@ use crate::unstyled::{Container, DateTimeParts};
 fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={Some(DateTime::new(Date::new(2026, 2, 27), Time::new(8, 45)))}
+                    value={Binding::new(Some(DateTime::new(Date::new(2026, 2, 27), Time::new(8, 45))), move |value| reported.update(|reported| reported.push(value)))}
                     today={Some(Date::new(2026, 1, 1))}
                     parts=DateTimeParts::Date
                     label="Due"
-                    on_change={move |value| reported.update(|reported| reported.push(value))}
                 />
             </Container>
         }

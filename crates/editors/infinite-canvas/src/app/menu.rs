@@ -1,42 +1,204 @@
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
+    ICON_ADD, ICON_DOWNLOAD, ICON_DRAW, ICON_EDIT, ICON_GRID_ON, ICON_LAYERS, ICON_TUNE,
+    ICON_VISIBILITY,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::beui::unstyled::MenuNodes;
 
 use super::actions::CanvasActions;
+use super::state::Tool;
+
+const TOOLS: [Tool; 11] = [
+    Tool::Select,
+    Tool::Lasso,
+    Tool::Frame,
+    Tool::Line,
+    Tool::Arrow,
+    Tool::Rectangle,
+    Tool::Ellipse,
+    Tool::Diamond,
+    Tool::Text,
+    Tool::Pen,
+    Tool::Eraser,
+];
+
+fn act(action: &Action) -> MenuNode {
+    MenuNode::action(action)
+}
+
+fn add_menu(actions: &CanvasActions) -> MenuNode {
+    MenuNode::submenu(
+        "canvas.add",
+        "Add",
+        ICON_ADD,
+        vec![
+            MenuNode::labelled(&actions.add_rectangle, "Rectangle"),
+            MenuNode::labelled(&actions.add_line, "Line"),
+            MenuNode::labelled(&actions.add_text, "Text"),
+            MenuNode::labelled(&actions.add_image, "Image…"),
+            MenuNode::labelled(&actions.add_block, "Block…"),
+        ],
+    )
+}
+
+fn export_menu(actions: &CanvasActions) -> MenuNode {
+    MenuNode::submenu(
+        "canvas.export",
+        "Export",
+        ICON_DOWNLOAD,
+        vec![
+            act(&actions.copy_png),
+            act(&actions.copy_svg),
+            MenuNode::Separator,
+            act(&actions.export_png),
+            act(&actions.export_svg),
+        ],
+    )
+}
+
+fn arrange_menu(actions: &CanvasActions) -> MenuNode {
+    MenuNode::submenu(
+        "canvas.arrange",
+        "Arrange",
+        ICON_LAYERS,
+        vec![
+            act(&actions.group),
+            act(&actions.ungroup),
+            MenuNode::Separator,
+            act(&actions.lock),
+            act(&actions.unlock),
+            MenuNode::Separator,
+            act(&actions.front),
+            act(&actions.forward),
+            act(&actions.backward),
+            act(&actions.back),
+        ],
+    )
+}
+
+fn tools_menu(actions: &CanvasActions) -> MenuNode {
+    MenuNode::submenu(
+        "canvas.tools",
+        "Tools",
+        ICON_DRAW,
+        TOOLS
+            .into_iter()
+            .map(|tool| act(&actions.tool(tool)))
+            .chain([
+                MenuNode::Separator,
+                act(&actions.tool_lock),
+                act(&actions.bind_lines),
+            ])
+            .collect(),
+    )
+}
+
+fn grid_menu(actions: &CanvasActions) -> MenuNode {
+    let grid = &actions.grid;
+    MenuNode::submenu(
+        "canvas.grid-menu",
+        "Grid",
+        ICON_GRID_ON,
+        vec![
+            act(&grid.shown),
+            MenuNode::Separator,
+            MenuNode::labelled(&grid.small, "Small"),
+            MenuNode::labelled(&grid.medium, "Medium"),
+            MenuNode::labelled(&grid.large, "Large"),
+        ],
+    )
+}
+
+fn profile_menu(actions: &CanvasActions) -> MenuNode {
+    MenuNode::submenu(
+        "canvas.profile",
+        "Profile",
+        ICON_TUNE,
+        vec![
+            MenuNode::labelled(&actions.prototyping, "Prototyping"),
+            MenuNode::labelled(&actions.vector, "Vector"),
+        ],
+    )
+}
+
+fn view_menu(actions: &CanvasActions) -> MenuNode {
+    MenuNode::submenu(
+        "canvas.view",
+        "View",
+        ICON_VISIBILITY,
+        vec![
+            grid_menu(actions),
+            act(&actions.ignore_touch),
+            MenuNode::Separator,
+            act(&actions.fit_selection),
+            act(&actions.fit_frame),
+            act(&actions.fit_all),
+        ],
+    )
+}
+
+pub(crate) fn frame_menu(actions: &CanvasActions) -> Vec<MenuNode> {
+    vec![
+        MenuNode::submenu(
+            "canvas.edit-menu",
+            "Edit",
+            ICON_EDIT,
+            vec![
+                act(&actions.cut),
+                act(&actions.copy),
+                act(&actions.paste),
+                act(&actions.duplicate),
+                act(&actions.delete),
+                MenuNode::Separator,
+                act(&actions.select_all),
+                act(&actions.invert),
+            ],
+        ),
+        add_menu(actions),
+        export_menu(actions),
+        arrange_menu(actions),
+        tools_menu(actions),
+        view_menu(actions),
+        profile_menu(actions),
+    ]
+}
+
+fn context_menu(actions: &CanvasActions) -> Vec<MenuNode> {
+    vec![
+        add_menu(actions),
+        MenuNode::Separator,
+        act(&actions.edit),
+        act(&actions.toggle_mode),
+        act(&actions.fit_selection),
+        MenuNode::Separator,
+        act(&actions.cut),
+        act(&actions.copy),
+        act(&actions.paste),
+        act(&actions.duplicate),
+        act(&actions.delete),
+        export_menu(actions),
+        MenuNode::Separator,
+        arrange_menu(actions),
+        MenuNode::Separator,
+        act(&actions.select_all),
+        act(&actions.invert),
+        MenuNode::Separator,
+        tools_menu(actions),
+        grid_menu(actions),
+        profile_menu(actions),
+    ]
+}
 
 #[component]
 pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let nodes = context_menu(&actions);
     view! {
         <ContextMenu
             items={view! {
-                <MenuItem label="Add">
-                    <MenuItem label="Rectangle" action={actions.add_rectangle} />
-                    <MenuItem label="Line" action={actions.add_line} />
-                    <MenuItem label="Text" action={actions.add_text} />
-                    <MenuItem label="Freehand" action={actions.pen} />
-                    <MenuItem label="Image…" action={actions.add_image} />
-                    <MenuItem label="Block…" action={actions.add_block} />
-                </MenuItem>
-                <MenuItem action={actions.edit} />
-                <MenuItem action={actions.toggle_mode} />
-                <MenuItem action={actions.fit_selection} />
-                <MenuItem action={actions.cut} />
-                <MenuItem action={actions.copy} />
-                <MenuItem action={actions.paste} />
-                <MenuItem action={actions.duplicate} />
-                <MenuItem action={actions.delete} />
-                <MenuItem action={actions.group} />
-                <MenuItem action={actions.ungroup} />
-                <MenuItem action={actions.lock} />
-                <MenuItem action={actions.unlock} />
-                <MenuItem action={actions.front} />
-                <MenuItem action={actions.forward} />
-                <MenuItem action={actions.backward} />
-                <MenuItem action={actions.back} />
-                <MenuItem action={actions.select_all} />
-                <MenuItem action={actions.invert} />
+                <MenuNodes nodes test_prefix={"infinite-canvas.menu".to_owned()} />
             }}
             child_size=ItemSize::Percent(100.0)
             disabled={disabled}

@@ -10,7 +10,7 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
     let go_id = create_signal(None);
     let toggle_id = create_signal(None);
 
-    let document = build(move || {
+    let document = build_node(move || {
         let disabled = create_signal(true);
 
         let toggle = view! {
@@ -19,14 +19,14 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
                     disabled.update(|disabled| *disabled = !*disabled)
                 }}
             >
-                <Text string="toggle" />
+                <Text>"toggle"</Text>
             </Button>
         };
         toggle_id.set(Some(toggle));
 
         let go = view! {
             <Button disabled on_click={move || clicks.update(|clicks| *clicks += 1)}>
-                <Text string="go" />
+                <Text>"go"</Text>
             </Button>
         };
         go_id.set(Some(go));

@@ -1,10 +1,10 @@
 use super::*;
 
-use be_block::{DisplaySettings as Settings, DisplaySettingsContent, Theme};
+use be_block::{DisplaySettings as Settings, DisplaySettingsContent, ThemeKind};
 
-fn theme_of(shared: &Shared, block: Uuid) -> Option<Theme> {
+fn theme_of(shared: &Shared, block: Uuid) -> Option<ThemeKind> {
     let held = shared.blocks.get(&block)?;
-    DisplaySettingsContent::decode(&held.bytes)
+    DisplaySettingsContent::decode(held.bytes())
         .ok()
         .map(|settings| settings.root().theme())
 }
@@ -18,15 +18,15 @@ fn a_held_block_stays_open_when_its_editors_close() {
     hold(block, DisplaySettingsContent::CONTENT_TYPE);
     hold(block, DisplaySettingsContent::CONTENT_TYPE);
     wait_until("opened the held block", |shared| {
-        theme_of(shared, block) == Some(Theme::Dark)
+        theme_of(shared, block) == Some(ThemeKind::Dark)
     });
     close(block);
 
     operate(
         block,
-        DisplaySettingsContent::encode_operation(&Settings::set_theme(Some(Theme::Light))),
+        DisplaySettingsContent::encode_operation(&Settings::set_theme(Some(ThemeKind::Light))),
     );
     wait_until("kept the held block live", |shared| {
-        theme_of(shared, block) == Some(Theme::Light)
+        theme_of(shared, block) == Some(ThemeKind::Light)
     });
 }

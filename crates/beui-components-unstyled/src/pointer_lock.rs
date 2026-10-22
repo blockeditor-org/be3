@@ -8,43 +8,28 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub struct PointerLockHandle {
-    pub locked: ReadSignal<bool>,
+    pub locked: Binding<bool>,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
 }
 
 #[component]
 pub fn PointerLock(
-    locked: Prop<bool>,
+    locked: Binding<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
-    on_change: Callback<bool>,
     on_motion: Callback<Vec2>,
     on_key: Callback<KeyPress, bool>,
     accessibility: Option<Prop<Node>>,
     #[prop(children)] content: Option<Render<PointerLockHandle>>,
 ) -> NodeId {
-    let current = create_signal(locked.get_untracked());
-    create_effect(move || current.set(locked.get()));
+    let current = locked;
     let hovered = create_signal(false);
     let focused = create_signal(false);
-
-    let attached = with_document(|document| document.watch_context());
-    create_effect(move || {
-        attached.get();
-        publish(current.get());
-    });
-    on_cleanup(|| publish(false));
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
     component_accessibility(accessibility);
 
-    let change = move |next: bool| {
-        if current.get_untracked() == next {
-            return;
-        }
-        current.set(next);
-        on_change.call(next);
-    };
+    let change = move |next: bool| current.set(next);
 
     let engage = move || change(true);
     let release = move || change(false);
@@ -66,7 +51,7 @@ pub fn PointerLock(
 
     let content_node = content.map(|build| {
         build.call(PointerLockHandle {
-            locked: current.read_only(),
+            locked: current,
             hovered: hovered.read_only(),
             focused: focused.read_only(),
         })
@@ -80,17 +65,10 @@ pub fn PointerLock(
             on_key={key}
             on_motion={move |motion: Vec2| on_motion.call(motion)}
             cursor={cursor}
+            pointer_locked={current}
             on_click={engage}
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
             children={content_node}
         />
     }
-}
-
-fn publish(locked: bool) {
-    try_with_document(|document| {
-        if let Some(context) = document.context() {
-            context.set_pointer_locked(locked);
-        }
-    });
 }

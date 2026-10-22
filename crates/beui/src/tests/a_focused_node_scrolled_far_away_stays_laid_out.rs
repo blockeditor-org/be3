@@ -10,7 +10,7 @@ fn a_focused_node_scrolled_far_away_stays_laid_out() {
     let _root = crate::reactive::RootScope::new();
     let rows: Vec<NodeRef> = (0..ROWS).map(|_| NodeRef::new()).collect();
     let scroll = NodeRef::new();
-    let document = build({
+    let document = build_node({
         let (rows, scroll) = (rows.clone(), scroll);
         move || {
             view! {

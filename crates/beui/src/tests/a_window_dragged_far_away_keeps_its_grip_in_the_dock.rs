@@ -1,14 +1,24 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn a_window_dragged_far_away_keeps_its_grip_in_the_dock() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
-    harness.context.set_motion(crate::reactive::Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(crate::reactive::Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     let window = floated_window(&mut harness, dock);
-    let before = dock_state(harness.document(), dock)
+    let before = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let bounds = harness.rect(dock);
@@ -16,7 +26,10 @@ fn a_window_dragged_far_away_keeps_its_grip_in_the_dock() {
     let bar = bounds.min + before.min.to_vec2() + vec2(before.width() - 80.0, 10.0);
     harness.drag(bar, bar + bounds.size() * 4.0);
 
-    let away = dock_state(harness.document(), dock)
+    let away = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert!(
@@ -36,7 +49,10 @@ fn a_window_dragged_far_away_keeps_its_grip_in_the_dock() {
     let grip = bounds.min + away.min.to_vec2() + vec2(8.0, 10.0);
     harness.drag(grip, grip - vec2(300.0, 300.0));
 
-    let back = dock_state(harness.document(), dock)
+    let back = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(
@@ -48,7 +64,10 @@ fn a_window_dragged_far_away_keeps_its_grip_in_the_dock() {
     let bar = bounds.min + back.min.to_vec2() + vec2(back.width() - 80.0, 10.0);
     harness.drag(bar, bar - bounds.size() * 4.0);
 
-    let corner = dock_state(harness.document(), dock)
+    let corner = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(

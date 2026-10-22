@@ -19,8 +19,12 @@ fn conditional_dependencies_are_replaced() {
         });
     });
     right.set(11);
+    flush();
     choose_left.set(false);
+    flush();
     left.set(2);
+    flush();
     right.set(12);
+    flush();
     assert_eq!(*seen.borrow(), [1, 11, 12]);
 }

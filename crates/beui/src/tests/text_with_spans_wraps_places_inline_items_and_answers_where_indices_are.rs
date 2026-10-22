@@ -14,7 +14,7 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
     let item = NodeRef::new();
     let content = "hello \u{fffc} wide world of text";
     let bold = FontId::proportional(14.0).bold(true);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame width=WRAP>

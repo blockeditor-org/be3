@@ -128,7 +128,11 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
 }
 
 fn device_key(device: &HostInputDevice) -> DeviceKey {
-    (device.name.clone(), device.vendor, device.product)
+    (
+        device.device.name.clone(),
+        device.device.vendor,
+        device.device.product,
+    )
 }
 
 fn identity(key: &DeviceKey) -> InputDevice {
@@ -226,15 +230,14 @@ fn Pointers(
                     }}
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
-                    selected={selected}
-                    label="Pointer"
-                    @test_id={"input.pointer"}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(selected, move |index: Option<usize>| {
                         let key = index
                             .and_then(|index| index.checked_sub(1))
                             .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
                         chosen.set(key);
-                    }}
+                    })}
+                    label="Pointer"
+                    @test_id={"input.pointer"}
                 />
             </SettingsRow>
             <ForEach keys={scopes}>|scope: Option<DeviceKey>|
@@ -271,10 +274,13 @@ fn PointerRows(
             })
         })
     };
-    let tap = state(|pointer| pointer.tap_to_click, |device| device.tap_to_click);
+    let tap = state(
+        |pointer| pointer.tap_to_click,
+        |device| device.defaults.tap_to_click,
+    );
     let natural = state(
         |pointer| pointer.natural_scroll,
-        |device| device.natural_scroll,
+        |device| device.defaults.natural_scroll,
     );
     let speed = create_memo({
         let scope = scope.clone();
@@ -286,7 +292,7 @@ fn PointerRows(
                     devices,
                     scope.as_ref(),
                     |pointer| pointer.speed.map(PointerSpeed::get),
-                    |device| device.speed.map(|speed| speed as f32),
+                    |device| device.defaults.speed.map(PointerSpeed::get),
                     0.0,
                 )
             })
@@ -412,18 +418,17 @@ fn TextSetting(
         >
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
-                value={shown}
+                value={Binding::new(shown, move |text: String| {
+                    if text != shown.get_untracked() {
+                        on_change.call(Some(text));
+                    }
+                })}
                 label={label}
                 placeholder={create_memo(move || {
                     inherited.get().unwrap_or_else(|| "Default".to_owned())
                 })}
                 disabled={read_only}
                 @test_id={format!("input.{id}")}
-                on_change={move |text: String| {
-                    if text != shown.get_untracked() {
-                        on_change.call(Some(text));
-                    }
-                }}
             />
         </LayeredSettingsRow>
     }
@@ -454,20 +459,16 @@ fn SliderSetting(
         >
             <Slider
                 @sizing=ItemSize::Percent(100.0)
-                value={value}
+                value={Binding::new(value, move |value: f32| on_change.call(Some(value)))}
                 min={min}
                 max={max}
                 label={label}
                 disabled={read_only}
                 @test_id={format!("input.{id}")}
-                on_change={move |value: f32| on_change.call(Some(value))}
             />
-            <Text
-                @sizing=ItemSize::Fixed(VALUE_WIDTH)
-                string={shown}
-                color=TextColor::Muted
-                align=TextAlign::End
-            />
+            <Text @sizing=ItemSize::Fixed(VALUE_WIDTH) color=TextColor::Muted align=TextAlign::End>
+                {shown}
+            </Text>
         </LayeredSettingsRow>
     }
 }
@@ -495,12 +496,11 @@ fn SwitchSetting(
             id={format!("input.{id}")}
         >
             <Switch
-                on={on}
+                on={Binding::new(on, move |on: bool| on_change.call(Some(on)))}
                 indeterminate={mixed}
                 label={label}
                 disabled={read_only}
                 @test_id={format!("input.{id}")}
-                on_change={move |on: bool| on_change.call(Some(on))}
             />
         </LayeredSettingsRow>
     }

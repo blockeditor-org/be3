@@ -1,3 +1,4 @@
+use beui::styled::Root;
 use std::time::Duration;
 
 use super::*;
@@ -7,9 +8,11 @@ const ALARM: Duration = Duration::from_secs(60);
 struct AlarmApp;
 
 impl BeuiApp for AlarmApp {
-    fn view(_editor: Editor) -> NodeId {
+    fn view(_editor: Editor) -> Root {
         view! {
-            <Alarm />
+            <Root>
+                <Alarm />
+            </Root>
         }
     }
 }
@@ -28,7 +31,7 @@ fn Alarm() -> NodeId {
         None => "waiting".to_owned(),
     });
     view! {
-        <Text string={text} @test_id={"alarm"} />
+        <Text @test_id={"alarm"}>{text}</Text>
     }
 }
 

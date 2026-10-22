@@ -4,7 +4,7 @@ use std::hash::{Hash as _, Hasher as _};
 
 pub use paint_format::{
     Content, Frame, Glyph, PAINTING_EXTENSION, Painting, Pixels, Placement, Primitive, RoundedRect,
-    ScreenPaintings, TextureKey, Triangle, Turn, Vertex,
+    ScreenPaintings, TextureKey, Triangle, Turn, Vertex, rasterize,
 };
 
 use crate::color::Color32;
@@ -56,7 +56,60 @@ pub fn painting(
     let turn_of = |turn: crate::draw::Turn| turned(turn, pixels_per_point);
     let mut textures = BTreeMap::new();
     let mut primitives = Vec::new();
-    for quad in crate::draw::quads(output, pixels_per_point).list {
+    let quads = crate::draw::quads(output, pixels_per_point).list;
+    let mut background = background;
+    if punches == Punches::Erase
+        && background.alpha() > 0
+        && quads.iter().any(|quad| matches!(quad, Quad::Punch { .. }))
+    {
+        let whole = [0.0, 0.0, size.x, size.y];
+        primitives.push(Primitive {
+            clip: whole,
+            content: Content::RoundedRect(RoundedRect {
+                rect: whole,
+                corner_radius: 0.0,
+                stroke_width: 0.0,
+                color: background.to_array(),
+                turn: Turn::NONE,
+            }),
+        });
+        background = Color32::TRANSPARENT;
+    }
+    let mut joined = false;
+    for quad in quads {
+        let joining = std::mem::replace(&mut joined, false);
+        if let Quad::Triangle {
+            corners,
+            clip,
+            color,
+            ..
+        } = &quad
+        {
+            let clip = points(*clip);
+            if clip[2].min(size.x) <= clip[0].max(0.0) || clip[3].min(size.y) <= clip[1].max(0.0) {
+                continue;
+            }
+            let triangle = Triangle {
+                texture: white(&mut textures)?,
+                corners: corners.map(|[x, y]| Vertex {
+                    pos: [x / pixels_per_point, y / pixels_per_point],
+                    uv: [0.0, 0.0],
+                    color: color.to_array(),
+                }),
+            };
+            joined = true;
+            match primitives.last_mut() {
+                Some(Primitive {
+                    clip: held,
+                    content: Content::Mesh(triangles),
+                }) if joining && *held == clip => triangles.push(triangle),
+                _ => primitives.push(Primitive {
+                    clip,
+                    content: Content::Mesh(vec![triangle]),
+                }),
+            }
+            continue;
+        }
         if let Quad::Drawing {
             rect,
             clip,
@@ -192,6 +245,7 @@ pub fn painting(
             Quad::Punch { rect, clip, .. } | Quad::Drawing { rect, clip, .. } => {
                 (clip, Content::Callback(points(rect)))
             }
+            Quad::Triangle { .. } => continue,
         };
         let clip = points(clip);
         let outside =

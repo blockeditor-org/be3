@@ -13,7 +13,7 @@ fn view_attributes_can_be_written_without_braces() {
     let _root = crate::reactive::RootScope::new();
     let box_ref = NodeRef::new();
     let label = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <List direction=Direction::Horizontal spacing=0.0>
@@ -26,11 +26,12 @@ fn view_attributes_can_be_written_without_braces() {
                     >
                         <Text
                             @node_ref=&label
-                            string=LABEL
                             align=TextAlign::End
                             wrap=false
                             font={FontId::proportional(LABEL_SIZE)}
-                        />
+                        >
+                            {LABEL}
+                        </Text>
                     </Frame>
                 </List>
             </List>

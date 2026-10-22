@@ -2,14 +2,14 @@ use super::*;
 use crate::KeyAt;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::command_palette_shown;
+use crate::unstyled::CommandPaletteApi;
 
 #[test]
 fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
     let _root = crate::reactive::RootScope::new();
     let ran = create_signal(Vec::new());
     let palette = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.lock", "Lock screen", move || {
             ran.update(|ran| ran.push("lock"))
         })
@@ -31,7 +31,7 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
         let open = create_signal(true);
         view! {
             <List spacing=0.0>
-                <CommandPalette @node_ref=&palette open on_close={move || open.set(false)} />
+                <CommandPalette @node_ref=&palette open />
             </List>
         }
     });
@@ -39,7 +39,10 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
-        command_palette_shown(harness.document(), palette.get()),
+        harness
+            .document()
+            .api::<CommandPaletteApi>(palette.get())
+            .shown(),
         vec!["test.lock", "test.louder", "test.typed"],
         "the palette lists global actions"
     );

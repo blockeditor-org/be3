@@ -4,10 +4,10 @@ cargo_library()
 
 cargo_test()
 
-# The icons for crates/beui-web-demo, which hands them to the browser rather
-# than carrying them in the module.
+# The icons for crates/beui-web-demo and crates/paint-review-web, which hand
+# them to the browser rather than carrying them in the module.
 export_file(
     name = "icons.ttf",
     src = "src/assets/icons/MaterialSymbolsRounded-Filled.ttf",
-    visibility = ["//crates/beui-web-demo:"],
+    visibility = ["//crates/beui-web-demo:", "//crates/paint-review-web:"],
 )

@@ -4,26 +4,30 @@ use crate::Select;
 use crate::Tabs;
 use crate::theme::NARROW_WIDTH;
 use beui_components_unstyled::{ChoiceOption, narrower_than};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 #[component]
 pub fn ResponsiveTabs(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ResponsiveTabsApi>,
     options: Children<ChoiceOption>,
-    selected: Prop<usize>,
-    on_change: Callback<usize>,
+    #[prop(default = 0)] selected: Binding<usize>,
     #[prop(default = NARROW_WIDTH)] breakpoint: f32,
 ) -> NodeId {
     let options = options.into_run();
-    let current = create_signal(selected.get_untracked());
-    create_effect(move || current.set(selected.get()));
-    set_component_state(current.read_only());
+    api.fill(ResponsiveTabsApi(selected));
 
     let narrow = narrower_than(breakpoint);
     let wide = create_memo(move || !narrow.get());
-    let highlighted = create_memo(move || Some(current.get()));
+    let highlighted = Binding::new(
+        Prop::dynamic(move || Some(selected.get())),
+        move |index: Option<usize>| {
+            if let Some(index) = index {
+                selected.set(index);
+            }
+        },
+    );
 
     let tab_options = options.clone();
 
@@ -32,35 +36,24 @@ pub fn ResponsiveTabs(
             <Show
                 condition={wide}
                 then={move || { let tab_options = tab_options.clone(); view! {
-                    <Tabs
-                        options={tab_options}
-                        selected={current}
-                        on_change={move |index| {
-                            current.set(index);
-                            on_change.call(index);
-                        }}
-                    />
+                    <Tabs options={tab_options} selected />
                 } }}
             />
             <Show
                 condition={narrow}
                 then={move || { let options = options.clone(); view! {
-                    <Select
-                        options
-                        selected={highlighted}
-                        on_change={move |index: Option<usize>| {
-                            if let Some(index) = index {
-                                current.set(index);
-                                on_change.call(index);
-                            }
-                        }}
-                    />
+                    <Select options selected={highlighted} />
                 } }}
             />
         </List>
     }
 }
 
-pub fn responsive_tabs_selected(document: &Document, tabs: NodeId) -> usize {
-    document.component_state::<ReadSignal<usize>>(tabs).get()
+#[derive(Clone, Copy)]
+pub struct ResponsiveTabsApi(Binding<usize>);
+
+impl ResponsiveTabsApi {
+    pub fn selected(&self) -> usize {
+        self.0.get()
+    }
 }

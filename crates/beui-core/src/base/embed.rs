@@ -112,12 +112,11 @@ impl Element for EmbedNode {
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let grid = doc.pixel_grid();
-        let origin = painter.origin();
-        let placed = grid.snap_rect(rect.translate(origin));
+        let placed = grid.snap_rect(painter.to_screen(rect));
         self.state.place(Some(EmbedPlacement {
             rect: placed,
             clip: grid
-                .snap_rect(painter.clip_rect().translate(origin))
+                .snap_rect(painter.to_screen(painter.clip_rect()))
                 .intersect(placed),
         }));
         if let Some(child) = self.child {

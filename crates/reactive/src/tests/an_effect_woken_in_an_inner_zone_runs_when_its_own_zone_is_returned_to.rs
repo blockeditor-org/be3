@@ -18,6 +18,7 @@ fn an_effect_woken_in_an_inner_zone_runs_when_its_own_zone_is_returned_to() {
     {
         let _inner = enter_zone(4);
         count.set(7);
+        flush();
         assert_eq!(seen.get(), 0);
         assert!(zone_pending(3));
     }

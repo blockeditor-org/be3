@@ -30,7 +30,7 @@ const TODAY_RING_WIDTH: f32 = 1.0;
 
 #[component]
 pub fn Calendar(
-    selected: Prop<Option<Date>>,
+    #[prop(default = None)] selected: Binding<Option<Date>>,
     #[prop(default = None)] min: Prop<Option<Date>>,
     #[prop(default = None)] max: Prop<Option<Date>>,
     #[prop(default = None)] today: Prop<Option<Date>>,
@@ -38,7 +38,6 @@ pub fn Calendar(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = None)] show: Prop<Option<Date>>,
     #[prop(default = CALENDAR_WIDTH)] width: Prop<f32>,
-    on_change: Callback<Date>,
 ) -> NodeId {
     view! {
         <Frame width=width>
@@ -51,7 +50,6 @@ pub fn Calendar(
                 focused
                 show
                 spacing=SPACING
-                on_change={on_change}
                 header={|handle: CalendarHeaderHandle| view! {
                     <CalendarHeader handle />
                 }}
@@ -154,12 +152,13 @@ fn WeekdayLabel(weekday: Weekday) -> NodeId {
     view! {
         <Frame height=WEEKDAY_HEIGHT>
             <Text
-                string={weekday.narrow_name().to_owned()}
                 size=TextSize::Sm
                 color=TextColor::Muted
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
-            />
+            >
+                {weekday.narrow_name().to_owned()}
+            </Text>
         </Frame>
     }
 }
@@ -202,12 +201,9 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
                 border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Accent).width(TODAY_RING_WIDTH)))}
                 radius=Radius::Md
             >
-                <Text
-                    string={label}
-                    color={ink}
-                    align=TextAlign::Center
-                    vertical_align=TextAlign::Center
-                />
+                <Text color={ink} align=TextAlign::Center vertical_align=TextAlign::Center>
+                    {label}
+                </Text>
             </Frame>
         </FocusRing>
     }

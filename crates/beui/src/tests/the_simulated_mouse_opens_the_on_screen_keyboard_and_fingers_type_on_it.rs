@@ -37,7 +37,10 @@ fn the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it() {
     }
     harness.frame(Vec::new());
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "hi",
         "fingers on the keyboard press its keys rather than moving the simulated mouse"
     );

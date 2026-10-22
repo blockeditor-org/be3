@@ -59,7 +59,7 @@ fn the_window_is_asked_for_fullscreen_and_says_when_it_is() {
     let asks = create_signal(None);
     let seen = create_signal(false);
     let mut runner = Runner::new(Launch {
-        options: RunOptions::new("runner"),
+        options: RunOptions::default(),
         context: context(),
         app: Box::new(Asking { asks, seen }),
     });

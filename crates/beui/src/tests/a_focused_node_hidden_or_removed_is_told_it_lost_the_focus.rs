@@ -28,7 +28,7 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     let kept = create_signal(true);
     let mut controls = None;
     let listening = Rc::clone(&heard);
-    let document = build(|| {
+    let document = build_node(|| {
         let first = view! {
             <Control name="first" heard=Rc::clone(&listening) />
         };

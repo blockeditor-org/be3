@@ -45,6 +45,7 @@ pub struct Terminal {
     reply: Option<Box<Reply>>,
 }
 
+// unsafe(ffi)
 impl Terminal {
     pub fn new(cols: u16, rows: u16, max_scrollback: usize) -> Result<Self, Error> {
         let mut handle: sys::Terminal = ptr::null_mut();
@@ -142,6 +143,7 @@ impl Terminal {
     }
 }
 
+// unsafe(ffi)
 unsafe extern "C" fn forward_reply(
     _terminal: sys::Terminal,
     userdata: *mut std::ffi::c_void,
@@ -155,6 +157,7 @@ unsafe extern "C" fn forward_reply(
     reply(unsafe { std::slice::from_raw_parts(data, len) });
 }
 
+// unsafe(ffi)
 impl Drop for Terminal {
     fn drop(&mut self) {
         unsafe { sys::ghostty_terminal_free(self.handle) }

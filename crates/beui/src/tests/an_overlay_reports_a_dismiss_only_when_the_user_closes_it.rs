@@ -13,7 +13,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     let dismissed = create_signal(Vec::new());
     let nested_dismissed = create_signal(Vec::new());
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame>
                 <Overlay
@@ -48,8 +48,12 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let outer = kind_of::<OverlayNode>(harness.document(), outer.get());
-    let inner = kind_of::<OverlayNode>(harness.document(), inner.get());
 
+    let inner_open = |harness: &Harness| {
+        inner
+            .try_get()
+            .is_some_and(|inner| harness.document().is_overlay_open(inner))
+    };
     let set = |harness: &mut Harness, signal: Signal<bool>, value: bool| {
         signal.set(value);
         harness.frame(Vec::new());
@@ -101,9 +105,9 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
 
     open_outer(&mut harness);
     set(&mut harness, nested_open, true);
-    assert!(harness.document().is_overlay_open(inner.id()));
+    assert!(inner_open(&harness));
     set(&mut harness, open, false);
-    assert!(!harness.document().is_overlay_open(inner.id()));
+    assert!(!inner_open(&harness));
     assert_eq!(dismissed.with_untracked(|dismissed| dismissed.len()), 3);
     assert_eq!(
         nested_dismissed.get_untracked(),
@@ -117,7 +121,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
         with_document(|document| document.request_dismiss(outer, Dismiss::Back));
     });
     harness.frame(Vec::new());
-    assert!(!harness.document().is_overlay_open(inner.id()));
+    assert!(!inner_open(&harness));
     assert_eq!(
         dismissed.with_untracked(|dismissed| dismissed.len()),
         4,
@@ -132,7 +136,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     open_outer(&mut harness);
     set(&mut harness, nested_open, true);
     harness.key(Key::Escape, Modifiers::NONE);
-    assert!(!harness.document().is_overlay_open(inner.id()));
+    assert!(!inner_open(&harness));
     assert!(harness.document().is_overlay_open(outer.id()));
     assert_eq!(
         nested_dismissed.get_untracked().last(),

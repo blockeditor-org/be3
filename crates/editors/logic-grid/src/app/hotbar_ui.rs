@@ -132,11 +132,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                             on_click={up}
                         />
                     </SlotDrop>
-                    <Text
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                        string={title}
-                    />
+                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{title}</Text>
                     <MenuButton
                         label="Hotbar actions"
                         glyph={ICON_ADD.to_owned()}
@@ -228,7 +224,7 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
                 padding=COLUMN_PADDING
             >
                 <List align=Align::Center spacing=4.0>
-                    <Text style=TextStyle::CAPTION string={title} align=TextAlign::Center />
+                    <Text style=TextStyle::CAPTION align=TextAlign::Center>{title}</Text>
                     <Show condition={empty}>
                         <Frame width=SLOT_SIZE height=SLOT_SIZE />
                     </Show>
@@ -309,11 +305,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                 on_select={chose}
             >
                 <Tooltip label={label}>
-                    <Interactive
-                        focusable=true
-                        on_activate={clicked}
-                        on_hover_change={move |over: bool| hovered.set(over)}
-                    >
+                    <Interactive focusable=true on_activate={clicked} on_hover_change={hovered}>
                         <Draggable
                             @test_id={element_test_id}
                             payload={payload}
@@ -398,25 +390,29 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                     height={SLOT_SIZE - GLYPH_HEIGHT - SLOT_INSET * 2.0}
                 >
                     <Text
-                        string={label}
                         size=TextSize::Xs
                         color={text}
                         align=TextAlign::Center
                         vertical_align=TextAlign::Center
                         ellipsis=true
-                    />
+                    >
+                        {label}
+                    </Text>
                 </CanvasItem>
-                <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
-                    <Frame visible={badged} fill=ColorRole::Background radius={Radius::custom(3.0)}>
-                        <Text
-                            string={hotkey}
-                            size=TextSize::Xs
-                            color={text}
-                            align=TextAlign::Center
-                            vertical_align=TextAlign::Center
-                        />
-                    </Frame>
-                </CanvasItem>
+                <Show condition={badged}>
+                    <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
+                        <Frame fill=ColorRole::Background radius={Radius::custom(3.0)}>
+                            <Text
+                                size=TextSize::Xs
+                                color={text}
+                                align=TextAlign::Center
+                                vertical_align=TextAlign::Center
+                            >
+                                {hotkey}
+                            </Text>
+                        </Frame>
+                    </CanvasItem>
+                </Show>
             </Canvas>
         </Frame>
     }
@@ -446,7 +442,7 @@ fn ResetDialog(session: Session) -> NodeId {
             on_confirm={reset}
             on_dismiss={dismiss}
         >
-            <Text string="This will restore the default hotbar layout." />
+            <Text>"This will restore the default hotbar layout."</Text>
         </Dialog>
     }
 }
@@ -468,32 +464,31 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
         <List spacing=SPACING>
             <Show condition={single}>
                 <List spacing=4.0>
-                    <Text style=TextStyle::CAPTION string="Scale" />
+                    <Text style=TextStyle::CAPTION>"Scale"</Text>
                     <ScalePicker session={session} output=false />
                 </List>
             </Show>
             <Show condition={merger}>
                 <List spacing=4.0>
-                    <Text style=TextStyle::CAPTION string="Input scale" />
+                    <Text style=TextStyle::CAPTION>"Input scale"</Text>
                     <ScalePicker session={session} output=false />
-                    <Text style=TextStyle::CAPTION string="Output scale" />
+                    <Text style=TextStyle::CAPTION>"Output scale"</Text>
                     <ScalePicker session={session} output=true />
                 </List>
             </Show>
             <Show condition={labelled}>
                 <TextInput
-                    value={label}
+                    value={Binding::new(label, typed)}
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}
-                    on_change={typed}
                 />
             </Show>
-            <Text style=TextStyle::CAPTION string="Middle drag or wheel: pan" />
-            <Text style=TextStyle::CAPTION string="Ctrl+wheel: zoom" />
-            <Text style=TextStyle::CAPTION string="Shift: add or remove" />
-            <Text style=TextStyle::CAPTION string="Delete: remove" />
-            <Text style=TextStyle::CAPTION string="Esc: cancel" />
+            <Text style=TextStyle::CAPTION>"Middle drag or wheel: pan"</Text>
+            <Text style=TextStyle::CAPTION>"Ctrl+wheel: zoom"</Text>
+            <Text style=TextStyle::CAPTION>"Shift: add or remove"</Text>
+            <Text style=TextStyle::CAPTION>"Delete: remove"</Text>
+            <Text style=TextStyle::CAPTION>"Esc: cancel"</Text>
         </List>
     }
 }
@@ -536,8 +531,7 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
                     <ChoiceOption label={format!("{value}x")} />
                 </ForEach>
             }}
-            selected={selected}
-            on_change={chose}
+            selected={Binding::new(selected, chose)}
         />
     }
 }

@@ -1,4 +1,3 @@
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_RESTORE};
 use block_editor_beui::beui::reactive::*;
@@ -12,7 +11,10 @@ const PADDING_VERTICAL: f32 = 5.0;
 const SPACING: f32 = 8.0;
 
 #[component]
-pub(crate) fn DeletedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn DeletedBar(
+    workspace: Workspace,
+    info: ReadSignal<Option<Info>>,
+) -> DynamicSegment<ListChild> {
     let deleted = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -39,32 +41,33 @@ pub(crate) fn DeletedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -
         })
     });
     view! {
-        <Frame
-            visible={shown}
-            fill=ColorRole::Surface
-            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-            @test_id={"workspace.deleted"}
-        >
-            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text size=TextSize::Xs align=TextAlign::Center>
-                    <Icon glyph={ICON_DELETE.to_owned()} />
-                </Text>
-                <Text string="Deleted block" />
-                <Text style=TextStyle::CAPTION string={caption} />
-                <Button
-                    @test_id={"workspace.deleted.restore"}
-                    label="Restore"
-                    glyph={ICON_RESTORE.to_owned()}
-                    variant=ButtonVariant::Secondary
-                    disabled={locked}
-                    on_click={move || {
-                        if let Some(deleted) = deleted.get_untracked() {
-                            workspace.host().restore_block(deleted.root);
-                        }
-                    }}
-                />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-            </List>
-        </Frame>
+        <Show condition={shown}>
+            <Frame
+                fill=ColorRole::Surface
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                @test_id={"workspace.deleted"}
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Text size=TextSize::Xs align=TextAlign::Center>
+                        <Icon glyph={ICON_DELETE.to_owned()} />
+                    </Text>
+                    <Text>"Deleted block"</Text>
+                    <Text style=TextStyle::CAPTION>{caption}</Text>
+                    <Button
+                        @test_id={"workspace.deleted.restore"}
+                        label="Restore"
+                        glyph={ICON_RESTORE.to_owned()}
+                        variant=ButtonVariant::Secondary
+                        disabled={locked}
+                        on_click={move || {
+                            if let Some(deleted) = deleted.get_untracked() {
+                                workspace.host().restore_block(deleted.root);
+                            }
+                        }}
+                    />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                </List>
+            </Frame>
+        </Show>
     }
 }

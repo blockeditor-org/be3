@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{CanvasColor, CanvasTextStyle};
+use block_editor_beui::be_block::canvas::CanvasColor;
 
 #[test]
 fn the_canvas_paints_the_entities_it_holds() {
@@ -9,12 +9,13 @@ fn the_canvas_paints_the_entities_it_holds() {
         CanvasPoint::new(140.0, 90.0),
         0.0,
     );
-    rectangle.style.fill = Some(CanvasColor::Rgba {
+    rectangle.style.fill = CanvasFill::Solid;
+    rectangle.style.fill_color = CanvasColor::Rgba {
         red: 40,
         green: 90,
         blue: 160,
         alpha: 255,
-    });
+    };
     rectangle.style.corner_radius = 8.0;
 
     let mut turned = entity(Uuid::from_u128(2));
@@ -30,20 +31,18 @@ fn the_canvas_paints_the_entities_it_holds() {
         CanvasPoint::new(220.0, 40.0),
         0.0,
     );
-    label.kind = CanvasEntityKind::Text {
-        text: "Canvas".to_owned(),
-        text_style: CanvasTextStyle::default(),
-        placeholder: "Text".to_owned(),
-    };
+    label.shape = CanvasShape::Text;
+    label.text = "Canvas".into();
+    label.placeholder = "Text".to_owned();
 
-    let mut arrow = entity(Uuid::from_u128(4));
-    arrow.transform = CanvasTransform::new(
-        CanvasPoint::new(-60.0, 130.0),
-        CanvasPoint::new(180.0, 1.0),
-        0.0,
+    let mut arrow = path(
+        Uuid::from_u128(4),
+        &[
+            CanvasPoint::new(-150.0, 130.0),
+            CanvasPoint::new(30.0, 130.0),
+        ],
     );
-    arrow.kind = CanvasEntityKind::Line;
-    arrow.style.arrow_end = true;
+    arrow.style.end_arrowhead = CanvasArrowhead::Arrow;
 
     let mut editor = editor(&[rectangle, turned, label, arrow]);
     editor.run();

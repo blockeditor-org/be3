@@ -1119,23 +1119,6 @@ impl DockState {
         self.settle_focus();
     }
 
-    pub fn replace(&mut self, tab: TabId, with: TabId) -> bool {
-        let Some((leaf, index)) = self.locate(Entry::Tab(tab)) else {
-            return false;
-        };
-        let Some(leaf) = self.leaf_mut(leaf) else {
-            return false;
-        };
-        leaf.entries[index] = Entry::Tab(with);
-        for recent in &mut self.recent {
-            if *recent == tab {
-                *recent = with;
-            }
-        }
-        self.rename_visits(tab, with);
-        true
-    }
-
     pub fn drop_tab(&mut self, tab: TabId, target: DockDrop) {
         self.drop_entry(Entry::Tab(tab), target);
     }

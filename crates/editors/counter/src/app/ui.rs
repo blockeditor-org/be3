@@ -15,14 +15,14 @@ pub fn Counter(editor: Editor) -> NodeId {
     let decrement = move || counter.operate(CounterModel::add(-1));
     let increment = move || counter.operate(CounterModel::add(1));
     let reset = move || {
-        if let Some(edit) = counter.read(|content| content.root().reset()) {
+        if let Ok(edit) = counter.read(|content| content.root().reset()) {
             counter.operate(edit);
         }
     };
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=16.0>
-                <Text style=TextStyle::DISPLAY string={shown} @test_id={"counter.value"} />
+                <Text style=TextStyle::DISPLAY @test_id={"counter.value"}>{shown}</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)

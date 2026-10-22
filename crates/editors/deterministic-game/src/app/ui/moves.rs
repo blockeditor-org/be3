@@ -74,7 +74,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
     view! {
         <List spacing=6.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                <Text style=TextStyle::CAPTION string="Moves" @sizing=ItemSize::Percent(100.0) />
+                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>"Moves"</Text>
                 <IconButton
                     glyph={ICON_FIRST_PAGE.to_owned()}
                     label="First move"
@@ -109,28 +109,22 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                 />
             </List>
             <List direction=Direction::Horizontal spacing=2.0>
-                <Text
-                    string="#"
-                    size=TextSize::Sm
-                    color={muted}
-                    @sizing=ItemSize::Fixed(NUMBER_WIDTH)
-                />
+                <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Fixed(NUMBER_WIDTH)>
+                    "#"
+                </Text>
                 <ForEach keys={column_keys}>|column: usize| {
                     let name = create_memo(move || {
                         columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
                     });
                     view! {
-                        <Text
-                            string={name}
-                            size=TextSize::Sm
-                            color={muted}
-                            @sizing=ItemSize::Percent(100.0)
-                        />
+                        <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Percent(100.0)>
+                            {name}
+                        </Text>
                     }
                 }</ForEach>
             </List>
             <Show condition={empty}>
-                <Text style=TextStyle::CAPTION string="No moves yet" />
+                <Text style=TextStyle::CAPTION>"No moves yet"</Text>
             </Show>
             <List spacing=1.0>
                 <ForEach keys>|row: usize|
@@ -155,12 +149,9 @@ fn MoveRow(
     let muted = TextColor::Muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-            <Text
-                string={format!("{}", row + 1)}
-                size=TextSize::Sm
-                color={muted}
-                @sizing=ItemSize::Fixed(NUMBER_WIDTH)
-            />
+            <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Fixed(NUMBER_WIDTH)>
+                {format!("{}", row + 1)}
+            </Text>
             <ForEach keys={columns}>|column: usize|
                 <MoveCell
                     row
@@ -225,7 +216,7 @@ fn MoveCell(
                 radius=Radius::Sm
                 padding={Sides::symmetric(6.0, 3.0)}
             >
-                <Text string={text} size=TextSize::Sm color={color} />
+                <Text size=TextSize::Sm color={color}>{text}</Text>
             </Frame>
         </unstyled::Button>
     }
@@ -257,15 +248,11 @@ fn Result(table: Memo<Table>) -> NodeId {
     view! {
         <List spacing=2.0 align=Align::Center @test_id={"game.result"}>
             <Show condition={scored}>
-                <Text
-                    string={score}
-                    size=TextSize::Lg
-                    weight=Weight::Bold
-                    color={text}
-                    align=TextAlign::Center
-                />
+                <Text size=TextSize::Lg weight=Weight::Bold color={text} align=TextAlign::Center>
+                    {score}
+                </Text>
             </Show>
-            <Text string={description} size=TextSize::Sm color={muted} align=TextAlign::Center />
+            <Text size=TextSize::Sm color={muted} align=TextAlign::Center>{description}</Text>
         </List>
     }
 }

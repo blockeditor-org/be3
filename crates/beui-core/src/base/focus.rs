@@ -1,4 +1,3 @@
-use crate::base::frame::FrameNode;
 use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
 use crate::clipboard::{PasteKind, Pasted};
@@ -8,7 +7,7 @@ use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, FocusChild, NodeId, NodeOf};
+use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
 use std::ops::Range;
 
 pub type KeyCallback = Callback<KeyPress, bool>;
@@ -17,6 +16,7 @@ const TAB_BUILD_LIMIT: usize = 4096;
 
 enum TabStop {
     Node(NodeId),
+    Yielded(NodeId),
     Unbuilt(NodeId, Range<usize>),
 }
 
@@ -28,6 +28,7 @@ pub struct ImeCursor {
 
 pub struct Focus {
     pub tab_stop: bool,
+    pub yields_tab_stop: bool,
     pub ime: bool,
     pub keyboard_on_focus: bool,
     pub keyboard_asks: Option<u32>,
@@ -56,6 +57,7 @@ impl Focus {
     pub fn new() -> Self {
         Self {
             tab_stop: true,
+            yields_tab_stop: false,
             ime: false,
             keyboard_on_focus: true,
             keyboard_asks: None,
@@ -248,6 +250,15 @@ impl Document {
         }
     }
 
+    pub(crate) fn ime_cursor_in(&self, rects: &Rects, node: NodeId) -> Option<Rect> {
+        let cursor = focus_of(self.arena.get(node))?.ime_cursor?;
+        let anchor = rects.get(&cursor.node)?;
+        Some(match cursor.rect {
+            Some(rect) => rect.translate(anchor.min.to_vec2()),
+            None => anchor,
+        })
+    }
+
     pub fn focused_ime_area(&self) -> Option<ImeArea> {
         let focused = self.focused?;
         let node = focus_of(self.arena.get(focused))?;
@@ -429,9 +440,9 @@ impl Document {
             return;
         }
         let index = self.focused.and_then(|focused| {
-            order
-                .iter()
-                .position(|stop| matches!(stop, TabStop::Node(id) if *id == focused))
+            order.iter().position(
+                |stop| matches!(stop, TabStop::Node(id) | TabStop::Yielded(id) if *id == focused),
+            )
         });
         let start = index.map_or_else(
             || if step >= 0 { 0 } else { order.len() - 1 },
@@ -453,6 +464,7 @@ impl Document {
             TabStop::Node(id) => focus_of(self.arena.get(*id))
                 .is_none_or(|focus| focus.tab_stop)
                 .then_some(*id),
+            TabStop::Yielded(_) => None,
             TabStop::Unbuilt(list, rows) => self.build_tab_stop(*list, rows.clone(), step, blocked),
         }
     }
@@ -503,9 +515,25 @@ impl Document {
         let mut stops = Vec::new();
         self.collect_tab_stops(id, &mut stops, blocked);
         out.extend(stops.into_iter().filter_map(|stop| match stop {
-            TabStop::Node(id) => Some(id),
+            TabStop::Node(id) | TabStop::Yielded(id) => Some(id),
             TabStop::Unbuilt(..) => None,
         }));
+    }
+
+    pub fn tab_stops_within(&self, root: NodeId) -> Vec<NodeId> {
+        let mut stops = Vec::new();
+        self.collect_tab_stops(root, &mut stops, &self.blocked_roots(&self.layers()));
+        stops
+            .into_iter()
+            .filter_map(|stop| match stop {
+                TabStop::Node(id) if self.is_tab_stop(id) => Some(id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn is_tab_stop(&self, id: NodeId) -> bool {
+        focus_of(self.arena.get(id)).is_some_and(|focus| focus.tab_stop)
     }
 
     fn collect_tab_stops(&self, id: NodeId, out: &mut Vec<TabStop>, blocked: &[NodeId]) {
@@ -517,21 +545,15 @@ impl Document {
         };
         if element
             .as_any()
-            .downcast_ref::<FrameNode>()
-            .is_some_and(|node| !node.visible)
-        {
-            return;
-        }
-        if element
-            .as_any()
             .downcast_ref::<OverlayNode>()
             .is_some_and(|node| !node.is_open())
         {
             return;
         }
-        if focus_of(element).is_some() {
+        let own = focus_of(element).map(|focus| {
             out.push(TabStop::Node(id));
-        }
+            (out.len(), focus.yields_tab_stop)
+        });
         match element.focus_children() {
             Some(children) => {
                 for child in children {
@@ -544,6 +566,13 @@ impl Document {
             None => {
                 element.for_each_child(&mut |child| self.collect_tab_stops(child, out, blocked))
             }
+        }
+        if let Some((within, true)) = own
+            && out[within..]
+                .iter()
+                .any(|stop| matches!(stop, TabStop::Node(stop) if self.is_tab_stop(*stop)))
+        {
+            out[within - 1] = TabStop::Yielded(id);
         }
     }
 
@@ -587,30 +616,8 @@ impl Document {
         if !self.contains(node) || focus_of(self.arena.get(node)).is_none() {
             return false;
         }
-        let mut current = node;
-        loop {
-            let element = self.arena.get(current);
-            if element
-                .as_any()
-                .downcast_ref::<FrameNode>()
-                .is_some_and(|frame| !frame.visible)
-                || element
-                    .as_any()
-                    .downcast_ref::<OverlayNode>()
-                    .is_some_and(|overlay| !overlay.is_open())
-            {
-                return false;
-            }
-            if Some(current) == self.root {
-                break;
-            }
-            let Some(parent) = self.arena.parent(current) else {
-                return false;
-            };
-            if !self.arena.get(parent).children().contains(&current) {
-                return false;
-            }
-            current = parent;
+        if !self.live(node) {
+            return false;
         }
         let layers = self.layers();
         let Some(layer) = self.layer_of(&layers, node) else {
@@ -662,7 +669,7 @@ impl Document {
         let old = self.focused;
         self.composed.clear();
         self.cancel_focus_activation();
-        self.focused = new_focus;
+        self.set_focused(new_focus);
         self.focus_before = old;
         if let Some(new) = new_focus {
             self.note_focus_outside_scopes(new);

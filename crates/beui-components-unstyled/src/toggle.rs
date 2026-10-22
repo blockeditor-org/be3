@@ -3,13 +3,12 @@ use beui_macros::{component, view};
 
 use beui_core::input::CursorIcon;
 
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub struct ToggleHandle {
-    pub checked: ReadSignal<bool>,
+    pub checked: Binding<bool>,
     pub mixed: Memo<bool>,
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
@@ -22,7 +21,8 @@ pub struct ToggleHandle {
 
 #[component]
 pub fn Toggle(
-    checked: Prop<bool>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ToggleApi>,
+    checked: Binding<bool>,
     #[prop(default = false)] mixed: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
@@ -33,19 +33,19 @@ pub fn Toggle(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(children)] content: Option<Render<ToggleHandle>>,
-    on_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let label = action_label(action.as_ref(), label);
     let glyph = action_glyph(action.as_ref(), glyph);
     let tooltip = action_tooltip(action.as_ref(), label.clone());
-    let checked = action_pressed(action.as_ref(), checked);
+    let checked = match action.as_ref().and_then(Action::checked) {
+        Some(pressed) => Binding::new(pressed, Callback::empty()),
+        None => checked,
+    };
     let disabled = action_disabled(action.as_ref(), disabled);
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
-    let current = create_signal(checked.get_untracked());
-    create_effect(move || current.set(checked.get()));
     let hovered = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
@@ -61,7 +61,7 @@ pub fn Toggle(
         }
         node.set_toggled(match mixed.get() {
             true => Toggled::Mixed,
-            false => Toggled::from(current.get()),
+            false => Toggled::from(checked.get()),
         });
         if disabled.get() {
             node.set_disabled();
@@ -73,7 +73,7 @@ pub fn Toggle(
 
     let content_node = content.map(|build| {
         build.call(ToggleHandle {
-            checked: current.read_only(),
+            checked,
             mixed,
             hovered: hovered.read_only(),
             active: active.read_only(),
@@ -89,12 +89,11 @@ pub fn Toggle(
         if disabled.get() {
             return;
         }
-        let next = mixed.get() || !current.get();
-        current.set(next);
+        let next = mixed.get() || !checked.get();
+        checked.set(next);
         if let Some(action) = &action {
             action.run();
         }
-        on_change.call(next);
     };
     let key_toggle = toggle_checked.clone();
     let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
@@ -103,7 +102,7 @@ pub fn Toggle(
         false => CursorIcon::PointingHand,
     });
 
-    set_component_state(current.read_only());
+    api.fill(ToggleApi(checked));
 
     view! {
         <Interactive
@@ -111,19 +110,24 @@ pub fn Toggle(
             tab_stop
             press_focus
             capture_presses
-            on_focus_change={move |next: bool| focused.set(next)}
-            on_activate_change={move |pressed: bool| key_active.set(pressed)}
+            on_focus_change={focused}
+            on_activate_change={key_active}
             on_activate={key_toggle}
             cursor
             key_active
             on_click={toggle_checked}
-            on_hover_change={move |next: bool| hovered.set(next)}
-            on_active_change={move |next: bool| active.set(next)}
+            on_hover_change={hovered}
+            on_active_change={active}
             children={content_node}
         />
     }
 }
 
-pub fn toggle_checked(document: &Document, toggle: NodeId) -> ReadSignal<bool> {
-    *document.component_state::<ReadSignal<bool>>(toggle)
+#[derive(Clone, Copy)]
+pub struct ToggleApi(Binding<bool>);
+
+impl ToggleApi {
+    pub fn checked(&self) -> Binding<bool> {
+        self.0
+    }
 }

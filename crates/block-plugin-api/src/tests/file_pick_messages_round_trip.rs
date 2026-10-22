@@ -15,16 +15,16 @@ fn file_pick_messages_round_trip() {
         reply(
             7,
             3,
-            HostReply::FilePicked(FilePick::Chosen {
+            HostReply::FilePicked(Ok(Some(PickedFile {
                 name: "photo.png".into(),
                 data: vec![7; MAX_STRING_BYTES + 1],
-            }),
+            }))),
         ),
-        reply(7, 4, HostReply::FilePicked(FilePick::Cancelled)),
+        reply(7, 4, HostReply::FilePicked(Ok(None))),
         reply(
             7,
             5,
-            HostReply::FilePicked(FilePick::Failed("Could not read photo.png".into())),
+            HostReply::FilePicked(Err("Could not read photo.png".into())),
         ),
     ] {
         assert_eq!(

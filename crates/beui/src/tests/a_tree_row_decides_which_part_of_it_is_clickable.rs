@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{TreeItem, TreeRowHandle, tree_focused};
+use crate::unstyled::{TreeApi, TreeItem, TreeRowHandle};
 
 const MARGIN: f32 = 40.0;
 
@@ -10,7 +10,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal::<Vec<usize>>(Vec::new());
     let tree = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let item = |key: usize| TreeItem {
             label: format!("row {key}"),
             depth: 0,
@@ -31,7 +31,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                         <Spacer @sizing=ItemSize::Fixed(MARGIN) />
                         <Interactive @sizing=ItemSize::Percent(100.0) on_click={select}>
-                            <Text @test_id={format!("name.{key}")} string={format!("row {key}")} />
+                            <Text @test_id={format!("name.{key}")}>{format!("row {key}")}</Text>
                         </Interactive>
                     </List>
                 }
@@ -53,7 +53,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
         "the margin the row left outside its own catcher must not select it"
     );
     assert_eq!(
-        tree_focused::<usize>(harness.document(), tree),
+        harness.document().api::<TreeApi<usize>>(tree).focused(),
         Some(0),
         "pressing anywhere in the row still moves the tree's focus to it"
     );

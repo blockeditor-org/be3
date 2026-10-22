@@ -34,14 +34,25 @@ fn a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not() {
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
-    let copy = unstyled::menu_list_row_button(harness.document(), content, 0);
-    let share = unstyled::menu_list_row_button(harness.document(), content, 1);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
+    let copy = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(0);
+    let share = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(1);
 
-    let copy_arrow = arrow(harness.document(), copy).expect("the leaf row built an arrow");
     let share_arrow = arrow(harness.document(), share).expect("the parent row built an arrow");
 
-    assert!(harness.document().node_rect(copy_arrow).is_none());
+    assert!(
+        arrow(harness.document(), copy).is_none(),
+        "a leaf row holds no arrow, so it keeps no gap for one"
+    );
     assert!(harness.document().node_rect(share_arrow).is_some());
 }
 

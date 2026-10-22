@@ -23,6 +23,9 @@ pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) 
 pub trait BlockTypes {
     fn display_name(&self, block_type: Uuid) -> Option<&str>;
     fn icon(&self, block_type: Uuid) -> Option<&'static str>;
+    fn color(&self, _block_type: Uuid) -> Option<[u8; 3]> {
+        None
+    }
     fn child_edits(&self, _block_type: Uuid) -> ChildEdits {
         ChildEdits::default()
     }
@@ -37,6 +40,7 @@ pub struct ChildEdits {
 
 pub struct BlockTypeEntry {
     pub display_name: String,
+    pub color: Option<[u8; 3]>,
     pub icon: Option<&'static str>,
     pub child_edits: ChildEdits,
 }
@@ -52,6 +56,7 @@ pub enum TemplateCategory {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemplateEntry {
+    pub color: Option<[u8; 3]>,
     pub editor: Uuid,
     pub template: String,
     pub block_type: Uuid,
@@ -64,14 +69,27 @@ pub struct TemplateEntry {
 #[derive(Clone, Debug, PartialEq)]
 pub struct EditorEntry {
     pub editor: Uuid,
-    pub block_type: Option<Uuid>,
+    pub edits: Edits,
     pub name: String,
     pub icon: Option<&'static str>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Edits {
+    Type(Uuid),
+    Any,
+    Nothing,
+}
+
 impl EditorEntry {
     pub fn edits(&self, block_type: Uuid) -> bool {
-        self.block_type.is_none_or(|edited| edited == block_type)
+        match self.edits {
+            Edits::Type(edited) => edited == block_type,
+            Edits::Any => true,
+            Edits::Nothing => {
+                block_type == <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+            }
+        }
     }
 }
 
@@ -100,11 +118,11 @@ impl BlockCatalog {
         let specific = self
             .editors
             .iter()
-            .filter(|editor| editor.block_type == Some(block_type));
+            .filter(|editor| editor.edits == Edits::Type(block_type));
         let any = self
             .editors
             .iter()
-            .filter(|editor| editor.block_type.is_none());
+            .filter(|editor| editor.edits == Edits::Any);
         specific.chain(any).collect()
     }
 
@@ -115,7 +133,7 @@ impl BlockCatalog {
     pub fn built_in_editor(&self, block_type: Uuid) -> Option<Uuid> {
         self.editors
             .iter()
-            .find(|editor| editor.block_type == Some(block_type))
+            .find(|editor| editor.edits == Edits::Type(block_type))
             .map(|editor| editor.editor)
     }
 
@@ -142,6 +160,10 @@ impl BlockTypes for BlockCatalog {
 
     fn icon(&self, block_type: Uuid) -> Option<&'static str> {
         self.types.get(&block_type).and_then(|entry| entry.icon)
+    }
+
+    fn color(&self, block_type: Uuid) -> Option<[u8; 3]> {
+        self.types.get(&block_type).and_then(|entry| entry.color)
     }
 
     fn child_edits(&self, block_type: Uuid) -> ChildEdits {

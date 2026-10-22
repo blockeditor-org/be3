@@ -8,7 +8,7 @@ use crate::reactive::*;
 fn a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::<ForwardedInput>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame>
                 <Overlay

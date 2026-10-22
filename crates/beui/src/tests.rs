@@ -4,6 +4,7 @@ use crate::FontId;
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_before_it_closes;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
+mod a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back;
 mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
 mod a_back_slide_carries_its_page_away_and_brings_the_next_one_in;
 mod a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped;
@@ -17,10 +18,14 @@ mod a_calendar_keeps_its_focus_between_its_limits;
 mod a_calendar_reaches_a_distant_year_from_its_years_view;
 mod a_cancelled_scrolled_sheet_dismissal_returns_before_a_later_drag_closes_it;
 mod a_cancelled_touch_outside_a_dialog_leaves_it_open;
+mod a_canvas_finds_items_added_and_removed_between_its_others;
 mod a_canvas_item_moved_into_view_is_laid_out_where_it_arrives;
 mod a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lands;
+mod a_canvas_item_that_starts_scaling_moves_into_the_scaled_space;
+mod a_canvas_item_that_stops_clipping_moves_into_the_unclipped_space;
 mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;
+mod a_canvas_reveals_its_focused_text_when_its_view_shrinks;
 mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
 mod a_capturing_action_answers_before_the_focused_control;
 mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
@@ -34,14 +39,17 @@ mod a_catcher_under_an_open_dialog_hears_no_press;
 mod a_centred_dialog_opens_on_the_screen_it_was_opened_from;
 mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_change_inside_a_turned_child_still_paints_turned;
+mod a_child_tilted_by_an_angle_keeps_its_box_and_its_clips_take_the_tilt;
 mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_clearable_text_input_empties_from_its_clear_button;
+mod a_click_below_a_rich_text_areas_last_line_opens_a_plain_line_under_a_code_block;
 mod a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
 mod a_click_on_the_inspector_grip_does_not_leave_it_grabbed;
 mod a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked;
 mod a_clicked_number_input_selects_its_text_until_enter;
+mod a_closed_overlay_leaves_its_content_out_of_the_tree;
 mod a_closed_sheet_gives_its_space_back;
 mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_colon_in_a_text_area_offers_emoji_that_enter_inserts;
@@ -72,9 +80,17 @@ mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
+mod a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom;
+mod a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes;
+mod a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab;
+mod a_dock_card_anchored_at_a_control_shifts_to_stay_inside_the_window;
+mod a_dock_card_closes_on_a_press_on_its_tab_when_asked;
+mod a_dock_card_reaches_past_its_pane_and_holds_only_its_tab;
+mod a_dock_card_stays_inside_a_small_window;
 mod a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab;
 mod a_dock_dialog_is_never_a_tab;
-mod a_dock_sheet_hangs_under_its_tab_bar_and_holds_only_its_tab;
+mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
+mod a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_document;
 mod a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
@@ -82,10 +98,12 @@ mod a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pan
 mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_inside_its_border;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
+mod a_drag_in_a_text_area_selects_and_reaches_nothing_around_it;
 mod a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drag_put_on_the_board_drops_where_the_button_is_let_go;
 mod a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends;
+mod a_drawing_given_less_room_than_its_size_keeps_to_that_room;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
@@ -108,6 +126,7 @@ mod a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with;
 mod a_driver_turns_the_wheel_and_answers_without_settling_when_asked;
 mod a_driver_types_into_a_field_found_by_its_test_id;
 mod a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text;
+mod a_drop_target_built_before_the_one_around_it_still_takes_the_drop;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
@@ -127,11 +146,13 @@ mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
 mod a_floating_window_the_dock_puts_on_top_is_drawn_on_top;
 mod a_floating_windows_grips_lie_outside_it;
+mod a_focusable_node_that_captures_a_press_takes_the_focus;
 mod a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept;
 mod a_focused_forwarding_catcher_takes_the_keys_from_the_document;
 mod a_focused_node_hidden_or_removed_is_told_it_lost_the_focus;
 mod a_focused_node_scrolled_far_away_stays_laid_out;
 mod a_focused_text_input_asks_for_the_keyboard;
+mod a_focused_text_input_panned_out_of_a_canvas_keeps_the_keyboard;
 mod a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
@@ -164,6 +185,7 @@ mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
+mod a_kept_alive_row_asked_for_the_focus_again_while_hidden_takes_it_when_shown;
 mod a_key_dragged_off_the_software_keyboard_types_once_when_let_go;
 mod a_key_let_go_over_the_inspector_is_not_left_held;
 mod a_key_pressed_in_a_held_select_search_shows_the_keyboard;
@@ -188,7 +210,6 @@ mod a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whi
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
-mod a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_click;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
@@ -255,12 +276,15 @@ mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_runner_whose_app_panics_lets_the_app_exit_and_reports_why;
 mod a_scope_disposed_with_no_document_installed_still_removes_its_nodes;
+mod a_screen_reader_reads_and_scrolls_a_horizontal_scroll_sideways;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scroll_only_re_measures_the_row_that_changed;
+mod a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button;
+mod a_scroll_with_nothing_to_scroll_is_not_a_tab_stop;
 mod a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_scrolled_sheet_can_be_lowered_by_its_handle_or_backdrop;
@@ -279,6 +303,7 @@ mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_sheet_is_never_taller_than_what_it_holds;
+mod a_sheet_opened_as_another_closes_takes_its_place_without_sliding;
 mod a_sheet_pulled_past_its_top_stretches_and_springs_back;
 mod a_shifted_child_in_a_scrolled_view_still_paints;
 mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
@@ -324,6 +349,7 @@ mod a_tap_outside_selectable_text_puts_its_toolbar_away;
 mod a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_test_id_reaches_the_accessibility_tree_as_its_author_id;
+mod a_text_area_in_a_scaled_canvas_item_is_not_laid_out_again_by_a_pan_or_zoom;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
 mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
 mod a_text_of_spans_takes_its_alignment_and_line_height;
@@ -414,9 +440,12 @@ mod an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
 mod an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
+mod an_overflowing_scroll_of_plain_text_is_a_tab_stop;
+mod an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them;
 mod an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout;
 mod an_overlay_reports_a_dismiss_only_when_the_user_closes_it;
 mod an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side;
+mod an_overlay_whose_opener_moves_keeps_its_content_where_it_is_shown;
 mod an_unchanged_container_is_not_walked_again_for_accessibility_but_a_moved_one_is;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
 mod animations_finish_once_and_keep_functional_timers;
@@ -439,7 +468,6 @@ mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod changing_a_filter_damages_only_the_region_it_covers;
 mod changing_one_span_of_a_long_text_shapes_only_that_span;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
-mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
 mod clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed;
 mod clicking_a_checkbox_toggles_it;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
@@ -530,12 +558,15 @@ mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
 mod escaping_a_pick_clears_its_highlight;
+mod every_coalesced_sample_drags_and_the_last_carries_its_prediction;
+mod every_sample_drags_at_the_time_it_happened;
 mod every_srgb_color_has_a_place_in_an_oklch_wheels_triangle;
 mod every_styled_interactive_control_paints_a_keyboard_focus_ring;
 mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod f6_moves_the_focus_between_forwarding_catchers;
 mod finding_a_node_by_its_test_id;
 mod finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps;
+mod fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off;
 mod flashing_changed_elements_outlines_the_node_that_changed;
 mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
 mod flashing_repaints_paints_no_fill;
@@ -574,6 +605,7 @@ mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod key_handlers_can_move_focus_and_change_their_tab_stop;
 mod key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls;
 mod keyboard_scrolling_reaches_virtual_items_and_endpoints;
+mod keys_an_inner_scroll_cannot_use_scroll_the_one_around_it;
 mod keys_in_one_frame_reach_the_row_the_first_one_focused;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
 mod layers_stack_their_children_in_one_box_sized_to_the_largest;
@@ -608,6 +640,7 @@ mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
 mod panning_a_canvas_lays_out_and_paints_none_of_its_items_again;
+mod panning_a_canvas_moves_its_accessibility_spaces_and_describes_none_of_its_items;
 mod percent_children_land_on_whole_device_pixels;
 mod percent_children_of_an_unbounded_list_use_their_intrinsic_length;
 mod percent_sized_children_still_size_an_intrinsic_lists_height;
@@ -632,6 +665,7 @@ mod pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_ar
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod radio_groups_select_with_space_and_arrows_without_leaving_the_group;
 mod recolouring_a_nested_frame_repaints_it_alone;
+mod redrawing_one_canvas_item_paints_none_of_its_siblings;
 mod releasing_a_middle_drag_ends_autoscroll;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_forgets_which_layout_pass_placed_it;
@@ -660,11 +694,11 @@ mod scrolling_damages_nothing_outside_the_scroll;
 mod scrolling_into_a_nested_scroll_keeps_moving_the_one_around_it;
 mod scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_moved;
 mod scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes;
-mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
+mod scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod selecting_a_node_lists_its_properties_in_the_inspector;
 mod setting_a_scroll_offset_during_a_fling_stops_the_fling;
-mod setting_the_value_of_a_text_input_reports_the_change;
+mod setting_the_bound_value_of_a_text_input_shows_it;
 mod shared_springs_remain_stable_across_long_frames;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
 mod shift_scrolling_a_horizontal_scroll_moves_it_sideways;
@@ -702,10 +736,12 @@ mod tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes;
 mod tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste;
 mod tapping_the_focused_text_input_again_asks_for_the_keyboard_again;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
+mod text_in_a_zooming_canvas_scales_with_it_before_its_glyphs_are_rasterised_again;
 mod text_laid_out_to_an_alignment_indents_each_line_to_it;
 mod text_that_does_not_fit_ends_in_an_ellipsis;
 mod text_widgets_sit_in_the_text_and_blocks_below_their_line;
 mod text_with_spans_wraps_places_inline_items_and_answers_where_indices_are;
+mod the_app_and_the_inspector_paint_displays_a_renderer_can_tell_apart;
 mod the_app_tab_shows_the_document_below_the_tab_bar;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
 mod the_caret_of_a_text_input_paints_two_points_wide;
@@ -731,6 +767,7 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
+mod the_inspectors_theme_overrides_the_apps_until_it_is_cleared;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
 mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
@@ -753,6 +790,7 @@ mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_top_layer_takes_a_click_over_the_layer_below;
+mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
 mod the_window_is_shown_the_ime_again_after_typing_into_it;
 mod the_window_is_told_where_the_caret_is_in_its_own_units;
@@ -788,6 +826,7 @@ mod web_codes_and_typed_characters_name_the_same_keys;
 mod what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted;
 mod without_a_drag_modifier_a_modified_drag_reaches_the_dock_content;
 mod wrapped_rows_wrap_long_text_and_grow_percent_children;
+mod zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 mod zooming_into_the_simulated_screen_follows_the_pointer;
 
@@ -853,6 +892,17 @@ fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
         pos,
         force: None,
     }
+}
+
+pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
+    build(|| {
+        let content = view();
+        view! {
+            <beui_view::primitives::Root clear_color={Color32::BLACK}>
+                {content}
+            </beui_view::primitives::Root>
+        }
+    })
 }
 
 pub(crate) struct Harness {
@@ -1121,6 +1171,7 @@ impl Harness {
     }
 
     pub(crate) fn accessible(&self) -> Vec<accesskit::Node> {
+        ::reactive::flush();
         self.document
             .accessibility_view()
             .map(|view| view.nodes().cloned().collect())
@@ -1128,6 +1179,7 @@ impl Harness {
     }
 
     pub(crate) fn document(&self) -> &Document {
+        ::reactive::flush();
         &self.document
     }
 
@@ -1136,16 +1188,19 @@ impl Harness {
     }
 
     pub(crate) fn document_mut(&mut self) -> &mut Document {
+        ::reactive::flush();
         &mut self.document
     }
 
     pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
+        ::reactive::flush();
         self.document
             .node_rect(id)
             .expect("the node was not laid out")
     }
 
     pub(crate) fn find(&self, test_id: &str) -> NodeId {
+        ::reactive::flush();
         self.document
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
@@ -1156,12 +1211,14 @@ impl Harness {
     }
 
     pub(crate) fn inspector_open(&self) -> bool {
+        ::reactive::flush();
         self.document
             .tools::<InspectorTools>()
             .is_some_and(|tools| tools.inspector.is_some())
     }
 
     pub(crate) fn inspector(&self) -> &Inspector {
+        ::reactive::flush();
         self.document
             .tools::<InspectorTools>()
             .and_then(|tools| tools.inspector.as_deref())
@@ -1196,8 +1253,35 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn animation_toggle_center(&self) -> Pos2 {
-        self.inspector_center("inspector.simulation.disable_animations")
+    pub(crate) fn choose_in_simulation(&mut self, control: &str, index: usize) {
+        let select = self
+            .inspector()
+            .find(&format!("inspector.simulation.{control}"));
+        let trigger = self
+            .inspector()
+            .document
+            .api::<crate::unstyled::SelectApi>(select)
+            .trigger();
+        self.click_in_inspector(trigger);
+        self.frame(Vec::new());
+        let option = self
+            .inspector()
+            .document
+            .api::<crate::unstyled::SelectApi>(select)
+            .option_button(index);
+        self.click(self.node_center(option));
+        self.frame(Vec::new());
+    }
+
+    fn click_in_inspector(&mut self, node: NodeId) {
+        self.document
+            .tools_mut::<InspectorTools>()
+            .and_then(|tools| tools.inspector.as_deref_mut())
+            .expect("the inspector is closed")
+            .document
+            .reveal_node(node);
+        self.frame(Vec::new());
+        self.click(self.node_center(node));
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
@@ -1314,14 +1398,7 @@ impl Harness {
         self.click(tab);
         self.frame(Vec::new());
         let toggle = self.inspector().find("inspector.accessibility.enabled");
-        self.document
-            .tools_mut::<InspectorTools>()
-            .and_then(|tools| tools.inspector.as_deref_mut())
-            .expect("the inspector is closed")
-            .document
-            .reveal_node(toggle);
-        self.frame(Vec::new());
-        self.click(self.node_center(toggle));
+        self.click_in_inspector(toggle);
         self.toggle_inspector();
         self.frame(Vec::new());
     }
@@ -1386,20 +1463,6 @@ impl Harness {
         self.tab_node(4)
     }
 
-    pub(crate) fn pixel_ratio_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.pixel_ratio", index);
-        self.node_center(option)
-    }
-
-    pub(crate) fn color_vision_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.color_vision", index);
-        self.node_center(option)
-    }
-
     pub(crate) fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
         let track = self.inspector_rect(&format!("inspector.simulation.{control}"));
         let y = track.center().y;
@@ -1414,13 +1477,6 @@ impl Harness {
             .node_rect(inspector.find(test_id))
             .expect("the control was not laid out");
         rect.scaled(crate::inspector::scale(&self.context))
-    }
-
-    pub(crate) fn theme_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.theme", index);
-        self.node_center(option)
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {
@@ -1498,7 +1554,7 @@ pub(crate) fn MenuRegion() -> NodeId {
 pub(crate) fn ButtonFace(label: String) -> NodeId {
     view! {
         <Frame fill={Color32::from_gray(60)} radius=4.0 padding={Sides::symmetric(20.0, 12.0)}>
-            <Text string={label} color=Color32::WHITE />
+            <Text color=Color32::WHITE>{label}</Text>
         </Frame>
     }
 }
@@ -1514,15 +1570,12 @@ pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
 
 #[component]
 pub(crate) fn PanZoomStage(
-    view: crate::reactive::Prop<unstyled::PanZoomView>,
-    on_change: crate::reactive::Callback<unstyled::PanZoomView>,
+    #[prop(default = unstyled::PanZoomView::IDENTITY)] view: crate::reactive::Binding<
+        unstyled::PanZoomView,
+    >,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom
-            @test_id="stage"
-            view
-            on_change={on_change}
-        >|handle: unstyled::PanZoomHandle| {
+        <unstyled::PanZoom @test_id="stage" view>|handle: unstyled::PanZoomHandle| {
             let unstyled::PanZoomHandle { view, .. } = handle;
             view! {
                 <Canvas view>
@@ -1541,7 +1594,7 @@ pub(crate) struct VirtualScroll {
 
 pub(crate) fn virtual_list(built: Signal<Vec<usize>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -1583,7 +1636,7 @@ pub(crate) fn keyed_virtual_list(built: Signal<Vec<usize>>) -> KeyedVirtualScrol
     let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
     let keys = owned_keys.handle();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -1623,11 +1676,11 @@ pub(crate) struct HelloColumn {
 
 pub(crate) fn hello_column() -> HelloColumn {
     let (padding, text) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&padding padding=4.0>
-                    <Text @node_ref=&text string="Hello" color=Color32::WHITE />
+                    <Text @node_ref=&text color=Color32::WHITE>"Hello"</Text>
                 </Frame>
             </List>
         }
@@ -1656,7 +1709,7 @@ pub(crate) struct ThreePanels {
 pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List @node_ref=&list spacing=0.0>
                 <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
@@ -1676,7 +1729,7 @@ pub(crate) fn three_panels() -> ThreePanels {
 
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
@@ -1750,7 +1803,7 @@ pub(crate) const SHEET_ROWS: usize = 20;
 pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
 
 pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) -> Document {
-    build(move || {
+    build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />
@@ -1788,7 +1841,7 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         let open = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
@@ -1819,7 +1872,7 @@ pub(crate) struct SplitDock {
 pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
     let presses = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout drag_modifier>
@@ -1897,7 +1950,11 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    unstyled::dock_state(harness.document(), dock).windows()[0]
+    harness
+        .document()
+        .api::<unstyled::DockApi>(dock)
+        .state()
+        .windows()[0]
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
@@ -1953,7 +2010,7 @@ pub(crate) fn toolbar_of<const N: usize>(
 ) -> (Document, [NodeId; N]) {
     let built = crate::reactive::OwnedSignal::new(None);
     let handle = built.handle();
-    let document = build(move || {
+    let document = build_node(move || {
         let nodes = controls();
         handle.set(Some(nodes));
         view! {
@@ -2088,7 +2145,7 @@ use crate::interact::WHEEL_LATCH_TIMEOUT;
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {
-    build(move || {
+    build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
@@ -2109,11 +2166,9 @@ fn nested() -> Document {
 fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
-            <Text
-                string={format!("Row {index}")}
-                color=Color32::WHITE
-                font={FontId::proportional(20.0)}
-            />
+            <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
+                {format!("Row {index}")}
+            </Text>
         </ForEach>
     }
 }
@@ -2122,7 +2177,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(true);
     let heard = create_signal(Vec::<String>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Button
@@ -2232,8 +2287,10 @@ impl Driven {
 
     pub(crate) fn with_app(app: impl App + 'static, headless: bool) -> Self {
         let inbox = beui_core::app::automation::Inbox::default();
-        let mut options = beui_core::runner::RunOptions::new("Driven");
-        options.automation = Some(inbox.clone());
+        let options = beui_core::runner::RunOptions {
+            automation: Some(inbox.clone()),
+            ..Default::default()
+        };
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
             options,
             context: context(),
@@ -2334,7 +2391,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let layout = unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
     let listed = owned_dialogs.handle();
-    let document = build(move || {
+    let document = build_node(move || {
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
                 listed
@@ -2490,7 +2547,7 @@ impl Intaken {
         let seen = Rc::new(RefCell::new(Vec::new()));
         let ask = PasteAsk::default();
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
-            options: beui_core::runner::RunOptions::new("Intaken"),
+            options: beui_core::runner::RunOptions::default(),
             context: context(),
             app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
         });
@@ -2529,5 +2586,156 @@ impl Intaken {
             }
         }
         self.seen.take()
+    }
+}
+
+const CARD: u64 = 10;
+const CARD_SIZE: Vec2 = Vec2::new(520.0, 240.0);
+
+struct CardDock {
+    document: Document,
+    layout: unstyled::DockingLayout<u64>,
+    pressed: Signal<Vec<u64>>,
+    built: Signal<u32>,
+    attended: ReadSignal<Vec<u64>>,
+    open: Signal<bool>,
+    anchor: Signal<Option<Rect>>,
+}
+
+#[component]
+fn CardBody(built: Signal<u32>, attended: Signal<Vec<u64>>) -> NodeId {
+    built.update(|built| *built += 1);
+    if let Some(tab) = unstyled::use_dock_tab() {
+        let called = crate::reactive::create_memo(move || tab.attention());
+        crate::reactive::create_effect(move || {
+            if called.get().is_some() {
+                attended.update(|attended| attended.push(CARD));
+            }
+        });
+    }
+    view! {
+        <Interactive focusable=true @test_id="card.field">
+            <Frame width=120.0 height=40.0 />
+        </Interactive>
+    }
+}
+
+#[component]
+fn PressPanel(owner: u64, pressed: Signal<Vec<u64>>) -> NodeId {
+    view! {
+        <Interactive
+            focusable=true
+            @test_id={format!("content.{owner}")}
+            on_press={move |_: crate::input::PointerPress| pressed.update(|pressed| pressed.push(owner))}
+        >
+            <Frame />
+        </Interactive>
+    }
+}
+
+fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, true)
+}
+
+fn anchored_card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, false)
+}
+
+fn open_anchored(
+    harness: &mut Harness,
+    (anchor, open): (Signal<Option<Rect>>, Signal<bool>),
+    place: impl Fn(Rect) -> Rect,
+) -> Rect {
+    harness.frame(Vec::new());
+    let panel = harness.rect(harness.find("content.1"));
+    let rect = place(panel);
+    anchor.set(Some(rect));
+    open.set(true);
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+    rect
+}
+
+fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
+    output.shapes().into_iter().find_map(|shape| match shape {
+        crate::painter::Shape::Rect { rotation, .. }
+            if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
+        {
+            Some(rotation.pivot)
+        }
+        _ => None,
+    })
+}
+
+fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
+    output.shapes().into_iter().any(|shape| match shape {
+        crate::painter::Shape::Rect { rect, color, .. } => {
+            let [red, green, blue, alpha] = color.to_array();
+            rect.contains_rect(panel) && red == 0 && green == 0 && blue == 0 && alpha > 0
+        }
+        _ => false,
+    })
+}
+
+fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool) -> CardDock {
+    let pressed = create_signal(Vec::new());
+    let built = create_signal(0);
+    let attended = create_signal(Vec::new());
+    let open = create_signal(open_now);
+    let anchor = create_signal(None::<Rect>);
+    let layout = unstyled::DockingLayout::new();
+    let document = build_node(move || {
+        let cards = crate::reactive::create_memo(move || match open.get() {
+            true => vec![CARD],
+            false => Vec::new(),
+        });
+        view! {
+            <styled::Docking layout>
+                <unstyled::DockSplit id="root" fraction=0.3>
+                    <unstyled::DockPane id="left">
+                        <unstyled::DockTab id=4_u64 title="Left">
+                            <PressPanel owner=4 pressed />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                    <unstyled::DockSplit id="rest" fraction=0.5>
+                        <unstyled::DockPane id="tabs">
+                            <ForEach keys={vec![1_u64, 2]}>|id: u64|
+                                <unstyled::DockTab id title={format!("Tab {id}")}>
+                                    <PressPanel owner=id pressed />
+                                </unstyled::DockTab>
+                            </ForEach>
+                        </unstyled::DockPane>
+                        <unstyled::DockPane id="side">
+                            <unstyled::DockTab id=3_u64 title="Side">
+                                <PressPanel owner=3 pressed />
+                            </unstyled::DockTab>
+                        </unstyled::DockPane>
+                    </unstyled::DockSplit>
+                </unstyled::DockSplit>
+                <ForEach keys={cards}>|id: u64|
+                    <unstyled::DockDialog
+                        id
+                        parent=1_u64
+                        title="Card"
+                        size=CARD_SIZE
+                        presentation=unstyled::DockDialogPresentation::Card
+                        anchor
+                        dismiss_on_outside_press
+                        on_close={move || open.set(false)}
+                    >
+                        <CardBody built attended />
+                    </unstyled::DockDialog>
+                </ForEach>
+            </styled::Docking>
+        }
+    });
+    CardDock {
+        document,
+        layout,
+        pressed,
+        built,
+        attended: attended.read_only(),
+        open,
+        anchor,
     }
 }

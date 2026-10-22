@@ -9,13 +9,12 @@ fn turning_an_oklch_color_wheel_keeps_its_lightness() {
     let changes = create_signal(Vec::new());
     let wheel = NodeRef::new();
     let start = Oklch::new(0.6, 0.06, 0.0, 1.0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <OklchColorWheel
                     @node_ref=&wheel
-                    value={start.to_color()}
-                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    value={Binding::new(start.to_color(), move |next| changes.update(|changes| changes.push(next)))}
                 />
             </List>
         }

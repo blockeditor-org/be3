@@ -2,14 +2,14 @@ use super::*;
 use crate::KeyPress;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::{command_palette_highlighted, command_palette_row, command_palette_shown};
+use crate::unstyled::CommandPaletteApi;
 
 #[test]
 fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones() {
     let _root = crate::reactive::RootScope::new();
     let ran = create_signal(Vec::new());
     let palette = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.lock", "Lock selection", move || {
             ran.update(|ran| ran.push("lock"))
         })
@@ -39,7 +39,7 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
                 <unstyled::Button @test_id={"button"}>
                     <ButtonFace label="Canvas" />
                 </unstyled::Button>
-                <CommandPalette @node_ref=&palette open on_close={move || open.set(false)} />
+                <CommandPalette @node_ref=&palette open />
             </List>
         }
     });
@@ -58,24 +58,35 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
     );
     let palette = palette.get();
     assert_eq!(
-        command_palette_shown(harness.document(), palette),
+        harness.document().api::<CommandPaletteApi>(palette).shown(),
         vec!["test.zoom-in", "test.reset", "test.lock"],
         "disabled actions are listed last"
     );
     assert_eq!(
-        command_palette_highlighted(harness.document(), palette).as_deref(),
+        harness
+            .document()
+            .api::<CommandPaletteApi>(palette)
+            .highlighted()
+            .as_deref(),
         Some("test.zoom-in")
     );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(
-        command_palette_highlighted(harness.document(), palette).as_deref(),
+        harness
+            .document()
+            .api::<CommandPaletteApi>(palette)
+            .highlighted()
+            .as_deref(),
         Some("test.reset"),
         "the highlight skips a disabled action"
     );
-    let lock =
-        command_palette_row(harness.document(), palette, "test.lock").expect("lock is shown");
+    let lock = harness
+        .document()
+        .api::<CommandPaletteApi>(palette)
+        .row("test.lock")
+        .expect("lock is shown");
     harness.click(harness.center(lock));
     assert!(
         ran.with_untracked(|ran| ran.is_empty()),
@@ -84,12 +95,12 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
 
     harness.type_text("zoom");
     assert_eq!(
-        command_palette_shown(harness.document(), palette),
+        harness.document().api::<CommandPaletteApi>(palette).shown(),
         vec!["test.zoom-in", "test.reset"]
     );
     harness.type_text(" in");
     assert_eq!(
-        command_palette_shown(harness.document(), palette),
+        harness.document().api::<CommandPaletteApi>(palette).shown(),
         vec!["test.zoom-in"]
     );
     harness.key(Key::Enter, Modifiers::NONE);

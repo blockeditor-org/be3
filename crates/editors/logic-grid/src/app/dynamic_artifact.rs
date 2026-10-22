@@ -97,18 +97,17 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
         edited.edit_settings(artifact.encode());
     };
     view! {
-        <Frame fill=ColorRole::Background padding=SETTINGS_PADDING>
+        <Frame padding=SETTINGS_PADDING>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <Checkbox
                         label="Rename with the grid"
-                        checked={renamed}
+                        checked={Binding::new(renamed, rename.clone())}
                         @test_id={"logic-grid.rename-with-source"}
-                        on_change={rename.clone()}
                     />
                 </Show>
                 <Show condition={unreadable}>
-                    <Text style=TextStyle::CAPTION string="These settings cannot be read." />
+                    <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
                 </Show>
             </List>
         </Frame>
@@ -148,7 +147,11 @@ pub(super) struct CompileRegeneration {
 
 impl CompileRegeneration {
     pub(super) fn poll(&mut self) -> Option<Result<(), String>> {
-        let grid = self.source.read(|content| content.root().grid())?;
+        let grid = match self.source.read(|content| content.root().grid()) {
+            Ok(grid) => grid,
+            Err(Pending::Loading) => return None,
+            Err(Pending::Failed(error)) => return Some(Err(error)),
+        };
         let compiled = match generate_initial(self.source_id, &grid) {
             Ok(compiled) => compiled,
             Err(error) => return Some(Err(error)),
@@ -161,8 +164,8 @@ impl CompileRegeneration {
             let source_name = self
                 .source_block
                 .read()
-                .into_iter()
-                .next()
+                .ok()
+                .and_then(|listed| listed.into_iter().next())
                 .and_then(|info| info.name())
                 .unwrap_or_else(|| "Logic Grid".to_owned());
             self.host

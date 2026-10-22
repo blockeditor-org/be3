@@ -4,10 +4,15 @@ use std::rc::{Rc, Weak};
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show,
     ShowKeepAlive, Signal, SlotChild, SlotHost, SlotId, component, create_effect, create_memo,
-    create_signal, on_cleanup, store, view,
+    create_signal, flush, on_cleanup, store, view,
 };
 
+mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
+mod a_callback_given_a_signal_sets_it;
+mod a_child_list_refilled_keeps_the_items_it_held_wherever_they_move;
+mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
+mod a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
 mod a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back;
 mod a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden;
@@ -49,6 +54,7 @@ impl DomNode {
     }
 
     fn html(&self) -> String {
+        flush();
         let children: String = self.0.children.borrow().iter().map(DomNode::html).collect();
         let (id, tag) = (self.0.id, self.0.tag);
         format!("<{tag} id={id}>{}{children}</{tag}>", self.0.text.borrow())

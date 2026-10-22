@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use be_commit::{merge::join_lines, merge_lines, merge_slices, render_conflicts};
 
+use sequence::marks::{Rich, Scope, Seed};
+
 use crate::{Items, Kept, Object, ObjectId, Objects, Place, Sequence, Tree, Value};
 
 pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
@@ -177,6 +179,9 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
                 (Value::Text(before), Value::Text(mine), Value::Text(other)) => {
                     Value::Text(merge_text(before, mine, other, conflicts))
                 }
+                (Value::Rich(before), Value::Rich(mine), Value::Rich(other)) => {
+                    Value::Rich(merge_rich(before, mine, other, conflicts))
+                }
                 _ => mine.clone(),
             }
         })
@@ -216,6 +221,110 @@ fn merge_text(
     Sequence::from_items(render_conflicts(&outcome, "local", "remote"))
 }
 
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct RichLine {
+    bytes: Vec<u8>,
+    marks: Vec<u8>,
+}
+
+impl RichLine {
+    fn plain(bytes: &[u8]) -> Self {
+        Self {
+            bytes: bytes.to_vec(),
+            marks: Vec::new(),
+        }
+    }
+
+    fn seeds(&self) -> Vec<Seed> {
+        postcard::from_bytes(&self.marks).unwrap_or_default()
+    }
+}
+
+fn rich_lines(rich: &Rich) -> Vec<RichLine> {
+    let bytes = rich.text.items();
+    let seeds = rich.seeds();
+    let mut lines = Vec::new();
+    let mut start = 0;
+    loop {
+        let terminator = bytes[start..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map(|at| start + at);
+        let end = terminator.map_or(bytes.len(), |at| at + 1);
+        let last = terminator.unwrap_or(bytes.len());
+        let within: Vec<Seed> = seeds
+            .iter()
+            .filter_map(|seed| {
+                let range = match seed.scope {
+                    Scope::Inline => {
+                        let range = seed.range.start.max(start)..seed.range.end.min(end);
+                        (range.start < range.end).then(|| range.start - start..range.end - start)?
+                    }
+                    Scope::Block => (seed.range.start <= last && start <= seed.range.end)
+                        .then_some(0..last - start)?,
+                };
+                Some(Seed {
+                    range,
+                    ..seed.clone()
+                })
+            })
+            .collect();
+        lines.push(RichLine {
+            bytes: bytes[start..end].to_vec(),
+            marks: postcard::to_stdvec(&within).unwrap_or_default(),
+        });
+        match terminator {
+            Some(_) => start = end,
+            None => break,
+        }
+    }
+    lines
+}
+
+fn join_rich(lines: &[RichLine]) -> Rich {
+    let mut bytes = Vec::new();
+    let mut seeds = Vec::new();
+    for line in lines {
+        let start = bytes.len();
+        seeds.extend(line.seeds().into_iter().map(|seed| Seed {
+            range: seed.range.start + start..seed.range.end + start,
+            ..seed
+        }));
+        bytes.extend_from_slice(&line.bytes);
+    }
+    Rich::load(bytes, &seeds)
+}
+
+fn merge_rich(base: &Rich, ours: &Rich, theirs: &Rich, conflicts: &mut usize) -> Rich {
+    let outcome = merge_slices(&rich_lines(base), &rich_lines(ours), &rich_lines(theirs));
+    if outcome.is_clean() {
+        return join_rich(&outcome.merged);
+    }
+    *conflicts += outcome.conflicts.len();
+    let ended = |lines: &[RichLine]| {
+        let mut lines = lines.to_vec();
+        if let Some(last) = lines.last_mut()
+            && !last.bytes.ends_with(b"\n")
+        {
+            last.bytes.push(b'\n');
+        }
+        lines
+    };
+    let mut rendered = Vec::new();
+    let mut cursor = 0;
+    for conflict in &outcome.conflicts {
+        rendered.extend_from_slice(&outcome.merged[cursor..conflict.at]);
+        rendered.push(RichLine::plain(b"<<<<<<< local\n"));
+        rendered.extend(ended(&conflict.ours));
+        rendered.push(RichLine::plain(b"=======\n"));
+        rendered.extend(ended(&conflict.theirs));
+        rendered.push(RichLine::plain(b">>>>>>> remote\n"));
+        cursor = conflict.at + conflict.ours.len();
+    }
+    rendered.extend_from_slice(&outcome.merged[cursor..]);
+    join_rich(&rendered)
+}
+
 fn blank_like(object: &Object) -> Object {
     Object {
         parent: None,
@@ -230,6 +339,7 @@ fn blank_like(object: &Object) -> Object {
                 Value::Grid(cells) => Value::Grid(cells.emptied()),
                 Value::Latest(_) => Value::Latest(BTreeMap::new()),
                 Value::Text(_) => Value::Text(Sequence::default()),
+                Value::Rich(_) => Value::Rich(Rich::default()),
             })
             .collect(),
         kept: Kept::default(),

@@ -3,7 +3,10 @@ use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
-mod names;
+pub use ui_types::input::{
+    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Key, KeyChord, KeyPress, Keyboard,
+    Modifiers, PenPhase, PointerButton, TouchPhase,
+};
 
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
@@ -16,243 +19,6 @@ pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 const SYNTHESIZED_SLOP: f32 = 2.0;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum Key {
-    ArrowDown,
-    ArrowLeft,
-    ArrowRight,
-    ArrowUp,
-    Backspace,
-    BracketLeft,
-    BracketRight,
-    Delete,
-    End,
-    Enter,
-    Escape,
-    Home,
-    Minus,
-    PageDown,
-    PageUp,
-    Plus,
-    Space,
-    Tab,
-    Zero,
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
-    Nine,
-    Backtick,
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-    Insert,
-    Comma,
-    Period,
-    Slash,
-    Backslash,
-    Semicolon,
-    Quote,
-    BrowserBack,
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-    VolumeUp,
-    VolumeDown,
-    VolumeMute,
-    MicMute,
-    BrightnessUp,
-    BrightnessDown,
-    MediaPlayPause,
-    MediaNext,
-    MediaPrevious,
-    MediaStop,
-    Shift,
-    Ctrl,
-    Alt,
-    Logo,
-    Unidentified,
-}
-
-impl Key {
-    pub const fn is_modifier(self) -> bool {
-        matches!(self, Self::Shift | Self::Ctrl | Self::Alt | Self::Logo)
-    }
-
-    pub const fn is_media(self) -> bool {
-        matches!(
-            self,
-            Self::VolumeUp
-                | Self::VolumeDown
-                | Self::VolumeMute
-                | Self::MicMute
-                | Self::BrightnessUp
-                | Self::BrightnessDown
-                | Self::MediaPlayPause
-                | Self::MediaNext
-                | Self::MediaPrevious
-                | Self::MediaStop
-        )
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct Modifiers {
-    pub alt: bool,
-    pub ctrl: bool,
-    pub shift: bool,
-    pub logo: bool,
-}
-
-impl Modifiers {
-    pub const NONE: Self = Self {
-        alt: false,
-        ctrl: false,
-        shift: false,
-        logo: false,
-    };
-
-    pub const LOGO: Self = Self {
-        logo: true,
-        ..Self::NONE
-    };
-
-    pub const fn command(self) -> bool {
-        self.ctrl || self.alt || self.logo
-    }
-
-    pub const ALT: Self = Self {
-        alt: true,
-        ..Self::NONE
-    };
-
-    pub const CTRL: Self = Self {
-        ctrl: true,
-        ..Self::NONE
-    };
-
-    pub const SHIFT: Self = Self {
-        shift: true,
-        ..Self::NONE
-    };
-
-    pub const fn holds(self, held: Self) -> bool {
-        (self.alt || !held.alt)
-            && (self.ctrl || !held.ctrl)
-            && (self.shift || !held.shift)
-            && (self.logo || !held.logo)
-    }
-
-    pub const fn any(self) -> bool {
-        self.alt || self.ctrl || self.shift || self.logo
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct KeyPress {
-    pub key: Key,
-    pub pressed: bool,
-    pub repeat: bool,
-    pub modifiers: Modifiers,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct KeyChord {
-    pub key: Key,
-    pub modifiers: Modifiers,
-    pub tap: bool,
-}
-
-impl KeyPress {
-    pub const fn down(key: Key, modifiers: Modifiers) -> Self {
-        Self {
-            key,
-            pressed: true,
-            repeat: false,
-            modifiers,
-        }
-    }
-
-    pub const fn up(key: Key, modifiers: Modifiers) -> Self {
-        Self {
-            key,
-            pressed: false,
-            repeat: false,
-            modifiers,
-        }
-    }
-}
-
-impl KeyChord {
-    pub const fn new(key: Key, modifiers: Modifiers) -> Self {
-        Self {
-            key,
-            modifiers,
-            tap: false,
-        }
-    }
-
-    pub const fn tap(key: Key) -> Self {
-        Self {
-            key,
-            modifiers: Modifiers::NONE,
-            tap: true,
-        }
-    }
-
-    pub fn matches(self, press: KeyPress) -> bool {
-        !self.tap && press.key == self.key && press.modifiers == self.modifiers
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
     pub pos: Pos2,
@@ -264,6 +30,8 @@ pub struct PointerPress {
     pub touch: bool,
     pub pressure: Option<f32>,
     pub pen: Option<Pen>,
+    pub predicted: Option<Pos2>,
+    pub time: Instant,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -280,6 +48,7 @@ pub struct ScrollGesture {
     pub local: Pos2,
     pub size: Vec2,
     pub modifiers: Modifiers,
+    pub held: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -316,16 +85,6 @@ pub struct ZoomGesture {
     pub size: Vec2,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PointerButton {
-    Primary,
-    Secondary,
-    Middle,
-    Back,
-    Forward,
-    Other(u16),
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TouchId {
     pub device: u64,
@@ -336,22 +95,6 @@ pub struct TouchId {
 pub struct Pen {
     pub tilt: Vec2,
     pub eraser: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PenPhase {
-    Move,
-    Down(PointerButton),
-    Up(PointerButton),
-    Gone,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum TouchPhase {
-    Start,
-    Move,
-    End,
-    Cancel,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -372,6 +115,7 @@ pub enum Event {
     PointerGone,
     PointerMotion(Vec2),
     PointerMoved(Pos2),
+    ScrollStarted,
     Scroll(Vec2),
     ScrollEnded,
     Text(String),
@@ -388,6 +132,8 @@ pub enum Event {
         pressure: f32,
         pen: Pen,
     },
+    Predicted(Pos2),
+    Time(Instant),
     Zoom(f32),
     Ime(ImeEvent),
     FileHovered,
@@ -421,10 +167,13 @@ impl Event {
                 | Self::PointerGone
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
+                | Self::ScrollStarted
                 | Self::Scroll(_)
                 | Self::ScrollEnded
                 | Self::Touch { .. }
                 | Self::Pen { .. }
+                | Self::Predicted(_)
+                | Self::Time(_)
                 | Self::Zoom(_)
         )
     }
@@ -450,52 +199,6 @@ impl Event {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum BackGesture {
-    Started { edge: BackEdge },
-    Progressed(f32),
-    Cancelled,
-    Invoked,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub enum BackEdge {
-    #[default]
-    None,
-    Left,
-    Right,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum ImeEvent {
-    Enabled,
-    Disabled,
-    SetComposingText(String),
-    CommitText(String),
-    FinishComposing,
-    SetComposingRegion(std::ops::Range<usize>),
-    ReplaceText {
-        range: std::ops::Range<usize>,
-        text: String,
-    },
-    DeleteSurrounding {
-        before: usize,
-        after: usize,
-    },
-    SetSelection {
-        anchor: usize,
-        focus: usize,
-    },
-}
-
-#[derive(Clone, PartialEq, Eq, Default, Debug)]
-pub struct ImeText {
-    pub start: usize,
-    pub text: String,
-    pub selection: std::ops::Range<usize>,
-    pub composing: Option<std::ops::Range<usize>>,
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DroppedFile {
     pub name: String,
@@ -509,144 +212,6 @@ pub struct ImeArea {
     pub cursor: crate::geometry::Rect,
     pub text: Option<ImeText>,
     pub keyboard: Keyboard,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Keyboard {
-    Held,
-    Shown { asks: u32 },
-}
-
-impl Keyboard {
-    pub fn shown(self) -> bool {
-        matches!(self, Self::Shown { .. })
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Default, Debug)]
-pub enum CursorIcon {
-    #[default]
-    Default,
-    Crosshair,
-    Grab,
-    Grabbing,
-    NotAllowed,
-    PointingHand,
-    ResizeHorizontal,
-    ResizeVertical,
-    ResizeNeSw,
-    ResizeNwSe,
-    Text,
-    Wait,
-    None,
-    Move,
-    Progress,
-    Help,
-    Alias,
-    ContextMenu,
-    Cell,
-    VerticalText,
-    Copy,
-    NoDrop,
-    AllScroll,
-    ZoomIn,
-    ZoomOut,
-    ResizeColumn,
-    ResizeRow,
-    ResizeNorth,
-    ResizeEast,
-    ResizeSouth,
-    ResizeWest,
-    ResizeNorthEast,
-    ResizeNorthWest,
-    ResizeSouthEast,
-    ResizeSouthWest,
-    Touch,
-}
-
-impl CursorIcon {
-    pub const ALL: [CursorIcon; 35] = [
-        CursorIcon::Default,
-        CursorIcon::ContextMenu,
-        CursorIcon::Help,
-        CursorIcon::PointingHand,
-        CursorIcon::Progress,
-        CursorIcon::Wait,
-        CursorIcon::Cell,
-        CursorIcon::Crosshair,
-        CursorIcon::Text,
-        CursorIcon::VerticalText,
-        CursorIcon::Alias,
-        CursorIcon::Copy,
-        CursorIcon::Move,
-        CursorIcon::NoDrop,
-        CursorIcon::NotAllowed,
-        CursorIcon::Grab,
-        CursorIcon::Grabbing,
-        CursorIcon::ResizeEast,
-        CursorIcon::ResizeNorth,
-        CursorIcon::ResizeNorthEast,
-        CursorIcon::ResizeNorthWest,
-        CursorIcon::ResizeSouth,
-        CursorIcon::ResizeSouthEast,
-        CursorIcon::ResizeSouthWest,
-        CursorIcon::ResizeWest,
-        CursorIcon::ResizeHorizontal,
-        CursorIcon::ResizeVertical,
-        CursorIcon::ResizeNeSw,
-        CursorIcon::ResizeNwSe,
-        CursorIcon::ResizeColumn,
-        CursorIcon::ResizeRow,
-        CursorIcon::AllScroll,
-        CursorIcon::ZoomIn,
-        CursorIcon::ZoomOut,
-        CursorIcon::None,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            CursorIcon::Default => "default",
-            CursorIcon::ContextMenu => "context-menu",
-            CursorIcon::Help => "help",
-            CursorIcon::PointingHand => "pointer",
-            CursorIcon::Progress => "progress",
-            CursorIcon::Wait => "wait",
-            CursorIcon::Cell => "cell",
-            CursorIcon::Crosshair => "crosshair",
-            CursorIcon::Text => "text",
-            CursorIcon::VerticalText => "vertical-text",
-            CursorIcon::Alias => "alias",
-            CursorIcon::Copy => "copy",
-            CursorIcon::Move => "move",
-            CursorIcon::NoDrop => "no-drop",
-            CursorIcon::NotAllowed => "not-allowed",
-            CursorIcon::Grab => "grab",
-            CursorIcon::Grabbing => "grabbing",
-            CursorIcon::ResizeEast => "e-resize",
-            CursorIcon::ResizeNorth => "n-resize",
-            CursorIcon::ResizeNorthEast => "ne-resize",
-            CursorIcon::ResizeNorthWest => "nw-resize",
-            CursorIcon::ResizeSouth => "s-resize",
-            CursorIcon::ResizeSouthEast => "se-resize",
-            CursorIcon::ResizeSouthWest => "sw-resize",
-            CursorIcon::ResizeWest => "w-resize",
-            CursorIcon::ResizeHorizontal => "ew-resize",
-            CursorIcon::ResizeVertical => "ns-resize",
-            CursorIcon::ResizeNeSw => "nesw-resize",
-            CursorIcon::ResizeNwSe => "nwse-resize",
-            CursorIcon::ResizeColumn => "col-resize",
-            CursorIcon::ResizeRow => "row-resize",
-            CursorIcon::AllScroll => "all-scroll",
-            CursorIcon::ZoomIn => "zoom-in",
-            CursorIcon::ZoomOut => "zoom-out",
-            CursorIcon::None => "none",
-            CursorIcon::Touch => "crosshair",
-        }
-    }
-
-    pub fn from_name(name: &str) -> Option<CursorIcon> {
-        Self::ALL.into_iter().find(|icon| icon.name() == name)
-    }
 }
 
 #[derive(Clone, Default, Debug)]
@@ -678,6 +243,7 @@ pub enum PointerPhase {
     Up(PointerButton),
     Cancel,
     Gone,
+    ScrollStarted,
     Scroll(Vec2),
     ScrollEnded { fling: Vec2 },
     Zoom(f32),
@@ -692,6 +258,8 @@ pub struct PointerEvent {
     pub clicks: u32,
     pub force: Option<f32>,
     pub pen: Option<Pen>,
+    pub predicted: Option<Pos2>,
+    pub time: Instant,
     pub source: usize,
 }
 
@@ -705,6 +273,7 @@ pub struct InputState {
     touches: Vec<(TouchId, Pos2)>,
     touched: Vec<Pos2>,
     source: usize,
+    time: Option<Instant>,
     force: Option<f32>,
     pen: Option<Pen>,
     pen_at: Option<Pos2>,
@@ -722,6 +291,7 @@ impl Default for InputState {
             touches: Vec::new(),
             touched: Vec::new(),
             source: 0,
+            time: None,
             force: None,
             pen: None,
             pen_at: None,
@@ -739,13 +309,15 @@ impl InputState {
                 Event::PointerMoved(pos)
                 | Event::PointerButton { pos, .. }
                 | Event::Touch { pos, .. }
-                | Event::Pen { pos, .. } => *pos = scale(*pos),
+                | Event::Pen { pos, .. }
+                | Event::Predicted(pos) => *pos = scale(*pos),
                 Event::Scroll(delta) => *delta *= factor,
                 _ => {}
             }
         }
         for event in &mut input.pointer_events {
             event.pos = scale(event.pos);
+            event.predicted = event.predicted.map(scale);
             match &mut event.phase {
                 PointerPhase::Scroll(delta) | PointerPhase::ScrollEnded { fling: delta } => {
                     *delta *= factor;
@@ -845,6 +417,10 @@ impl InputState {
             }));
         for (source, event) in raw.events.iter().enumerate() {
             self.source = source;
+            self.time = match raw.events.get(source + 1) {
+                Some(Event::Time(at)) => Some(*at),
+                _ => Some(now),
+            };
             self.force = None;
             self.pen = None;
             if let Some(modifiers) = event.modifiers() {
@@ -883,6 +459,10 @@ impl InputState {
                     };
                     self.emit(PointerId::Mouse, phase, *pos);
                 }
+                Event::ScrollStarted => {
+                    self.scroll_samples.clear();
+                    self.wheel(PointerPhase::ScrollStarted);
+                }
                 Event::Scroll(delta) => {
                     match self.scroll_samples.back_mut() {
                         Some((when, sum)) if *when == now => *sum += *delta,
@@ -913,6 +493,14 @@ impl InputState {
                     self.force = Some(*pressure);
                     self.pen = Some(*pen);
                     self.pen_event(*phase, *pos, now);
+                }
+                Event::Predicted(pos) => {
+                    let stamped = raw.events[..source]
+                        .iter()
+                        .rev()
+                        .take_while(|event| matches!(event, Event::Time(_)))
+                        .count();
+                    self.predict(source - stamped, *pos);
                 }
                 _ => {}
             }
@@ -948,8 +536,20 @@ impl InputState {
             clicks: self.pointer.clicks,
             force: self.force,
             pen: self.pen,
+            predicted: None,
+            time: self.time.unwrap_or_else(crate::timer::now),
             source: self.source,
         });
+    }
+
+    fn predict(&mut self, source: usize, pos: Pos2) {
+        if let Some(moved) = self
+            .pointer_events
+            .last_mut()
+            .filter(|moved| moved.phase == PointerPhase::Move && moved.source + 1 == source)
+        {
+            moved.predicted = Some(pos);
+        }
     }
 
     fn pen_event(&mut self, phase: PenPhase, pos: Pos2, now: Instant) {
@@ -1097,6 +697,3 @@ impl Pointer {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

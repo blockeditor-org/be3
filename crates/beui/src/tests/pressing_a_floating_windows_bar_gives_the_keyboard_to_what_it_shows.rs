@@ -6,12 +6,7 @@ use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 fn Input(id: u64) -> NodeId {
     let typed = create_signal(String::new());
     view! {
-        <styled::TextInput
-            @test_id={format!("input.{id}")}
-            value={typed}
-            label="Notes"
-            on_change={move |text: String| typed.set(text)}
-        />
+        <styled::TextInput @test_id={format!("input.{id}")} value={typed} label="Notes" />
     }
 }
 
@@ -19,7 +14,7 @@ fn Input(id: u64) -> NodeId {
 fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout>
@@ -58,7 +53,10 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
     );
     harness.type_text("moved");
     harness.frame(Vec::new());
-    assert_eq!(text_input_value(harness.document(), floating), "moved");
+    assert_eq!(
+        harness.document().api::<TextInputApi>(floating).value(),
+        "moved"
+    );
 
     let bar = bar + vec2(-30.0, 40.0);
     harness.click(bar);
@@ -77,8 +75,8 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
     harness.type_text(" again");
     harness.frame(Vec::new());
     assert_eq!(
-        text_input_value(harness.document(), floating),
+        harness.document().api::<TextInputApi>(floating).value(),
         "moved again"
     );
-    assert_eq!(text_input_value(harness.document(), main), "");
+    assert_eq!(harness.document().api::<TextInputApi>(main).value(), "");
 }

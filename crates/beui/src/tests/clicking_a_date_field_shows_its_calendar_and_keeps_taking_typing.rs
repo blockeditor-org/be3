@@ -11,19 +11,18 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
     let field = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <List spacing=0.0>
                     <DateTimeField
                         @node_ref=&field
-                        value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
+                        value={Binding::new(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value: Option<DateTime>| {
+                            reported.update(|reported| reported.push(value.map(|value| value.date)))
+                        })}
                         today={Some(Date::new(2026, 1, 1))}
                         parts=DateTimeParts::Date
                         label="Due"
-                        on_change={move |value: Option<DateTime>| {
-                            reported.update(|reported| reported.push(value.map(|value| value.date)))
-                        }}
                     />
                 </List>
             </Container>

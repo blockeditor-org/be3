@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::Renderer;
 use crate::Repaint;
 use crate::Repainting;
-use crate::clear_color_in;
 use crate::renderer_info;
+use crate::wgpu_color_in;
 use beui_core::color::Color32;
 use beui_core::context::{FrameOutput, Moved, RendererInfo};
 use beui_core::geometry::{Vec2, vec2};
@@ -457,7 +457,7 @@ impl Target {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("beui encoder"),
             });
-        let clear = clear_color_in(self.config.format, background);
+        let clear = wgpu_color_in(self.config.format, background);
         self.retain(&gpu.device);
         let (pending, moved) = match self.unpainted.take_if(|unpainted| unpainted.encoded) {
             Some(unpainted) => (Some(unpainted.repaint), unpainted.moved),

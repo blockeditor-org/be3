@@ -64,8 +64,10 @@ fn shell_dialog_and_access_messages_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
+                follows_camera: false,
             }],
             occluders: Vec::new(),
+            camera: None,
         }),
     ];
     for message in messages {

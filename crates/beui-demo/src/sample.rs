@@ -18,18 +18,14 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text
-                    style=TextStyle::HEADING
-                    @sizing=ItemSize::Percent(100.0)
-                    string={title}
-                    wrap=true
-                />
+                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) wrap=true>
+                    {title}
+                </Text>
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
                     label="Code"
                     glyph=ICON_CODE
                     pressed={open}
-                    on_change={move |shown| open.set(shown)}
                 />
             </List>
             {children}
@@ -59,12 +55,11 @@ fn CodeBlock(source: String) -> NodeId {
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
                 <Text size=TextSize::Sm family=Family::Mono wrap=true>
-                    <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color32)|
-                        <Span
-                            text={source[start..end].to_owned()}
-                            color={TextColor::Custom(color)}
-                        />
-                    </ForEach>
+                    <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color32)| {
+                        let piece = source[start..end].to_owned(); view! {
+                            <Span color={TextColor::Custom(color)}>{piece}</Span>
+                        }
+                    }</ForEach>
                 </Text>
             </SelectableText>
         </Frame>

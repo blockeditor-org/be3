@@ -3,7 +3,9 @@ use super::*;
 #[test]
 fn manifest_validation() {
     let editor = EditorManifest {
-        block_type: [1; 16],
+        id: [2; 16],
+        name: "counter".into(),
+        edits: Edits::Type([1; 16]),
         display_name: "Counter".into(),
         icon: "123".into(),
         templates: vec![TemplateManifest {
@@ -14,7 +16,6 @@ fn manifest_validation() {
             dialog: false,
             block_type: [1; 16],
         }],
-        children: ChildOperations::default(),
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),
         resize: ResizeMode::Both,
@@ -47,7 +48,7 @@ fn manifest_validation() {
 
     let mut invalid = manifest.clone();
     invalid.editors.push(editor.clone());
-    assert_eq!(invalid.validate(), Err(ManifestError::DuplicateBlockType));
+    assert_eq!(invalid.validate(), Err(ManifestError::DuplicateEditor));
 
     let mut invalid = manifest.clone();
     let template = invalid.editors[0].templates[0].clone();

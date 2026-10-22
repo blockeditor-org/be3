@@ -29,9 +29,11 @@ const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 struct ChildApp;
 
 impl BeuiApp for ChildApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Slide editor={editor} />
+            <Root>
+                <Slide editor={editor} />
+            </Root>
         }
     }
 }
@@ -62,7 +64,7 @@ fn Status(state: ReadSignal<ChildState>) -> NodeId {
         })
     });
     view! {
-        <Text string={text} @test_id={"child.status"} />
+        <Text @test_id={"child.status"}>{text}</Text>
     }
 }
 

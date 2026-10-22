@@ -12,7 +12,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_| {
                 let narrow = narrower_than(BREAKPOINT);
@@ -65,5 +65,5 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     let stacked = (STACKED_LIST_HEIGHT / VIRTUAL_ITEM_HEIGHT) as usize;
     assert_eq!(harness.rect(scroll.get()).height(), STACKED_LIST_HEIGHT);
     assert_eq!(harness.document.children(scroll.get()).len(), stacked);
-    assert_eq!(built.get_untracked(), Vec::new());
+    assert_eq!(built.get_untracked(), Vec::<usize>::new());
 }

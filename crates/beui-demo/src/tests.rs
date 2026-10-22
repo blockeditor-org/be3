@@ -7,25 +7,33 @@ use crate::{DemoApp, PAGES, Page};
 use beui::icons::ICON_VOLUME_UP;
 use std::time::Duration;
 
+mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
+mod a_card_keeps_inside_a_small_window;
+mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
+mod a_card_opened_from_a_button_opens_under_it_where_there_is_room;
+mod a_card_opened_from_a_button_shifts_inside_a_narrow_window;
+mod a_card_opened_from_a_button_stands_apart_in_the_light_theme;
 mod a_destructive_dialog_does_not_confirm_on_enter;
 mod a_dialog_confirms_on_enter_from_its_field;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_keeps_its_buttons_side_by_side_on_a_narrow_screen;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
+mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
 mod a_long_sheet_fades_its_content_and_bounces_as_a_panel;
 mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
 mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
+mod a_menu_widens_to_show_a_long_label_and_its_shortcut;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
-mod a_sheet_hangs_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
+mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
 mod an_instant_level_display_keeps_its_duration_without_fading;
 mod animations_paint_their_progress_and_instant_targets;
 mod closing_the_rich_text_tab_disposes_its_editors;
@@ -43,11 +51,14 @@ mod tabbing_through_every_page_shows_each_focus_ring_whole;
 mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
+mod the_command_palette_ticks_what_a_menu_ticks;
 mod the_crash_notice_sample_reloads_from_its_button;
 mod the_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_demo_opens_every_page_from_its_catalog;
 mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
 mod the_demo_paints_with_only_the_fonts_beui_carries;
+mod the_editor_takes_on_a_theme_chosen_while_it_is_open;
+mod the_inspector_opens_and_closes_beside_the_demo_in_the_dom;
 mod the_inspector_paints_the_component_shadow_tree;
 mod the_inspector_paints_with_the_styled_components;
 mod the_keep_changes_prompt_shows_on_every_screen;
@@ -68,6 +79,8 @@ mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
 mod the_stale_notice_sample_answers_each_of_its_buttons;
 mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
+mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
+mod waiting_for_data_shows_a_spinner_until_it_arrives;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);
@@ -78,6 +91,29 @@ const CATALOG_X: f32 = 40.0;
 fn demo(size: Vec2) -> DocumentTest {
     let (year, month, day) = TODAY;
     DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
+}
+
+fn demo_in(size: Vec2, theme: beui::ThemeKind) -> DocumentTest {
+    let (year, month, day) = TODAY;
+    let mut test = DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size);
+    test.context().set_preference_layer(
+        beui::PreferenceSource::App,
+        beui::PreferenceLayer {
+            theme: Some(theme),
+            ..beui::PreferenceLayer::EMPTY
+        },
+    );
+    test.frame(Vec::new());
+    test
+}
+
+fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
+    reveal(test, "demo.dialog.pointing");
+    let button = test.rect_of("demo.dialog.pointing");
+    test.click("demo.dialog.pointing");
+    test.frame(Vec::new());
+    test.settle();
+    (button, test.rect_of(&dialog_id(0)))
 }
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {
@@ -229,7 +265,7 @@ fn level_display() -> DocumentTest {
             muted: false,
         });
         view! {
-            <Frame fill=ColorRole::Background>
+            <Root>
                 <List spacing=0.0>
                     <Button
                         @test_id={"test.show"}
@@ -239,8 +275,14 @@ fn level_display() -> DocumentTest {
                     />
                     <LevelOsd level={level} shown={shown} />
                 </List>
-            </Frame>
+            </Root>
         }
     });
     DocumentTest::new(document, Vec2::new(1100.0, 480.0))
+}
+
+fn tab(page: Page) -> u64 {
+    Pages::tab_of(page)
+        .expect("the page is open in a tab")
+        .value()
 }

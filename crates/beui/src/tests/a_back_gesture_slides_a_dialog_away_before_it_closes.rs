@@ -10,7 +10,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let open = create_signal(false);
     let dismissed = create_signal(0);
     let body = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Dialog
@@ -21,7 +21,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
                         open.set(false);
                     }}
                 >
-                    <Text string="Body" color=Color32::WHITE @node_ref={&body} />
+                    <Text color=Color32::WHITE @node_ref={&body}>"Body"</Text>
                 </Dialog>
             </List>
         }

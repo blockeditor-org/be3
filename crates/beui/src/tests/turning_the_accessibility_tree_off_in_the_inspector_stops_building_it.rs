@@ -3,7 +3,7 @@ use crate::reactive::*;
 
 #[test]
 fn turning_the_accessibility_tree_off_in_the_inspector_stops_building_it() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <styled::Button variant=styled::ButtonVariant::Primary label="Save" on_click={|| {}} />
         }

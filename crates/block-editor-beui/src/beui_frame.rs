@@ -8,8 +8,9 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Document, Key, KeyAt, KeyPhase};
-use block_plugin_api::{BarAction, MenuEntry};
+use beui::unstyled::Container;
+use beui::{Document, Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
+use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuSubmenu};
 
 use crate::chrome::ChromeRoot;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
@@ -39,17 +40,17 @@ pub struct BeuiFrame {
     content: NodeId,
     bar: Signal<FrameBar>,
     exit: Rc<Cell<bool>>,
-    menu: Rc<RefCell<Vec<Action>>>,
+    menu: Rc<RefCell<Vec<MenuNode>>>,
     _bar: OwnedSignal<FrameBar>,
 }
 
 impl BeuiFrame {
-    pub fn build(editor: Editor, view: impl FnOnce() -> NodeId + 'static) -> Self {
+    pub fn build(editor: Editor, view: impl FnOnce() -> beui::styled::Root + 'static) -> Self {
         let owned_bar = OwnedSignal::new(FrameBar::default());
         let bar = owned_bar.handle();
         let exit = Rc::new(Cell::new(false));
         let exit_writer = exit.clone();
-        let menu: Rc<RefCell<Vec<Action>>> = Rc::default();
+        let menu: Rc<RefCell<Vec<MenuNode>>> = Rc::default();
         let published = Rc::clone(&menu);
         let content_slot: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
         let content_slot_writer = content_slot.clone();
@@ -77,23 +78,33 @@ impl BeuiFrame {
                 }
                 escaped
             });
-            view! {
-                <List spacing=0.0>
-                    <FrameMenu
-                        editor
-                        bar={bar.read_only()}
-                        palette={opener}
-                        published
-                        on_exit={move || exit_writer.set(true)}
-                    />
-                    <CommandPalette open={palette} on_close={move || palette.set(false)} />
-                    <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
-                        let content = view();
-                        content_slot_writer.set(Some(content));
-                        content
-                    }</ChromeRoot>
-                </List>
-            }
+            let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
+            let rooted = Rc::clone(&root);
+            let frame = view! {
+                <Layers>
+                    <PlacedHole editor />
+                    <List spacing=0.0>
+                        <FrameMenu
+                            editor
+                            bar={bar.read_only()}
+                            palette={opener}
+                            published
+                            on_exit={move || exit_writer.set(true)}
+                        />
+                        <CommandPalette open={palette} />
+                        <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
+                            let built = view();
+                            let content = built.child();
+                            rooted.set(Some(built));
+                            content_slot_writer.set(Some(content));
+                            content
+                        }</ChromeRoot>
+                    </List>
+                </Layers>
+            };
+            root.take()
+                .expect("view() builds its root synchronously")
+                .holding(frame)
         });
         Self {
             document,
@@ -127,30 +138,41 @@ impl BeuiFrame {
         self.exit.clone()
     }
 
-    pub fn menu(&self) -> Rc<RefCell<Vec<Action>>> {
+    pub fn menu(&self) -> Rc<RefCell<Vec<MenuNode>>> {
         Rc::clone(&self.menu)
     }
 }
 
-pub(crate) fn run_menu_pick(menu: &RefCell<Vec<Action>>, id: &str) {
-    let picked = menu
-        .borrow()
-        .iter()
-        .find(|action| action.id() == id)
-        .cloned();
+pub(crate) fn run_menu_pick(menu: &RefCell<Vec<MenuNode>>, id: &str) {
+    let picked = menu_action(&menu.borrow(), id);
     if let Some(action) = picked {
         untrack(|| action.run());
     }
 }
 
-pub(crate) fn menu_entries(actions: &[Action]) -> Vec<MenuEntry> {
-    actions
+pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
+    nodes
         .iter()
-        .map(|action| MenuEntry {
-            id: action.id().to_owned(),
-            label: action.label().get(),
-            glyph: action.glyph().to_owned(),
-            enabled: action.enabled().get(),
+        .map(|node| match node {
+            MenuNode::Action { action, label } => MenuEntry::Command(MenuCommand {
+                id: action.id().to_owned(),
+                label: label.clone().unwrap_or_else(|| action.label().get()),
+                glyph: action.glyph().to_owned(),
+                enabled: action.enabled().get(),
+                check: match (action.checked(), action.is_radio()) {
+                    (None, _) => MenuCheck::None,
+                    (Some(checked), false) => MenuCheck::Checkbox(checked.get()),
+                    (Some(checked), true) => MenuCheck::Radio(checked.get()),
+                },
+                shortcut: action.shortcuts().first().map(|chord| chord.key_chord()),
+            }),
+            MenuNode::Submenu(submenu) => MenuEntry::Submenu(MenuSubmenu {
+                id: submenu.id.clone(),
+                label: submenu.label.clone(),
+                glyph: submenu.glyph.clone(),
+                entries: menu_entries(&submenu.items),
+            }),
+            MenuNode::Separator => MenuEntry::Separator,
         })
         .collect()
 }
@@ -177,7 +199,7 @@ impl Watched {
                 .blocks()
                 .watch(BlockQuery::Block(self.editor.block_id()))
         });
-        list.read().into_iter().next()
+        list.read().ok()?.into_iter().next()
     }
 
     fn can_edit(&self) -> bool {
@@ -307,7 +329,7 @@ pub(crate) fn FrameMenu(
     editor: Editor,
     bar: ReadSignal<FrameBar>,
     palette: Action,
-    published: Rc<RefCell<Vec<Action>>>,
+    published: Rc<RefCell<Vec<MenuNode>>>,
     on_exit: ClickCallback,
 ) -> NodeId {
     let on_phone = create_memo(move || bar.get().on_phone);
@@ -338,7 +360,7 @@ pub(crate) fn FrameMenu(
             state.set(watched.with(Watched::read));
         }
     });
-    let items = menu_actions();
+    let items = document_menu();
     let FrameActions {
         undo,
         redo,
@@ -351,19 +373,18 @@ pub(crate) fn FrameMenu(
         if !live.get() {
             return Vec::new();
         }
-        let mut listed = vec![
-            undo.clone(),
-            redo.clone(),
-            rename.clone(),
-            share.clone(),
-            palette.clone(),
-        ];
+        let mut listed: Vec<MenuNode> = [&undo, &redo, &rename, &share, &palette]
+            .into_iter()
+            .map(MenuNode::action)
+            .collect();
+        listed.push(MenuNode::Separator);
         listed.extend(items.get());
-        listed.push(details.clone());
+        listed.push(MenuNode::Separator);
+        listed.push(MenuNode::action(&details));
         if closable.get() {
-            listed.push(close.clone());
+            listed.push(MenuNode::action(&close));
         }
-        listed
+        tidy_menu(listed)
     });
     let host = editor.host();
     create_effect(move || {
@@ -375,4 +396,50 @@ pub(crate) fn FrameMenu(
     view! {
         <List spacing=0.0 />
     }
+}
+
+#[component]
+fn PlacedHole(editor: Editor) -> NodeId {
+    let placed = editor.placed_content();
+    view! {
+        <Container>|size: ReadSignal<Vec2>| {
+            let strips = create_memo(move || hole_strips(size.get(), placed.get()));
+            view! {
+                <Canvas>
+                    <ForEach keys={vec![0usize, 1, 2, 3]}>|strip: usize| {
+                        let rect = create_memo(move || strips.get()[strip]);
+                        let x = create_memo(move || rect.get().min.x);
+                        let y = create_memo(move || rect.get().min.y);
+                        let width = create_memo(move || rect.get().width().max(0.0));
+                        let height = create_memo(move || rect.get().height().max(0.0));
+                        view! {
+                            <CanvasItem x={x} y={y} width={width} height={height} pointer=false>
+                                <Embed slot={EmbedSlot::new()} />
+                            </CanvasItem>
+                        }
+                    }</ForEach>
+                </Canvas>
+            }
+        }</Container>
+    }
+}
+
+fn hole_strips(size: Vec2, placed: Option<Rect>) -> [Rect; 4] {
+    let Some(placed) = placed else {
+        return [Rect::ZERO; 4];
+    };
+    let frame = Rect::from_min_size(Pos2::ZERO, size);
+    let placed = placed.intersect(frame);
+    [
+        Rect::from_min_max(frame.min, pos2(frame.max.x, placed.min.y)),
+        Rect::from_min_max(pos2(frame.min.x, placed.max.y), frame.max),
+        Rect::from_min_max(
+            pos2(frame.min.x, placed.min.y),
+            pos2(placed.min.x, placed.max.y),
+        ),
+        Rect::from_min_max(
+            pos2(placed.max.x, placed.min.y),
+            pos2(frame.max.x, placed.max.y),
+        ),
+    ]
 }

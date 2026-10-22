@@ -6,9 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::{
-    ChildOperations, EditorCapabilities, EditorManifest, EditorRegion, InteractionMode,
-    ManifestError, PluginIdentity, PluginManifest, ResizeMode, ShellRequest, TemplateCategory,
-    TemplateManifest,
+    EditorCapabilities, EditorManifest, EditorRegion, Edits, InteractionMode, ManifestError,
+    PluginIdentity, PluginManifest, ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 
 #[cfg(test)]
@@ -20,7 +19,7 @@ pub struct ManifestDocument {
     pub id: String,
     pub name: String,
     pub version: String,
-    pub editors: Vec<EditorDocument>,
+    pub editors: InOrder<EditorDocument>,
     pub entry_point: String,
     #[serde(default)]
     pub network: Vec<String>,
@@ -29,13 +28,13 @@ pub struct ManifestDocument {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EditorDocument {
-    pub block_type: String,
+    pub id: String,
+    #[serde(default)]
+    pub edits: Option<String>,
     pub display_name: String,
     pub icon: String,
     #[serde(default)]
-    pub templates: Templates,
-    #[serde(default)]
-    pub children: ChildOperations,
+    pub templates: InOrder<TemplateDocument>,
     #[serde(default)]
     pub interaction: InteractionMode,
     #[serde(default)]
@@ -62,50 +61,61 @@ pub struct TemplateDocument {
     pub block_type: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Templates(pub Vec<(String, TemplateDocument)>);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InOrder<T>(pub Vec<(String, T)>);
 
-impl Serialize for Templates {
+impl<T> Default for InOrder<T> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<T: Serialize> Serialize for InOrder<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        for (id, template) in &self.0 {
-            map.serialize_entry(id, template)?;
+        for (key, value) in &self.0 {
+            map.serialize_entry(key, value)?;
         }
         map.end()
     }
 }
 
-impl<'de> Deserialize<'de> for Templates {
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for InOrder<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct InOrder;
+        struct Entries<T>(std::marker::PhantomData<T>);
 
-        impl<'de> Visitor<'de> for InOrder {
-            type Value = Templates;
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for Entries<T> {
+            type Value = InOrder<T>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("a map from template id to template")
+                formatter.write_str("a map from name to entry")
             }
 
-            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Templates, M::Error> {
-                let mut templates = Vec::new();
-                while let Some(entry) = map.next_entry::<String, TemplateDocument>()? {
-                    templates.push(entry);
+            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<InOrder<T>, M::Error> {
+                let mut entries = Vec::new();
+                while let Some(entry) = map.next_entry::<String, T>()? {
+                    entries.push(entry);
                 }
-                Ok(Templates(templates))
+                Ok(InOrder(entries))
             }
         }
 
-        deserializer.deserialize_map(InOrder)
+        deserializer.deserialize_map(Entries(std::marker::PhantomData))
     }
 }
 
 fn block_type(source: &str) -> Result<[u8; 16], ManifestError> {
-    if source == crate::ANY_BLOCK_TYPE_NAME {
-        return Ok(crate::ANY_BLOCK_TYPE);
-    }
     Uuid::parse_str(source)
         .map(Uuid::into_bytes)
         .map_err(|_| ManifestError::InvalidBlockType)
+}
+
+fn edits(source: Option<&str>) -> Result<Edits, ManifestError> {
+    match source {
+        None => Ok(Edits::Nothing),
+        Some(Edits::ANY_NAME) => Ok(Edits::Any),
+        Some(source) => block_type(source).map(Edits::Type),
+    }
 }
 
 impl ManifestDocument {
@@ -130,8 +140,9 @@ impl ManifestDocument {
             },
             editors: self
                 .editors
+                .0
                 .into_iter()
-                .map(EditorDocument::into_manifest)
+                .map(|(name, editor)| editor.into_manifest(name))
                 .collect::<Result<_, _>>()?,
             entry_point: self.entry_point,
             network: self.network,
@@ -142,8 +153,11 @@ impl ManifestDocument {
 }
 
 impl EditorDocument {
-    fn into_manifest(self) -> Result<EditorManifest, ManifestError> {
-        let editor_type = block_type(&self.block_type)?;
+    fn into_manifest(self, name: String) -> Result<EditorManifest, ManifestError> {
+        let id = Uuid::parse_str(&self.id)
+            .map_err(|_| ManifestError::InvalidEditorId)?
+            .into_bytes();
+        let edits = edits(self.edits.as_deref())?;
         let templates = self
             .templates
             .0
@@ -157,17 +171,20 @@ impl EditorDocument {
                     dialog: template.dialog,
                     block_type: match template.block_type {
                         Some(source) => block_type(&source)?,
-                        None => editor_type,
+                        None => edits
+                            .block_type()
+                            .ok_or(ManifestError::TemplateWithoutBlockType)?,
                     },
                 })
             })
             .collect::<Result<_, ManifestError>>()?;
         Ok(EditorManifest {
-            block_type: editor_type,
+            id,
+            name,
+            edits,
             display_name: self.display_name,
             icon: self.icon,
             templates,
-            children: self.children,
             interaction: self.interaction,
             capabilities: self.capabilities,
             resize: self.resize,

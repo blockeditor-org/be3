@@ -18,6 +18,8 @@ fn cleanup_reads_do_not_become_dependencies() {
         });
     });
     value.set(1);
+    flush();
     incidental.set(1);
+    flush();
     assert_eq!(calls.get(), 2);
 }

@@ -9,6 +9,11 @@ pub trait Root: Model + Send + Sync + 'static {
 
     const FROZEN: bool = false;
 
+    fn undoable(change: &Change) -> bool {
+        let _ = change;
+        true
+    }
+
     fn name(&self) -> Option<String> {
         None
     }
@@ -36,6 +41,13 @@ pub trait Root: Model + Send + Sync + 'static {
         Self: Sized,
     {
         document.root().name()
+    }
+
+    fn references_of(document: &Document<Self>, organization: Uuid) -> Vec<Uuid>
+    where
+        Self: Sized,
+    {
+        document.root().references_in(organization)
     }
 
     fn describe_in(document: &Document<Self>, metadata: &mut crate::BlockMetadata)
@@ -72,7 +84,7 @@ impl<R: Root> BlockContent for Document<R> {
     }
 
     fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
-        joined(self.root().references_in(organization), self.block_refs())
+        joined(R::references_of(self, organization), self.block_refs())
     }
 
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
@@ -95,6 +107,16 @@ impl<R: Root> LiveEdit for Document<R> {
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         Document::apply_touching(self, operation, touched);
+    }
+
+    fn apply_beneath(
+        &mut self,
+        confirmed: &mut Self,
+        operation: &Self::Op,
+        local: &[Self::Op],
+        touched: &mut Vec<Touched>,
+    ) {
+        Document::rebase(self, confirmed, operation, local, touched);
     }
 
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
@@ -148,11 +170,29 @@ impl<R: Root> Undo for Document<R> {
     type Step = Step;
 
     fn step(&self, operation: &Self::Op) -> Option<Self::Step> {
-        Document::step(self, operation)
+        if operation.0.iter().all(R::undoable) {
+            return Document::step(self, operation);
+        }
+        let kept = Edit(
+            operation
+                .0
+                .iter()
+                .filter(|change| R::undoable(change))
+                .cloned()
+                .collect(),
+        );
+        match kept.0.is_empty() {
+            true => None,
+            false => Document::step(self, &kept),
+        }
     }
 
     fn absorb(previous: &mut Self::Step, next: Self::Step) -> Result<(), Self::Step> {
         previous.absorb(next)
+    }
+
+    fn then(previous: &mut Self::Step, next: Self::Step) {
+        previous.then(next);
     }
 
     fn revert(&self, step: &Self::Step) -> Vec<Self::Op> {

@@ -8,16 +8,16 @@ fn a_number_input_shows_its_value_to_the_decimals_asked() {
     let (document, [rounded, exact, whole, huge]) = toolbar_of(move || {
         [
             view! {
-                <NumberInput value=182.2222137451172 decimals={Some(2)} on_change={|_| {}} />
+                <NumberInput value={182.2222137451172} decimals={Some(2)} />
             },
             view! {
-                <NumberInput value=182.2222137451172 on_change={|_| {}} />
+                <NumberInput value={182.2222137451172} />
             },
             view! {
-                <NumberInput value=-0.001 decimals={Some(2)} on_change={|_| {}} />
+                <NumberInput value={-0.001} decimals={Some(2)} />
             },
             view! {
-                <NumberInput value=1.5e300 decimals={Some(u32::MAX)} on_change={|_| {}} />
+                <NumberInput value={1.5e300} decimals={Some(u32::MAX)} />
             },
         ]
     });
@@ -25,7 +25,11 @@ fn a_number_input_shows_its_value_to_the_decimals_asked() {
     harness.frame(Vec::new());
 
     let shown = |input| {
-        let face = number_input_text(harness.document(), input).expect("the input starts closed");
+        let face = harness
+            .document()
+            .api::<NumberInputTextApi>(input)
+            .text()
+            .expect("the input starts closed");
         text_of(harness.document(), face)
     };
     assert_eq!(shown(rounded), "182.22");

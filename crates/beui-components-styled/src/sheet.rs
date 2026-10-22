@@ -4,7 +4,6 @@ use beui_macros::{component, view};
 use crate::theme::BORDER_WIDTH;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SHEET_STOPS, SheetGripHandle};
-use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -12,7 +11,6 @@ use beui_view::reactive::*;
 const HANDLE_HEIGHT: f32 = 24.0;
 const GRIP_WIDTH: f32 = 36.0;
 const GRIP_HEIGHT: f32 = 4.0;
-const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
 
 #[component]
 pub fn Sheet(
@@ -54,6 +52,8 @@ pub fn ModalSheet(
     on_close: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
+    let theme = crate::theme::use_theme();
+    let scrim = create_memo(move || theme.scrim.get());
     view! {
         <unstyled::ModalSheet
             open
@@ -61,7 +61,7 @@ pub fn ModalSheet(
             stops
             fit
             fade={crate::theme::SCROLL_FADE}
-            scrim=SCRIM
+            scrim={scrim}
             grip={|_: SheetGripHandle| view! {
                 <SheetGrip />
             }}

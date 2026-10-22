@@ -8,7 +8,7 @@ use block_plugin_api::ContentOperation;
 fn counted(block: Uuid, expected: i64) {
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
-        let counter = <CounterContent as be_block::BlockContent>::decode(&held.bytes).ok()?;
+        let counter = <CounterContent as be_block::BlockContent>::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
     })
     .expect("the new stack never reached the expected count");
@@ -62,6 +62,8 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
             operations: vec![ContentOperation {
                 operation: own,
                 mine: true,
+                unsettled: 0,
+                beneath: None,
             }],
         }]
     );
@@ -77,6 +79,8 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
             operations: vec![ContentOperation {
                 operation: elsewhere,
                 mine: false,
+                unsettled: 0,
+                beneath: None,
             }],
         }]
     );

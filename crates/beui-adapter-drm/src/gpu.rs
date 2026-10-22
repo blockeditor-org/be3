@@ -6,7 +6,7 @@ use be_dmabuf::{SyncFiles, Vulkan};
 use beui::Vec2;
 use bytemuck::{Pod, Zeroable};
 
-use crate::rotation::Rotation;
+use crate::rotation::{Rotation, Turn};
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,

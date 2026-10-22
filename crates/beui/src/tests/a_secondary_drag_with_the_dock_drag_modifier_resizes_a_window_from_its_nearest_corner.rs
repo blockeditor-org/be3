@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner() {
@@ -20,7 +20,7 @@ fn a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_neares
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     let before = state
         .window_rect(window)
@@ -36,7 +36,10 @@ fn a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_neares
     );
     harness.frame(Vec::new());
 
-    let after = dock_state(harness.document(), dock)
+    let after = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(after.min, before.min, "the far corner stays where it was");

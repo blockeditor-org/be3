@@ -4,7 +4,7 @@ use super::*;
 fn a_docked_pane_lays_its_content_inside_its_border() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout>

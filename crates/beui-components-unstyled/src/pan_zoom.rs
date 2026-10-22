@@ -2,7 +2,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::base::canvas::CanvasView;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
 use beui_core::node::NodeId;
@@ -74,20 +73,15 @@ pub struct PanZoomHandle {
 
 #[derive(Clone, Copy)]
 struct Camera {
-    view: Signal<PanZoomView>,
+    view: Binding<PanZoomView>,
     rect: ReadSignal<Rect>,
     min_scale: Memo<f32>,
     max_scale: Memo<f32>,
-    on_change: Callback<PanZoomView>,
 }
 
 impl Camera {
     fn apply(&self, next: PanZoomView) {
-        if self.view.get_untracked() == next {
-            return;
-        }
         self.view.set(next);
-        self.on_change.call(next);
     }
 
     fn pan(&self, delta: Vec2) {
@@ -142,8 +136,8 @@ impl Camera {
 
 #[component]
 pub fn PanZoom(
-    view: Prop<PanZoomView>,
-    on_change: Callback<PanZoomView>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<PanZoomApi>,
+    #[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>,
     #[prop(default = MIN_SCALE)] min_scale: Prop<f32>,
     #[prop(default = MAX_SCALE)] max_scale: Prop<f32>,
     accessibility: Option<Prop<Node>>,
@@ -151,8 +145,7 @@ pub fn PanZoom(
 ) -> NodeId {
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
-            let current = create_signal(view.get_untracked());
-            create_effect(move || current.set(view.get()));
+            let current = view;
             let panning = create_signal(false);
 
             let camera = Camera {
@@ -160,7 +153,6 @@ pub fn PanZoom(
                 rect,
                 min_scale: create_memo(move || min_scale.get()),
                 max_scale: create_memo(move || max_scale.get()),
-                on_change,
             };
 
             let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
@@ -179,12 +171,12 @@ pub fn PanZoom(
                 focused: focused.read_only(),
             });
 
-            set_component_state(current.read_only());
+            api.fill(PanZoomApi(current));
 
             view! {
                 <Interactive
                     focusable=true
-                    on_focus_change={move |next: bool| focused.set(next)}
+                    on_focus_change={focused}
                     on_key={move |press: KeyPress| camera.key(press)}
                     cursor={cursor}
                     on_scroll={move |gesture: ScrollGesture| {
@@ -197,7 +189,7 @@ pub fn PanZoom(
                     }}
                     on_zoom={move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos)}
                     on_pan_drag={move |delta: Vec2| camera.pan(delta)}
-                    on_pan_active_change={move |next: bool| panning.set(next)}
+                    on_pan_active_change={panning}
                     children={Some(content_node)}
                 />
             }
@@ -205,6 +197,11 @@ pub fn PanZoom(
     }
 }
 
-pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> ReadSignal<PanZoomView> {
-    *document.component_state::<ReadSignal<PanZoomView>>(pan_zoom)
+#[derive(Clone, Copy)]
+pub struct PanZoomApi(Binding<PanZoomView>);
+
+impl PanZoomApi {
+    pub fn view(&self) -> Binding<PanZoomView> {
+        self.0
+    }
 }

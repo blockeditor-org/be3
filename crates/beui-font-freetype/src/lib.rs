@@ -34,6 +34,7 @@ pub struct FreetypeFonts {
     shaped: ShapedLines,
 }
 
+// unsafe(ffi)
 impl FreetypeFonts {
     pub fn new(fonts: FontLibrary) -> Self {
         let mut library = ptr::null_mut();
@@ -203,6 +204,7 @@ impl FreetypeFonts {
                 range: 0..text.len(),
                 cursors,
             }],
+            scale,
         )
     }
 
@@ -395,6 +397,7 @@ impl FontBackend for FreetypeFonts {
     }
 }
 
+// unsafe(ffi)
 unsafe extern "C" {
     fn FT_GlyphSlot_Embolden(slot: ft::FT_GlyphSlot);
     fn FT_GlyphSlot_Oblique(slot: ft::FT_GlyphSlot);
@@ -462,6 +465,7 @@ struct Rasterizer {
     faces: RefCell<Vec<RasterFace>>,
 }
 
+// unsafe(ffi)
 impl Rasterizer {
     fn sized(&self, index: usize, pixel_size: u32) -> Option<f32> {
         let faces = self.faces.borrow();
@@ -477,6 +481,7 @@ impl Rasterizer {
     }
 }
 
+// unsafe(ffi)
 impl GlyphRasterizer for Rasterizer {
     fn rasterize(&self, key: GlyphId) -> Option<GlyphImage> {
         let scale = self.sized(key.face, key.pixel_size)?;
@@ -516,6 +521,7 @@ impl GlyphRasterizer for Rasterizer {
     }
 }
 
+// unsafe(ffi)
 impl Drop for Rasterizer {
     fn drop(&mut self) {
         for face in self.faces.get_mut().drain(..) {
@@ -570,6 +576,7 @@ fn extents(font: &HbFont<'static>, glyph: u32, pixel_size: u32) -> Option<[f32; 
     ])
 }
 
+// unsafe(ffi)
 impl Drop for FreetypeFonts {
     fn drop(&mut self) {
         self.close_faces();
@@ -657,6 +664,7 @@ fn script_runs(text: &str) -> Vec<ScriptRun> {
     runs
 }
 
+// unsafe(ffi)
 fn pixels(bitmap: &ft::FT_Bitmap) -> Vec<u8> {
     let width = bitmap.width as usize;
     let rows = bitmap.rows as usize;

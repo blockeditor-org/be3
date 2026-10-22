@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
     let _root = crate::reactive::RootScope::new();
     let shown = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame height=40.0 fill=Color32::WHITE />

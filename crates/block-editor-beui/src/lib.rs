@@ -11,14 +11,17 @@ pub mod database;
 mod dock;
 mod editor;
 mod file_chooser;
+mod fitting;
 pub mod fonts;
 pub mod headless;
 mod instance;
 mod layered_settings;
+pub mod live_text;
 mod loading;
 mod related_content;
 mod rotation;
 pub mod sections;
+mod shared_caret;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -35,17 +38,19 @@ pub use editor::{
     SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
+pub use fitting::Fitting;
 pub use instance::BeuiPlugin;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
 };
-pub use loading::{Loaded, Loading};
-pub use related_content::{RelatedContent, content_settled};
+pub use loading::{FailedPane, Loaded, LoadingPane};
+pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
+pub use shared_caret::{SharedCaret, remote_carets};
 pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {
-    fn view(editor: Editor) -> beui::NodeId;
+    fn view(editor: Editor) -> beui::styled::Root;
     fn preview_view(_editor: Editor) -> beui::NodeId {
         beui::reactive::view! {
             <beui::styled::Frame />
@@ -91,10 +96,7 @@ pub fn presence_color(color: PresenceColor) -> beui::Color32 {
 
 #[macro_export]
 macro_rules! beui_plugin {
-    ($app:ty, $manifest:expr) => {
-        $crate::block_editor_plugin::plugin!($crate::BeuiPlugin<$app>, $manifest);
-    };
-    ($manifest:expr, { $($content:ty => $app:ty),+ $(,)? }) => {
-        $crate::block_editor_plugin::plugin!($manifest, { $($content => $crate::BeuiPlugin<$app>),+ });
+    ($manifest:expr, { $($name:ident => $app:ty),+ $(,)? }) => {
+        $crate::block_editor_plugin::plugin!($manifest, { $($name => $crate::BeuiPlugin<$app>),+ });
     };
 }

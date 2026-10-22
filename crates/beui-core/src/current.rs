@@ -109,6 +109,7 @@ pub fn try_with_document<R>(f: impl FnOnce(&mut Document) -> R) -> Option<R> {
             "a build during layout reached the document while it already held it"
         );
         let _in_use = Restore(&LENT_IN_USE, reentered);
+        // unsafe(memory)
         return Some(f(unsafe { &mut *lent }));
     }
     CURRENT_DOCUMENT.with(|cell| match cell.try_borrow_mut() {
@@ -121,6 +122,7 @@ pub fn try_with_document<R>(f: impl FnOnce(&mut Document) -> R) -> Option<R> {
         }
         Err(_) => {
             let ptr = ACTIVE_DOCUMENT.with(Cell::get);
+            // unsafe(memory)
             (!ptr.is_null()).then(|| f(unsafe { &mut *ptr }))
         }
     })

@@ -9,7 +9,6 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
-use beui_core::input::Keyboard;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
@@ -67,7 +66,7 @@ impl PluginSurface {
             launched: Rc::clone(&launched),
         });
         let launch = Launch {
-            options: RunOptions::new("plugin"),
+            options: RunOptions::default(),
             context,
             app: Box::new(app),
         };
@@ -127,8 +126,9 @@ impl PluginSurface {
             InputEvent::PointerLeft => self.pressed = 0,
             _ => {}
         }
-        if let Some(input) = input::translate(region, event) {
-            self.runner.push(input);
+        self.runner.push(input::translate(region, event));
+        if let Some(at) = input::time(event) {
+            self.runner.push(beui_core::input::Event::Time(at));
         }
         if self.pressed == 0 && std::mem::take(&mut self.blurred) {
             self.runner.push(beui_core::runner::Input::from(
@@ -139,11 +139,8 @@ impl PluginSurface {
 
     pub fn update(&mut self, region: &Region) -> Frame {
         self.runner
-            .context()
-            .set_motion(match block_editor_plugin::motion() {
-                block_editor_plugin::Motion::Animated => beui_core::animation::Motion::Animated,
-                block_editor_plugin::Motion::Instant => beui_core::animation::Motion::Instant,
-            });
+            .reports()
+            .system_preferences(block_editor_plugin::host_preferences().into());
         let [width, height] = region.pixels;
         let resized = {
             let mut surface = self.surface.borrow_mut();
@@ -264,7 +261,7 @@ impl PluginSurface {
                 height as f32 / pixels_per_point,
             ),
             pixels_per_point,
-            beui_core::color::Color32::TRANSPARENT,
+            output.window.appearance.clear_color,
             beui_core::painting::Punches::Erase,
         )
         .ok()
@@ -301,31 +298,22 @@ fn frame_for(
         content: None,
         painted: Vec::new(),
         floating: Vec::new(),
+        drawing: Vec::new(),
+        every_sample: false,
         claims: Vec::new(),
         window: block_editor_plugin::WindowRequests {
-            cursor: beui_plugin_input::protocol_cursor(window.cursor),
+            cursor: window.cursor,
             pointer_locked: window.pointer_locked,
             ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
                 rect: area.rect,
                 cursor: area.cursor,
-                text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
-                keyboard: match area.keyboard {
-                    Keyboard::Held => block_plugin_api::Keyboard::Held,
-                    Keyboard::Shown { asks } => block_plugin_api::Keyboard::Shown { asks },
-                },
+                text: area.text.clone(),
+                keyboard: area.keyboard,
             }),
             handles_back: window.handles_back,
             wants_keyboard: window.wants_keyboard,
-            intercepted_keys: window
-                .intercepted_keys
-                .iter()
-                .filter_map(|chord| beui_plugin_input::protocol_chord(*chord))
-                .collect(),
-            pastes: window
-                .paste_kinds
-                .iter()
-                .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
-                .collect(),
+            intercepted_keys: window.intercepted_keys.clone(),
+            pastes: window.paste_kinds.clone(),
             keyboard_toggles: window.keyboard_toggles,
         },
         description,

@@ -6,6 +6,7 @@ use beui::{
 };
 
 use crate::beui::capture;
+use crate::dom::DomPainting;
 use crate::overflow;
 use crate::snapshot;
 
@@ -18,11 +19,13 @@ pub struct DocumentTest {
     fonts: FontLibrary,
     size: Vec2,
     output: Option<FrameOutput>,
+    dom: Option<DomPainting>,
     typed: Vec<beui::Event>,
 }
 
 impl DocumentTest {
     pub fn new(document: Document, size: Vec2) -> Self {
+        beui::fail_unsettled_layout(true);
         let fonts = FontLibrary::bundled();
         let context = Context::new(FreetypeFonts::new(fonts.clone()));
         context.stop_clock();
@@ -33,6 +36,7 @@ impl DocumentTest {
             fonts,
             size,
             output: None,
+            dom: None,
             typed: Vec::new(),
         };
         test.frame(Vec::new());
@@ -70,7 +74,25 @@ impl DocumentTest {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *size));
         });
         *typed = std::mem::take(&mut output.typed);
+        let background = self.background();
+        if let Some(dom) = &mut self.dom {
+            dom.show(&output, background);
+        }
         self.output = Some(output);
+    }
+
+    pub fn render_dom(&mut self) {
+        let mut dom = DomPainting::new(self.size);
+        if let Some(output) = &self.output {
+            dom.show(output, self.background());
+        }
+        self.dom = Some(dom);
+    }
+
+    fn background(&self) -> Color32 {
+        self.document
+            .appearance()
+            .map_or(Color32::BLACK, |appearance| appearance.clear_color)
     }
 
     pub fn settle(&mut self) {
@@ -114,16 +136,38 @@ impl DocumentTest {
     }
 
     pub fn click(&mut self, test_id: &str) {
+        self.reveal(test_id);
         let rect = self.rect_of(test_id);
         self.click_at(rect.center());
     }
 
+    pub fn reveal(&mut self, test_id: &str) {
+        let shown = Rect::from_min_size(Pos2::ZERO, self.size);
+        if self.rect_of(test_id).intersect(shown).is_positive() {
+            return;
+        }
+        let node = self
+            .document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("nothing is marked {test_id}"));
+        self.document.reveal_node(node);
+        self.frame(Vec::new());
+    }
+
     pub fn click_at(&mut self, pos: Pos2) {
+        self.press_at(pos, PointerButton::Primary);
+    }
+
+    pub fn secondary_click_at(&mut self, pos: Pos2) {
+        self.press_at(pos, PointerButton::Secondary);
+    }
+
+    fn press_at(&mut self, pos: Pos2, button: PointerButton) {
         self.frame(vec![beui::Event::PointerMoved(pos)]);
         for pressed in [true, false] {
             self.frame(vec![beui::Event::PointerButton {
                 pos,
-                button: PointerButton::Primary,
+                button,
                 pressed,
                 modifiers: Modifiers::NONE,
             }]);
@@ -164,10 +208,22 @@ impl DocumentTest {
             .output
             .as_ref()
             .expect("the document has not drawn a frame yet");
-        let painting =
-            capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
-                .expect("the painting could not be rendered");
+        let background = self.background();
+        let painting = capture::capture(output, self.size, output.pixels_per_point(), background)
+            .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
         overflow::assert_fits(name, overflow::overflows(&self.document));
+    }
+
+    pub fn snapshot_dom(&mut self, name: &str) {
+        let output = self
+            .output
+            .as_ref()
+            .expect("the document has not drawn a frame yet");
+        let dom = self
+            .dom
+            .as_ref()
+            .expect("call render_dom before the frames a DOM snapshot shows");
+        dom.snapshot(name, output, self.size, self.background());
     }
 }

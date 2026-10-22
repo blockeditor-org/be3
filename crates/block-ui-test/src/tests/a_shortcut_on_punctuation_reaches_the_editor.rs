@@ -1,11 +1,12 @@
 use super::*;
+use beui::styled::Root;
 
 use beui::{Key, KeyPress, Modifiers};
 
 struct ShortcutApp;
 
 impl BeuiApp for ShortcutApp {
-    fn view(_editor: Editor) -> NodeId {
+    fn view(_editor: Editor) -> Root {
         let pressed = create_signal(String::new());
         on_shortcut(move |press: KeyPress| {
             if !press.pressed || !press.modifiers.ctrl {
@@ -16,7 +17,9 @@ impl BeuiApp for ShortcutApp {
         });
         let text = create_memo(move || pressed.get());
         view! {
-            <Text string={text} @test_id={"shortcut.pressed"} />
+            <Root>
+                <Text @test_id={"shortcut.pressed"}>{text}</Text>
+            </Root>
         }
     }
 }

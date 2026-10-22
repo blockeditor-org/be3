@@ -1,23 +1,40 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
-    harness.context.set_motion(crate::reactive::Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(crate::reactive::Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     let window = floated_window(&mut harness, dock);
-    let floated = dock_state(harness.document(), dock)
+    let floated = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let bounds = harness.rect(dock);
     let bar = bounds.min + floated.min.to_vec2() + vec2(floated.width() - 80.0, 10.0);
     harness.drag(bar, bar - vec2(floated.min.x, 0.0));
-    harness
-        .context
-        .set_motion(crate::reactive::Motion::Animated);
-    let before = dock_state(harness.document(), dock)
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(crate::reactive::Motion::Animated),
+            ..PreferenceLayer::EMPTY
+        },
+    );
+    let before = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(before.min.x, 0.0);
@@ -27,7 +44,10 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     harness.press_at(edge);
     harness.frame(vec![Event::PointerMoved(edge + vec2(-150.0, -30.0))]);
 
-    let after = dock_state(harness.document(), dock)
+    let after = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(

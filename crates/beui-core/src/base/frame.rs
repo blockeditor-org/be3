@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::base::list::Align;
 use crate::color::{Color32, format_hex};
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, vec2};
+use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::node::{Element, NodeId, NodeOf, Outlined, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
@@ -30,11 +30,66 @@ impl Outline {
     }
 }
 
+const TIP_RADIUS: f32 = 2.0;
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Shadow {
+    pub color: Color32,
+    pub spread: f32,
+    pub drop: f32,
+}
+
+impl Shadow {
+    pub const fn new(color: Color32, spread: f32) -> Self {
+        Self {
+            color,
+            spread,
+            drop: 0.0,
+        }
+    }
+
+    pub const fn drop(self, drop: f32) -> Self {
+        Self { drop, ..self }
+    }
+
+    fn paint(self, painter: &Painter, rect: Rect, radius: Corners) {
+        let rings = self.spread.round().max(0.0) as u16;
+        if rings == 0 || self.color.alpha() == 0 {
+            return;
+        }
+        let rect = rect.translate(vec2(0.0, self.drop));
+        let [red, green, blue, alpha] = self.color.to_array();
+        let each = (alpha / u8::try_from(rings).unwrap_or(u8::MAX).max(1)).max(1);
+        let ring = Color32::from_rgba_unmultiplied(red, green, blue, each);
+        for step in (1..=rings).rev() {
+            let reach = f32::from(step);
+            let [top_left, top_right, bottom_right, bottom_left] =
+                radius.to_array().map(|corner| corner + reach);
+            let corners = Corners::new(top_left, top_right, bottom_right, bottom_left);
+            painter.rect_filled(rect.expand(reach), corners, ring);
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PointerSide {
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Pointing {
+    pub side: PointerSide,
+    pub at: f32,
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FrameStyle {
     pub fill: Color32,
     pub radius: Corners,
     pub outline: Option<Outline>,
+    pub shadow: Option<Shadow>,
+    pub pointer: f32,
 }
 
 impl Default for FrameStyle {
@@ -43,6 +98,8 @@ impl Default for FrameStyle {
             fill: Color32::TRANSPARENT,
             radius: Corners::all(0.0),
             outline: None,
+            shadow: None,
+            pointer: 0.0,
         }
     }
 }
@@ -255,16 +312,57 @@ pub struct FrameNode {
     pub padding: Sides,
     pub align: Align2,
     pub style: FrameStyle,
-    pub visible: bool,
+    pub pointing: Option<Pointing>,
 }
 
 impl FrameNode {
-    fn padding(&self, grid: PixelGrid) -> Sides {
-        self.padding.snapped(grid)
+    pub fn pointer_room(&self, rect: Rect) -> (f32, f32) {
+        let radius = self.style.radius.largest();
+        let reach = self.style.pointer + self.outline_width();
+        (rect.left() + radius + reach, rect.right() - radius - reach)
     }
 
-    fn shown(&self) -> Option<NodeId> {
-        self.child.filter(|_| self.visible)
+    fn outline_width(&self) -> f32 {
+        self.style.outline.map_or(0.0, |outline| outline.width)
+    }
+
+    fn paint_pointer(&self, painter: &Painter, rect: Rect) {
+        let Some(pointing) = self.pointing.filter(|_| self.style.pointer > 0.0) else {
+            return;
+        };
+        let (lowest, highest) = self.pointer_room(rect);
+        if lowest > highest {
+            return;
+        }
+        let x = (rect.left() + pointing.at).clamp(lowest, highest);
+        let width = self.outline_width();
+        let half = (self.style.pointer + width) / std::f32::consts::SQRT_2;
+        let around = rect.expand(self.style.pointer + 1.0);
+        let (y, clip, tip) = match pointing.side {
+            PointerSide::Top => (
+                rect.top() + width,
+                Rect::from_min_max(around.min, pos2(around.right(), rect.top() + width)),
+                Corners::new(TIP_RADIUS, 0.0, 0.0, 0.0),
+            ),
+            PointerSide::Bottom => (
+                rect.bottom() - width,
+                Rect::from_min_max(pos2(around.left(), rect.bottom() - width), around.max),
+                Corners::new(0.0, 0.0, TIP_RADIUS, 0.0),
+            ),
+        };
+        let centre = pos2(x, y);
+        let square = Rect::from_center_size(centre, Vec2::splat(2.0 * half));
+        let turned = painter
+            .with_clip_rect(clip)
+            .rotated(centre, std::f32::consts::FRAC_PI_4);
+        turned.rect_filled(square, tip, self.style.fill);
+        if let Some(outline) = self.style.outline {
+            turned.rect_stroke(square, tip, outline.width, outline.color);
+        }
+    }
+
+    fn padding(&self, grid: PixelGrid) -> Sides {
+        self.padding.snapped(grid)
     }
 
     fn size(&self, grid: PixelGrid, available: Vec2) -> Vec2 {
@@ -338,7 +436,7 @@ impl Default for FrameNode {
             padding: Sides::default(),
             align: Align2::STRETCH,
             style: FrameStyle::default(),
-            visible: true,
+            pointing: None,
         }
     }
 }
@@ -359,9 +457,6 @@ impl Element for FrameNode {
     }
 
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        if !self.visible {
-            return Vec2::ZERO;
-        }
         if self.width.scales_with(available.x) || self.height.scales_with(available.y) {
             doc.note_offer_dependent();
         }
@@ -386,7 +481,7 @@ impl Element for FrameNode {
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
-        let child = self.shown()?;
+        let child = self.child?;
         let grid = doc.pixel_grid();
         let padding = self.padding(grid);
         let offered = self.child_available(available, padding.amount());
@@ -407,7 +502,7 @@ impl Element for FrameNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        if let Some(child) = self.shown() {
+        if let Some(child) = self.child {
             let grid = doc.pixel_grid();
             let padding = self.padding(grid);
             let outer = self.box_rect(grid, rect);
@@ -425,10 +520,10 @@ impl Element for FrameNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        if !self.visible {
-            return;
-        }
         let rect = self.box_rect(doc.pixel_grid(), rect);
+        if let Some(shadow) = self.style.shadow {
+            shadow.paint(painter, rect, self.style.radius);
+        }
         if self.style.fill.to_array()[3] > 0 {
             painter.rect_filled(rect, self.style.radius, self.style.fill);
         }
@@ -443,6 +538,7 @@ impl Element for FrameNode {
                 outline.color,
             );
         }
+        self.paint_pointer(painter, rect);
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -462,7 +558,7 @@ impl Element for FrameNode {
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.shown().into_iter().collect()
+        self.child.into_iter().collect()
     }
 
     fn passes_scroll_anchor(&self) -> bool {
@@ -475,7 +571,7 @@ impl Element for FrameNode {
 
     fn outline(&self, grid: PixelGrid, rect: Rect) -> Option<Outlined> {
         let outline = self.style.outline.filter(|outline| {
-            self.visible && outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
+            outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
         })?;
         let inner = self.box_rect(grid, rect);
         Some(Outlined {
@@ -485,9 +581,6 @@ impl Element for FrameNode {
     }
 
     fn detail(&self) -> Option<String> {
-        if !self.visible {
-            return Some("hidden".to_owned());
-        }
         let [red, green, blue, alpha] = self.style.fill.to_array();
         if alpha == 0 {
             return None;
@@ -499,7 +592,6 @@ impl Element for FrameNode {
         let padding = self.padding;
         let radius = self.style.radius;
         vec![
-            ("visible", self.visible.to_string()),
             ("width", extent_label(self.width)),
             ("height", extent_label(self.height)),
             (
@@ -617,20 +709,15 @@ impl Document {
         }
     }
 
-    pub fn set_frame_color(&mut self, frame: NodeOf<FrameNode>, color: Color32) {
-        if self.arena.get_as::<FrameNode>(frame).style.fill != color {
-            self.arena.paint_mut_as::<FrameNode>(frame).style.fill = color;
+    pub fn set_frame_pointing(&mut self, frame: NodeOf<FrameNode>, pointing: Option<Pointing>) {
+        if self.arena.get_as::<FrameNode>(frame).pointing != pointing {
+            self.arena.paint_mut_as::<FrameNode>(frame).pointing = pointing;
         }
     }
 
-    pub fn is_visible(&self, frame: NodeOf<FrameNode>) -> bool {
-        self.arena.get_as::<FrameNode>(frame).visible
-    }
-
-    pub fn set_visible(&mut self, frame: NodeOf<FrameNode>, visible: bool) {
-        if self.arena.get_as::<FrameNode>(frame).visible != visible {
-            self.arena.get_mut_as::<FrameNode>(frame).visible = visible;
-            self.focus_dirty = true;
+    pub fn set_frame_color(&mut self, frame: NodeOf<FrameNode>, color: Color32) {
+        if self.arena.get_as::<FrameNode>(frame).style.fill != color {
+            self.arena.paint_mut_as::<FrameNode>(frame).style.fill = color;
         }
     }
 }

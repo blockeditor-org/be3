@@ -37,5 +37,11 @@ fn zooming_into_the_simulated_screen_follows_the_pointer() {
 
     harness.click(target);
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

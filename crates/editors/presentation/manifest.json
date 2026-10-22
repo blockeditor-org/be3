@@ -2,9 +2,10 @@
   "id": "be3.presentation",
   "name": "Presentation",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "00007072-6573-656e-7461-74696f6e0001",
+  "editors": {
+    "presentation": {
+      "id": "b1733abf-35eb-4037-9d3d-7a40b3e7e954",
+      "edits": "00007072-6573-656e-7461-74696f6e0001",
       "display_name": "Presentation",
       "icon": "\ue41b",
       "templates": {
@@ -28,11 +29,6 @@
           "block_type": "696e6669-6e69-7465-2d63-616e76617301"
         }
       },
-      "children": {
-        "add": true,
-        "delete": true,
-        "replace": true
-      },
       "interaction": "Playback",
       "resize": "Both",
       "regions": [
@@ -40,6 +36,6 @@
         "Preview"
       ]
     }
-  ],
+  },
   "entry_point": "presentation.wasm"
 }

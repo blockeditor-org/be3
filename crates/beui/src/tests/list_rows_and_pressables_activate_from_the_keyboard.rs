@@ -11,12 +11,12 @@ fn list_rows_and_pressables_activate_from_the_keyboard() {
         [
             view! {
                 <ListRow on_click={move || count.update(|count| *count += 1)}>
-                    <Text string="Row" color=Color32::WHITE />
+                    <Text color=Color32::WHITE>"Row"</Text>
                 </ListRow>
             },
             view! {
                 <unstyled::Pressable on_click={move || count.update(|count| *count += 1)}>
-                    <Text string="Press" color=Color32::WHITE />
+                    <Text color=Color32::WHITE>"Press"</Text>
                 </unstyled::Pressable>
             },
         ]

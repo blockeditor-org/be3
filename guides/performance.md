@@ -19,8 +19,68 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
+- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink]` opens the
+  canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes. It
+  pans and zooms by the host's view, drags a shape back and forth, and draws pen strokes, and
+  prints each frame's wall time (the whole host round trip, including the test host applying
+  each edit, keeping its undo history and answering the canvas's references query), beui's
+  layout, paint, interaction and accessibility, and the most nodes one frame measured, placed,
+  painted, described for accessibility and walked for it. For ink it also counts the frames between
+  a pen event's delivery and the first frame whose damage covers the pen, which should
+  always be 0. `shape()` is the one place it names the canvas model. An editor with an
+  `examples/` folder is built for the host as well (`editor()` in buck/wasm/defs.bzl), which
+  is how an editor gets a benchmark.
 
-The target for opening a page is under 2 ms warm.
+The target for opening a page is under 2 ms warm. The canvas bench measured, in October
+2026:
+
+| | 100 shapes | 10,000 shapes |
+|---|---|---|
+| open | 22 ms | 2.0 s |
+| pan at scale 1, p50 wall | 0.06 ms | 0.17 ms (layout 0.05 ms) |
+| pan at scale 0.1, p50 wall | 0.10 ms | 4.1 ms (layout 1.4 ms, paint 1.9 ms, accessibility 0.5 ms) |
+| zoom, p50 wall | 0.11 ms | 1.5 ms (layout 0.55 ms, paint 0.53 ms) |
+| drag, p50 wall | 0.17 ms (interaction 0.09 ms) | 0.54 ms (interaction 0.31 ms) |
+| pen move, p50 wall | 0.21 ms (interaction 0.12 ms) | 0.42 ms (interaction 0.22 ms) |
+| pen lift, p50 wall | 0.13 ms | 0.24 ms (interaction 0.13 ms) |
+| frames from pen event to ink | 0 | 0 |
+
+`camera()` centres a world point in the canvas: a view is where the content sits on
+screen, not the world rectangle it shows.
+
+Every frame of a gesture writes the document (guides/adding_a_plugin_editor.md), so a drag
+or a pen move is an edit the host applies and the editor reads back. None of that walks the
+document: a be-model `Document` keeps its block references up to date from what each edit
+touched once they have been asked for (the test host asks after every edit, the app's
+worker on every publish), the app's worker publishes a block's operations and encodes a
+snapshot only every few hundred of them (`Content` folds the operations since its snapshot
+when something reads it), and an editor holding edits the host has not acknowledged, or a
+follower holding edits the owner has not accepted, rebases them under a peer's edit by what
+either touched (`Document::rebase`) instead of rebuilding; the follower's app tells its
+editors with a `Beneath` operation rather than a snapshot (guides/the_new_block_stack.md).
+
+Accessibility follows the camera the way placement does. Each space a node lays children
+into (a canvas's clipped, unclipped and scaled spaces, a scroll's content) is one
+accessibility node whose transform is the space's translation and scale, and the nodes in it
+are placed in the space's own coordinates, so a pan or scroll changes that one node's
+transform and sends nothing else. A pan at scale 0.1 still walks the canvas's shown items
+(cheaply, from what each held) when items come into view, and describes only those. The test
+host's accessibility dump renders its text and test id rects only when something reads them,
+so the bench reads the canvas's rect once rather than every frame.
+
+A pan, zoom or pen move places and paints only what is in view. A canvas
+finds the items near its view through a grid of world cells, so only what is in view costs
+anything. A pen lift reads only the new stroke:
+the editor keeps its frames, embedded blocks and content bounds in a catalog fed by the
+entities each change touched, a keyed mapping that grows at its end builds only the new
+rows, and the canvas files only the items that changed into its grid. The same catalog
+files each shape's reach into a grid of world cells, which is what the eraser tests.
+
+Opening still builds an item for every shape. Building them only once they come near the
+view would need each item's reach (stroke, hand-drawn wobble, labels and text) before the
+item exists, and would move the cost into the first pans over a dense canvas; it would at
+best halve opening 10,000 shapes, since loading the document and the test host's store
+take as long as building the items.
 
 2. Comparing two builds
 
@@ -39,9 +99,12 @@ Time on a shared VM drifts by 10% or more between runs, which hides most single 
 
 Release builds keep frame pointers, so perf walks stacks cheaply and completely. Set up:
 
-    apt-get install -y linux-tools-generic   # perf is /usr/lib/linux-tools-*/perf
+    apt-get install -y linux-tools-generic
     echo -1 > /proc/sys/kernel/perf_event_paranoid
     cargo install rustfilt
+
+The `perf` on the path is a wrapper that refuses a kernel it has no package for ("perf not
+found for kernel"); run the binary it wraps, `/usr/lib/linux-tools-*/perf`, instead.
 
 Record the binary `buck build --out` gave you. VMs have no hardware counters, so perf
 samples the CPU clock:
@@ -49,7 +112,8 @@ samples the CPU clock:
     perf record -F 10000 -g -o perf.data DIR/change [PAGE]
 
 Then either report, matching the mangled name of the function the measured work runs
-under (the open bench's is `release`, kept out of line for this):
+under (the open bench's is `release` and the canvas bench's pen lift is `lift`, kept out of
+line for this):
 
     perf report -i perf.data --no-inline --children --sort symbol --stdio -g none \
         -p 'Bench7release' -x --percent-limit 1 | rustfilt

@@ -10,14 +10,11 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     let control = create_signal::<Option<DockTabControl>>(None);
     let layout = DockingLayout::<u64>::new();
     let document = {
-        build(move || {
+        build_node(move || {
             view! {
                 <List spacing=0.0>
                     <Frame height=40.0>
-                        <Interactive
-                            @test_id="bar"
-                            on_hover_change={move |on: bool| hovered.set(on)}
-                        />
+                        <Interactive @test_id="bar" on_hover_change={hovered} />
                     </Frame>
                     <styled::Docking @sizing=ItemSize::Percent(100.0) layout>
                         <DockPane id="tabs">

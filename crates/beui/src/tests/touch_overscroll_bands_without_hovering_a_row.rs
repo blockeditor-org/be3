@@ -8,11 +8,11 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     let _root = crate::reactive::RootScope::new();
     let hovered = create_signal(false);
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <Interactive on_hover_change={move |value| hovered.set(value)}>
+                    <Interactive on_hover_change={hovered}>
                         <Frame padding={Sides::symmetric(0.0, 20.0)}>
                             <Spacer />
                         </Frame>
@@ -43,6 +43,11 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     assert_eq!(harness.document().focused_node(), None);
 
     harness.touch(TouchPhase::End, end);
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
     assert!(!hovered.get_untracked());
 }

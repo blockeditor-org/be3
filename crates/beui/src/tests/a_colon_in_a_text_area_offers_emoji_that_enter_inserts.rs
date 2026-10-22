@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 fn a_colon_in_a_text_area_offers_emoji_that_enter_inserts() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));

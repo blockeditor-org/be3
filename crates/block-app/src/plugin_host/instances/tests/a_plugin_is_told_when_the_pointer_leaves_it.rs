@@ -14,7 +14,11 @@ fn a_plugin_is_told_when_the_pointer_leaves_it() {
     );
     assert_eq!(
         input_events(&messages),
-        [InputEvent::PointerMoved { x: 90.0, y: 40.0 }]
+        [InputEvent::PointerMoved {
+            x: 90.0,
+            y: 40.0,
+            time_micros: 0
+        }]
     );
 
     let left = forwarded(vec![beui::Forwarded::Left], None, false);

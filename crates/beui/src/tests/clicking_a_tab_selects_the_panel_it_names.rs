@@ -13,22 +13,33 @@ fn clicking_a_tab_selects_the_panel_it_names() {
                     <unstyled::ChoiceOption label="List" />
                     <unstyled::ChoiceOption label="Load" />
                 }}
-                selected=0
-                on_change={move |selected| {
-                    reported.set(selected);
-                }}
+                selected={reported}
             />
         }]
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 0);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        0
+    );
 
     let second = harness.document().children(tabs)[1];
     harness.click(harness.center(second));
     harness.frame(Vec::new());
 
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 1);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        1
+    );
     assert_eq!(reported.get_untracked(), 1);
 }

@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_value_written_between_tags_takes_the_sizing_after_it() {
     let _root = crate::reactive::RootScope::new();
     let (fixed, filling) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let handed_over = view! {
             <Frame @node_ref=&filling />
         };

@@ -20,10 +20,11 @@ const READ_TIMEOUT: Duration = Duration::from_secs(60);
 
 static TASKS: OnceLock<Tasks> = OnceLock::new();
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
-    let options = beui::RunOptions::new("be3 launcher");
+    let options = beui::RunOptions::default();
     let code = match beui::run_with(options, LauncherApp::new(files)) {
         Ok(()) => 0,
         Err(error) => {
@@ -177,8 +178,10 @@ fn with_launcher<T>(
     call: impl for<'local> FnOnce(&mut Env<'local>, &JClass<'local>) -> Result<T, JniError>,
 ) -> Result<T, String> {
     let context = ndk_context::android_context();
+    // unsafe(ffi)
     let vm = unsafe { JavaVM::from_raw(context.vm().cast()) };
     vm.attach_current_thread_for_scope(|env| {
+        // unsafe(ffi)
         let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
         let class = launcher_activity(env, &activity)?;
         call(env, &class)
@@ -214,6 +217,7 @@ pub(crate) fn files(tasks: &Tasks) -> PathBuf {
     tasks.root().to_path_buf()
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeInstallFinished(
     _env: EnvUnowned<'_>,

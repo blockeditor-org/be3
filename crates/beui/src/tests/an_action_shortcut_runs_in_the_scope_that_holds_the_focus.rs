@@ -25,7 +25,7 @@ fn Scoped(name: String, hits: Signal<Vec<String>>) -> NodeId {
 fn an_action_shortcut_runs_in_the_scope_that_holds_the_focus() {
     let _root = crate::reactive::RootScope::new();
     let hits = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scoped name="first" hits={hits} />

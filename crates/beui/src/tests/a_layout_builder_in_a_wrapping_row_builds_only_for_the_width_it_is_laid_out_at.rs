@@ -7,7 +7,7 @@ fn a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_a
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(Vec::new());
     let builder = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal wrap=true spacing=10.0>
                 <Frame width=40.0 height=20.0 />

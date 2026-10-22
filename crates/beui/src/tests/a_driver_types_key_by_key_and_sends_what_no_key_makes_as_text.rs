@@ -59,15 +59,10 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
         "a held Shift is let go for a character typed without it, and held again after"
     );
 
-    let document = build(|| {
+    let document = build_node(|| {
         let name = create_signal(String::new());
         view! {
-            <TextInput
-                @test_id={"form.name"}
-                value={name}
-                placeholder="Name"
-                on_change={move |next: String| name.set(next)}
-            />
+            <TextInput @test_id={"form.name"} value={name} placeholder="Name" />
         }
     });
     let mut driven = Driven::new(document);

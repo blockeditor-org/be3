@@ -1,7 +1,6 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{CursorIcon, Key, PointerPress};
 use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
@@ -43,13 +42,13 @@ pub struct NumberFaceHandle {
 }
 
 pub struct NumberFieldHandle {
-    pub text: ReadSignal<String>,
+    pub text: Binding<String>,
     pub editing: ReadSignal<bool>,
-    pub on_change: Callback<String>,
     pub on_submit: Callback<String>,
     pub on_focus_change: Callback<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct Parts {
     face: NodeId,
     field: NodeId,
@@ -58,7 +57,8 @@ struct Parts {
 
 #[component]
 pub fn NumberInput(
-    value: Prop<f64>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<NumberInputApi>,
+    value: Binding<f64>,
     #[prop(default = f64::NEG_INFINITY)] min: f64,
     #[prop(default = f64::INFINITY)] max: f64,
     #[prop(default = String::new())] label: Prop<String>,
@@ -67,8 +67,8 @@ pub fn NumberInput(
     #[prop(default = None)] decimals: Prop<Option<u32>>,
     face: Render<NumberFaceHandle>,
     field: Render<NumberFieldHandle>,
-    on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
+    on_scrub: Callback<bool>,
 ) -> NodeId {
     let text = create_signal(format_number(
         value.get_untracked(),
@@ -125,20 +125,26 @@ pub fn NumberInput(
             return;
         };
         held.set(Some((origin, start, true)));
+        if !moved {
+            on_scrub.call(true);
+        }
         let next = next.clamp(min, max);
         text.set(format_number(next, decimals.get_untracked()));
-        on_change.call(next);
+        value.set(next);
     };
     let open = move || {
         if !off.get_untracked() {
             editing.set(true);
         }
     };
-    let clicked = move || {
-        if let Some((_, _, moved)) = held.take()
-            && !moved
-        {
-            open();
+    let clicked = move || match held.take() {
+        Some((_, _, false)) => open(),
+        Some((_, _, true)) => on_scrub.call(false),
+        None => {}
+    };
+    let cancelled = move || {
+        if let Some((_, _, true)) = held.take() {
+            on_scrub.call(false);
         }
     };
 
@@ -157,13 +163,15 @@ pub fn NumberInput(
         let typed = parse(&text.get_untracked())
             .filter(|_| keep)
             .map(|typed| typed.clamp(min, max));
-        let shown = value.get_untracked();
         match typed {
-            Some(typed) if typed != shown => {
+            Some(typed) => {
                 text.set(format_number(typed, decimals.get_untracked()));
-                on_change.call(typed);
+                value.update(|held| *held = typed);
             }
-            _ => text.set(format_number(shown, decimals.get_untracked())),
+            None => text.set(format_number(
+                value.get_untracked(),
+                decimals.get_untracked(),
+            )),
         }
         on_preview.call(None);
     };
@@ -207,17 +215,16 @@ pub fn NumberInput(
         disabled: off,
     });
     let field = field.call(NumberFieldHandle {
-        text: text.read_only(),
+        text: Binding::new(text, edited),
         editing: editing.read_only(),
-        on_change: Callback::new(edited),
         on_submit: Callback::new(submitted),
         on_focus_change: Callback::new(focus_changed),
     });
-    set_component_state(Parts {
+    api.fill(NumberInputApi(Parts {
         face,
         field,
         editing: editing.read_only(),
-    });
+    }));
     view! {
         <List spacing=0.0>
             <ShowKeepAlive condition={idle}>
@@ -232,24 +239,15 @@ pub fn NumberInput(
                     on_press={pressed}
                     on_drag={dragged}
                     on_click={clicked}
-                    on_hover_change={move |is_hovered: bool| hovered.set(is_hovered)}
-                    on_active_change={move |is_active: bool| active.set(is_active)}
+                    on_cancel={cancelled}
+                    on_hover_change={hovered}
+                    on_active_change={active}
                     children={Some(face)}
                 />
             </ShowKeepAlive>
             <ShowKeepAlive condition={editing}>{field}</ShowKeepAlive>
         </List>
     }
-}
-
-pub fn number_input_field(document: &Document, input: NodeId) -> Option<NodeId> {
-    let parts = document.component_state::<Parts>(input);
-    parts.editing.get_untracked().then_some(parts.field)
-}
-
-pub fn number_input_face(document: &Document, input: NodeId) -> Option<NodeId> {
-    let parts = document.component_state::<Parts>(input);
-    (!parts.editing.get_untracked()).then_some(parts.face)
 }
 
 fn parse(text: &str) -> Option<f64> {
@@ -288,5 +286,20 @@ fn format_number(value: f64, decimals: Option<u32>) -> String {
             fixed.trim_end_matches('0').trim_end_matches('.').to_owned()
         }
         None => format!("{value}"),
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct NumberInputApi(Parts);
+
+impl NumberInputApi {
+    pub fn field(&self) -> Option<NodeId> {
+        let parts = &self.0;
+        parts.editing.get_untracked().then_some(parts.field)
+    }
+
+    pub fn face(&self) -> Option<NodeId> {
+        let parts = &self.0;
+        (!parts.editing.get_untracked()).then_some(parts.face)
     }
 }

@@ -8,11 +8,11 @@ use crate::styled::*;
 fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() {
     let _root = crate::reactive::RootScope::new();
     let (text, region) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>
-                    <Text @node_ref=&text string="hello world" />
+                    <Text @node_ref=&text>"hello world"</Text>
                 </List>
             </SelectableText>
         }
@@ -28,15 +28,24 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
     harness.frame(Vec::new());
     harness.touch(TouchPhase::End, on_world);
     assert_eq!(
-        unstyled::selectable_text(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text(),
         "world",
         "a long press selects the word under the finger"
     );
     assert!(
-        !unstyled::context_menu_open(harness.document(), region),
+        !harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .open(harness.document()),
         "the long press does not open the full menu"
     );
-    let toolbar = unstyled::context_menu_toolbar(harness.document(), region)
+    let toolbar = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(region)
+        .toolbar(harness.document())
         .expect("it shows the toolbar instead");
     let bar = harness.rect(
         harness
@@ -55,11 +64,18 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
     let copied = harness.frame(vec![touch_event(1, TouchPhase::End, copy)]);
     assert_eq!(copied.copied_text.as_deref(), Some("world"));
     assert!(
-        unstyled::context_menu_toolbar(harness.document(), region).is_none(),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .toolbar(harness.document())
+            .is_none(),
         "choosing an action puts the toolbar away"
     );
     assert_eq!(
-        unstyled::selectable_text(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text(),
         "world",
         "and keeps the selection"
     );

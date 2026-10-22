@@ -56,7 +56,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         chosen: create_memo(move || chosen.get() == Some(tab)),
         pick: ClickCallback::new(move || dock.pick_switch(tab)),
     });
-    let body = match &dock.switch {
+    let body = move || match &dock.switch {
         Some(render) => render.call(DockSwitchHandle { tabs, chosen, row }),
         None => view! {
             <Frame />
@@ -76,7 +76,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         if press.key != Key::Escape || !press.pressed || !open.get_untracked() {
             return false;
         }
-        with_document(|document| document.dismiss_overlay(overlay, Dismiss::Escape));
+        overlay.dismiss_overlay(Dismiss::Escape);
         true
     });
     view! {
@@ -89,7 +89,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
             open
             on_dismiss={move |_: Dismiss| dock.edit(DockState::cancel_switch)}
         >
-            <Frame @test_id="dock.switch">{body}</Frame>
+            <Frame @test_id="dock.switch">{body()}</Frame>
         </Overlay>
     }
 }

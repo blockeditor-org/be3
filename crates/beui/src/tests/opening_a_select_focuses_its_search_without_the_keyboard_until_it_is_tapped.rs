@@ -16,22 +16,31 @@ fn opening_a_select_focuses_its_search_without_the_keyboard_until_it_is_tapped()
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     let at = harness.center(trigger);
     harness.touch(TouchPhase::Start, at);
     harness.touch(TouchPhase::End, at);
     let area = harness.frame(Vec::new()).window.ime;
-    assert!(unstyled::select_open(harness.document(), select));
+    assert!(harness.document().api::<unstyled::SelectApi>(select).open());
     assert!(
         area.as_ref().is_some_and(|area| !area.keyboard.shown()),
         "the search takes text but holds the on-screen keyboard back: {area:?}"
     );
 
-    let search = unstyled::select_search(harness.document(), select);
+    let search = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .search();
     harness.type_text("ban");
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::text_input_value(harness.document(), search),
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(search)
+            .value(),
         "ban",
         "a hardware keyboard types into the search before it is tapped"
     );

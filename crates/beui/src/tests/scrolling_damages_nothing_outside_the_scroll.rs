@@ -6,7 +6,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn scrolling_damages_nothing_outside_the_scroll() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame height=100.0 fill=Color32::WHITE radius=0.0 />

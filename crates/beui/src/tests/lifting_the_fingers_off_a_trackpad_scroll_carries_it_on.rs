@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -30,12 +30,20 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
     }
     assert_eq!(harness.document().scroll_offset(scroll), 120.0);
     assert!(
-        !unstyled::scroll_animating(harness.document(), scroll),
+        !harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating(),
         "a scroll follows the fingers while they are down"
     );
 
     harness.frame(vec![Event::ScrollEnded]);
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
     harness.settle();
     let carried = harness.document().scroll_offset(scroll) - 120.0;
     assert!(
@@ -52,5 +60,10 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
         rested + 40.0,
         "fingers that stopped before they lifted leave the scroll where it is"
     );
-    assert!(!unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
 }

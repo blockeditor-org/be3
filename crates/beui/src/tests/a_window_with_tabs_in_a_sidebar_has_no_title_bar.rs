@@ -1,12 +1,12 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout, dock_state};
+use crate::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 #[test]
 fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout>
@@ -62,7 +62,7 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
     harness.click(harness.center(row));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     assert!(
         !state.is_vertical(state.leaves(window)[0]),

@@ -13,6 +13,7 @@ use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
+use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
@@ -41,6 +42,20 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
 
 fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
     options.iter().map(|(label, _)| *label).collect()
+}
+
+const NO_OVERRIDE: &str = "No override";
+
+fn override_index<T: PartialEq>(choices: &[T], chosen: Option<T>) -> usize {
+    chosen
+        .and_then(|chosen| choices.iter().position(|choice| *choice == chosen))
+        .map_or(0, |index| index + 1)
+}
+
+fn overridden<T: Copy>(choices: &[T], index: Option<usize>) -> Option<T> {
+    index
+        .and_then(|index| index.checked_sub(1))
+        .and_then(|index| choices.get(index).copied())
 }
 const COMMANDS: [(&str, &str, Command); 12] = [
     ("First", "first", Command::First),
@@ -164,7 +179,7 @@ pub struct Panel {
     pub renderers: Signal<RendererChoices>,
     pub selection: Signal<Vec<Key>>,
     pub compact: Signal<bool>,
-    pub tree: NodeRef,
+    pub tree: ComponentRef<beui_components_styled::TreeApi<Key>>,
 }
 
 pub fn build(state: Stored<State>) -> Panel {
@@ -176,11 +191,14 @@ pub fn build(state: Stored<State>) -> Panel {
     let renderer = create_signal(RendererRows::new());
     let renderers = create_signal(RendererChoices::default());
     let tab = create_signal(InspectorTab::default());
+    let tab_index = create_signal(0usize);
     let selection = create_signal(Vec::<Key>::new());
     let compact = create_signal(false);
-    let tree = NodeRef::new();
+    let tree = ComponentRef::new();
 
-    let document = beui_view::reactive::build(|| {
+    let mut document = Document::new();
+    let root = enter(&mut document, || {
+        provide_context(ThemeStore::new(Theme::DARK));
         let count_text = create_memo(move || match tab.get() {
             InspectorTab::Performance => {
                 performance.with(|performance| performance.samples.clone())
@@ -209,10 +227,6 @@ pub fn build(state: Stored<State>) -> Panel {
         let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
         let has_properties =
             create_memo(move || properties.with(|properties| !properties.is_empty()));
-        let properties_size = create_memo(move || match has_properties.get() {
-            true => ItemSize::Percent(PROPERTIES_SHARE),
-            false => ItemSize::Fixed(0.0),
-        });
         let selected = create_memo(move || selection.with(|path| path.last().copied()));
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
@@ -226,13 +240,14 @@ pub fn build(state: Stored<State>) -> Panel {
                                     align=Align::Center
                                     spacing=HEADER_SPACING
                                 >
-                                    <Text style=TextStyle::HEADING string="Inspector" />
+                                    <Text style=TextStyle::HEADING>"Inspector"</Text>
                                     <Text
                                         style=TextStyle::CAPTION
                                         @sizing=ItemSize::Percent(100.0)
-                                        string={count_text}
                                         align=TextAlign::End
-                                    />
+                                    >
+                                        {count_text}
+                                    </Text>
                                     <ShowKeepAlive condition={tree_visible}>
                                         <PickToggle state={state} picking />
                                     </ShowKeepAlive>
@@ -249,11 +264,11 @@ pub fn build(state: Stored<State>) -> Panel {
                                         <ChoiceOption label="Perf" />
                                         <ChoiceOption label="Sim" />
                                     }}
-                                    selected=0
-                                    on_change={move |index| {
+                                    selected={Binding::new(tab_index, move |index| {
+                                        tab_index.set(index);
                                         state.value().set_tab(index);
                                         tab.set(InspectorTab::from_index(index));
-                                    }}
+                                    })}
                                 />
                             </List>
                         </Frame>
@@ -264,7 +279,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                                         <Tree
                                             @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
-                                            @node_ref=&tree
+                                            api=tree
                                             keys
                                             item={move |key: Key| item(&entries, key)}
                                             selected={selected}
@@ -285,13 +300,14 @@ pub fn build(state: Stored<State>) -> Panel {
                                         >|row: TreeRowFace<Key>|
                                             <TreeCells row_key={row.key} entries={entries} />
                                         </Tree>
-                                        <Frame
-                                            @sizing={properties_size}
-                                            @test_id={"inspector.properties"}
-                                            visible={has_properties}
-                                        >
-                                            <PropertiesSection properties />
-                                        </Frame>
+                                        <Show condition={has_properties}>
+                                            <Frame
+                                                @sizing={ItemSize::Percent(PROPERTIES_SHARE)}
+                                                @test_id={"inspector.properties"}
+                                            >
+                                                <PropertiesSection properties />
+                                            </Frame>
+                                        </Show>
                                     </List>
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={performance_visible}>
@@ -319,12 +335,10 @@ pub fn build(state: Stored<State>) -> Panel {
                             <List spacing=0.0>
                                 <ShowKeepAlive condition={tree_visible}>
                                     <List spacing=FOOTER_SPACING>
-                                        <Text style=TextStyle::CODE string={selection_text} />
-                                        <Text
-                                            style=TextStyle::CODE
-                                            string={bounds_text}
-                                            color=TextColor::Muted
-                                        />
+                                        <Text style=TextStyle::CODE>{selection_text}</Text>
+                                        <Text style=TextStyle::CODE color=TextColor::Muted>
+                                            {bounds_text}
+                                        </Text>
                                     </List>
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={performance_visible}>
@@ -335,11 +349,9 @@ pub fn build(state: Stored<State>) -> Panel {
                                     />
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={simulation_visible}>
-                                    <Text
-                                        style=TextStyle::CODE
-                                        string={native_pixel_ratio_text}
-                                        color=TextColor::Muted
-                                    />
+                                    <Text style=TextStyle::CODE color=TextColor::Muted>
+                                        {native_pixel_ratio_text}
+                                    </Text>
                                 </ShowKeepAlive>
                             </List>
                         </Frame>
@@ -348,6 +360,7 @@ pub fn build(state: Stored<State>) -> Panel {
             </List>
         }
     });
+    document.set_root(root);
 
     Panel {
         document,
@@ -373,7 +386,9 @@ pub struct Bar {
 pub fn build_bar(state: Stored<State>) -> Bar {
     let owner = RootScope::new();
     let selected = create_signal(1);
-    let document = beui_view::reactive::build(|| {
+    let mut document = Document::new();
+    let root = enter(&mut document, || {
+        provide_context(ThemeStore::new(Theme::DARK));
         view! {
             <Frame fill=ColorRole::Surface>
                 <List spacing=0.0>
@@ -393,8 +408,10 @@ pub fn build_bar(state: Stored<State>) -> Bar {
                                     <ChoiceOption label="App" />
                                     <ChoiceOption label="Inspector" />
                                 }}
-                                selected
-                                on_change={move |index| state.value().show_app(index == 0)}
+                                selected={Binding::new(selected, move |index| {
+                                    selected.set(index);
+                                    state.value().show_app(index == 0);
+                                })}
                             />
                             <CloseButton @test_id={"inspector.bar.close"} state={state} />
                         </List>
@@ -404,6 +421,7 @@ pub fn build_bar(state: Stored<State>) -> Bar {
             </Frame>
         }
     });
+    document.set_root(root);
     Bar {
         document,
         _scope: owner.into_scope(),
@@ -422,11 +440,10 @@ fn SimulationPanel(
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
-    let theme = state.value().theme.get();
-    let selected_theme = Theme::BUILT_IN
-        .iter()
-        .position(|(_, candidate)| *candidate == theme)
-        .unwrap_or(0);
+    let ratio = create_signal(Some(selected));
+    let developer = state.value().developer.get();
+    let theme = create_signal(Some(override_index(&ThemeKind::ALL, developer.theme)));
+    let motion = create_signal(Some(override_index(&Motion::ALL, developer.motion)));
     view! {
         <Scroll>
             <Frame padding=BODY_PADDING>
@@ -434,14 +451,12 @@ fn SimulationPanel(
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
                         label="Emulate touch with mouse"
-                        checked={state.value().touch_emulation.get()}
-                        on_change={move |enabled| state.value().touch_emulation.set(enabled)}
+                        checked={Binding::new(state.value().touch_emulation.get(), move |enabled| state.value().touch_emulation.set(enabled))}
                     />
                     <Checkbox
                         @test_id={"inspector.simulation.mouse_simulation"}
                         label="Simulate mouse with touch"
-                        checked={state.value().mouse_simulation.get()}
-                        on_change={move |enabled| state.value().mouse_simulation.set(enabled)}
+                        checked={Binding::new(state.value().mouse_simulation.get(), move |enabled| state.value().mouse_simulation.set(enabled))}
                     />
                     <Button
                         @test_id={"inspector.simulation.keyboard"}
@@ -449,55 +464,67 @@ fn SimulationPanel(
                         variant=ButtonVariant::Secondary
                         on_click={move || state.value().toggle_keyboard()}
                     />
-                    <Checkbox
-                        @test_id={"inspector.simulation.disable_animations"}
-                        label="Disable animations"
-                        checked={state.value().disable_animations.get()}
-                        on_change={move |enabled| {
-                            state.value().disable_animations.set(enabled);
-                            state.value().requested_motion.set(Some(if enabled { beui_core::animation::Motion::Instant } else { beui_core::animation::Motion::Animated }));
-                        }}
-                    />
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Device pixel ratio" />
-                        <RadioGroup
+                        <Text style=TextStyle::HEADING>"Device pixel ratio"</Text>
+                        <Select
                             @test_id={"inspector.simulation.pixel_ratio"}
+                            label="Device pixel ratio"
                             options={view! {
                                 <ForEach keys={labels(&PIXEL_RATIOS)}>|label: &'static str|
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={Some(selected)}
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(ratio, move |index: Option<usize>| {
+                                ratio.set(index);
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
                                 state.value().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
-                            }}
+                            })}
                         />
                     </List>
                     <Separator />
                     <Checkbox
                         @test_id={"inspector.simulation.responsive"}
                         label="Responsive design mode"
-                        checked={responsive}
-                        on_change={move |_| state.value().toggle_responsive()}
+                        checked={Binding::new(responsive, move |_| state.value().toggle_responsive())}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Theme" />
-                        <RadioGroup
+                        <Text style=TextStyle::HEADING>"Theme"</Text>
+                        <Select
                             @test_id={"inspector.simulation.theme"}
+                            label="Theme"
                             options={view! {
-                                <ForEach keys={labels(&Theme::BUILT_IN)}>|label: &'static str|
-                                    <ChoiceOption label />
+                                <ChoiceOption label=NO_OVERRIDE />
+                                <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                                    <ChoiceOption label={kind.name()} />
                                 </ForEach>
                             }}
-                            selected={Some(selected_theme)}
-                            on_change={move |index: Option<usize>| {
-                                if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
-                                    state.value().choose_theme(*theme);
-                                }
+                            selected={Binding::new(theme, move |index: Option<usize>| {
+                                theme.set(index);
+                                let chosen = overridden(&ThemeKind::ALL, index);
+                                let developer = state.value().developer.get();
+                                state.value().override_preferences(PreferenceLayer { theme: chosen, ..developer });
+                            })}
+                        />
+                    </List>
+                    <List spacing=TIMING_SPACING>
+                        <Text style=TextStyle::HEADING>"Motion"</Text>
+                        <Select
+                            @test_id={"inspector.simulation.motion"}
+                            label="Motion"
+                            options={view! {
+                                <ChoiceOption label=NO_OVERRIDE />
+                                <ForEach keys={Motion::ALL.to_vec()}>|motion: Motion|
+                                    <ChoiceOption label={motion.name()} />
+                                </ForEach>
                             }}
+                            selected={Binding::new(motion, move |index: Option<usize>| {
+                                motion.set(index);
+                                let chosen = overridden(&Motion::ALL, index);
+                                let developer = state.value().developer.get();
+                                state.value().override_preferences(PreferenceLayer { motion: chosen, ..developer });
+                            })}
                         />
                     </List>
                     <Separator />
@@ -570,20 +597,18 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
     };
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Back gesture" />
-            <Text style=TextStyle::CAPTION string={caption} />
+            <Text style=TextStyle::HEADING>"Back gesture"</Text>
+            <Text style=TextStyle::CAPTION>{caption}</Text>
             <Slider
                 @test_id={"inspector.simulation.back"}
                 label="Back gesture progress"
-                value={progress}
-                on_change={moved}
+                value={Binding::new(progress, moved)}
                 on_drag_change={released}
             />
             <Checkbox
                 @test_id={"inspector.simulation.back_from_right"}
                 label="Swipe from the right edge"
                 checked={from_right}
-                on_change={move |right| from_right.set(right)}
             />
         </List>
     }
@@ -591,54 +616,56 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
 
 #[component]
 fn FilterSection(state: Stored<State>) -> NodeId {
-    let blur_text = create_signal(blur_label(state.value().blur.get()));
-    let contrast_text = create_signal(contrast_label(state.value().contrast_reduction.get()));
+    let blur = create_signal(state.value().blur.get());
+    let contrast = create_signal(state.value().contrast_reduction.get());
+    let blur_text = create_memo(move || blur_label(blur.get()));
+    let contrast_text = create_memo(move || contrast_label(contrast.get()));
     let vision = state.value().color_vision.get();
     let selected_vision = ColorVision::ALL
         .iter()
         .position(|(_, candidate)| *candidate == vision)
         .unwrap_or(0);
+    let vision = create_signal(Some(selected_vision));
     let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Filters" />
-            <Text style=TextStyle::CAPTION string={blur_text} />
+            <Text style=TextStyle::HEADING>"Filters"</Text>
+            <Text style=TextStyle::CAPTION>{blur_text}</Text>
             <Slider
                 @test_id={"inspector.simulation.blur"}
                 label="Blur"
-                value={state.value().blur.get()}
+                value={Binding::new(blur, move |value| {
+                    blur.set(value);
+                    state.value().set_blur(value);
+                })}
                 min=0.0
                 max=MAX_BLUR
                 scale={SliderScale::Midpoint(BLUR_MIDPOINT)}
-                on_change={move |value| {
-                    state.value().set_blur(value);
-                    blur_text.set(blur_label(value));
-                }}
             />
-            <Text style=TextStyle::CAPTION string={contrast_text} />
+            <Text style=TextStyle::CAPTION>{contrast_text}</Text>
             <Slider
                 @test_id={"inspector.simulation.contrast"}
                 label="Reduce contrast"
-                value={state.value().contrast_reduction.get()}
-                on_change={move |value| {
+                value={Binding::new(contrast, move |value| {
+                    contrast.set(value);
                     state.value().set_contrast_reduction(value);
-                    contrast_text.set(contrast_label(value));
-                }}
+                })}
             />
-            <Text style=TextStyle::CAPTION string="Colour vision" />
-            <RadioGroup
+            <Text style=TextStyle::CAPTION>"Colour vision"</Text>
+            <Select
                 @test_id={"inspector.simulation.color_vision"}
+                label="Colour vision"
                 options={view! {
                     <ForEach keys={vision_labels}>|label: &'static str|
                         <ChoiceOption label />
                     </ForEach>
                 }}
-                selected={Some(selected_vision)}
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(vision, move |index: Option<usize>| {
+                    vision.set(index);
                     if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
                         state.value().choose_color_vision(*vision);
                     }
-                }}
+                })}
             />
         </List>
     }
@@ -660,18 +687,16 @@ fn contrast_label(amount: f32) -> String {
 fn ScreenReaderSection(state: Stored<State>) -> NodeId {
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Screen reader" />
+            <Text style=TextStyle::HEADING>"Screen reader"</Text>
             <Checkbox
                 @test_id={"inspector.accessibility.enabled"}
                 label="Expose the accessibility tree"
-                checked={state.value().accessibility.get()}
-                on_change={move |enabled| state.value().enable_accessibility(enabled)}
+                checked={Binding::new(state.value().accessibility.get(), move |enabled| state.value().enable_accessibility(enabled))}
             />
             <Checkbox
                 @test_id={"inspector.screen_reader.enabled"}
                 label="Simulate a screen reader"
-                checked={state.value().screen_reader.get()}
-                on_change={move |enabled| state.value().enable_screen_reader(enabled)}
+                checked={Binding::new(state.value().screen_reader.get(), move |enabled| state.value().enable_screen_reader(enabled))}
             />
             <CommandRow row=0 state />
             <CommandRow row=1 state={state} />
@@ -689,9 +714,9 @@ fn ScreenReaderSection(state: Stored<State>) -> NodeId {
 fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
     view! {
         <List spacing=FOOTER_SPACING>
-            <Text style=TextStyle::CAPTION string={title.to_owned()} color=TextColor::Default />
+            <Text style=TextStyle::CAPTION color=TextColor::Default>{title.to_owned()}</Text>
             <ForEach keys={lines.to_vec()}>|line: &'static str|
-                <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
+                <Text style=TextStyle::CAPTION wrap=true>{line.to_owned()}</Text>
             </ForEach>
         </List>
     }
@@ -750,10 +775,10 @@ fn PerformancePanel(
             <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <List spacing=FOOTER_SPACING>
-                        <Text style=TextStyle::CODE string={latest_work} />
-                        <Text style=TextStyle::CODE string={scene} color=TextColor::Muted />
-                        <Text style=TextStyle::CODE string={cache} color=TextColor::Muted />
-                        <Text style=TextStyle::CODE string={reuse} color=TextColor::Muted />
+                        <Text style=TextStyle::CODE>{latest_work}</Text>
+                        <Text style=TextStyle::CODE color=TextColor::Muted>{scene}</Text>
+                        <Text style=TextStyle::CODE color=TextColor::Muted>{cache}</Text>
+                        <Text style=TextStyle::CODE color=TextColor::Muted>{reuse}</Text>
                     </List>
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -762,12 +787,10 @@ fn PerformancePanel(
                             align=Align::Center
                             spacing=TIMING_SPACING
                         >
-                            <Text
-                                style=TextStyle::HEADING
-                                @sizing=ItemSize::Percent(100.0)
-                                string="CPU time"
-                            />
-                            <Text style=TextStyle::CAPTION string="milliseconds" />
+                            <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
+                                "CPU time"
+                            </Text>
+                            <Text style=TextStyle::CAPTION>"milliseconds"</Text>
                         </List>
                         <TimingHeader />
                         <TimingRow label="Document" values={total} />
@@ -779,18 +802,16 @@ fn PerformancePanel(
                     </List>
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Visualize" />
+                        <Text style=TextStyle::HEADING>"Visualize"</Text>
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
-                            checked={state.value().flash_changes.get()}
-                            on_change={move |enabled| state.value().flash_changes.set(enabled)}
+                            checked={Binding::new(state.value().flash_changes.get(), move |enabled| state.value().flash_changes.set(enabled))}
                         />
                         <Checkbox
                             @test_id={"inspector.performance.flash_damage"}
                             label="Flash repainted regions"
-                            checked={state.value().flash_damage.get()}
-                            on_change={move |enabled| state.value().flash_damage.set(enabled)}
+                            checked={Binding::new(state.value().flash_damage.get(), move |enabled| state.value().flash_damage.set(enabled))}
                         />
                     </List>
                     <Separator />
@@ -818,7 +839,7 @@ fn RendererSection(
     let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Renderer" />
+            <Text style=TextStyle::HEADING>"Renderer"</Text>
             <Show condition={choosable}>
                 <RadioGroup
                     @test_id={"inspector.performance.renderer.choice"}
@@ -827,16 +848,15 @@ fn RendererSection(
                             <ChoiceOption label />
                         </ForEach>
                     }}
-                    selected={active}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(active, move |index: Option<usize>| {
                         if let Some(index) = index {
                             state.value().choose_renderer(index);
                         }
-                    }}
+                    })}
                 />
             </Show>
             <Show condition={missing}>
-                <Text style=TextStyle::CAPTION string="Not reported by this host" />
+                <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
             </Show>
             <ForEach keys={rows}>|(label, value): (&'static str, String)|
                 <LabeledRow label={label.to_owned()} value />
@@ -853,7 +873,7 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=BODY_PADDING>
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Properties" />
+                        <Text style=TextStyle::HEADING>"Properties"</Text>
                         <ForEach keys={properties}>|(label, value): (String, String)|
                             <LabeledRow label value />
                         </ForEach>
@@ -868,18 +888,17 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
 fn LabeledRow(label: String, value: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH)
-                string={label}
-            />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH)>
+                {label}
+            </Text>
             <Text
                 style=TextStyle::CAPTION
                 @sizing=ItemSize::Percent(100.0)
-                string={value}
                 color=TextColor::Default
                 wrap=true
-            />
+            >
+                {value}
+            </Text>
         </List>
     }
 }
@@ -889,24 +908,15 @@ fn TimingHeader() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(54.0)
-                string="Current"
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(54.0)
-                string="Average"
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(54.0)
-                string="Peak"
-                align=TextAlign::End
-            />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                "Current"
+            </Text>
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                "Average"
+            </Text>
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                "Peak"
+            </Text>
         </List>
     }
 }
@@ -916,25 +926,16 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) string={label} />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Fixed(54.0)
-                string={current}
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Fixed(54.0)
-                string={average}
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Fixed(54.0)
-                string={peak}
-                align=TextAlign::End
-            />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{label}</Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                {current}
+            </Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                {average}
+            </Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                {peak}
+            </Text>
         </List>
     }
 }
@@ -976,8 +977,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
             label="Pick"
             glyph={ICON_ARROW_SELECTOR_TOOL.to_owned()}
             icon_only=true
-            pressed={picking}
-            on_change={move |_| state.value().toggle_picking()}
+            pressed={Binding::new(picking, move |_| state.value().toggle_picking())}
         />
     }
 }
@@ -1017,14 +1017,11 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
             align=Align::Center
             spacing=ROW_SPACING
         >
-            <Text style=TextStyle::CODE string={kind} />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Percent(100.0)
-                string={detail}
-                color=TextColor::Muted
-            />
-            <Text style=TextStyle::CODE string={size} color=TextColor::Muted align=TextAlign::End />
+            <Text style=TextStyle::CODE>{kind}</Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) color=TextColor::Muted>
+                {detail}
+            </Text>
+            <Text style=TextStyle::CODE color=TextColor::Muted align=TextAlign::End>{size}</Text>
         </List>
     }
 }

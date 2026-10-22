@@ -23,7 +23,7 @@ pub fn Tooltip(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = TOOLTIP_DELAY)] delay: Duration,
     children: Child,
-    content: Render<TooltipHandle>,
+    content: RenderFn<TooltipHandle>,
 ) -> NodeId {
     let anchor = NodeRef::new();
     let shown = create_signal(false);
@@ -59,7 +59,7 @@ pub fn Tooltip(
                     policy=LayerPolicy::Inert
                     traps_focus=false
                     open={open}
-                    content={move || content.call(TooltipHandle { label, shown: shown.read_only() })}
+                    content={move || content.call(TooltipHandle { label: label.clone(), shown: shown.read_only() })}
                 />
             </List>
         </Interactive>

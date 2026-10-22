@@ -121,6 +121,19 @@ impl Chord {
     }
 }
 
+impl From<KeyChord> for Chord {
+    fn from(chord: KeyChord) -> Self {
+        Self {
+            key: chord.key,
+            ctrl: chord.modifiers.ctrl,
+            shift: chord.modifiers.shift,
+            alt: chord.modifiers.alt,
+            logo: chord.modifiers.logo,
+            tap: chord.tap,
+        }
+    }
+}
+
 fn key_label(key: Key) -> String {
     let symbol = match key {
         Key::ArrowDown => "Down",
@@ -179,7 +192,7 @@ struct ActionData {
     shortcuts: Vec<Chord>,
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
-    menu: bool,
+    radio: bool,
     at: Option<KeyAt>,
     capture: bool,
     run: Rc<dyn Fn()>,
@@ -208,7 +221,7 @@ impl Action {
             shortcuts: Vec::new(),
             enabled: Prop::Static(true),
             checked: None,
-            menu: false,
+            radio: false,
             at: None,
             capture: false,
             run: Rc::new(run),
@@ -251,8 +264,8 @@ impl Action {
         self.0.checked
     }
 
-    pub fn in_menu(&self) -> bool {
-        self.0.menu
+    pub fn is_radio(&self) -> bool {
+        self.0.radio
     }
 
     pub fn is_global(&self) -> bool {
@@ -301,7 +314,7 @@ pub struct ActionBuilder {
     shortcuts: Vec<Chord>,
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
-    menu: bool,
+    radio: bool,
     at: Option<KeyAt>,
     capture: bool,
     run: Rc<dyn Fn()>,
@@ -325,11 +338,13 @@ impl ActionBuilder {
 
     pub fn checked(mut self, checked: impl IntoProp<bool>) -> Self {
         self.checked = Some(checked.into_prop());
+        self.radio = false;
         self
     }
 
-    pub fn in_menu(mut self) -> Self {
-        self.menu = true;
+    pub fn radio(mut self, chosen: impl IntoProp<bool>) -> Self {
+        self.checked = Some(chosen.into_prop());
+        self.radio = true;
         self
     }
 
@@ -355,7 +370,7 @@ impl ActionBuilder {
             shortcuts: self.shortcuts,
             enabled: self.enabled,
             checked: self.checked,
-            menu: self.menu,
+            radio: self.radio,
             at: self.at,
             capture: self.capture,
             run: self.run,
@@ -460,6 +475,7 @@ struct RegistryData {
     version: OwnedSignal<u64>,
     listeners: RefCell<Vec<Rc<KeyHandler>>>,
     described: RefCell<Option<Rc<ActionsHook>>>,
+    menus: RefCell<Vec<(u64, Vec<MenuNode>)>>,
 }
 
 #[derive(Clone)]
@@ -477,6 +493,7 @@ impl Registry {
             version: OwnedSignal::new(0),
             listeners: RefCell::new(Vec::new()),
             described: RefCell::new(None),
+            menus: RefCell::new(Vec::new()),
         }))
     }
 
@@ -690,12 +707,140 @@ pub fn active_actions_from(focus_path: &[NodeId]) -> Vec<Action> {
     registry().actions(focus_path)
 }
 
-pub fn menu_actions() -> Memo<Vec<Action>> {
+pub fn add_to_menu(items: Vec<MenuNode>) {
+    let registry = registry();
+    let key = registry.0.next.get();
+    registry.0.next.set(key + 1);
+    registry.0.menus.borrow_mut().push((key, items));
+    registry.touch();
+    on_cleanup(move || {
+        registry
+            .0
+            .menus
+            .borrow_mut()
+            .retain(|(held, _)| *held != key);
+        registry.touch();
+    });
+}
+
+pub fn document_menu() -> Memo<Vec<MenuNode>> {
     let registry = registry();
     create_memo(move || {
         registry.0.version.get();
-        registry.all().into_iter().filter(Action::in_menu).collect()
+        let mut nodes = Vec::new();
+        for (_, items) in registry.0.menus.borrow().iter() {
+            nodes.push(MenuNode::Separator);
+            nodes.extend(items.iter().cloned());
+        }
+        tidy_menu(nodes)
     })
+}
+
+#[derive(Clone, PartialEq)]
+pub enum MenuNode {
+    Action {
+        action: Action,
+        label: Option<String>,
+    },
+    Submenu(Submenu),
+    Separator,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct Submenu {
+    key: u64,
+    pub id: String,
+    pub label: String,
+    pub glyph: String,
+    pub items: Vec<MenuNode>,
+}
+
+impl Submenu {
+    pub fn key(&self) -> u64 {
+        self.key
+    }
+}
+
+impl MenuNode {
+    pub fn action(action: &Action) -> Self {
+        Self::Action {
+            action: action.clone(),
+            label: None,
+        }
+    }
+
+    pub fn labelled(action: &Action, label: impl Into<String>) -> Self {
+        Self::Action {
+            action: action.clone(),
+            label: Some(label.into()),
+        }
+    }
+
+    pub fn submenu(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        glyph: &str,
+        items: Vec<MenuNode>,
+    ) -> Self {
+        let key = DETACHED.with(|next| next.replace(next.get() + 1));
+        Self::Submenu(Submenu {
+            key,
+            id: id.into(),
+            label: label.into(),
+            glyph: glyph.to_owned(),
+            items,
+        })
+    }
+
+    pub fn key(&self) -> Option<u64> {
+        match self {
+            Self::Action { action, .. } => Some(action.key()),
+            Self::Submenu(submenu) => Some(submenu.key),
+            Self::Separator => None,
+        }
+    }
+
+    pub fn id(&self) -> Option<&str> {
+        match self {
+            Self::Action { action, .. } => Some(action.id()),
+            Self::Submenu(submenu) => Some(&submenu.id),
+            Self::Separator => None,
+        }
+    }
+}
+
+pub fn menu_action(nodes: &[MenuNode], id: &str) -> Option<Action> {
+    nodes.iter().find_map(|node| match node {
+        MenuNode::Action { action, .. } => (action.id() == id).then(|| action.clone()),
+        MenuNode::Submenu(submenu) => menu_action(&submenu.items, id),
+        MenuNode::Separator => None,
+    })
+}
+
+pub fn tidy_menu(nodes: Vec<MenuNode>) -> Vec<MenuNode> {
+    let mut tidied: Vec<MenuNode> = Vec::new();
+    let mut pending = false;
+    for node in nodes {
+        let node = match node {
+            MenuNode::Separator => {
+                pending = !tidied.is_empty();
+                continue;
+            }
+            MenuNode::Submenu(mut submenu) => {
+                submenu.items = tidy_menu(std::mem::take(&mut submenu.items));
+                if submenu.items.is_empty() {
+                    continue;
+                }
+                MenuNode::Submenu(submenu)
+            }
+            node => node,
+        };
+        if std::mem::take(&mut pending) {
+            tidied.push(MenuNode::Separator);
+        }
+        tidied.push(node);
+    }
+    tidied
 }
 
 fn unset(text: &Prop<String>) -> bool {
@@ -726,10 +871,10 @@ pub fn action_disabled(action: Option<&Action>, disabled: Prop<bool>) -> Prop<bo
     }
 }
 
-pub fn action_pressed(action: Option<&Action>, pressed: Prop<bool>) -> Prop<bool> {
+pub fn action_checked(action: Option<&Action>, checked: Prop<Option<bool>>) -> Prop<Option<bool>> {
     match action.and_then(Action::checked) {
-        Some(checked) => checked,
-        None => pressed,
+        Some(ticked) if matches!(checked, Prop::Static(None)) => ticked.map(Some),
+        _ => checked,
     }
 }
 

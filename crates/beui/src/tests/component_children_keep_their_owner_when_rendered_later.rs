@@ -10,12 +10,12 @@ fn Deferred(children: Render) -> NodeId {
 
 #[test]
 fn component_children_keep_their_owner_when_rendered_later() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Deferred>||
                 <primitives::List spacing=0.0>
                     <styled::Frame>
-                        <styled::Text string="Nested" />
+                        <styled::Text>"Nested"</styled::Text>
                     </styled::Frame>
                 </primitives::List>
             </Deferred>

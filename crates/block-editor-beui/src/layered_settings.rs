@@ -108,6 +108,7 @@ where
                     editor
                         .content_of::<Document<R>>(block)
                         .read(|content| content.root())
+                        .ok()
                 })
                 .unwrap_or_default()
         };
@@ -128,10 +129,7 @@ where
         let ready = create_memo(move || {
             let loaded = |block: Option<Uuid>| {
                 block.is_none_or(|block| {
-                    editor
-                        .content_of::<Document<R>>(block)
-                        .read(|_| ())
-                        .is_some()
+                    editor.content_of::<Document<R>>(block).read(|_| ()).is_ok()
                 })
             };
             let layers = layers.get();
@@ -139,6 +137,10 @@ where
                 && loaded(layers.every_device)
                 && loaded(layers.this_device)
                 && (!page || loaded(Some(block)))
+        });
+        wait_for(move || match ready.get() {
+            true => Ok(()),
+            false => Err(Pending::Loading),
         });
         Self {
             editor,
@@ -499,6 +501,7 @@ pub fn LayeredSettingsRow(
     #[prop(default = false)] separated: Prop<bool>,
     #[prop(default = false)] compact: bool,
     #[prop(default = false)] locked: Prop<bool>,
+    #[prop(default = false)] overridden: Prop<bool>,
     id: String,
     children: Children<ListChild>,
 ) -> NodeId {
@@ -552,14 +555,17 @@ pub fn LayeredSettingsRow(
         .into_iter()
         .collect(),
     };
-    let note = create_memo(
-        move || match (device, only_here, kept.get(), modified.get()) {
+    let note = create_memo(move || {
+        if overridden.get() {
+            return DEVELOPER_OVERRIDE.to_owned();
+        }
+        match (device, only_here, kept.get(), modified.get()) {
             (true, true, _, _) => ONLY_HERE.to_owned(),
             (true, false, true, _) => KEPT.to_owned(),
             (false, _, _, true) => IN_PROFILE.to_owned(),
             _ => String::new(),
-        },
-    );
+        }
+    });
     view! {
         <SettingsRow
             label

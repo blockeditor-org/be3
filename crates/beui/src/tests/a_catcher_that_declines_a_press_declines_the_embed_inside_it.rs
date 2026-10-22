@@ -8,7 +8,7 @@ fn a_catcher_that_declines_a_press_declines_the_embed_inside_it() {
     let _root = crate::reactive::RootScope::new();
     let below = create_signal(Vec::<Event>::new());
     let above = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>

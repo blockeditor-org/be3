@@ -16,7 +16,7 @@ fn laid_out(harness: &Harness, test_id: &str) -> bool {
 fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let _root = crate::reactive::RootScope::new();
     let renamed = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking layout mode=DockMode::Stacked focus=2u64>
@@ -32,7 +32,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
                                 renamed.update(|renamed| *renamed += 1)
                             })
                             .detached();
-                            dock_menu(create_memo(move || vec![rename.clone()]));
+                            dock_menu(create_memo(move || vec![MenuNode::action(&rename)]));
                             view! {
                                 <Frame @test_id="content.2" />
                             }

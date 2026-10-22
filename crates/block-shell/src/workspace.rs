@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::profile::{RECENTS, VIEW_EDITORS};
+use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
     BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, MY_FILES, Recents,
     ViewState, WorkspaceContent,
@@ -157,7 +157,7 @@ impl Workspace {
             shows.get();
             untrack(|| workspace.show_requested());
         });
-        create_effect(move || {
+        create_binding(move || {
             workspace.restore();
         });
         create_effect(move || {
@@ -375,8 +375,8 @@ impl Workspace {
             .entry(id)
             .or_insert_with(|| self.blocks().watch(BlockQuery::Block(id)));
         list.read()
-            .into_iter()
-            .next()
+            .ok()
+            .and_then(|list| list.into_iter().next())
             .or_else(|| self.blocks().info(id))
     }
 
@@ -480,6 +480,7 @@ impl Workspace {
                 self.host().forget_request(request);
             }
             share.error = None;
+            share.relisting();
             share.request = Some(self.host().list_access(share.block));
         }
         self.share.set(Some(share));
@@ -540,7 +541,10 @@ impl Workspace {
                 self.blocks().watch(BlockQuery::Shared),
             )
         });
-        (roots.read(), shared.read())
+        (
+            roots.read().unwrap_or_default(),
+            shared.read().unwrap_or_default(),
+        )
     }
 
     fn graph(&self, tree: PickTree) -> Graph {
@@ -552,7 +556,7 @@ impl Workspace {
         for block in lists
             .into_iter()
             .flat_map(HashMap::values)
-            .flat_map(BlockList::read)
+            .flat_map(|list| list.read().unwrap_or_default())
             .chain(roots.iter().cloned())
             .chain(shared.iter().cloned())
         {
@@ -562,7 +566,7 @@ impl Workspace {
             .into_iter()
             .flat_map(HashMap::iter)
             .filter_map(|(query, list)| match query {
-                BlockQuery::Children(id) if list.is_loaded() => Some(*id),
+                BlockQuery::Children(id) if list.read().is_ok() => Some(*id),
                 _ => None,
             })
             .collect();
@@ -625,7 +629,7 @@ impl Workspace {
         inner.tab_nodes.borrow().get(&tab).copied()
     }
 
-    pub fn picker_sheets(&self) -> Memo<Vec<(u64, TabId)>> {
+    pub fn picker_dialogs(&self) -> Memo<Vec<(u64, TabId)>> {
         let picks = self.picks;
         create_memo(move || {
             picks.with(|picks| {
@@ -773,7 +777,7 @@ impl Workspace {
         let Some(view) = self.editor.view_content() else {
             return;
         };
-        let Some(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
+        let Ok(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
             return;
         };
         inner.restored.set(true);
@@ -812,13 +816,11 @@ impl Workspace {
                 .keys()
                 .filter_map(|tab| tab_panel(*tab))
                 .collect();
-            batch(|| {
-                self.tabs.set(tabs);
-                self.views.set(views);
-                self.panels.set(panels);
-                self.keep(restored.windows);
-                inner.layout.restore(restored.dock);
-            });
+            self.tabs.set(tabs);
+            self.views.set(views);
+            self.panels.set(panels);
+            self.keep(restored.windows);
+            inner.layout.restore(restored.dock);
         }
         if !self.kept.with_untracked(|kept| kept.restored) {
             self.keep(Vec::new());
@@ -1022,9 +1024,9 @@ impl Workspace {
         }
         let tab = TabId::new(inner.next_tab.get());
         inner.next_tab.set(inner.next_tab.get() + 1);
-        let view = match VIEW_EDITORS.contains(&item.block_type) {
+        let view = match item.block_type == EditorViewContent::CONTENT_TYPE {
             true => Some(item.id),
-            false => self.create_view(item.block_type, Some(item.id)),
+            false => self.create_view(self.editor_of(&item).unwrap_or_default(), Some(item.id)),
         };
         if let Some(view) = view {
             self.views.update(|views| {
@@ -1046,14 +1048,16 @@ impl Workspace {
             return;
         }
         held.editor = item.editor;
-        if !VIEW_EDITORS.contains(&item.block_type) {
+        if item.block_type != EditorViewContent::CONTENT_TYPE {
             let mut views = self.views.get_untracked();
             if let Some(view) = views.remove(&tab)
                 && view != item.id
             {
                 self.blocks().set_parent(view, BlockParent::Detached);
             }
-            if let Some(view) = self.create_view(item.block_type, Some(item.id)) {
+            if let Some(view) =
+                self.create_view(self.editor_of(&item).unwrap_or_default(), Some(item.id))
+            {
                 views.insert(tab, view);
             }
             self.views.set(views);
@@ -1068,6 +1072,17 @@ impl Workspace {
                 types
                     .editor(*editor)
                     .is_some_and(|entry| entry.edits(item.block_type))
+            })
+            .or_else(|| {
+                (item.block_type == EditorViewContent::CONTENT_TYPE)
+                    .then(|| {
+                        self.editor
+                            .content_of::<EditorViewContent>(item.id)
+                            .read(|view| view.root().editor)
+                            .ok()
+                    })
+                    .flatten()
+                    .filter(|editor| !editor.is_nil())
             })
             .or_else(|| {
                 self.default_editors
@@ -1497,11 +1512,11 @@ pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
 }
 
 #[component]
-pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
+pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> DynamicSegment<ListChild> {
     view! {
-        <Frame visible={failed}>
-            <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
-        </Frame>
+        <Show condition={failed}>
+            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
+        </Show>
     }
 }
 
@@ -1515,11 +1530,15 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
         })
     });
     view! {
-        <Frame visible={shown} padding=PANEL_PADDING>
-            <List spacing=PANEL_SPACING>
-                <Text style=TextStyle::CAPTION string={message} />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-            </List>
-        </Frame>
+        <Layers>
+            <Show condition={shown}>
+                <Frame padding=PANEL_PADDING>
+                    <List spacing=PANEL_SPACING>
+                        <Text style=TextStyle::CAPTION>{message}</Text>
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                    </List>
+                </Frame>
+            </Show>
+        </Layers>
     }
 }

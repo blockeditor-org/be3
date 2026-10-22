@@ -29,7 +29,7 @@ fn Section(narrows: Signal<Vec<Memo<bool>>>) -> NodeId {
 fn a_wrapper_provides_a_container_to_every_child_written_between_its_tags() {
     let _root = crate::reactive::RootScope::new();
     let narrows = create_signal::<Vec<Memo<bool>>>(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame width=PAGE_WIDTH>
                 <Page>

@@ -7,7 +7,7 @@ use crate::styled::*;
 fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {
     let _root = crate::reactive::RootScope::new();
     let input = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>

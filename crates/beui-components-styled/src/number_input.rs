@@ -9,7 +9,6 @@ use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -17,11 +16,10 @@ const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 
-struct FaceText(NodeRef);
-
 #[component]
 pub fn NumberInput(
-    value: Prop<f64>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<NumberInputTextApi>,
+    value: Binding<f64>,
     #[prop(default = f64::NEG_INFINITY)] min: f64,
     #[prop(default = f64::INFINITY)] max: f64,
     #[prop(default = String::new())] label: Prop<String>,
@@ -29,15 +27,17 @@ pub fn NumberInput(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     #[prop(default = None)] decimals: Prop<Option<u32>>,
-    on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
+    on_scrub: Callback<bool>,
 ) -> NodeId {
     let shown = NodeRef::new();
-    set_component_state(FaceText(shown));
+    let inner = ComponentRef::new();
+    api.fill(NumberInputTextApi { inner, shown });
     let (field_label, field_disabled) = (label.clone(), disabled);
     let face_placeholder = placeholder.clone();
     view! {
         <unstyled::NumberInput
+            api=inner
             value
             min
             max
@@ -52,7 +52,6 @@ pub fn NumberInput(
                 let NumberFieldHandle {
                     text,
                     editing,
-                    on_change,
                     on_submit,
                     on_focus_change,
                 } = handle;
@@ -64,14 +63,13 @@ pub fn NumberInput(
                         disabled={field_disabled}
                         focused={editing}
                         select_on_focus=true
-                        on_change={on_change}
                         on_submit={on_submit}
                         on_focus_change={on_focus_change}
                     />
                 }
             }}
-            on_change={on_change}
             on_preview={on_preview}
+            on_scrub={on_scrub}
         />
     }
 }
@@ -110,23 +108,23 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
                 radius=Radius::Md
                 padding={Sides::horizontal(PADDING_HORIZONTAL)}
             >
-                <Text
-                    @node_ref=&shown
-                    string={string}
-                    color={color}
-                    align=TextAlign::Center
-                    clip=true
-                />
+                <Text @node_ref=&shown color={color} align=TextAlign::Center clip=true>
+                    {string}
+                </Text>
             </Frame>
         </FocusRing>
     }
 }
 
-pub fn number_input_field(document: &Document, input: NodeId) -> Option<NodeId> {
-    unstyled::number_input_field(document, input)
+#[derive(Clone, Copy)]
+pub struct NumberInputTextApi {
+    inner: ComponentRef<unstyled::NumberInputApi>,
+    shown: NodeRef,
 }
 
-pub fn number_input_text(document: &Document, input: NodeId) -> Option<NodeId> {
-    unstyled::number_input_face(document, input)?;
-    Some(document.component_state::<FaceText>(input).0.get())
+impl NumberInputTextApi {
+    pub fn text(&self) -> Option<NodeId> {
+        self.inner.get().face()?;
+        Some(self.shown.get())
+    }
 }

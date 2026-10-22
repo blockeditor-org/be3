@@ -1,12 +1,13 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{Scroll, scroll_animating};
+use crate::unstyled::{Scroll, ScrollApi};
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn instant_mode_keeps_middle_drag_autoscroll_working() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -27,9 +28,15 @@ fn instant_mode_keeps_middle_drag_autoscroll_working() {
     harness.middle_button(origin, true);
     harness.frame(vec![Event::PointerMoved(below)]);
     harness.frame(Vec::new());
-    assert!(scroll_animating(harness.document(), scroll));
+    assert!(harness.document().api::<ScrollApi>(scroll).animating());
     let before = harness.document().scroll_offset(scroll);
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     assert!(harness.document().scroll_offset(scroll) > before);
 
@@ -37,7 +44,7 @@ fn instant_mode_keeps_middle_drag_autoscroll_working() {
     harness.frame(Vec::new());
 
     assert!(harness.document().autoscroll.is_none());
-    assert!(!scroll_animating(harness.document(), scroll));
+    assert!(!harness.document().api::<ScrollApi>(scroll).animating());
     let offset = harness.document().scroll_offset(scroll);
     assert!(offset > 0.0, "the scroll stayed at {offset}");
     harness.frame(Vec::new());

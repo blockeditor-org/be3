@@ -26,11 +26,13 @@ fn a_region_describes_itself_and_does_what_a_screen_reader_asks() {
     let counted = Rc::clone(&clicks);
     let document = build(move || {
         view! {
-            <styled::Button
-                variant=styled::ButtonVariant::Primary
-                label="Save"
-                on_click={move || counted.set(counted.get() + 1)}
-            />
+            <styled::Root>
+                <styled::Button
+                    variant=styled::ButtonVariant::Primary
+                    label="Save"
+                    on_click={move || counted.set(counted.get() + 1)}
+                />
+            </styled::Root>
         }
     });
     let mut surface =

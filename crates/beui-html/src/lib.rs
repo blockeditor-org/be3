@@ -46,6 +46,7 @@ impl Node {
     }
 
     pub fn to_html(&self) -> String {
+        reactive::flush();
         let mut output = String::new();
         let mut sheet = tw::Sheet::default();
         self.collect_css(&mut sheet);

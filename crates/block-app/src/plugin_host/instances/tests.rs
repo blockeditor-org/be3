@@ -16,11 +16,14 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
     let block_types = Arc::new(block_plugin_api::Catalog::default());
-    let role = InstanceRole::Editor(EditorBlock {
-        id: block,
-        block_type,
-        view_block: None,
-    });
+    let role = InstanceRole::Editor(
+        Uuid::nil(),
+        EditorBlock {
+            id: block,
+            block_type,
+            view_block: None,
+        },
+    );
     instances.report(
         INSTANCE,
         REGION,
@@ -33,15 +36,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
         1.0,
         PASS,
     );
-    instances.place(
-        INSTANCE,
-        REGION,
-        Placement {
-            rect,
-            clip: rect,
-            pass: PASS,
-        },
-    );
+    instances.place(INSTANCE, REGION, Placement { rect, clip: rect });
     instances
 }
 
@@ -71,6 +66,8 @@ fn moved(pos: Pos2) -> beui::Forwarded {
             clicks: 0,
             force: None,
             pen: None,
+            predicted: None,
+            time: std::time::Instant::now(),
             source: 0,
         },
         over: None,
@@ -141,7 +138,9 @@ mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_host_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers;
+mod a_listing_the_host_could_not_load_reaches_the_plugin_as_failed;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
+mod a_plugin_hears_every_sample_only_while_it_asks;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
@@ -160,7 +159,8 @@ mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 #[cfg(target_os = "linux")]
 #[cfg(target_os = "linux")]
 mod clearing_a_name_names_the_block_after_its_content_at_once;
+mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod host_actions_reach_the_host_only_from_the_shell;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
 mod revision_history_editors_cannot_mutate_any_block;
-mod the_view_a_screen_is_given_carries_the_scale_it_is_shown_at;
+mod the_view_a_screen_is_given_carries_its_scale_and_whether_it_was_moved;

@@ -8,7 +8,6 @@ use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
-use beui_core::document::Document;
 use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -20,16 +19,16 @@ const PADDING_VERTICAL: f32 = 6.0;
 
 #[component]
 pub fn Accordion(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::DisclosureApi>,
     title: Prop<String>,
-    open: Prop<bool>,
-    on_toggle: Callback<bool>,
+    open: Binding<bool>,
     children: Child,
 ) -> NodeId {
     let title_text = create_memo(move || title.get());
     view! {
         <unstyled::Disclosure
+            api
             spacing=SPACING
-            on_toggle={on_toggle}
             header={move |handle| view! {
                 <AccordionHeader handle title={title_text} />
             }}
@@ -63,21 +62,18 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
-                    string={title}
                     size=TextSize::Lg
                     color={title_color}
                     align=TextAlign::Start
-                />
+                >
+                    {title}
+                </Text>
                 <Text size=TextSize::Sm color={marker_color} align=TextAlign::Center>
                     <Icon glyph={marker_glyph} />
                 </Text>
             </List>
         </Frame>
     }
-}
-
-pub fn accordion_open(document: &Document, accordion: NodeId) -> bool {
-    unstyled::disclosure_open(document, accordion)
 }
 
 fn glyph(open: bool) -> &'static str {

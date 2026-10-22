@@ -14,5 +14,11 @@ fn typing_into_a_focused_text_input_inserts_the_text() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("beui");
 
-    assert_eq!(styled::text_input_value(harness.document(), input), "beui");
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
+        "beui"
+    );
 }

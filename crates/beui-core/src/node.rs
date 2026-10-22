@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 
-use crate::geometry::{Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
@@ -153,6 +153,14 @@ pub trait Element: Any {
         for child in self.children() {
             visit(child);
         }
+    }
+
+    fn for_each_shown_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        self.for_each_child(visit);
+    }
+
+    fn children_revision(&self) -> Option<u64> {
+        None
     }
 
     fn remove_child(&mut self, child: NodeId);
@@ -339,7 +347,55 @@ impl SpaceId {
     }
 }
 
-const SPACE_SLOTS: usize = 3;
+pub(crate) const SPACE_SLOTS: usize = 4;
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SpaceTransform {
+    pub offset: Vec2,
+    pub scale: f32,
+}
+
+impl SpaceTransform {
+    pub const IDENTITY: Self = Self {
+        offset: Vec2::ZERO,
+        scale: 1.0,
+    };
+
+    pub fn pos(self, pos: Pos2) -> Pos2 {
+        pos2(
+            pos.x * self.scale + self.offset.x,
+            pos.y * self.scale + self.offset.y,
+        )
+    }
+
+    pub fn rect(self, rect: Rect) -> Rect {
+        match self.scale == 1.0 {
+            true => rect.translate(self.offset),
+            false => rect.scaled(self.scale).translate(self.offset),
+        }
+    }
+
+    pub fn local_pos(self, pos: Pos2) -> Pos2 {
+        pos2(
+            (pos.x - self.offset.x) / self.scale,
+            (pos.y - self.offset.y) / self.scale,
+        )
+    }
+
+    pub fn local_rect(self, rect: Rect) -> Rect {
+        match self.scale == 1.0 {
+            true => rect.translate(-self.offset),
+            false => rect.translate(-self.offset).scaled(self.scale.recip()),
+        }
+    }
+
+    fn within(self, translation: Vec2, scale: f32) -> Self {
+        Self {
+            offset: self.offset + translation * self.scale,
+            scale: self.scale * scale,
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Placed {
@@ -351,10 +407,11 @@ pub struct Placed {
 struct Space {
     parent: Option<SpaceId>,
     translation: Vec2,
+    scale: f32,
     clip: Rect,
 }
 
-type Resolved = (u64, Vec2);
+type Resolved = (u64, SpaceTransform);
 
 type ResolvedClip = (u64, Rect);
 
@@ -366,14 +423,19 @@ pub struct Rects {
     clips: RefCell<NodeMap<[Option<ResolvedClip>; SPACE_SLOTS]>>,
     version: Cell<u64>,
     moves: Cell<u64>,
-    chain: RefCell<Vec<(SpaceId, Vec2)>>,
+    chain: RefCell<Vec<(SpaceId, Vec2, f32)>>,
     clip_chain: RefCell<Vec<(SpaceId, Space)>>,
 }
 
 impl Rects {
     pub fn get(&self, id: &NodeId) -> Option<Rect> {
         let placed = self.placed(id)?;
-        Some(placed.rect.translate(self.offset(placed.space)))
+        Some(self.transform(placed.space).rect(placed.rect))
+    }
+
+    pub fn scale_of(&self, id: &NodeId) -> f32 {
+        self.placed(id)
+            .map_or(1.0, |placed| self.transform(placed.space).scale)
     }
 
     pub fn placed(&self, id: &NodeId) -> Option<Placed> {
@@ -412,9 +474,21 @@ impl Rects {
         translation: Vec2,
         clip: Rect,
     ) -> bool {
+        self.set_scaled_space(id, parent, translation, 1.0, clip)
+    }
+
+    pub fn set_scaled_space(
+        &self,
+        id: SpaceId,
+        parent: Option<SpaceId>,
+        translation: Vec2,
+        scale: f32,
+        clip: Rect,
+    ) -> bool {
         let space = Space {
             parent,
             translation,
+            scale,
             clip,
         };
         let mut spaces = self.spaces.borrow_mut();
@@ -428,6 +502,10 @@ impl Rects {
         moved
     }
 
+    pub fn space_of(&self, id: SpaceId) -> Option<(Vec2, f32)> {
+        self.space(id).map(|space| (space.translation, space.scale))
+    }
+
     fn space(&self, id: SpaceId) -> Option<Space> {
         self.spaces
             .borrow()
@@ -435,11 +513,11 @@ impl Rects {
             .and_then(|slots| slots[id.slot as usize])
     }
 
-    pub fn offset(&self, space: Option<SpaceId>) -> Vec2 {
+    pub fn transform(&self, space: Option<SpaceId>) -> SpaceTransform {
         let stamp = self.moves.get();
         let mut chain = self.chain.borrow_mut();
         let mut current = space;
-        let mut offset = Vec2::ZERO;
+        let mut transform = SpaceTransform::IDENTITY;
         while let Some(id) = current {
             let held = self
                 .offsets
@@ -449,7 +527,7 @@ impl Rects {
             if let Some((held_stamp, resolved)) = held
                 && held_stamp == stamp
             {
-                offset = resolved;
+                transform = resolved;
                 break;
             }
             let Some(space) = self.space(id) else {
@@ -458,15 +536,15 @@ impl Rects {
             if chain.len() >= ANCESTOR_LIMIT {
                 break;
             }
-            chain.push((id, space.translation));
+            chain.push((id, space.translation, space.scale));
             current = space.parent;
         }
         let mut offsets = self.offsets.borrow_mut();
-        for (id, translation) in chain.drain(..).rev() {
-            offset += translation;
-            offsets.get_or_default(id.node)[id.slot as usize] = Some((stamp, offset));
+        for (id, translation, scale) in chain.drain(..).rev() {
+            transform = transform.within(translation, scale);
+            offsets.get_or_default(id.node)[id.slot as usize] = Some((stamp, transform));
         }
-        offset
+        transform
     }
 
     pub fn space_clip(&self, space: Option<SpaceId>) -> Rect {
@@ -498,6 +576,9 @@ impl Rects {
         let mut clips = self.clips.borrow_mut();
         for (id, held) in chain.drain(..).rev() {
             clip = clip.intersect(held.clip).translate(-held.translation);
+            if held.scale != 1.0 {
+                clip = clip.scaled(held.scale.recip());
+            }
             clips.get_or_default(id.node)[id.slot as usize] = Some((stamp, clip));
         }
         clip
@@ -513,7 +594,7 @@ impl Rects {
             if clips.len() >= ANCESTOR_LIMIT {
                 break;
             }
-            clips.push((id, space.clip.translate(self.offset(space.parent))));
+            clips.push((id, self.transform(space.parent).rect(space.clip)));
             current = space.parent;
         }
         clips
@@ -522,7 +603,7 @@ impl Rects {
     pub fn visible(&self, id: &NodeId) -> Option<Rect> {
         let rect = self.get(id)?;
         let own = Some(SpaceId::of(*id));
-        let clip = self.space_clip(own).translate(self.offset(own));
+        let clip = self.transform(own).rect(self.space_clip(own));
         Some(rect.intersect(clip))
     }
 
@@ -557,6 +638,7 @@ pub struct Arena {
     fence: Option<NodeId>,
     adopting: RefCell<Vec<NodeId>>,
     adoption: RefCell<Vec<Adoption>>,
+    adopted: RefCell<Vec<Option<u64>>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
     free: Vec<u32>,
@@ -598,6 +680,7 @@ impl Arena {
                 self.unplaced[slot] = true;
                 self.marks[slot] = 0;
                 self.adoption.get_mut()[slot] = Adoption::Settled;
+                self.adopted.get_mut()[slot] = None;
                 NodeId {
                     index,
                     generation: self.generations[slot],
@@ -615,6 +698,7 @@ impl Arena {
                 self.unplaced.push(true);
                 self.marks.push(0);
                 self.adoption.get_mut().push(Adoption::Settled);
+                self.adopted.get_mut().push(None);
                 NodeId {
                     index,
                     generation: 0,
@@ -937,6 +1021,7 @@ impl Arena {
         let mut moved = false;
         let mut parents = self.parents.borrow_mut();
         let mut adoption = self.adoption.borrow_mut();
+        let mut adopted = self.adopted.borrow_mut();
         for parent in pending.drain(..) {
             let Some(slot) = self.slot(parent) else {
                 continue;
@@ -955,6 +1040,11 @@ impl Arena {
                 adoption[slot] = Adoption::Taken;
                 continue;
             };
+            let revision = element.children_revision();
+            if revision.is_some() && adopted[slot] == revision {
+                continue;
+            }
+            adopted[slot] = revision;
             element.for_each_child(&mut |child| {
                 let Some(held) = self.slot(child).map(|slot| &mut parents[slot]) else {
                     return;
@@ -966,6 +1056,7 @@ impl Arena {
             });
         }
         drop(parents);
+        drop(adopted);
         let mut adopting = self.adopting.borrow_mut();
         if adopting.is_empty() {
             *adopting = pending;

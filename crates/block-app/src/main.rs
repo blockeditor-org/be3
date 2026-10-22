@@ -42,7 +42,6 @@ mod wayland;
 #[cfg(target_os = "linux")]
 mod wifi;
 
-use beui::styled::*;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
@@ -87,13 +86,12 @@ pub(crate) fn build() -> &'static str {
 }
 
 fn run_options() -> beui::RunOptions {
-    let mut options = beui::RunOptions::new("Block");
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        options.app_id = Some(app_id().to_owned());
+    beui::RunOptions {
+        #[cfg(not(target_arch = "wasm32"))]
+        app_id: Some(app_id().to_owned()),
+        size: beui::vec2(1100.0, 720.0),
+        ..Default::default()
     }
-    options.size = beui::vec2(1100.0, 720.0);
-    options
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -244,6 +242,7 @@ pub async fn automate(
     }
 }
 
+// unsafe(ffi)
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: beui::AndroidApp) {
@@ -282,7 +281,9 @@ impl Shell {
             let store = AppViewStore::new(AppView::default());
             view = Some(store);
             beui::reactive::view! {
-                <ui::Root view={store} />
+                <beui::styled::Root title="Block">
+                    <ui::Root view={store} />
+                </beui::styled::Root>
             }
         });
         document.on_interacted(plugin_host::start_frames);
@@ -321,14 +322,6 @@ impl beui::App for Shell {
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
         display::boot(&self.app.app_state);
-        #[cfg(all(
-            feature = "web-view",
-            not(target_os = "android"),
-            not(target_arch = "wasm32")
-        ))]
-        if let Some(window) = setup.get::<std::sync::Arc<dyn beui::winit::window::Window>>() {
-            plugin_host::install_web_view(window.clone());
-        }
     }
 
     fn renderer_replaced(&mut self, setup: &beui::Setup) {
@@ -338,18 +331,19 @@ impl beui::App for Shell {
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
-        host::begin(context, &self.document);
+        host::begin(context);
         if context.hurried() {
             be::seal_owed();
         }
         wayland::before(context, rect, &mut self.document);
+        self.app.touched = self
+            .document
+            .last_pointer
+            .is_some_and(|pointer| pointer.touch);
         self.app.frame(context);
         self.app.sync_ui_settings();
-        if let Some(theme) = self.app.theme.take() {
-            let theme = ui::styled_theme(theme);
-            if self.document.theme() != theme {
-                self.document.set_theme(theme);
-            }
+        if let Some(preferences) = self.app.preferences.take() {
+            context.set_preference_layer(beui::PreferenceSource::App, preferences);
         }
         if let Some(scale) = self.app.scale.take() {
             context.set_zoom_factor(scale);
@@ -368,7 +362,7 @@ impl beui::App for Shell {
         plugin_host::place_screens(
             &plugin_host::shown_blits(),
             context.pixels_per_point() / context.native_pixels_per_point(),
-            self.document.theme().background,
+            beui::styled::Theme::of(self.document.preferences().theme).background,
         );
         self.document.show(context, rect);
         plugin_host::describe(context);
@@ -387,10 +381,6 @@ impl beui::App for Shell {
         host::end(context);
         performance::record_update(started, &self.document.performance().latest.timings);
         plugin_host::record_pacing();
-    }
-
-    fn clear_color(&self) -> beui::Color32 {
-        self.document.theme().background
     }
 
     fn busy(&self) -> bool {
@@ -475,9 +465,10 @@ struct BlockApp {
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
-    ui_settings: Option<(be_block::Theme, u32)>,
-    theme: Option<be_block::Theme>,
+    ui_settings: Option<(beui::PreferenceLayer, u32)>,
+    preferences: Option<beui::PreferenceLayer>,
     scale: Option<f32>,
+    touched: bool,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
     display_round: Option<u64>,
@@ -497,7 +488,7 @@ struct BlockApp {
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
     programs: programs::Programs,
-    app_menu_open: bool,
+    app_menu: Option<ui::AppMenuView>,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
     allow_close: bool,
@@ -729,8 +720,9 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
-            theme: None,
+            preferences: None,
             scale: None,
+            touched: false,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
             display_round: None,
@@ -746,7 +738,7 @@ impl BlockApp {
             pending_copies: Vec::new(),
             about_open: false,
             programs: programs::Programs::default(),
-            app_menu_open: false,
+            app_menu: None,
             pending_destructive_action: None,
             leaving: None,
             allow_close: false,
@@ -851,7 +843,7 @@ impl BlockApp {
         remap::set_locked(locked);
         plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
         if locked {
-            self.app_menu_open = false;
+            self.app_menu = None;
         }
         let mut availability = self
             .desktop
@@ -1524,7 +1516,7 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
-        self.app_menu_open = false;
+        self.app_menu = None;
         self.pending_destructive_action = None;
         self.allow_close = false;
         self.organization = None;
@@ -1872,12 +1864,16 @@ impl BlockApp {
             self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
-        self.block_types.insert(id, shell_editor);
+        let view_type = be_block::EditorView::CONTENT_TYPE;
+        self.block_types.insert(id, view_type);
         let open_as = self
             .editors
-            .with(|open| open.get(&id).map(PluginEditor::block_type));
+            .with(|open| open.get(&id).and_then(PluginEditor::editor_id));
         if open_as != Some(shell_editor) {
-            let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
+            let editor = self
+                .registry
+                .open_with(id, view_type, Some(shell_editor))
+                .viewed_by(Some(id));
             if let Some(missing) = ShellRequest::ALL
                 .into_iter()
                 .find(|request| !editor.accepts(*request))
@@ -2195,10 +2191,13 @@ impl BlockApp {
                 crate::plugin_host::request_pick(
                     &picker.plugin_id,
                     picker.instance,
-                    pick,
-                    filter,
-                    parent,
-                    within,
+                    crate::plugin_host::Pick {
+                        pick,
+                        filter,
+                        parent,
+                        within,
+                        touch: self.touched,
+                    },
                 );
             }
         }
@@ -2362,7 +2361,13 @@ impl BlockApp {
         match action {
             EditorAction::OpenBlock(open) => self.show_block(from, open),
             EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
+            EditorAction::AppMenu { at } => self.open_app_menu(at),
         }
+    }
+
+    fn open_app_menu(&mut self, at: Option<beui::Rect>) {
+        let opened = self.app_menu.as_ref().map_or(0, |menu| menu.opened) + 1;
+        self.app_menu = Some(ui::AppMenuView { opened, at });
     }
 
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
@@ -2373,7 +2378,7 @@ impl BlockApp {
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
-            BlockCommand::AppMenu => self.app_menu_open = true,
+            BlockCommand::AppMenu { .. } => self.open_app_menu(None),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -2641,12 +2646,12 @@ impl BlockApp {
         let Some(settings) = self.display.applied() else {
             return;
         };
-        let shown = (settings.theme(), settings.scale_percent());
+        let shown = (settings.preferences(), settings.scale_percent());
         if self.ui_settings == Some(shown) {
             return;
         }
         self.ui_settings = Some(shown);
-        self.theme = Some(settings.theme());
+        self.preferences = Some(shown.0);
         self.scale = Some(settings.scale());
     }
 
@@ -2801,7 +2806,8 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
-            UiCommand::AppMenu(open) => self.app_menu_open = open,
+            UiCommand::AppMenu(false) => self.app_menu = None,
+            UiCommand::AppMenu(true) => self.open_app_menu(None),
             UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
@@ -3095,7 +3101,7 @@ impl BlockApp {
                 link: self.invite_link.clone(),
             }),
             about: self.about_open,
-            app_menu: self.app_menu_open,
+            app_menu: self.app_menu.clone(),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             leaving: self.leaving.is_some(),
             presenting: self

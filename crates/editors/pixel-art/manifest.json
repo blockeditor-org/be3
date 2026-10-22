@@ -2,9 +2,10 @@
   "id": "be3.pixel_art",
   "name": "Pixel Art",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "70697865-6c2d-6172-742d-626c6f636b01",
+  "editors": {
+    "pixel_art": {
+      "id": "1e354656-7020-4268-b351-06c9634430f6",
+      "edits": "70697865-6c2d-6172-742d-626c6f636b01",
       "display_name": "Pixel Art",
       "icon": "\ue3ec",
       "templates": {
@@ -23,6 +24,6 @@
         "ArtifactSettings"
       ]
     }
-  ],
+  },
   "entry_point": "pixel_art.wasm"
 }

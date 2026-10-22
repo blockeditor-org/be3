@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use block_editor_beui::be_block::profile::VIEW_EDITORS;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::*;
@@ -25,10 +24,19 @@ use super::workspace::{PanelStatus, PhoneSheet, Workspace};
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Refs {
-    pub(crate) loaded: bool,
+    pub(crate) state: Ready<()>,
     pub(crate) list: Vec<BlockInfo>,
+}
+
+impl Default for Refs {
+    fn default() -> Self {
+        Self {
+            state: Err(Pending::Loading),
+            list: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -83,9 +91,15 @@ impl Watched {
 }
 
 fn refs(list: Option<&BlockList>) -> Refs {
-    list.map_or_else(Refs::default, |list| Refs {
-        loaded: list.is_loaded(),
-        list: list.read(),
+    list.map_or_else(Refs::default, |list| match list.read() {
+        Ok(list) => Refs {
+            state: Ok(()),
+            list,
+        },
+        Err(pending) => Refs {
+            state: Err(pending),
+            list: Vec::new(),
+        },
     })
 }
 
@@ -176,8 +190,10 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         true => TopBar::Phone,
         false => TopBar::Shown,
     });
-    let session =
-        untrack(|| workspace.tab(tab)).is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
+    let session = untrack(|| workspace.tab(tab)).is_some_and(|item| {
+        item.block_type
+            == <block_editor_beui::be_block::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE
+    });
     let desktop = create_memo(move || !phone.get() && !session);
     let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
     let previewing = create_memo(move || preview.get().is_some());
@@ -303,9 +319,9 @@ fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
     view! {
         <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Text style=TextStyle::HEADING string={heading} />
-                <Text style=TextStyle::CAPTION string={first} />
-                <Text style=TextStyle::CAPTION string={second} />
+                <Text style=TextStyle::HEADING>{heading}</Text>
+                <Text style=TextStyle::CAPTION>{first}</Text>
+                <Text style=TextStyle::CAPTION>{second}</Text>
             </List>
         </Frame>
     }

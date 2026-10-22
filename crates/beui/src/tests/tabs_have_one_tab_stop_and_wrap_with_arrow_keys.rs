@@ -24,23 +24,65 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
             },
         ]
     });
-    let after_focus = unstyled::button_focused(&document, after);
+    let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 2);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        2
+    );
     harness.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 0);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        0
+    );
     harness.key(Key::End, Modifiers::NONE);
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 2);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        2
+    );
     harness.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 2);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        2
+    );
     harness.key(Key::Home, Modifiers::NONE);
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 0);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        0
+    );
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(after_focus.get());
     harness.key(Key::Tab, Modifiers::SHIFT);
     harness.key(Key::ArrowLeft, Modifiers::NONE);
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 2);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        2
+    );
 }

@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
+use block_editor_beui::be_block::{BlockContent, EditorViewContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_HISTORY, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
@@ -14,7 +14,7 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, PickerSheet,
+    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialog, Pickers,
     REVISIONS, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
 };
 
@@ -25,9 +25,11 @@ const PANEL_SPACING: f32 = 6.0;
 pub struct WorkspaceUiApp;
 
 impl block_editor_beui::BeuiApp for WorkspaceUiApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <WorkspaceShell editor={editor} />
+            <Root>
+                <WorkspaceShell editor={editor} />
+            </Root>
         }
     }
 }
@@ -35,14 +37,15 @@ impl block_editor_beui::BeuiApp for WorkspaceUiApp {
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor, true, false);
-    let layout = editor.view_content().map(|view| view.loaded());
-    let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
-        <Loaded loaded={loaded} label="Loading the workspace">
-            <Container>|_|
-                <WorkspaceBody workspace />
-            </Container>
-        </Loaded>
+        <Loaded label="Loading the workspace">|| {
+            let _layout = editor.view_content();
+            view! {
+                <Container>|_|
+                    <WorkspaceBody workspace />
+                </Container>
+            }
+        }</Loaded>
     }
 }
 
@@ -70,10 +73,10 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();
-    let picker_sheets = workspace.picker_sheets();
+    let picker_dialogs = workspace.picker_dialogs();
     let panels = workspace.panels();
     view! {
-        <Frame @node_ref={&surface} fill=ColorRole::Background>
+        <Frame @node_ref={&surface}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode>
@@ -109,11 +112,11 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
                     </ForEach>
-                    <ForEach keys={picker_sheets}>|(pick, tab): (u64, TabId)|
-                        <PickerSheet workspace pick tab />
+                    <ForEach keys={picker_dialogs}>|(pick, tab): (u64, TabId)|
+                        <PickerDialog workspace pick tab />
                     </ForEach>
                 </Docking>
-                <PickerDialogs workspace />
+                <Pickers workspace />
                 <WorkspaceDialogs workspace />
             </List>
         </Frame>
@@ -124,9 +127,11 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
 fn FilesPanel(workspace: Workspace) -> NodeId {
     let files = workspace.files();
     let target = create_memo(move || {
-        files
-            .get()
-            .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
+        files.get().map(|id| {
+            ChildTarget::new(id, EditorViewContent::CONTENT_TYPE)
+                .edited_with(Some(FILES_EDITOR))
+                .viewed_by(id)
+        })
     });
     view! {
         <SidePanel workspace target loading="Files are loading…" id="workspace.files" />
@@ -182,11 +187,10 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Text style=TextStyle::HEADING string="No file open" />
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Open or create a file from Files to get started."
-                />
+                <Text style=TextStyle::HEADING>"No file open"</Text>
+                <Text style=TextStyle::CAPTION>
+                    "Open or create a file from Files to get started."
+                </Text>
             </List>
         </Frame>
     }

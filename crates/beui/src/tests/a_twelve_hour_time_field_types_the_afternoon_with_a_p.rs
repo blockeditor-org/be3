@@ -8,16 +8,15 @@ use crate::unstyled::{Container, DateTimeParts};
 fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value=None
+                    value={Binding::new(None, move |value: Option<crate::datetime::DateTime>| {
+                        reported.update(|reported| reported.push(value.map(|value| value.time)))
+                    })}
                     parts=DateTimeParts::Time
                     hour_cycle=HourCycle::H12
-                    on_change={move |value: Option<crate::datetime::DateTime>| {
-                        reported.update(|reported| reported.push(value.map(|value| value.time)))
-                    }}
                 />
             </Container>
         }

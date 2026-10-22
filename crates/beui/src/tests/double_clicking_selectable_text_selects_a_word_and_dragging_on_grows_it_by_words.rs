@@ -7,12 +7,12 @@ use crate::styled::*;
 fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_words() {
     let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>
-                    <Text @node_ref=&first string="alpha beta gamma" />
-                    <Text @node_ref=&second string="delta epsilon" />
+                    <Text @node_ref=&first>"alpha beta gamma"</Text>
+                    <Text @node_ref=&second>"delta epsilon"</Text>
                 </List>
             </SelectableText>
         }
@@ -31,7 +31,12 @@ fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_wo
             .expect("the text has a place for every index");
         pos2(caret.min.x + 1.0, caret.center().y)
     };
-    let selected = |harness: &Harness| unstyled::selectable_text(harness.document(), region);
+    let selected = |harness: &Harness| {
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text()
+    };
     let on_beta = at(&harness, "alpha be".len());
 
     harness.click(on_beta);

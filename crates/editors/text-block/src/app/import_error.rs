@@ -31,7 +31,7 @@ fn ImportErrorRow(state: State) -> NodeId {
             padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                <Text string={message} color=TextColor::Danger />
+                <Text color=TextColor::Danger>{message}</Text>
                 <Button
                     label="Dismiss"
                     variant=ButtonVariant::Secondary

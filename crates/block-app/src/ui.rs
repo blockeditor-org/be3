@@ -35,15 +35,6 @@ pub(crate) fn take_commands() -> Vec<UiCommand> {
     COMMANDS.with(|commands| std::mem::take(&mut *commands.borrow_mut()))
 }
 
-pub(crate) fn styled_theme(theme: be_block::Theme) -> beui::styled::Theme {
-    match theme {
-        be_block::Theme::Dark => beui::styled::Theme::DARK,
-        be_block::Theme::OledDark => beui::styled::Theme::OLED,
-        be_block::Theme::Light => beui::styled::Theme::LIGHT,
-        be_block::Theme::EInk => beui::styled::Theme::EINK,
-    }
-}
-
 pub(crate) fn account_key(account: &SavedAccount) -> String {
     format!("{}\u{0}{}", account.server.key(), account.id)
 }
@@ -258,6 +249,12 @@ pub(crate) struct AgentsView {
     pub(crate) created: Option<CreatedAgent>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct AppMenuView {
+    pub(crate) opened: u64,
+    pub(crate) at: Option<beui::Rect>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DiscardView {
     pub(crate) title: String,
@@ -294,7 +291,7 @@ pub(crate) struct AppView {
     pub(crate) contacts: Option<ContactsView>,
     pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
-    pub(crate) app_menu: bool,
+    pub(crate) app_menu: Option<AppMenuView>,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) leaving: bool,
     pub(crate) presenting: bool,
@@ -399,7 +396,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let round = create_memo(move || keep_display.get().unwrap_or_default());
     let area = NodeRef::new();
     view! {
-        <Frame @node_ref=&area fill=ColorRole::Background>
+        <Frame @node_ref=&area>
             <List spacing=0.0>
                 <Dynamic value={screen}>|screen: Screen| {
                     match screen {

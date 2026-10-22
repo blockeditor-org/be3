@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
+use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasShape};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -19,21 +19,15 @@ struct Layer(Uuid);
 #[component]
 pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
     let open = create_signal(true);
-    let ids = create_memo(move || {
-        state
-            .entities
-            .get()
-            .iter()
-            .rev()
-            .map(|entity| entity.id)
-            .collect::<Vec<Uuid>>()
-    });
+    let entities = state.entities.ids();
+    let ids =
+        create_memo(move || entities.with(|ids| ids.iter().rev().copied().collect::<Vec<Uuid>>()));
     let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
-        <Accordion title="Layers" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Layers" open={open}>
             <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
                 <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION string="Nothing on the canvas yet." wrap=true />
+                    <Text style=TextStyle::CAPTION wrap=true>"Nothing on the canvas yet."</Text>
                 </Show>
                 <ForEach keys={ids}>|id: Uuid|
                     <LayerRow state id />
@@ -45,13 +39,7 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
 
 #[component]
 fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
-    let entity = create_memo(move || {
-        state
-            .entities
-            .get()
-            .into_iter()
-            .find(|entity| entity.id == id)
-    });
+    let entity = state.entities.watch(id).stored();
     let label = create_memo(move || {
         entity
             .get()
@@ -59,7 +47,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
             .unwrap_or_default()
     });
     let selected = create_memo(move || state.selection.get().contains(&id));
-    let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.style.hidden));
+    let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.hidden));
     let glyph = create_memo(move || match hidden.get() {
         true => ICON_VISIBILITY_OFF.to_owned(),
         false => ICON_VISIBILITY.to_owned(),
@@ -115,7 +103,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                             @test_id={format!("infinite-canvas.layer.{id}")}
                         >|_: DragHandle|
                             <Frame padding={Sides::vertical(ROW_PADDING)}>
-                                <Text string={label} color={text} />
+                                <Text color={text}>{label}</Text>
                             </Frame>
                         </Draggable>
                     </List>
@@ -133,26 +121,21 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
             radius={Radius::custom(ROW_RADIUS)}
             padding={Sides::symmetric(8.0, ROW_PADDING)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }
 
 fn layer_label(state: &CanvasState, entity: &CanvasEntity) -> String {
-    match &entity.kind {
-        CanvasEntityKind::Text {
-            text, placeholder, ..
-        } => match text.lines().next().filter(|line| !line.trim().is_empty()) {
-            Some(line) => line.to_owned(),
-            None => placeholder.clone(),
-        },
-        CanvasEntityKind::Artboard { name } => name.clone(),
-        CanvasEntityKind::Block { block_id } | CanvasEntityKind::DirectEditor { block_id, .. } => {
-            state
-                .label_of(*block_id)
-                .map(|label| label.name)
-                .unwrap_or_else(|| entity_kind_label(&entity.kind).to_owned())
-        }
-        kind => entity_kind_label(kind).to_owned(),
+    let text = entity.text.to_str_lossy();
+    let written = text.lines().next().filter(|line| !line.trim().is_empty());
+    match (entity.shape, written, entity.block) {
+        (_, Some(line), _) => line.to_owned(),
+        (CanvasShape::Text, None, _) => entity.placeholder.clone(),
+        (shape, None, Some(block)) if shape.embeds_block() => state
+            .label_of(block)
+            .map(|label| label.name)
+            .unwrap_or_else(|| entity_kind_label(entity).to_owned()),
+        _ => entity_kind_label(entity).to_owned(),
     }
 }

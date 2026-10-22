@@ -19,12 +19,14 @@ fn scopes_dispose_effects_and_run_cleanup_once() {
         })
     });
     value.set(2);
+    flush();
     assert_eq!(cleanups.get(), 1);
     parent.dispose();
     assert!(child.is_disposed());
     assert!(effect.is_disposed());
     child.dispose();
     value.set(3);
+    flush();
     assert_eq!(calls.get(), 2);
     assert_eq!(cleanups.get(), 2);
 }

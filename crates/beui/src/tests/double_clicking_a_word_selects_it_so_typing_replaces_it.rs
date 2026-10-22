@@ -19,7 +19,10 @@ fn double_clicking_a_word_selects_it_so_typing_replaces_it() {
     harness.type_text("bye");
 
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "bye world"
     );
 }

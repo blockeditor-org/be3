@@ -13,7 +13,7 @@ fn height(index: usize) -> f32 {
 fn nested_offsets_lay_their_content_out_once_a_layout() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

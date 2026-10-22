@@ -74,11 +74,11 @@ pub fn Checklist(editor: Editor) -> NodeId {
     };
 
     view! {
-        <Frame fill=ColorRole::Background padding=PAGE_PADDING>
+        <Frame padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
-                    <Text style=TextStyle::HEADING string="Checklist" />
-                    <Text style=TextStyle::CAPTION string={summary} />
+                    <Text style=TextStyle::HEADING>"Checklist"</Text>
+                    <Text style=TextStyle::CAPTION>{summary}</Text>
                     <Progress value={progress} label="Checklist completion" />
                 </List>
                 <Card>
@@ -90,7 +90,6 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 placeholder="What needs doing?"
                                 label="New checklist item"
                                 @test_id={"checklist.draft"}
-                                on_change={move |value| draft.set(value)}
                                 on_submit={move |value| {
                                     add_item(&checklist, draft, value);
                                 }}
@@ -113,21 +112,18 @@ pub fn Checklist(editor: Editor) -> NodeId {
                             >
                                 <ToggleButton
                                     label="All"
-                                    pressed={selected_filter.memo(Filter::All)}
+                                    pressed={Binding::new(selected_filter.memo(Filter::All), move |_| filter.set(Filter::All))}
                                     @test_id={"checklist.filter.all"}
-                                    on_change={move |_| filter.set(Filter::All)}
                                 />
                                 <ToggleButton
                                     label="Open"
-                                    pressed={selected_filter.memo(Filter::Open)}
+                                    pressed={Binding::new(selected_filter.memo(Filter::Open), move |_| filter.set(Filter::Open))}
                                     @test_id={"checklist.filter.open"}
-                                    on_change={move |_| filter.set(Filter::Open)}
                                 />
                                 <ToggleButton
                                     label="Done"
-                                    pressed={selected_filter.memo(Filter::Done)}
+                                    pressed={Binding::new(selected_filter.memo(Filter::Done), move |_| filter.set(Filter::Done))}
                                     @test_id={"checklist.filter.done"}
-                                    on_change={move |_| filter.set(Filter::Done)}
                                 />
                             </List>
                             <Button
@@ -136,7 +132,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 disabled={clear_disabled}
                                 @test_id={"checklist.clear-done"}
                                 on_click={move || {
-                                    if let Some(edit) = checklist.read(|content| content.root().clear_done()) {
+                                    if let Ok(edit) = checklist.read(|content| content.root().clear_done()) {
                                         checklist.operate(edit);
                                     }
                                 }}
@@ -147,7 +143,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <Card @sizing=ItemSize::Percent(100.0)>
                     <List spacing=10.0>
                         <Show condition={empty}>
-                            <Text string="No tasks match this view." align=TextAlign::Center />
+                            <Text align=TextAlign::Center>"No tasks match this view."</Text>
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <List spacing=8.0>
@@ -191,11 +187,10 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)
                     label={label}
-                    checked={done}
-                    @test_id={format!("checklist.item.{id}.done")}
-                    on_change={move |done| {
+                    checked={Binding::new(done, move |done| {
                         checklist.operate(ChecklistModel::set_done(id, done));
-                    }}
+                    })}
+                    @test_id={format!("checklist.item.{id}.done")}
                 />
                 <Button
                     label="Remove"

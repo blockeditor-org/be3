@@ -25,8 +25,16 @@ fn dragging_a_curved_slider_reads_its_midpoint_at_the_centre() {
         harness.frame(Vec::new());
     }
 
-    let curved_value = styled::slider_value(harness.document(), curved);
-    let linear_value = styled::slider_value(harness.document(), linear);
+    let curved_value = harness
+        .document()
+        .api::<styled::SliderApi>(curved)
+        .value()
+        .get();
+    let linear_value = harness
+        .document()
+        .api::<styled::SliderApi>(linear)
+        .value()
+        .get();
     assert!(
         (curved_value - 12.0).abs() < 1.0,
         "the curved slider read {curved_value}"

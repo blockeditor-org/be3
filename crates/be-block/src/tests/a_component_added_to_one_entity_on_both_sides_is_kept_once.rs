@@ -8,7 +8,7 @@ fn a_component_added_to_one_entity_on_both_sides_is_kept_once() {
     let base = canvas_run(
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
-            entity: original.clone(),
+            entity: Box::new(original.clone()),
         },
     );
     let with = |field: Uuid, value: DatabaseValue| {

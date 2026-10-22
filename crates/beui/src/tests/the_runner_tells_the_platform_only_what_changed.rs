@@ -87,7 +87,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
     let log = create_signal(Vec::new());
     let typed = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
-        options: RunOptions::new("runner"),
+        options: RunOptions::default(),
         context: context(),
         app: Box::new(Typing { frames: 0, typed }),
     });

@@ -4,7 +4,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::{Hsva, Oklch};
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
@@ -169,7 +168,7 @@ enum Part {
 }
 
 pub struct ColorWheelHandle {
-    pub point: ReadSignal<WheelPoint>,
+    pub point: Binding<WheelPoint>,
     pub dragging: ReadSignal<bool>,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -178,24 +177,23 @@ pub struct ColorWheelHandle {
 
 #[component]
 pub fn ColorWheel(
-    value: Prop<WheelPoint>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ColorWheelApi>,
+    value: Binding<WheelPoint>,
     ring_width: f32,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = 0.0)] thumb: f32,
     #[prop(children)] content: Render<ColorWheelHandle>,
-    on_change: Callback<WheelPoint>,
     on_drag_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
-    let point = create_signal(value.get_untracked());
-    create_effect(move || point.set(value.get()));
+    let point = value;
     let dragging = create_signal(false);
     let hovered = create_signal(false);
     let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    set_component_state(point.read_only());
+    api.fill(ColorWheelApi(point));
 
     match accessibility {
         Some(accessibility) => component_accessibility(accessibility),
@@ -231,7 +229,6 @@ pub fn ColorWheel(
         }
         if next != point.get_untracked() {
             point.set(next);
-            on_change.call(next);
         }
     };
     let geometry =
@@ -300,7 +297,7 @@ pub fn ColorWheel(
         }
     });
     let content_node = content.call(ColorWheelHandle {
-        point: point.read_only(),
+        point,
         dragging: dragging.read_only(),
         hovered: hovered.read_only(),
         focused: has_focus.read_only(),
@@ -312,7 +309,7 @@ pub fn ColorWheel(
             focusable=true
             tab_stop
             focused
-            on_focus_change={move |focused: bool| has_focus.set(focused)}
+            on_focus_change={has_focus}
             on_step={move |delta: f32| {
                 let point = point.get_untracked();
                 set(WheelPoint::new(point.hue + delta * HUE_STEP, point.saturation, point.value));
@@ -342,7 +339,7 @@ pub fn ColorWheel(
             }}
             cursor
             touch_drags=true
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| set(dragged_to(press))}
@@ -355,8 +352,11 @@ pub fn ColorWheel(
     }
 }
 
-pub fn color_wheel_value(document: &Document, wheel: NodeId) -> WheelPoint {
-    document
-        .component_state::<ReadSignal<WheelPoint>>(wheel)
-        .get_untracked()
+#[derive(Clone, Copy)]
+pub struct ColorWheelApi(Binding<WheelPoint>);
+
+impl ColorWheelApi {
+    pub fn value(&self) -> WheelPoint {
+        self.0.get_untracked()
+    }
 }

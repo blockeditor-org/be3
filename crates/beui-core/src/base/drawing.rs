@@ -42,7 +42,10 @@ impl Element for DrawingNode {
         let Some(draw) = self.draw.as_ref() else {
             return;
         };
-        draw(painter, rect);
+        match self.size {
+            Some(_) => draw(&painter.with_clip_rect(rect), rect),
+            None => draw(painter, rect),
+        }
     }
 
     fn children(&self) -> Vec<NodeId> {

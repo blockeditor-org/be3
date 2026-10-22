@@ -9,7 +9,7 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal(0);
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -42,7 +42,12 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     harness.frame(Vec::new());
 
     assert!(harness.document().scroll_offset(scroll) > released_offset);
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
     assert_eq!(harness.document().focused_node(), None);
     assert_eq!(clicks.get_untracked(), 0);
 }

@@ -5,10 +5,12 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{DockEntry, DockPane, DockTab, MenuItem};
+use beui::unstyled::{
+    DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab, MenuItem,
+};
 
 use crate::detail::Detail;
-use crate::github::{Entry, PullRequest, State, branch_deleted};
+use crate::github::{Entry, PullRequest, branch_deleted};
 use crate::model::{COMMON, Loaded, Model, Tab};
 use crate::pane::TerminalPane;
 use crate::targets::{Action, Target};
@@ -33,25 +35,14 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
     let idle = create_memo(move || !running.get());
     let stop = move || model.stop();
     let run = move || model.run_again();
-    let opened = create_memo(move || {
-        model.opened.with(|opened| {
-            opened
-                .iter()
-                .map(|pull_request| pull_request.number)
-                .collect::<Vec<u64>>()
-        })
-    });
     let pane = model.pane;
     view! {
         <List spacing=0.0>
             <Frame padding={Sides::symmetric(PADDING, 12.0)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                    <Text
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                        string={head}
-                        ellipsis=true
-                    />
+                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) ellipsis=true>
+                        {head}
+                    </Text>
                     <Show condition={running}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>
@@ -83,9 +74,11 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                             <TerminalPane pane />
                         </Frame>
                     </DockTab>
-                    <ForEach keys={opened}>|number: u64|
-                        <PullRequestTab model number />
-                    </ForEach>
+                    <DockDocumentTabs
+                        documents={model.documents}
+                    >|document: DockDocument<Tab, PullRequest, u64>|
+                        <PullRequestTab model document />
+                    </DockDocumentTabs>
                 </DockPane>
             </Docking>
         </List>
@@ -93,30 +86,19 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
 }
 
 #[component]
-fn PullRequestTab(model: Model, number: u64) -> DockEntry<Tab> {
-    let pull_request = create_memo(move || {
-        model.opened.with(|opened| {
-            opened
-                .iter()
-                .find(|pull_request| pull_request.number == number)
-                .cloned()
-        })
-    });
-    let title = create_memo(move || match pull_request.get() {
-        Some(pull_request) => format!("#{number} {}", pull_request.title),
-        None => format!("#{number}"),
+fn PullRequestTab(model: Model, document: DockDocument<Tab, PullRequest, u64>) -> DockEntry<Tab> {
+    let pull_request = document.content();
+    let title = create_memo(move || {
+        pull_request.with(|pull_request| format!("#{} {}", pull_request.number, pull_request.title))
     });
     let icon = create_memo(move || {
-        pull_request
-            .get()
-            .map_or(state_glyph(State::Open), |pull_request| {
-                state_glyph(pull_request.state)
-            })
-            .to_owned()
+        state_glyph(pull_request.with(|pull_request| pull_request.state)).to_owned()
     });
     view! {
-        <DockTab id={Tab::PullRequest(number)} title icon on_close={move || model.close(number)}>
-            <Detail model number />
+        <DockTab id={document.key()} title icon on_close={move || document.close()}>
+            <DockDocumentBody document>|pull_request: ReadSignal<PullRequest>|
+                <Detail model pull_request={create_memo(move || pull_request.get())} />
+            </DockDocumentBody>
         </DockTab>
     }
 }
@@ -174,7 +156,6 @@ fn TargetList(model: Model) -> NodeId {
                             value={query}
                             placeholder="Filter targets, like beui or rust_test"
                             label="Filter targets"
-                            on_change={move |next| query.set(next)}
                         />
                         <IconButton
                             glyph=ICON_REFRESH
@@ -182,15 +163,15 @@ fn TargetList(model: Model) -> NodeId {
                             on_click={refresh}
                         />
                     </List>
-                    <Text style=TextStyle::CAPTION string={count} />
+                    <Text style=TextStyle::CAPTION>{count}</Text>
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Spinner width=20.0 label="Listing targets" />
-                            <Text style=TextStyle::CAPTION string="Asking buck2 for the targets" />
+                            <Text style=TextStyle::CAPTION>"Asking buck2 for the targets"</Text>
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text string={error} color=TextColor::Danger wrap=true />
+                        <Text color=TextColor::Danger wrap=true>{error}</Text>
                     </Show>
                 </List>
             </Frame>
@@ -248,8 +229,8 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
     view! {
         <Frame padding={Sides::symmetric(PADDING, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={label} />
-                <Text style=TextStyle::CAPTION string={kind} />
+                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <Text style=TextStyle::CAPTION>{kind}</Text>
                 <Show condition={buildable}>
                     <Button
                         label="Build"
@@ -345,18 +326,14 @@ pub(crate) fn Notes(
         <Show condition={shown}>
             <List spacing=8.0>
                 <Show condition={fork}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="This pull request comes from a fork, so scripts/switch cannot check it out."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "This pull request comes from a fork, so scripts/switch cannot check it out."
+                    </Text>
                 </Show>
                 <Show condition={deleted}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Its branch was deleted, so there is nothing to check out."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "Its branch was deleted, so there is nothing to check out."
+                    </Text>
                 </Show>
             </List>
         </Show>

@@ -6,12 +6,11 @@ use crate::styled::*;
 fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {
     let _root = crate::reactive::RootScope::new();
     let changes = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ColorPicker
-                    value={Color32::from_rgba_unmultiplied(0x20, 0x40, 0x80, 0x80)}
-                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    value={Binding::new(Color32::from_rgba_unmultiplied(0x20, 0x40, 0x80, 0x80), move |next| changes.update(|changes| changes.push(next)))}
                 />
             </List>
         }

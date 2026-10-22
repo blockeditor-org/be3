@@ -1,5 +1,5 @@
 use base_pages::{
-    ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, TextNodesPage,
+    ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
 use beui::KeyAt;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
@@ -7,8 +7,8 @@ use beui::icons::{
     ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
     ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
     ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_FORMAT_BOLD,
-    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU,
-    ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW,
+    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LINE_CURVE, ICON_LINK, ICON_LIST, ICON_LOCK,
+    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW,
     ICON_POWER_SETTINGS_NEW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
     ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
     ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP,
@@ -18,14 +18,15 @@ use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockMode, DockPane,
+    ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockDocument,
+    DockDocumentBody, DockDocumentTabs, DockDocuments, DockMode, DockOpened, DockPane, DockSlot,
     DockSplit, DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom,
     PanZoomHandle, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState,
     TreeItem, dock_actions, narrower_than, use_dock_tab,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,
-    ScrollGesture, TextAlign, unstyled,
+    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId,
+    PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
@@ -34,7 +35,7 @@ use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
 use styled_pages::{
-    AttachedDialog, AttachedSheet, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
+    AttachedCard, AttachedDialog, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
     EditorPage, InputsPage, LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage,
     RowsPage, TextPage, ThemesPage, TreePage,
 };
@@ -56,7 +57,7 @@ const CATALOG: TabId = TabId::new(1);
 const DIALOG_TABS: u64 = 1 << 40;
 const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
-const SHEET_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
+const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: f32 = 10.0;
 const TOOLBAR_SPACING: f32 = 8.0;
@@ -101,6 +102,7 @@ enum Page {
     Interaction,
     Layering,
     Colors,
+    Paths,
 }
 
 const STYLED_PAGES: [Page; 17] = [
@@ -132,8 +134,9 @@ const UNSTYLED_PAGES: [Page; 6] = [
     Page::Scrolling,
 ];
 
-const BASE_PAGES: [Page; 6] = [
+const BASE_PAGES: [Page; 7] = [
     Page::Frames,
+    Page::Paths,
     Page::TextNodes,
     Page::Lists,
     Page::ControlFlow,
@@ -141,7 +144,7 @@ const BASE_PAGES: [Page; 6] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 29] = [
+const PAGES: [Page; 30] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -166,6 +169,7 @@ const PAGES: [Page; 29] = [
     Page::Dragging,
     Page::Scrolling,
     Page::Frames,
+    Page::Paths,
     Page::TextNodes,
     Page::Lists,
     Page::ControlFlow,
@@ -174,14 +178,6 @@ const PAGES: [Page; 29] = [
 ];
 
 impl Page {
-    fn tab(self) -> TabId {
-        TabId::new(self as u64 + 2)
-    }
-
-    fn of(tab: TabId) -> Option<Page> {
-        PAGES.into_iter().find(|page| page.tab() == tab)
-    }
-
     fn title(self) -> &'static str {
         match self {
             Page::Docking => "Docking",
@@ -208,6 +204,7 @@ impl Page {
             Page::Dragging => "Dragging",
             Page::Scrolling => "Scrolling",
             Page::Frames => "Frames",
+            Page::Paths => "Paths",
             Page::TextNodes => "Text nodes",
             Page::Lists => "Lists and grids",
             Page::ControlFlow => "Control flow",
@@ -242,6 +239,7 @@ impl Page {
             Page::Dragging => ICON_DRAG_INDICATOR,
             Page::Scrolling => ICON_SWAP_VERT,
             Page::Frames => ICON_CROP_SQUARE,
+            Page::Paths => ICON_LINE_CURVE,
             Page::TextNodes => ICON_TITLE,
             Page::Lists => ICON_VIEW_COLUMN,
             Page::ControlFlow => ICON_ALT_ROUTE,
@@ -276,6 +274,7 @@ impl Page {
             Page::Dragging => "Draggables and drop targets",
             Page::Scrolling => "Scroll areas and scrollbars",
             Page::Frames => "Fills, outlines, padding, sizes",
+            Page::Paths => "Curves, joins, caps, dashes",
             Page::TextNodes => "Styles, wrapping and spans",
             Page::Lists => "Direction, spacing, tracks",
             Page::ControlFlow => "Show, ForEach and Dynamic",
@@ -292,6 +291,34 @@ pub struct DemoApp {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
+const WINDOW_BACKGROUNDS: [ColorRole; 3] = [
+    ColorRole::Background,
+    ColorRole::Surface,
+    ColorRole::SurfaceRaised,
+];
+
+#[derive(Clone, Copy)]
+struct DemoWindow {
+    title: Signal<String>,
+    background: Signal<Option<usize>>,
+}
+
+impl DemoWindow {
+    fn provide() -> Self {
+        let window = Self {
+            title: create_signal("beui demo".to_owned()),
+            background: create_signal(Some(0)),
+        };
+        provide_context(window);
+        window
+    }
+
+    fn clear_color(self) -> Memo<ColorRole> {
+        let background = self.background;
+        create_memo(move || WINDOW_BACKGROUNDS[background.get().unwrap_or_default()])
+    }
+}
+
 impl Default for DemoApp {
     fn default() -> Self {
         Self::new()
@@ -307,12 +334,19 @@ impl DemoApp {
         Self {
             document: build(move || {
                 provide_context(Today(today));
+                let window = DemoWindow::provide();
                 view! {
-                    <Demo />
+                    <Root title={window.title} clear_color={window.clear_color()}>
+                        <Demo />
+                    </Root>
                 }
             }),
         }
     }
+}
+
+pub fn page_titles() -> impl Iterator<Item = &'static str> {
+    PAGES.into_iter().map(Page::title)
 }
 
 #[component]
@@ -330,10 +364,13 @@ impl DemoApp {
         Self {
             document: build(move || {
                 provide_context(Today(today));
+                let window = DemoWindow::provide();
                 view! {
-                    <Container>|_|
-                        <LonePage page />
-                    </Container>
+                    <Root title={window.title} clear_color={window.clear_color()}>
+                        <Container>|_|
+                            <LonePage page />
+                        </Container>
+                    </Root>
                 }
             }),
         }
@@ -344,19 +381,13 @@ impl DemoApp {
 #[component]
 fn LonePage(page: Page) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background>
-            <PageView page />
-        </Frame>
+        <PageView page />
     }
 }
 
 impl beui::App for DemoApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
-    }
-
-    fn clear_color(&self) -> Color32 {
-        self.document.theme().background
     }
 }
 
@@ -370,28 +401,38 @@ struct DemoDialog {
     id: TabId,
     parent: TabId,
     modal: bool,
-    sheet: bool,
+    card: bool,
+    anchor: Option<[u32; 4]>,
     depth: u8,
 }
 
 impl DemoDialog {
     fn size(self) -> beui::Vec2 {
-        match self.sheet {
-            true => SHEET_SIZE,
+        match self.card {
+            true => CARD_SIZE,
             false => DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth),
         }
     }
 
+    fn anchor(self) -> Option<Rect> {
+        self.anchor.map(|[left, top, right, bottom]| {
+            Rect::from_min_max(
+                beui::pos2(f32::from_bits(left), f32::from_bits(top)),
+                beui::pos2(f32::from_bits(right), f32::from_bits(bottom)),
+            )
+        })
+    }
+
     fn presentation(self) -> DockDialogPresentation {
-        match self.sheet {
-            true => DockDialogPresentation::Sheet,
+        match self.card {
+            true => DockDialogPresentation::Card,
             false => DockDialogPresentation::Window,
         }
     }
 
     fn title(self) -> &'static str {
-        match (self.sheet, self.modal) {
-            (true, _) => "Sheet",
+        match (self.card, self.modal) {
+            (true, _) => "Card",
             (false, true) => "Modal dialog",
             (false, false) => "Dialog",
         }
@@ -414,14 +455,16 @@ impl DemoDialogs {
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        self.add(parent, modal, false);
+        self.add(parent, modal, false, None);
     }
 
-    fn open_sheet(&self, parent: TabId) {
-        self.add(parent, true, true);
+    fn open_card(&self, parent: TabId, anchor: Option<Rect>) {
+        self.add(parent, true, true, anchor);
     }
 
-    fn add(&self, parent: TabId, modal: bool, sheet: bool) {
+    fn add(&self, parent: TabId, modal: bool, card: bool, anchor: Option<Rect>) {
+        let anchor =
+            anchor.map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits));
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
@@ -432,7 +475,8 @@ impl DemoDialogs {
                 id,
                 parent,
                 modal,
-                sheet,
+                card,
+                anchor,
                 depth,
             });
         });
@@ -467,66 +511,61 @@ impl DemoDialogs {
 #[derive(Clone, Copy)]
 struct Pages {
     layout: DockingLayout<TabId>,
-    open: Signal<Vec<Page>>,
+    documents: DockDocuments<TabId, Page, Page>,
     dialogs: DemoDialogs,
+}
+
+#[cfg(test)]
+thread_local! {
+    static SHOWN_PAGES: std::cell::Cell<Option<Pages>> = const { std::cell::Cell::new(None) };
 }
 
 impl Pages {
     fn new(dialogs: DemoDialogs) -> Self {
-        let open = create_signal(vec![Page::Docking]);
-        Self {
-            layout: DockingLayout::new(),
-            open,
+        let layout = DockingLayout::new();
+        let documents = DockDocuments::new(
+            layout,
+            |slot: DockSlot| TabId::new(CATALOG.value() + slot.value()),
+            |page: &Page| *page,
+        );
+        documents.open(Page::Docking, true);
+        let pages = Self {
+            layout,
+            documents,
             dialogs,
-        }
+        };
+        #[cfg(test)]
+        SHOWN_PAGES.with(|shown| shown.set(Some(pages)));
+        pages
     }
 
     fn open(&self, page: Page, beside: bool) {
-        if self.open.with_untracked(|open| open.contains(&page)) {
-            self.layout.show(&page.tab());
-            return;
+        if let DockOpened::Replaced(slot, _) = self.documents.open(page, beside) {
+            self.dialogs.close_from(self.documents.key(slot));
         }
-        let shown = self.active().filter(|_| !beside);
-        batch(|| match shown {
-            Some(shown) if self.layout.replace(&shown.tab(), page.tab()) => {
-                self.dialogs.close_from(shown.tab());
-                self.open.update(|open| {
-                    for held in open.iter_mut().filter(|held| **held == shown) {
-                        *held = page;
-                    }
-                });
-            }
-            _ => self.open.update(|open| open.push(page)),
-        });
     }
 
-    fn close(&self, page: Page) {
-        batch(|| {
-            self.dialogs.close_from(page.tab());
-            self.open.update(|open| open.retain(|other| *other != page));
-        });
+    fn close(&self, document: DockDocument<TabId, Page, Page>) {
+        self.dialogs.close_from(document.key());
+        document.close();
     }
 
     fn reset(&self) {
-        batch(|| {
-            self.open.set(vec![Page::Docking]);
-            self.layout.reset();
-        });
+        self.documents.clear();
+        self.layout.reset();
+        self.documents.open(Page::Docking, true);
     }
 
     fn active(&self) -> Option<Page> {
-        self.layout.state().with(|state| {
-            state
-                .recent_tabs()
-                .into_iter()
-                .filter(|tab| *tab != CATALOG)
-                .find(|tab| {
-                    state
-                        .find(*tab)
-                        .is_some_and(|position| state.active_tab(position.leaf) == Some(*tab))
-                })
-                .and_then(Page::of)
-        })
+        let slot = self.documents.shown()?;
+        Some(self.documents.content(slot)?.get())
+    }
+
+    #[cfg(test)]
+    fn tab_of(page: Page) -> Option<TabId> {
+        let pages = SHOWN_PAGES.with(std::cell::Cell::get)?;
+        let slot = untrack(|| pages.documents.find(&page))?;
+        Some(pages.documents.key(slot))
     }
 }
 
@@ -583,7 +622,6 @@ fn DemoShell() -> NodeId {
     let active = create_selector(move || pages.active());
     let layout = pages.layout;
     switch_tabs_with_alt_q(layout);
-    let open = pages.open;
     let drag_modifier = create_signal(None);
     provide_context(DragModifier {
         held: drag_modifier,
@@ -591,64 +629,71 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Frame padding=SHELL_PADDING>
-                    <DemoToolbar pages mobile />
-                </Frame>
-                <Separator />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
-                    <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
-                        <DockPane id="catalog">
-                            <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
-                                <CatalogPanel pages active={active} />
-                            </DockTab>
-                        </DockPane>
-                        <DockPane
-                            id="pages"
-                            empty={move || view! {
-                                <EmptyPanel />
-                            }}
-                        >
-                            <ForEach keys={open}>|page: Page|
+        <List spacing=0.0>
+            <Frame padding=SHELL_PADDING>
+                <DemoToolbar pages mobile />
+            </Frame>
+            <Separator />
+            <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
+                <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
+                    <DockPane id="catalog">
+                        <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
+                            <CatalogPanel pages active={active} />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane
+                        id="pages"
+                        empty={move || view! {
+                            <EmptyPanel />
+                        }}
+                    >
+                        <DockDocumentTabs
+                            documents={pages.documents}
+                        >|document: DockDocument<TabId, Page, Page>| {
+                            let page = document.content();
+                            view! {
                                 <DockTab
-                                    id={page.tab()}
-                                    title={page.title()}
-                                    icon={page.icon()}
-                                    on_close={move || pages.close(page)}
+                                    id={document.key()}
+                                    title={create_memo(move || page.get().title().to_owned())}
+                                    icon={create_memo(move || page.get().icon().to_owned())}
+                                    on_close={move || pages.close(document)}
                                 >
-                                    <Container>|_|
-                                        <PageView page />
-                                    </Container>
+                                    <DockDocumentBody document>|page: ReadSignal<Page>|
+                                        <Container>|_|
+                                            <PageView page={page.get_untracked()} />
+                                        </Container>
+                                    </DockDocumentBody>
                                 </DockTab>
-                            </ForEach>
-                        </DockPane>
-                    </DockSplit>
-                    <ForEach keys={attached}>|dialog: DemoDialog|
-                        <DockDialog
-                            id={dialog.id}
-                            parent={dialog.parent}
-                            modal={dialog.modal}
-                            presentation={dialog.presentation()}
-                            title={dialog.title()}
-                            icon=ICON_OPEN_IN_NEW
-                            size={dialog.size()}
-                            on_close={move || dialogs.close(dialog.id)}
-                        >
-                            <DemoDialogBody dialog />
-                        </DockDialog>
-                    </ForEach>
-                </Docking>
-            </List>
-        </Frame>
+                            }
+                        }</DockDocumentTabs>
+                    </DockPane>
+                </DockSplit>
+                <ForEach keys={attached}>|dialog: DemoDialog|
+                    <DockDialog
+                        id={dialog.id}
+                        parent={dialog.parent}
+                        modal={dialog.modal}
+                        presentation={dialog.presentation()}
+                        anchor={dialog.anchor()}
+                        dismiss_on_outside_press={dialog.card}
+                        title={dialog.title()}
+                        icon=ICON_OPEN_IN_NEW
+                        size={dialog.size()}
+                        on_close={move || dialogs.close(dialog.id)}
+                    >
+                        <DemoDialogBody dialog />
+                    </DockDialog>
+                </ForEach>
+            </Docking>
+        </List>
     }
 }
 
 #[component]
 fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
-    match dialog.sheet {
+    match dialog.card {
         true => view! {
-            <AttachedSheet />
+            <AttachedCard />
         },
         false => view! {
             <AttachedDialog modal={dialog.modal} />
@@ -731,6 +776,9 @@ fn PageView(page: Page) -> NodeId {
         Page::Frames => view! {
             <FramesPage />
         },
+        Page::Paths => view! {
+            <PathsPage />
+        },
         Page::TextNodes => view! {
             <TextNodesPage />
         },
@@ -751,39 +799,46 @@ fn PageView(page: Page) -> NodeId {
 
 #[component]
 fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
-    let selected_theme = create_signal(Some(0));
+    let layers = with_document(|document| document.watch_preference_layers());
+    let selected_theme = create_memo(move || {
+        let theme = layers.get().layer(PreferenceSource::App).theme;
+        Some(
+            theme
+                .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
+                .map_or(0, |index| index + 1),
+        )
+    });
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <Text style=TextStyle::TITLE string="beui" />
+            <Text style=TextStyle::TITLE>"beui"</Text>
             <Show condition={wide}>
-                <Text style=TextStyle::CAPTION string="retained mode ui" />
+                <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
-                <Checkbox
-                    label="Mobile"
-                    checked={mobile}
-                    on_change={move |on: bool| mobile.set(on)}
-                />
+                <Checkbox label="Mobile" checked={mobile} />
             </Show>
             <Select
                 label="Theme"
                 options={view! {
-                    <ForEach
-                        keys={Theme::BUILT_IN.iter().map(|(label, _)| *label).collect::<Vec<_>>()}
-                    >|label: &'static str|
-                        <ChoiceOption label />
+                    <ChoiceOption label="System" />
+                    <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                        <ChoiceOption label={kind.name()} />
                     </ForEach>
                 }}
-                selected={selected_theme}
-                on_change={move |index: Option<usize>| {
-                    if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
-                        selected_theme.set(index);
-                        with_document(|document| document.set_theme(*theme));
-                    }
-                }}
+                selected={Binding::new(selected_theme, move |index: Option<usize>| {
+                    let theme = index
+                        .and_then(|index| index.checked_sub(1))
+                        .and_then(|index| ThemeKind::ALL.get(index).copied());
+                    with_document(|document| {
+                        if let Some(context) = document.context() {
+                            let app = context.preference_layer(PreferenceSource::App);
+                            context.set_preference_layer(PreferenceSource::App, PreferenceLayer { theme, ..app });
+                        }
+                    });
+                })}
             />
             <IconButton
                 @test_id={"demo.inspector"}
@@ -846,8 +901,8 @@ fn CatalogGroup(
         <List spacing=0.0>
             <Frame padding=CATALOG_GROUP_PADDING>
                 <List spacing=2.0>
-                    <Text style=TextStyle::HEADING string={title} />
-                    <Text style=TextStyle::CAPTION string={summary} ellipsis=true />
+                    <Text style=TextStyle::HEADING>{title}</Text>
+                    <Text style=TextStyle::CAPTION ellipsis=true>{summary}</Text>
                 </List>
             </Frame>
             <ForEach keys={listed}>|page: Page| {
@@ -874,8 +929,8 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                     <Icon glyph={page.icon()} />
                 </Text>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Text string={page.title()} />
-                    <Text style=TextStyle::CAPTION string={page.summary()} ellipsis=true />
+                    <Text>{page.title()}</Text>
+                    <Text style=TextStyle::CAPTION ellipsis=true>{page.summary()}</Text>
                 </List>
             </List>
         </ListRow>
@@ -887,11 +942,8 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding=PAGE_PADDING>
             <List spacing=4.0 align=Align::Center>
-                <Text style=TextStyle::HEADING string="Nothing open" />
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Open a page from Components to get started."
-                />
+                <Text style=TextStyle::HEADING>"Nothing open"</Text>
+                <Text style=TextStyle::CAPTION>"Open a page from Components to get started."</Text>
             </List>
         </Frame>
     }

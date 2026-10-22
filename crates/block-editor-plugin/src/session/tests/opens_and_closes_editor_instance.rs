@@ -7,6 +7,7 @@ fn opens_and_closes_editor_instance() {
     let instance = EditorInstanceId(4);
     let opened = session.receive(Message::Editor(block_plugin_api::EditorMessage::Open {
         instance,
+        editor: [6; 16],
         block_id: [1; 16],
         block_type: [2; 16],
         view_block: None,

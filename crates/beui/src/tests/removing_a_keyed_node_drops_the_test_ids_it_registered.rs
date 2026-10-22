@@ -7,15 +7,15 @@ use crate::unstyled::Button;
 fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
     let _root = crate::reactive::RootScope::new();
     let drop_two = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let items = create_signal(vec![1i64, 2]);
         view! {
             <List spacing=0.0>
                 <Button @node_ref=&drop_two on_click={move || items.set(vec![1])}>
-                    <Text string="drop" />
+                    <Text>"drop"</Text>
                 </Button>
                 <ForEach keys={items}>|value: i64|
-                    <Text @test_id={format!("item.{value}")} string={value.to_string()} />
+                    <Text @test_id={format!("item.{value}")}>{value.to_string()}</Text>
                 </ForEach>
             </List>
         }

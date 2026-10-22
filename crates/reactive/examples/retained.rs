@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use reactive::{Get, Scope, Set, batch, create_effect, create_memo, create_signal};
+use reactive::{Get, Scope, Set, create_effect, create_memo, create_signal, flush};
 
 #[derive(Default)]
 struct Label {
@@ -19,15 +19,17 @@ fn main() {
         create_effect(move || label.borrow_mut().text = text.get());
     });
 
-    batch(|| {
+    {
         let _label = label.borrow_mut();
         count.set(1);
         count.update(|count| *count += 1);
-    });
+    }
+    flush();
     assert_eq!(label.borrow().text, "Count: 2");
 
     scope.dispose();
     count.set(3);
+    flush();
     assert_eq!(label.borrow().text, "Count: 2");
     println!("{}", label.borrow().text);
 }

@@ -4,7 +4,7 @@ const SECOND_ITEM: &str = "demo.rich.checkbox.8";
 
 fn checked(test: &DocumentTest) -> bool {
     let checkbox = test.document().find_test_id(SECOND_ITEM).unwrap();
-    checkbox_checked(test.document(), checkbox)
+    test.document().api::<ToggleApi>(checkbox).checked().get()
 }
 
 #[test]

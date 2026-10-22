@@ -31,7 +31,7 @@ fn a_database_view_given_content_references_its_database() {
     instances.next_screens(PASS);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&view)?;
-        (database_in(&held.bytes) == Some(database)).then_some(())
+        (database_in(held.bytes()) == Some(database)).then_some(())
     })
     .expect("the view never took the content it was given");
 
@@ -45,5 +45,5 @@ fn a_database_view_given_content_references_its_database() {
     seed(&mut instances, view, other);
     crate::be::flush();
     let held = crate::be::content(view).expect("the view is still open");
-    assert_eq!(database_in(&held.bytes), Some(database));
+    assert_eq!(database_in(held.bytes()), Some(database));
 }

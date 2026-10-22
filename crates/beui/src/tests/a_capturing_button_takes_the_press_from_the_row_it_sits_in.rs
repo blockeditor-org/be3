@@ -9,7 +9,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     let inner_clicks = create_signal(0u32);
     let inner = NodeRef::new();
     let row = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <unstyled::Button
@@ -17,7 +17,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
                     on_click={move || row_clicks.update(|row_clicks| *row_clicks += 1)}
                 >|_: unstyled::ButtonHandle|
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                        <Text string="a row that opens something" />
+                        <Text>"a row that opens something"</Text>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <unstyled::Button
                             @node_ref=&inner
@@ -27,7 +27,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
                                 inner_clicks.update(|inner_clicks| *inner_clicks += 1)
                             }}
                             content={move |_: unstyled::ButtonHandle| view! {
-                                <Text string="add" />
+                                <Text>"add"</Text>
                             }}
                         />
                     </List>

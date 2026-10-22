@@ -9,7 +9,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let closed = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

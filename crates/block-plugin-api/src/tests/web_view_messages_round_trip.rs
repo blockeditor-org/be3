@@ -34,8 +34,10 @@ fn web_view_messages_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
+                follows_camera: false,
             }],
             occluders: Vec::new(),
+            camera: None,
         }),
         Message::Editor(EditorMessage::WebViewCommand {
             instance: EditorInstanceId(5),

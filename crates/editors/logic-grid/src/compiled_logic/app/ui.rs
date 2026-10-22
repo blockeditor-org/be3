@@ -61,38 +61,37 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
     });
 
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
-                            <Text style=TextStyle::HEADING string="Compiled from" />
+                            <Text style=TextStyle::HEADING>"Compiled from"</Text>
                             <BlockLink
                                 editor={editor}
                                 block={source}
                                 @test_id={"compiled-logic.source"}
                             />
-                            <Text style=TextStyle::CAPTION string={summary} />
+                            <Text style=TextStyle::CAPTION>{summary}</Text>
                         </List>
                         <Separator />
                         <List spacing=6.0>
-                            <Text style=TextStyle::HEADING string="Ports" />
+                            <Text style=TextStyle::HEADING>"Ports"</Text>
                             <Lines lines={ports} />
                         </List>
                         <Separator />
                         <List spacing=6.0>
-                            <Text style=TextStyle::HEADING string="Calls" />
+                            <Text style=TextStyle::HEADING>"Calls"</Text>
                             <Show condition={no_calls}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string="This component calls nothing else."
-                                />
+                                <Text style=TextStyle::CAPTION>
+                                    "This component calls nothing else."
+                                </Text>
                             </Show>
                             <Calls editor={editor} calls={calls} />
                         </List>
                         <Separator />
                         <List spacing=6.0>
-                            <Text style=TextStyle::HEADING string="Program" />
+                            <Text style=TextStyle::HEADING>"Program"</Text>
                             <Lines lines={program} monospace=true />
                         </List>
                     </List>
@@ -132,10 +131,11 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
                 });
                 view! {
                     <Text
-                        string={line}
                         size=TextSize::Sm
                         family={if monospace { Family::Mono } else { Family::Sans }}
-                    />
+                    >
+                        {line}
+                    </Text>
                 }
             }</ForEach>
         </List>

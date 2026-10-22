@@ -12,21 +12,27 @@ const SHADES: [Color32; 3] = [
 fn scrolling() -> Document {
     build(|| {
         view! {
-            <Frame fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
-                <List spacing=0.0>
-                    <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
-                    <Frame height=40.0 fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
-                        <Scroll
-                            @test_id="scroll"
-                            scrollbar={ScrollbarStyle::default().fading(12.0)}
-                        >
-                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
-                                <Frame height=10.0 radius=0.0 fill={SHADES[row % SHADES.len()]} />
-                            </ForEach>
-                        </Scroll>
-                    </Frame>
-                </List>
-            </Frame>
+            <Root clear_color={beui_core::color::Color32::BLACK}>
+                <Frame fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
+                    <List spacing=0.0>
+                        <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
+                        <Frame height=40.0 fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
+                            <Scroll
+                                @test_id="scroll"
+                                scrollbar={ScrollbarStyle::default().fading(12.0)}
+                            >
+                                <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                                    <Frame
+                                        height=10.0
+                                        radius=0.0
+                                        fill={SHADES[row % SHADES.len()]}
+                                    />
+                                </ForEach>
+                            </Scroll>
+                        </Frame>
+                    </List>
+                </Frame>
+            </Root>
         }
     })
 }

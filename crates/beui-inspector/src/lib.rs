@@ -21,9 +21,10 @@ use beui_core::input::{
 use beui_core::painter::Painter;
 
 use crate::screen_reader::{Command, ScreenReader};
-use beui_components_styled::{DocumentTheme, Theme};
+use beui_components_styled::Theme;
 use beui_core::document::{Document, Tools, trim_bottom};
 use beui_core::node::NodeId;
+use beui_core::preferences::{PreferenceLayer, PreferenceSource};
 use beui_core::screen_simulation::ScreenSimulation;
 use beui_view::reactive::*;
 
@@ -73,8 +74,6 @@ pub struct State {
     pub picking: Cell<bool>,
     pub touch_emulation: Cell<bool>,
     pub mouse_simulation: Cell<bool>,
-    pub disable_animations: Cell<bool>,
-    pub requested_motion: Cell<Option<beui_core::animation::Motion>>,
     pub flash_changes: Cell<bool>,
     pub flash_damage: Cell<bool>,
     pub simulated_pixels_per_point: Cell<Option<f32>>,
@@ -86,8 +85,8 @@ pub struct State {
     pub color_vision: Cell<ColorVision>,
     commands: RefCell<Vec<Command>>,
     back_gestures: RefCell<Vec<BackGesture>>,
-    pub theme: Cell<Theme>,
-    requested_theme: Cell<Option<Theme>>,
+    pub developer: Cell<PreferenceLayer>,
+    requested_developer: Cell<Option<PreferenceLayer>>,
     requested_renderer: Cell<Option<usize>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
@@ -98,7 +97,7 @@ pub struct State {
 }
 
 impl State {
-    fn new(ctx: &Context, theme: Theme) -> Self {
+    fn new(ctx: &Context) -> Self {
         Self {
             expansion: RefCell::new(HashMap::new()),
             tab: Cell::new(InspectorTab::default()),
@@ -108,8 +107,6 @@ impl State {
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             mouse_simulation: Cell::new(ctx.mouse_simulation()),
-            disable_animations: Cell::new(!ctx.motion().animates()),
-            requested_motion: Cell::new(None),
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
@@ -121,8 +118,8 @@ impl State {
             color_vision: Cell::new(ColorVision::Typical),
             commands: RefCell::new(Vec::new()),
             back_gestures: RefCell::new(Vec::new()),
-            theme: Cell::new(theme),
-            requested_theme: Cell::new(None),
+            developer: Cell::new(ctx.preference_layer(PreferenceSource::Developer)),
+            requested_developer: Cell::new(None),
             requested_renderer: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
@@ -252,9 +249,9 @@ impl State {
         std::mem::take(&mut self.back_gestures.borrow_mut())
     }
 
-    fn choose_theme(&self, theme: Theme) {
-        self.theme.set(theme);
-        self.requested_theme.set(Some(theme));
+    fn override_preferences(&self, layer: PreferenceLayer) {
+        self.developer.set(layer);
+        self.requested_developer.set(Some(layer));
         self.touch();
     }
 
@@ -390,7 +387,7 @@ pub struct Inspector {
     selection: Signal<Vec<Key>>,
     panel_compact: Signal<bool>,
     shown_compact: bool,
-    tree: NodeRef,
+    tree: ComponentRef<beui_components_styled::TreeApi<Key>>,
     bar: panel::Bar,
     toolbar: responsive::Toolbar,
     resizing: Option<Resize>,
@@ -408,8 +405,8 @@ pub struct Inspector {
 }
 
 impl Inspector {
-    pub fn new(ctx: &Context, theme: Theme) -> Self {
-        let state = OwnedStored::new(State::new(ctx, theme));
+    pub fn new(ctx: &Context) -> Self {
+        let state = OwnedStored::new(State::new(ctx));
         let panel = panel::build(state.handle());
         let bar = panel::build_bar(state.handle());
         let toolbar = responsive::build(state.handle());
@@ -495,16 +492,16 @@ impl Inspector {
     }
 
     pub fn focused_row(&self) -> Option<Key> {
-        beui_components_styled::tree_focused::<Key>(&self.document, self.tree.get())
+        self.tree_api()?.focused()
     }
 
     pub fn highlighted(&self) -> Option<NodeId> {
         self.state().hovered.get().or_else(|| {
-            let tree = self.tree_node()?;
+            let tree = self.tree_api()?;
             self.document
                 .watch_focus_visible()
                 .get_untracked()
-                .then(|| beui_components_styled::tree_focused::<Key>(&self.document, tree))
+                .then(|| tree.focused())
                 .flatten()
                 .map(Key::node)
         })
@@ -666,20 +663,13 @@ impl Inspector {
         }
         ctx.set_touch_emulation(self.state().touch_emulation.get());
         crate::mouse_simulation::simulate(ctx, self.state().mouse_simulation.get());
-        if let Some(motion) = self.state().requested_motion.take() {
-            ctx.set_motion(motion);
+        if let Some(layer) = self.state().requested_developer.take() {
+            ctx.set_preference_layer(PreferenceSource::Developer, layer);
         }
-        self.state()
-            .disable_animations
-            .set(!ctx.motion().animates());
         ctx.set_accessibility_active(self.state().accessibility.get());
         target.track_changes(self.state().flash_changes.get());
         target.track_damage(self.state().flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state().simulated_pixels_per_point.get());
-        if let Some(theme) = self.state().requested_theme.take() {
-            target.set_theme(theme);
-            ctx.request_repaint();
-        }
         if let Some(index) = self.state().requested_renderer.take() {
             ctx.choose_renderer(index);
         }
@@ -979,11 +969,8 @@ impl Inspector {
         let root = self.document.root()?;
         let order = self.document.focusables_within(root);
         let rows = self
-            .tree_node()
-            .map(|tree| {
-                let rows = beui_components_styled::tree_rows(&self.document, tree);
-                self.document.focusables_within(rows)
-            })
+            .tree_api()
+            .map(|tree| self.document.focusables_within(tree.node()))
             .unwrap_or_default();
         order
             .iter()
@@ -992,10 +979,10 @@ impl Inspector {
             .copied()
     }
 
-    fn tree_node(&self) -> Option<NodeId> {
+    fn tree_api(&self) -> Option<beui_components_styled::TreeApi<Key>> {
         self.tree
             .try_get()
-            .filter(|tree| self.document.contains(*tree))
+            .filter(|tree| self.document.contains(tree.node()))
     }
 
     fn release_focus(&mut self, ctx: &Context) {
@@ -1219,21 +1206,20 @@ pub fn install(document: &mut Document) {
 
 impl Tools for InspectorTools {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect) {
-        let theme = document.theme();
         if chord_pressed(ctx, InputKey::I) {
             self.inspector = match self.inspector {
                 Some(_) => None,
-                None => Some(Box::new(Inspector::new(ctx, theme))),
+                None => Some(Box::new(Inspector::new(ctx))),
             };
         }
         if chord_pressed(ctx, InputKey::C) {
             self.inspector
-                .get_or_insert_with(|| Box::new(Inspector::new(ctx, theme)))
+                .get_or_insert_with(|| Box::new(Inspector::new(ctx)))
                 .toggle_picking();
         }
         if chord_pressed(ctx, InputKey::M) {
             self.inspector
-                .get_or_insert_with(|| Box::new(Inspector::new(ctx, theme)))
+                .get_or_insert_with(|| Box::new(Inspector::new(ctx)))
                 .toggle_responsive();
         }
         if chord_pressed(ctx, InputKey::F)
@@ -1313,7 +1299,7 @@ impl Tools for InspectorTools {
             document.hide();
         }
         if document.take_inspector_request() && self.inspector.is_none() {
-            self.inspector = Some(Box::new(Inspector::new(ctx, document.theme())));
+            self.inspector = Some(Box::new(Inspector::new(ctx)));
             ctx.request_repaint();
         }
 

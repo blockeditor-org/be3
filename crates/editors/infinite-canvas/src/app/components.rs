@@ -33,7 +33,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
     let add_button = NodeRef::new();
     let add = move || state.open_component_picker(node_anchor(&add_button));
     view! {
-        <Accordion title="Components" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Components" open={open}>
             <List spacing=SPACING>
                 <ForEach keys={schemas}>|schema_id: Uuid|
                     <ComponentRow state schema_id />
@@ -154,11 +154,11 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     let remove_id = format!("{prefix}.remove");
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::CAPTION string={named} />
+            <Text style=TextStyle::CAPTION>{named}</Text>
             <Show condition={partial}>|| {
                 let add_id = add_id.clone(); view! {
                     <List spacing=6.0>
-                        <Text style=TextStyle::CAPTION string={coverage} />
+                        <Text style=TextStyle::CAPTION>{coverage}</Text>
                         <List direction=Direction::Horizontal spacing=4.0>
                             <Button
                                 label="Add to all"

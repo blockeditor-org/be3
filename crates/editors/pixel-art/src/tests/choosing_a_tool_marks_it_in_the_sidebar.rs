@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::reactive::Get;
 
 #[test]
 fn choosing_a_tool_marks_it_in_the_sidebar() {
@@ -19,5 +20,5 @@ fn pressed(editor: &BeuiTest<PixelArtApp>, tool: &str) -> bool {
         .document()
         .find_test_id(&format!("pixel-art.tool.{tool}"))
         .expect("the tool has a button");
-    toggle_button_pressed(editor.document(), node)
+    editor.document().api::<ToggleApi>(node).checked().get()
 }

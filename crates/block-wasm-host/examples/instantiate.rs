@@ -142,14 +142,14 @@ fn hello_accepted() -> Message {
         surface: Some(block_plugin_api::SurfaceSpec {
             format: block_plugin_api::SurfaceFormat::Rgba8Unorm,
         }),
-        theme: block_plugin_api::Theme::Dark,
-        motion: block_plugin_api::Motion::default(),
+        preferences: block_plugin_api::Preferences::default(),
     })
 }
 
 fn open() -> Message {
     Message::Editor(EditorMessage::Open {
         instance: EditorInstanceId(1),
+        editor: [6; 16],
         block_id: [1; 16],
         block_type: [2; 16],
         view_block: None,

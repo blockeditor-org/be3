@@ -10,7 +10,7 @@ const FOCUSED: usize = 250;
 fn focusing_a_node_inside_a_culled_row_lays_it_out() {
     let _root = crate::reactive::RootScope::new();
     let rows: Vec<NodeRef> = (0..ROWS).map(|_| NodeRef::new()).collect();
-    let document = build({
+    let document = build_node({
         let rows = rows.clone();
         move || {
             view! {

@@ -5,14 +5,19 @@ use beui::styled::*;
 struct SidebarApp;
 
 impl crate::BeuiApp for SidebarApp {
-    fn view(editor: crate::Editor) -> beui::NodeId {
-        let canvas = NodeRef::new();
-        editor.content(&canvas);
+    fn view(editor: crate::Editor) -> beui::styled::Root {
+        let node = {
+            let canvas = NodeRef::new();
+            editor.content(&canvas);
+            view! {
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <Frame @sizing=ItemSize::Fixed(100.0) />
+                    <Frame @node_ref={&canvas} @sizing=ItemSize::Percent(100.0) />
+                </List>
+            }
+        };
         view! {
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing=ItemSize::Fixed(100.0) />
-                <Frame @node_ref={&canvas} @sizing=ItemSize::Percent(100.0) />
-            </List>
+            <beui::styled::Root>{node}</beui::styled::Root>
         }
     }
 }

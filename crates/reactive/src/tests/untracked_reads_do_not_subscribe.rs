@@ -16,6 +16,8 @@ fn untracked_reads_do_not_subscribe() {
         });
     });
     incidental.set(2);
+    flush();
     trigger.set(1);
+    flush();
     assert_eq!(*seen.borrow(), [2, 4]);
 }

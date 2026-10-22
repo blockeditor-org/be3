@@ -1,7 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, BlockTypeDescriptor, EditorCapabilities, EditorInstanceId, EditorManifest,
-    EditorRegion, FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
+    BlockPick, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion, FrameSpec,
+    HostPanel, InteractionMode, PluginManifest, ResizeMode,
 };
 use std::sync::{
     Arc,
@@ -12,7 +12,7 @@ use uuid::Uuid;
 pub(crate) mod discovery;
 
 use super::{
-    ArtifactSession, ArtifactStatus, BlockTypeEntry, CreationStep, DirectEditorCapabilities,
+    ArtifactSession, ArtifactStatus, CreationStep, DirectEditorCapabilities,
     DirectEditorInteraction, DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
 use crate::{
@@ -23,24 +23,6 @@ use crate::{
     },
     surfaces::HostedRegion,
 };
-
-pub(super) fn block_type_descriptors(
-    types: impl IntoIterator<Item = (uuid::Uuid, BlockTypeEntry)>,
-) -> Vec<BlockTypeDescriptor> {
-    types
-        .into_iter()
-        .map(|(block_type, entry)| BlockTypeDescriptor {
-            block_type: block_type.into_bytes(),
-            display_name: entry.display_name,
-            icon_codepoint: entry.icon.to_owned(),
-            children: block_plugin_api::ChildOperations {
-                add: entry.add,
-                delete: entry.delete,
-                replace: entry.replace,
-            },
-        })
-        .collect()
-}
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
@@ -180,13 +162,12 @@ const CREATION_DIALOG_HEIGHT: f32 = 96.0;
 const UNSUPPORTED_EDITOR_SIZE: Vec2 = vec2(400.0, 120.0);
 
 pub(crate) struct PluginEditor {
-    plugin: Option<Arc<PluginManifest>>,
+    plugin: Option<(Arc<PluginManifest>, Uuid)>,
     id: Uuid,
     block_type: Uuid,
     view_block: Option<Uuid>,
     instance: EditorInstanceId,
     opened: bool,
-    fullscreen: bool,
     presence_active: bool,
     shown: u32,
 }
@@ -208,15 +189,20 @@ impl PickSource {
 }
 
 impl PluginEditor {
-    pub(super) fn new(plugin: Arc<PluginManifest>, id: Uuid, block_type: Uuid) -> Self {
-        Self::open(Some(plugin), id, block_type)
+    pub(super) fn new(
+        plugin: Arc<PluginManifest>,
+        editor: Uuid,
+        id: Uuid,
+        block_type: Uuid,
+    ) -> Self {
+        Self::open(Some((plugin, editor)), id, block_type)
     }
 
     pub(super) fn unsupported(id: Uuid, block_type: Uuid) -> Self {
         Self::open(None, id, block_type)
     }
 
-    fn open(plugin: Option<Arc<PluginManifest>>, id: Uuid, block_type: Uuid) -> Self {
+    fn open(plugin: Option<(Arc<PluginManifest>, Uuid)>, id: Uuid, block_type: Uuid) -> Self {
         Self {
             plugin,
             id,
@@ -224,7 +210,6 @@ impl PluginEditor {
             view_block: None,
             instance: next_instance(),
             opened: false,
-            fullscreen: false,
             presence_active: false,
             shown: 0,
         }
@@ -236,7 +221,8 @@ impl PluginEditor {
     }
 
     fn manifest(&self) -> Option<&EditorManifest> {
-        self.plugin.as_ref()?.editor(self.block_type.into_bytes())
+        let (plugin, editor) = self.plugin.as_ref()?;
+        plugin.editor(editor.into_bytes())
     }
 
     fn capabilities(&self) -> EditorCapabilities {
@@ -245,32 +231,27 @@ impl PluginEditor {
     }
 
     fn sync_active_presence(&mut self, active: bool) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        if active == self.presence_active {
+        if self.plugin.is_none() || active == self.presence_active {
             return;
         }
         self.presence_active = active;
-        crate::plugin_host::set_presence_visible(&plugin.identity.id, self.instance, active);
+        if let Some(plugin) = self.plugin() {
+            crate::plugin_host::set_presence_visible(&plugin.identity.id, self.instance, active);
+        }
     }
 
     fn presenting(&self) -> bool {
-        self.plugin.as_ref().is_some_and(|plugin| {
+        self.plugin().is_some_and(|plugin| {
             crate::plugin_host::presenting(&plugin.identity.id, self.instance)
         })
     }
 
     fn stop_presenting(&mut self) {
-        let Some(plugin) = &self.plugin else {
+        let Some(plugin) = self.plugin() else {
             return;
         };
-        let fullscreen = std::mem::take(&mut self.fullscreen);
         if !self.opened {
             return;
-        }
-        if fullscreen {
-            host::set_fullscreen(false);
         }
         if self.presenting() {
             crate::plugin_host::present(&plugin.identity.id, self.instance, false);
@@ -279,7 +260,7 @@ impl PluginEditor {
     }
 
     pub(crate) fn pick_source(&self) -> Option<PickSource> {
-        let plugin = self.plugin.as_ref()?;
+        let plugin = self.plugin()?;
         Some(PickSource {
             plugin_id: plugin.identity.id.clone(),
             instance: self.instance,
@@ -287,11 +268,10 @@ impl PluginEditor {
     }
 
     fn close(&mut self) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        std::mem::take(&mut self.opened);
-        crate::plugin_host::close(&plugin.identity.id, self.instance);
+        self.opened = false;
+        if let Some(plugin) = self.plugin() {
+            crate::plugin_host::close(&plugin.identity.id, self.instance);
+        }
     }
 
     pub(crate) fn id(&self) -> Uuid {
@@ -299,13 +279,11 @@ impl PluginEditor {
     }
 
     pub(crate) fn plugin(&self) -> Option<&Arc<PluginManifest>> {
-        self.plugin.as_ref()
+        self.plugin.as_ref().map(|(plugin, _)| plugin)
     }
 
     pub(crate) fn editor_id(&self) -> Option<Uuid> {
-        self.plugin
-            .as_ref()
-            .map(|plugin| Uuid::from_bytes(plugin.editor_id()))
+        self.plugin.as_ref().map(|(_, editor)| *editor)
     }
 
     pub(crate) fn instance(&self) -> EditorInstanceId {
@@ -313,11 +291,14 @@ impl PluginEditor {
     }
 
     pub(crate) fn role(&self) -> InstanceRole {
-        InstanceRole::Editor(EditorBlock {
-            id: self.id,
-            block_type: self.block_type,
-            view_block: self.view_block,
-        })
+        InstanceRole::Editor(
+            self.editor_id().unwrap_or_default(),
+            EditorBlock {
+                id: self.id,
+                block_type: self.block_type,
+                view_block: self.view_block,
+            },
+        )
     }
 
     pub(crate) fn accepts(&self, request: block_plugin_api::ShellRequest) -> bool {
@@ -347,9 +328,6 @@ impl PluginEditor {
             false => self.shown = self.shown.saturating_sub(1),
         }
         self.sync_active_presence(self.shown > 0);
-        if self.shown == 0 {
-            self.stop_presenting();
-        }
     }
 
     pub(crate) fn block_type(&self) -> Uuid {
@@ -366,12 +344,11 @@ impl PluginEditor {
 
     pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
         let replace = be_block::ChildChange::Replace { old, new };
-        let Some(plugin) = &self.plugin else {
+        let Some(plugin) = self.plugin() else {
             return self.change_child(replace);
         };
-        if !self
-            .manifest()
-            .is_some_and(|editor| editor.children.replace)
+        if !be_block::block_type(self.block_type)
+            .is_some_and(|block_type| block_type.children.replace)
         {
             return None;
         }
@@ -387,7 +364,7 @@ impl PluginEditor {
     }
 
     pub(crate) fn render_aspect_ratio(&self) -> Option<f32> {
-        let plugin = self.plugin.as_ref()?;
+        let plugin = self.plugin()?;
         crate::plugin_host::aspect_ratio(&plugin.identity.id, self.instance)
     }
 
@@ -398,6 +375,7 @@ impl PluginEditor {
             preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
             supports_pan_and_zoom: capabilities.pan_and_zoom,
             max_zoom: capabilities.max_zoom,
+            pan: capabilities.pan,
         }
     }
 
@@ -425,7 +403,7 @@ impl PluginEditor {
     }
 
     pub(crate) fn direct_editor_intrinsic_size(&mut self) -> Option<Vec2> {
-        let Some(plugin) = &self.plugin else {
+        let Some(plugin) = self.plugin() else {
             return Some(UNSUPPORTED_EDITOR_SIZE);
         };
         Some(
@@ -435,34 +413,33 @@ impl PluginEditor {
     }
 
     pub(crate) fn show_block(&self, open: super::BlockOpen) {
-        let Some(plugin) = &self.plugin else {
+        let Some(plugin) = self.plugin() else {
             return;
         };
         crate::plugin_host::show_block(plugin, self.instance, open);
     }
 
     pub(crate) fn show_dialog(&self, id: Uuid, dialog: block_plugin_api::ShellDialog) {
-        if let Some(plugin) = &self.plugin {
+        if let Some(plugin) = self.plugin() {
             crate::plugin_host::show_dialog(&plugin.identity.id, self.instance, id, dialog);
         }
     }
 
     pub(crate) fn show_panel(&self, panel: HostPanel) {
-        if let Some(plugin) = &self.plugin {
+        if let Some(plugin) = self.plugin() {
             crate::plugin_host::show_panel(&plugin.identity.id, self.instance, panel);
         }
     }
 
     pub(crate) fn claim_shell(&self) {
         crate::plugin_host::set_shell(
-            self.plugin
-                .as_ref()
+            self.plugin()
                 .map(|plugin| (plugin.identity.id.as_str(), self.instance)),
         );
     }
 
     pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
-        let plugin = self.plugin.as_ref()?;
+        let plugin = self.plugin()?;
         crate::plugin_host::take_focus_report(&plugin.identity.id, self.instance).map(|focus| {
             FocusReport {
                 block: focus.block,
@@ -472,25 +449,25 @@ impl PluginEditor {
     }
 
     pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
-        let plugin = self.plugin.as_ref()?;
+        let plugin = self.plugin()?;
         crate::plugin_host::take_artifact_watch(&plugin.identity.id, self.instance)
     }
 
     pub(crate) fn menu(&self) -> Vec<block_plugin_api::MenuEntry> {
-        match &self.plugin {
+        match self.plugin() {
             Some(plugin) => crate::plugin_host::menu(&plugin.identity.id, self.instance),
             None => Vec::new(),
         }
     }
 
     pub(crate) fn pick_menu(&self, id: String) {
-        if let Some(plugin) = &self.plugin {
+        if let Some(plugin) = self.plugin() {
             crate::plugin_host::menu_pick(&plugin.identity.id, self.instance, id);
         }
     }
 
     pub(crate) fn set_artifact_states(&self, states: Vec<block_plugin_api::ArtifactState>) {
-        let Some(plugin) = &self.plugin else {
+        let Some(plugin) = self.plugin() else {
             return;
         };
         crate::plugin_host::set_artifact_states(&plugin.identity.id, self.instance, states);
@@ -512,7 +489,7 @@ impl Drop for PluginEditor {
 
 pub(super) struct PluginArtifact {
     plugin: Arc<PluginManifest>,
-    source_type: Uuid,
+    editor: Uuid,
     block: EditorBlock,
     client_id: Uuid,
     instance: EditorInstanceId,
@@ -525,14 +502,14 @@ pub(super) struct PluginArtifact {
 impl PluginArtifact {
     pub(super) fn new(
         plugin: Arc<PluginManifest>,
-        source_type: Uuid,
+        editor: Uuid,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
     ) -> Self {
         Self {
             plugin,
-            source_type,
+            editor,
             client_id,
             block: EditorBlock {
                 id: target_id,
@@ -564,7 +541,7 @@ impl ArtifactSession for PluginArtifact {
             block_types: registry.plugin_block_types(),
             client_id: self.client_id,
             instance: self.instance,
-            source_type: self.source_type,
+            editor: self.editor,
             block: self.block,
             data,
             resync: std::mem::take(&mut self.resync),
@@ -589,7 +566,7 @@ impl ArtifactSession for PluginArtifact {
         HostedRegion {
             editor: RegionEditor {
                 plugin: Arc::clone(&self.plugin),
-                role: InstanceRole::Artifact(self.source_type, self.block),
+                role: InstanceRole::Artifact(self.editor, self.block),
                 instance: self.instance,
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id: self.client_id,

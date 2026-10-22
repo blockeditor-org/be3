@@ -27,8 +27,10 @@ fn placements(occluders: Vec<Occluder>) -> Message {
             intrinsic: None,
             rotation: 0.0,
             opacity: 1.0,
+            follows_camera: false,
         }],
         occluders,
+        camera: None,
     })
 }
 

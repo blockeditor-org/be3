@@ -32,14 +32,14 @@ fn painting_sized(
             ..Default::default()
         });
         view! {
-            <Frame fill=ColorRole::Background>
+            <beui::styled::Root>
                 <AddAccountDialog
                     view
                     default_server={Some(build_id::DefaultServer {
                         name: "Block".into(), api_url: "https://api.example.com".into(), auth_url: "https://api.example.com/auth".into(), gateway_required: true,
                     })}
                 />
-            </Frame>
+            </beui::styled::Root>
         }
     });
     painting_of_sized(name, document, select_default, size);
@@ -95,7 +95,7 @@ fn painting_of_sized(
         &output,
         size,
         1.0,
-        beui::Color32::WHITE,
+        output.window.appearance.clear_color,
         beui::painting::Punches::Shown,
     )
     .unwrap();

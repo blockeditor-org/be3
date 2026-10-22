@@ -8,12 +8,12 @@ use beui_core::rich::{CaretHandle, handle_center};
 fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=30.0>
-                    <Text @node_ref=&first string="hello world" />
-                    <Text @node_ref=&second string="second line" />
+                    <Text @node_ref=&first>"hello world"</Text>
+                    <Text @node_ref=&second>"second line"</Text>
                 </List>
             </SelectableText>
         }
@@ -33,7 +33,10 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Start, on_hello);
     harness.touch(TouchPhase::End, on_hello);
     assert_eq!(
-        unstyled::selectable_text(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text(),
         "hello",
         "a double tap selects the word"
     );
@@ -43,7 +46,10 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Start, on_world);
     harness.touch(TouchPhase::End, on_world);
     assert_eq!(
-        unstyled::selectable_text(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text(),
         "",
         "a tap away from the selection clears it"
     );
@@ -66,7 +72,10 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Move, target);
     harness.touch(TouchPhase::End, target);
     assert_eq!(
-        unstyled::selectable_text(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text(),
         "hello world\nsecond line",
         "dragging the end handle carries the selection into the next text"
     );
@@ -75,7 +84,11 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Start, inside);
     harness.touch(TouchPhase::End, inside);
     assert!(
-        unstyled::context_menu_toolbar(harness.document(), region).is_some(),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .toolbar(harness.document())
+            .is_some(),
         "a tap on the selection shows its toolbar"
     );
 }

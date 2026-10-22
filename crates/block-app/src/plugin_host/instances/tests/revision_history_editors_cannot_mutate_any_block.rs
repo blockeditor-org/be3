@@ -37,7 +37,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
     };
     let preview = Uuid::from_bytes(id);
     let mut instances = placed_on(preview, CounterContent::CONTENT_TYPE);
-    let before = crate::be::content(block).unwrap().bytes;
+    let before = crate::be::content(block).unwrap().bytes().to_vec();
     for target in [block, preview] {
         assert!(!instances.editor_message(EditorMessage::Operate {
             instance: INSTANCE,
@@ -91,7 +91,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
     assert_eq!(crate::be::revisions::source(descendant), Some(child));
     assert!(!crate::be::access(descendant).can_edit());
     assert_eq!(
-        CounterContent::decode(&crate::be::content(descendant).unwrap().bytes)
+        CounterContent::decode(crate::be::content(descendant).unwrap().bytes())
             .unwrap()
             .root()
             .value(),
@@ -108,7 +108,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
         operation: CounterContent::encode_operation(&be_block::Counter::add(99))
     }));
     crate::be::flush();
-    assert_eq!(crate::be::content(block).unwrap().bytes, before);
+    assert_eq!(crate::be::content(block).unwrap().bytes().to_vec(), before);
     crate::be::revisions::release(preview);
     crate::be::revisions::collect_released();
 }

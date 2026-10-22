@@ -8,7 +8,7 @@ fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {
     let measured = EmbedSlot::new();
     let answered = EmbedSlot::new();
     let height = create_signal(10.0_f32);
-    let mut document = build(move || {
+    let mut document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame height=50.0>

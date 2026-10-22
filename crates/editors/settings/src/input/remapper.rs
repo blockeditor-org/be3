@@ -22,7 +22,9 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             .block_types()
             .editors_for(InputRemapper::CONTENT_TYPE)
             .into_iter()
-            .filter(|entry| entry.block_type == Some(InputRemapper::CONTENT_TYPE))
+            .filter(|entry| {
+                entry.edits == block_editor_beui::block_ui::Edits::Type(InputRemapper::CONTENT_TYPE)
+            })
             .map(|entry| (entry.editor, entry.name.clone()))
             .collect::<Vec<(Uuid, String)>>()
     });
@@ -147,11 +149,10 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                             }
                         }</ForEach>
                     }}
-                    selected={selected}
+                    selected={Binding::new(selected, choose)}
                     label="Remapper"
                     disabled={read_only}
                     @test_id={"input.remapper"}
-                    on_change={choose}
                 />
             </LayeredSettingsRow>
             <SettingsLink
@@ -173,11 +174,9 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                 on_confirm={confirmed}
                 on_dismiss={move || asking.set(false)}
             >
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
-                    wrap=true
-                />
+                <Text style=TextStyle::PARAGRAPH wrap=true>
+                    "Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
+                </Text>
             </Dialog>
         </SettingsSection>
     }

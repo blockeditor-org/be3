@@ -1,10 +1,10 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
-    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
+    ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
     FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
+    MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size,
     ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
@@ -71,6 +71,8 @@ impl ArtifactState {
     }
 }
 
+type ReportedChildren = (Size, Vec<ChildPlacement>, Vec<Occluder>, Option<Camera>);
+
 #[derive(Default)]
 struct RegionState {
     placement: Option<ScreenPlacement>,
@@ -88,8 +90,9 @@ struct RegionState {
     reported_stopped: bool,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
+    camera: Option<Camera>,
     laid_out: Size,
-    reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>)>,
+    reported_children: Option<ReportedChildren>,
     age: u32,
 }
 
@@ -158,6 +161,10 @@ impl EditorSession {
         self.host.set_blocks(query, blocks);
     }
 
+    pub(crate) fn fail_blocks(&self, query: crate::BlockQuery, error: String) {
+        self.host.fail_blocks(query, error);
+    }
+
     pub(crate) fn set_editable(&self, editable: bool) {
         self.host.set_editable(editable);
     }
@@ -174,7 +181,11 @@ impl EditorSession {
         self.host.set_peers(block, peers);
     }
 
-    pub(crate) fn push_content_operations(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
+    pub(crate) fn push_content_operations(
+        &self,
+        block: Uuid,
+        operations: Vec<block_plugin_api::ContentOperation>,
+    ) {
         match self.own_block == Some(block) {
             true => self.host.push_content_operations(operations),
             false => self.host.push_content_operations_of(block, operations),
@@ -195,6 +206,7 @@ impl EditorSession {
         filter: block_plugin_api::BlockFilter,
         parent: crate::graph::BlockParent,
         within: Option<Uuid>,
+        touch: bool,
     ) {
         let origin = self.rect(EditorRegion::Frame).min.to_vec2();
         let anchor = filter.anchor.map(|anchor| {
@@ -207,6 +219,7 @@ impl EditorSession {
             parent,
             within,
             anchor,
+            touch,
         });
     }
 
@@ -243,8 +256,8 @@ impl EditorSession {
         }));
     }
 
-    pub(crate) fn set_view(&self, view: Rect, scale: f32) {
-        self.host.set_view(view, scale);
+    pub(crate) fn set_view(&self, view: Rect, scale: f32, moved: bool) {
+        self.host.set_view(view, scale, moved);
     }
 
     pub(crate) fn resized(&mut self, size: Vec2) {
@@ -407,14 +420,22 @@ impl EditorSession {
                 queries: queries.into_iter().map(crate::BlockQuery::encode).collect(),
             }));
         }
-        for (block, operation) in self.host.take_all_content_operations() {
+        for (block, outgoing) in self.host.take_all_content_operations() {
             let Some(block) = block.or(self.own_block) else {
                 continue;
             };
-            messages.push(Message::Editor(EditorMessage::Operate {
-                instance,
-                block_id: block.into_bytes(),
-                operation,
+            let block_id = block.into_bytes();
+            messages.push(Message::Editor(match outgoing {
+                crate::host::Outgoing::Operation(operation) => EditorMessage::Operate {
+                    instance,
+                    block_id,
+                    operation,
+                },
+                crate::host::Outgoing::Gesture(phase) => EditorMessage::Gesture {
+                    instance,
+                    block_id,
+                    phase,
+                },
             }));
         }
         for block in self.host.take_content_resend_requests() {
@@ -568,6 +589,9 @@ impl EditorSession {
         }
         for text in self.host.take_copied_text() {
             messages.push(Message::Editor(EditorMessage::CopyText { instance, text }));
+        }
+        for png in self.host.take_copied_images() {
+            messages.push(Message::Editor(EditorMessage::CopyImage { instance, png }));
         }
         if self.host.take_paste_request() {
             messages.push(Message::Editor(EditorMessage::Paste { instance }));
@@ -785,10 +809,6 @@ impl EditorSession {
         self.host.push_web_view_event(web_view, event);
     }
 
-    pub(crate) fn child_view_change(&self, child: ChildId, change: ViewChange) {
-        self.host.push_child_view_change(child, change);
-    }
-
     pub(crate) fn child_bar_action(&self, child: ChildId, action: BarAction) {
         self.host.push_child_bar_action(child, action);
     }
@@ -807,12 +827,12 @@ impl EditorSession {
         let mut messages = Vec::new();
         for (region, state) in &mut self.regions {
             let (children, occluders) = bounded(&state.children, &state.occluders);
-            let current = (state.laid_out, children, occluders);
+            let current = (state.laid_out, children, occluders, state.camera);
             if state.reported_children.as_ref() == Some(&current) {
                 continue;
             }
             state.reported_children = Some(current.clone());
-            let (size, children, occluders) = current;
+            let (size, children, occluders, camera) = current;
             messages.push(ChildPlacements {
                 instance,
                 region: *region,
@@ -820,6 +840,7 @@ impl EditorSession {
                 size,
                 children,
                 occluders,
+                camera,
             });
         }
         messages
@@ -958,6 +979,7 @@ impl EditorSession {
             artifact.edited |= artifact.draft != draft;
             artifact.draft = draft;
         }
+        let camera = self.host.camera();
         let (placed, occluders) = self.host.end_region(region);
         self.host.set_drag(None);
         self.host.set_files(None);
@@ -984,6 +1006,7 @@ impl EditorSession {
                 height: host.height(),
             };
             state.occluders = occluders;
+            state.camera = camera;
             let window = &frame.window;
             state.window = block_plugin_api::WindowRequests {
                 cursor: window.cursor,
@@ -1014,6 +1037,8 @@ impl EditorSession {
                 content: reported(reported_content),
                 painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: frame.floating.iter().map(|rect| reported(*rect)).collect(),
+                drawing: frame.drawing.iter().map(|rect| reported(*rect)).collect(),
+                every_sample: frame.every_sample,
                 claims: frame
                     .claims
                     .iter()

@@ -5,14 +5,13 @@ use beui_macros::{component, view};
 use crate as unstyled;
 use crate::ButtonHandle;
 use beui_core::base::overlay::Placement;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub struct PopoverTriggerHandle {
-    pub open: ReadSignal<bool>,
+    pub open: Binding<bool>,
     pub button: ButtonHandle,
 }
 
@@ -25,47 +24,39 @@ pub enum PopoverPlacement {
 
 #[derive(Clone, Copy)]
 pub struct PopoverHandle {
-    pub open: ReadSignal<bool>,
+    pub open: Binding<bool>,
     pub close: Callback<()>,
 }
 
 #[derive(Clone, Copy)]
 struct State {
-    open: ReadSignal<bool>,
+    open: Binding<bool>,
     trigger: NodeRef,
 }
 
 #[component]
 pub fn Popover(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<PopoverApi>,
     trigger: Render<PopoverTriggerHandle>,
     #[prop(children)] content: Render<PopoverHandle>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
-    #[prop(default = false)] open: Prop<bool>,
+    #[prop(default = false)] open: Binding<bool>,
     anchor: Option<NodeRef>,
     #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
     #[prop(default = true)] refocus_trigger: Prop<bool>,
     accessibility: Option<Prop<Node>>,
-    on_open_change: Callback<bool>,
 ) -> NodeId {
-    let requested = open;
-    let open = create_signal(false);
-    create_effect(move || {
-        if requested.get() {
-            open.set(true);
-        }
-    });
     let refocus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let label = create_memo(move || label.get());
     let trigger_ref = NodeRef::new();
-    set_component_state(State {
-        open: open.read_only(),
+    api.fill(PopoverApi(State {
+        open,
         trigger: trigger_ref,
-    });
+    }));
 
-    create_effect(move || on_open_change.call(open.get()));
     create_effect(move || {
         if disabled.get() {
             open.set(false);
@@ -83,12 +74,7 @@ pub fn Popover(
         node
     });
 
-    let built = create_signal(false);
-    create_effect(move || {
-        if open.get() {
-            built.set(true);
-        }
-    });
+    let content = content.once();
 
     let refocus_trigger = create_memo(move || refocus_trigger.get());
     let close = Callback::new(move |()| {
@@ -104,10 +90,7 @@ pub fn Popover(
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     };
-    let handle = PopoverHandle {
-        open: open.read_only(),
-        close,
-    };
+    let handle = PopoverHandle { open, close };
     let toggle = move || {
         if !disabled.get_untracked() {
             open.update(|open| *open = !*open);
@@ -130,7 +113,7 @@ pub fn Popover(
                 on_click={toggle}
             >|button: ButtonHandle| {
                 trigger.call(PopoverTriggerHandle {
-                    open: open.read_only(),
+                    open,
                     button,
                 })
             }</unstyled::Button>
@@ -140,6 +123,7 @@ pub fn Popover(
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref}
                 open={open}
+                keep_alive=true
                 on_dismiss={move |_: Dismiss| {
                     open.set(false);
                     if refocus_trigger.get_untracked() {
@@ -147,11 +131,7 @@ pub fn Popover(
                     }
                 }}
             >
-                <PopoverSurface label>
-                    <List spacing=0.0>
-                        <ShowKeepAlive condition={built}>|| { content.call(handle) }</ShowKeepAlive>
-                    </List>
-                </PopoverSurface>
+                <PopoverSurface label>{content.call(handle)}</PopoverSurface>
             </Overlay>
         </List>
     }
@@ -172,13 +152,15 @@ fn PopoverSurface(label: Memo<String>, children: Child) -> NodeId {
     }
 }
 
-pub fn popover_open(document: &Document, popover: NodeId) -> bool {
-    document
-        .component_state::<State>(popover)
-        .open
-        .get_untracked()
-}
+#[derive(Clone, Copy)]
+pub struct PopoverApi(State);
 
-pub fn popover_trigger(document: &Document, popover: NodeId) -> NodeId {
-    document.component_state::<State>(popover).trigger.get()
+impl PopoverApi {
+    pub fn open(&self) -> bool {
+        self.0.open.get_untracked()
+    }
+
+    pub fn trigger(&self) -> NodeId {
+        self.0.trigger.get()
+    }
 }

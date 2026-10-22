@@ -15,21 +15,22 @@ pub fn BottomDock(
     anchor: NodeRef,
     #[prop(default = true)] open: Prop<bool>,
     name: String,
-    above: Option<Child>,
-    #[prop(children)] children: Children<ListChild>,
+    above: Option<Render<(), Children<ListChild>>>,
+    #[prop(children)] tools: Render<(), Children<ListChild>>,
 ) -> NodeId {
     let sheet = sheet_open();
     let open = create_memo(move || open.get() && !sheet.get());
-    view! {
-        <Floating anchor={anchor} edge=Edge::Bottom open={open}>
+    let row = NodeRef::new();
+    arrow_focus(row, Direction::Horizontal);
+    let content = Render::new(move |()| {
+        view! {
             <Frame padding=DOCK_MARGIN>
                 <List align=Align::Center spacing=0.0>
-                    <Frame children={above} />
+                    {above.map(|above| above.call(())).unwrap_or_default()}
                     <Frame
                         fill=ColorRole::SurfaceRaised
                         border={Border::DEFAULT}
                         radius={Radius::custom(DOCK_RADIUS)}
-                        padding=DOCK_PADDING
                         @test_id={name}
                     >
                         <List direction=Direction::Horizontal spacing=0.0>
@@ -38,17 +39,27 @@ pub fn BottomDock(
                                 direction=Direction::Horizontal
                                 fit=true
                             >
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=DOCK_SPACING
-                                    children={children}
-                                />
+                                <Frame padding=DOCK_PADDING>
+                                    <List
+                                        @node_ref=&row
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=DOCK_SPACING
+                                    >
+                                        {tools.call(())}
+                                    </List>
+                                </Frame>
                             </Scroll>
                         </List>
                     </Frame>
                 </List>
             </Frame>
+        }
+    })
+    .once();
+    view! {
+        <Floating anchor={anchor} edge=Edge::Bottom open={open} keep_alive=true>
+            {content.call(())}
         </Floating>
     }
 }

@@ -7,7 +7,7 @@ use crate::reactive::*;
 fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.global", "Global", || {})
             .shortcut(Chord::logo(Key::G))
             .at(KeyAt::Window)

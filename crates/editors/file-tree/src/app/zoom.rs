@@ -80,14 +80,14 @@ impl Zoom {
         });
         let restored = Rc::new(Cell::new(false));
         let adopted = Rc::clone(&restored);
-        create_effect(move || {
+        create_binding(move || {
             if adopted.get() {
                 return;
             }
             let Some(view) = editor.view_content() else {
                 return;
             };
-            let Some(saved) = view.read(|held| {
+            let Ok(saved) = view.read(|held| {
                 held.root()
                     .state(ZOOMED)
                     .and_then(ViewState::value::<Option<RowKey>>)
@@ -207,8 +207,8 @@ pub(crate) fn ZoomBar(
                     on_click={move || zoom.up()}
                 />
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Text style=TextStyle::CAPTION string={path} ellipsis=true />
-                    <Text style=TextStyle::HEADING string={name} ellipsis=true />
+                    <Text style=TextStyle::CAPTION ellipsis=true>{path}</Text>
+                    <Text style=TextStyle::HEADING ellipsis=true>{name}</Text>
                 </List>
                 <Show condition={addable}>
                     <IconButton

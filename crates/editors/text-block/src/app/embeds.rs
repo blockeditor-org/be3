@@ -53,7 +53,7 @@ pub(crate) struct ParsedEmbed {
 pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
     let markdown = state.text.language() == TextLanguage::Markdown;
     let parsed = parse_embeds(&state.text.bytes(), state.organization_id, markdown);
-    let references = state.inner().dependencies.read();
+    let references = state.inner().dependencies.read().unwrap_or_default();
     let types = state.editor.block_types();
     let referenced = references
         .iter()

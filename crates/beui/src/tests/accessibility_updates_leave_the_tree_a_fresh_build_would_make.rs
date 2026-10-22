@@ -20,14 +20,14 @@ struct Setters {
 fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
     let _root = crate::reactive::RootScope::new();
     let taken = create_signal::<Option<Setters>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let title = create_signal("Inbox".to_owned());
         let rows = create_signal(vec![1u32, 2, 3]);
         let panel = create_signal(true);
         taken.update(|taken| *taken = Some(Setters { title, rows, panel }));
         view! {
             <List spacing=0.0>
-                <Text string={create_memo(move || title.get())} />
+                <Text>{create_memo(move || title.get())}</Text>
                 <ForEach keys={rows}>|row: u32|
                     <styled::Button
                         variant=styled::ButtonVariant::Primary
@@ -37,7 +37,7 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
                 </ForEach>
                 <Show condition={panel}>
                     <List spacing=0.0>
-                        <Text string="Details" />
+                        <Text>"Details"</Text>
                         <styled::Button
                             variant=styled::ButtonVariant::Primary
                             label="Archive"

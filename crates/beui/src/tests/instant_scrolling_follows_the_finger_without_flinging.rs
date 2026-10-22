@@ -1,12 +1,13 @@
 use super::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn instant_scrolling_follows_the_finger_without_flinging() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -21,7 +22,13 @@ fn instant_scrolling_follows_the_finger_without_flinging() {
     });
     let scroll = scroll.get();
     let mut harness = Harness::new(document);
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
 
@@ -36,5 +43,10 @@ fn instant_scrolling_follows_the_finger_without_flinging() {
     harness.advance(Duration::from_secs(2));
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(scroll), released);
-    assert!(!unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
 }

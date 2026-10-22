@@ -130,11 +130,12 @@ pub fn ButtonFace(
                     <Show condition={labelled}>
                         <Text
                             @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            string={label}
                             color={label_color}
                             align=TextAlign::Center
                             ellipsis=true
-                        />
+                        >
+                            {label}
+                        </Text>
                     </Show>
                     <Show condition={has_trailing}>
                         <Text color={label_color} align=TextAlign::Center>

@@ -6,6 +6,7 @@ fn block_types_round_trip() {
         types: vec![BlockTypeDescriptor {
             block_type: [7; 16],
             display_name: "Folder".into(),
+            color: Some([65, 145, 210]),
             icon_codepoint: "\u{e2c7}".into(),
             children: ChildOperations {
                 add: true,
@@ -23,8 +24,8 @@ fn block_types_round_trip() {
             dialog: false,
         }],
         editors: vec![EditorDescriptor {
-            editor: editor_id("be3.folder"),
-            block_type: ANY_BLOCK_TYPE,
+            editor: [8; 16],
+            edits: Edits::Any,
             name: "Debug view".into(),
             icon_codepoint: "\u{e86f}".into(),
         }],
@@ -38,6 +39,7 @@ fn block_types_round_trip() {
         types: vec![BlockTypeDescriptor {
             block_type: [7; 16],
             display_name: "x".repeat(MAX_STRING_BYTES + 1),
+            color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
         }],

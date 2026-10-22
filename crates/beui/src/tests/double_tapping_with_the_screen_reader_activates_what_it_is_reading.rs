@@ -20,14 +20,26 @@ fn double_tapping_with_the_screen_reader_activates_what_it_is_reading() {
         harness.reading().as_deref(),
         Some("Show timings, check box, not checked")
     );
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 
     harness.touch(TouchPhase::Start, at);
     harness.touch(TouchPhase::End, at);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
     assert_eq!(
         harness.spoken().as_deref(),
         Some("Show timings, check box, checked")

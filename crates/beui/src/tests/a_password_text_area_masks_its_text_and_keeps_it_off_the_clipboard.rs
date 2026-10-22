@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::{TextAreaState, text_area_shown};
+use crate::unstyled::{TextAreaApi, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
     let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new("sécret".as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
@@ -19,9 +19,15 @@ fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let surface = text_area_surface(harness.document(), area.get());
+    let surface = harness
+        .document()
+        .api::<TextAreaSurfaceApi>(area.get())
+        .surface();
 
-    assert_eq!(text_area_shown(harness.document(), surface), "******");
+    assert_eq!(
+        harness.document().api::<TextAreaApi>(surface).shown(),
+        "******"
+    );
 
     harness.click(pos2(300.0, 16.0));
     harness.key(Key::A, Modifiers::CTRL);
@@ -30,5 +36,8 @@ fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
 
     assert_eq!(copied.copied_text, None);
     assert_eq!(cut.copied_text, None);
-    assert_eq!(text_area_shown(harness.document(), surface), "******");
+    assert_eq!(
+        harness.document().api::<TextAreaApi>(surface).shown(),
+        "******"
+    );
 }

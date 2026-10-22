@@ -20,7 +20,7 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
     let _root = crate::reactive::RootScope::new();
     let below = create_signal(Vec::<ForwardedInput>::new());
     let above = create_signal(Vec::<ForwardedInput>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>

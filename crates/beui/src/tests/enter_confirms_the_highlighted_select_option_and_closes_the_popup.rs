@@ -14,17 +14,19 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
         [view! {
             <Select
                 options
-                selected=None
-                on_change={move |selected| {
+                selected={Binding::new(None, move |selected| {
                     changes.update(|changes| changes.push(selected));
-                }}
+                })}
             />
         }]
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
 
@@ -33,8 +35,20 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert_eq!(styled::select_selected(harness.document(), select), Some(0));
-    assert!(!styled::select_open(harness.document(), select));
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::SelectApi>(select)
+            .selected(),
+        Some(0)
+    );
+    assert!(!harness.document().api::<styled::SelectApi>(select).open());
     assert_eq!(changes.get_untracked().as_slice(), &[Some(0)]);
-    assert!(unstyled::button_focused(harness.document(), trigger).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(trigger)
+            .focused()
+            .get()
+    );
 }

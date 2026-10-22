@@ -122,6 +122,7 @@ def _impl(ctx: bxl.Context):
         printed.extend([("paintings", paintings) for paintings in _outputs(ctx, "^(plugin_test_run|painting_test_run)$", "//crates/...")])
     if args.previews:
         printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/browser-rasterizer:bin", args.host)))
+        printed.append(("paint-review-site", _output(ctx, "root//crates/paint-review-web:web")))
     if args.android:
         printed.append(("apk-metadata", actions.copy_file("android-build-info.json", _output(ctx, "root//buck/app:build-info.json"))))
         printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))

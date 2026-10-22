@@ -34,9 +34,10 @@ use beui_core::input::{
     BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Keyboard, Modifiers, Pen,
     PenPhase, PointerButton, TouchId, TouchPhase,
 };
+use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
-use beui_core::window::WindowState;
+use beui_core::window::{SystemBars, WindowState};
 use clipboard::Clipboard;
 
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -46,6 +47,7 @@ const META_ALT_ON: jint = 0x2;
 const META_CTRL_ON: jint = 0x1000;
 const META_META_ON: jint = 0x10000;
 
+// unsafe(ffi)
 unsafe extern "Rust" {
     fn android_main(app: AndroidApp);
 }
@@ -59,9 +61,12 @@ struct AppInner {
     files: PathBuf,
 }
 
+// unsafe(send-sync)
 unsafe impl Send for AppInner {}
+// unsafe(send-sync)
 unsafe impl Sync for AppInner {}
 
+// unsafe(ffi)
 impl AndroidApp {
     pub fn asset_manager(&self) -> AssetManager {
         unsafe { AssetManager::from_ptr(self.0.manager) }
@@ -82,6 +87,7 @@ enum Message {
     },
     SurfaceGone(SyncSender<()>),
     Insets(SafeArea),
+    Preferences(PreferenceLayer),
     Focus(bool),
     Touch {
         device: jint,
@@ -90,6 +96,7 @@ enum Message {
         x: f32,
         y: f32,
         force: f32,
+        at: Instant,
     },
     Pen {
         phase: PenPhase,
@@ -97,6 +104,7 @@ enum Message {
         y: f32,
         pressure: f32,
         pen: Pen,
+        at: Instant,
     },
     Scroll(Vec2),
     Key {
@@ -186,6 +194,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
             ime_serial: 0,
             sent_ime: None,
             keyboard_shown: std::cell::Cell::new(false),
+            light_bars: None,
         },
         load: Some(load),
         window: None,
@@ -220,6 +229,7 @@ struct AndroidPlatform {
     ime_serial: u64,
     sent_ime: Option<(Option<ImeText>, u64)>,
     keyboard_shown: std::cell::Cell<bool>,
+    light_bars: Option<bool>,
 }
 
 impl Platform for AndroidPlatform {
@@ -268,6 +278,7 @@ impl Platform for AndroidPlatform {
     }
 }
 
+// unsafe(ffi)
 impl AndroidPlatform {
     fn sync_ime(&mut self, ime: Option<&ImeArea>) {
         let sent = (ime.and_then(|area| area.text.clone()), self.ime_serial);
@@ -327,6 +338,28 @@ impl AndroidPlatform {
                         JValue::Long(composing.1),
                         JValue::Long(jlong::try_from(serial).unwrap_or(jlong::MAX)),
                     ],
+                )?;
+                Ok(())
+            });
+    }
+
+    fn sync_bars(&mut self, bars: SystemBars) {
+        let light = bars == SystemBars::Light;
+        if self.light_bars == Some(light) {
+            return;
+        }
+        let Some(view) = &self.view else {
+            return;
+        };
+        self.light_bars = Some(light);
+        let _ = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("setLightBars"),
+                    jni_sig!("(Z)V"),
+                    &[JValue::Bool(light)],
                 )?;
                 Ok(())
             });
@@ -479,6 +512,7 @@ impl Runner {
                 platform.attach_accessibility();
                 platform.ime_serial = 0;
                 platform.sent_ime = None;
+                platform.light_bars = None;
                 let window = self.runner.window();
                 platform.sync_ime(window.ime.as_ref());
                 if window
@@ -509,6 +543,10 @@ impl Runner {
                 self.safe_area = area;
                 self.redraw = true;
             }
+            Message::Preferences(preferences) => {
+                self.runner.reports().system_preferences(preferences);
+                self.redraw = true;
+            }
             Message::Focus(focused) => self.runner.push(Event::Focus(focused)),
             Message::Touch {
                 device,
@@ -517,6 +555,7 @@ impl Runner {
                 x,
                 y,
                 force,
+                at,
             } => {
                 let pos = pos2(x, y);
                 self.runner.push(Event::Touch {
@@ -528,6 +567,7 @@ impl Runner {
                     pos,
                     force: Some(force),
                 });
+                self.runner.push(Event::Time(at));
             }
             Message::Pen {
                 phase,
@@ -535,12 +575,16 @@ impl Runner {
                 y,
                 pressure,
                 pen,
-            } => self.runner.push(Event::Pen {
-                phase,
-                pos: pos2(x, y),
-                pressure,
-                pen,
-            }),
+                at,
+            } => {
+                self.runner.push(Event::Pen {
+                    phase,
+                    pos: pos2(x, y),
+                    pressure,
+                    pen,
+                });
+                self.runner.push(Event::Time(at));
+            }
             Message::Scroll(delta) => self.runner.push(ScrollDelta::Lines(delta)),
             Message::Key {
                 key,
@@ -636,12 +680,15 @@ impl Runner {
         self.next_update = frame
             .wait()
             .and_then(|wait| Instant::now().checked_add(wait));
+        self.platform
+            .sync_bars(self.runner.window().appearance.system_bars);
         frame.pending
     }
 }
 
 struct SurfaceWindow(NativeWindow);
 
+// unsafe(ffi)
 impl rwh::HasWindowHandle for SurfaceWindow {
     fn window_handle(&self) -> Result<rwh::WindowHandle<'_>, rwh::HandleError> {
         let handle = rwh::AndroidNdkWindowHandle::new(self.0.ptr().cast());
@@ -800,6 +847,7 @@ fn read(mut env: EnvUnowned<'_>, text: &JString<'_>) -> String {
         .resolve::<LogErrorAndDefault>()
 }
 
+// unsafe(ffi)
 fn forward_stdio_to_logcat() {
     let mut pipe = [0; 2];
     let reader = unsafe {
@@ -833,6 +881,7 @@ fn count(value: jint) -> u32 {
     value.max(0).cast_unsigned()
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCreate<'local>(
     mut env: EnvUnowned<'local>,
@@ -885,6 +934,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCreate<'local>(
     .resolve::<LogErrorAndDefault>();
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeDestroy<'local>(
     _env: EnvUnowned<'local>,
@@ -894,6 +944,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeDestroy<'local>(
     send(Message::Destroy { finishing });
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFocus<'local>(
     _env: EnvUnowned<'local>,
@@ -903,6 +954,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFocus<'local>(
     send(Message::Focus(focused));
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeBack<'local>(
     _env: EnvUnowned<'local>,
@@ -916,6 +968,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeBack<'local>(
     }
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceChanged<'local>(
     mut env: EnvUnowned<'local>,
@@ -941,6 +994,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceChanged<'local>(
     .resolve::<LogErrorAndDefault>();
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceDestroyed<'local>(
     _env: EnvUnowned<'local>,
@@ -952,6 +1006,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceDestroyed<'local>
     }
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeInsets<'local>(
     _env: EnvUnowned<'local>,
@@ -969,6 +1024,27 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeInsets<'local>(
     }));
 }
 
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativePreferences<'local>(
+    _env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    dark: jboolean,
+    light: jboolean,
+    reduce_motion: jboolean,
+) {
+    send(Message::Preferences(PreferenceLayer {
+        theme: match (dark, light) {
+            (true, _) => Some(ThemeKind::Dark),
+            (false, true) => Some(ThemeKind::Light),
+            (false, false) => None,
+        },
+        motion: reduce_motion.then_some(Motion::Instant),
+        canvas_touch: None,
+    }));
+}
+
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
     _env: EnvUnowned<'local>,
@@ -979,6 +1055,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
     x: jfloat,
     y: jfloat,
     pressure: jfloat,
+    ago_nanos: jlong,
 ) {
     if let Some(phase) = touch_phase(phase) {
         send(Message::Touch {
@@ -988,26 +1065,40 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
             x,
             y,
             force: pressure,
+            at: monotonic(ago_nanos),
         });
     }
 }
 
+fn monotonic(ago_nanos: jlong) -> Instant {
+    let now = Instant::now();
+    let ago = Duration::from_nanos(u64::try_from(ago_nanos).unwrap_or(0));
+    now.checked_sub(ago).unwrap_or(now)
+}
+
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
     _env: EnvUnowned<'local>,
     _: JClass<'local>,
     phase: jint,
+    button: jint,
     x: jfloat,
     y: jfloat,
     pressure: jfloat,
     tilt_x: jfloat,
     tilt_y: jfloat,
     eraser: jboolean,
+    ago_nanos: jlong,
 ) {
+    let button = match button {
+        1 => PointerButton::Secondary,
+        _ => PointerButton::Primary,
+    };
     let phase = match phase {
         0 => PenPhase::Move,
-        1 => PenPhase::Down(PointerButton::Primary),
-        2 => PenPhase::Up(PointerButton::Primary),
+        1 => PenPhase::Down(button),
+        2 => PenPhase::Up(button),
         3 => PenPhase::Gone,
         _ => return,
     };
@@ -1020,9 +1111,11 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
             tilt: vec2(tilt_x, tilt_y),
             eraser,
         },
+        at: monotonic(ago_nanos),
     });
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeScroll<'local>(
     _env: EnvUnowned<'local>,
@@ -1033,6 +1126,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeScroll<'local>(
     send(Message::Scroll(vec2(x, y)));
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     _env: EnvUnowned<'local>,
@@ -1063,6 +1157,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     handled
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeIme<'local>(
     env: EnvUnowned<'local>,
@@ -1103,6 +1198,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeIme<'local>(
     });
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFilePicked<'local>(
     mut env: EnvUnowned<'local>,

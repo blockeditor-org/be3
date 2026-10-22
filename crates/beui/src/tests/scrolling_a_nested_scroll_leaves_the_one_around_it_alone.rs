@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
@@ -42,11 +42,9 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
 fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
-            <Text
-                string={format!("Row {index}")}
-                color=Color32::WHITE
-                font={FontId::proportional(20.0)}
-            />
+            <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
+                {format!("Row {index}")}
+            </Text>
         </ForEach>
     }
 }

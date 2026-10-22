@@ -54,7 +54,7 @@ impl Toolbar {
         [&self.device, &self.zoom].into_iter().any(|select| {
             select
                 .try_get()
-                .is_some_and(|select| select_open(&self.document, select))
+                .is_some_and(|select| self.document.api::<SelectApi>(select).open())
         })
     }
 }
@@ -63,11 +63,14 @@ pub fn build(state: Stored<State>) -> Toolbar {
     let owner = RootScope::new();
     let screen = create_signal(state.value().screen_simulation.get().unwrap_or(DEFAULT));
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
-    let document = beui_view::reactive::build(move || {
+    let mut document = Document::new();
+    let root = enter(&mut document, move || {
+        provide_context(ThemeStore::new(Theme::DARK));
         view! {
             <ResponsiveToolbar state screen={screen.read_only()} device zoom />
         }
     });
+    document.set_root(root);
     Toolbar {
         document,
         screen,
@@ -119,44 +122,41 @@ fn ResponsiveToolbar(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={selected_device}
-                            label="Device"
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(selected_device, move |index: Option<usize>| {
                                 if let Some((_, size)) = index.and_then(|index| DEVICES.get(index))
                                     && *size != Vec2::ZERO
                                 {
                                     state.value().update_screen(|screen| screen.resized(*size));
                                 }
-                            }}
+                            })}
+                            label="Device"
                         />
                     </Frame>
                     <Frame width=DIMENSION_WIDTH>
                         <NumberInput
                             @test_id={"inspector.responsive.width"}
-                            value={width}
-                            min={f64::from(MINIMUM_SIZE)}
-                            max={f64::from(MAXIMUM_SIZE)}
-                            label="Width"
-                            on_change={move |width: f64| {
+                            value={Binding::new(width, move |width: f64| {
                                 state.value().update_screen(|screen| {
                                     screen.resized(vec2(width as f32, screen.size.y))
                                 });
-                            }}
+                            })}
+                            min={f64::from(MINIMUM_SIZE)}
+                            max={f64::from(MAXIMUM_SIZE)}
+                            label="Width"
                         />
                     </Frame>
-                    <Text style=TextStyle::CAPTION string="x" />
+                    <Text style=TextStyle::CAPTION>"x"</Text>
                     <Frame width=DIMENSION_WIDTH>
                         <NumberInput
                             @test_id={"inspector.responsive.height"}
-                            value={height}
-                            min={f64::from(MINIMUM_SIZE)}
-                            max={f64::from(MAXIMUM_SIZE)}
-                            label="Height"
-                            on_change={move |height: f64| {
+                            value={Binding::new(height, move |height: f64| {
                                 state.value().update_screen(|screen| {
                                     screen.resized(vec2(screen.size.x, height as f32))
                                 });
-                            }}
+                            })}
+                            min={f64::from(MINIMUM_SIZE)}
+                            max={f64::from(MAXIMUM_SIZE)}
+                            label="Height"
                         />
                     </Frame>
                     <IconButton
@@ -175,16 +175,15 @@ fn ResponsiveToolbar(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={selected_zoom}
-                            label="Zoom"
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(selected_zoom, move |index: Option<usize>| {
                                 if let Some((_, zoom)) = index.and_then(|index| ZOOMS.get(index)) {
                                     state.value().update_screen(|screen| ScreenSimulation {
                                         zoom: *zoom,
                                         ..screen
                                     });
                                 }
-                            }}
+                            })}
+                            label="Zoom"
                         />
                     </Frame>
                     <Spacer @sizing=ItemSize::Percent(100.0) />

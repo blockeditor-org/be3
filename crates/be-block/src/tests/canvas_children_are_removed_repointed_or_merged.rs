@@ -1,22 +1,20 @@
 use std::collections::BTreeMap;
 
 use crate::canvas::{
-    CanvasComponent, CanvasContent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
-    CanvasTransform, InfiniteCanvasOperation,
+    CanvasComponent, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
+    InfiniteCanvasOperation,
 };
 use crate::database::DatabaseValue;
 use crate::{ChildChange, Root};
 use uuid::Uuid;
 
-fn entity(kind: CanvasEntityKind, components: Vec<CanvasComponent>) -> CanvasEntity {
+fn entity(shape: CanvasShape, components: Vec<CanvasComponent>) -> CanvasEntity {
     CanvasEntity {
-        id: Uuid::new_v4(),
-        transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(1.0, 1.0), 0.0),
-        kind,
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
         components,
+        ..CanvasEntity::new(
+            shape,
+            CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(1.0, 1.0), 0.0),
+        )
     }
 }
 
@@ -37,7 +35,7 @@ fn canvas_children_are_removed_repointed_or_merged() {
     let [shown, old, new, linked] = std::array::from_fn(|_| Uuid::new_v4());
     let [kept, moved] = std::array::from_fn(|_| Uuid::new_v4());
     let tagged = entity(
-        CanvasEntityKind::Rectangle,
+        CanvasShape::Rectangle,
         vec![
             component(
                 old,
@@ -52,18 +50,18 @@ fn canvas_children_are_removed_repointed_or_merged() {
     );
     let mut content = CanvasContent::default();
     for entity in [
-        entity(
-            CanvasEntityKind::DirectEditor {
-                block_id: shown,
-                scale: 1.0,
-            },
-            Vec::new(),
-        ),
+        CanvasEntity {
+            block: Some(shown),
+            ..entity(CanvasShape::Editor, Vec::new())
+        },
         tagged,
     ] {
-        let edit = content
-            .root()
-            .edit_for(&InfiniteCanvasOperation::Add { entity });
+        let edit = crate::canvas::Canvas::edit_in(
+            &content,
+            &InfiniteCanvasOperation::Add {
+                entity: Box::new(entity),
+            },
+        );
         content.apply(&edit);
     }
     assert_eq!(

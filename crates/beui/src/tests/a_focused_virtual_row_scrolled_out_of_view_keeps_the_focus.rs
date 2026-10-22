@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
     let _root = crate::reactive::RootScope::new();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -19,7 +19,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
                         view! {
                             <Interactive focusable=true>
                                 <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                    <Text string={label} />
+                                    <Text>{label}</Text>
                                 </Frame>
                             </Interactive>
                         }

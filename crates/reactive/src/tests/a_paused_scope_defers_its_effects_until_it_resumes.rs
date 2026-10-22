@@ -22,8 +22,11 @@ fn a_paused_scope_defers_its_effects_until_it_resumes() {
 
     scope.pause();
     count.set(1);
+    flush();
     count.set(2);
+    flush();
     count.set(3);
+    flush();
     assert_eq!(*seen.borrow(), vec![0], "a paused scope's effects wait");
     assert_eq!(
         computed.get(),
@@ -32,6 +35,7 @@ fn a_paused_scope_defers_its_effects_until_it_resumes() {
     );
 
     scope.resume();
+    flush();
     assert_eq!(
         *seen.borrow(),
         vec![0, 6],
@@ -40,5 +44,6 @@ fn a_paused_scope_defers_its_effects_until_it_resumes() {
     assert_eq!(computed.get(), 2);
 
     count.set(4);
+    flush();
     assert_eq!(*seen.borrow(), vec![0, 6, 8]);
 }

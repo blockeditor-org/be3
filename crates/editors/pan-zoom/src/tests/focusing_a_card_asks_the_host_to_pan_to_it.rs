@@ -10,6 +10,7 @@ fn focusing_a_card_asks_the_host_to_pan_to_it() {
     );
     test.run();
     let canvas = editor.content_rect();
+    test.take_view_changes();
 
     test.click("pan_zoom.focus.6");
     test.run();

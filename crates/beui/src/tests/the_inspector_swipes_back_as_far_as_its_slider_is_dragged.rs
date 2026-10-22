@@ -10,17 +10,17 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     let _root = crate::reactive::RootScope::new();
     let depth = create_signal(1_u32);
     let page = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let nested = create_memo(move || depth.get() > 0);
         view! {
             <BackSlide
                 enabled={nested}
                 on_back={move || depth.set(depth.get_untracked() - 1)}
                 behind={|| view! {
-                    <Text string="Previous" color=Color32::WHITE />
+                    <Text color=Color32::WHITE>"Previous"</Text>
                 }}
             >
-                <Text string="Page" color=Color32::WHITE @node_ref={&page} />
+                <Text color=Color32::WHITE @node_ref={&page}>"Page"</Text>
             </BackSlide>
         }
     });

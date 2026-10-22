@@ -2,9 +2,9 @@
   "id": "be3.file-tree",
   "name": "Files",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "66696c65-2d74-7265-652d-626c6f636b01",
+  "editors": {
+    "files": {
+      "id": "9026bab5-b23e-4b81-a693-d3a250905f9e",
       "display_name": "Files",
       "icon": "\ue97a",
       "interaction": "Live",
@@ -13,6 +13,6 @@
         "Frame"
       ]
     }
-  ],
+  },
   "entry_point": "file_tree.wasm"
 }

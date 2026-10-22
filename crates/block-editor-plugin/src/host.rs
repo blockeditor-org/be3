@@ -10,15 +10,15 @@ use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
-    BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
+    BlockImport, BlockPick, Camera, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildRect, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
-    FileSave, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry,
-    Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent,
-    WebViewId, decode_host, encode_host,
+    FileSave, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId,
+    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
+    WebViewEvent, WebViewId, decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
-use geometry::{Pos2, Rect, Vec2, vec2};
+use geometry::{Pos2, Rect, Vec2};
 use uuid::Uuid;
 
 #[derive(Clone, Copy)]
@@ -34,6 +34,7 @@ pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
     pub session: Vec<u8>,
+    pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
 }
 
@@ -43,12 +44,19 @@ impl HostContent {
             content_type: C::CONTENT_TYPE,
             bytes: content.encode(),
             session: content.session_state(),
+            unsettled: Vec::new(),
             applied: 0,
         }
     }
 }
 
-type ContentOperation = (Option<Uuid>, Vec<u8>);
+type ContentOperation = (Option<Uuid>, Outgoing);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Outgoing {
+    Operation(Vec<u8>),
+    Gesture(GesturePhase),
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShownPresence {
@@ -69,7 +77,7 @@ pub struct PeerPresence {
 #[derive(Clone)]
 pub enum ContentUpdate {
     Snapshot(HostContent),
-    Operations(Vec<(Vec<u8>, bool)>),
+    Operations(Vec<block_plugin_api::ContentOperation>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -101,6 +109,7 @@ pub struct PickRequest {
     pub parent: BlockParent,
     pub within: Option<Uuid>,
     pub anchor: Option<Rect>,
+    pub touch: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -330,28 +339,7 @@ impl Children {
 struct View {
     rect: Rect,
     scale: f32,
-}
-
-fn swept(rect: Rect, rotation: f32) -> Rect {
-    if rotation == 0.0 {
-        return rect;
-    }
-    let center = rect.center();
-    let (sin, cos) = rotation.sin_cos();
-    let turned = |corner: Pos2| {
-        let offset = corner - center;
-        center
-            + vec2(
-                offset.x * cos - offset.y * sin,
-                offset.x * sin + offset.y * cos,
-            )
-    };
-    Rect::from_points(&[
-        turned(rect.left_top()),
-        turned(rect.right_top()),
-        turned(rect.right_bottom()),
-        turned(rect.left_bottom()),
-    ])
+    moved: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -446,7 +434,6 @@ pub struct EditorHost {
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
-    child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
     bar_actions: Rc<RefCell<Vec<BarAction>>>,
@@ -457,6 +444,7 @@ pub struct EditorHost {
     placed_content: Rc<Cell<Option<Rect>>>,
     content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
+    copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
     next_frame: Rc<Cell<Option<Duration>>>,
@@ -806,10 +794,16 @@ impl EditorHost {
             .push((block_id, BlockCommand::Leave));
     }
 
-    pub fn show_app_menu(&self, block_id: Uuid) {
+    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<ChildRect>) {
+        let origin = self.region.get().origin;
+        let anchor = anchor.map(|anchor| ChildRect {
+            x: anchor.x - origin.x,
+            y: anchor.y - origin.y,
+            ..anchor
+        });
         self.block_commands
             .borrow_mut()
-            .push((block_id, BlockCommand::AppMenu));
+            .push((block_id, BlockCommand::AppMenu { anchor }));
     }
 
     pub fn rename_block(&self, block_id: Uuid) {
@@ -933,11 +927,15 @@ impl EditorHost {
         self.update_content(Some(block), ContentUpdate::Snapshot(content));
     }
 
-    pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+    pub fn push_content_operations(&self, operations: Vec<block_plugin_api::ContentOperation>) {
         self.update_content(None, ContentUpdate::Operations(operations));
     }
 
-    pub fn push_content_operations_of(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
+    pub fn push_content_operations_of(
+        &self,
+        block: Uuid,
+        operations: Vec<block_plugin_api::ContentOperation>,
+    ) {
         self.update_content(Some(block), ContentUpdate::Operations(operations));
     }
 
@@ -968,7 +966,13 @@ impl EditorHost {
     pub(crate) fn operate_content_at(&self, block: Option<Uuid>, operation: Vec<u8>) {
         self.content_operations
             .borrow_mut()
-            .push((block, operation));
+            .push((block, Outgoing::Operation(operation)));
+    }
+
+    pub(crate) fn gesture_at(&self, block: Option<Uuid>, phase: GesturePhase) {
+        self.content_operations
+            .borrow_mut()
+            .push((block, Outgoing::Gesture(phase)));
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
@@ -985,10 +989,16 @@ impl EditorHost {
             .into_iter()
             .partition::<Vec<_>, _>(|(target, _)| *target == block);
         *held = kept;
-        taken.into_iter().map(|(_, operation)| operation).collect()
+        taken
+            .into_iter()
+            .filter_map(|(_, outgoing)| match outgoing {
+                Outgoing::Operation(operation) => Some(operation),
+                Outgoing::Gesture(_) => None,
+            })
+            .collect()
     }
 
-    pub(crate) fn take_all_content_operations(&self) -> Vec<(Option<Uuid>, Vec<u8>)> {
+    pub(crate) fn take_all_content_operations(&self) -> Vec<ContentOperation> {
         std::mem::take(&mut self.content_operations.borrow_mut())
     }
 
@@ -1115,6 +1125,18 @@ impl EditorHost {
         self.framed_view().map(|view| view.scale)
     }
 
+    pub fn view_moved(&self) -> bool {
+        self.framed_view().is_some_and(|view| view.moved)
+    }
+
+    pub(crate) fn camera(&self) -> Option<Camera> {
+        self.framed_view().map(|view| Camera {
+            x: view.rect.min.x,
+            y: view.rect.min.y,
+            scale: view.scale,
+        })
+    }
+
     fn framed_view(&self) -> Option<View> {
         let region = self.region.get().region;
         matches!(region, None | Some(EditorRegion::Frame))
@@ -1137,14 +1159,19 @@ impl EditorHost {
         });
     }
 
-    pub fn fit_view(&self) {
-        self.view_changes.borrow_mut().push(ViewChange::Fit);
+    pub fn follow_view(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
+        let origin = self.region.get().origin;
+        self.view_changes.borrow_mut().push(ViewChange::Follow {
+            factor,
+            anchor: (anchor.x - origin.x, anchor.y - origin.y),
+            x: delta.x,
+            y: delta.y,
+            resume,
+        });
     }
 
-    pub fn resume_auto_fit_view(&self) {
-        self.view_changes
-            .borrow_mut()
-            .push(ViewChange::ResumeAutoFit);
+    pub fn pan_drag_view(&self) {
+        self.view_changes.borrow_mut().push(ViewChange::PanDrag);
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
@@ -1485,6 +1512,14 @@ impl EditorHost {
         std::mem::take(&mut self.copied.borrow_mut())
     }
 
+    pub fn copy_image(&self, png: Vec<u8>) {
+        self.copied_images.borrow_mut().push(png);
+    }
+
+    pub fn take_copied_images(&self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut self.copied_images.borrow_mut())
+    }
+
     pub fn request_paste(&self) {
         self.paste_requested.set(true);
     }
@@ -1573,9 +1608,11 @@ impl EditorHost {
         rotation: f32,
         opacity: f32,
         intrinsic: Option<Vec2>,
+        follows_camera: bool,
     ) -> ChildId {
         let state = self.region.get();
-        let clip = clip.intersect(swept(rect, rotation));
+        let placed = child_rect(rect.translate(-state.origin));
+        let clip = child_rect(clip.translate(-state.origin)).intersect(placed.swept(rotation));
         let mut children = self.children.borrow_mut();
         let child = children.identify(
             state.region.unwrap_or(EditorRegion::Frame),
@@ -1584,8 +1621,8 @@ impl EditorHost {
         children.placements.push(ChildPlacement {
             child,
             content,
-            rect: child_rect(rect.translate(-state.origin)),
-            clip: child_rect(clip.translate(-state.origin)),
+            rect: placed,
+            clip,
             own_frame,
             top_bar,
             corner_radius: 0.0,
@@ -1597,6 +1634,7 @@ impl EditorHost {
             }),
             rotation,
             opacity: opacity.clamp(0.0, 1.0),
+            follows_camera,
         });
         child
     }
@@ -1664,6 +1702,11 @@ impl EditorHost {
         self.waker.wake();
     }
 
+    pub fn fail_blocks(&self, query: crate::BlockQuery, error: String) {
+        self.graph.set_failure(query, error);
+        self.waker.wake();
+    }
+
     pub fn watched_blocks(&self) -> Vec<crate::BlockQuery> {
         self.graph.watched()
     }
@@ -1681,8 +1724,12 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn set_view(&self, view: Rect, scale: f32) {
-        self.view.set(Some(View { rect: view, scale }));
+    pub fn set_view(&self, view: Rect, scale: f32, moved: bool) {
+        self.view.set(Some(View {
+            rect: view,
+            scale,
+            moved,
+        }));
         self.changed();
     }
 
@@ -1752,13 +1799,6 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
-        self.child_views
-            .borrow_mut()
-            .remove(&child)
-            .unwrap_or_default()
-    }
-
     pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
         self.child_bars
             .borrow_mut()
@@ -1781,15 +1821,6 @@ impl EditorHost {
             .entry(child)
             .or_default()
             .push(action);
-        self.changed();
-    }
-
-    pub(crate) fn push_child_view_change(&self, child: ChildId, change: ViewChange) {
-        self.child_views
-            .borrow_mut()
-            .entry(child)
-            .or_default()
-            .push(change);
         self.changed();
     }
 

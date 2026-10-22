@@ -78,7 +78,7 @@ def _rustc_flags(crate, kwargs):
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
-def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, **kwargs):
+def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     native.rust_library(
@@ -92,7 +92,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, *
         mapped_srcs = cargo_manifest_sources(),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
-        srcs = cargo_library_sources(),
+        srcs = cargo_library_sources() + extra_srcs,
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **kwargs,
     )

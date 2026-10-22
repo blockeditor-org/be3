@@ -1,10 +1,16 @@
+use std::rc::Rc;
+
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLook, CanvasPoint, CanvasShape,
+    CanvasStrokeStyle, CanvasStyle,
 };
-use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{Color32, FontId, Image, Painter, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{
+    Color32, FontId, Image, LineCap, LineJoin, Painter, Pos2, Rect, Stroke, Vec2, pos2,
+};
 
 use crate::geometry::*;
+
+use super::sketch::{Ink, Mark, Sketch};
 
 pub(crate) const SELECTION: Color32 = Color32::from_rgb(140, 200, 255);
 const PLACEHOLDER: Color32 = Color32::from_rgb(35, 35, 35);
@@ -17,11 +23,10 @@ pub(crate) struct Camera {
 }
 
 impl Camera {
-    pub(crate) fn of(view: Option<CanvasView>, fallback: Pos2) -> Self {
-        let view = view.unwrap_or_else(|| CanvasView::new(fallback, 1.0));
+    pub(crate) fn item(corner: Pos2, scale: f32) -> Self {
         Self {
-            origin: view.origin,
-            scale: view.scale.max(f32::EPSILON),
+            origin: pos2(-corner.x * scale, -corner.y * scale),
+            scale,
         }
     }
 
@@ -56,6 +61,7 @@ pub(crate) fn resolve_color(color: CanvasColor, auto: Color32) -> Color32 {
             blue,
             alpha,
         } => Color32::from_rgba_unmultiplied(red, green, blue, alpha),
+        CanvasColor::Palette { hue, tone } => super::style::shade(hue, tone, auto),
     }
 }
 
@@ -77,6 +83,7 @@ pub(crate) struct EntityPaint {
     pub(crate) automatic: bool,
     pub(crate) covered: bool,
     pub(crate) placeholder: Option<Image>,
+    pub(crate) sketch: Rc<Sketch>,
 }
 
 impl PartialEq for EntityPaint {
@@ -89,44 +96,43 @@ impl PartialEq for EntityPaint {
             && self.automatic == other.automatic
             && self.covered == other.covered
             && self.placeholder == other.placeholder
+            && Rc::ptr_eq(&self.sketch, &other.sketch)
     }
 }
 
 impl EntityPaint {
     pub(crate) fn draw(&self, painter: &Painter) {
-        if self.entity.style.hidden {
+        if self.entity.hidden {
             return;
         }
-        let opacity = self.entity.style.opacity.clamp(0.0, 1.0);
+        let style = self.entity.style;
+        let opacity = style.opacity.clamp(0.0, 1.0);
         let color = with_opacity(
-            resolve_color(self.entity.style.foreground, self.palette.auto),
+            resolve_color(style.stroke_color, self.palette.auto),
             opacity,
         );
-        let width = (self.entity.style.line_width.max(0.0) * self.camera.scale).max(0.1);
-        match &self.entity.kind {
-            CanvasEntityKind::Line => self.draw_line(painter, color, width),
-            CanvasEntityKind::Rectangle => self.draw_rectangle(painter, color, width, opacity),
-            CanvasEntityKind::Text { .. } => {}
-            CanvasEntityKind::Pen { points, pressures } => {
-                self.draw_pen(painter, color, width, points, pressures)
+        let width = (style.stroke_width.max(0.0) * self.camera.scale).max(0.1);
+        let fill = with_opacity(resolve_color(style.fill_color, self.palette.auto), opacity);
+        let clean = style.look == CanvasLook::Clean;
+        match self.entity.shape {
+            CanvasShape::Rectangle if clean => self.draw_rectangle(painter, color, fill, width),
+            CanvasShape::Rectangle
+            | CanvasShape::Ellipse
+            | CanvasShape::Diamond
+            | CanvasShape::Path
+            | CanvasShape::Freehand => self.sketch.draw(painter, color, fill),
+            CanvasShape::Text | CanvasShape::Frame => {}
+            CanvasShape::Image => {
+                let painter = self.turned(painter);
+                self.fill_uncovered(&painter, self.box_rect(), opacity);
             }
-            CanvasEntityKind::Block { .. } => self.draw_block(painter, color, opacity),
-            CanvasEntityKind::DirectEditor { scale, .. } => {
-                self.draw_direct_editor(painter, color, opacity, *scale)
-            }
-            CanvasEntityKind::Artboard { .. } => {}
+            CanvasShape::Block => self.draw_block(painter, color, opacity),
+            CanvasShape::Editor => self.draw_direct_editor(painter, color, opacity),
         }
     }
 
     fn at(&self, point: CanvasPoint) -> Pos2 {
         self.camera.at(point)
-    }
-
-    fn local(&self, x: f32, y: f32) -> Pos2 {
-        self.at(local_to_world(
-            self.entity.transform,
-            CanvasPoint::new(x, y),
-        ))
     }
 
     fn box_rect(&self) -> Rect {
@@ -148,42 +154,22 @@ impl EntityPaint {
         )
     }
 
-    fn draw_line(&self, painter: &Painter, color: Color32, width: f32) {
-        styled_line(
-            painter,
-            self.local(-0.5, 0.0),
-            self.local(0.5, 0.0),
-            width,
-            color,
-            self.entity.style,
-            self.camera.scale,
-        );
-    }
-
-    fn draw_rectangle(&self, painter: &Painter, color: Color32, width: f32, opacity: f32) {
-        let painter = self.turned(painter);
+    fn draw_rectangle(&self, painter: &Painter, color: Color32, fill: Color32, width: f32) {
+        let turned = self.turned(painter);
         let rect = self.box_rect();
         let radius = (self.entity.style.corner_radius * self.camera.scale).max(0.0);
-        if let Some(fill) = self.entity.style.fill {
-            let fill = with_opacity(resolve_color(fill, self.palette.auto), opacity);
-            painter.rect_filled(rect, radius, fill);
+        let solid = self.entity.style.stroke_style == CanvasStrokeStyle::Solid;
+        if self.entity.style.fill == CanvasFill::Solid {
+            turned.rect_filled(rect, radius, fill);
         }
-        painter.rect_stroke(rect, radius, width, color);
-    }
-
-    fn draw_pen(
-        &self,
-        painter: &Painter,
-        color: Color32,
-        width: f32,
-        points: &[CanvasPoint],
-        pressures: &[f32],
-    ) {
-        let points: Vec<Pos2> = points
-            .iter()
-            .map(|point| self.at(local_to_world(self.entity.transform, *point)))
-            .collect();
-        stroke(painter, &points, width, pressures, color);
+        self.sketch
+            .draw_only(painter, color, fill, |part| match part.mark {
+                Mark::Fill(_) => false,
+                Mark::Stroke(..) => part.ink == Ink::Fill || !solid,
+            });
+        if solid {
+            turned.rect_stroke(rect, radius, width, color);
+        }
     }
 
     fn fill_uncovered(&self, painter: &Painter, rect: Rect, opacity: f32) {
@@ -237,7 +223,8 @@ impl EntityPaint {
         );
     }
 
-    fn draw_direct_editor(&self, painter: &Painter, color: Color32, opacity: f32, scale: f32) {
+    fn draw_direct_editor(&self, painter: &Painter, color: Color32, opacity: f32) {
+        let scale = self.entity.scale;
         let Some(layout) = direct_editor_layout(&self.entity) else {
             return;
         };
@@ -284,76 +271,68 @@ impl EntityPaint {
     }
 }
 
-pub(crate) fn styled_line(
-    painter: &Painter,
-    start: Pos2,
-    end: Pos2,
-    width: f32,
-    color: Color32,
-    style: CanvasEntityStyle,
-    zoom: f32,
-) {
-    let delta = Vec2::new(end.x - start.x, end.y - start.y);
-    let length = delta.length();
-    if length <= f32::EPSILON {
-        return;
+pub(crate) fn path_middle(line: &[CanvasPoint]) -> CanvasPoint {
+    let lengths: Vec<f32> = line
+        .windows(2)
+        .map(|pair| distance(pair[0], pair[1]))
+        .collect();
+    let mut left = lengths.iter().sum::<f32>() / 2.0;
+    for (pair, length) in line.windows(2).zip(&lengths) {
+        if left <= *length {
+            let t = left / length.max(f32::EPSILON);
+            return CanvasPoint::new(
+                pair[0].x + (pair[1].x - pair[0].x) * t,
+                pair[0].y + (pair[1].y - pair[0].y) * t,
+            );
+        }
+        left -= length;
     }
-    let direction = Vec2::new(delta.x / length, delta.y / length);
-    let arrow = ((style.line_width * 4.0).max(8.0) * zoom).min(length * 0.4);
-    let inset = arrow * 0.75;
-    let along = |from: Pos2, amount: f32| {
-        pos2(from.x + direction.x * amount, from.y + direction.y * amount)
-    };
-    let shaft_start = match style.arrow_start {
-        true => along(start, inset),
-        false => start,
-    };
-    let shaft_end = match style.arrow_end {
-        true => along(end, -inset),
-        false => end,
-    };
-    match style.dashed {
-        true => dashed_line(painter, shaft_start, shaft_end, width, color),
-        false => painter.line(shaft_start, shaft_end, width, color),
-    }
-    if style.arrow_start {
-        arrowhead(painter, start, direction, arrow, width, color);
-    }
-    if style.arrow_end {
-        arrowhead(
-            painter,
-            end,
-            Vec2::new(-direction.x, -direction.y),
-            arrow,
-            width,
-            color,
-        );
+    line.first().copied().unwrap_or_default()
+}
+
+pub(crate) fn path_stroke(style: CanvasStrokeStyle, width: f32) -> Stroke {
+    let stroke = Stroke::new(width).join(LineJoin::Round).cap(LineCap::Round);
+    match style {
+        CanvasStrokeStyle::Solid => stroke,
+        CanvasStrokeStyle::Dashed => stroke.dashed([width * 3.0, width * 3.0], 0.0),
+        CanvasStrokeStyle::Dotted => stroke.dashed([width * 0.01, width * 2.5], 0.0),
     }
 }
 
-fn dashed_line(painter: &Painter, start: Pos2, end: Pos2, width: f32, color: Color32) {
-    let delta = Vec2::new(end.x - start.x, end.y - start.y);
-    let length = delta.length();
-    if length <= f32::EPSILON {
-        return;
-    }
-    let direction = Vec2::new(delta.x / length, delta.y / length);
-    let dash = (width * 3.0).max(2.0);
-    let gap = (width * 2.0).max(2.0);
-    let mut travelled = 0.0;
-    while travelled < length {
-        let to = (travelled + dash).min(length);
-        painter.line(
-            pos2(
-                start.x + direction.x * travelled,
-                start.y + direction.y * travelled,
-            ),
-            pos2(start.x + direction.x * to, start.y + direction.y * to),
-            width,
-            color,
-        );
-        travelled = to + gap;
-    }
+pub(crate) fn arrowhead_size(stroke_width: f32) -> f32 {
+    (stroke_width * 4.0).max(8.0)
+}
+
+pub(crate) fn arrow_ends(style: &CanvasStyle, line: &[Pos2]) -> Vec<(Pos2, Vec2, f32)> {
+    let size = arrowhead_size(style.stroke_width);
+    [
+        (style.start_arrowhead, line.first(), line.get(1)),
+        (
+            style.end_arrowhead,
+            line.last(),
+            line.len().checked_sub(2).map(|at| &line[at]),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(head, tip, before)| {
+        let (CanvasArrowhead::Arrow, Some(tip), Some(before)) = (head, tip, before) else {
+            return None;
+        };
+        let delta = *before - *tip;
+        let length = delta.length();
+        (length > f32::EPSILON).then(|| (*tip, delta / length, size.min(length)))
+    })
+    .collect()
+}
+
+pub(crate) fn arrow_wings(tip: Pos2, inward: Vec2, size: f32) -> [Pos2; 2] {
+    let base = pos2(tip.x + inward.x * size, tip.y + inward.y * size);
+    let across = Vec2::new(-inward.y, inward.x);
+    let spread = size * ARROW_SPREAD;
+    [
+        pos2(base.x + across.x * spread, base.y + across.y * spread),
+        pos2(base.x - across.x * spread, base.y - across.y * spread),
+    ]
 }
 
 pub(crate) fn arrowhead(
@@ -364,22 +343,10 @@ pub(crate) fn arrowhead(
     width: f32,
     color: Color32,
 ) {
-    let base = pos2(tip.x + inward.x * size, tip.y + inward.y * size);
-    let across = Vec2::new(-inward.y, inward.x);
-    let spread = size * ARROW_SPREAD;
     let width = width.max(size * 0.25);
-    painter.line(
-        tip,
-        pos2(base.x + across.x * spread, base.y + across.y * spread),
-        width,
-        color,
-    );
-    painter.line(
-        tip,
-        pos2(base.x - across.x * spread, base.y - across.y * spread),
-        width,
-        color,
-    );
+    for wing in arrow_wings(tip, inward, size) {
+        painter.line(tip, wing, width, color);
+    }
 }
 
 pub(crate) fn outline(painter: &Painter, corners: [Pos2; 4], width: f32, color: Color32) {
@@ -399,35 +366,4 @@ pub(crate) fn handle(painter: &Painter, at: Pos2, color: Color32) {
         pos2(at.x + HANDLE_RADIUS, at.y + HANDLE_RADIUS),
     );
     painter.rect_filled(rect, HANDLE_RADIUS, color);
-}
-
-pub(crate) fn stroke(
-    painter: &Painter,
-    points: &[Pos2],
-    width: f32,
-    pressures: &[f32],
-    color: Color32,
-) {
-    let width_at = |index: usize| {
-        pressures
-            .get(index)
-            .map_or(width, |pressure| pressed_width(width, *pressure))
-    };
-    let dot = |at: Pos2, width: f32| {
-        painter.rect_filled(
-            Rect::from_center_size(at, Vec2::splat(width)),
-            width / 2.0,
-            color,
-        );
-    };
-    if let [only] = points {
-        dot(*only, width_at(0));
-    }
-    for (index, window) in points.windows(2).enumerate() {
-        let segment = (width_at(index) + width_at(index + 1)) / 2.0;
-        painter.line(window[0], window[1], segment, color);
-        if index > 0 && !pressures.is_empty() {
-            dot(window[0], width_at(index));
-        }
-    }
 }

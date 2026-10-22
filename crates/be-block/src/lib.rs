@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub mod audio;
 pub mod blob;
+pub mod block_types;
 pub mod block_url;
 pub mod browser_tab;
 pub mod calendar;
@@ -22,6 +23,7 @@ pub mod editor_settings;
 pub mod editor_view;
 pub mod folder;
 pub mod game;
+pub mod history;
 pub mod hotbar;
 pub mod image;
 pub mod input_remapper;
@@ -32,7 +34,6 @@ pub mod logic_grid;
 pub mod map;
 pub mod metadata;
 pub mod model;
-pub mod paint;
 pub mod pdf;
 pub mod pixel_art;
 pub mod pixel_ray_tracer;
@@ -41,6 +42,7 @@ pub mod presentation;
 pub mod profile;
 pub mod setting;
 pub mod settings;
+pub mod settling;
 pub mod streamed;
 pub mod text;
 pub mod version_control;
@@ -51,6 +53,7 @@ pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
+pub use block_types::{BLOCK_TYPES, BlockType, ChildEdits, block_type};
 pub use browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};
 pub use calendar::{Calendar, CalendarContent, CalendarEvent};
 pub use canvas::CanvasContent;
@@ -61,7 +64,7 @@ pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
 pub use device_class::{ClassDefault, DeviceClass};
-pub use display_settings::{DisplaySettings, DisplaySettingsContent, Theme};
+pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_settings::{EditorSettings, EditorSettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};
@@ -75,12 +78,11 @@ pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
 pub use metadata::{
-    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, Entries,
-    INTRINSIC_NAME, LOCAL_ID, MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH,
-    Thumbhash,
+    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, Entries, ICON,
+    ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA,
+    THUMBHASH, Thumbhash,
 };
 pub use model::Root;
-pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
 pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
@@ -90,6 +92,7 @@ pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
 };
+pub use settling::{Landed, Settling};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
@@ -180,6 +183,23 @@ pub trait LiveEdit: BlockContent {
         touched.push(Touched::Everything);
     }
 
+    fn apply_beneath(
+        &mut self,
+        confirmed: &mut Self,
+        operation: &Self::Op,
+        local: &[Self::Op],
+        touched: &mut Vec<Touched>,
+    ) where
+        Self: Clone,
+    {
+        confirmed.apply(operation);
+        *self = confirmed.clone();
+        for pending in local {
+            self.apply(pending);
+        }
+        touched.push(Touched::Everything);
+    }
+
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         let _ = change;
         None
@@ -222,6 +242,8 @@ pub trait Undo: LiveEdit {
         let _ = previous;
         Err(next)
     }
+
+    fn then(previous: &mut Self::Step, next: Self::Step);
 
     fn revert(&self, step: &Self::Step) -> Vec<Self::Op>;
 

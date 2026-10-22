@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasTextAlign,
-    CanvasTextVerticalAlign, CanvasTextWeight,
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasShape,
+    CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextVerticalAlign,
+    CanvasTextWeight,
 };
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
@@ -11,53 +12,15 @@ use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
 
 use crate::geometry::*;
 
+use super::actions::CanvasActions;
 use super::components::CanvasComponents;
 use super::layers::LayersSection;
 use super::paint::resolve_color;
 use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
+use super::style::{BACKGROUNDS as SOFT, STROKES};
 
 const SPACING: f32 = 10.0;
-
-pub(crate) const PRESETS: [(&str, CanvasColor); 5] = [
-    ("Default", CanvasColor::Auto),
-    (
-        "Red",
-        CanvasColor::Rgba {
-            red: 224,
-            green: 49,
-            blue: 49,
-            alpha: 255,
-        },
-    ),
-    (
-        "Orange",
-        CanvasColor::Rgba {
-            red: 240,
-            green: 140,
-            blue: 0,
-            alpha: 255,
-        },
-    ),
-    (
-        "Green",
-        CanvasColor::Rgba {
-            red: 47,
-            green: 158,
-            blue: 68,
-            alpha: 255,
-        },
-    ),
-    (
-        "Blue",
-        CanvasColor::Rgba {
-            red: 25,
-            green: 113,
-            blue: 194,
-            alpha: 255,
-        },
-    ),
-];
 
 const ALIGNMENTS: [(&str, Alignment); 6] = [
     ("Left", Alignment::Left),
@@ -79,7 +42,7 @@ const LAYERS: [(&str, CanvasLayerMove); 4] = [
 pub(crate) fn CanvasSidebar(
     state: CanvasState,
     shown: block_editor_beui::beui::reactive::Prop<bool>,
-) -> NodeId {
+) -> DynamicSegment<ListChild> {
     view! {
         <Sidebar shown={shown}>
             <Inspector state={state} />
@@ -97,17 +60,15 @@ fn Inspector(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .iter()
-            .any(|entity| !entity.is_artboard())
+            .any(|entity| !entity.is_frame())
     });
     view! {
         <List spacing=SPACING>
             <SelectionSummary state={state} />
             <Show condition={empty}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Select an object to edit its appearance."
-                    wrap=true
-                />
+                <Text style=TextStyle::CAPTION wrap=true>
+                    "Select an object to edit its appearance."
+                </Text>
             </Show>
             <Show condition={chosen}>
                 <List spacing=SPACING>
@@ -116,7 +77,7 @@ fn Inspector(state: CanvasState) -> NodeId {
                     </Show>
                     <TransformSection state={state} />
                     <ArrangeSection state={state} />
-                    <ArtboardSection state={state} />
+                    <FrameSection state={state} />
                     <BlockSection state={state} />
                     <CanvasComponents state={state} />
                 </List>
@@ -133,56 +94,52 @@ fn Inspector(state: CanvasState) -> NodeId {
 }
 
 #[component]
-fn ArtboardSection(state: CanvasState) -> NodeId {
+fn FrameSection(state: CanvasState) -> NodeId {
     let open = create_signal(true);
-    let artboard = create_memo(move || {
+    let frame = create_memo(move || {
         let selected = state.selected_entities();
         let [entity] = selected.as_slice() else {
             return None;
         };
-        entity.is_artboard().then(|| entity.clone())
+        entity.is_frame().then(|| entity.clone())
     });
-    let shown = create_memo(move || artboard.get().is_some());
-    let name = create_memo(move || match artboard.get().map(|entity| entity.kind) {
-        Some(CanvasEntityKind::Artboard { name }) => name,
-        _ => String::new(),
+    let shown = create_memo(move || frame.get().is_some());
+    let name = create_memo(move || {
+        frame
+            .get()
+            .map(|entity| entity.text.to_str_lossy().into_owned())
+            .unwrap_or_default()
     });
-    let locked = create_memo(move || artboard.get().is_none_or(|entity| entity.locked));
+    let locked = create_memo(move || frame.get().is_none_or(|entity| entity.locked));
     let first = create_memo(move || {
-        artboard.get().is_some_and(|entity| {
+        frame.get().is_some_and(|entity| {
             state
-                .first_artboard()
+                .first_frame()
                 .is_some_and(|first| first.id == entity.id)
         })
     });
     let renamed = move |name: String| {
-        let Some(held) = artboard.get_untracked() else {
-            return;
-        };
-        let mut updated = held.clone();
-        updated.kind = CanvasEntityKind::Artboard { name };
-        state.record_update(vec![held], vec![updated], true);
+        if let Some(held) = frame.get_untracked() {
+            state.retext(held.id, &name);
+        }
     };
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Artboard" open={open} on_toggle={move |next| open.set(next)}>
+                <Accordion title="Frame" open={open}>
                     <List spacing=6.0>
                         <TextInput
                             label="Name"
-                            value={name}
+                            value={Binding::new(name, renamed)}
                             disabled={locked}
-                            @test_id={"infinite-canvas.artboard.name"}
-                            on_change={renamed}
+                            @test_id={"infinite-canvas.frame.name"}
                         />
                         <Show condition={first}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="The first artboard is what other editors show when they embed this canvas."
-                                wrap=true
-                            />
+                            <Text style=TextStyle::CAPTION wrap=true>
+                                "The first frame is what other editors show when they embed this canvas."
+                            </Text>
                         </Show>
-                        <ArtboardBackground artboard={artboard} locked={locked} state={state} />
+                        <FrameBackground frame={frame} locked={locked} state={state} />
                     </List>
                 </Accordion>
             </Show>
@@ -212,27 +169,29 @@ const BACKGROUNDS: [(&str, CanvasColor); 2] = [
 ];
 
 #[component]
-fn ArtboardBackground(
+fn FrameBackground(
     state: CanvasState,
-    artboard: Memo<Option<CanvasEntity>>,
+    frame: Memo<Option<CanvasEntity>>,
     locked: Memo<bool>,
 ) -> NodeId {
-    let fill = create_memo(move || artboard.get().and_then(|entity| entity.style.fill));
+    let fill = create_memo(move || frame.get().and_then(|entity| entity.style.filled()));
     let theme = use_theme();
-    let custom =
-        create_memo(move || resolve_color(fill.get().unwrap_or_default(), theme.background.get()));
+    let custom = create_memo(move || match fill.get().unwrap_or_default() {
+        CanvasColor::Auto => theme.background.get(),
+        color => resolve_color(color, theme.text.get()),
+    });
     let following = create_memo(move || fill.get().is_none());
     let value = create_memo(move || match fill.get() {
         Some(color) => CommonValue::Uniform(color),
         None => CommonValue::None,
     });
     let set = move |fill: Option<CanvasColor>| {
-        let Some(held) = artboard.get_untracked().filter(|entity| !entity.locked) else {
+        let Some(held) = frame.get_untracked().filter(|entity| !entity.locked) else {
             return;
         };
         let mut updated = held.clone();
-        updated.style.fill = fill;
-        state.record_update(vec![held], vec![updated], true);
+        filled(&mut updated.style, fill);
+        state.record_update(vec![held], vec![updated]);
     };
     let typed = move |color: Color32| {
         let [red, green, blue, alpha] = color.to_array();
@@ -243,23 +202,18 @@ fn ArtboardBackground(
             alpha,
         }));
     };
-    let swatches = BACKGROUNDS
-        .iter()
-        .chain(&PRESETS[1..])
-        .copied()
-        .collect::<Vec<_>>();
+    let swatches = BACKGROUNDS.iter().chain(&SOFT).copied().collect::<Vec<_>>();
     let count = swatches.len();
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::CAPTION string="Background" />
+            <Text style=TextStyle::CAPTION>"Background"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <ToggleButton
                     label="Theme background"
                     glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                    pressed={following}
+                    pressed={Binding::new(following, move |_: bool| set(None))}
                     disabled={locked}
                     @test_id={"infinite-canvas.background.theme"}
-                    on_change={move |_: bool| set(None)}
                 />
                 <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                     let (name, color) = swatches[index];
@@ -276,10 +230,9 @@ fn ArtboardBackground(
             </List>
             <ColorInput
                 label="Background color"
-                value={custom}
+                value={Binding::new(custom, typed)}
                 disabled={locked}
                 @test_id={"infinite-canvas.background"}
-                on_change={typed}
             />
         </List>
     }
@@ -292,7 +245,7 @@ fn SelectionSummary(state: CanvasState) -> NodeId {
         match selected.as_slice() {
             [entity] => format!(
                 "{} selected{}",
-                entity_kind_label(&entity.kind),
+                entity_kind_label(entity),
                 match entity.locked {
                     true => " · Locked",
                     false => "",
@@ -312,7 +265,7 @@ fn SelectionSummary(state: CanvasState) -> NodeId {
         }
     });
     view! {
-        <Text style=TextStyle::HEADING string={label} @test_id={"infinite-canvas.selection"} />
+        <Text style=TextStyle::HEADING @test_id={"infinite-canvas.selection"}>{label}</Text>
     }
 }
 
@@ -322,14 +275,12 @@ fn TransformSection(state: CanvasState) -> NodeId {
     let single = create_memo(move || state.selected_entities().len() == 1);
     let many = create_memo(move || !single.get());
     view! {
-        <Accordion title="Transform" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Transform" open={open}>
             <List spacing=6.0>
                 <Show condition={many}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Select one object to edit exact transform values."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "Select one object to edit exact transform values."
+                    </Text>
                 </Show>
                 <Show condition={single}>
                     <TransformFields state={state} />
@@ -357,14 +308,17 @@ fn TransformFields(state: CanvasState) -> NodeId {
             };
             let mut updated = held.clone();
             apply(&mut updated, value);
-            state.record_update(vec![held], vec![updated], true);
+            state.record_update(vec![held], vec![updated]);
+            state.commit_writes();
         };
         let preview = move |value: Option<f64>| {
-            let typed = value.zip(entity.get_untracked()).map(|(value, mut held)| {
-                apply(&mut held, value);
-                held
-            });
-            state.preview_typed(typed);
+            let (Some(value), Some(held)) = (value, entity.get_untracked()) else {
+                state.cancel_writes();
+                return;
+            };
+            let mut typed = held.clone();
+            apply(&mut typed, value);
+            state.type_value(held, typed);
         };
         (change, preview)
     };
@@ -392,66 +346,66 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 row_spacing=6.0
             >
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="X" />
+                    <Text style=TextStyle::CAPTION>"X"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="X"
-                    value={center_x}
+                    value={Binding::new(center_x, x)}
                     disabled={locked}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.x"}
-                    on_change={x}
                     on_preview={x_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="Y" />
+                    <Text style=TextStyle::CAPTION>"Y"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="Y"
-                    value={center_y}
+                    value={Binding::new(center_y, y)}
                     disabled={locked}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.y"}
-                    on_change={y}
                     on_preview={y_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="W" />
+                    <Text style=TextStyle::CAPTION>"W"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="W"
                     min={MIN_SIZE as f64}
-                    value={size_x}
+                    value={Binding::new(size_x, width)}
                     disabled={no_width}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.width"}
-                    on_change={width}
                     on_preview={width_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="H" />
+                    <Text style=TextStyle::CAPTION>"H"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="H"
                     min={MIN_SIZE as f64}
-                    value={size_y}
+                    value={Binding::new(size_y, height)}
                     disabled={no_height}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.height"}
-                    on_change={height}
                     on_preview={height_preview}
                 />
             </Grid>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text style=TextStyle::CAPTION string="Rotation" />
+                <Text style=TextStyle::CAPTION>"Rotation"</Text>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     @sizing=ItemSize::Percent(100.0)
                     label="Rotation"
-                    value={angle}
+                    value={Binding::new(angle, rotation)}
                     disabled={no_rotation}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.rotation"}
-                    on_change={rotation}
                     on_preview={rotation_preview}
                 />
             </List>
@@ -467,17 +421,13 @@ fn BlockSection(state: CanvasState) -> NodeId {
         let [entity] = selected.as_slice() else {
             return None;
         };
-        matches!(
-            entity.kind,
-            CanvasEntityKind::Block { .. } | CanvasEntityKind::DirectEditor { .. }
-        )
-        .then(|| entity.clone())
+        matches!(entity.shape, CanvasShape::Block | CanvasShape::Editor).then(|| entity.clone())
     });
     let shown = create_memo(move || entity.get().is_some());
     let direct = create_memo(move || {
         entity
             .get()
-            .is_some_and(|entity| matches!(entity.kind, CanvasEntityKind::DirectEditor { .. }))
+            .is_some_and(|entity| entity.shape == CanvasShape::Editor)
     });
     let label = create_memo(move || match direct.get() {
         true => "Show preview only".to_owned(),
@@ -493,7 +443,7 @@ fn BlockSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Block" open={open} on_toggle={move |next| open.set(next)}>
+                <Accordion title="Block" open={open}>
                     <List spacing=6.0>
                         <Button
                             label={label}
@@ -516,44 +466,38 @@ fn BlockSection(state: CanvasState) -> NodeId {
 fn EditorScale(state: CanvasState) -> NodeId {
     let entity = create_memo(move || state.selected_entities().pop());
     let scale = create_memo(move || match entity.get() {
-        Some(entity) => match entity.kind {
-            CanvasEntityKind::DirectEditor { scale, .. } => scale as f64 * 100.0,
-            _ => 100.0,
-        },
-        None => 100.0,
+        Some(entity) if entity.shape == CanvasShape::Editor => entity.scale as f64 * 100.0,
+        _ => 100.0,
     });
     let locked = create_memo(move || entity.get().is_none_or(|entity| entity.locked));
     let changed = move |value: f64| {
         let Some(held) = entity.get_untracked() else {
             return;
         };
-        let CanvasEntityKind::DirectEditor { block_id, scale } = held.kind else {
+        if held.shape != CanvasShape::Editor {
             return;
-        };
+        }
         let wanted = ((value / 100.0) as f32).clamp(0.1, 8.0);
-        let factor = wanted / scale.max(f32::EPSILON);
+        let factor = wanted / held.scale.max(f32::EPSILON);
         let mut updated = held.clone();
-        updated.kind = CanvasEntityKind::DirectEditor {
-            block_id,
-            scale: wanted,
-        };
+        updated.scale = wanted;
         updated.transform.size.x *= factor;
         updated.transform.size.y *= factor;
-        state.record_update(vec![held], vec![updated], true);
+        state.record_update(vec![held], vec![updated]);
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <Text style=TextStyle::CAPTION string="Scale" />
+            <Text style=TextStyle::CAPTION>"Scale"</Text>
             <NumberInput
+                on_scrub={move |scrubbing| state.scrub(scrubbing)}
                 @sizing=ItemSize::Percent(100.0)
                 label="Scale"
                 min=10.0
                 max=800.0
-                value={scale}
+                value={Binding::new(scale, changed)}
                 disabled={locked}
                 drag={NumberDrag::Linear { speed: 1.0 }}
                 @test_id={"infinite-canvas.editor-scale"}
-                on_change={changed}
             />
         </List>
     }
@@ -587,7 +531,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
     let lock = move || state.run(CanvasCommand::Lock);
     let unlock = move || state.run(CanvasCommand::Unlock);
     view! {
-        <Accordion title="Arrange" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Arrange" open={open}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                     <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
@@ -675,7 +619,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
 fn AppearanceSection(state: CanvasState) -> NodeId {
     let open = create_signal(true);
     view! {
-        <Accordion title="Appearance" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Appearance" open={open}>
             <List spacing=SPACING>
                 <ForegroundRow state={state} />
                 <LineWidthRow state={state} />
@@ -692,15 +636,40 @@ pub(crate) fn styled_entities(state: CanvasState) -> Vec<CanvasEntity> {
     state
         .selected_entities()
         .into_iter()
-        .filter(|entity| {
-            !matches!(
-                entity.kind,
-                CanvasEntityKind::Block { .. }
-                    | CanvasEntityKind::DirectEditor { .. }
-                    | CanvasEntityKind::Artboard { .. }
-            )
-        })
+        .filter(colored)
         .collect()
+}
+
+pub(crate) fn colored(entity: &CanvasEntity) -> bool {
+    !entity.shape.embeds_block() && !entity.is_frame()
+}
+
+pub(crate) fn stroked(entity: &CanvasEntity) -> bool {
+    matches!(
+        entity.shape,
+        CanvasShape::Path
+            | CanvasShape::Rectangle
+            | CanvasShape::Ellipse
+            | CanvasShape::Diamond
+            | CanvasShape::Freehand
+    )
+}
+
+pub(crate) fn closed(entity: &CanvasEntity) -> bool {
+    matches!(
+        entity.shape,
+        CanvasShape::Rectangle | CanvasShape::Ellipse | CanvasShape::Diamond
+    )
+}
+
+fn filled(style: &mut CanvasStyle, fill: Option<CanvasColor>) {
+    match fill {
+        Some(color) => {
+            style.fill = CanvasFill::Solid;
+            style.fill_color = color;
+        }
+        None => style.fill = CanvasFill::None,
+    }
 }
 
 #[component]
@@ -709,7 +678,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
         common_value(
             styled_entities(state)
                 .iter()
-                .map(|entity| entity.style.foreground),
+                .map(|entity| entity.style.stroke_color),
         )
     });
     let shown = create_memo(move || !value.get().absent());
@@ -730,12 +699,11 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
-                    <Text style=TextStyle::CAPTION string="Color" />
+                    <Text style=TextStyle::CAPTION>"Color"</Text>
                     <ColorInput
                         label="Custom color"
-                        value={custom}
+                        value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.color"}
-                        on_change={typed}
                     />
                 </List>
             </Show>
@@ -744,18 +712,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
 }
 
 pub(crate) fn set_foreground(state: CanvasState, color: CanvasColor) {
-    state.remember_foreground(color);
-    state.update_selected(
-        |kind| {
-            !matches!(
-                kind,
-                CanvasEntityKind::Block { .. }
-                    | CanvasEntityKind::DirectEditor { .. }
-                    | CanvasEntityKind::Artboard { .. }
-            )
-        },
-        |style| style.foreground = color,
-    );
+    state.update_selected(colored, |style| style.stroke_color = color);
 }
 
 #[component]
@@ -765,32 +722,15 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
             state
                 .selected_entities()
                 .iter()
-                .filter(|entity| {
-                    matches!(
-                        entity.kind,
-                        CanvasEntityKind::Line
-                            | CanvasEntityKind::Rectangle
-                            | CanvasEntityKind::Pen { .. }
-                    )
-                })
-                .map(|entity| entity.style.line_width),
+                .filter(|entity| stroked(entity))
+                .map(|entity| entity.style.stroke_width),
         )
     });
     let shown = create_memo(move || !value.get().absent());
     let mixed = create_memo(move || value.get().mixed());
     let width = create_memo(move || value.get().or(2.0));
     let changed = move |width: f32| {
-        state.update_selected(
-            |kind| {
-                matches!(
-                    kind,
-                    CanvasEntityKind::Line
-                        | CanvasEntityKind::Rectangle
-                        | CanvasEntityKind::Pen { .. }
-                )
-            },
-            |style| style.line_width = width,
-        );
+        state.update_selected(stroked, |style| style.stroke_width = width);
     };
     view! {
         <List spacing=0.0>
@@ -801,9 +741,8 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
                         label="Line width"
                         min=0.5
                         max=20.0
-                        value={width}
+                        value={Binding::new(width, changed)}
                         @test_id={"infinite-canvas.line-width"}
-                        on_change={changed}
                     />
                 </List>
             </Show>
@@ -815,9 +754,9 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
 fn MixedLabel(label: &'static str, mixed: Memo<bool>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <Text style=TextStyle::CAPTION string={label} />
+            <Text style=TextStyle::CAPTION>{label}</Text>
             <Show condition={mixed}>
-                <Text style=TextStyle::CAPTION string="Mixed" />
+                <Text style=TextStyle::CAPTION>"Mixed"</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
@@ -830,7 +769,7 @@ fn LineOptions(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .into_iter()
-            .filter(|entity| matches!(entity.kind, CanvasEntityKind::Line))
+            .filter(|entity| entity.shape == CanvasShape::Path)
             .collect::<Vec<_>>()
     });
     let shown = create_memo(move || !lines.with(Vec::is_empty));
@@ -840,44 +779,67 @@ fn LineOptions(state: CanvasState) -> NodeId {
                 .or(false)
         })
     };
-    let dashed = flag(lines, |entity| entity.style.dashed);
-    let start = flag(lines, |entity| entity.style.arrow_start);
-    let end = flag(lines, |entity| entity.style.arrow_end);
-    let set = |state: CanvasState,
-               apply: fn(&mut block_editor_beui::be_block::canvas::CanvasEntityStyle, bool),
-               value: bool| {
+    let dashed = flag(lines, |entity| {
+        entity.style.stroke_style == CanvasStrokeStyle::Dashed
+    });
+    let start = flag(lines, |entity| {
+        entity.style.start_arrowhead != CanvasArrowhead::None
+    });
+    let end = flag(lines, |entity| {
+        entity.style.end_arrowhead != CanvasArrowhead::None
+    });
+    let set = |state: CanvasState, apply: fn(&mut CanvasStyle, bool), value: bool| {
         state.update_selected(
-            |kind| matches!(kind, CanvasEntityKind::Line),
+            |entity| entity.shape == CanvasShape::Path,
             move |style| apply(style, value),
         );
     };
-    let dash = move |value: bool| set(state, |style, value| style.dashed = value, value);
-    let arrow_start =
-        move |value: bool| set(state, |style, value| style.arrow_start = value, value);
-    let arrow_end = move |value: bool| set(state, |style, value| style.arrow_end = value, value);
+    let dash = move |value: bool| {
+        set(
+            state,
+            |style, value| {
+                style.stroke_style = match value {
+                    true => CanvasStrokeStyle::Dashed,
+                    false => CanvasStrokeStyle::Solid,
+                }
+            },
+            value,
+        )
+    };
+    let arrow_start = move |value: bool| {
+        set(
+            state,
+            |style, value| style.start_arrowhead = arrowhead(value),
+            value,
+        )
+    };
+    let arrow_end = move |value: bool| {
+        set(
+            state,
+            |style, value| style.end_arrowhead = arrowhead(value),
+            value,
+        )
+    };
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Separator />
-                    <Text style=TextStyle::CAPTION string="Line" />
+                    <Text style=TextStyle::CAPTION>"Line"</Text>
                     <Checkbox
                         label="Dashed"
-                        checked={dashed}
+                        checked={Binding::new(dashed, dash)}
                         @test_id={"infinite-canvas.dashed"}
-                        on_change={dash}
                     />
                     <Checkbox
                         label="Start arrow"
-                        checked={start}
+                        checked={Binding::new(start, arrow_start)}
                         @test_id={"infinite-canvas.arrow-start"}
-                        on_change={arrow_start}
                     />
                     <Checkbox
                         label="End arrow"
-                        checked={end}
+                        checked={Binding::new(end, arrow_end)}
                         @test_id={"infinite-canvas.arrow-end"}
-                        on_change={arrow_end}
                     />
                 </List>
             </Show>
@@ -891,7 +853,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .into_iter()
-            .filter(|entity| matches!(entity.kind, CanvasEntityKind::Rectangle))
+            .filter(closed)
             .collect::<Vec<_>>()
     });
     let shown = create_memo(move || !rectangles.with(Vec::is_empty));
@@ -899,7 +861,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
         common_value(rectangles.with(|rectangles| {
             rectangles
                 .iter()
-                .map(|entity| entity.style.fill)
+                .map(|entity| entity.style.filled())
                 .collect::<Vec<_>>()
         }))
     });
@@ -907,6 +869,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
         common_value(rectangles.with(|rectangles| {
             rectangles
                 .iter()
+                .filter(|entity| entity.shape == CanvasShape::Rectangle)
                 .map(|entity| entity.style.corner_radius)
                 .collect::<Vec<f32>>()
         }))
@@ -915,7 +878,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
     let corner = create_memo(move || radius.get().or(0.0));
     let rounded = move |value: f32| {
         state.update_selected(
-            |kind| matches!(kind, CanvasEntityKind::Rectangle),
+            |entity| entity.shape == CanvasShape::Rectangle,
             |style| style.corner_radius = value,
         );
     };
@@ -945,17 +908,16 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Separator />
-                    <Text style=TextStyle::CAPTION string="Rectangle" />
+                    <Text style=TextStyle::CAPTION>"Shape"</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ToggleButton
                             label="No fill"
                             glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                            pressed={none}
+                            pressed={Binding::new(none, clearing)}
                             @test_id={"infinite-canvas.fill.none"}
-                            on_change={clearing}
                         />
-                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
-                            let (name, color) = PRESETS[index];
+                        <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
+                            let (name, color) = STROKES[index];
                             let value = create_memo(move || match fill.get() {
                                 CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
                                 CommonValue::Uniform(None) | CommonValue::None => {
@@ -976,18 +938,16 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                     </List>
                     <ColorInput
                         label="Fill color"
-                        value={custom}
+                        value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.fill"}
-                        on_change={typed}
                     />
                     <MixedLabel label="Corner radius" mixed={mixed} />
                     <Slider
                         label="Corner radius"
                         min=0.0
                         max=100.0
-                        value={corner}
+                        value={Binding::new(corner, rounded)}
                         @test_id={"infinite-canvas.corner-radius"}
-                        on_change={rounded}
                     />
                 </List>
             </Show>
@@ -996,11 +956,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
 }
 
 fn set_fill(state: CanvasState, fill: Option<CanvasColor>) {
-    state.remember_fill(fill);
-    state.update_selected(
-        |kind| matches!(kind, CanvasEntityKind::Rectangle),
-        |style| style.fill = fill,
-    );
+    state.update_selected(closed, |style| filled(style, fill));
 }
 
 #[component]
@@ -1026,9 +982,8 @@ fn OpacityRow(state: CanvasState) -> NodeId {
                 label="Opacity"
                 min=0.0
                 max=1.0
-                value={opacity}
+                value={Binding::new(opacity, changed)}
                 @test_id={"infinite-canvas.opacity"}
-                on_change={changed}
             />
         </List>
     }
@@ -1052,27 +1007,22 @@ fn TextOptions(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .iter()
-            .filter_map(|entity| match &entity.kind {
-                CanvasEntityKind::Text { text_style, .. } => Some(*text_style),
-                _ => None,
-            })
+            .filter(|entity| entity.shape == CanvasShape::Text)
+            .map(|entity| (entity.text_style, entity.style.text_size.px()))
             .collect::<Vec<_>>()
     });
     let shown = create_memo(move || !styles.with(Vec::is_empty));
     let font_size = create_memo(move || {
-        common_value(styles.with(|styles| {
-            styles
-                .iter()
-                .map(|style| style.font_size)
-                .collect::<Vec<f32>>()
-        }))
-        .or(18.0) as f64
+        common_value(
+            styles.with(|styles| styles.iter().map(|(_, size)| *size).collect::<Vec<f32>>()),
+        )
+        .or(CanvasTextSize::default().px()) as f64
     });
     let line_height = create_memo(move || {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.line_height)
+                .map(|(style, _)| style.line_height)
                 .collect::<Vec<f32>>()
         }))
         .or(1.2) as f64
@@ -1081,22 +1031,25 @@ fn TextOptions(state: CanvasState) -> NodeId {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.weight == CanvasTextWeight::Bold)
+                .map(|(style, _)| style.weight == CanvasTextWeight::Bold)
                 .collect::<Vec<bool>>()
         }))
         .or(false)
     });
     let wrap = create_memo(move || {
-        common_value(
-            styles.with(|styles| styles.iter().map(|style| style.wrap).collect::<Vec<bool>>()),
-        )
+        common_value(styles.with(|styles| {
+            styles
+                .iter()
+                .map(|(style, _)| style.wrap)
+                .collect::<Vec<bool>>()
+        }))
         .or(false)
     });
     let alignment = create_memo(move || {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.alignment)
+                .map(|(style, _)| style.alignment)
                 .collect::<Vec<CanvasTextAlign>>()
         }))
     });
@@ -1104,20 +1057,20 @@ fn TextOptions(state: CanvasState) -> NodeId {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.vertical_alignment)
+                .map(|(style, _)| style.vertical_alignment)
                 .collect::<Vec<CanvasTextVerticalAlign>>()
         }))
     });
     let sized = move |value: f64| {
         let size = (value as f32).clamp(4.0, 256.0);
-        state.update_selected_text(move |style| style.font_size = size);
+        state.update_selected_text(move |_, style| style.text_size = CanvasTextSize::Custom(size));
     };
     let spaced = move |value: f64| {
         let height = (value as f32).clamp(0.5, 4.0);
-        state.update_selected_text(move |style| style.line_height = height);
+        state.update_selected_text(move |style, _| style.line_height = height);
     };
     let weighted = move |bold: bool| {
-        state.update_selected_text(move |style| {
+        state.update_selected_text(move |style, _| {
             style.weight = match bold {
                 true => CanvasTextWeight::Bold,
                 false => CanvasTextWeight::Regular,
@@ -1125,46 +1078,45 @@ fn TextOptions(state: CanvasState) -> NodeId {
         });
     };
     let wrapped = move |wrap: bool| {
-        state.update_selected_text(move |style| style.wrap = wrap);
+        state.update_selected_text(move |style, _| style.wrap = wrap);
     };
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Separator />
-                    <Text style=TextStyle::CAPTION string="Text" />
+                    <Text style=TextStyle::CAPTION>"Text"</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Text style=TextStyle::CAPTION string="Font size" />
+                        <Text style=TextStyle::CAPTION>"Font size"</Text>
                         <NumberInput
+                            on_scrub={move |scrubbing| state.scrub(scrubbing)}
                             @sizing=ItemSize::Percent(100.0)
                             label="Font size"
                             min=4.0
                             max=256.0
-                            value={font_size}
+                            value={Binding::new(font_size, sized)}
                             decimals={Some(2)}
                             @test_id={"infinite-canvas.font-size"}
-                            on_change={sized}
                         />
                     </List>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Text style=TextStyle::CAPTION string="Line height" />
+                        <Text style=TextStyle::CAPTION>"Line height"</Text>
                         <NumberInput
+                            on_scrub={move |scrubbing| state.scrub(scrubbing)}
                             @sizing=ItemSize::Percent(100.0)
                             label="Line height"
                             min=0.5
                             max=4.0
-                            value={line_height}
+                            value={Binding::new(line_height, spaced)}
                             decimals={Some(2)}
                             drag={NumberDrag::Linear { speed: 0.05 }}
                             @test_id={"infinite-canvas.line-height"}
-                            on_change={spaced}
                         />
                     </List>
                     <Checkbox
                         label="Bold"
-                        checked={bold}
+                        checked={Binding::new(bold, weighted)}
                         @test_id={"infinite-canvas.bold"}
-                        on_change={weighted}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ForEach
@@ -1177,13 +1129,12 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             view! {
                                 <ToggleButton
                                     label={label}
-                                    pressed={pressed}
-                                    @test_id={format!("infinite-canvas.align-text.{label}")}
-                                    on_change={move |_: bool| {
-                                        state.update_selected_text(move |style| {
+                                    pressed={Binding::new(pressed, move |_: bool| {
+                                        state.update_selected_text(move |style, _| {
                                             style.alignment = wanted;
                                         });
-                                    }}
+                                    })}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
                                 />
                             }
                         }</ForEach>
@@ -1199,53 +1150,65 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             view! {
                                 <ToggleButton
                                     label={label}
-                                    pressed={pressed}
-                                    @test_id={format!("infinite-canvas.align-text.{label}")}
-                                    on_change={move |_: bool| {
-                                        state.update_selected_text(move |style| {
+                                    pressed={Binding::new(pressed, move |_: bool| {
+                                        state.update_selected_text(move |style, _| {
                                             style.vertical_alignment = wanted;
                                         });
-                                    }}
+                                    })}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
                                 />
                             }
                         }</ForEach>
                     </List>
                     <Checkbox
                         label="Wrap text"
-                        checked={wrap}
+                        checked={Binding::new(wrap, wrapped)}
                         @test_id={"infinite-canvas.wrap"}
-                        on_change={wrapped}
                     />
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Resize to wrap; hold Alt while resizing to scale text."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "Resize to wrap; hold Alt while resizing to scale text."
+                    </Text>
                 </List>
             </Show>
         </List>
     }
 }
 
-const SHORTCUTS: [(&str, &str); 10] = [
-    ("Pan / Select", "H / V"),
-    ("Rectangle / Line", "R / L"),
-    ("Text / Pen", "T / P"),
+const SHORTCUTS: [(&str, &str); 9] = [
     ("Pan", "Drag empty space, space-drag, or two fingers"),
     ("Zoom", "Ctrl-scroll or pinch"),
     ("Select all", "Ctrl+A"),
     ("Nudge", "Arrow keys; Shift for 10×"),
     ("Duplicate", "Ctrl+D or Alt-drag"),
     ("Edit selected block", "Enter"),
+    ("Restore while erasing", "Alt"),
+    ("Keep a line's end off shapes", "Ctrl while drawing"),
     ("Exit tool or editor", "Escape"),
 ];
 
 #[component]
 fn ShortcutsSection() -> NodeId {
     let open = create_signal(false);
+    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let mut tools: Vec<Action> = actions.tools().into_iter().cloned().collect();
+    tools.push(actions.add_image.clone());
+    tools.push(actions.tool_lock.clone());
+    let count = tools.len();
     view! {
-        <Accordion title="Shortcuts" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Shortcuts" open={open}>
             <List spacing=4.0>
+                <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                    let action = tools[index].clone();
+                    let keys = action
+                        .shortcuts()
+                        .iter()
+                        .map(|chord| chord.label())
+                        .collect::<Vec<_>>()
+                        .join(" / ");
+                    view! {
+                        <Shortcut keys={keys} description={action.label()} />
+                    }
+                }</ForEach>
                 <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                     let (action, keys) = SHORTCUTS[index];
                     view! {
@@ -1254,5 +1217,12 @@ fn ShortcutsSection() -> NodeId {
                 }</ForEach>
             </List>
         </Accordion>
+    }
+}
+
+fn arrowhead(shown: bool) -> CanvasArrowhead {
+    match shown {
+        true => CanvasArrowhead::Arrow,
+        false => CanvasArrowhead::None,
     }
 }

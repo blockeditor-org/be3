@@ -28,6 +28,14 @@ pub fn frame_time() -> Option<Instant> {
     FRAME.with(|frame| frame.get().map(|(epoch, now)| epoch + now))
 }
 
+pub fn instant_at(micros: u64) -> Option<Instant> {
+    FRAME.with(|frame| {
+        frame
+            .get()
+            .map(|(epoch, _)| epoch + Duration::from_micros(micros))
+    })
+}
+
 pub(crate) fn receive(seconds: i32) {
     UTC_OFFSET.with(|held| held.set(seconds));
 }

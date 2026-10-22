@@ -4,7 +4,7 @@ use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
-use block_editor_beui::{Editor, Loading, Side, Sidebar, Toolbar};
+use block_editor_beui::{Editor, LoadingPane, Side, Sidebar, Toolbar};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::Panels;
@@ -24,7 +24,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={waiting}>
-                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
+                <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
             </Show>
             <Show condition={loaded}>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
@@ -70,7 +70,7 @@ fn shortcut(session: Session, press: KeyPress) -> bool {
 }
 
 #[component]
-fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
+fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<ListChild> {
     let editor = session.editor();
     let read_only = editor.read_only();
     let compile = move || {
@@ -98,7 +98,14 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
     let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
     let zoom_in = move || editor.zoom(ZOOM_STEP);
-    let recenter = move || editor.fit();
+    let world = editor.world();
+    let recenter = move || {
+        if let Some(world) = world.get_untracked() {
+            let origin =
+                Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO);
+            editor.fit(origin, editor.content_rect(), 1.0);
+        }
+    };
     let problem_color = TextColor::Danger;
     let error_color = TextColor::Danger;
     view! {
@@ -112,22 +119,23 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
                 on_click={compile}
             />
             <Show condition={challenged}>
-                <Text string={challenge} />
+                <Text>{challenge}</Text>
             </Show>
             <Show condition={misplaced}>
-                <Text style=TextStyle::CAPTION string={problem_text} color={problem_color} />
+                <Text style=TextStyle::CAPTION color={problem_color}>{problem_text}</Text>
             </Show>
             <Show condition={failed}>
                 <Text
                     style=TextStyle::CAPTION
-                    string={compile_error}
                     color={error_color}
                     @test_id={"logic-grid.compile-error"}
-                />
+                >
+                    {compile_error}
+                </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton glyph={ICON_ZOOM_OUT.to_owned()} label="Zoom out" on_click={zoom_out} />
-            <Text style=TextStyle::CAPTION string={percent} />
+            <Text style=TextStyle::CAPTION>{percent}</Text>
             <IconButton glyph={ICON_ZOOM_IN.to_owned()} label="Zoom in" on_click={zoom_in} />
             <IconButton
                 glyph={ICON_FIT_SCREEN.to_owned()}
@@ -287,7 +295,7 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
     });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Text string={text} size color={color} align={align} vertical_align={vertical_align} />
+            <Text size color={color} align={align} vertical_align={vertical_align}>{text}</Text>
         </CanvasItem>
     }
 }

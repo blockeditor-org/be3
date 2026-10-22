@@ -13,7 +13,7 @@ fn a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks() {
 }
 
 fn painted_width(container: f32) -> f32 {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) width=container>

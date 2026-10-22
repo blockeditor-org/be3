@@ -3,8 +3,10 @@
 mod accessibility;
 mod clipboard;
 mod file_picker;
+mod preferences;
 #[cfg(test)]
 mod tests;
+mod wheel;
 
 pub use winit;
 
@@ -48,6 +50,8 @@ use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
 use beui_core::window::WindowState;
 use clipboard::Clipboard;
+use preferences::SystemPreferences;
+use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
 #[cfg(target_os = "linux")]
@@ -98,11 +102,13 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         surface: None,
         pointer: Pos2::ZERO,
         fingers: Vec::new(),
+        wheel: Wheel::new(cfg!(target_os = "macos")),
         dropping: None,
         error: None,
         next_update: None,
         prepared: false,
         clipboard: Clipboard::new(),
+        preferences: SystemPreferences::default(),
         proxy: event_loop.create_proxy(),
         outcome: outcome.clone(),
     };
@@ -127,11 +133,13 @@ struct Runner {
     surface: Option<Surface>,
     pointer: Pos2,
     fingers: Vec<TouchId>,
+    wheel: Wheel,
     dropping: Option<AsyncRequestSerial>,
     error: Option<String>,
     next_update: Option<Instant>,
     prepared: bool,
     clipboard: Clipboard,
+    preferences: SystemPreferences,
     proxy: EventLoopProxy,
     outcome: Outcome,
 }
@@ -154,6 +162,10 @@ struct WinitPlatform<'a> {
 impl Platform for WinitPlatform<'_> {
     fn copy(&mut self, text: String) {
         self.clipboard.set(text);
+    }
+
+    fn copy_image(&mut self, png: Vec<u8>) {
+        self.clipboard.set_image(&png);
     }
 
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
@@ -183,6 +195,11 @@ impl Platform for WinitPlatform<'_> {
         }
         if let Some(request) = ime_request(window, shown) {
             let _ = surface.window.request_ime_update(request);
+        }
+        if let Some(title) = &window.appearance.title
+            && window.appearance.title != shown.appearance.title
+        {
+            surface.window.set_title(title);
         }
     }
 
@@ -463,7 +480,14 @@ impl ApplicationHandler for Runner {
             return;
         }
         let attributes = WindowAttributes::default()
-            .with_title(self.runner.title().to_owned())
+            .with_title(
+                self.runner
+                    .window()
+                    .appearance
+                    .title
+                    .clone()
+                    .unwrap_or_default(),
+            )
             .with_visible(false)
             .with_surface_size(LogicalSize::new(self.size.x, self.size.y));
         #[cfg(all(unix, not(target_os = "macos")))]
@@ -498,6 +522,12 @@ impl ApplicationHandler for Runner {
             Err(error) => return self.fail(event_loop, error),
         };
         self.runner.reports().scaled(window.scale_factor() as f32);
+        self.preferences.window_theme(window.theme());
+        let proxy = self.proxy.clone();
+        self.preferences.watch_desktop(move || proxy.wake_up());
+        self.runner
+            .reports()
+            .system_preferences(self.preferences.layer());
         let proxy = self.proxy.clone();
         let mut setup = Setup::new(Waker::new(move || proxy.wake_up()));
         setup.provide(window.clone());
@@ -522,6 +552,9 @@ impl ApplicationHandler for Runner {
     }
 
     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        self.runner
+            .reports()
+            .system_preferences(self.preferences.layer());
         self.prepared = false;
         self.request_redraw();
         let Some(surface) = &self.surface else {
@@ -574,6 +607,13 @@ impl ApplicationHandler for Runner {
                 self.request_redraw();
             }
             WindowEvent::Focused(focused) => self.push(Event::Focus(focused)),
+            WindowEvent::ThemeChanged(theme) => {
+                self.preferences.window_theme(Some(theme));
+                self.runner
+                    .reports()
+                    .system_preferences(self.preferences.layer());
+                self.request_redraw();
+            }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();
                 self.push(Event::Modifiers(Modifiers::with_meta(
@@ -587,8 +627,18 @@ impl ApplicationHandler for Runner {
             WindowEvent::PointerEntered { .. }
             | WindowEvent::PointerMoved { .. }
             | WindowEvent::PointerLeft { .. }
-            | WindowEvent::PointerButton { .. } => self.pointer_event(event),
+            | WindowEvent::PointerButton { .. } => {
+                self.pointer_event(event);
+                self.push(Event::Time(Instant::now()));
+            }
             WindowEvent::MouseWheel { delta, phase, .. } => {
+                let wheeled = self.wheel.event(phase, Instant::now());
+                if wheeled == Wheeled::Ignore {
+                    return;
+                }
+                if wheeled == Wheeled::StartAndScroll {
+                    self.push(Event::ScrollStarted);
+                }
                 self.push(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),
                     MouseScrollDelta::PixelDelta(position) => {
@@ -596,7 +646,7 @@ impl ApplicationHandler for Runner {
                     }
                     _ => return,
                 });
-                if cfg!(target_os = "linux") && phase == winit::event::TouchPhase::Ended {
+                if wheeled == Wheeled::ScrollAndEnd {
                     self.push(Event::ScrollEnded);
                 }
             }

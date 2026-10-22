@@ -68,7 +68,13 @@ pub fn ChoicePicker(
         field.with(|field| {
             field
                 .as_ref()
-                .map(|field| field.enum_options.iter().map(|option| option.id).collect())
+                .map(|field| {
+                    field
+                        .enum_options
+                        .iter()
+                        .map(|option| option.id)
+                        .collect::<Vec<Uuid>>()
+                })
                 .unwrap_or_default()
         })
     });
@@ -113,7 +119,7 @@ pub fn ChoicePicker(
                         <ControlFace handle={handle.button}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                                 <ChoiceMark option={option} size=MARK />
-                                <Text string={label} color={color} />
+                                <Text color={color}>{label}</Text>
                             </List>
                         </ControlFace>
                     }

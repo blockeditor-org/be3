@@ -1,6 +1,6 @@
 use beui::{
-    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton,
-    Pos2, Rect, TouchId, TouchPhase, Vec2,
+    Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
+    TouchId, TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -11,8 +11,8 @@ use block_editor_beui::{
 };
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
-    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, ScreenId, ScreenRequest, ScreenSet,
-    SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
+    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -31,6 +31,8 @@ const HOST_ROUNDS: usize = 8;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
+
+const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 const WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(1_772_444_460);
 
@@ -49,6 +51,7 @@ pub struct BeuiTest<A: BeuiApp> {
     sent: Vec<EditorMessage>,
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
+    drew: bool,
     recording: Option<snapshot::Snapshot>,
     overflows: Vec<String>,
     viewport: Option<Viewport>,
@@ -110,7 +113,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
-    pub fn with_view(editor: OwnedEditor, view: impl FnOnce() -> beui::NodeId + 'static) -> Self {
+    pub fn with_view(
+        editor: OwnedEditor,
+        view: impl FnOnce() -> beui::styled::Root + 'static,
+    ) -> Self {
         let block = editor.block_id();
         Self::open(
             Kind::Frame(block),
@@ -134,6 +140,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
         beui::verify_paint(true);
+        beui::fail_unsettled_layout(true);
         block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),
@@ -165,6 +172,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 store.own(block, block_type);
                 EditorMessage::Open {
                     instance: INSTANCE,
+                    editor: ADOPTED_EDITOR,
                     block_id: block.into_bytes(),
                     block_type: block_type.into_bytes(),
                     view_block: host.view_block().map(Uuid::into_bytes),
@@ -176,7 +184,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
             Kind::Creation => EditorMessage::OpenCreation {
                 instance: INSTANCE,
-                block_type: block_type.into_bytes(),
+                editor: ADOPTED_EDITOR,
                 template: template.clone(),
                 account_id,
                 organization_id,
@@ -184,7 +192,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             },
             Kind::Settings => EditorMessage::OpenArtifact {
                 instance: INSTANCE,
-                source_type: block_type.into_bytes(),
+                editor: ADOPTED_EDITOR,
                 block_id: artifact.unwrap_or_default().into_bytes(),
                 block_type: block_type.into_bytes(),
                 account_id,
@@ -213,6 +221,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             sent: Vec::new(),
             menu: Vec::new(),
             output: None,
+            drew: false,
             recording: None,
             overflows: Vec::new(),
             viewport: None,
@@ -236,8 +245,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,
             }),
-            theme: Theme::default(),
-            motion: block_plugin_api::Motion::default(),
+            preferences: block_plugin_api::Preferences::default(),
         }));
         test.deliver(Message::Editor(open));
         test.place();
@@ -367,15 +375,30 @@ impl<A: BeuiApp> BeuiTest<A> {
         &self.menu
     }
 
-    pub fn menu_entry(&self, id: &str) -> MenuEntry {
-        self.menu
-            .iter()
-            .find(|entry| entry.id == id)
-            .cloned()
-            .unwrap_or_else(|| panic!("the menu offers no {id:?}"))
+    pub fn menu_entry(&self, id: &str) -> MenuCommand {
+        MenuEntry::command(&self.menu, id).unwrap_or_else(|| panic!("the menu offers no {id:?}"))
+    }
+
+    pub fn menu_ids(&self) -> Vec<String> {
+        fn collect(entries: &[MenuEntry], ids: &mut Vec<String>) {
+            for entry in entries {
+                match entry {
+                    MenuEntry::Command(command) => ids.push(command.id.clone()),
+                    MenuEntry::Submenu(submenu) => {
+                        ids.push(submenu.id.clone());
+                        collect(&submenu.entries, ids);
+                    }
+                    MenuEntry::Separator => {}
+                }
+            }
+        }
+        let mut ids = Vec::new();
+        collect(&self.menu, &mut ids);
+        ids
     }
 
     pub fn pick_menu(&mut self, id: &str) {
+        self.menu_entry(id);
         self.inbox.push(Message::Editor(EditorMessage::MenuPick {
             instance: INSTANCE,
             id: id.to_owned(),
@@ -406,6 +429,11 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
+        let rect = self.rect();
+        let band = self.band(rect);
+        if let Some(viewport) = &mut self.viewport {
+            viewport.show(view, scale, band, rect.min);
+        }
         self.inbox.push(Message::Editor(EditorMessage::ViewChanged {
             instance: INSTANCE,
             x: view.min.x,
@@ -413,7 +441,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             width: view.width(),
             height: view.height(),
             scale,
+            moved: true,
         }));
+    }
+
+    pub fn move_view(&mut self, change: ViewChange) {
+        let band = self.band(self.rect());
+        self.viewport
+            .as_mut()
+            .expect("only an editor in a viewport has a view to move")
+            .apply(change, band);
     }
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
@@ -487,10 +524,25 @@ impl<A: BeuiApp> BeuiTest<A> {
         self
     }
 
+    pub fn in_moved_viewport(mut self, zoom: f32, pan: Vec2) -> Self {
+        self.viewport = Some(Viewport {
+            zoom,
+            pan,
+            moved: true,
+            ..Viewport::new()
+        });
+        self.run();
+        self
+    }
+
     pub fn wants_another_frame(&self) -> bool {
         self.output
             .as_ref()
             .is_some_and(|output| output.changed || output.repaint_after < std::time::Duration::MAX)
+    }
+
+    pub fn drawn(&self) -> Option<&beui::FrameOutput> {
+        self.output.as_ref().filter(|_| self.drew)
     }
 
     pub fn document(&self) -> &Document {
@@ -624,8 +676,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn set_motion(&mut self, motion: block_plugin_api::Motion) {
-        self.inbox.push(Message::Motion(motion));
+    pub fn set_preferences(&mut self, preferences: block_plugin_api::Preferences) {
+        self.inbox.push(Message::Preferences(preferences));
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
@@ -766,14 +818,15 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             inbox.push(message);
         }
-        let events = self.input.normalize(events);
+        self.clock += FRAME_INTERVAL;
+        let events = self.input.normalize(events, self.clock.as_micros() as u64);
         if !events.is_empty() {
             inbox.push(Message::Input(InputBatch {
                 screen: SCREEN,
+                every_sample: false,
                 events,
             }));
         }
-        self.clock += FRAME_INTERVAL;
         inbox.push(Message::DrawFrame {
             now_micros: self.clock.as_micros() as u64,
             seen: true,
@@ -787,6 +840,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .into_iter()
             .find(|(placement, _)| placement.screen == SCREEN)
             .map(|(_, output)| output);
+        self.drew = output.is_some();
         if output.is_some() {
             self.output = output;
         }
@@ -843,6 +897,20 @@ impl<A: BeuiApp> BeuiTest<A> {
         std::mem::take(&mut self.sent)
     }
 
+    pub fn take_copied_text(&mut self) -> Vec<String> {
+        self.take_where(|message| match message {
+            EditorMessage::CopyText { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+    }
+
+    pub fn take_copied_images(&mut self) -> Vec<Vec<u8>> {
+        self.take_where(|message| match message {
+            EditorMessage::CopyImage { png, .. } => Some(png.clone()),
+            _ => None,
+        })
+    }
+
     fn take_where<T>(&mut self, pick: impl Fn(&EditorMessage) -> Option<T>) -> Vec<T> {
         let mut taken = Vec::new();
         self.sent.retain(|message| match pick(message) {
@@ -862,6 +930,27 @@ impl<A: BeuiApp> BeuiTest<A> {
         parent: block_plugin_api::BlockLocation,
         within: Option<Uuid>,
     ) {
+        self.ask_pick(pick, filter, parent, within, false);
+    }
+
+    pub fn request_touch_pick(
+        &mut self,
+        pick: u64,
+        filter: block_editor_beui::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+        within: Option<Uuid>,
+    ) {
+        self.ask_pick(pick, filter, parent, within, true);
+    }
+
+    fn ask_pick(
+        &mut self,
+        pick: u64,
+        filter: block_editor_beui::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+        within: Option<Uuid>,
+        touch: bool,
+    ) {
         self.inbox
             .push(Message::Editor(EditorMessage::PickRequested {
                 instance: INSTANCE,
@@ -869,6 +958,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 filter,
                 parent,
                 within: within.map(Uuid::into_bytes),
+                touch,
             }));
     }
 
@@ -1094,12 +1184,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.window.wants_keyboard
     }
 
+    pub fn window(&self) -> &block_plugin_api::WindowRequests {
+        &self.window
+    }
+
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
-        self.window
-            .intercepted_keys
-            .iter()
-            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
-            .collect()
+        self.window.intercepted_keys.clone()
     }
 
     pub fn app_key(&mut self, modifiers: Modifiers, key: Key) -> bool {
@@ -1133,6 +1223,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         self.push(Event::InterceptedTap(key));
         true
+    }
+
+    fn held(&self) -> Modifiers {
+        self.input.held_after(self.frames.iter().flatten())
     }
 
     pub fn hold_modifiers(&mut self, modifiers: Modifiers) {
@@ -1195,7 +1289,24 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click(&mut self, test_id: &str) {
+        self.reveal(test_id);
         self.click_at(self.point_of(test_id));
+    }
+
+    pub fn reveal(&mut self, test_id: &str) {
+        if self.rect_of(test_id).intersect(self.rect()).is_positive() {
+            return;
+        }
+        let region = self.region();
+        let document = self
+            .plugin
+            .document_mut(INSTANCE, region)
+            .expect("the editor has not built its view yet");
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document.reveal_node(node);
+        self.run();
     }
 
     pub fn double_click(&mut self, test_id: &str) {
@@ -1216,7 +1327,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click_button_at(&mut self, pos: Pos2, button: PointerButton) {
-        let modifiers = self.input.held();
+        let modifiers = self.held();
         self.hover_at(pos);
         for pressed in [true, false] {
             self.push(Event::PointerButton {
@@ -1236,20 +1347,38 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn drag(&mut self, from: Pos2, to: Pos2) {
-        let modifiers = self.input.held();
-        self.hover_at(from);
+        self.drag_along(&[from, to]);
+    }
+
+    pub fn drag_along(&mut self, points: &[Pos2]) {
+        let (Some(&from), Some(&to)) = (points.first(), points.last()) else {
+            return;
+        };
+        self.press_at(from);
+        for &at in &points[1..] {
+            self.next_frame();
+            self.push(Event::PointerMoved(at));
+        }
+        self.next_frame();
+        self.push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
+        self.release_at(to);
+    }
+
+    pub fn press_at(&mut self, pos: Pos2) {
+        let modifiers = self.held();
+        self.hover_at(pos);
         self.push(Event::PointerButton {
-            pos: from,
+            pos,
             button: PointerButton::Primary,
             pressed: true,
             modifiers,
         });
-        self.next_frame();
-        self.push(Event::PointerMoved(to));
-        self.next_frame();
-        self.push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
+    }
+
+    pub fn release_at(&mut self, pos: Pos2) {
+        let modifiers = self.held();
         self.push(Event::PointerButton {
-            pos: to,
+            pos,
             button: PointerButton::Primary,
             pressed: false,
             modifiers,
@@ -1257,7 +1386,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
-        let modifiers = self.input.held();
+        let modifiers = self.held();
         self.hover_at(from);
         self.push(Event::PointerButton {
             pos: from,
@@ -1313,12 +1442,40 @@ impl<A: BeuiApp> BeuiTest<A> {
         });
     }
 
+    pub fn eraser(&mut self, phase: PenPhase, pos: Pos2) {
+        self.push(Event::Pen {
+            phase,
+            pos,
+            pressure: 1.0,
+            pen: Pen {
+                eraser: true,
+                ..Pen::default()
+            },
+        });
+    }
+
+    pub fn pinch(&mut self, pos: Pos2, factor: f32) {
+        let anchor = pos - self.rect().min;
+        self.sent.push(EditorMessage::ChangeView {
+            instance: INSTANCE,
+            change: ViewChange::Zoom {
+                factor,
+                anchor: Some((anchor.x, anchor.y)),
+            },
+        });
+        self.run();
+    }
+
+    pub fn predict(&mut self, pos: Pos2) {
+        self.push(Event::Predicted(pos));
+    }
+
     pub fn key_press(&mut self, key: Key) {
         self.key_press_modifiers(Modifiers::NONE, key);
     }
 
     pub fn key_press_modifiers(&mut self, modifiers: Modifiers, key: Key) {
-        let held = self.input.held();
+        let held = self.held();
         if modifiers != held {
             self.push(Event::Modifiers(modifiers));
         }
@@ -1357,11 +1514,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn painted(&mut self) -> snapshot::Snapshot {
+        let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
         let output = self
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
+        capture::capture(output, self.size, output.pixels_per_point(), behind)
             .expect("the painting could not be rendered")
     }
 }
@@ -1390,8 +1548,9 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
 struct Viewport {
     zoom: f32,
     pan: Vec2,
-    fitting: bool,
-    sent: Option<(Rect, f32)>,
+    moved: bool,
+    world: Option<Vec2>,
+    sent: Option<(Rect, f32, bool)>,
 }
 
 impl Viewport {
@@ -1399,30 +1558,36 @@ impl Viewport {
         Self {
             zoom: 1.0,
             pan: Vec2::ZERO,
-            fitting: true,
+            moved: false,
+            world: None,
             sent: None,
         }
     }
 
+    fn show(&mut self, view: Rect, scale: f32, region: Rect, origin: Pos2) {
+        let scale = scale.max(f32::EPSILON);
+        self.zoom = scale;
+        self.pan = view.center() + origin.to_vec2() - region.center();
+        self.world = Some(view.size() / scale);
+        self.moved = true;
+        self.sent = Some((view, scale, true));
+    }
+
     fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
-        let content = intrinsic
-            .unwrap_or(Vec2::ZERO)
-            .max(region.size())
-            .max(Vec2::new(1.0, 1.0));
-        if self.fitting {
-            self.zoom = (region.width() / content.x)
-                .min(region.height() / content.y)
-                .min(1.0)
-                .clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
-            self.pan = Vec2::ZERO;
-        }
+        let content = self.world.unwrap_or_else(|| {
+            intrinsic
+                .unwrap_or(Vec2::ZERO)
+                .max(region.size())
+                .max(Vec2::new(1.0, 1.0))
+        });
         let size = content * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
-        if self.sent == Some((view, self.zoom)) {
+        let sent = (view, self.zoom, self.moved);
+        if self.sent == Some(sent) {
             return None;
         }
-        self.sent = Some((view, self.zoom));
+        self.sent = Some(sent);
         Some(Message::Editor(EditorMessage::ViewChanged {
             instance: INSTANCE,
             x: view.min.x,
@@ -1430,6 +1595,7 @@ impl Viewport {
             width: view.width(),
             height: view.height(),
             scale: self.zoom,
+            moved: self.moved,
         }))
     }
 
@@ -1443,22 +1609,54 @@ impl Viewport {
             _ => true,
         });
         for change in changes {
-            if change != ViewChange::ResumeAutoFit {
-                self.fitting = false;
-            }
+            let anchored = |(x, y): (f32, f32)| Pos2::new(x, y) + origin.to_vec2();
             match change {
-                ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
-                ViewChange::Zoom { factor, anchor } => {
-                    let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
-                    let anchor = anchor
-                        .map_or(region.center(), |(x, y)| Pos2::new(x, y) + origin.to_vec2())
-                        - region.center();
-                    self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
-                    self.zoom = zoom;
+                ViewChange::Follow {
+                    factor,
+                    anchor,
+                    x,
+                    y,
+                    resume,
+                } => {
+                    if self.moved && !resume {
+                        continue;
+                    }
+                    self.zoom_at(factor, anchored(anchor), region);
+                    self.pan += Vec2::new(x, y);
+                    self.moved = false;
                 }
-                ViewChange::Fit | ViewChange::ResumeAutoFit => self.fitting = true,
+                ViewChange::Zoom { factor, anchor } => self.apply(
+                    ViewChange::Zoom {
+                        factor,
+                        anchor: anchor.map(|anchor| {
+                            let at = anchored(anchor);
+                            (at.x, at.y)
+                        }),
+                    },
+                    region,
+                ),
+                change => self.apply(change, region),
             }
         }
+    }
+
+    fn apply(&mut self, change: ViewChange, region: Rect) {
+        match change {
+            ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
+            ViewChange::Zoom { factor, anchor } => {
+                let anchor = anchor.map_or(region.center(), |(x, y)| Pos2::new(x, y));
+                self.zoom_at(factor, anchor, region);
+            }
+            ViewChange::Follow { .. } | ViewChange::PanDrag => return,
+        }
+        self.moved = true;
+    }
+
+    fn zoom_at(&mut self, factor: f32, anchor: Pos2, region: Rect) {
+        let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+        let anchor = anchor - region.center();
+        self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
+        self.zoom = zoom;
     }
 }
 

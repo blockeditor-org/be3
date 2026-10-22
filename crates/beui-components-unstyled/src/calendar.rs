@@ -7,7 +7,6 @@ use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{Date, Weekday};
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -63,7 +62,7 @@ pub struct CalendarCellHandle {
 
 #[derive(Clone, Copy)]
 struct State {
-    selected: Signal<Option<Date>>,
+    selected: Binding<Option<Date>>,
     active: Signal<Date>,
     day_focus: Signal<Option<Date>>,
     month_focus: Signal<Option<Date>>,
@@ -73,12 +72,12 @@ struct State {
     max: Memo<Option<Date>>,
     today: Date,
     first_weekday: Weekday,
-    on_change: Callback<Date>,
 }
 
 #[component]
 pub fn Calendar(
-    selected: Prop<Option<Date>>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<CalendarApi>,
+    #[prop(default = None)] selected: Binding<Option<Date>>,
     #[prop(default = None)] min: Prop<Option<Date>>,
     #[prop(default = None)] max: Prop<Option<Date>>,
     #[prop(default = None)] today: Prop<Option<Date>>,
@@ -89,14 +88,12 @@ pub fn Calendar(
     header: Render<CalendarHeaderHandle>,
     weekday: RenderFn<Weekday>,
     cell: RenderFn<CalendarCellHandle>,
-    on_change: Callback<Date>,
 ) -> NodeId {
     let today = today.get_untracked().unwrap_or_else(Date::today);
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
-    let initial = selected.get_untracked();
-    let picked = create_signal(initial);
-    let starting = initial
+    let starting = selected
+        .get_untracked()
         .unwrap_or(today)
         .clamp_to(min.get_untracked(), max.get_untracked());
     let active = create_signal(starting);
@@ -105,7 +102,7 @@ pub fn Calendar(
     let year_focus = create_signal(None);
     let mode = create_signal(CalendarMode::Days);
     let state = State {
-        selected: picked,
+        selected,
         active,
         day_focus,
         month_focus,
@@ -115,14 +112,11 @@ pub fn Calendar(
         max,
         today,
         first_weekday,
-        on_change,
     };
-    set_component_state(state);
+    api.fill(CalendarApi(state));
 
     create_effect(move || {
-        let requested = selected.get();
-        state.selected.set(requested);
-        if let Some(date) = requested {
+        if let Some(date) = selected.get() {
             state.active.set(clamp(state, date));
         }
     });
@@ -550,27 +544,6 @@ fn toggle_accessibility(label: Memo<String>, choose: &'static str, open: Memo<bo
     })
 }
 
-pub fn calendar_selected(document: &Document, calendar: NodeId) -> Option<Date> {
-    document
-        .component_state::<State>(calendar)
-        .selected
-        .get_untracked()
-}
-
-pub fn calendar_active(document: &Document, calendar: NodeId) -> Date {
-    document
-        .component_state::<State>(calendar)
-        .active
-        .get_untracked()
-}
-
-pub fn calendar_mode(document: &Document, calendar: NodeId) -> CalendarMode {
-    document
-        .component_state::<State>(calendar)
-        .mode
-        .get_untracked()
-}
-
 fn in_range(state: State, date: Date) -> bool {
     state.min.get().is_none_or(|min| date >= min) && state.max.get().is_none_or(|max| date <= max)
 }
@@ -586,9 +559,8 @@ fn reset(state: State) {
 
 fn choose(state: State, date: Date) {
     let date = clamp(state, date);
-    state.selected.set(Some(date));
+    state.selected.update(|selected| *selected = Some(date));
     state.active.set(date);
-    state.on_change.call(date);
 }
 
 fn page(state: State, direction: i32) {
@@ -719,4 +691,21 @@ fn month_key(state: State, number: u8, press: KeyPress) -> bool {
         state.month_focus.set(Some(next.first_of_month()));
     }
     true
+}
+
+#[derive(Clone, Copy)]
+pub struct CalendarApi(State);
+
+impl CalendarApi {
+    pub fn selected(&self) -> Option<Date> {
+        self.0.selected.get_untracked()
+    }
+
+    pub fn active(&self) -> Date {
+        self.0.active.get_untracked()
+    }
+
+    pub fn mode(&self) -> CalendarMode {
+        self.0.mode.get_untracked()
+    }
 }

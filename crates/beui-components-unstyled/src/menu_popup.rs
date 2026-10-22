@@ -137,16 +137,19 @@ pub fn MenuPopup(
                 traps_focus={focusing}
                 open={dropped}
                 on_dismiss={move |_: Dismiss| on_dismiss.call()}
-                content={move || panel.call(view! {
-                    <MenuList
-                        @node_ref=&content
-                        items
-                        row
-                        panel={panel}
-                        active
-                        on_select={choose}
-                    />
-                })}
+                content={move || {
+                    let items = items.clone();
+                    panel.call(view! {
+                        <MenuList
+                            @node_ref=&content
+                            items
+                            row
+                            panel={panel}
+                            active
+                            on_select={choose}
+                        />
+                    })
+                }}
             />
             <Show condition={sheet_built}>|| {
                 let (row, sheet) = sheet.unwrap_or_else(|| unreachable!());
@@ -159,6 +162,7 @@ pub fn MenuPopup(
                             row
                             panel={sheet_panel}
                             active={raised}
+                            pages=true
                             on_select={sheet_choose}
                         />
                     },

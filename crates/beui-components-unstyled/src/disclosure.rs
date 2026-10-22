@@ -3,7 +3,6 @@ use beui_macros::{component, view};
 
 use crate as unstyled;
 use crate::button::ButtonHandle;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -12,31 +11,27 @@ pub struct DisclosureHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
-    pub open: ReadSignal<bool>,
+    pub open: Binding<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct State {
-    open: ReadSignal<bool>,
+    open: Binding<bool>,
 }
 
 #[component]
 pub fn Disclosure(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<DisclosureApi>,
     spacing: Prop<f32>,
     header: Render<DisclosureHandle>,
     children: Child,
-    open: Prop<bool>,
-    on_toggle: Callback<bool>,
+    open: Binding<bool>,
 ) -> NodeId {
-    let current = create_signal(open.get_untracked());
-    create_effect(move || current.set(open.get()));
-
-    set_component_state(State {
-        open: current.read_only(),
-    });
+    api.fill(DisclosureApi(State { open }));
 
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::DisclosureTriangle);
-        node.set_expanded(current.get());
+        node.set_expanded(open.get());
         node
     });
 
@@ -45,28 +40,31 @@ pub fn Disclosure(
             <unstyled::Button
                 accessibility
                 on_click={move || {
-                    let next = !current.get_untracked();
-                    current.set(next);
-                    on_toggle.call(next);
+                    open.update(|open| *open = !*open);
                 }}
             >|handle: ButtonHandle| {
                 header.call(DisclosureHandle {
                     hovered: handle.hovered,
                     active: handle.active,
                     focused: handle.focused,
-                    open: current.read_only(),
+                    open,
                 })
             }</unstyled::Button>
-            <Frame visible={current}>
+            <ShowKeepAlive condition={open}>
                 <List spacing>
                     <Frame />
                     {children}
                 </List>
-            </Frame>
+            </ShowKeepAlive>
         </List>
     }
 }
 
-pub fn disclosure_open(document: &Document, disclosure: NodeId) -> bool {
-    document.component_state::<State>(disclosure).open.get()
+#[derive(Clone, Copy)]
+pub struct DisclosureApi(State);
+
+impl DisclosureApi {
+    pub fn open(&self) -> bool {
+        self.0.open.get()
+    }
 }

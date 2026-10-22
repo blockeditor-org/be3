@@ -8,16 +8,17 @@ mod block_ids;
 mod host_value;
 mod linux;
 mod manifest;
+mod nesting;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
-    Administrator, Contacts, HostAction, HostContact, HostImage, HostValue, LinkBase, decode_host,
-    encode_host,
+    Administrator, Contacts, HostAction, HostContact, HostImage, HostPreferenceSources, HostValue,
+    LinkBase, PreferenceSources, decode_host, encode_host,
 };
 pub use linux::{
-    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostInputDevice,
-    HostNotificationAction, HostProgram, HostRotation, HostTrayItem, HostWindow, HostWindowId,
-    HostWindows, IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
+    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostInputDevice,
+    HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction,
     PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray,
@@ -25,12 +26,21 @@ pub use linux::{
     WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
 };
 pub use manifest::{
-    EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
+    EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
+pub use ui_types::{
+    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Key, KeyChord,
+    Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
+};
+pub use ui_types::{
+    CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
+    Preferences, Rotation, ThemeKind,
+};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
+pub const MAX_MENU_DEPTH: usize = 8;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
@@ -92,12 +102,48 @@ pub enum BarAction {
     Details,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MenuEntry {
+    Command(MenuCommand),
+    Submenu(MenuSubmenu),
+    Separator,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MenuEntry {
+pub struct MenuCommand {
     pub id: String,
     pub label: String,
     pub glyph: String,
     pub enabled: bool,
+    pub check: MenuCheck,
+    pub shortcut: Option<KeyChord>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MenuCheck {
+    #[default]
+    None,
+    Checkbox(bool),
+    Radio(bool),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MenuSubmenu {
+    pub id: String,
+    pub label: String,
+    pub glyph: String,
+    #[serde(deserialize_with = "nesting::submenu")]
+    pub entries: Vec<MenuEntry>,
+}
+
+impl MenuEntry {
+    pub fn command(entries: &[MenuEntry], id: &str) -> Option<MenuCommand> {
+        entries.iter().find_map(|entry| match entry {
+            MenuEntry::Command(command) => (command.id == id).then(|| command.clone()),
+            MenuEntry::Submenu(submenu) => MenuEntry::command(&submenu.entries, id),
+            MenuEntry::Separator => None,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -106,6 +152,8 @@ pub struct FrameReport {
     pub content: ChildRect,
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
+    pub drawing: Vec<ChildRect>,
+    pub every_sample: bool,
     pub claims: Vec<PressClaim>,
     pub description: Option<Description>,
 }
@@ -122,22 +170,6 @@ pub struct WindowRequests {
     pub keyboard_toggles: u32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PasteKind {
-    Text,
-    Image,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Pasted {
-    Text(String),
-    Image {
-        name: String,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
     pub tree: Option<accesskit::TreeUpdate>,
@@ -152,13 +184,6 @@ pub struct DescribedAction {
     pub enabled: bool,
     pub checked: Option<bool>,
     pub live: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct KeyChord {
-    pub key: Key,
-    pub modifiers: Modifiers,
-    pub tap: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -345,6 +370,14 @@ pub struct ChildPlacement {
     pub intrinsic: Option<Size>,
     pub rotation: f32,
     pub opacity: f32,
+    pub follows_camera: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Camera {
+    pub x: f32,
+    pub y: f32,
+    pub scale: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -361,6 +394,7 @@ pub struct ChildPlacements {
     pub size: Size,
     pub children: Vec<ChildPlacement>,
     pub occluders: Vec<Occluder>,
+    pub camera: Option<Camera>,
 }
 
 impl ChildPlacements {
@@ -379,6 +413,49 @@ impl ChildRect {
 
     pub fn is_empty(&self) -> bool {
         self.width <= 0.0 || self.height <= 0.0
+    }
+
+    pub fn right(&self) -> f32 {
+        self.x + self.width
+    }
+
+    pub fn bottom(&self) -> f32 {
+        self.y + self.height
+    }
+
+    pub fn from_edges(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self {
+            x: left,
+            y: top,
+            width: (right - left).max(0.0),
+            height: (bottom - top).max(0.0),
+        }
+    }
+
+    pub fn intersect(&self, other: ChildRect) -> ChildRect {
+        Self::from_edges(
+            self.x.max(other.x),
+            self.y.max(other.y),
+            self.right().min(other.right()),
+            self.bottom().min(other.bottom()),
+        )
+    }
+
+    pub fn swept(&self, rotation: f32) -> ChildRect {
+        if rotation == 0.0 {
+            return *self;
+        }
+        let (center_x, center_y) = (self.x + self.width / 2.0, self.y + self.height / 2.0);
+        let (sin, cos) = rotation.sin_cos();
+        let (half_width, half_height) = (self.width / 2.0, self.height / 2.0);
+        let reach_x = half_width * cos.abs() + half_height * sin.abs();
+        let reach_y = half_width * sin.abs() + half_height * cos.abs();
+        Self::from_edges(
+            center_x - reach_x,
+            center_y - reach_y,
+            center_x + reach_x,
+            center_y + reach_y,
+        )
     }
 }
 
@@ -454,11 +531,12 @@ pub struct PluginManifest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorManifest {
-    pub block_type: [u8; 16],
+    pub id: [u8; 16],
+    pub name: String,
+    pub edits: Edits,
     pub display_name: String,
     pub icon: String,
     pub templates: Vec<TemplateManifest>,
-    pub children: ChildOperations,
     pub interaction: InteractionMode,
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
@@ -509,19 +587,26 @@ pub enum TemplateCategory {
 }
 
 impl PluginManifest {
-    pub fn editor(&self, block_type: [u8; 16]) -> Option<&EditorManifest> {
-        self.editors
-            .iter()
-            .find(|editor| editor.block_type == block_type)
-            .or_else(|| {
-                self.editors
-                    .iter()
-                    .find(|editor| editor.block_type == ANY_BLOCK_TYPE)
-            })
+    pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
+        self.editors.iter().find(|editor| editor.id == id)
     }
+}
 
-    pub fn editor_id(&self) -> [u8; 16] {
-        editor_id(&self.identity.id)
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Edits {
+    Type([u8; 16]),
+    Any,
+    Nothing,
+}
+
+impl Edits {
+    pub const ANY_NAME: &str = "any";
+
+    pub fn block_type(self) -> Option<[u8; 16]> {
+        match self {
+            Self::Type(block_type) => Some(block_type),
+            Self::Any | Self::Nothing => None,
+        }
     }
 }
 
@@ -557,6 +642,16 @@ pub struct EditorCapabilities {
     pub pan_and_zoom: bool,
     #[serde(default)]
     pub max_zoom: Option<u32>,
+    #[serde(default)]
+    pub pan: PanMode,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PanMode {
+    None,
+    OneFinger,
+    #[default]
+    TwoFinger,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -582,6 +677,7 @@ impl ResizeMode {
 pub struct BlockTypeDescriptor {
     pub block_type: [u8; 16],
     pub display_name: String,
+    pub color: Option<[u8; 3]>,
     pub icon_codepoint: String,
     pub children: ChildOperations,
 }
@@ -604,27 +700,12 @@ pub struct Catalog {
     pub editors: Vec<EditorDescriptor>,
 }
 
-pub const ANY_BLOCK_TYPE: [u8; 16] = [0; 16];
-
-pub const ANY_BLOCK_TYPE_NAME: &str = "any";
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorDescriptor {
     pub editor: [u8; 16],
-    pub block_type: [u8; 16],
+    pub edits: Edits,
     pub name: String,
     pub icon_codepoint: String,
-}
-
-pub fn editor_id(plugin_id: &str) -> [u8; 16] {
-    const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
-    const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
-    plugin_id
-        .bytes()
-        .fold(OFFSET, |hash, byte| {
-            (hash ^ u128::from(byte)).wrapping_mul(PRIME)
-        })
-        .to_be_bytes()
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -645,11 +726,13 @@ pub enum ManifestError {
     TooLong(&'static str),
     InvalidIdentity,
     InvalidBlockType,
+    InvalidEditorId,
     InvalidRegions,
     InvalidNetworkHost,
     NoEditors,
-    DuplicateBlockType,
+    DuplicateEditor,
     DuplicateTemplate,
+    TemplateWithoutBlockType,
 }
 
 impl fmt::Display for ManifestError {
@@ -660,6 +743,7 @@ impl fmt::Display for ManifestError {
             Self::TooLong(field) => write!(formatter, "{field} is too long"),
             Self::InvalidIdentity => formatter.write_str("the plugin id is not a plain identifier"),
             Self::InvalidBlockType => formatter.write_str("the block type is not a uuid"),
+            Self::InvalidEditorId => formatter.write_str("the editor id is not a uuid"),
             Self::InvalidRegions => {
                 formatter.write_str("the regions must include the frame exactly once")
             }
@@ -667,9 +751,12 @@ impl fmt::Display for ManifestError {
                 formatter.write_str("a network host is not a plain host name")
             }
             Self::NoEditors => formatter.write_str("the plugin declares no editors"),
-            Self::DuplicateBlockType => {
-                formatter.write_str("two editors are declared for the same block type")
+            Self::DuplicateEditor => {
+                formatter.write_str("two editors are declared with the same id or name")
             }
+            Self::TemplateWithoutBlockType => formatter.write_str(
+                "a template of an editor that edits no one block type names no block type",
+            ),
             Self::DuplicateTemplate => {
                 formatter.write_str("an editor declares the same template twice")
             }
@@ -696,9 +783,9 @@ impl PluginManifest {
         for (index, editor) in self.editors.iter().enumerate() {
             if self.editors[..index]
                 .iter()
-                .any(|other| other.block_type == editor.block_type)
+                .any(|other| other.id == editor.id || other.name == editor.name)
             {
-                return Err(ManifestError::DuplicateBlockType);
+                return Err(ManifestError::DuplicateEditor);
             }
             editor.validate()?;
         }
@@ -718,6 +805,7 @@ impl PluginManifest {
 
 impl EditorManifest {
     fn validate(&self) -> Result<(), ManifestError> {
+        manifest_string("editor name", &self.name)?;
         manifest_string("display name", &self.display_name)?;
         manifest_string("icon", &self.icon)?;
         if !self.regions.contains(&EditorRegion::Frame)
@@ -756,6 +844,7 @@ fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError
 pub enum EditorMessage {
     Open {
         instance: EditorInstanceId,
+        editor: [u8; 16],
         block_id: [u8; 16],
         block_type: [u8; 16],
         view_block: Option<[u8; 16]>,
@@ -777,6 +866,7 @@ pub enum EditorMessage {
         bytes: Vec<u8>,
         #[serde(with = "serde_bytes")]
         session: Vec<u8>,
+        unsettled: Vec<serde_bytes::ByteBuf>,
         applied: u64,
     },
     ContentOperations {
@@ -789,6 +879,11 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         #[serde(with = "serde_bytes")]
         operation: Vec<u8>,
+    },
+    Gesture {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        phase: GesturePhase,
     },
     WatchContent {
         instance: EditorInstanceId,
@@ -830,6 +925,7 @@ pub enum EditorMessage {
         width: f32,
         height: f32,
         scale: f32,
+        moved: bool,
     },
     ChangeView {
         instance: EditorInstanceId,
@@ -1018,7 +1114,7 @@ pub enum EditorMessage {
     },
     OpenCreation {
         instance: EditorInstanceId,
-        block_type: [u8; 16],
+        editor: [u8; 16],
         template: String,
         account_id: [u8; 16],
         organization_id: [u8; 16],
@@ -1043,6 +1139,7 @@ pub enum EditorMessage {
         filter: BlockFilter,
         parent: BlockLocation,
         within: Option<[u8; 16]>,
+        touch: bool,
     },
     PickAnswered {
         instance: EditorInstanceId,
@@ -1055,7 +1152,7 @@ pub enum EditorMessage {
     },
     OpenArtifact {
         instance: EditorInstanceId,
-        source_type: [u8; 16],
+        editor: [u8; 16],
         block_id: [u8; 16],
         block_type: [u8; 16],
         account_id: [u8; 16],
@@ -1123,12 +1220,6 @@ pub enum EditorMessage {
         request_id: u64,
         replaced: bool,
     },
-    ChildView {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        child: ChildId,
-        change: ViewChange,
-    },
     ChildBar {
         instance: EditorInstanceId,
         region: EditorRegion,
@@ -1143,6 +1234,10 @@ pub enum EditorMessage {
     CopyText {
         instance: EditorInstanceId,
         text: String,
+    },
+    CopyImage {
+        instance: EditorInstanceId,
+        png: Vec<u8>,
     },
     Paste {
         instance: EditorInstanceId,
@@ -1169,6 +1264,11 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         query: BlockQuery,
         blocks: Vec<BlockInfo>,
+    },
+    BlocksFailed {
+        instance: EditorInstanceId,
+        query: BlockQuery,
+        error: String,
     },
     CreateBlock {
         instance: EditorInstanceId,
@@ -1209,6 +1309,7 @@ impl EditorMessage {
             | Self::Content { instance, .. }
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
+            | Self::Gesture { instance, .. }
             | Self::WatchContent { instance, .. }
             | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
@@ -1271,16 +1372,17 @@ impl EditorMessage {
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
-            | Self::ChildView { instance, .. }
             | Self::ChildBar { instance, .. }
             | Self::ChildFocused { instance, .. }
             | Self::CopyText { instance, .. }
+            | Self::CopyImage { instance, .. }
             | Self::Paste { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
             | Self::Performance { instance, .. }
             | Self::WatchBlocks { instance, .. }
             | Self::Blocks { instance, .. }
+            | Self::BlocksFailed { instance, .. }
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
             | Self::Define { instance, .. }
@@ -1294,54 +1396,6 @@ impl EditorMessage {
 pub enum PerformanceMeasurement {
     Duration { name: String, nanoseconds: u64 },
     Count { name: String, count: u64 },
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FileFilter {
-    pub name: String,
-    pub extensions: Vec<String>,
-    pub mime_types: Vec<String>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CursorIcon {
-    #[default]
-    Default,
-    None,
-    Pointer,
-    Text,
-    Crosshair,
-    Grab,
-    Grabbing,
-    Move,
-    NotAllowed,
-    Wait,
-    Progress,
-    Help,
-    ResizeHorizontal,
-    ResizeVertical,
-    ResizeNeSw,
-    ResizeNwSe,
-    Alias,
-    ContextMenu,
-    Cell,
-    VerticalText,
-    Copy,
-    NoDrop,
-    AllScroll,
-    ZoomIn,
-    ZoomOut,
-    ResizeColumn,
-    ResizeRow,
-    ResizeNorth,
-    ResizeEast,
-    ResizeSouth,
-    ResizeWest,
-    ResizeNorthEast,
-    ResizeNorthWest,
-    ResizeSouthEast,
-    ResizeSouthWest,
-    Touch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1469,6 +1523,15 @@ pub struct ContentOperation {
     #[serde(with = "serde_bytes")]
     pub operation: Vec<u8>,
     pub mine: bool,
+    pub unsettled: u64,
+    pub beneath: Option<Vec<serde_bytes::ByteBuf>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GesturePhase {
+    Begin,
+    Commit,
+    Cancel,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1479,7 +1542,7 @@ pub struct HistoryState {
     pub can_redo: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BlockCommand {
     Share,
     Leave,
@@ -1513,7 +1576,9 @@ pub enum BlockCommand {
         linked: bool,
     },
     Restore,
-    AppMenu,
+    AppMenu {
+        anchor: Option<ChildRect>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1677,13 +1742,6 @@ pub enum BlockPick {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FilePick {
-    Chosen { name: String, data: Vec<u8> },
-    Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SavedFile {
     pub name: String,
     pub mime_type: String,
@@ -1756,8 +1814,7 @@ pub struct AudioStatus {
 pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
-    Theme(Theme),
-    Motion(Motion),
+    Preferences(Preferences),
     UtcOffset(i32),
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
@@ -1823,8 +1880,7 @@ impl Message {
     pub fn direction(&self) -> Direction {
         match self {
             Self::HelloAccepted(_)
-            | Self::Motion(_)
-            | Self::Theme(_)
+            | Self::Preferences(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::Screens(_)
@@ -1885,10 +1941,10 @@ impl EditorMessage {
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
-            | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::Blocks { .. }
+            | Self::BlocksFailed { .. }
             | Self::MenuPick { .. }
             | Self::HostValue { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
@@ -1920,10 +1976,12 @@ impl EditorMessage {
             | Self::Window { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
+            | Self::CopyImage { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
+            | Self::Gesture { .. }
             | Self::WatchContent { .. }
             | Self::ResendContent { .. }
             | Self::SeedContent { .. }
@@ -1951,24 +2009,7 @@ pub struct Hello {
 pub struct HelloAccepted {
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
-    pub theme: Theme,
-    pub motion: Motion,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Motion {
-    #[default]
-    Animated,
-    Instant,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Theme {
-    #[default]
-    Dark,
-    OledDark,
-    Light,
-    EInk,
+    pub preferences: Preferences,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2040,8 +2081,14 @@ pub enum ViewChange {
         factor: f32,
         anchor: Option<(f32, f32)>,
     },
-    Fit,
-    ResumeAutoFit,
+    Follow {
+        factor: f32,
+        anchor: (f32, f32),
+        x: f32,
+        y: f32,
+        resume: bool,
+    },
+    PanDrag,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2067,6 +2114,7 @@ pub struct Monitor {
 pub struct InputBatch {
     pub screen: ScreenId,
     pub events: Vec<InputEvent>,
+    pub every_sample: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2074,6 +2122,7 @@ pub enum InputEvent {
     PointerMoved {
         x: f32,
         y: f32,
+        time_micros: u64,
     },
     PointerLeft,
     PointerMotion {
@@ -2085,12 +2134,14 @@ pub enum InputEvent {
         pressed: bool,
         x: f32,
         y: f32,
+        time_micros: u64,
     },
     Wheel {
         x: f32,
         y: f32,
         unit: WheelUnit,
     },
+    WheelStarted,
     WheelEnded,
     Zoom {
         factor: f32,
@@ -2102,6 +2153,7 @@ pub enum InputEvent {
         x: f32,
         y: f32,
         force: Option<f32>,
+        time_micros: u64,
     },
     Key {
         key: Key,
@@ -2111,10 +2163,10 @@ pub enum InputEvent {
     },
     Text(String),
     Paste(Pasted),
-    Ime(ImeInput),
+    Ime(ImeEvent),
     Modifiers(Modifiers),
     Focus(bool),
-    Back(BackPhase),
+    Back(BackGesture),
     InterceptedKey {
         key: Key,
         pressed: bool,
@@ -2131,59 +2183,12 @@ pub enum InputEvent {
         tilt_x: f32,
         tilt_y: f32,
         eraser: bool,
+        time_micros: u64,
     },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PenPhase {
-    Move,
-    Down(PointerButton),
-    Up(PointerButton),
-    Gone,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum BackPhase {
-    Started { edge: BackEdge },
-    Progressed(f32),
-    Cancelled,
-    Invoked,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BackEdge {
-    None,
-    Left,
-    Right,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TouchPhase {
-    Start,
-    Move,
-    End,
-    Cancel,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ImeInput {
-    Enabled,
-    Disabled,
-    SetComposingText(String),
-    CommitText(String),
-    FinishComposing,
-    SetComposingRegion { start: u64, end: u64 },
-    ReplaceText { start: u64, end: u64, text: String },
-    DeleteSurrounding { before: u64, after: u64 },
-    SetSelection { anchor: u64, focus: u64 },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ImeText {
-    pub start: u64,
-    pub text: String,
-    pub selection: (u64, u64),
-    pub composing: Option<(u64, u64)>,
+    Predicted {
+        x: f32,
+        y: f32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2195,287 +2200,10 @@ pub struct ImeArea {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Keyboard {
-    Held,
-    Shown { asks: u32 },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PointerButton {
-    Primary,
-    Secondary,
-    Middle,
-    Back,
-    Forward,
-    Other(u16),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WheelUnit {
     Pixels,
     Lines,
     Pages,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Key {
-    ArrowDown,
-    ArrowLeft,
-    ArrowRight,
-    ArrowUp,
-    Escape,
-    Tab,
-    Backspace,
-    Enter,
-    Space,
-    Insert,
-    Delete,
-    Home,
-    End,
-    PageUp,
-    PageDown,
-    Copy,
-    Cut,
-    Paste,
-    Colon,
-    Comma,
-    Backslash,
-    Slash,
-    Pipe,
-    Questionmark,
-    Exclamationmark,
-    OpenBracket,
-    CloseBracket,
-    OpenCurlyBracket,
-    CloseCurlyBracket,
-    Backtick,
-    Minus,
-    Period,
-    Plus,
-    Equals,
-    Semicolon,
-    Quote,
-    Num0,
-    Num1,
-    Num2,
-    Num3,
-    Num4,
-    Num5,
-    Num6,
-    Num7,
-    Num8,
-    Num9,
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-    F25,
-    F26,
-    F27,
-    F28,
-    F29,
-    F30,
-    F31,
-    F32,
-    F33,
-    F34,
-    F35,
-    BrowserBack,
-    VolumeUp,
-    VolumeDown,
-    VolumeMute,
-    MicMute,
-    BrightnessUp,
-    BrightnessDown,
-    MediaPlayPause,
-    MediaNext,
-    MediaPrevious,
-    MediaStop,
-    Shift,
-    Control,
-    Alt,
-    Logo,
-}
-
-impl Key {
-    pub const ALL: [Self; 122] = [
-        Self::ArrowDown,
-        Self::ArrowLeft,
-        Self::ArrowRight,
-        Self::ArrowUp,
-        Self::Escape,
-        Self::Tab,
-        Self::Backspace,
-        Self::Enter,
-        Self::Space,
-        Self::Insert,
-        Self::Delete,
-        Self::Home,
-        Self::End,
-        Self::PageUp,
-        Self::PageDown,
-        Self::Copy,
-        Self::Cut,
-        Self::Paste,
-        Self::Colon,
-        Self::Comma,
-        Self::Backslash,
-        Self::Slash,
-        Self::Pipe,
-        Self::Questionmark,
-        Self::Exclamationmark,
-        Self::OpenBracket,
-        Self::CloseBracket,
-        Self::OpenCurlyBracket,
-        Self::CloseCurlyBracket,
-        Self::Backtick,
-        Self::Minus,
-        Self::Period,
-        Self::Plus,
-        Self::Equals,
-        Self::Semicolon,
-        Self::Quote,
-        Self::Num0,
-        Self::Num1,
-        Self::Num2,
-        Self::Num3,
-        Self::Num4,
-        Self::Num5,
-        Self::Num6,
-        Self::Num7,
-        Self::Num8,
-        Self::Num9,
-        Self::A,
-        Self::B,
-        Self::C,
-        Self::D,
-        Self::E,
-        Self::F,
-        Self::G,
-        Self::H,
-        Self::I,
-        Self::J,
-        Self::K,
-        Self::L,
-        Self::M,
-        Self::N,
-        Self::O,
-        Self::P,
-        Self::Q,
-        Self::R,
-        Self::S,
-        Self::T,
-        Self::U,
-        Self::V,
-        Self::W,
-        Self::X,
-        Self::Y,
-        Self::Z,
-        Self::F1,
-        Self::F2,
-        Self::F3,
-        Self::F4,
-        Self::F5,
-        Self::F6,
-        Self::F7,
-        Self::F8,
-        Self::F9,
-        Self::F10,
-        Self::F11,
-        Self::F12,
-        Self::F13,
-        Self::F14,
-        Self::F15,
-        Self::F16,
-        Self::F17,
-        Self::F18,
-        Self::F19,
-        Self::F20,
-        Self::F21,
-        Self::F22,
-        Self::F23,
-        Self::F24,
-        Self::F25,
-        Self::F26,
-        Self::F27,
-        Self::F28,
-        Self::F29,
-        Self::F30,
-        Self::F31,
-        Self::F32,
-        Self::F33,
-        Self::F34,
-        Self::F35,
-        Self::BrowserBack,
-        Self::VolumeUp,
-        Self::VolumeDown,
-        Self::VolumeMute,
-        Self::MicMute,
-        Self::BrightnessUp,
-        Self::BrightnessDown,
-        Self::MediaPlayPause,
-        Self::MediaNext,
-        Self::MediaPrevious,
-        Self::MediaStop,
-        Self::Shift,
-        Self::Control,
-        Self::Alt,
-        Self::Logo,
-    ];
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Modifiers {
-    pub alt: bool,
-    pub control: bool,
-    pub shift: bool,
-    pub logo: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2568,7 +2296,12 @@ pub fn decode_frame(frame: &[u8]) -> Result<Message, DecodeError> {
     }
     let message = codec()
         .deserialize(&frame[4..])
-        .map_err(|_| DecodeError::MalformedPayload)?;
+        .map_err(|error| match *error {
+            bincode::ErrorKind::Custom(message) if message == nesting::TOO_DEEP => {
+                DecodeError::LimitExceeded("menu depth")
+            }
+            _ => DecodeError::MalformedPayload,
+        })?;
     validate(&message)?;
     Ok(message)
 }
@@ -2584,16 +2317,16 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             collection(value.events.len())?;
             for event in &value.events {
                 match event {
-                    InputEvent::Paste(Pasted::Image { name, data }) => {
-                        string(name)?;
-                        blob(data)?;
+                    InputEvent::Paste(Pasted::Image(file)) => {
+                        string(&file.name)?;
+                        blob(&file.data)?;
                     }
                     InputEvent::Text(value)
                     | InputEvent::Paste(Pasted::Text(value))
                     | InputEvent::Ime(
-                        ImeInput::SetComposingText(value)
-                        | ImeInput::CommitText(value)
-                        | ImeInput::ReplaceText { text: value, .. },
+                        ImeEvent::SetComposingText(value)
+                        | ImeEvent::CommitText(value)
+                        | ImeEvent::ReplaceText { text: value, .. },
                     ) => text(value)?,
                     _ => {}
                 }
@@ -2606,6 +2339,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             for report in value {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
+                collection(report.drawing.len())?;
                 collection(report.claims.len())?;
                 if let Some(tree) = report
                     .description
@@ -2783,9 +2517,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
-        EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
+        EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
+        EditorMessage::ContentOperations { operations, .. } => {
+            collection(operations.len())?;
+            for operation in operations {
+                collection(operation.beneath.as_ref().map_or(0, Vec::len))?;
+            }
+            Ok(())
+        }
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
+        EditorMessage::BlocksFailed { error, .. } => string(error),
         EditorMessage::Blocks { blocks, .. } => {
             if blocks.len() > MAX_LISTED_BLOCKS {
                 return Err(DecodeError::LimitExceeded("block list"));
@@ -2861,6 +2603,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
+        EditorMessage::CopyImage { png, .. } => blob(png),
         EditorMessage::WatchHostValue { key, .. } => string(key),
         EditorMessage::HostValue {
             key, value: bytes, ..
@@ -2929,16 +2672,14 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         HostReply::RevisionPreviewed(Ok(_))
         | HostReply::RevisionRestored(Ok(()))
         | HostReply::RevisionReleased => Ok(()),
-        HostReply::FilePicked(FilePick::Chosen { name, data }) => {
-            string(name).and_then(|()| blob(data))
-        }
+        HostReply::FilePicked(Ok(Some(file))) => string(&file.name).and_then(|()| blob(&file.data)),
         HostReply::Fetched(FetchResult::Body(body))
         | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
         HostReply::DataListed(DataListing::Files(files)) => {
             collection(files.len())?;
             strings(files)
         }
-        HostReply::FilePicked(FilePick::Failed(message))
+        HostReply::FilePicked(Err(message))
         | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
@@ -2957,7 +2698,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        HostReply::FilePicked(FilePick::Cancelled)
+        HostReply::FilePicked(Ok(None))
         | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
         | HostReply::BlocksImported(BlockImport::Imported { .. } | BlockImport::Cancelled) => {
@@ -2980,11 +2721,27 @@ fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
 }
 
 fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {
-    collection(entries.len())?;
+    let mut count = 0;
+    menu_level(entries, 0, &mut count)
+}
+
+fn menu_level(entries: &[MenuEntry], depth: usize, count: &mut usize) -> Result<(), DecodeError> {
+    if depth > MAX_MENU_DEPTH {
+        return Err(DecodeError::LimitExceeded("menu depth"));
+    }
+    *count += entries.len();
+    collection(*count)?;
     for entry in entries {
-        string(&entry.id)?;
-        string(&entry.label)?;
-        string(&entry.glyph)?;
+        match entry {
+            MenuEntry::Command(command) => {
+                strings([&command.id, &command.label, &command.glyph])?;
+            }
+            MenuEntry::Submenu(submenu) => {
+                strings([&submenu.id, &submenu.label, &submenu.glyph])?;
+                menu_level(&submenu.entries, depth + 1, count)?;
+            }
+            MenuEntry::Separator => {}
+        }
     }
     Ok(())
 }

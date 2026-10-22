@@ -70,7 +70,7 @@ pub fn LockScreen(
             placement=Placement::At
             scrim={theme.background}
             level=LayerLevel::Lock
-            content={move || view! {
+            content={move || { let id = id.clone(); let submit = submit.clone(); view! {
                 <Frame width=width height=height>
                     <Layers>
                         <ForEach keys={places}>|index: usize| {
@@ -95,10 +95,9 @@ pub fn LockScreen(
                                     error={error}
                                     busy={busy}
                                     actions={actions}
-                                    password={password.read_only()}
+                                    password={password}
                                     focused={focused}
                                     id={format!("{}.{index}", id)}
-                                    on_change={move |typed: String| password.set(typed)}
                                     on_submit={move |typed: String| submit(typed)}
                                     on_action={on_action}
                                 />
@@ -108,7 +107,7 @@ pub fn LockScreen(
                         }</ForEach>
                     </Layers>
                 </Frame>
-            }}
+            } }}
         />
     }
 }
@@ -122,10 +121,9 @@ fn LockCard(
     error: Memo<Option<String>>,
     busy: Memo<bool>,
     actions: Memo<Vec<LockAction>>,
-    password: beui_view::reactive::ReadSignal<String>,
+    password: Binding<String>,
     focused: Memo<bool>,
     id: String,
-    on_change: Callback<String>,
     on_submit: Callback<String>,
     on_action: Callback<usize>,
 ) -> NodeId {
@@ -149,11 +147,11 @@ fn LockCard(
             <Frame width=width height=height align=Align::Center @test_id=card_id>
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
-                        <Text style=TextStyle::DISPLAY string={time} />
-                        <Text string={date} color=TextColor::Muted />
+                        <Text style=TextStyle::DISPLAY>{time}</Text>
+                        <Text color=TextColor::Muted>{date}</Text>
                     </List>
                     <List spacing=SPACING align=Align::Center>
-                        <Text style=TextStyle::TITLE string={user} />
+                        <Text style=TextStyle::TITLE>{user}</Text>
                         <Frame width=FIELD_WIDTH>
                             <TextInput
                                 value={password}
@@ -163,20 +161,20 @@ fn LockCard(
                                 disabled={busy}
                                 focused={focused}
                                 @test_id={format!("{id}.password")}
-                                on_change={on_change}
                                 on_submit={on_submit}
                             />
                         </Frame>
                         <Show condition={checking}>
-                            <Text style=TextStyle::CAPTION string="Checking…" />
+                            <Text style=TextStyle::CAPTION>"Checking…"</Text>
                         </Show>
                         <Show condition={failed}>
                             <Text
                                 style=TextStyle::CAPTION
-                                string={reason}
                                 color=TextColor::Danger
                                 @test_id={error_id.clone()}
-                            />
+                            >
+                                {reason}
+                            </Text>
                         </Show>
                     </List>
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>

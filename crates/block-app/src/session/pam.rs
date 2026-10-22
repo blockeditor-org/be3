@@ -66,6 +66,7 @@ struct Library {
     describe: Describe,
 }
 
+// unsafe(ffi)
 impl Library {
     fn open() -> Result<Self, String> {
         let handle = unsafe { libc::dlopen(LIBRARY.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
@@ -99,6 +100,7 @@ impl Library {
     }
 }
 
+// unsafe(ffi)
 impl Drop for Library {
     fn drop(&mut self) {
         unsafe { libc::dlclose(self.handle) };
@@ -111,6 +113,7 @@ struct Answers {
     said: Vec<String>,
 }
 
+// unsafe(memory)
 impl Drop for Answers {
     fn drop(&mut self) {
         let bytes = std::mem::take(&mut self.password).into_bytes_with_nul();
@@ -132,6 +135,7 @@ pub(crate) fn service_in(dir: &Path) -> &'static str {
     }
 }
 
+// unsafe(ffi)
 pub(crate) fn authenticate(service: &str, user: &str, password: &str) -> Verdict {
     let library = match Library::open() {
         Ok(library) => library,
@@ -188,6 +192,7 @@ pub(crate) fn authenticate(service: &str, user: &str, password: &str) -> Verdict
     }
 }
 
+// unsafe(ffi)
 unsafe extern "C" fn converse(
     count: c_int,
     messages: *mut *const Message,
@@ -238,6 +243,7 @@ unsafe extern "C" fn converse(
     PAM_SUCCESS
 }
 
+// unsafe(ffi)
 unsafe fn forget(replies: *mut Response, count: usize) {
     for index in 0..count {
         let text = unsafe { (*replies.add(index)).text };
@@ -252,6 +258,7 @@ unsafe fn forget(replies: *mut Response, count: usize) {
     unsafe { libc::free(replies.cast()) };
 }
 
+// unsafe(ffi)
 pub(crate) fn user() -> Option<(String, String)> {
     let uid = unsafe { libc::getuid() };
     let mut buffer = vec![0 as c_char; 16 * 1024];

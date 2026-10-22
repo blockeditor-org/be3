@@ -7,7 +7,6 @@ use crate::context_menu::menu_style;
 use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
-use beui_core::document::Document;
 use beui_core::icons::{ICON_CLOSE, ICON_CONTENT_COPY};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -26,7 +25,9 @@ const CLEAR_PADDING: f32 = 6.0;
 
 #[component]
 pub fn TextInput(
-    value: Prop<String>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::TextInputApi>,
+
+    value: Binding<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -38,7 +39,6 @@ pub fn TextInput(
     #[prop(default = false)] clearable: Prop<bool>,
     #[prop(default = false)] copyable: Prop<bool>,
     #[prop(default = false)] multiline: bool,
-    on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
 ) -> NodeId {
@@ -50,8 +50,7 @@ pub fn TextInput(
     let glyph = create_memo(move || glyph.get());
     let clearable = create_memo(move || clearable.get());
     let copyable = create_memo(move || copyable.get());
-    let shown = value.clone();
-    let copied = create_memo(move || shown.get());
+    let copied = create_memo(move || value.get());
     let named = label.clone();
     let copy_label = create_memo(move || match named.get().is_empty() {
         true => "Copy".to_owned(),
@@ -59,6 +58,7 @@ pub fn TextInput(
     });
     view! {
         <unstyled::TextInput
+            api
             value
             placeholder
             disabled
@@ -68,7 +68,6 @@ pub fn TextInput(
             label
             multiline
             style={style}
-            on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >|handle|
@@ -187,8 +186,4 @@ pub fn text_input_style() -> TextInputStyle {
         prose: Prop::Static(None),
         menu: menu_style(),
     }
-}
-
-pub fn text_input_value(document: &Document, input: NodeId) -> String {
-    unstyled::text_input_value(document, input)
 }

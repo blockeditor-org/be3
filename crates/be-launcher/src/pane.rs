@@ -274,14 +274,15 @@ fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
     view! {
         <Frame fill={ColorRole::custom(background)}>
             <Text
-                string={text}
                 size=TextSize::Custom(FONT_SIZE)
                 family=Family::Mono
                 weight
                 italic
                 color
                 underline
-            />
+            >
+                {text}
+            </Text>
         </Frame>
     }
 }

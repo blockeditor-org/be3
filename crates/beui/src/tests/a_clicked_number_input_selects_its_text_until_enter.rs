@@ -9,8 +9,7 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
-                value=1234.0
-                on_change={move |value| changes.update(|changes| changes.push(value))}
+                value={Binding::new(1234.0, move |next| changes.update(|changes| changes.push(next)))}
             />
         }]
     });
@@ -20,9 +19,16 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
 
     harness.click(middle);
     harness.frame(Vec::new());
-    let field = number_input_field(harness.document(), input).expect("a click opens the field");
+    let field = harness
+        .document()
+        .api::<NumberInputApi>(input)
+        .field()
+        .expect("a click opens the field");
 
-    let opened = unstyled::text_input_selection(harness.document(), field);
+    let opened = harness
+        .document()
+        .api::<unstyled::TextInputApi>(field)
+        .selection();
     assert_eq!(opened.len(), 1);
     assert_eq!(opened[0], 0..4);
 
@@ -34,18 +40,31 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
         changes.with_untracked(|changes| changes.is_empty()),
         "dragging inside the field must not change the value"
     );
-    let selection = unstyled::text_input_selection(harness.document(), field);
+    let selection = harness
+        .document()
+        .api::<unstyled::TextInputApi>(field)
+        .selection();
     assert!(
         selection.len() == 1 && !selection[0].is_empty() && selection[0] != (0..4),
         "dragging inside the field selects part of its text, not {selection:?}"
     );
-    assert!(number_input_field(harness.document(), input).is_some());
+    assert!(
+        harness
+            .document()
+            .api::<NumberInputApi>(input)
+            .field()
+            .is_some()
+    );
 
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
 
     assert!(
-        number_input_text(harness.document(), input).is_some(),
+        harness
+            .document()
+            .api::<NumberInputTextApi>(input)
+            .text()
+            .is_some(),
         "enter closes the field"
     );
 }

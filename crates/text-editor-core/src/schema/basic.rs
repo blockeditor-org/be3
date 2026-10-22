@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{Break, Schema, Selected, Tool};
+use super::{Break, Line, Schema, Selected, Tool};
 use crate::Language;
 use crate::core::EditorCommand;
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
@@ -239,14 +239,34 @@ impl Schema for Basic {
         }
     }
 
-    fn on_break(&self, block: &MarkSet, empty: bool, at_end: bool) -> Break {
-        if empty && (block.get(LIST).is_some() || on(block, QUOTE)) {
-            return Break::Lift(vec![
-                Name::new(LIST),
-                Name::new(CHECKED),
+    fn on_break(&self, line: &Line<'_>) -> Break {
+        let Line {
+            props: block,
+            empty,
+            at_end,
+            above,
+            below,
+        } = *line;
+        let code = block.get(CODE_BLOCK);
+        let blank_above =
+            above.is_some_and(|(above, empty)| empty && above.get(CODE_BLOCK) == code);
+        let ends_code = below.is_none_or(|below| below.get(CODE_BLOCK) != code);
+        if code.is_some() && empty && blank_above && ends_code {
+            return Break::Exit(vec![Name::new(CODE_BLOCK)]);
+        }
+        if empty && block.get(LIST).is_some() && depth(block) > 0 {
+            return Break::Lift(vec![(
                 Name::new(INDENT),
-                Name::new(QUOTE),
-            ]);
+                (depth(block) > 1).then(|| Value::Int(depth(block) - 1)),
+            )]);
+        }
+        if empty && (block.get(LIST).is_some() || on(block, QUOTE)) {
+            return Break::Lift(
+                [LIST, CHECKED, INDENT, QUOTE]
+                    .into_iter()
+                    .map(|key| (Name::new(key), None))
+                    .collect(),
+            );
         }
         let mut reset = vec![Name::new(CHECKED)];
         if at_end {
@@ -255,10 +275,13 @@ impl Schema for Basic {
         Break::Split { reset }
     }
 
-    fn lift_on_backspace(&self, block: &MarkSet) -> Vec<Name> {
+    fn lift_on_backspace(&self, block: &MarkSet, previous: Option<&MarkSet>) -> Vec<Name> {
+        let opens_code = block.get(CODE_BLOCK).is_some()
+            && previous.and_then(|previous| previous.get(CODE_BLOCK)) != block.get(CODE_BLOCK);
         [HEADING, LIST, CHECKED, INDENT, QUOTE]
             .into_iter()
             .filter(|key| block.get(key).is_some())
+            .chain(opens_code.then_some(CODE_BLOCK))
             .map(Name::new)
             .collect()
     }

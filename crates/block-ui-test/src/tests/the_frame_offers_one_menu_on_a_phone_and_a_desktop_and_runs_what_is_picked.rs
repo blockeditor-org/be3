@@ -1,15 +1,19 @@
 use beui::Vec2;
 use beui::icons::ICON_AUTO_FIX_HIGH;
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{BarAction, BlockCommand};
+use block_plugin_api::MenuCheck;
 
 use super::*;
 
 struct ActionApp;
 
 impl BeuiApp for ActionApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Tidy editor={editor} />
+            <Root>
+                <Tidy editor={editor} />
+            </Root>
         }
     }
 }
@@ -18,12 +22,21 @@ impl BeuiApp for ActionApp {
 fn Tidy(editor: Editor) -> NodeId {
     let _ = editor;
     let tidied = create_signal(String::from("messy"));
-    Action::new("tidy.up", "Tidy up", move || tidied.set("tidy".to_owned()))
+    let neat = create_signal(false);
+    let tidy = Action::new("tidy.up", "Tidy up", move || tidied.set("tidy".to_owned()))
         .glyph(ICON_AUTO_FIX_HIGH)
-        .in_menu()
         .register();
+    let neatly = Action::new("tidy.neat", "Keep it neat", move || {
+        neat.update(|on| *on = !*on)
+    })
+    .checked(neat)
+    .register();
+    add_to_menu(vec![
+        MenuNode::action(&tidy),
+        MenuNode::submenu("tidy.more", "More", "", vec![MenuNode::action(&neatly)]),
+    ]);
     view! {
-        <Text string={tidied} @test_id={"tidy.state"} />
+        <Text @test_id={"tidy.state"}>{tidied}</Text>
     }
 }
 
@@ -37,16 +50,18 @@ fn text(test: &BeuiTest<ActionApp>, id: &str) -> String {
 }
 
 fn ids(test: &BeuiTest<ActionApp>) -> Vec<String> {
-    test.menu().iter().map(|entry| entry.id.clone()).collect()
+    test.menu_ids()
 }
 
-const MENU: [&str; 7] = [
+const MENU: [&str; 9] = [
     "editor.undo",
     "editor.redo",
     "editor.rename",
     "editor.share",
     "editor.palette",
     "tidy.up",
+    "tidy.more",
+    "tidy.neat",
     "editor.details",
 ];
 
@@ -72,6 +87,17 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
         "the editor's own item runs"
     );
 
+    assert_eq!(
+        test.menu_entry("tidy.neat").check,
+        MenuCheck::Checkbox(false)
+    );
+    test.pick_menu("tidy.neat");
+    assert_eq!(
+        test.menu_entry("tidy.neat").check,
+        MenuCheck::Checkbox(true),
+        "a command in a submenu runs, and its tick reaches the host"
+    );
+
     test.pick_menu("editor.rename");
     assert_eq!(test.take_block_commands(), [(block, BlockCommand::Rename)]);
 
@@ -88,11 +114,7 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
     ))
     .with_top_bar(false);
     assert_eq!(
-        desktop
-            .menu()
-            .iter()
-            .map(|entry| entry.id.clone())
-            .collect::<Vec<_>>(),
+        desktop.menu_ids(),
         MENU,
         "a desktop frame offers the same menu as a phone"
     );

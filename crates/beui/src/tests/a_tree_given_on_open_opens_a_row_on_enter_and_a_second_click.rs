@@ -9,7 +9,7 @@ fn a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal::<Vec<usize>>(Vec::new());
     let opened = create_signal::<Vec<usize>>(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let item = move |key: usize| TreeItem {
             label: format!("row {key}"),
             depth: 0,
@@ -25,7 +25,7 @@ fn a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click() {
                 on_select={move |key: usize| chosen.update(|chosen| chosen.push(key))}
                 on_open={move |key: usize| opened.update(|opened| opened.push(key))}
             >|row: TreeRowFace<usize>|
-                <Text string={format!("row {}", row.key)} />
+                <Text>{format!("row {}", row.key)}</Text>
             </Tree>
         }
     });

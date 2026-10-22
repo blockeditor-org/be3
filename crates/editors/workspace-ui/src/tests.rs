@@ -34,13 +34,19 @@ mod a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab;
 mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_open_menu_is_withheld_from_the_block_under_it;
+mod an_open_pick_leaves_the_tabs_where_they_were;
+mod block_type_colors_are_shown_in_the_add_menu_and_full_list;
+mod block_type_colors_are_shown_on_a_phone;
 mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
+mod on_a_desktop_a_touch_opens_the_add_menu_as_a_sheet_and_a_mouse_as_a_dropdown;
+mod on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place;
 mod on_a_phone_the_menu_and_its_location_page_rise_as_a_sheet;
+mod on_a_wide_phone_the_more_sheet_fills_the_screen_width;
 mod renaming_a_block_the_host_asks_about_saves_its_name;
 mod revision_history_follows_the_active_file_and_previews_it;
 mod revision_history_has_no_file_for_a_native_window;
@@ -51,7 +57,7 @@ mod sharing_a_block_grants_the_people_added_and_lists_them_again;
 mod showing_a_block_with_another_editor_switches_its_tab;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
-mod the_link_sheet_keeps_its_search_and_choice_across_tab_switches;
+mod the_link_card_keeps_its_search_and_choice_across_tab_switches;
 mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_picker_never_offers_a_deleted_block_to_link;
 mod the_share_dialog_lists_again_when_a_contact_is_made;
@@ -278,6 +284,7 @@ fn catalog() -> block_editor_beui::Catalog {
     let kind = |block_type: Uuid, name: &str, icon: &str| block_editor_beui::BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
         display_name: name.to_owned(),
+        color: None,
         icon_codepoint: icon.to_owned(),
         children: block_plugin_api::ChildOperations {
             add: true,

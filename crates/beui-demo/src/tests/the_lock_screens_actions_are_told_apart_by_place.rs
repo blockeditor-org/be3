@@ -16,7 +16,7 @@ fn the_lock_screens_actions_are_told_apart_by_place() {
                 glyph: ICON_BEDTIME.to_owned(),
             };
             view! {
-                <Frame fill=ColorRole::Background>
+                <Root>
                     <LockScreen
                         open=true
                         time="09:41"
@@ -25,7 +25,7 @@ fn the_lock_screens_actions_are_told_apart_by_place() {
                         actions={vec![same.clone(), same]}
                         on_action={move |index: usize| chosen.borrow_mut().push(index)}
                     />
-                </Frame>
+                </Root>
             }
         }
     });

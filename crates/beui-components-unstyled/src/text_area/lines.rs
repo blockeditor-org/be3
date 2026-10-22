@@ -5,7 +5,6 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::text::TextNode;
 use beui_core::base::{Align, ItemSize};
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId, TextAlign};
@@ -423,10 +422,7 @@ fn RowText(
             && text.borrow().is_none()
             && let Some(id) = node.try_get()
         {
-            *text.borrow_mut() = with_document(|document| {
-                let text = document.arena.kind_of::<TextNode>(id)?;
-                Some(document.text_geometry(text))
-            });
+            *text.borrow_mut() = id.text_geometry();
         }
     });
     let keys = create_memo(move || piece_keys(&model.get(), layer));
@@ -631,7 +627,7 @@ fn RowPiece(
                 _ => color,
             });
             view! {
-                <Span text font color underline strikethrough break_after />
+                <Span font color underline strikethrough break_after>{text}</Span>
             }
             .into_child()
         }
@@ -741,25 +737,26 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     view! {
         <Frame width=width height=RUN_CHIP_HEIGHT fill=fill radius=RUN_CHIP_RADIUS>
             <Text
-                string={label}
                 font={FontId::monospace(RUN_CHIP_SIZE)}
                 color={color}
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
-            />
+            >
+                {label}
+            </Text>
         </Frame>
     }
 }
 
 #[component]
 fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let checked = create_memo(move || {
+    let shown = create_memo(move || {
         matches!(
             item.get().map(|item| item.inline),
             Some(Inline::Checkbox { checked: true, .. })
         )
     });
-    let on_change = Callback::new(move |_: bool| {
+    let checked = Binding::new(shown, move |_: bool| {
         let Some(Inline::Checkbox { line_start, .. }) =
             item.get_untracked().map(|item| item.inline)
         else {
@@ -773,11 +770,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     });
     let disabled = cx.disabled;
     if let Some(render) = &cx.checkbox {
-        return render.call(TextCheckbox {
-            checked,
-            disabled,
-            on_change,
-        });
+        return render.call(TextCheckbox { checked, disabled });
     }
     view! {
         <Toggle
@@ -786,7 +779,6 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             capture_presses=true
             tab_stop=false
             press_focus=false
-            on_change={on_change}
         >|handle: ToggleHandle|
             <CheckboxBox cx handle />
         </Toggle>
@@ -892,7 +884,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                         </Text>
                     </Frame>
                 </Show>
-                <Text string={label} font={font} color={color} vertical_align=TextAlign::Center />
+                <Text font={font} color={color} vertical_align=TextAlign::Center>{label}</Text>
                 <Show condition={selected}>|| {
                     let render = cx
                         .selected_widget
@@ -965,11 +957,12 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) height=height>
                     <Text
-                        string={number}
                         font={FontId::monospace(BODY_SIZE)}
                         color={number_color}
                         align=TextAlign::End
-                    />
+                    >
+                        {number}
+                    </Text>
                 </Frame>
             </List>
         </Frame>

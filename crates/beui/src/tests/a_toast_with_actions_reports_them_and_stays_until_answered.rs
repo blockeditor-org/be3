@@ -18,7 +18,7 @@ fn a_toast_with_actions_reports_them_and_stays_until_answered() {
         ..Toast::default()
     };
     let heard = create_signal::<Vec<String>>(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let area = NodeRef::new();
         let toasts = create_signal(vec![toast.clone()]);
         view! {

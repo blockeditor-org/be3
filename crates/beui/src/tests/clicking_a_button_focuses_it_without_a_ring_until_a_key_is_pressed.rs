@@ -14,8 +14,8 @@ fn clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed() {
             },
         ]
     });
-    let first_focused = unstyled::button_focused(&document, first);
-    let second_focused = unstyled::button_focused(&document, second);
+    let first_focused = document.api::<unstyled::ButtonApi>(first).focused();
+    let second_focused = document.api::<unstyled::ButtonApi>(second).focused();
     let mut harness = Harness::new(document);
     let rings = |output: &crate::FrameOutput| {
         output.shapes().iter().filter(|shape| matches!(shape,

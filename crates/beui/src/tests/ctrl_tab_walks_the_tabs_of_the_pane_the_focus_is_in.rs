@@ -1,13 +1,13 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
+use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 
 #[test]
 fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout>
@@ -23,7 +23,6 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
                                         @test_id={format!("input.{id}")}
                                         value={typed}
                                         label="Notes"
-                                        on_change={move |text: String| typed.set(text)}
                                     />
                                 }
                             }}
@@ -41,7 +40,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     harness.type_text("hello");
     harness.frame(Vec::new());
     assert_eq!(
-        text_input_value(harness.document(), input),
+        harness.document().api::<TextInputApi>(input).value(),
         "hello",
         "the input took what was typed into it"
     );
@@ -49,7 +48,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     harness.key(Key::Tab, Modifiers::CTRL);
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     assert_eq!(
         state.active_tab(leaf),
@@ -57,7 +56,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
         "ctrl+tab shows the next tab even while an input has the focus"
     );
     assert_eq!(
-        text_input_value(harness.document(), input),
+        harness.document().api::<TextInputApi>(input).value(),
         "hello",
         "the input the focus was in is left as it was"
     );
@@ -66,7 +65,11 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     harness.key(Key::Tab, Modifiers::CTRL);
     harness.frame(Vec::new());
     assert_eq!(
-        dock_state(harness.document(), dock).active_tab(leaf),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .active_tab(leaf),
         Some(TabId::new(1)),
         "walking past the last tab comes back to the first"
     );
@@ -80,7 +83,11 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     );
     harness.frame(Vec::new());
     assert_eq!(
-        dock_state(harness.document(), dock).active_tab(leaf),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .active_tab(leaf),
         Some(TabId::new(3)),
         "ctrl+shift+tab walks the other way"
     );

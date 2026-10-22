@@ -4,7 +4,7 @@ use crate::input_settings::{InputDevice, PointerSetting, PointerSpeed};
 use crate::settings::{
     Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
 };
-use crate::{ChildChange, Root, Theme};
+use crate::{ChildChange, Root, ThemeKind};
 
 #[test]
 fn a_profile_layers_its_settings_over_the_defaults() {
@@ -48,19 +48,19 @@ fn a_profile_layers_its_settings_over_the_defaults() {
 
     let defaults = edited(
         &DisplaySettingsContent::default(),
-        [DisplaySettings::set_theme(Some(Theme::Light))],
+        [DisplaySettings::set_theme(Some(ThemeKind::Light))],
     );
     assert_eq!(
         layered([defaults.root(), DisplaySettings::default()]).theme(),
-        Theme::Light
+        ThemeKind::Light
     );
     let dark = edited(
         &defaults,
-        [DisplaySettings::set_theme(Some(Theme::OledDark))],
+        [DisplaySettings::set_theme(Some(ThemeKind::OledDark))],
     );
     assert_eq!(
         layered([defaults.root(), dark.root()]).theme(),
-        Theme::OledDark
+        ThemeKind::OledDark
     );
 
     let screen = "DPI-1";

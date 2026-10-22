@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll
@@ -17,7 +17,7 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
                 >
                     <ForEach keys={indices(20)}>|index: usize|
                         <Frame width=120.0>
-                            <Text string={format!("Card {index}")} color=Color32::WHITE />
+                            <Text color=Color32::WHITE>{format!("Card {index}")}</Text>
                         </Frame>
                     </ForEach>
                 </Scroll>

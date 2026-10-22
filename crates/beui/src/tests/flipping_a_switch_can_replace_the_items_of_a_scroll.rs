@@ -14,7 +14,7 @@ fn flipping_a_switch_can_replace_the_items_of_a_scroll() {
 fn check_compact_rows(inset: f32) {
     let built = create_signal(Vec::new());
     let (switch, scroll, list) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let compact = create_signal(false);
         let item_height = create_memo(move || {
             if compact.get() {
@@ -26,7 +26,7 @@ fn check_compact_rows(inset: f32) {
         let padding = create_memo(move || item_height.get() / 2.0);
         view! {
             <List spacing=0.0>
-                <Switch @node_ref=&switch on=false on_change={move |on: bool| compact.set(on)} />
+                <Switch @node_ref=&switch on={compact} />
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <VirtualList
                         @node_ref=&list
@@ -69,7 +69,13 @@ fn check_compact_rows(inset: f32) {
     let remainder = inset - skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
     let settled = top + skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
     let kept = rows[skipped];
-    assert!(styled::switch_on(harness.document(), switch));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(switch)
+            .checked()
+            .get()
+    );
     assert_eq!(harness.document.children(list)[0], kept);
     assert!(
         built

@@ -28,7 +28,6 @@ pub(super) struct DeviceSetup {
     every: ReadSignal<DisplaySettings>,
     own: ReadSignal<DisplaySettings>,
     rows: Memo<Vec<String>>,
-    ready: Memo<bool>,
 }
 
 impl DeviceSetup {
@@ -49,11 +48,6 @@ impl DeviceSetup {
         let own_content = editor.related_content::<DisplaySettingsContent>(own_block);
         let every = every_content.project(|content| content.root());
         let own = own_content.project(|content| content.root());
-        let (every_settled, own_settled) = (every_content.settled(), own_content.settled());
-        let ready = create_memo(move || {
-            (every_block.get().is_none() || every_settled.get())
-                && (own_block.get().is_none() || own_settled.get())
-        });
         let rows = create_memo(move || {
             let Some(class) = class.get() else {
                 return Vec::new();
@@ -77,12 +71,7 @@ impl DeviceSetup {
             every,
             own,
             rows,
-            ready,
         }
-    }
-
-    pub(super) fn ready(&self) -> Memo<bool> {
-        self.ready
     }
 
     pub(super) fn differs(&self) -> Memo<bool> {
@@ -178,8 +167,8 @@ pub(super) fn SetUpHeading() -> NodeId {
     view! {
         <Frame padding={Sides::horizontal(HEADER_INSET)}>
             <List spacing=HEADER_SPACING>
-                <Text style=TextStyle::HEADING string=SET_UP />
-                <Text style=TextStyle::CAPTION string=SET_UP_CAPTION wrap=true />
+                <Text style=TextStyle::HEADING>{SET_UP}</Text>
+                <Text style=TextStyle::CAPTION wrap=true>{SET_UP_CAPTION}</Text>
             </List>
         </Frame>
     }
@@ -193,8 +182,8 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
     let name = create_memo(move || {
         listed
             .read()
-            .into_iter()
-            .next()
+            .ok()
+            .and_then(|list| list.into_iter().next())
             .and_then(|info| info.name())
             .unwrap_or_default()
     });
@@ -204,26 +193,24 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
             .get()
             .and_then(|class| DeviceClass::ALL.iter().position(|known| *known == class))
     });
-    let locked = create_memo(move || blocked.get() || !setup.ready.get());
     view! {
         <SettingsSection title="Device">
             <SettingsRow label="Name" locked={blocked}>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={name}
+                    value={Binding::new(name, move |text: String| {
+                        editor.blocks().set_name(block, Some(text));
+                    })}
                     label="Name"
                     disabled={blocked}
                     @test_id={"setup.name"}
-                    on_change={move |text: String| {
-                        editor.blocks().set_name(block, Some(text));
-                    }}
                 />
             </SettingsRow>
             <SettingsRow
                 label="Kind of device"
                 description="Each kind starts with the settings that suit it, kept on this device."
                 separated=true
-                locked={locked}
+                locked={blocked}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
@@ -233,16 +220,15 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
                             <ChoiceOption label={class.name().to_owned()} />
                         </ForEach>
                     }}
-                    selected={selected}
-                    label="Kind of device"
-                    placeholder="Choose"
-                    disabled={locked}
-                    @test_id={"setup.kind"}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(selected, move |index: Option<usize>| {
                         if let Some(class) = index.and_then(|index| DeviceClass::ALL.get(index)) {
                             setup.choose(*class);
                         }
-                    }}
+                    })}
+                    label="Kind of device"
+                    placeholder="Choose"
+                    disabled={blocked}
+                    @test_id={"setup.kind"}
                 />
             </SettingsRow>
         </SettingsSection>
@@ -252,7 +238,6 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
 #[component]
 pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
     let rows = setup.rows;
-    let locked = create_memo(move || blocked.get() || !setup.ready.get());
     view! {
         <SettingsSection
             title="Where this device differs"
@@ -283,7 +268,7 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
                     <Button
                         label="Use my usual settings"
                         variant=ButtonVariant::Secondary
-                        disabled={locked}
+                        disabled={blocked}
                         @test_id={"setup.usual"}
                         on_click={move || setup.use_usual()}
                     />

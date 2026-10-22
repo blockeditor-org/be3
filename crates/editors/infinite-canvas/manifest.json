@@ -2,20 +2,16 @@
   "id": "be3.infinite-canvas",
   "name": "Canvas",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "696e6669-6e69-7465-2d63-616e76617301",
+  "editors": {
+    "canvas": {
+      "id": "506689a0-b393-49d9-baab-eb6c7c41f449",
+      "edits": "696e6669-6e69-7465-2d63-616e76617301",
       "display_name": "Canvas",
       "icon": "\ue746",
       "templates": {
         "main": {
           "category": "important"
         }
-      },
-      "children": {
-        "add": false,
-        "delete": false,
-        "replace": true
       },
       "interaction": "Live",
       "capabilities": {
@@ -29,6 +25,6 @@
         "Preview"
       ]
     }
-  ],
+  },
   "entry_point": "infinite_canvas.wasm"
 }

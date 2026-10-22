@@ -1,15 +1,13 @@
 use block_editor_beui::be_block::DisplaySettings;
-use block_editor_beui::be_block::display_settings::Rotation;
+use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_SETTINGS_BACKUP_RESTORE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
-use block_editor_beui::{HostDisplay, HostDisplayMode, LayeredSettingsRow, RotationPicker};
+use block_editor_beui::{HostDisplay, LayeredSettingsRow, RotationPicker};
 
-use super::modes::{
-    Size, effective, mode_label, rate_label, rates, saved, size_label, size_of, sizes,
-};
+use super::modes::{Size, effective, mode_label, rate_label, rates, size_label, size_of, sizes};
 use super::ui::Settings;
 
 #[component]
@@ -93,7 +91,7 @@ pub(super) fn ScreenSection(
     let turn = settings.setter(&rotation);
     let pick = Callback::new(move |picked: Rotation| turn.call(Some(picked)));
     let choose = settings.setter(&mode);
-    let set = Callback::new(move |chosen: Option<HostDisplayMode>| choose.call(chosen.map(saved)));
+    let set = Callback::new(move |chosen: Option<DisplayMode>| choose.call(chosen));
     let fastest = create_memo(move || rate_list.with(|rates| rates.first().copied()));
     let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
     let at_fastest = create_memo(move || !slower.get() || read_only.get());
@@ -114,11 +112,7 @@ pub(super) fn ScreenSection(
                             <ChoiceOption label={size_label(size)} />
                         </ForEach>
                     }}
-                    selected={size_selected}
-                    label="Resolution"
-                    disabled={read_only}
-                    @test_id={resolution_id}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(size_selected, move |index: Option<usize>| {
                         let Some(size) = index.and_then(|index| size_list.with_untracked(|sizes| sizes.get(index).copied())) else {
                             return;
                         };
@@ -126,7 +120,10 @@ pub(super) fn ScreenSection(
                         if fastest.is_some() {
                             set.call(fastest);
                         }
-                    }}
+                    })}
+                    label="Resolution"
+                    disabled={read_only}
+                    @test_id={resolution_id}
                 />
             </LayeredSettingsRow>
             <SettingsRow
@@ -149,20 +146,19 @@ pub(super) fn ScreenSection(
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={rate_list}>|mode: HostDisplayMode|
+                        <ForEach keys={rate_list}>|mode: DisplayMode|
                             <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
                         </ForEach>
                     }}
-                    selected={rate_selected}
-                    label="Refresh rate"
-                    disabled={read_only}
-                    @test_id={refresh_id}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(rate_selected, move |index: Option<usize>| {
                         let mode = index.and_then(|index| rate_list.with_untracked(|rates| rates.get(index).copied()));
                         if mode.is_some() {
                             set.call(mode);
                         }
-                    }}
+                    })}
+                    label="Refresh rate"
+                    disabled={read_only}
+                    @test_id={refresh_id}
                 />
             </SettingsRow>
             <LayeredSettingsRow

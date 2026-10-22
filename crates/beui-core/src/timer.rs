@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -8,11 +8,25 @@ use ::reactive::{Stored, on_cleanup, store};
 pub struct TimerState {
     due: Cell<Option<Instant>>,
     work: Box<dyn Fn() -> Option<Duration>>,
+    armed: Rc<RefCell<Timers>>,
+    listed: Cell<bool>,
 }
 
 impl TimerState {
     pub fn due(&self) -> Option<Instant> {
         self.due.get()
+    }
+
+    pub(crate) fn unlist(&self) -> bool {
+        self.listed.set(false);
+        false
+    }
+
+    fn arm(self: &Rc<Self>, due: Instant) {
+        self.due.set(Some(due));
+        if !self.listed.replace(true) {
+            self.armed.borrow_mut().push(Rc::downgrade(self));
+        }
     }
 
     pub fn fire(&self, now: Instant) {
@@ -38,7 +52,7 @@ impl Timer {
         if state.due.get().is_some_and(|held| held <= due) {
             return;
         }
-        state.due.set(Some(due));
+        state.arm(due);
         try_with_document(|document| document.request_repaint_after(delay));
     }
 
@@ -80,11 +94,13 @@ pub fn wall_clock() -> Duration {
 }
 
 pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
+    let armed = with_document(|document| document.timers());
     let state = store(TimerState {
         due: Cell::new(None),
         work: Box::new(work),
+        armed,
+        listed: Cell::new(false),
     });
-    with_document(|document| document.register_timer(Rc::downgrade(&state.value())));
     on_cleanup(move || {
         state.try_with(|state| state.due.set(None));
     });

@@ -1,19 +1,13 @@
 use beui_macros::component;
 
+use beui_components_unstyled::SyntaxColors;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
 use crate::frame::{Border, ColorRole};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ThemeKind {
-    Dark,
-    OledDark,
-    Light,
-    EInk,
-}
+pub use beui_core::preferences::ThemeKind;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Store)]
 pub struct Theme {
@@ -46,15 +40,22 @@ pub struct Theme {
     pub knob: Color32,
     pub control_outline: Option<Color32>,
     pub knob_outline: Option<Color32>,
+    pub shadow: Color32,
+    pub scrim: Color32,
+    pub scrim_soft: Color32,
+    pub scrim_strong: Color32,
+    pub syntax: SyntaxColors,
 }
 
 impl Theme {
-    pub const BUILT_IN: [(&'static str, Theme); 4] = [
-        ("Dark", Theme::DARK),
-        ("OLED dark", Theme::OLED),
-        ("Light", Theme::LIGHT),
-        ("E-ink", Theme::EINK),
-    ];
+    pub const fn of(kind: ThemeKind) -> Self {
+        match kind {
+            ThemeKind::Dark => Self::DARK,
+            ThemeKind::OledDark => Self::OLED,
+            ThemeKind::Light => Self::LIGHT,
+            ThemeKind::EPaper => Self::EPAPER,
+        }
+    }
 
     pub const DARK: Theme = Theme {
         kind: ThemeKind::Dark,
@@ -86,6 +87,11 @@ impl Theme {
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
         knob_outline: None,
+        shadow: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: SyntaxColors::DEFAULT,
     };
 
     pub const OLED: Theme = Theme {
@@ -118,6 +124,11 @@ impl Theme {
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
         knob_outline: None,
+        shadow: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: SyntaxColors::DEFAULT,
     };
 
     pub const LIGHT: Theme = Theme {
@@ -150,10 +161,15 @@ impl Theme {
         knob: Color32::WHITE,
         control_outline: None,
         knob_outline: Some(Color32::from_rgb(190, 197, 210)),
+        shadow: Color32::from_rgba_unmultiplied(16, 24, 40, 40),
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: LIGHT_SYNTAX,
     };
 
-    pub const EINK: Theme = Theme {
-        kind: ThemeKind::EInk,
+    pub const EPAPER: Theme = Theme {
+        kind: ThemeKind::EPaper,
         background: Color32::WHITE,
         surface: Color32::WHITE,
         surface_raised: Color32::WHITE,
@@ -182,8 +198,48 @@ impl Theme {
         knob: Color32::WHITE,
         control_outline: Some(Color32::BLACK),
         knob_outline: Some(Color32::BLACK),
+        shadow: Color32::TRANSPARENT,
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: EPAPER_SYNTAX,
     };
 }
+
+const fn rgb(hex: u32) -> Color32 {
+    Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+}
+
+const LIGHT_SYNTAX: SyntaxColors = SyntaxColors {
+    invalid: rgb(0xd1242f),
+    keyword: rgb(0xcf222e),
+    keyword_storage: rgb(0x953800),
+    keyword_primitive_type: rgb(0x0550ae),
+    literal: rgb(0x0550ae),
+    literal_string: rgb(0x0a3069),
+    comment: rgb(0x6e7781),
+    punctuation: rgb(0x57606a),
+    punctuation_important: rgb(0x24292f),
+    variable: rgb(0x57606a),
+    variable_constant: rgb(0x116329),
+    variable_function: rgb(0x8250df),
+    variable_mutable: rgb(0x24292f),
+    variable_parameter: rgb(0x953800),
+    markdown_plain_text: rgb(0x181d26),
+    markdown_symbol: rgb(0x6e7781),
+    markdown_link: rgb(0x0969da),
+    markdown_code: rgb(0x116329),
+    unstyled: rgb(0x24292f),
+    invisible: rgb(0xc0c6cf),
+};
+
+const EPAPER_SYNTAX: SyntaxColors = SyntaxColors {
+    comment: Color32::from_gray(80),
+    punctuation: Color32::from_gray(80),
+    markdown_symbol: Color32::from_gray(80),
+    invisible: Color32::from_gray(180),
+    ..SyntaxColors::uniform(Color32::BLACK)
+};
 
 impl Default for Theme {
     fn default() -> Self {
@@ -229,29 +285,17 @@ pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: 
 }
 
 pub fn use_theme() -> ThemeStore {
-    use_context::<ThemeStore>().unwrap_or_else(|| with_document(document_theme_store))
+    use_context::<ThemeStore>().unwrap_or_else(tree_theme_store)
 }
 
-fn document_theme_store(document: &mut Document) -> ThemeStore {
-    document.extension_or_insert_with(|| ThemeStore::new(Theme::DARK))
-}
-
-pub trait DocumentTheme {
-    fn theme(&self) -> Theme;
-
-    fn set_theme(&mut self, theme: Theme);
-}
-
-impl DocumentTheme for Document {
-    fn theme(&self) -> Theme {
-        self.extension::<ThemeStore>()
-            .map_or(Theme::DARK, |store| store.get_untracked())
-    }
-
-    fn set_theme(&mut self, theme: Theme) {
-        let store = document_theme_store(self);
-        store.set(theme);
-    }
+fn tree_theme_store() -> ThemeStore {
+    let preferences = use_preferences();
+    let kind = create_memo(move || preferences.get().theme);
+    tree_local(|| {
+        let store = ThemeStore::new(Theme::of(kind.get_untracked()));
+        create_effect(move || store.set(Theme::of(kind.get())));
+        store
+    })
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -280,6 +324,9 @@ pub const NARROW_WIDTH: f32 = 700.0;
 pub const BORDER_WIDTH: f32 = 1.0;
 pub const FOCUS_RING_WIDTH: f32 = 2.0;
 pub const SEPARATOR_THICKNESS: f32 = 1.0;
+pub const FLOATING_SHADOW_SPREAD: f32 = 12.0;
+pub const FLOATING_SHADOW_DROP: f32 = 3.0;
+pub const POINTER_REACH: f32 = 10.0;
 pub const SCROLLBAR_TRACK_WIDTH: f32 = 6.0;
 pub const SCROLLBAR_INSET: f32 = 2.0;
 pub const SCROLLBAR_WIDTH: f32 = SCROLLBAR_TRACK_WIDTH + SCROLLBAR_INSET;

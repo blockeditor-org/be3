@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::reactive::{
     Child, ChildSegment, ChildValue, Children, FromPlaced, Get, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Placed, Prop, ReadSignal, Signal, SlotChild, SlotHost, SlotId,
+    IntoSlotHost, Memo, Placed, Prop, ReadSignal, Ready, Signal, SlotChild, SlotHost, SlotId,
     create_binding, create_effect, with_document,
 };
 use beui_core::base::text::{
@@ -19,7 +19,6 @@ use beui_macros::component;
 
 #[component]
 pub fn Text(
-    #[prop(default = String::new())] string: Prop<String>,
     #[prop(default = FontId::proportional(DEFAULT_FONT_SIZE))] font: Prop<FontId>,
     #[prop(default = None)] line_height: Prop<Option<f32>>,
     #[prop(default = Color32::WHITE)] color: Prop<Color32>,
@@ -34,9 +33,20 @@ pub fn Text(
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
 ) -> NodeId {
-    let node = with_document(|document| {
-        document.create_text(String::new(), DEFAULT_FONT_SIZE, Color32::WHITE)
-    });
+    let (string, children) = match children.into_only() {
+        Ok(TextChild::Span(span)) if span.is_plain() => (span.text, Children::default()),
+        Ok(child) => (
+            Prop::Static(String::new()),
+            Children::from(ChildSegment::One(child)),
+        ),
+        Err(children) => (Prop::Static(String::new()), children),
+    };
+    let (initial, string) = match string {
+        Prop::Static(initial) => (initial, None),
+        string => (String::new(), Some(string)),
+    };
+    let node =
+        with_document(|document| document.create_text(initial, DEFAULT_FONT_SIZE, Color32::WHITE));
     create_binding(move || {
         let horizontal = align.get();
         let style = TextStyle {
@@ -56,7 +66,9 @@ pub fn Text(
         };
         with_document(|document| document.set_text_style(node, style));
     });
-    create_binding(move || with_document(|document| document.set_text(node, string.get())));
+    if let Some(string) = string {
+        create_binding(move || with_document(|document| document.set_text(node, string.get())));
+    }
     create_binding(move || with_document(|document| document.set_text_marks(node, marks.get())));
     create_binding(move || with_document(|document| document.set_text_carets(node, carets.get())));
     children.mount(node);
@@ -163,6 +175,7 @@ text_child_from!(
     String,
     Prop<String>,
     Memo<String>,
+    Memo<Ready<String>>,
     ReadSignal<String>,
     Signal<String>
 );
@@ -248,6 +261,15 @@ impl Span {
         }
     }
 
+    fn is_plain(&self) -> bool {
+        matches!(self.font, Prop::Static(font) if font == FontPatch::default())
+            && matches!(self.color, Prop::Static(None))
+            && matches!(self.underline, Prop::Static(None))
+            && matches!(self.strikethrough, Prop::Static(None))
+            && matches!(self.break_after, Prop::Static(false))
+            && self.icon.is_none()
+    }
+
     fn get_untracked(&self) -> SpanContent {
         SpanContent {
             text: self.text.get_untracked(),
@@ -286,7 +308,6 @@ impl Span {
 
 #[component]
 pub fn Span(
-    text: Option<Prop<String>>,
     #[prop(default = None)] font: Prop<Option<FontId>>,
     #[prop(default = None)] size: Prop<Option<f32>>,
     #[prop(default = None)] family: Prop<Option<FontFamily>>,
@@ -298,10 +319,13 @@ pub fn Span(
     #[prop(default = false)] break_after: Prop<bool>,
     children: Children<SpanText>,
 ) -> Span {
-    let text = text.unwrap_or_else(|| {
-        let run = children.into_run();
-        Prop::dynamic(move || run.items().iter().map(|piece| piece.0.get()).collect())
-    });
+    let text = match children.into_only() {
+        Ok(SpanText(text)) => text,
+        Err(children) => {
+            let run = children.into_run();
+            Prop::dynamic(move || run.items().iter().map(|piece| piece.0.get()).collect())
+        }
+    };
     let font = match (font, size, family, bold, italic) {
         (
             Prop::Static(font),

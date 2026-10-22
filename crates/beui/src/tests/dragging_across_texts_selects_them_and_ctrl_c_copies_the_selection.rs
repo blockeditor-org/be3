@@ -9,14 +9,14 @@ const TITLE: &str = "Fix the launcher";
 fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
     let _root = crate::reactive::RootScope::new();
     let (title, labels, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>
-                    <Text @node_ref=&title string=TITLE />
+                    <Text @node_ref=&title>{TITLE}</Text>
                     <List direction=Direction::Horizontal spacing=8.0>
-                        <Text string="#210 by someone" />
-                        <Text @node_ref=&labels string="ready" />
+                        <Text>"#210 by someone"</Text>
+                        <Text @node_ref=&labels>"ready"</Text>
                     </List>
                 </List>
             </SelectableText>
@@ -36,7 +36,10 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
         pos2(labels.right() + 20.0, labels.center().y),
     );
     assert_eq!(
-        crate::unstyled::selectable_text(harness.document(), region.get()),
+        harness
+            .document()
+            .api::<crate::unstyled::SelectableState>(region.get())
+            .selected_text(),
         "Fix the launcher\n#210 by someone ready"
     );
     assert_eq!(

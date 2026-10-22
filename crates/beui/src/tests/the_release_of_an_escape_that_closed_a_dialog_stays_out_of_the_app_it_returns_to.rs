@@ -10,7 +10,7 @@ fn the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_app_it_returns
     let open = create_signal(false);
     let (catcher, field) = (NodeRef::new(), NodeRef::new());
     let heard = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Canvas>

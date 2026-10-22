@@ -6,7 +6,11 @@ use uuid::Uuid;
 
 use crate::app::FileTreeApp;
 
+mod a_block_can_override_and_reset_its_icon_and_color;
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
+mod a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown;
+mod a_folder_still_loading_says_so_only_after_a_moment;
+mod a_folder_that_could_not_be_listed_says_why;
 mod a_link_to_a_deleted_block_is_marked_and_can_restore_it;
 mod a_linked_block_it_cannot_see_shows_no_access_rather_than_locked;
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
@@ -15,6 +19,7 @@ mod a_phone_lists_what_is_shared_with_it;
 mod a_phone_reaches_the_account_s_system_blocks;
 mod a_phone_walks_into_folders_and_opens_files;
 mod a_workspace_header_adds_into_that_workspace;
+mod a_workspace_is_shown_with_what_it_holds_already_listed;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
@@ -25,6 +30,7 @@ mod leave_is_offered_on_a_phone_but_never_to_an_administrator;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod renaming_a_row_edits_its_name_in_place;
 mod renaming_a_row_on_a_phone_edits_it_in_place;
+mod reopening_a_folder_shows_its_children_at_once;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
 mod the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files;
 mod the_desktop_files_toolbar_opens_the_app_menu;
@@ -144,6 +150,7 @@ fn containers_hold_blocks(fixture: &mut Fixture) {
     let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
         display_name: name.to_owned(),
+        color: None,
         icon_codepoint: String::new(),
         children: ChildOperations {
             add: true,

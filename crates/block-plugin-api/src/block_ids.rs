@@ -41,8 +41,7 @@ impl Message {
             }
             Self::Hello(_)
             | Self::HelloAccepted(_)
-            | Self::Motion(_)
-            | Self::Theme(_)
+            | Self::Preferences(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::MissingCharacters(_)
@@ -84,6 +83,7 @@ impl EditorMessage {
             Self::Content { block_id, .. }
             | Self::ContentOperations { block_id, .. }
             | Self::Operate { block_id, .. }
+            | Self::Gesture { block_id, .. }
             | Self::ResendContent { block_id, .. }
             | Self::SeedContent { block_id, .. }
             | Self::ReplaceContent { block_id, .. }
@@ -136,7 +136,7 @@ impl EditorMessage {
                     | BlockCommand::SimulateAccess { .. }
                     | BlockCommand::CloseEditor
                     | BlockCommand::Restore
-                    | BlockCommand::AppMenu => {}
+                    | BlockCommand::AppMenu { .. } => {}
                 }
             }
             Self::PickRequested {
@@ -231,6 +231,7 @@ impl EditorMessage {
                     self::query(query, &mut existing);
                 }
             }
+            Self::BlocksFailed { query, .. } => self::query(query, &mut existing),
             Self::Blocks { query, blocks, .. } => {
                 self::query(query, &mut existing);
                 for block in blocks {
@@ -303,10 +304,10 @@ impl EditorMessage {
             | Self::Window { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
-            | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::CopyText { .. }
+            | Self::CopyImage { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }

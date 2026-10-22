@@ -8,7 +8,7 @@ fn a_press_outside_an_interactive_is_reported_to_it() {
     let heard = create_signal(Vec::<Pos2>::new());
     let watcher = NodeRef::new();
     let elsewhere = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Interactive

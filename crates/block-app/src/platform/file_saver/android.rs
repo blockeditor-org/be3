@@ -31,9 +31,11 @@ pub(super) fn save(file: SavedFile, deliver: Deliver<SaveResult>) {
 
 fn start(file: &SavedFile) -> Result<(), String> {
     let context = ndk_context::android_context();
+    // unsafe(ffi)
     let vm = unsafe { JavaVM::from_raw(context.vm().cast()) };
     let started = vm
         .attach_current_thread_for_scope(|env| {
+            // unsafe(ffi)
             let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
             let class = main_activity(env, &activity)?;
             let name = env.new_string(&file.name)?;
@@ -59,6 +61,7 @@ fn start(file: &SavedFile) -> Result<(), String> {
     }
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_block_MainActivity_nativeFileSaved(
     mut env: EnvUnowned<'_>,

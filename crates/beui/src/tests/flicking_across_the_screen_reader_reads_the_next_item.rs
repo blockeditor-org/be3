@@ -8,10 +8,10 @@ fn flicking_across_the_screen_reader_reads_the_next_item() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
-                <Text style=TextStyle::HEADING string="Settings" />
+                <Text style=TextStyle::HEADING>"Settings"</Text>
             },
             view! {
-                <Text string="Pick a theme" />
+                <Text>"Pick a theme"</Text>
             },
         ]
     });

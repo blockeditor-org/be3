@@ -7,7 +7,7 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     let _root = crate::reactive::RootScope::new();
     let hovers = create_signal::<Vec<bool>>(Vec::new());
     let (top, bottom) = (NodeRef::new(), NodeRef::new());
-    let mut document = build(move || {
+    let mut document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Interactive

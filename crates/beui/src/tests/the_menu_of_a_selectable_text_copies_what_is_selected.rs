@@ -7,12 +7,12 @@ use crate::styled::*;
 fn the_menu_of_a_selectable_text_copies_what_is_selected() {
     let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>
-                    <Text @node_ref=&first string="main" />
-                    <Text @node_ref=&second string="0123abc" />
+                    <Text @node_ref=&first>"main"</Text>
+                    <Text @node_ref=&second>"0123abc"</Text>
                 </List>
             </SelectableText>
         }
@@ -38,8 +38,16 @@ fn the_menu_of_a_selectable_text_copies_what_is_selected() {
         pressed: false,
         modifiers: Modifiers::NONE,
     }]);
-    let menu = unstyled::context_menu_menu(harness.document(), region.get());
-    let copy = harness.center(unstyled::menu_list_row_button(harness.document(), menu, 0));
+    let menu = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(region.get())
+        .menu();
+    let copy = harness.center(
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(menu)
+            .row_button(0),
+    );
     harness.frame(vec![Event::PointerMoved(copy)]);
     harness.frame(vec![Event::PointerButton {
         pos: copy,

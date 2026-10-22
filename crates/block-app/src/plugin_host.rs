@@ -24,7 +24,6 @@ mod surface;
 mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
-mod web_view;
 mod worker;
 
 pub(crate) use description::describe;
@@ -38,29 +37,23 @@ pub(crate) use runtime::place_screens;
 #[cfg(target_os = "linux")]
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
-    PACING, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
+    PACING, Pick, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
     commit_creation, crash, creation, creation_ready, drawing, flush, frame_child, frame_placement,
     frame_rects, hold, install, intrinsic_size, kill, menu, menu_pick, poll, present, presenting,
     publish, reanchor, record_pacing, regenerate_artifact, region_size, replace_child, replace_gpu,
-    report_child_bars, report_child_focus, report_child_views, report_children, request_painting,
-    request_pick, resized, revoke_frame_child, running, set_artifact_states, set_focus,
-    set_presence_visible, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
-    take_actions, take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick,
+    report_child_bars, report_child_focus, report_children, request_painting, request_pick,
+    resized, revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
+    set_shell, settle, show_block, show_dialog, show_panel, start_frames, take_actions,
+    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick,
     take_child_commits, take_child_menu_picks, take_crashed, take_created, take_focus_report,
     take_leaving, take_pick_answers, take_view_changes,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
     intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
-    region_damage, region_drawing, region_placed, region_view, take_block_drags, take_changed,
-    take_focus_request, take_region_actions, unmount_region, unplace_region,
+    region_damage, region_drawing, region_placed, region_published, region_view, take_block_drags,
+    take_changed, take_focus_request, take_region_actions, unmount_region, unplace_region,
 };
-#[cfg(all(
-    feature = "web-view",
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-pub(crate) use web_view::install as install_web_view;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn cache_in(directory: std::path::PathBuf) {
@@ -86,6 +79,7 @@ pub(crate) struct HostChild {
     pub(crate) top_bar: block_plugin_api::TopBar,
     pub(crate) content: HostContent,
     pub(crate) rect: Rect,
+    pub(crate) view_rect: Rect,
     pub(crate) occluders: Vec<Rect>,
     pub(crate) clip: Rect,
     pub(crate) layer: ChildLayer,
@@ -259,7 +253,7 @@ pub(crate) struct EditorBlock {
 
 #[derive(Clone, Copy)]
 pub(crate) enum InstanceRole {
-    Editor(EditorBlock),
+    Editor(Uuid, EditorBlock),
     Creation(Uuid, &'static str),
     Artifact(Uuid, EditorBlock),
 }
@@ -267,7 +261,7 @@ pub(crate) enum InstanceRole {
 impl InstanceRole {
     pub(crate) fn block(self) -> Option<EditorBlock> {
         match self {
-            Self::Editor(block) | Self::Artifact(_, block) => Some(block),
+            Self::Editor(_, block) | Self::Artifact(_, block) => Some(block),
             Self::Creation(..) => None,
         }
     }
@@ -278,7 +272,7 @@ pub(crate) struct ArtifactSlot<'a> {
     pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
-    pub(crate) source_type: Uuid,
+    pub(crate) editor: Uuid,
     pub(crate) block: EditorBlock,
     pub(crate) data: &'a [u8],
     pub(crate) resync: bool,

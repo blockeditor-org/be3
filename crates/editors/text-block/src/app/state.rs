@@ -7,14 +7,16 @@ use beui::reactive::*;
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
+use block_editor_beui::SharedCaret;
 use block_editor_beui::be_block::presence::pick_free_color;
 use block_editor_beui::be_block::{ImageContent, TextContent};
+use block_editor_beui::live_text::Synced;
 use block_editor_beui::{BlockList, Blocks};
-use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBase, Projected};
+use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBase};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
-use crate::document::{BlockDocument, History, inside_block_url};
+use crate::document::{BlockDocument, TextBody, inside_block_url, reference_ranges};
 use crate::presence::TextCursor;
 
 use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
@@ -42,9 +44,8 @@ pub(crate) struct State {
     pub typing: Signal<bool>,
     pub hex_insert_mode: Signal<bool>,
     pub import_error: Signal<Option<String>>,
-    pub presence_revision: Signal<u64>,
     pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
-    pub loaded: Signal<bool>,
+    pub remote_cursors: Memo<Vec<(u64, TextCursor)>>,
     inner: Stored<Inner>,
 }
 
@@ -59,8 +60,6 @@ pub(crate) struct Inner {
     pub focus_confirmed: Cell<bool>,
     pub hex_pending_nibble: Cell<Option<u8>>,
     pub hex_selection_anchor: Cell<Option<usize>>,
-    presence_counter: Cell<u64>,
-    remote_cursors: RefCell<Vec<(u64, TextCursor)>>,
 }
 
 impl State {
@@ -69,7 +68,7 @@ impl State {
         let block_id = editor.block_id();
         let content = editor.block_content::<TextContent>();
         content.record();
-        let document = Arc::new(BlockDocument::new(editor.host().waker()));
+        let document = Arc::new(BlockDocument::new(TextBody, editor.host().waker()));
         let text = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
         text.with_core_mut(|core| core.config.inside_atomic_unit = inside_block_url);
         let dependencies = client.watch(BlockQuery::References(block_id));
@@ -78,14 +77,23 @@ impl State {
         let typing = create_signal(false);
         let hex_insert_mode = create_signal(false);
         let import_error = create_signal(None);
-        let presence_revision = create_signal(0);
+        let peers = editor.peers::<TextCursor>();
+        let visible = editor.presence_visible();
+        let remote_cursors = create_memo(move || {
+            if !visible.get() {
+                return Vec::new();
+            }
+            let mut remote = peers.get();
+            remote.sort_by_key(|(client_id, _)| *client_id);
+            remote
+        });
         let focused_embed = create_signal(None);
         let embed_sizes = create_signal(HashMap::new());
-        let loaded = create_signal(false);
         let state = Self {
             organization_id: editor.host().organization_id(),
             link_base: editor.host_value::<LinkBase>(),
-            peers: editor.peers::<TextCursor>(),
+            peers,
+            remote_cursors,
             editor,
             block_id,
             text,
@@ -96,8 +104,6 @@ impl State {
             typing,
             hex_insert_mode,
             import_error,
-            presence_revision,
-            loaded,
             inner: store(Inner {
                 client,
                 content,
@@ -109,8 +115,6 @@ impl State {
                 focus_confirmed: Cell::new(false),
                 hex_pending_nibble: Cell::new(None),
                 hex_selection_anchor: Cell::new(None),
-                presence_counter: Cell::new(0),
-                remote_cursors: RefCell::new(Vec::new()),
             }),
         };
         let edited = state.text.content();
@@ -119,7 +123,7 @@ impl State {
             let Some(inner) = state.inner.try_value() else {
                 return;
             };
-            inner.content.revision();
+            let _ = inner.content.revision();
             untrack(|| state.pump());
         });
         state
@@ -139,50 +143,17 @@ impl State {
 
     pub fn pump(&self) {
         let inner = self.inner();
-        let operations = inner.document.take_operations();
-        let own = !operations.is_empty();
-        let refused = own && !self.host().editable();
-        for operation in operations {
-            inner.content.operate(operation);
+        let first = !inner.adopted.get();
+        let synced = inner
+            .document
+            .sync(&inner.content, &self.host(), self.block_id, first);
+        match synced {
+            Synced::Waiting => return,
+            Synced::External => self.text.external_edit(),
+            Synced::Unchanged => self.text.sync(),
         }
-        match inner.document.take_history() {
-            Some(History::Undo) => self.host().undo(self.block_id),
-            Some(History::Redo) => self.host().redo(self.block_id),
-            None => {}
-        }
-        if inner.content.revision().is_none() {
-            return;
-        }
-        let projected = inner.content.take_projected();
-        let first = !inner.adopted.replace(true);
-        let mut whole = first
-            || refused
-            || (own
-                && projected
-                    .iter()
-                    .any(|projected| matches!(projected, Projected::Applied(_))));
-        if !whole {
-            for projected in &projected {
-                let applied = match projected {
-                    Projected::Applied(edit) => inner.document.apply(edit),
-                    Projected::Rebuilt => false,
-                };
-                if !applied {
-                    whole = true;
-                    break;
-                }
-            }
-        }
-        if whole {
-            inner.content.read(|content| inner.document.adopt(content));
-        }
-        if inner.document.take_external_edit() {
-            self.text.external_edit();
-        } else {
-            self.text.sync();
-        }
+        inner.adopted.set(true);
         if first {
-            self.loaded.set(true);
             let start = self.text.with_core(|core| core.position(0));
             self.text.execute(EditorCommand::SetSelection {
                 anchor: start,
@@ -225,79 +196,53 @@ impl State {
         self.text.reveal_cursor();
     }
 
-    pub fn remote_cursors(&self) -> Vec<(u64, TextCursor)> {
-        let inner = self.inner();
-        inner.remote_cursors.borrow().clone()
-    }
-
-    pub fn poll_presence(&self, visible: bool) {
+    pub fn publish_cursor(&self, visible: bool) {
         let inner = self.inner();
         if !visible {
             if inner.published_cursor.take().is_some() {
                 self.editor.show::<TextCursor>(None);
             }
-            if !inner.remote_cursors.borrow().is_empty() {
-                inner.remote_cursors.borrow_mut().clear();
-                self.bump_presence();
-            }
             return;
         }
-        if let Some(cursor) = self
-            .text
-            .with_core(|core| core.cursor_positions().first().copied())
-        {
-            let color = inner.published_cursor.get().map_or_else(
-                || {
-                    pick_free_color(
-                        self.peers
-                            .get_untracked()
-                            .iter()
-                            .map(|(_, peer)| peer.color),
-                    )
-                },
-                |published| published.color,
-            );
-            let published = TextCursor {
-                anchor: cursor.pos.anchor,
-                focus: cursor.pos.focus,
-                color,
-            };
-            if inner.published_cursor.get() != Some(published) {
-                inner.published_cursor.set(Some(published));
-                self.editor.show(Some(&published));
-            }
+        let Some(caret) = SharedCaret::of(self.text) else {
+            return;
+        };
+        let color = inner.published_cursor.get().map_or_else(
+            || {
+                pick_free_color(
+                    self.peers
+                        .get_untracked()
+                        .iter()
+                        .map(|(_, peer)| peer.color),
+                )
+            },
+            |published| published.color,
+        );
+        let published = TextCursor { caret, color };
+        if inner.published_cursor.get() != Some(published) {
+            inner.published_cursor.set(Some(published));
+            self.editor.show(Some(&published));
         }
-        let mut remote = self.peers.get_untracked();
-        remote.sort_by_key(|(client_id, _)| *client_id);
-        if *inner.remote_cursors.borrow() != remote {
-            *inner.remote_cursors.borrow_mut() = remote;
-            self.bump_presence();
-        }
-    }
-
-    fn bump_presence(&self) {
-        let inner = self.inner();
-        inner.presence_counter.set(inner.presence_counter.get() + 1);
-        self.presence_revision.set(inner.presence_counter.get());
     }
 
     pub fn presence_cursor_rect(&self, client_id: u64) -> Option<Rect> {
-        let cursor = self
-            .inner()
-            .remote_cursors
-            .borrow()
-            .iter()
-            .find(|(id, _)| *id == client_id)
-            .map(|(_, cursor)| *cursor)?;
+        let cursor = self.remote_cursors.with_untracked(|remote| {
+            remote
+                .iter()
+                .find(|(id, _)| *id == client_id)
+                .map(|(_, cursor)| *cursor)
+        })?;
         let focus = self
             .text
-            .with_core(|core| core.position_index(cursor.focus))?;
+            .with_core(|core| core.position_index(cursor.caret.focus))?;
         self.text.layout().get_untracked().caret_rect(focus)
     }
 
     pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
         let inner = self.inner();
-        let ranges = inner.document.reference_ranges(old);
+        let ranges = inner
+            .document
+            .with_bytes(|bytes| reference_ranges(bytes, old));
         self.text.execute(EditorCommand::ReplaceRanges {
             ranges: &ranges,
             replacement: new.to_string().as_bytes(),

@@ -20,6 +20,7 @@ const FORMATS: [Fourcc; 4] = [
     Fourcc::Xbgr8888,
 ];
 
+// unsafe(ffi)
 pub fn open_device(
     adapter: &wgpu::Adapter,
     descriptor: &wgpu::DeviceDescriptor<'_>,
@@ -153,6 +154,7 @@ pub fn texture_format(code: Fourcc, srgb: bool) -> Option<(vk::Format, wgpu::Tex
     Some((vulkan, wgpu, opaque))
 }
 
+// unsafe(ffi)
 impl Vulkan {
     pub fn of(device: &wgpu::Device) -> Option<Self> {
         let hal = unsafe { device.as_hal::<Api>() }?;
@@ -497,6 +499,7 @@ pub struct SyncFiles {
     semaphore: vk::Semaphore,
 }
 
+// unsafe(ffi)
 impl SyncFiles {
     pub fn submit(
         &self,
@@ -519,6 +522,7 @@ impl SyncFiles {
     }
 }
 
+// unsafe(ffi)
 impl Drop for SyncFiles {
     fn drop(&mut self) {
         unsafe {
@@ -528,6 +532,7 @@ impl Drop for SyncFiles {
     }
 }
 
+// unsafe(ffi)
 unsafe fn libc_close(fd: std::os::fd::RawFd) {
     drop(unsafe { <std::os::fd::OwnedFd as std::os::fd::FromRawFd>::from_raw_fd(fd) });
 }
@@ -553,6 +558,7 @@ pub fn adapter_for(node: u64) -> Option<wgpu::Adapter> {
     adapters.into_iter().min_by_key(rank)
 }
 
+// unsafe(ffi)
 fn nodes(adapter: &wgpu::Adapter) -> Vec<u64> {
     let Some(hal) = (unsafe { adapter.as_hal::<Api>() }) else {
         return Vec::new();
@@ -586,6 +592,7 @@ fn nodes(adapter: &wgpu::Adapter) -> Vec<u64> {
     nodes
 }
 
+// unsafe(ffi)
 fn render_node(instance: &ash::Instance, physical: vk::PhysicalDevice) -> Option<u64> {
     let supported = unsafe { instance.enumerate_device_extension_properties(physical) }.ok()?;
     let has = supported.iter().any(|extension| {

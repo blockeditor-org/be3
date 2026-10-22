@@ -1,10 +1,8 @@
 use std::cell::RefCell;
 
 use be_block::DisplaySettings;
-use be_block::display_settings::DisplayMode as SavedMode;
-use be_block::display_settings::Rotation as SavedRotation;
-use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Epaper, Monitor, Rotation};
-use block_plugin_api::{EpaperRequest, HostDisplay, HostDisplayMode, HostRotation};
+use beui_adapter_drm::{DisplayConfig, DisplayControl, Epaper, Monitor};
+use block_plugin_api::{EpaperRequest, HostDisplay};
 
 use super::Screen;
 
@@ -70,64 +68,22 @@ fn config(settings: &DisplaySettings) -> DisplayConfig {
         modes: settings
             .screens
             .iter()
-            .filter_map(|(id, screen)| Some((id.clone(), seat_mode(screen.mode?))))
+            .filter_map(|(id, screen)| Some((id.clone(), screen.mode?)))
             .collect(),
         rotations: settings
             .screens
             .iter()
-            .filter_map(|(id, screen)| Some((id.clone(), seat_rotation(screen.rotation?))))
+            .filter_map(|(id, screen)| Some((id.clone(), screen.rotation?)))
             .collect(),
-    }
-}
-
-fn seat_rotation(rotation: SavedRotation) -> Rotation {
-    match rotation {
-        SavedRotation::Normal => Rotation::Normal,
-        SavedRotation::Clockwise90 => Rotation::Clockwise90,
-        SavedRotation::Clockwise180 => Rotation::Clockwise180,
-        SavedRotation::Clockwise270 => Rotation::Clockwise270,
-    }
-}
-
-fn host_rotation(rotation: Rotation) -> HostRotation {
-    match rotation {
-        Rotation::Normal => HostRotation::Normal,
-        Rotation::Clockwise90 => HostRotation::Clockwise90,
-        Rotation::Clockwise180 => HostRotation::Clockwise180,
-        Rotation::Clockwise270 => HostRotation::Clockwise270,
-    }
-}
-
-fn seat_mode(mode: SavedMode) -> DisplayMode {
-    DisplayMode {
-        width: mode.width,
-        height: mode.height,
-        refresh_millihertz: mode.refresh_millihertz,
-    }
-}
-
-fn saved_mode(mode: DisplayMode) -> SavedMode {
-    SavedMode {
-        width: mode.width,
-        height: mode.height,
-        refresh_millihertz: mode.refresh_millihertz,
     }
 }
 
 fn screen(monitor: &Monitor) -> Screen {
     Screen {
         id: monitor.id.clone(),
-        modes: monitor.modes.iter().copied().map(saved_mode).collect(),
-        default: saved_mode(monitor.default),
-        preferred: saved_mode(monitor.preferred),
-    }
-}
-
-fn host_mode(mode: DisplayMode) -> HostDisplayMode {
-    HostDisplayMode {
-        width: mode.width,
-        height: mode.height,
-        refresh_millihertz: mode.refresh_millihertz,
+        modes: monitor.modes.clone(),
+        default: monitor.default,
+        preferred: monitor.preferred,
     }
 }
 
@@ -136,9 +92,9 @@ fn host_display(monitor: &Monitor) -> HostDisplay {
         id: monitor.id.clone(),
         name: monitor.name.clone(),
         connector: monitor.connector.clone(),
-        modes: monitor.modes.iter().copied().map(host_mode).collect(),
-        default: host_mode(monitor.default),
-        current: host_mode(monitor.current),
-        rotation: host_rotation(monitor.rotation),
+        modes: monitor.modes.clone(),
+        default: monitor.default,
+        current: monitor.current,
+        rotation: monitor.rotation,
     }
 }

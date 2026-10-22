@@ -9,7 +9,8 @@ use crate::fade::Fade;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::image::Image;
-use crate::node::{NodeId, SpaceId};
+use crate::node::{NodeId, SpaceId, SpaceTransform};
+use crate::path::{FillRule, Path, PathPaint, PathStyle, Stroke};
 use crate::pixel_grid::PixelGrid;
 use crate::rich::{Piece, RichLayout, RichOptions, Shaper};
 
@@ -97,6 +98,7 @@ pub enum Shape {
     Text {
         origin: Pos2,
         galley: Galley,
+        scale: f32,
         color: Color32,
         rotation: Rotation,
         clip: Rect,
@@ -129,6 +131,14 @@ pub enum Shape {
         drawing: Drawing,
         clip: Rect,
     },
+    Path {
+        path: Rc<PathPaint>,
+        scale: f32,
+        offset: Vec2,
+        color: Color32,
+        rotation: Rotation,
+        clip: Rect,
+    },
 }
 
 impl Shape {
@@ -138,6 +148,7 @@ impl Shape {
                 Self::Text {
                     origin,
                     galley,
+                    scale,
                     color,
                     rotation,
                     clip,
@@ -145,12 +156,14 @@ impl Shape {
                 Self::Text {
                     origin: other_origin,
                     galley: other_galley,
+                    scale: other_scale,
                     color: other_color,
                     rotation: other_rotation,
                     clip: other_clip,
                 },
             ) => {
                 origin == other_origin
+                    && scale == other_scale
                     && color == other_color
                     && rotation == other_rotation
                     && clip == other_clip
@@ -180,6 +193,19 @@ impl Scope {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Zoom {
+    pub scale: f32,
+    pub raster: f32,
+}
+
+impl Zoom {
+    pub const NONE: Self = Self {
+        scale: 1.0,
+        raster: 1.0,
+    };
+}
+
 static SCOPES: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -187,6 +213,8 @@ pub struct PainterState {
     pub clip: Rect,
     pub space_clip: Rect,
     pub origin: Vec2,
+    pub scale: f32,
+    pub raster: f32,
     pub space: Option<SpaceId>,
     pub scroll: Option<SpaceId>,
     pub rotation: Rotation,
@@ -194,11 +222,51 @@ pub struct PainterState {
 
 impl PainterState {
     pub fn settles(self, other: Self) -> bool {
-        self.clip == other.clip && self.space == other.space && self.rotation == other.rotation
+        self.clip == other.clip
+            && self.space == other.space
+            && self.rotation == other.rotation
+            && self.raster == other.raster
     }
 
     pub fn sees(self, other: Self) -> bool {
-        self.space_clip == other.space_clip && self.origin == other.origin
+        self.space_clip == other.space_clip
+            && self.origin == other.origin
+            && self.scale == other.scale
+    }
+
+    pub fn to_screen(self, rect: Rect) -> Rect {
+        SpaceTransform {
+            offset: self.origin,
+            scale: self.scale,
+        }
+        .rect(rect)
+    }
+
+    pub fn to_local(self, rect: Rect) -> Rect {
+        SpaceTransform {
+            offset: self.origin,
+            scale: self.scale,
+        }
+        .local_rect(rect)
+    }
+
+    fn inside(self, clip: Rect, space_clip: Rect, offset: Vec2, scale: f32) -> Self {
+        let local = |rect: Rect| match scale == 1.0 {
+            true => rect.translate(-offset),
+            false => rect.translate(-offset).scaled(scale.recip()),
+        };
+        let rotation = match scale == 1.0 {
+            true => self.rotation.translate(-offset),
+            false => self.rotation.translate(-offset).scaled(scale.recip()),
+        };
+        Self {
+            clip: local(clip),
+            space_clip: local(space_clip),
+            origin: self.origin + offset * self.scale,
+            scale: self.scale * scale,
+            rotation,
+            ..self
+        }
     }
 
     pub fn within(self, group: &Group) -> Self {
@@ -211,21 +279,27 @@ impl PainterState {
                 space,
                 viewport,
                 offset,
+                scale,
+                raster,
             } => Self {
-                clip: Rect::EVERYTHING,
-                space_clip: self.space_clip.intersect(viewport).translate(-offset),
-                origin: self.origin + offset,
                 space: Some(space),
                 scroll: Some(space),
-                rotation: self.rotation.translate(-offset),
+                raster: self.raster * raster,
+                ..self.inside(
+                    Rect::EVERYTHING,
+                    self.space_clip.intersect(viewport),
+                    offset,
+                    scale,
+                )
             },
-            Group::Transform { offset, .. } => Self {
-                clip: self.clip.translate(-offset),
-                space_clip: self.space_clip.intersect(self.clip).translate(-offset),
-                origin: self.origin + offset,
+            Group::Transform { offset, scale } => Self {
                 space: None,
-                scroll: self.scroll,
-                rotation: self.rotation.translate(-offset),
+                ..self.inside(
+                    self.clip,
+                    self.space_clip.intersect(self.clip),
+                    offset,
+                    scale,
+                )
             },
             Group::Mask { .. } | Group::Filter(_) => self,
         }
@@ -246,6 +320,8 @@ impl Painter {
                 clip,
                 space_clip: Rect::EVERYTHING,
                 origin: Vec2::ZERO,
+                scale: 1.0,
+                raster: 1.0,
                 space: None,
                 scroll: None,
                 rotation: Rotation::NONE,
@@ -297,20 +373,26 @@ impl Painter {
                     .space_clip
                     .intersect(state.clip)
                     .translate(-translation),
-                origin: state.origin + translation,
+                origin: state.origin + translation * state.scale,
                 space: Some(SpaceId::of(node)),
-                scroll: state.scroll,
                 rotation: state.rotation.translate(-translation),
+                ..state
             },
             scope: None,
         }
     }
 
     pub fn shifted(&self, space: SpaceId, by: Vec2, clip: Rect) -> Self {
+        self.zoomed(space, by, Zoom::NONE, clip)
+    }
+
+    pub fn zoomed(&self, space: SpaceId, by: Vec2, zoom: Zoom, clip: Rect) -> Self {
         self.grouped(Group::Scroll {
             space,
-            viewport: self.state.clip.intersect(clip),
+            viewport: self.state.clip.intersect(self.state.rotation.bounds(clip)),
             offset: by,
+            scale: zoom.scale,
+            raster: zoom.raster,
         })
     }
 
@@ -321,11 +403,16 @@ impl Painter {
         })
     }
 
+    pub fn transformed(&self, offset: Vec2, scale: f32) -> Self {
+        self.grouped(Group::Transform { offset, scale })
+    }
+
     pub fn in_document(&self) -> Self {
         self.context.note_space_read();
+        let scale = self.state.scale.recip();
         self.grouped(Group::Transform {
-            offset: -self.state.origin,
-            scale: 1.0,
+            offset: -self.state.origin * scale,
+            scale,
         })
     }
 
@@ -343,6 +430,16 @@ impl Painter {
         self.state.origin
     }
 
+    pub fn to_screen(&self, rect: Rect) -> Rect {
+        self.context.note_space_read();
+        self.state.to_screen(rect)
+    }
+
+    pub fn to_local(&self, rect: Rect) -> Rect {
+        self.context.note_space_read();
+        self.state.to_local(rect)
+    }
+
     pub fn pixel_grid(&self) -> PixelGrid {
         PixelGrid::new(self.context.pixels_per_point())
     }
@@ -350,7 +447,7 @@ impl Painter {
     pub fn with_clip_rect(&self, clip: Rect) -> Self {
         match clip == Rect::EVERYTHING {
             true => self.with(self.state),
-            false => self.grouped(Group::Clip(clip)),
+            false => self.grouped(Group::Clip(self.state.rotation.bounds(clip))),
         }
     }
 
@@ -484,6 +581,31 @@ impl Painter {
         });
     }
 
+    pub fn fill_path(&self, path: &Path, rule: FillRule, color: Color32) {
+        self.path(path, PathStyle::Fill(rule), color);
+    }
+
+    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: Color32) {
+        if stroke.width.is_nan() || stroke.width <= 0.0 {
+            return;
+        }
+        self.path(path, PathStyle::Stroke(stroke.clone()), color);
+    }
+
+    fn path(&self, path: &Path, style: PathStyle, color: Color32) {
+        if color.alpha() == 0 || path.is_empty() {
+            return;
+        }
+        self.push(Shape::Path {
+            path: Rc::new(PathPaint::new(path.clone(), style)),
+            scale: 1.0,
+            offset: Vec2::ZERO,
+            color,
+            rotation: self.state.rotation,
+            clip: Rect::EVERYTHING,
+        });
+    }
+
     pub fn galley(&self, origin: Pos2, galley: Galley, color: Color32) {
         if color.alpha() == 0 || galley.is_blank() {
             return;
@@ -491,6 +613,7 @@ impl Painter {
         self.push(Shape::Text {
             origin,
             galley,
+            scale: 1.0,
             color,
             rotation: self.state.rotation,
             clip: Rect::EVERYTHING,
@@ -545,6 +668,16 @@ pub fn placed_shape(shape: &Shape, offset: Vec2, space_clip: Rect) -> Shape {
         }
         Shape::Drawing { rect, clip, .. } => {
             *rect = rect.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Path {
+            offset: at,
+            rotation,
+            clip,
+            ..
+        } => {
+            *at += offset;
+            *rotation = rotation.translate(offset);
             *clip = clip.translate(offset).intersect(space_clip);
         }
     }

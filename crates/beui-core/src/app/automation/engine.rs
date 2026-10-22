@@ -11,6 +11,7 @@ use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
+use crate::input::Keyboard;
 use crate::input::{
     BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, Pen, PenPhase,
     PointerButton, TouchId, TouchPhase,
@@ -157,12 +158,14 @@ enum Phase {
         before: String,
     },
     Capturing {
+        target: Option<String>,
         crop: Option<Rect>,
         drawn: bool,
     },
     Painting {
         asked: bool,
         ready: bool,
+        target: Option<String>,
         crop: Option<[f32; 4]>,
         overflows: bool,
     },
@@ -357,16 +360,38 @@ impl Automation {
         let settling = |before: &mut String| Phase::Settling {
             before: Some(std::mem::take(before)),
         };
-        if let Phase::Capturing { drawn, .. } = &mut active.phase {
-            *drawn = !settled.drawing;
-        }
-        if let Phase::Painting {
-            asked: true, ready, ..
-        } = &mut active.phase
-        {
-            *ready = quiet;
-        }
         let mut failed = None;
+        match &mut active.phase {
+            Phase::Capturing {
+                target,
+                crop,
+                drawn,
+            } => {
+                *drawn = !settled.drawing;
+                if *drawn && let Some(target) = target {
+                    match locate(target, view.lines) {
+                        Ok(rect) => *crop = Some(rect),
+                        Err(error) => failed = Some(error),
+                    }
+                }
+            }
+            Phase::Painting {
+                asked: true,
+                ready,
+                target,
+                crop,
+                ..
+            } => {
+                *ready = quiet;
+                if *ready && let Some(target) = target {
+                    match locate(target, view.lines) {
+                        Ok(rect) => *crop = Some(in_points(rect, view.pixels_per_point)),
+                        Err(error) => failed = Some(error),
+                    }
+                }
+            }
+            _ => {}
+        }
         match &mut active.phase {
             Phase::Input {
                 steps,
@@ -1281,29 +1306,30 @@ impl Automation {
                 }))
             }
             "shot" => {
-                let crop = match arguments.first() {
+                let target = arguments.first().cloned();
+                let crop = match &target {
                     Some(target) => Some(locate(target, view.lines)?),
                     None => None,
                 };
-                Ok(Started::Phase(Phase::Capturing { crop, drawn: false }))
+                Ok(Started::Phase(Phase::Capturing {
+                    target,
+                    crop,
+                    drawn: false,
+                }))
             }
             "paint" => {
-                let scale = view.pixels_per_point;
-                let crop = match arguments.first() {
-                    Some(target) => {
-                        let rect = locate(target, view.lines)?;
-                        Some([
-                            rect.min.x / scale,
-                            rect.min.y / scale,
-                            rect.max.x / scale,
-                            rect.max.y / scale,
-                        ])
-                    }
+                let target = arguments.first().cloned();
+                let crop = match &target {
+                    Some(target) => Some(in_points(
+                        locate(target, view.lines)?,
+                        view.pixels_per_point,
+                    )),
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Painting {
                     asked: false,
                     ready: false,
+                    target,
                     crop,
                     overflows: false,
                 }))
@@ -1311,6 +1337,7 @@ impl Automation {
             "overflows" => Ok(Started::Phase(Phase::Painting {
                 asked: false,
                 ready: false,
+                target: None,
                 crop: None,
                 overflows: true,
             })),
@@ -1386,14 +1413,15 @@ impl Automation {
         if !keys.is_empty() {
             text.push_str(&format!("keys down {}\n", keys.join(", ")));
         }
-        match (
-            &self.composing,
-            view.window.ime.as_ref().map(|area| area.cursor),
-        ) {
+        match (&self.composing, view.window.ime.as_ref()) {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
-            (None, Some(cursor)) => text.push_str(&format!(
-                "the app asks for an input method, its caret {}\n",
-                describe(scaled(cursor, scale))
+            (None, Some(area)) => text.push_str(&format!(
+                "the app asks for an input method, its caret {}, {}\n",
+                describe(scaled(area.cursor, scale)),
+                match area.keyboard {
+                    Keyboard::Shown { asks } => format!("its keyboard shown (ask {asks})"),
+                    Keyboard::Held => "its keyboard held back".to_owned(),
+                }
             )),
             (None, None) => {}
         }
@@ -1589,6 +1617,15 @@ fn actions(groups: &[ActionGroup], all: bool) -> String {
         }
     }
     text
+}
+
+fn in_points(rect: Rect, scale: f32) -> [f32; 4] {
+    [
+        rect.min.x / scale,
+        rect.min.y / scale,
+        rect.max.x / scale,
+        rect.max.y / scale,
+    ]
 }
 
 fn cropped(capture: Capture, crop: Option<Rect>) -> Reply {

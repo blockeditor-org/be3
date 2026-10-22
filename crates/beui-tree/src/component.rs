@@ -181,6 +181,19 @@ impl<H, C> Render<H, C> {
     pub fn call(self, handle: H) -> C {
         in_component(self.owner, || (self.render)(handle))
     }
+
+    pub fn once(self) -> RenderFn<H, C>
+    where
+        H: 'static,
+        C: 'static,
+    {
+        let held = std::cell::Cell::new(Some(self));
+        RenderFn::new(move |handle| {
+            held.take()
+                .expect("a render made with `once` is built at most once, by a slot that keeps what it built")
+                .call(handle)
+        })
+    }
 }
 
 type RenderFnSlot<H, C> = (Option<Rc<ComponentContext>>, Box<dyn Fn(H) -> C>);

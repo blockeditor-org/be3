@@ -7,7 +7,7 @@ use crate::{Rect, vec2};
 fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
     let _root = crate::reactive::RootScope::new();
     let layout = DockingLayout::<u64>::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <styled::Docking layout={layout}>
                 <DockSplit id="split">

@@ -6,7 +6,7 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
     let _root = crate::reactive::RootScope::new();
     let keys = create_signal(vec![0usize]);
     let shown = create_signal(0usize);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ForEach keys={keys}>|key: usize| {

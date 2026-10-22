@@ -87,11 +87,13 @@ fn caption(status: &WifiStatus, network: &WifiNetwork) -> String {
 pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     let glyph = create_memo(move || status.with(glyph).to_owned());
     let label = create_memo(move || status.with(summary));
-    let opened = move |open: bool| {
-        if open {
+    let open = create_signal(false);
+    let open = Binding::new(open, move |next: bool| {
+        open.set(next);
+        if next {
             editor.act(WifiRequest::Scan);
         }
-    };
+    });
     view! {
         <BarPopup
             label
@@ -99,7 +101,7 @@ pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
             icon_only=true
             width=WIFI_WIDTH
             @test_id={"desktop.wifi"}
-            on_open_change={opened}
+            open
         >|_: PopoverHandle|
             <WifiPanel editor={editor} status={status} />
         </BarPopup>
@@ -125,19 +127,18 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     view! {
         <List spacing=SPACING @test_id={"desktop.wifi.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING string="Wi-Fi" />
+                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING>"Wi-Fi"</Text>
                 <Switch
-                    on={enabled}
+                    on={Binding::new(enabled, move |on: bool| editor.act(WifiRequest::SetEnabled(on)))}
                     label="Wi-Fi"
                     @test_id={"desktop.wifi.enabled"}
-                    on_change={move |on: bool| editor.act(WifiRequest::SetEnabled(on))}
                 />
             </List>
             <Show condition={off}>
-                <Text style=TextStyle::CAPTION string="Wi-Fi is off." />
+                <Text style=TextStyle::CAPTION>"Wi-Fi is off."</Text>
             </Show>
             <Show condition={none}>
-                <Text style=TextStyle::CAPTION string="No networks found." />
+                <Text style=TextStyle::CAPTION>"No networks found."</Text>
             </Show>
             <Show condition={listing}>
                 <Scroll max_length=LIST_HEIGHT bleed={Bleed::POPOVER.top(false)}>
@@ -227,9 +228,9 @@ fn NetworkRow(
                             <Icon glyph />
                         </Text>
                         <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                            <Text string={ssid.clone()} wrap=true />
+                            <Text wrap=true>{ssid.clone()}</Text>
                             <Show condition={captioned}>
-                                <Text style=TextStyle::CAPTION string={said} wrap=true />
+                                <Text style=TextStyle::CAPTION wrap=true>{said}</Text>
                             </Show>
                         </List>
                     </List>
@@ -279,7 +280,6 @@ fn PasswordEntry(editor: Editor, ssid: String, asking: Signal<Option<String>>) -
                 placeholder="Password"
                 label
                 @test_id={format!("{id}.password")}
-                on_change={move |typed: String| password.set(typed)}
                 on_submit={move |_: String| submitted()}
             />
             <Button

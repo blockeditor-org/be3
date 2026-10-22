@@ -41,9 +41,15 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
     assert_eq!(
-        unstyled::menu_list_len(harness.document(), content),
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .row_count(),
         2,
         "a hidden show puts no item between the items written around it"
     );
@@ -52,13 +58,19 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        unstyled::menu_list_len(harness.document(), content),
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .row_count(),
         3,
         "a show that turns visible adds its item to the run"
     );
     let rows: Vec<String> = (0..3)
         .map(|index| {
-            let button = unstyled::menu_list_row_button(harness.document(), content, index);
+            let button = harness
+                .document()
+                .api::<unstyled::MenuListApi>(content)
+                .row_button(index);
             label_within(harness.document(), button).expect("a row shows its label")
         })
         .collect();
@@ -68,7 +80,10 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
         "the item a show builds keeps its place among the items written around it"
     );
 
-    let delete = unstyled::menu_list_row_button(harness.document(), content, 2);
+    let delete = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(2);
     harness.click(harness.center(delete));
     harness.frame(Vec::new());
     assert_eq!(

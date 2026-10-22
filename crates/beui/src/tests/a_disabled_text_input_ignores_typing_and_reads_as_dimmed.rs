@@ -11,9 +11,8 @@ fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <TextInput
-                value="Locked"
+                value={Binding::new("Locked".to_owned(), move |next| changes.update(|changes| changes.push(next)))}
                 disabled=true
-                on_change={move |value| changes.update(|changes| changes.push(value))}
             />
         }]
     });
@@ -35,7 +34,10 @@ fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        unstyled::text_input_shown(harness.document(), input),
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .shown(harness.document()),
         "Locked"
     );
     assert!(changes.with_untracked(|changes| changes.is_empty()));

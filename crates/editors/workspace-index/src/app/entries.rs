@@ -64,12 +64,12 @@ impl Listing {
     fn add(self, block_id: Uuid) {
         match self {
             Self::Folder(index) => {
-                if let Some(edit) = index.read(|index| index.root().add(block_id)) {
+                if let Ok(edit) = index.read(|index| index.root().add(block_id)) {
                     index.operate(edit);
                 }
             }
             Self::Workspace(index) => {
-                if let Some(edit) = index.read(|index| index.root().add(block_id)) {
+                if let Ok(edit) = index.read(|index| index.root().add(block_id)) {
                     index.operate(edit);
                 }
             }
@@ -96,6 +96,7 @@ impl Folder {
         let entries = create_memo(move || {
             let metadata: HashMap<_, _> = references
                 .read()
+                .unwrap_or_default()
                 .into_iter()
                 .map(|reference| (reference.id, reference))
                 .collect();

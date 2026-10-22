@@ -28,6 +28,7 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
     }
 }
 
+// unsafe(ffi)
 fn run(arguments: Vec<String>) -> Result<ExitCode, String> {
     let (targets, arguments) = match arguments.first().map(String::as_str) {
         Some("--all") => (all()?, &arguments[1..]),
@@ -119,6 +120,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode, String> {
     }
 }
 
+// unsafe(ffi)
 extern "C" fn forward(signal: libc::c_int) {
     STOPPED.store(true, Ordering::SeqCst);
     let group = GROUP.load(Ordering::SeqCst);

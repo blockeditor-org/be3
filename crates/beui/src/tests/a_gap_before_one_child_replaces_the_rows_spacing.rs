@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_gap_before_one_child_replaces_the_rows_spacing() {
     let _root = crate::reactive::RootScope::new();
     let (second, third) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=4.0>
                 <Frame width=10.0 height=10.0 />

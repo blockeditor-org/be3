@@ -1,36 +1,28 @@
 use beui_macros::{component, view};
 
-use crate::choice::{self, Kind, OptionFace};
+use crate::choice::{Kind, OptionFace};
 use beui_components_unstyled::{Choice, ChoiceOption};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
 #[component]
 pub fn Tabs(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi>,
+
     options: Children<ChoiceOption>,
-    selected: Prop<usize>,
-    on_change: Callback<usize>,
+    #[prop(default = 0)] selected: Binding<usize>,
 ) -> NodeId {
     let options = options.into_run();
     let count = options.clone();
-    let selected = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
+    let shown = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
+    let chosen = Binding::new(shown, move |chosen: Option<usize>| {
+        if let Some(chosen) = chosen {
+            selected.set(chosen);
+        }
+    });
     view! {
-        <Choice
-            options
-            selected
-            kind=Kind::Tabs
-            on_change={move |selected: Option<usize>| {
-                if let Some(selected) = selected {
-                    on_change.call(selected);
-                }
-            }}
-        >|handle|
+        <Choice api options selected={chosen} kind=Kind::Tabs>|handle|
             <OptionFace kind=Kind::Tabs handle />
         </Choice>
     }
-}
-
-pub fn tabs_selected(document: &Document, tabs: NodeId) -> usize {
-    choice::selected_index(document, tabs).unwrap_or(0)
 }

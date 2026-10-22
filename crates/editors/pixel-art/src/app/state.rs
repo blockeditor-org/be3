@@ -5,7 +5,8 @@ use block_editor_beui::be_block::PixelArtContent;
 use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::pixel_art::{PixelArtAnchor, PixelArtOperation, PixelColor};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::{ContentProjection, Editor};
+use block_editor_beui::beui::{Pos2, Rect};
+use block_editor_beui::{ContentProjection, Editor, Fitting};
 
 pub(crate) type ArtBlock = ContentProjection<PixelArtContent>;
 
@@ -33,6 +34,7 @@ struct ToolsCells {
 pub(crate) struct Tools {
     cells: Stored<ToolsCells>,
     editor: Editor,
+    pub(crate) fitting: Fitting,
     pub(crate) tool: Signal<PixelTool>,
     pub(crate) color: Signal<PixelColor>,
     pub(crate) color_hex: Signal<String>,
@@ -72,6 +74,12 @@ impl Tools {
         let export_error = create_signal(None::<String>);
         let drawn = create_signal(0);
         let constrained = create_signal(false);
+        let world = editor.world();
+        let fitting = editor.keep_fitted(move || {
+            world
+                .get()
+                .map(|world| Rect::from_min_size(Pos2::ZERO, world))
+        });
         Self {
             cells: store(ToolsCells {
                 block,
@@ -80,6 +88,7 @@ impl Tools {
                 drawing: RefCell::default(),
             }),
             editor,
+            fitting,
             tool,
             color,
             color_hex,
@@ -125,7 +134,7 @@ impl Tools {
         if !self.editable() {
             return;
         }
-        if let Some(edit) = self
+        if let Ok(edit) = self
             .cells
             .value()
             .block
@@ -217,13 +226,13 @@ pub(crate) fn artwork_of(
     block: &ArtBlock,
     held: &RefCell<Option<(u64, Rc<Artwork>)>>,
 ) -> Option<Rc<Artwork>> {
-    let revision = block.revision()?;
+    let revision = block.revision().ok()?;
     if let Some((seen, art)) = &*held.borrow()
         && *seen == revision
     {
         return Some(Rc::clone(art));
     }
-    let art = Rc::new(block.read(|content| content.root().artwork())?);
+    let art = Rc::new(block.read(|content| content.root().artwork()).ok()?);
     held.replace(Some((revision, Rc::clone(&art))));
     Some(art)
 }

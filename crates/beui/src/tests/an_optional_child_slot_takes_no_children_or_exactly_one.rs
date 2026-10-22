@@ -4,12 +4,12 @@ use crate::reactive::*;
 
 #[test]
 fn an_optional_child_slot_takes_no_children_or_exactly_one() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Frame></Frame>
                 <Frame>
-                    <Text string="only" />
+                    <Text>"only"</Text>
                 </Frame>
             </List>
         }

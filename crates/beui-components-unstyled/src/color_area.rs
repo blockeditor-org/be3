@@ -5,7 +5,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::Hsva;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
@@ -16,7 +15,7 @@ const STEP: f32 = 0.01;
 const PAGE: f32 = 0.1;
 
 pub struct ColorAreaHandle {
-    pub color: ReadSignal<Hsva>,
+    pub color: Binding<Hsva>,
     pub x: Memo<f32>,
     pub y: Memo<f32>,
     pub dragging: ReadSignal<bool>,
@@ -27,24 +26,23 @@ pub struct ColorAreaHandle {
 
 #[component]
 pub fn ColorArea(
-    value: Prop<Hsva>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ColorAreaApi>,
+    value: Binding<Hsva>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = 0.0)] thumb: f32,
     #[prop(children)] content: Render<ColorAreaHandle>,
-    on_change: Callback<Hsva>,
     on_drag_change: Callback<bool>,
 ) -> NodeId {
-    let color = create_signal(value.get_untracked());
-    create_effect(move || color.set(value.get()));
+    let color = value;
     let dragging = create_signal(false);
     let hovered = create_signal(false);
     let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let x = create_memo(move || color.get().saturation);
     let y = create_memo(move || 1.0 - color.get().value);
-    set_component_state(color.read_only());
+    api.fill(ColorAreaApi(color));
 
     component_accessibility(create_memo(move || {
         let color = color.get();
@@ -78,7 +76,6 @@ pub fn ColorArea(
         let next = Hsva::new(current.hue, saturation, value, current.alpha);
         if next != current {
             color.set(next);
-            on_change.call(next);
         }
     };
     let grab = Rc::new(Cell::new(Vec2::ZERO));
@@ -116,7 +113,7 @@ pub fn ColorArea(
         }
     });
     let content_node = content.call(ColorAreaHandle {
-        color: color.read_only(),
+        color,
         x,
         y,
         dragging: dragging.read_only(),
@@ -130,7 +127,7 @@ pub fn ColorArea(
             focusable=true
             tab_stop
             focused
-            on_focus_change={move |focused: bool| has_focus.set(focused)}
+            on_focus_change={has_focus}
             on_step={move |delta: f32| {
                 let color = color.get_untracked();
                 set(color.saturation + delta * STEP, color.value);
@@ -160,7 +157,7 @@ pub fn ColorArea(
             }}
             cursor
             touch_drags=true
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| {
@@ -180,8 +177,11 @@ fn thumb_centre(size: Vec2, color: Hsva) -> Pos2 {
     pos2(color.saturation * size.x, (1.0 - color.value) * size.y)
 }
 
-pub fn color_area_value(document: &Document, area: NodeId) -> Hsva {
-    document
-        .component_state::<ReadSignal<Hsva>>(area)
-        .get_untracked()
+#[derive(Clone, Copy)]
+pub struct ColorAreaApi(Binding<Hsva>);
+
+impl ColorAreaApi {
+    pub fn value(&self) -> Hsva {
+        self.0.get_untracked()
+    }
 }

@@ -7,19 +7,7 @@ use be_block::Root;
 use be_block::be_model::{Document, Field, FieldRef, List, Model, ObjectId};
 use block_editor_plugin::Objects;
 
-use crate::{BlockQuery, ContentProjection, Editor};
-
-pub fn content_settled(editor: Editor, block: Uuid, loaded: ReadSignal<bool>) -> Memo<bool> {
-    let found = editor.blocks().watch(BlockQuery::Block(block));
-    create_memo(move || {
-        loaded.get()
-            || (found.is_loaded()
-                && found
-                    .read()
-                    .first()
-                    .is_none_or(|info| !info.access.can_view()))
-    })
-}
+use crate::{ContentProjection, Editor};
 
 pub struct RelatedContent<C> {
     editor: Editor,
@@ -56,23 +44,7 @@ where
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
-        self.projection()?.read(read)
-    }
-
-    pub fn settled(&self) -> Memo<bool> {
-        let settled = create_signal(false);
-        let id = self.id;
-        let editor = self.editor;
-        create_effect(move || {
-            let Some(block) = id.get() else {
-                settled.set(false);
-                return;
-            };
-            let loaded = editor.content_of::<C>(block).loaded();
-            let held = content_settled(editor, block, loaded);
-            create_effect(move || settled.set(held.get()));
-        });
-        create_memo(move || settled.get())
+        self.projection()?.read(read).ok()
     }
 
     pub fn operate(&self, operation: C::Op) {
@@ -89,7 +61,7 @@ where
         let read = create_signal(T::default());
         let id = self.id;
         let editor = self.editor;
-        create_effect(move || {
+        create_binding(move || {
             let Some(block) = id.get() else {
                 read.set(T::default());
                 return;
@@ -98,7 +70,7 @@ where
             let inner = editor
                 .content_of::<C>(block)
                 .project(move |content| project(content));
-            create_effect(move || read.set(inner.get()));
+            create_binding(move || read.set(inner.get()));
         });
         read.read_only()
     }
@@ -116,7 +88,7 @@ where
         let read = create_signal(Objects::default());
         let id = self.id;
         let editor = self.editor;
-        create_effect(move || {
+        create_binding(move || {
             let Some(block) = id.get() else {
                 read.set(Objects::default());
                 return;
@@ -124,7 +96,7 @@ where
             let inner = editor
                 .content_of::<Document<R>>(block)
                 .objects(owner, field);
-            create_effect(move || read.set(inner.get()));
+            create_binding(move || read.set(inner.get()));
         });
         read.read_only()
     }
@@ -136,13 +108,13 @@ where
         let read = create_signal(F::default());
         let id = self.id;
         let editor = self.editor;
-        create_effect(move || {
+        create_binding(move || {
             let Some(block) = id.get() else {
                 read.set(F::default());
                 return;
             };
             let inner = editor.content_of::<Document<R>>(block).field(object, field);
-            create_effect(move || read.set(inner.get()));
+            create_binding(move || read.set(inner.get()));
         });
         read.read_only()
     }

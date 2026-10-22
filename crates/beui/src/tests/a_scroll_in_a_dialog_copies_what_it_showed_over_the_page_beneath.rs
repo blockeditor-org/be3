@@ -9,24 +9,24 @@ use crate::styled::*;
 fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {
     let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ForEach keys={(0..40).collect::<Vec<usize>>()}>|line: usize|
-                    <Text string={format!("the page beneath the dialog, line {line}")} />
+                    <Text>{format!("the page beneath the dialog, line {line}")}</Text>
                 </ForEach>
                 <Dialog open=true title="Add block" width=300.0 on_dismiss={|| {}}>
                     <Frame height=200.0>
                         <Scroll>
                             <List spacing=8.0>
                                 <Frame @node_ref=&first height=120.0>
-                                    <Text string="first" />
+                                    <Text>"first"</Text>
                                 </Frame>
                                 <Frame height=120.0>
-                                    <Text string="second" />
+                                    <Text>"second"</Text>
                                 </Frame>
                                 <Frame height=120.0>
-                                    <Text string="third" />
+                                    <Text>"third"</Text>
                                 </Frame>
                             </List>
                         </Scroll>

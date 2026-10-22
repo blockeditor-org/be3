@@ -1,7 +1,7 @@
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::LogicGameContent;
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -17,7 +17,7 @@ pub(crate) fn operate(
     block: &GameBlock,
     operation: block_editor_beui::be_block::logic_game::LogicGameOperation,
 ) {
-    if let Some(edit) = block.read(|game| game.root().edit_for(&operation)) {
+    if let Ok(edit) = block.read(|game| game.root().edit_for(&operation)) {
         block.operate(edit);
     }
 }
@@ -25,12 +25,13 @@ pub(crate) fn operate(
 pub struct LogicGameApp;
 
 impl block_editor_beui::BeuiApp for LogicGameApp {
-    fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::LogicGameContent>(&[]);
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded loaded={loaded}>
-                <LogicGameEditor editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <LogicGameEditor editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

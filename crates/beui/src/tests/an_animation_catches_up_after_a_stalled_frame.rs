@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn an_animation_catches_up_after_a_stalled_frame() {
     let _root = RootScope::new();
     let progress = create_signal(0.0_f32);
-    let document = build(move || {
+    let document = build_node(move || {
         let animation = create_animation(
             move |frame| {
                 let eased = tween(frame.elapsed.as_secs_f32(), 0.3, Easing::OutCubic);

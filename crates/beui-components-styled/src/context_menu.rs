@@ -16,8 +16,8 @@ use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::icons::{
-    ICON_CHECK, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_KEYBOARD_ARROW_DOWN,
-    ICON_KEYBOARD_ARROW_RIGHT,
+    ICON_CHECK, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIBER_MANUAL_RECORD,
+    ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
 };
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -26,8 +26,10 @@ use beui_view::reactive::*;
 const PADDING_HORIZONTAL: f32 = 14.0;
 const PADDING_VERTICAL: f32 = 6.0;
 const MENU_PADDING: f32 = 4.0;
-const MENU_WIDTH: f32 = 200.0;
+const MENU_MIN_WIDTH: f32 = 200.0;
+const MENU_MAX_WIDTH: f32 = 400.0;
 const SUBMENU_SPACING: f32 = 8.0;
+const SHORTCUT_SPACING: f32 = 24.0;
 const SHEET_PADDING: f32 = 8.0;
 const SHEET_STOPS: [f32; 2] = [0.5, 0.9];
 const SHEET_SEPARATOR_SPACING: f32 = 4.0;
@@ -50,7 +52,6 @@ pub fn ContextMenu(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
-    #[prop(default = false)] open_at_pointer: Prop<bool>,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
@@ -66,7 +67,6 @@ pub fn ContextMenu(
             disabled={disabled}
             open_at={open_at}
             open_at_focuses
-            open_at_pointer
             selection
             toolbar_at
             opens_on_hold
@@ -86,7 +86,7 @@ pub fn MenuPopup(
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     open: Prop<bool>,
     #[prop(default = false)] sheet: Prop<bool>,
-    #[prop(default = MENU_WIDTH)] width: f32,
+    #[prop(default = MENU_MIN_WIDTH)] min_width: f32,
     on_dismiss: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -95,7 +95,7 @@ pub fn MenuPopup(
     view! {
         <unstyled::MenuPopup
             items={items.into_run()}
-            menu={sized_menu_style(width)}
+            menu={sized_menu_style(min_width)}
             anchor
             placement
             open={open}
@@ -107,10 +107,10 @@ pub fn MenuPopup(
 }
 
 pub fn menu_style() -> MenuStyle {
-    sized_menu_style(MENU_WIDTH)
+    sized_menu_style(MENU_MIN_WIDTH)
 }
 
-fn sized_menu_style(width: f32) -> MenuStyle {
+fn sized_menu_style(min_width: f32) -> MenuStyle {
     MenuStyle::new(
         |handle| {
             view! {
@@ -119,7 +119,7 @@ fn sized_menu_style(width: f32) -> MenuStyle {
         },
         move |content| {
             view! {
-                <MenuPanel width>{content}</MenuPanel>
+                <MenuPanel min_width>{content}</MenuPanel>
             }
         },
     )
@@ -197,8 +197,12 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         label,
         lead,
         glyph,
+        glyph_color,
         detail,
         checked,
+        radio,
+        glyphs,
+        shortcut,
         disabled,
         danger,
         separated,
@@ -210,6 +214,9 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
+    let has_submenu = create_memo(move || has_submenu.get());
+    let shortcut = create_memo(move || shortcut.get());
+    let has_shortcut = create_memo(move || !shortcut.get().is_empty());
     let theme = use_theme();
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
@@ -219,14 +226,17 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         (false, false) => TextColor::Default,
     });
     let icon_color = create_memo(move || match (disabled.get(), danger.get()) {
+        (true, _) => TextColor::Muted,
         (false, true) => TextColor::Danger,
-        _ => TextColor::Muted,
+        _ => glyph_color
+            .get()
+            .map_or(TextColor::Muted, TextColor::Custom),
     });
     let glyph = create_memo(move || match kind {
         MenuRowKind::Back => ICON_CHEVRON_LEFT.to_owned(),
         _ => glyph.get(),
     });
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let has_glyph = create_memo(move || !glyph.get().is_empty() || glyphs.get());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
@@ -246,31 +256,40 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
                     <Show condition={has_lead}>
-                        <Text string={lead} size=TextSize::Sm color=TextColor::Muted />
+                        <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                     </Show>
                     <Show condition={has_glyph}>
-                        <Text color={icon_color} align=TextAlign::Center>
-                            <Icon glyph={glyph} />
-                        </Text>
+                        <GlyphSlot glyph color={icon_color} />
                     </Show>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                        <Text string={label} color align=TextAlign::Start ellipsis=true />
+                        <Text color align=TextAlign::Start ellipsis=true>{label}</Text>
                         <Show condition={has_detail}>
                             <Text
-                                string={detail}
                                 size=TextSize::Sm
                                 color=TextColor::Muted
                                 align=TextAlign::Start
                                 ellipsis=true
-                            />
+                            >
+                                {detail}
+                            </Text>
                         </Show>
                     </List>
-                    <MenuCheck checked />
-                    <Frame visible={has_submenu}>
+                    <Show condition={has_shortcut}>
+                        <Text
+                            @sizing={ItemSize::Intrinsic.gap(SHORTCUT_SPACING)}
+                            size=TextSize::Sm
+                            color=TextColor::Muted
+                            align=TextAlign::End
+                        >
+                            {shortcut}
+                        </Text>
+                    </Show>
+                    <MenuCheck checked radio />
+                    <Show condition={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
                         </Text>
-                    </Frame>
+                    </Show>
                 </List>
             </Frame>
         </List>
@@ -278,12 +297,30 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-fn MenuCheck(checked: Prop<Option<bool>>) -> DynamicSegment<ListChild> {
+pub(crate) fn GlyphSlot(glyph: Memo<String>, color: Memo<TextColor>) -> NodeId {
+    view! {
+        <Frame width={TextSize::Base.icon_px()}>
+            <Text color align=TextAlign::Center>
+                <Icon glyph={glyph} />
+            </Text>
+        </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn MenuCheck(
+    checked: Prop<Option<bool>>,
+    #[prop(default = false)] radio: bool,
+) -> DynamicSegment<ListChild> {
     let ticked = create_memo(move || checked.get() == Some(true));
+    let tick = match radio {
+        true => ICON_FIBER_MANUAL_RECORD,
+        false => ICON_CHECK,
+    };
     view! {
         <Show condition={ticked}>
             <Text size=TextSize::Sm color=TextColor::Accent align=TextAlign::Center>
-                <Icon glyph=ICON_CHECK />
+                <Icon glyph=tick />
             </Text>
         </Show>
     }
@@ -346,13 +383,14 @@ fn MenuCaptionFace(handle: MenuRowHandle, padding: f32, spacing: f32) -> NodeId 
             </Show>
             <Frame padding={Sides::symmetric(padding, CAPTION_PADDING_VERTICAL)}>
                 <Text
-                    string={label}
                     size=TextSize::Sm
                     weight=Weight::Bold
                     color=TextColor::Muted
                     align=TextAlign::Start
                     ellipsis=true
-                />
+                >
+                    {label}
+                </Text>
             </Frame>
         </List>
     }
@@ -363,6 +401,7 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
     let MenuRowHandle {
         label,
         glyph,
+        glyph_color,
         disabled,
         hovered,
         focused,
@@ -374,20 +413,20 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
+    let icon_color = create_memo(move || match disabled.get() {
+        true => TextColor::Muted,
+        false => glyph_color
+            .get()
+            .map_or(TextColor::Default, TextColor::Custom),
+    });
     let fill_color = create_memo(move || row_background(&theme, focused.get(), hovered.get()));
     view! {
         <Frame fill={ColorRole::custom(fill_color)} radius=Radius::Md padding>
             <List align=Align::Center spacing=TILE_SPACING>
-                <Text size=TextSize::Xl color align=TextAlign::Center>
+                <Text size=TextSize::Xl color={icon_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Text
-                    string={label}
-                    size=TextSize::Sm
-                    color
-                    align=TextAlign::Center
-                    ellipsis=true
-                />
+                <Text size=TextSize::Sm color align=TextAlign::Center ellipsis=true>{label}</Text>
             </List>
         </Frame>
     }
@@ -418,8 +457,11 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         label,
         lead,
         glyph,
+        glyph_color,
         detail,
         checked,
+        radio,
+        glyphs,
         disabled,
         danger,
         separated,
@@ -430,6 +472,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         hovered,
         active,
         focused,
+        ..
     } = handle;
     let glyph = match kind {
         MenuRowKind::Back => Prop::Static(ICON_CHEVRON_LEFT.to_owned()),
@@ -447,11 +490,14 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 label
                 lead
                 glyph
+                glyph_color={create_memo(move || glyph_color.get().map(TextColor::Custom))}
                 detail
                 disabled
                 danger
                 submenu={has_submenu}
                 checked
+                radio
+                glyphs
                 depth
                 expanded
                 toggle
@@ -481,20 +527,26 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
 }
 
 #[component]
-fn MenuPanel(width: f32, children: Child) -> NodeId {
+fn MenuPanel(min_width: f32, children: Child) -> NodeId {
     view! {
-        <Frame width fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Md>
-            <List spacing=0.0>
-                <unstyled::Scroll
-                    @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}
-                    fit=true
-                    tab_stop=false
-                    scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
-                >
-                    <Frame padding=MENU_PADDING>{children}</Frame>
-                </unstyled::Scroll>
-            </List>
-        </Frame>
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Frame
+                @sizing={ItemSize::Intrinsic.min(min_width).max(MENU_MAX_WIDTH).shrink(1.0)}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Md
+            >
+                <List spacing=0.0>
+                    <unstyled::Scroll
+                        @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}
+                        fit=true
+                        scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
+                    >
+                        <Frame padding=MENU_PADDING>{children}</Frame>
+                    </unstyled::Scroll>
+                </List>
+            </Frame>
+        </List>
     }
 }
 

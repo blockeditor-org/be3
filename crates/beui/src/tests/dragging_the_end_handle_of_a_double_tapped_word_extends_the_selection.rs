@@ -11,7 +11,12 @@ fn dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let text = harness.rect(unstyled::text_input_text(harness.document(), input));
+    let text = harness.rect(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .text(),
+    );
     let word = pos2(text.left() + 10.0, text.center().y);
     for _ in 0..2 {
         harness.touch(TouchPhase::Start, word);
@@ -19,11 +24,18 @@ fn dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection() {
     }
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::text_input_selection(harness.document(), input).first(),
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .selection()
+            .first(),
         Some(&(0..5))
     );
 
-    let handles = unstyled::text_input_handles(harness.document(), input);
+    let handles = harness
+        .document()
+        .api::<unstyled::TextInputApi>(input)
+        .handles(harness.document());
     let [_, end] = handles[..] else {
         panic!("a touch selection shows two handles, not {handles:?}");
     };
@@ -34,8 +46,18 @@ fn dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        unstyled::text_input_selection(harness.document(), input).first(),
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .selection()
+            .first(),
         Some(&(0..11))
     );
-    assert!(unstyled::text_input_focused(harness.document(), input).get_untracked());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .focused()
+            .get_untracked()
+    );
 }

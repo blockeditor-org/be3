@@ -10,7 +10,7 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
     let _root = crate::reactive::RootScope::new();
     let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let shared = create_signal(false);
         let sizing = create_memo(move || {
             if shared.get() {
@@ -25,7 +25,7 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
                     @node_ref=&toggle
                     on_click={move || shared.update(|shared| *shared = !*shared)}
                 >
-                    <Text string="toggle" />
+                    <Text>"toggle"</Text>
                 </Button>
                 <List
                     @crate::reactive::sizing=ItemSize::Percent(100.0)

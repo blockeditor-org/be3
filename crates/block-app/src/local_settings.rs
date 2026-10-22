@@ -220,7 +220,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
                 continue;
             };
             let Some(content) = be::content(block)
-                .and_then(|content| Document::<R>::decode(&content.bytes).ok())
+                .and_then(|content| Document::<R>::decode(content.bytes()).ok())
                 .map(|content| content.root())
             else {
                 return;

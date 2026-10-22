@@ -11,7 +11,7 @@ const SIBLING: Color32 = Color32::from_rgb(200, 40, 40);
 fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Dialog open={open} title="Discard changes?" on_dismiss={|| ()}>

@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_layout_builder_built_inside_another_settles_in_one_layout() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame width=300.0 height=200.0>
                 <LayoutBuilder>|size: ReadSignal<Vec2>| {

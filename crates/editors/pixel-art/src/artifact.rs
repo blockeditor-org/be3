@@ -143,23 +143,20 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
     };
 
     view! {
-        <Frame fill=ColorRole::Background padding=SETTINGS_PADDING>
+        <Frame padding=SETTINGS_PADDING>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <NumberInput
-                        value={scale}
+                        value={Binding::new(scale, set_scale.clone())}
                         min=1.0
                         max={f64::from(MAX_EXPORT_SCALE)}
                         label="Scale"
                         @test_id={"pixel-art.export-scale"}
-                        on_change={set_scale.clone()}
                     />
                 </Show>
-                <Text
-                    style=TextStyle::CAPTION
-                    string={caption}
-                    @test_id={"pixel-art.export-summary"}
-                />
+                <Text style=TextStyle::CAPTION @test_id={"pixel-art.export-summary"}>
+                    {caption}
+                </Text>
             </List>
         </Frame>
     }
@@ -196,12 +193,16 @@ impl Regeneration {
     }
 
     pub fn poll(&mut self) -> Option<Result<(), String>> {
-        let source = self.source.read(|content| content.root().artwork())?;
+        let source = match self.source.read(|content| content.root().artwork()) {
+            Ok(source) => source,
+            Err(Pending::Loading) => return None,
+            Err(Pending::Failed(error)) => return Some(Err(error)),
+        };
         let name = self
             .named
             .read()
-            .into_iter()
-            .next()
+            .ok()
+            .and_then(|blocks| blocks.into_iter().next())
             .and_then(|info| info.name())
             .unwrap_or_else(|| "Pixel Art".to_owned());
         let generated = generate(&source, &name, &self.settings);

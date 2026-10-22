@@ -78,28 +78,25 @@ impl Slot {
 
 #[component]
 pub fn ColorWheel(
-    value: Prop<Color32>,
+    value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let picker: ColorPickerState<Hsva> =
-        ColorPickerState::new(value, disabled, on_change, on_preview);
+    let picker: ColorPickerState<Hsva> = ColorPickerState::new(value, disabled, on_preview);
     let color = picker.color();
     let point = create_memo(move || WheelPoint::of_hsva(color.get()));
     view! {
         <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
             <unstyled::ColorWheel
-                value={point}
+                value={Binding::new(point, move |next: WheelPoint| {
+                    let held = color.get_untracked();
+                    picker.apply(next.to_hsva(held.alpha));
+                })}
                 ring_width=RING_WIDTH
                 thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
                 focused
                 disabled={picker.disabled()}
-                on_change={move |next: WheelPoint| {
-                    let held = color.get_untracked();
-                    picker.apply(next.to_hsva(held.alpha));
-                }}
                 on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >|handle: ColorWheelHandle|
                 <WheelFace handle model=Model::Hsv />
@@ -110,14 +107,12 @@ pub fn ColorWheel(
 
 #[component]
 pub fn OklchColorWheel(
-    value: Prop<Color32>,
+    value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let picker: ColorPickerState<Oklch> =
-        ColorPickerState::new(value, disabled, on_change, on_preview);
+    let picker: ColorPickerState<Oklch> = ColorPickerState::new(value, disabled, on_preview);
     let color = picker.color();
     let point = create_memo(move || WheelPoint::of_oklch(color.get()));
     let accessibility = create_memo(move || {
@@ -138,13 +133,7 @@ pub fn OklchColorWheel(
     view! {
         <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
             <unstyled::ColorWheel
-                value={point}
-                ring_width=RING_WIDTH
-                thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
-                focused
-                disabled={picker.disabled()}
-                accessibility
-                on_change={move |next: WheelPoint| {
+                value={Binding::new(point, move |next: WheelPoint| {
                     let held = color.get_untracked();
                     let was = WheelPoint::of_oklch(held);
                     let turned = next.hue != was.hue
@@ -154,7 +143,12 @@ pub fn OklchColorWheel(
                         true => Oklch::new(held.lightness, held.chroma, next.hue, held.alpha),
                         false => next.to_oklch(held.alpha),
                     });
-                }}
+                })}
+                ring_width=RING_WIDTH
+                thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
+                focused
+                disabled={picker.disabled()}
+                accessibility
                 on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >|handle: ColorWheelHandle|
                 <WheelFace handle model=Model::Oklch />

@@ -30,7 +30,7 @@ fn a_second_checkout_copies_the_tree_under_the_same_local_ids() {
         text_of(shared, note).as_deref() == Some("hello\n") && shared.blocks.contains_key(&folder)
     });
     let listed = content(folder)
-        .and_then(|held| be_block::FolderContent::decode(&held.bytes).ok())
+        .and_then(|held| be_block::FolderContent::decode(held.bytes()).ok())
         .map(|listing| listing.root().blocks());
     assert_eq!(
         listed,

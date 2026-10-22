@@ -32,7 +32,7 @@ impl Root for MyBlock {
 pub type MyBlockContent = Document<MyBlock>;
 ```
 
-`CONTENT_TYPE` is the block type everywhere: it is what the server records for the block, what the app's registry is keyed by, and the `block_type` a plugin's manifest names. Once a block of it has been saved, changing it leaves that block with a type nothing opens.
+`CONTENT_TYPE` is the block type everywhere: it is what the server records for the block, what the app's registry is keyed by, and what a plugin's manifest says an editor `edits`. Once a block of it has been saved, changing it leaves that block with a type nothing opens.
 
 Give each `Model` struct a kind, `#[model(kind = "my_block.item")]`: it is saved with every object, and the stack guide's "The stored form" says how fields are saved and how to add, rename and retire them without a migration. A field is a register (any `Serialize + DeserializeOwned + Clone + PartialEq + Default` value, set as a whole; give its structs `#[serde(default)]`), a `Count` whose concurrent changes add up, a `List<T>` of objects of another `Model` type, a `Map<K, V>` of per-key registers, or a `Grid<T>` of fixed-size cells. The stack guide says what each one does under a merge and an undo; choose by what two people changing it at once should end up with.
 
@@ -118,7 +118,7 @@ fn child_edit(&self, change: ChildChange) -> Option<Edit> {
 }
 ```
 
-The app calls it through `be::change_child`, so the host makes the edit itself and the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `presentation.rs`, `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The plugin's manifest says which of these edits the type accepts (`children`).
+The app calls it through `be::change_child`, so the host makes the edit itself and the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `presentation.rs`, `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's entry in `be_block::BLOCK_TYPES` says which of these edits it accepts (`children`).
 
 ## 6. Undo
 
@@ -143,6 +143,8 @@ kind_with_history::<be_block::MyBlockContent>(),
 ```
 
 Use `kind::<C>()` for a type without undo. A block whose content type is not in `KINDS` has no content in the app: the host opens nothing for it and refuses content written to it.
+
+Give it an entry in `BLOCK_TYPES` (`crates/be-block/src/block_types.rs`) too: the name, icon, color and child edits every editor of the type shares. The host refuses a plugin whose editor edits a type with no entry there.
 
 Plugins reach the type through `block_editor_beui::be_block`, so an editor does not depend on `be-block` itself.
 

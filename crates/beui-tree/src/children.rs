@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use reactive::{
-    Get, Scope, ScopeContext, Set, Signal, Stored, create_effect, create_signal, store,
+    Get, Scope, ScopeContext, Set, Signal, Stored, create_binding, create_signal, store,
 };
 
 use crate::child_list::{ChildList, SlotId};
@@ -224,7 +224,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
         let run = self.clone();
         DynamicSegment::new(move |slot: ChildSlot<R>| {
             let held: HeldEach<T, R> = store(RefCell::new(Vec::new()));
-            create_effect(move || {
+            create_binding(move || {
                 let held = held.value();
                 let Some(states) = states.try_value() else {
                     return;
@@ -515,7 +515,7 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
             move |slot: ChildSlot<T>| {
                 let held = slot.clone();
                 held.fill(run.get_untracked());
-                create_effect(move || slot.fill(run.items()));
+                create_binding(move || slot.fill(run.items()));
             },
         )))
     }
@@ -548,6 +548,20 @@ impl<T: SlotChild> Children<T> {
         )
     }
 
+    pub fn into_only(mut self) -> Result<T, Self> {
+        match self.0.as_slice() {
+            [ChildSegment::One(_)] => match self.0.pop() {
+                Some(ChildSegment::One(child)) => Ok(child),
+                _ => unreachable!(),
+            },
+            [ChildSegment::Nested(_)] => match self.0.pop() {
+                Some(ChildSegment::Nested(segments)) => Self(segments).into_only(),
+                _ => unreachable!(),
+            },
+            _ => Err(self),
+        }
+    }
+
     pub fn into_run(self) -> Run<T> {
         let run = Run::default();
         for segment in self.0 {
@@ -564,11 +578,19 @@ impl<T: SlotChild> Children<T> {
     }
 
     pub(crate) fn mount_in(self, slot: ChildSlot<T>) -> Rc<NestedHost<T>> {
+        self.mount_nested(slot, true)
+    }
+
+    pub(crate) fn mount_hidden(self, slot: ChildSlot<T>) -> Rc<NestedHost<T>> {
+        self.mount_nested(slot, false)
+    }
+
+    fn mount_nested(self, slot: ChildSlot<T>, visible: bool) -> Rc<NestedHost<T>> {
         let host = Rc::new(NestedHost {
             slot,
             items: RefCell::default(),
             mounting: Cell::new(true),
-            visible: Cell::new(true),
+            visible: Cell::new(visible),
         });
         self.mount(host.clone() as Rc<dyn SlotHost<T>>);
         host.mounting.set(false);

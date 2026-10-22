@@ -2,9 +2,10 @@
   "id": "be3.checklist",
   "name": "Checklist",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "63686563-6b6c-6973-742d-626c6f636b31",
+  "editors": {
+    "checklist": {
+      "id": "2197d072-baaf-425e-aab1-ef7c5b0fd508",
+      "edits": "63686563-6b6c-6973-742d-626c6f636b31",
       "display_name": "Checklist",
       "icon": "\ue6b1",
       "templates": {
@@ -14,6 +15,6 @@
         "Frame"
       ]
     }
-  ],
+  },
   "entry_point": "checklist.wasm"
 }

@@ -8,18 +8,16 @@ use beui_macros::{component, view};
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband};
 use beui_core::base::Sides;
-use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{
     AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
 };
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::{NodeId, NodeOf};
+use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -251,11 +249,11 @@ fn autoscroll_speed(distance: f32) -> f32 {
 }
 
 fn rubber_banding() -> bool {
-    with_document(|document| document.motion().animates())
+    motion().animates()
 }
 
 struct Motion {
-    node: Option<NodeOf<OffsetNode>>,
+    node: Option<NodeId>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
     momentum: RefCell<Momentum>,
@@ -272,7 +270,7 @@ impl Motion {
     fn placed(&self) -> Option<ScrollPosition> {
         let reported = self.reported.get_untracked()?;
         let node = self.node?;
-        let offset = with_document(|document| document.offset_value(node));
+        let offset = node.offset()?;
         Some(ScrollPosition { offset, ..reported })
     }
 
@@ -280,10 +278,8 @@ impl Motion {
         let Some(node) = self.node else {
             return;
         };
-        with_document(|document| {
-            document.drive_offset(node, offset);
-            document.set_offset_overscroll(node, momentum.overscroll);
-        });
+        node.drive_offset(offset);
+        node.set_overscroll(momentum.overscroll);
     }
 
     fn flinging(&self) -> bool {
@@ -300,10 +296,27 @@ impl Motion {
         }
         let wheel = self.axis().main(gesture.delta);
         let fling = self.axis().main(gesture.fling);
-        let Some(position) = self.placed().filter(|_| wheel != 0.0 || fling != 0.0) else {
+        let Some(mut position) = self.placed() else {
             return;
         };
         let mut momentum = self.momentum.borrow_mut();
+        if gesture.held && rubber_banding() {
+            if momentum.drag.is_none() {
+                momentum.grab(&position);
+            }
+            momentum.drag(&mut position, wheel, true);
+            self.publish(&momentum, position.offset);
+            return;
+        }
+        if momentum.drag.is_some() && !momentum.dragging {
+            momentum.release(-fling);
+            self.publish(&momentum, position.offset);
+            self.animate(&mut momentum);
+            return;
+        }
+        if wheel == 0.0 && fling == 0.0 {
+            return;
+        }
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
@@ -392,28 +405,33 @@ impl Motion {
         if press.modifiers.ctrl || press.modifiers.alt {
             return false;
         }
-        let Some(position) = self.placed() else {
+        let Some(position) = self.placed().filter(|position| position.max_offset() > 0.0) else {
             return false;
         };
-        let (forwards, backwards) = match self.axis() {
-            Direction::Horizontal => (Key::ArrowRight, Key::ArrowLeft),
-            Direction::Vertical => (Key::ArrowDown, Key::ArrowUp),
+        let vertical = self.axis() == Direction::Vertical;
+        let (forwards, backwards) = match vertical {
+            false => (Key::ArrowRight, Key::ArrowLeft),
+            true => (Key::ArrowDown, Key::ArrowUp),
         };
         let offset = match press.key {
             key if key == forwards => position.offset + STEP,
             key if key == backwards => position.offset - STEP,
-            Key::PageDown | Key::Space if !press.modifiers.shift => {
+            Key::PageDown | Key::Space if vertical && !press.modifiers.shift => {
                 position.offset + position.viewport
             }
-            Key::PageUp | Key::Space => position.offset - position.viewport,
+            Key::PageUp | Key::Space if vertical => position.offset - position.viewport,
             Key::Home => 0.0,
             Key::End => position.max_offset(),
             _ => return false,
-        };
+        }
+        .clamp(0.0, position.max_offset());
+        if offset == position.offset {
+            return false;
+        }
         if press.pressed {
             let mut momentum = self.momentum.borrow_mut();
             momentum.rest();
-            self.publish(&momentum, offset.clamp(0.0, position.max_offset()));
+            self.publish(&momentum, offset);
         }
         true
     }
@@ -425,11 +443,7 @@ impl Motion {
         if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
             momentum.rest();
         }
-        with_document(|document| {
-            if document.contains(node) {
-                document.set_offset_overscroll(node, 0.0);
-            }
-        });
+        node.set_overscroll(0.0);
     }
 
     fn finish(&self) {
@@ -445,7 +459,7 @@ impl Motion {
 
     fn step(&self, elapsed: f32) -> Option<Duration> {
         let node = self.node?;
-        if !with_document(|document| document.contains(node)) {
+        if !node.exists() {
             return None;
         }
         let mut momentum = self.momentum.borrow_mut();
@@ -465,10 +479,10 @@ impl Motion {
 
 #[component]
 fn Scrolling(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
     direction: Prop<Direction>,
     fit: bool,
     bleed: Prop<Sides>,
-    tab_stop: bool,
     focus_color: Prop<Color32>,
     scrollbar: ScrollbarStyle,
     marker: Render<Memo<Direction>>,
@@ -481,7 +495,7 @@ fn Scrolling(
         on_change.call(position);
     }));
     let motion = store(Motion {
-        node: with_document(|document| document.first_offset_within(node)),
+        node: node.first_offset_within(),
         reported: reported.read_only(),
         direction,
         momentum: RefCell::new(Momentum::new()),
@@ -503,21 +517,23 @@ fn Scrolling(
     });
     motion.with(|motion| motion.autoscrolling.set(Some(autoscrolling)));
     motion.with(|motion| motion.animation.set(Some(animation)));
-    let preference = with_document(|document| document.watch_motion());
+    let preferences = use_preferences();
+    let animates = create_memo(move || preferences.get().motion.animates());
     create_effect(move || {
-        if !preference.get().animates() {
+        if !animates.get() {
             motion.value().finish();
         }
     });
     if let Some(offset) = motion.with(|motion| motion.node) {
-        with_document(|document| {
-            document.set_offset_on_steer(offset, move |()| motion.value().steer());
-        });
+        offset.on_steer(move |()| motion.value().steer());
     }
-    set_component_state(motion);
+    api.fill(ScrollApi(motion));
 
     let position = create_memo(move || reported.get().unwrap_or_default());
-    component_accessibility(create_memo(move || scroll_view(reported.get())));
+    let overflows = create_memo(move || position.get().max_offset() > 0.0);
+    component_accessibility(create_memo(move || {
+        scroll_view(reported.get(), direction.get())
+    }));
 
     let near = create_signal(false);
     let engaged = create_signal(false);
@@ -593,6 +609,7 @@ fn Scrolling(
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
+    let marker = marker.once();
     on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
         event
             .press()
@@ -604,8 +621,9 @@ fn Scrolling(
             <Layers>
                 <Interactive
                     focusable=true
-                    tab_stop
-                    on_focus_change={move |next: bool| focused.set(next)}
+                    tab_stop={overflows}
+                    yields_tab_stop=true
+                    on_focus_change={focused}
                     on_key={move |press: KeyPress| motion.value().key(press)}
                     scroll_axis={axis}
                     @node_ref=&catcher
@@ -641,17 +659,16 @@ fn Scrolling(
                     >
                         <List direction={marker_axis} spacing=0.0>
                             {node} @sizing={content_sizing(fit)}
-                            <ShowKeepAlive condition={marked}>
-                                <Overlay
-                                    anchor
-                                    placement=Placement::Around
-                                    policy=LayerPolicy::Inert
-                                    traps_focus=false
-                                    open={marked}
-                                >
-                                    {marker.call(marker_axis)}
-                                </Overlay>
-                            </ShowKeepAlive>
+                            <Overlay
+                                anchor
+                                placement=Placement::Around
+                                policy=LayerPolicy::Inert
+                                traps_focus=false
+                                open={marked}
+                                keep_alive=true
+                            >
+                                {marker.call(marker_axis)}
+                            </Overlay>
                         </List>
                     </Frame>
                 </Interactive>
@@ -665,12 +682,12 @@ fn Scrolling(
 
 #[component]
 pub fn Scroll(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
-    #[prop(default = true)] tab_stop: bool,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     marker: Option<Render<Memo<Direction>>>,
@@ -690,10 +707,10 @@ pub fn Scroll(
     });
     let scroll = view! {
         <Scrolling
+            api
             direction
             fit
             bleed
-            tab_stop
             focus_color
             scrollbar
             marker
@@ -721,12 +738,9 @@ pub fn Scroll(
             return;
         };
         let rows = rows.get();
-        with_document(|document| {
-            let row = document.arena.get(rows).children().get(index).copied();
-            if let Some(row) = row {
-                document.reveal_node(row);
-            }
-        });
+        if let Some(row) = rows.children().get(index).copied() {
+            row.reveal();
+        }
     });
     scroll
 }
@@ -765,21 +779,27 @@ pub(crate) fn fade_edges(
     }
 }
 
-pub fn scroll_animating(document: &Document, scroll: NodeId) -> bool {
-    document
-        .component_state::<Stored<Motion>>(scroll)
-        .with(|motion| motion.momentum.borrow().moving())
-}
-
-fn scroll_view(position: Option<ScrollPosition>) -> Node {
+fn scroll_view(position: Option<ScrollPosition>, direction: Direction) -> Node {
     let mut node = Node::new(Role::ScrollView);
     if let Some(position) = position {
-        node.set_scroll_y(position.offset.into());
-        node.set_scroll_y_min(0.0);
-        node.set_scroll_y_max(position.max_offset().into());
+        let (offset, max) = (position.offset.into(), position.max_offset().into());
+        match direction {
+            Direction::Horizontal => {
+                node.set_scroll_x(offset);
+                node.set_scroll_x_min(0.0);
+                node.set_scroll_x_max(max);
+                node.add_action(Action::ScrollLeft);
+                node.add_action(Action::ScrollRight);
+            }
+            Direction::Vertical => {
+                node.set_scroll_y(offset);
+                node.set_scroll_y_min(0.0);
+                node.set_scroll_y_max(max);
+                node.add_action(Action::ScrollUp);
+                node.add_action(Action::ScrollDown);
+            }
+        }
         node.add_action(Action::Focus);
-        node.add_action(Action::ScrollUp);
-        node.add_action(Action::ScrollDown);
         node.add_action(Action::SetScrollOffset);
     }
     node
@@ -795,7 +815,9 @@ fn across(direction: &Prop<Direction>) -> Memo<Direction> {
 
 pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
     node.try_get().is_some_and(|node| {
-        with_document(|document| document.node_rect(node)).is_some_and(|rect| rect.contains(pos))
+        placements()
+            .rect(node)
+            .is_some_and(|rect| rect.contains(pos))
     })
 }
 
@@ -819,4 +841,13 @@ fn navigates(key: Key) -> bool {
             | Key::PageUp
             | Key::PageDown
     )
+}
+
+#[derive(Clone, Copy)]
+pub struct ScrollApi(Stored<Motion>);
+
+impl ScrollApi {
+    pub fn animating(&self) -> bool {
+        self.0.with(|motion| motion.momentum.borrow().moving())
+    }
 }

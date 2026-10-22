@@ -6,7 +6,7 @@ use crate::styled::*;
 fn a_spinner_hidden_by_a_show_stops_asking_for_frames() {
     let _root = crate::reactive::RootScope::new();
     let shown = create_signal(true);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Show condition={shown}>

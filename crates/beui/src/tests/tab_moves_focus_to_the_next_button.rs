@@ -13,8 +13,8 @@ fn tab_moves_focus_to_the_next_button() {
             },
         ]
     });
-    let first_focused = unstyled::button_focused(&document, first);
-    let second_focused = unstyled::button_focused(&document, second);
+    let first_focused = document.api::<unstyled::ButtonApi>(first).focused();
+    let second_focused = document.api::<unstyled::ButtonApi>(second).focused();
     let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);

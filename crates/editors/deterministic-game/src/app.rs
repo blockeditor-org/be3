@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::styled::Root;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -76,7 +77,7 @@ impl BlockGame {
     }
 
     fn snapshot(&self) -> GameSnapshot {
-        let Some((module, actions)) = self.block.read(|game| {
+        let read = self.block.read(|game| {
             let game = game.root();
             let actions: Vec<GameAction> = game
                 .moves
@@ -87,8 +88,10 @@ impl BlockGame {
                 })
                 .collect();
             (game.module, actions)
-        }) else {
-            return GameSnapshot::Loading;
+        });
+        let (module, actions) = match read {
+            Ok(read) => read,
+            Err(pending) => return waiting(pending),
         };
         let Some(module) = module else {
             return GameSnapshot::Error("this game has no module to play".to_owned());
@@ -96,8 +99,9 @@ impl BlockGame {
 
         self.follow(module);
         let (_, projection) = self.module.borrow().expect("the module was followed");
-        let Some(revision) = projection.revision() else {
-            return GameSnapshot::Loading;
+        let revision = match projection.revision() {
+            Ok(revision) => revision,
+            Err(pending) => return waiting(pending),
         };
         let stale = self
             .loaded
@@ -105,8 +109,9 @@ impl BlockGame {
             .as_ref()
             .is_none_or(|loaded| loaded.module != module || loaded.revision != revision);
         if stale {
-            let Some(game) = projection.read(|module| Game::load(module.data())) else {
-                return GameSnapshot::Loading;
+            let game = match projection.read(|module| Game::load(module.data())) {
+                Ok(game) => game,
+                Err(pending) => return waiting(pending),
             };
             *self.loaded.borrow_mut() = Some(Loaded {
                 module,
@@ -350,7 +355,7 @@ impl GameCreation {
                 Some(
                     watched
                         .as_ref()
-                        .and_then(|list| list.read().into_iter().next())
+                        .and_then(|list| list.read().ok()?.into_iter().next())
                         .and_then(|info| info.name())
                         .unwrap_or_else(|| "Game module".to_owned()),
                 )
@@ -425,6 +430,13 @@ impl GameCreation {
     }
 }
 
+fn waiting(pending: Pending) -> GameSnapshot {
+    match pending {
+        Pending::Loading => GameSnapshot::Loading,
+        Pending::Failed(error) => GameSnapshot::Error(error),
+    }
+}
+
 fn file_name(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
@@ -446,14 +458,16 @@ impl GameCreationModel for GameCreation {
 pub struct DeterministicGameApp;
 
 impl block_editor_beui::BeuiApp for DeterministicGameApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         let game = store(BlockGame::new(editor));
         let snapshot = create_signal(GameSnapshot::Loading);
         create_effect(move || snapshot.set(game.value().snapshot()));
         let model: Rc<dyn GameModel> = game.value();
         let model = store(model);
         view! {
-            <GameView editor game={model} snapshot={snapshot.read_only()} />
+            <Root>
+                <GameView editor game={model} snapshot={snapshot.read_only()} />
+            </Root>
         }
     }
 

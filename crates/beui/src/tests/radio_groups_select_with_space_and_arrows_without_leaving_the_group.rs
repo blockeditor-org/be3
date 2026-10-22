@@ -15,10 +15,9 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
                         <unstyled::ChoiceOption label="Two" />
                         <unstyled::ChoiceOption label="Three" />
                     }}
-                    selected=None
-                    on_change={move |value| {
+                    selected={Binding::new(None, move |value| {
                         changes.update(|changes| changes.push(value))
-                    }}
+                    })}
                 />
             },
             view! {
@@ -26,18 +25,24 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
             },
         ]
     });
-    let after_focus = unstyled::button_focused(&document, after);
+    let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     assert_eq!(
-        styled::radio_group_selected(harness.document(), group),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(group)
+            .selected(),
         None
     );
     harness.key(Key::Space, Modifiers::NONE);
     harness.key(Key::Space, Modifiers::NONE);
     harness.key(Key::ArrowUp, Modifiers::NONE);
     assert_eq!(
-        styled::radio_group_selected(harness.document(), group),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(group)
+            .selected(),
         Some(2)
     );
     harness.key(Key::ArrowDown, Modifiers::NONE);

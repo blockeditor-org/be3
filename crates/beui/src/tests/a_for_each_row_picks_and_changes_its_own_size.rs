@@ -11,7 +11,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
     let _root = crate::reactive::RootScope::new();
     let (toggle, header, body) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let tall = create_signal(false);
         let sizing = create_memo(move || match tall.get() {
             true => ItemSize::Fixed(TALL_HEIGHT),
@@ -20,7 +20,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
         view! {
             <List spacing=0.0>
                 <Button @node_ref=&toggle on_click={move || tall.update(|tall| *tall = !*tall)}>
-                    <Text string="toggle" />
+                    <Text>"toggle"</Text>
                 </Button>
                 <ForEach keys={vec![0, 1]}>|index: usize| {
                     match index {

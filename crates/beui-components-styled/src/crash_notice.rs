@@ -27,21 +27,23 @@ pub fn CrashNotice(
         let detail = detail.clone();
         move || !detail.get().is_empty()
     });
+    let detail = create_memo(move || detail.get());
     view! {
         <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
                 <Text size=TextSize::Xl color=TextColor::Danger align=TextAlign::Center>
                     <Icon glyph={ICON_ERROR.to_owned()} />
                 </Text>
-                <Text style=TextStyle::HEADING string={title} align=TextAlign::Center />
+                <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
                 <Show condition={has_detail}>
                     <Text
-                        string={create_memo({ let detail = detail.clone(); move || detail.get() })}
                         size=TextSize::Sm
                         color=TextColor::Muted
                         align=TextAlign::Center
                         wrap=true
-                    />
+                    >
+                        {detail}
+                    </Text>
                 </Show>
                 <Show condition={reloadable}>|| {
                     let reload_label = reload_label.clone(); let reload_id = reload_id.clone(); view! {

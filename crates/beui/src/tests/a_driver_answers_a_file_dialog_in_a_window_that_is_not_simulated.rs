@@ -5,7 +5,7 @@ use crate::styled::*;
 
 #[test]
 fn a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated() {
-    let document = build(|| {
+    let document = build_node(|| {
         let picked = create_signal(String::from("nothing picked"));
         let picker = create_file_picker(move |file| {
             if let Ok(file) = file {
@@ -19,7 +19,7 @@ fn a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated() {
                     variant=ButtonVariant::Primary
                     on_click={move || picker.open(FileFilter::new("Notes", &["txt"], &[]))}
                 />
-                <Text string={picked} />
+                <Text>{picked}</Text>
             </List>
         }
     });

@@ -29,7 +29,7 @@ fn Legend(children: Children<Note>) -> NodeId {
             .join(", ")
     });
     view! {
-        <Text string={labels} />
+        <Text>{labels}</Text>
     }
 }
 
@@ -39,7 +39,7 @@ fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
     let legend = NodeRef::new();
     let disposals = create_signal::<usize>(0);
     let shown = create_signal(true);
-    let document = build(move || {
+    let document = build_node(move || {
         let loose = view! {
             <Noted label="loose" disposals={disposals} />
         };

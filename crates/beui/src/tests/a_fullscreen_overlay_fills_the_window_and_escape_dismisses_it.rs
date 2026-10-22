@@ -9,7 +9,7 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     let open = create_signal(false);
     let dismissed = create_signal(0);
     let content = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Fullscreen
@@ -24,7 +24,10 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert!(harness.document().node_rect(content.get()).is_none());
+    assert!(
+        content.try_get().is_none(),
+        "a closed fullscreen overlay has built nothing"
+    );
 
     open.set(true);
     harness.frame(Vec::new());

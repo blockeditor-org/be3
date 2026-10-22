@@ -9,7 +9,7 @@ use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
     HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
-    SettingsProgress, TopBar, ViewChange, WebViewId,
+    SettingsProgress, TopBar, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -251,7 +251,6 @@ struct ChildRecord {
     intrinsic: Prop<Option<Vec2>>,
     state: Signal<ChildState>,
     report: Callback<ChildState>,
-    view_change: Callback<ViewChange>,
     bar: Callback<BarAction>,
     focus: Callback<()>,
     child: Cell<Option<ChildId>>,
@@ -363,6 +362,7 @@ impl OwnedEditor {
         defer_graph_changes(&host);
         let owner = RootScope::new();
         let canvas = create_signal(None::<CanvasView>);
+        let moved = create_signal(false);
         let world = create_signal(None::<Vec2>);
         let scale = create_signal(1.0_f32);
         let chrome = create_signal(true);
@@ -384,6 +384,7 @@ impl OwnedEditor {
             block,
             roots: RefCell::new(None),
             canvas,
+            moved,
             world,
             scale,
             chrome,
@@ -445,6 +446,7 @@ struct EditorState {
     block: Uuid,
     roots: RefCell<Option<BlockList>>,
     canvas: Signal<Option<CanvasView>>,
+    moved: Signal<bool>,
     world: Signal<Option<Vec2>>,
     scale: Signal<f32>,
     chrome: Signal<bool>,
@@ -494,9 +496,9 @@ impl Editor {
         self.state().block
     }
 
-    pub fn watch_blocks(&self, query: BlockQuery) -> Memo<Option<Vec<crate::BlockInfo>>> {
+    pub fn watch_blocks(&self, query: BlockQuery) -> Memo<Ready<Vec<crate::BlockInfo>>> {
         let list = self.blocks().watch(query);
-        create_memo(move || list.is_loaded().then(|| list.read()))
+        create_memo(move || list.read())
     }
 
     pub fn editable(&self) -> ReadSignal<bool> {
@@ -515,16 +517,6 @@ impl Editor {
         self.projection(None)
     }
 
-    pub fn loaded<C>(&self, queries: &[BlockQuery]) -> Memo<bool>
-    where
-        C: be_block::LiveEdit + Clone + Default,
-    {
-        let content = self.block_content::<C>().loaded();
-        let blocks = self.blocks();
-        let lists: Vec<BlockList> = queries.iter().map(|query| blocks.watch(*query)).collect();
-        create_memo(move || content.get() && lists.iter().all(BlockList::is_loaded))
-    }
-
     pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
@@ -533,7 +525,26 @@ impl Editor {
             return self.block_content();
         }
         self.state().host.watch_content(block, C::CONTENT_TYPE);
-        self.projection(Some(block))
+        let projection = self.projection_of(Some(block));
+        if Boundary::current().is_none() {
+            return projection;
+        }
+        let found = self.blocks().watch(BlockQuery::Block(block));
+        wait_for(move || {
+            if !projection.is_alive() || projection.ready().is_ok() {
+                return Ok(());
+            }
+            let viewable = found
+                .read()?
+                .first()
+                .is_some_and(|info| info.access.can_view());
+            if viewable {
+                Err(Pending::Loading)
+            } else {
+                Ok(())
+            }
+        });
+        projection
     }
 
     pub fn view_block(&self) -> Option<Uuid> {
@@ -548,6 +559,7 @@ impl Editor {
     pub fn view_state(&self, key: &str) -> Option<be_block::ViewState> {
         self.view_content()?
             .read(|view| view.root().state(key).cloned())
+            .ok()
             .flatten()
     }
 
@@ -563,7 +575,7 @@ impl Editor {
                 (root.state(key) != state).then(|| root.set_state(key, state, now, client))
             })
         });
-        if let Some(edit) = edit.flatten() {
+        if let Some(edit) = edit.ok().flatten() {
             view.operate_anyway(edit);
         }
     }
@@ -589,6 +601,15 @@ impl Editor {
     }
 
     pub fn raw_block_content(&self) -> ReadSignal<Option<RawContent>> {
+        let raw = self.raw_content();
+        wait_for(move || match raw.with(Option::is_some) {
+            true => Ok(()),
+            false => Err(Pending::Loading),
+        });
+        raw
+    }
+
+    fn raw_content(&self) -> ReadSignal<Option<RawContent>> {
         let state = self.state();
         let cached = state
             .contents
@@ -627,6 +648,21 @@ impl Editor {
     }
 
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        let projection = self.projection_of(block);
+        wait_for(move || {
+            if projection.is_alive() {
+                projection.ready()
+            } else {
+                Ok(())
+            }
+        });
+        projection
+    }
+
+    fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
@@ -716,18 +752,20 @@ impl Editor {
     pub fn version_status(&self) -> Memo<block_editor_plugin::VersionStatus> {
         let host = self.state().host.clone();
         let revision = self.pushed(Pushed::Version);
+        let known = create_memo({
+            let host = host.clone();
+            move || {
+                revision.get();
+                host.version_known()
+            }
+        });
+        wait_for(move || match known.get() {
+            true => Ok(()),
+            false => Err(Pending::Loading),
+        });
         create_memo(move || {
             revision.get();
             host.version_status()
-        })
-    }
-
-    pub fn version_known(&self) -> Memo<bool> {
-        let host = self.state().host.clone();
-        let revision = self.pushed(Pushed::Version);
-        create_memo(move || {
-            revision.get();
-            host.version_known()
         })
     }
 
@@ -800,6 +838,10 @@ impl Editor {
         self.state().canvas.read_only()
     }
 
+    pub(crate) fn moved(&self) -> ReadSignal<bool> {
+        self.state().moved.read_only()
+    }
+
     pub fn world(&self) -> ReadSignal<Option<Vec2>> {
         self.state().world.read_only()
     }
@@ -832,10 +874,15 @@ impl Editor {
     pub fn block_types_known(&self) -> Memo<bool> {
         let host = self.state().host.clone();
         let revision = self.pushed(Pushed::Catalog);
-        create_memo(move || {
+        let known = create_memo(move || {
             revision.get();
             host.block_types_known()
-        })
+        });
+        wait_for(move || match known.get() {
+            true => Ok(()),
+            false => Err(Pending::Loading),
+        });
+        known
     }
 
     pub fn set_intrinsic_size(&self, size: Option<Vec2>) {
@@ -871,7 +918,6 @@ impl Editor {
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
         report: Callback<ChildState>,
-        view_change: Callback<ViewChange>,
         bar: Callback<BarAction>,
         focus: Callback<()>,
     ) -> ReadSignal<ChildState> {
@@ -893,7 +939,6 @@ impl Editor {
                 intrinsic,
                 state,
                 report,
-                view_change,
                 bar,
                 focus,
                 child: Cell::new(None),
@@ -1062,12 +1107,18 @@ impl Editor {
             .zoom_view(factor, Some(Pos2::new(anchor.x / ratio, anchor.y / ratio)));
     }
 
-    pub fn resume_auto_fit(&self) {
-        self.state().host.resume_auto_fit_view();
+    pub(crate) fn follow(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
+        let ratio = self.ratio();
+        self.state().host.follow_view(
+            factor,
+            Pos2::new(anchor.x / ratio, anchor.y / ratio),
+            delta / ratio,
+            resume,
+        );
     }
 
-    pub fn fit(&self) {
-        self.state().host.fit_view();
+    pub fn pan_drag(&self) {
+        self.state().host.pan_drag_view();
     }
 
     pub fn reveal(&self, target: Rect) {
@@ -1131,6 +1182,7 @@ impl Editor {
             let scale = self.view_scale();
             let divisor = scale.max(f32::EPSILON);
             state.canvas.set(self.view_canvas());
+            state.moved.set(state.host.view_moved());
             state.world.set(
                 self.view_rect()
                     .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),
@@ -1173,9 +1225,6 @@ impl Editor {
         let state = self.state();
         for record in self.records() {
             if let Some(child) = record.child.get() {
-                for change in state.host.take_child_view_changes(child) {
-                    record.view_change.call(change);
-                }
                 for action in state.host.take_child_bar_actions(child) {
                     record.bar.call(action);
                 }
@@ -1264,6 +1313,7 @@ impl Editor {
             record.rotation.get_untracked(),
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
+            document.panned_by_canvas(node),
         ))
     }
 }
@@ -1374,6 +1424,7 @@ impl Editor {
                 editor
                     .content_of::<be_block::be_model::Document<R>>(block)
                     .read(|content| content.root())
+                    .ok()
             }))
         })
     }
@@ -1401,6 +1452,7 @@ impl Editor {
                 editor
                     .content_of::<be_block::be_model::Document<R>>(block)
                     .read(|content| content.root())
+                    .ok()
             }))
         })
     }
@@ -1411,9 +1463,8 @@ impl crate::root_settings::SettingsGraph for Editor {
         let state = self.state();
         let mut roots = state.roots.borrow_mut();
         let list = roots.get_or_insert_with(|| self.blocks().watch(BlockQuery::Roots));
-        list.is_loaded().then(|| {
-            list.read()
-                .into_iter()
+        list.read().ok().map(|list| {
+            list.into_iter()
                 .filter_map(|info| Some((info.id, info.block_type, info.author?)))
                 .collect()
         })
@@ -1426,6 +1477,7 @@ impl crate::root_settings::SettingsGraph for Editor {
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
         self.content_of::<be_block::SettingsContent>(block)
             .read(|settings| settings.root())
+            .ok()
     }
 
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
@@ -1440,6 +1492,7 @@ impl crate::root_settings::SettingsGraph for Editor {
     fn settings_profile(&self, block: Uuid) -> Option<be_block::SettingsProfile> {
         self.content_of::<be_block::SettingsProfileContent>(block)
             .read(|profile| profile.root())
+            .ok()
     }
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {

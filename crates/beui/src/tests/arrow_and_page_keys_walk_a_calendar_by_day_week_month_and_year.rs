@@ -7,13 +7,12 @@ use crate::styled::*;
 fn arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year() {
     let _root = crate::reactive::RootScope::new();
     let picked = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Calendar
-                selected={Some(Date::new(2026, 1, 30))}
+                selected={Binding::new(Some(Date::new(2026, 1, 30)), move |date| picked.update(|picked| picked.push(date)))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
-                on_change={move |date| picked.update(|picked| picked.push(date))}
             />
         }
     });
@@ -32,5 +31,5 @@ fn arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year() {
     );
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(picked.get_untracked(), [Date::new(2025, 3, 3)]);
+    assert_eq!(picked.get_untracked(), [Some(Date::new(2025, 3, 3))]);
 }

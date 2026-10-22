@@ -43,15 +43,14 @@ pub(super) fn PowerSection(settings: Settings, read_only: Memo<bool>) -> NodeId 
                             <ChoiceOption label={screen_off_label(offered)} />
                         </ForEach>
                     }}
-                    selected={selected}
-                    label="Turn off screens after"
-                    disabled={read_only}
-                    @test_id={"display.screen-off"}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(selected, move |index: Option<usize>| {
                         if let Some(chosen) = index.and_then(|index| SCREEN_OFF.get(index)) {
                             set_screen_off.call(Some(*chosen));
                         }
-                    }}
+                    })}
+                    label="Turn off screens after"
+                    disabled={read_only}
+                    @test_id={"display.screen-off"}
                 />
             </LayeredSettingsRow>
             <LayeredSettingsRow
@@ -69,15 +68,14 @@ pub(super) fn PowerSection(settings: Settings, read_only: Memo<bool>) -> NodeId 
                             <ChoiceOption label={lock_after_label(offered)} />
                         </ForEach>
                     }}
-                    selected={locks}
-                    label="Lock the screen after"
-                    disabled={read_only}
-                    @test_id={"display.lock-after"}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(locks, move |index: Option<usize>| {
                         if let Some(chosen) = index.and_then(|index| LOCK_AFTER.get(index)) {
                             set_lock_after.call(Some(*chosen));
                         }
-                    }}
+                    })}
+                    label="Lock the screen after"
+                    disabled={read_only}
+                    @test_id={"display.lock-after"}
                 />
             </LayeredSettingsRow>
         </SettingsSection>

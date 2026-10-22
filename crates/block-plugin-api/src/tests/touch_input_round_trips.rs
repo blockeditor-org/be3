@@ -4,6 +4,7 @@ use super::*;
 fn touch_input_round_trips() {
     let message = Message::Input(InputBatch {
         screen: ScreenId(3),
+        every_sample: false,
         events: vec![InputEvent::Touch {
             device: 4,
             finger: 5,
@@ -11,6 +12,7 @@ fn touch_input_round_trips() {
             x: 12.0,
             y: 24.0,
             force: Some(0.75),
+            time_micros: 1_234_567,
         }],
     });
 

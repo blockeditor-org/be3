@@ -1,3 +1,4 @@
+use block_editor_beui::beui::styled::Root;
 use std::cell::RefCell;
 
 use beui::NodeId;
@@ -11,12 +12,13 @@ use super::*;
 pub struct LogicGridApp;
 
 impl block_editor_beui::BeuiApp for LogicGridApp {
-    fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::LogicGridContent>(&[]);
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded loaded={loaded}>
-                <LogicGridView editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <LogicGridView editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

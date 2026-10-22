@@ -13,7 +13,7 @@ fn shown(harness: &Harness, test_id: &str) -> bool {
 fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout focus=10u64>

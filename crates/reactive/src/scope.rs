@@ -6,23 +6,25 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 use crate::computation::{Computation, no_computation};
 use crate::runtime::{
-    Context, RUNTIME, batch, flush, flush_within, leave_component_body, next_sequence,
+    Context, RUNTIME, batch, defer, flush_within, leave_component_body, next_sequence,
 };
 
 pub(crate) struct Gate {
     parent: Option<Rc<Gate>>,
+    effects_only: bool,
     paused_at: Cell<Option<u64>>,
     parked: RefCell<Vec<Weak<Computation>>>,
 }
 
 impl Gate {
-    pub(crate) fn closed_since(gate: &Rc<Gate>, queued_at: u64) -> Option<Rc<Gate>> {
+    pub(crate) fn closed_since(gate: &Rc<Gate>, queued_at: u64, binding: bool) -> Option<Rc<Gate>> {
         let mut gate = Some(gate);
         while let Some(current) = gate {
-            if current
-                .paused_at
-                .get()
-                .is_some_and(|paused| queued_at > paused)
+            if !(binding && current.effects_only)
+                && current
+                    .paused_at
+                    .get()
+                    .is_some_and(|paused| queued_at > paused)
             {
                 return Some(current.clone());
             }
@@ -177,13 +179,22 @@ impl Scope {
         }
     }
 
-    pub fn pausable(mut self) -> Self {
+    pub fn pausable(self) -> Self {
+        self.gated(false)
+    }
+
+    pub fn pausable_effects(self) -> Self {
+        self.gated(true)
+    }
+
+    fn gated(mut self, effects_only: bool) -> Self {
         assert!(
             self.owner.is_inert(),
             "a scope must be made pausable before anything is created in it"
         );
         let gate = Rc::new(Gate {
             parent: self.owner.gate.borrow().clone(),
+            effects_only,
             paused_at: Cell::new(None),
             parked: RefCell::new(Vec::new()),
         });
@@ -215,12 +226,13 @@ impl Scope {
             let mut queue = runtime.queue.borrow_mut();
             for computation in parked {
                 if let Some(live) = computation.upgrade() {
+                    live.rerun_whatever_it_reads();
                     live.queued_at.set(next_sequence());
                     queue.push_back(computation);
                 }
             }
         });
-        flush();
+        crate::runtime::wake_if_pending();
     }
 
     pub fn run<T>(&self, f: impl FnOnce() -> T) -> T {
@@ -230,7 +242,7 @@ impl Scope {
     }
 
     pub fn dispose(&self) {
-        batch(|| self.owner.dispose());
+        defer(|| self.owner.dispose());
     }
 
     pub fn is_disposed(&self) -> bool {

@@ -11,7 +11,6 @@ use beui_components_unstyled::{
 };
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -28,23 +27,24 @@ const ARROW_SPACING: f32 = 4.0;
 
 #[component]
 pub fn Select(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SelectApi>,
+
     options: Children<ChoiceOption>,
-    selected: Prop<Option<usize>>,
+    #[prop(default = None)] selected: Binding<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = Extent::at_most(TRIGGER_MAX_WIDTH))] width: Prop<Extent>,
-    on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
     let placeholder = create_memo(move || placeholder.get());
     view! {
         <unstyled::Select
+            api
             options
             selected
             disabled
             label
-            on_change={on_change}
             search_placeholder="Search"
             search_content={|handle| view! {
                 <SearchField handle />
@@ -113,12 +113,13 @@ fn SelectTrigger(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
                     <Text
-                        string={label_text}
                         color={text_color}
                         align=TextAlign::Start
                         ellipsis=true
                         @sizing=ItemSize::Percent(100.0)
-                    />
+                    >
+                        {label_text}
+                    </Text>
                     <Text color={arrow_color} align=TextAlign::Center>
                         <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} />
                     </Text>
@@ -167,7 +168,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, OPTION_PADDING_VERTICAL)}
         >
-            <Text string={label} align=TextAlign::Start />
+            <Text align=TextAlign::Start>{label}</Text>
         </Frame>
     }
 }
@@ -185,14 +186,6 @@ fn SelectPopup(children: Child) -> NodeId {
             {children}
         </Frame>
     }
-}
-
-pub fn select_selected(document: &Document, select: NodeId) -> Option<usize> {
-    unstyled::select_selected(document, select)
-}
-
-pub fn select_open(document: &Document, select: NodeId) -> bool {
-    unstyled::select_open(document, select)
 }
 
 fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {

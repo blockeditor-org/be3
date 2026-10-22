@@ -14,7 +14,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
     let sizes = create_signal::<Vec<ReadSignal<Vec2>>>(Vec::new());
     let collapsed = create_signal::<Vec<Memo<bool>>>(Vec::new());
     let (outer_item, inner_item) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|size| {
                 sizes.update(|sizes| sizes.push(size));

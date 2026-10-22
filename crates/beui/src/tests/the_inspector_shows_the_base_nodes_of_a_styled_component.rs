@@ -8,7 +8,7 @@ fn the_inspector_shows_the_base_nodes_of_a_styled_component() {
     let (document, [_row]) = toolbar_of(|| {
         [view! {
             <ListRow>
-                <Text string="Hello" color=Color32::WHITE />
+                <Text color=Color32::WHITE>"Hello"</Text>
             </ListRow>
         }]
     });

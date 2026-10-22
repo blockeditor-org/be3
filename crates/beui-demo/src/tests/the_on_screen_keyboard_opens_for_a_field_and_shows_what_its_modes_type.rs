@@ -9,9 +9,15 @@ const SIZE: Vec2 = Vec2::new(420.0, 640.0);
 fn field() -> DocumentTest {
     let document = build(move || {
         view! {
-            <Frame fill=ColorRole::Background padding=Sides::all(16.0)>
-                <TextInput @test_id={"test.field"} value=String::new() placeholder="Type here" />
-            </Frame>
+            <Root>
+                <Frame fill=ColorRole::Background padding=Sides::all(16.0)>
+                    <TextInput
+                        @test_id={"test.field"}
+                        value=String::new()
+                        placeholder="Type here"
+                    />
+                </Frame>
+            </Root>
         }
     });
     DocumentTest::new(document, SIZE)
@@ -36,7 +42,7 @@ fn value_of(test: &DocumentTest) -> String {
         .document()
         .find_test_id("test.field")
         .expect("the field");
-    text_input_value(test.document(), field)
+    test.document().api::<TextInputApi>(field).value()
 }
 
 #[test]

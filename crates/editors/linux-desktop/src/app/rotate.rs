@@ -46,7 +46,7 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
             });
             view! {
                 <List spacing=SPACING>
-                    <Text string="Tap the one that's right side up" wrap=true />
+                    <Text wrap=true>"Tap the one that's right side up"</Text>
                     <RotationPicker
                         test_id={"desktop.rotate".to_owned()}
                         display={display}

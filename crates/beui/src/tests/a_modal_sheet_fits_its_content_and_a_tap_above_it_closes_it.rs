@@ -9,7 +9,7 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     let content = NodeRef::new();
     let closed = create_signal(0);
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

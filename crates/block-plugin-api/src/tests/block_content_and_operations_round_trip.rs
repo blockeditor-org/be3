@@ -9,6 +9,7 @@ fn block_content_and_operations_round_trip() {
             content_type: [9; 16],
             bytes: vec![1, 2, 3, 4, 5, 6, 7, 8],
             session: vec![9, 10],
+            unsettled: vec![ByteBuf::from(vec![11])],
             applied: 3,
         },
         EditorMessage::Content {
@@ -17,15 +18,26 @@ fn block_content_and_operations_round_trip() {
             content_type: [9; 16],
             bytes: Vec::new(),
             session: Vec::new(),
+            unsettled: Vec::new(),
             applied: 0,
         },
         EditorMessage::ContentOperations {
             instance: EditorInstanceId(7),
             block_id: [5; 16],
-            operations: vec![ContentOperation {
-                operation: vec![3],
-                mine: true,
-            }],
+            operations: vec![
+                ContentOperation {
+                    operation: vec![3],
+                    mine: true,
+                    unsettled: 1,
+                    beneath: None,
+                },
+                ContentOperation {
+                    operation: vec![4],
+                    mine: false,
+                    unsettled: 1,
+                    beneath: Some(vec![ByteBuf::from(vec![3])]),
+                },
+            ],
         },
         EditorMessage::Operate {
             instance: EditorInstanceId(7),

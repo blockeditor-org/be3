@@ -7,7 +7,6 @@ use crate as unstyled;
 use crate::ButtonHandle;
 use crate::typeahead::Typeahead;
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -53,33 +52,36 @@ pub fn ChoiceOption(label: Prop<String>) -> ChoiceOption {
 struct State {
     options: Stored<Run<ChoiceOption>>,
     focus: Signal<Option<usize>>,
-    selected: Signal<Option<usize>>,
+    selected: Binding<Option<usize>>,
     kind: ChoiceKind,
     direction: Direction,
     typeahead: Stored<RefCell<Typeahead>>,
-    on_change: Callback<Option<usize>>,
 }
 
 #[component]
 pub fn Choice(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi>,
     options: Children<ChoiceOption>,
-    selected: Prop<Option<usize>>,
+    #[prop(default = None)] selected: Binding<Option<usize>>,
     kind: ChoiceKind,
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
-    on_change: Callback<Option<usize>>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
 ) -> NodeId {
-    let selected_prop = selected;
     let option = option.expect("choice requires an `option` builder");
     let options = options.into_run();
     let direction = direction.unwrap_or(match kind {
         ChoiceKind::Tabs => Direction::Horizontal,
         ChoiceKind::Radio | ChoiceKind::Listbox => Direction::Vertical,
     });
-    let selected = create_signal(None);
     let selection = create_selector(move || selected.get());
-    let tab_stop_owner = create_selector(move || selected.get().unwrap_or(0));
+    let counted = options.clone();
+    let tab_stop_owner = create_selector(move || {
+        selected
+            .get()
+            .filter(|index| *index < counted.len())
+            .unwrap_or(0)
+    });
     let focus = create_signal(None);
     let focused = create_selector(move || focus.get());
 
@@ -96,9 +98,8 @@ pub fn Choice(
         kind,
         direction,
         typeahead: store(RefCell::default()),
-        on_change,
     };
-    set_component_state(state);
+    api.fill(ChoiceApi(state));
     let built_options: Stored<RefCell<Vec<Rc<ChoiceOption>>>> = store(RefCell::default());
     let buttons = options.build_each(
         built_options,
@@ -155,18 +156,9 @@ pub fn Choice(
         });
     }
 
-    create_effect(move || {
-        state.options.value().len();
-        sync_selected(state, selected_prop.get());
-    });
-
     view! {
         <List direction wrap spacing=6.0 children={buttons} />
     }
-}
-
-pub fn choice_selected(document: &Document, choice: NodeId) -> Option<usize> {
-    document.component_state::<State>(choice).selected.get()
 }
 
 fn track_focus(state: State, index: usize, has_focus: bool) {
@@ -175,13 +167,6 @@ fn track_focus(state: State, index: usize, has_focus: bool) {
     } else if state.focus.get_untracked() == Some(index) {
         state.focus.set(None);
     }
-}
-
-fn sync_selected(state: State, selected: Option<usize>) {
-    if selected.is_some_and(|index| index >= option_count(state)) {
-        return;
-    }
-    state.selected.set(selected);
 }
 
 fn option_count(state: State) -> usize {
@@ -195,11 +180,10 @@ fn select(state: State, selected: Option<usize>) {
         return;
     }
     let focused = state.focus.get_untracked().is_some();
-    sync_selected(state, selected);
+    state.selected.set(selected);
     if focused && selected.unwrap_or(0) < option_count(state) {
         state.focus.set(Some(selected.unwrap_or(0)));
     }
-    state.on_change.call(selected);
 }
 
 fn key(state: State, index: usize, press: KeyPress) -> bool {
@@ -250,5 +234,18 @@ fn typeahead(state: State, index: usize, text: &str) {
     if let Some(next) = matched {
         state.focus.set(Some(next));
         select(state, Some(next));
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ChoiceApi(State);
+
+impl ChoiceApi {
+    pub fn selected(&self) -> Option<usize> {
+        let state = self.0;
+        state
+            .selected
+            .get_untracked()
+            .filter(|index| *index < option_count(state))
     }
 }

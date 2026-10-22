@@ -17,6 +17,7 @@ use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{Key, KeyChord, Modifiers};
+use crate::window::Appearance;
 
 use crate::display::Display;
 use crate::interact;
@@ -25,7 +26,7 @@ use crate::node::{
     ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
 };
 use crate::paint::{self, PaintCache, verify};
-use crate::painter::{Painter, PainterState};
+use crate::painter::{Painter, PainterState, Zoom};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -56,6 +57,7 @@ pub enum Acted {
 pub struct Document {
     pub arena: Arena,
     pub root: Option<NodeId>,
+    appearance: Option<Appearance>,
     pub focused: Option<NodeId>,
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
@@ -80,15 +82,18 @@ pub struct Document {
     pub(crate) focus_into: Option<(NodeId, u64)>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
-    timers: RefCell<crate::timer::Timers>,
+    timers: Rc<RefCell<crate::timer::Timers>>,
     scale: ::reactive::OwnedSignal<f32>,
     attached: ::reactive::OwnedSignal<u64>,
     focus_visible: ::reactive::OwnedSignal<bool>,
+    focus_watched: ::reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::reactive::OwnedSignal<bool>,
     screens: ::reactive::OwnedSignal<Vec<Screen>>,
     offered_screens: Option<Vec<Screen>>,
     rescreened: RefCell<Option<Vec<Screen>>>,
     reattached: Cell<bool>,
+    pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
+    pub(crate) pointer_locked: Cell<bool>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
@@ -99,6 +104,8 @@ pub struct Document {
     intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub(crate) press_claimants: HashSet<NodeId>,
+    pub(crate) drawing_surfaces: HashSet<NodeId>,
+    pub(crate) every_sample_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
@@ -134,7 +141,10 @@ pub struct Document {
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
+    pub(crate) canvas_moves: Vec<NodeId>,
+    pub(crate) canvas_moves_from: u64,
     pub copied_text: Option<String>,
+    pub copied_image: Option<Vec<u8>>,
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::reactive::Scope,
@@ -155,6 +165,9 @@ pub struct Document {
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
+    theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
+    canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
+    preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<String>>,
     animations: Rc<Cell<usize>>,
 }
@@ -266,6 +279,7 @@ impl Document {
         Self {
             arena: Arena::default(),
             root: None,
+            appearance: None,
             focused: None,
             focus_before: None,
             composed: String::new(),
@@ -291,15 +305,18 @@ impl Document {
             focus_into: None,
             back_handlers: Vec::new(),
             back_gesture: None,
-            timers: RefCell::new(Vec::new()),
+            timers: Rc::default(),
             scale: ::reactive::OwnedSignal::new(1.0),
             attached: ::reactive::OwnedSignal::new(0),
             focus_visible: ::reactive::OwnedSignal::new(false),
+            focus_watched: ::reactive::OwnedSignal::new(None),
             fullscreen: ::reactive::OwnedSignal::new(false),
             screens: ::reactive::OwnedSignal::new(Vec::new()),
             offered_screens: None,
             rescreened: RefCell::new(None),
             reattached: Cell::new(false),
+            pointer_lockers: RefCell::default(),
+            pointer_locked: Cell::new(false),
             finger_taps: RefCell::new(Vec::new()),
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
@@ -310,6 +327,8 @@ impl Document {
             intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
             autoscroll: None,
             press_claimants: HashSet::default(),
+            drawing_surfaces: HashSet::default(),
+            every_sample_surfaces: HashSet::default(),
             outside_watchers: HashSet::default(),
             forward: Default::default(),
             pointers: Default::default(),
@@ -344,7 +363,10 @@ impl Document {
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
+            canvas_moves: Vec::new(),
+            canvas_moves_from: 0,
             copied_text: None,
+            copied_image: None,
             next_paint: None,
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
@@ -365,6 +387,9 @@ impl Document {
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
+            theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
+            preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
         }
@@ -382,6 +407,17 @@ impl Document {
 
     pub fn root(&self) -> Option<NodeId> {
         self.root
+    }
+
+    pub fn appearance(&self) -> Option<&Appearance> {
+        self.appearance.as_ref()
+    }
+
+    pub fn update_appearance(&mut self, change: impl FnOnce(&mut Appearance)) {
+        change(self.appearance.get_or_insert_default());
+        if let Some((ctx, _, _)) = &self.viewport {
+            ctx.request_repaint();
+        }
     }
 
     fn relay_for_viewport(&mut self) {
@@ -443,8 +479,8 @@ impl Document {
         }
     }
 
-    pub fn register_timer(&self, timer: Weak<crate::timer::TimerState>) {
-        self.timers.borrow_mut().push(timer);
+    pub fn timers(&self) -> Rc<RefCell<crate::timer::Timers>> {
+        Rc::clone(&self.timers)
     }
 
     pub fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
@@ -483,6 +519,21 @@ impl Document {
         self.screens
             .read_only()
             .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
+    }
+
+    pub fn watch_focused(&self) -> ::reactive::ReadSignal<Option<NodeId>> {
+        self.focus_watched.read_only()
+    }
+
+    pub(crate) fn set_focused(&mut self, focused: Option<NodeId>) {
+        let entered = focused.filter(|node| self.focused != Some(*node));
+        self.focused = focused;
+        self.focus_watched.set(focused);
+        if let Some(node) = entered
+            && self.focus_takes_text()
+        {
+            self.reveal_in_canvases(node);
+        }
     }
 
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
@@ -596,12 +647,18 @@ impl Document {
         if let Some(screens) = rescreened {
             self.screens.set(screens);
         }
-        if self.reattached.replace(false) {
+        let reattached = self.reattached.replace(false);
+        if reattached {
             self.attached.update(|attached| *attached += 1);
         }
+        self.publish_pointer_lock(reattached);
         let now = self.now;
         let mut timers = self.timers.borrow_mut();
-        timers.retain(|timer| timer.strong_count() > 0);
+        timers.retain(|timer| {
+            timer
+                .upgrade()
+                .is_some_and(|timer| timer.due().is_some() || timer.unlist())
+        });
         let due: Vec<_> = timers
             .iter()
             .filter_map(Weak::upgrade)
@@ -781,12 +838,46 @@ impl Document {
         self.motion.read_only()
     }
 
-    fn set_motion(&mut self, motion: crate::animation::Motion) {
-        if self.motion() == motion {
+    pub fn preferences(&self) -> crate::preferences::Preferences {
+        crate::preferences::Preferences {
+            theme: self.theme.get_untracked(),
+            motion: self.motion.get_untracked(),
+            canvas_touch: self.canvas_touch.get_untracked(),
+        }
+    }
+
+    pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<crate::preferences::CanvasTouch> {
+        self.canvas_touch.read_only()
+    }
+
+    pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
+        self.theme.read_only()
+    }
+
+    pub fn watch_preference_layers(
+        &self,
+    ) -> ::reactive::ReadSignal<crate::preferences::PreferenceLayers> {
+        self.preference_layers.read_only()
+    }
+
+    fn follow_preferences(&mut self, layers: crate::preferences::PreferenceLayers) {
+        if self.preference_layers.get_untracked() == layers {
             return;
         }
-        self.arena.invalidate();
-        self.motion.set(motion);
+        let preferences = layers.resolve();
+        crate::current::run_in(self, |document| {
+            document.preference_layers.set(layers);
+            if document.motion() != preferences.motion {
+                document.arena.invalidate();
+                document.motion.set(preferences.motion);
+            }
+            if document.theme.get_untracked() != preferences.theme {
+                document.theme.set(preferences.theme);
+            }
+            if document.canvas_touch.get_untracked() != preferences.canvas_touch {
+                document.canvas_touch.set(preferences.canvas_touch);
+            }
+        });
     }
 
     pub fn track_damage(&mut self, enabled: bool) {
@@ -813,7 +904,13 @@ impl Document {
     }
 
     pub fn copy_text(&mut self, text: impl Into<String>) {
+        self.copied_image = None;
         self.copied_text = Some(text.into());
+    }
+
+    pub fn copy_image(&mut self, png: Vec<u8>) {
+        self.copied_text = None;
+        self.copied_image = Some(png);
     }
 
     pub fn request_paste(&mut self) {
@@ -935,7 +1032,7 @@ impl Document {
             .focused
             .is_some_and(|focused| self.is_within(focused, id))
         {
-            self.focused = None;
+            self.set_focused(None);
         }
         let mut removed = Vec::new();
         self.detach_subtree(id, &mut removed);
@@ -988,6 +1085,8 @@ impl Document {
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.press_claimants.remove(&id);
+        self.drawing_surfaces.remove(&id);
+        self.every_sample_surfaces.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
         self.reveals.remove(&id);
@@ -1007,7 +1106,7 @@ impl Document {
             self.root = None;
         }
         if self.focused == Some(id) {
-            self.focused = None;
+            self.set_focused(None);
         }
         if self.focus_before == Some(id) {
             self.focus_before = None;
@@ -1021,6 +1120,13 @@ impl Document {
     }
 
     pub fn show(&mut self, ctx: &Context, rect: Rect) {
+        self.show_with_tools(ctx, rect);
+        if let Some(appearance) = &self.appearance {
+            ctx.set_appearance(appearance);
+        }
+    }
+
+    fn show_with_tools(&mut self, ctx: &Context, rect: Rect) {
         if let Some(mut tools) = self.tools.take() {
             tools.show(self, ctx, rect);
             if self.tools.is_none() {
@@ -1143,7 +1249,7 @@ impl Document {
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect) {
         self.now = ctx.now();
-        self.set_motion(ctx.motion());
+        self.follow_preferences(ctx.preference_layers());
         if std::mem::take(&mut self.hidden) {
             ctx.report_damage(rect);
             self.conceal_embeds(false);
@@ -1251,6 +1357,9 @@ impl Document {
 
         if let Some(text) = self.copied_text.take() {
             ctx.copy_text(text);
+        }
+        if let Some(png) = self.copied_image.take() {
+            ctx.copy_image(png);
         }
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
@@ -1574,6 +1683,10 @@ impl Document {
         self.component_states.entry(id).or_default().push(state);
     }
 
+    pub fn api<A: Clone + 'static>(&self, id: NodeId) -> A {
+        self.component_state::<A>(id).clone()
+    }
+
     pub fn component_state<T: 'static>(&self, id: NodeId) -> &T {
         self.component_states
             .get(&id)
@@ -1858,8 +1971,8 @@ impl Document {
             space: given.space,
         };
         let moved = out.insert(id, placed) != Some(placed);
-        let space = out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
-        if moved || space {
+        out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
+        if moved {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
         if moved {
@@ -1907,7 +2020,7 @@ impl Document {
             .painters
             .insert(id, held)
             .map(|held| (held.given.clip, held.culled));
-        if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
+        if previous != Some(placed) || previous_held.map(|(_, was)| was) != Some(culled) {
             let parent = self.layout_parent;
             self.accessibility_tree
                 .get_mut()
@@ -1917,6 +2030,9 @@ impl Document {
             || previous_held.map(|(_, was)| was) != Some(culled)
         {
             self.repaint_painter_of(id);
+        }
+        if previous.is_some_and(|previous| previous.rect.size() != rect.size()) {
+            self.arena.note_relaid(id);
         }
         if culled {
             let mut dropped = Vec::new();
@@ -2024,12 +2140,25 @@ impl Document {
         clip: Rect,
         out: &Rects,
     ) -> Painter {
+        self.enter_zoomed_space(host, slot, painter, translation, Zoom::NONE, clip, out)
+    }
+
+    pub fn enter_zoomed_space(
+        &mut self,
+        host: NodeId,
+        slot: u8,
+        painter: &Painter,
+        translation: Vec2,
+        zoom: Zoom,
+        clip: Rect,
+        out: &Rects,
+    ) -> Painter {
         let space = SpaceId::inside(host, slot);
-        let entered = painter.shifted(space, translation, clip);
+        let entered = painter.zoomed(space, translation, zoom, clip);
         let state = painter.state();
         let kept = state.clip.intersect(clip);
-        if out.set_space(space, state.space, translation, kept) {
-            self.accessibility_tree.get_mut().mark(host, &self.arena);
+        if out.set_scaled_space(space, state.space, translation, zoom.scale, kept) {
+            self.accessibility_tree.get_mut().move_space(space);
         }
         entered
     }
@@ -2088,10 +2217,12 @@ impl Document {
                 format!("{} {id:?} ({names})", self.node_kind(*id))
             })
             .collect();
-        eprintln!(
+        let message = format!(
             "beui: layout did not settle in {LAYOUTS_PER_FRAME} layouts; what each reported kept \
              changing the layout of {relaid:?}"
         );
+        assert!(!failing_unsettled_layout(), "{message}");
+        eprintln!("{message}");
     }
 
     fn run_laid_out(&mut self) {
@@ -2190,6 +2321,8 @@ impl Document {
             });
         }
         self.placing.clear();
+        self.canvas_moves_from += self.canvas_moves.len() as u64;
+        self.canvas_moves.clear();
         self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
         self.layout_pass = self.layout_pass.wrapping_add(1);
@@ -2233,6 +2366,17 @@ fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+static FAIL_UNSETTLED_LAYOUT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub fn fail_unsettled_layout(enabled: bool) {
+    FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn failing_unsettled_layout() -> bool {
+    cfg!(test) || FAIL_UNSETTLED_LAYOUT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 const LAYOUTS_PER_FRAME: usize = 4;
 
 impl Document {
@@ -2249,8 +2393,10 @@ impl Document {
             else {
                 continue;
             };
+            let transform = rects.transform(held.given.space);
             let state = PainterState {
-                origin: rects.offset(held.given.space),
+                origin: transform.offset,
+                scale: transform.scale,
                 space_clip: rects.space_clip(held.given.space),
                 ..held.given
             };

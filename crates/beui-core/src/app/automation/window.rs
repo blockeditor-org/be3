@@ -1,4 +1,5 @@
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
+use crate::file_picker::PickedFile;
 use crate::geometry::Vec2;
 use crate::runner::Platform;
 use crate::window::WindowReports;
@@ -47,6 +48,7 @@ pub struct Simulation {
     pub screen: Vec2,
     pub fullscreen: bool,
     pub clipboard: Option<String>,
+    pub copied_image: Option<Vec<u8>>,
     reports: WindowReports,
 }
 
@@ -57,6 +59,7 @@ impl Simulation {
             screen: screen.unwrap_or(window.size),
             fullscreen: false,
             clipboard: None,
+            copied_image: None,
             reports,
         };
         simulation.report_size();
@@ -87,15 +90,33 @@ impl Simulation {
 
 impl Platform for Simulation {
     fn copy(&mut self, text: String) {
+        self.copied_image = None;
         self.clipboard = Some(text);
+    }
+
+    fn copy_image(&mut self, png: Vec<u8>) {
+        self.clipboard = None;
+        self.copied_image = Some(png);
     }
 
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
         let text = self
             .clipboard
             .clone()
-            .filter(|_| kinds.contains(&PasteKind::Text));
-        answer.send(text.map(Pasted::Text));
+            .filter(|_| kinds.contains(&PasteKind::Text))
+            .map(Pasted::Text);
+        let image = || {
+            self.copied_image
+                .clone()
+                .filter(|_| kinds.contains(&PasteKind::Image))
+                .map(|data| {
+                    Pasted::Image(PickedFile {
+                        name: "Pasted Image.png".to_owned(),
+                        data,
+                    })
+                })
+        };
+        answer.send(text.or_else(image));
     }
 
     fn set_fullscreen(&mut self, fullscreen: bool) {

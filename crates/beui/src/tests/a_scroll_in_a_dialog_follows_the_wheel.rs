@@ -8,7 +8,7 @@ use crate::styled::*;
 fn a_scroll_in_a_dialog_follows_the_wheel() {
     let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

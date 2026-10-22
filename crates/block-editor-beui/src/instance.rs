@@ -48,6 +48,8 @@ struct Shown {
     content: Option<beui::Rect>,
     painted: Vec<beui::Rect>,
     floating: Vec<beui::Rect>,
+    drawing: Vec<beui::Rect>,
+    every_sample: bool,
     claims: Vec<(beui::Modifiers, beui::Rect)>,
     exit: bool,
 }
@@ -81,10 +83,6 @@ impl<A: BeuiApp> beui::App for RegionApp<A> {
             }
         }
     }
-
-    fn clear_color(&self) -> beui::Color32 {
-        beui::Color32::TRANSPARENT
-    }
 }
 
 struct Views<A: BeuiApp> {
@@ -101,29 +99,21 @@ struct Views<A: BeuiApp> {
     app: PhantomData<A>,
 }
 
-fn follow_host_theme(document: &mut beui::Document) {
-    use beui::styled::*;
-    let theme = match block_editor_plugin::host_theme() {
-        block_plugin_api::Theme::Dark => Theme::DARK,
-        block_plugin_api::Theme::OledDark => Theme::OLED,
-        block_plugin_api::Theme::Light => Theme::LIGHT,
-        block_plugin_api::Theme::EInk => Theme::EINK,
-    };
-    if document.theme() != theme {
-        document.set_theme(theme);
-    }
-}
-
 impl<A: BeuiApp> Views<A> {
     fn preview(&mut self, context: &beui::Context, rect: beui::Rect) {
         let Some(editor) = self.preview.as_deref().copied() else {
             return;
         };
-        let document = self
-            .preview_document
-            .get_or_insert_with(|| beui::reactive::build(move || A::preview_view(editor)));
+        let document = self.preview_document.get_or_insert_with(|| {
+            beui::reactive::build(move || {
+                beui::reactive::view! {
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                        {A::preview_view(editor)}
+                    </beui::styled::Root>
+                }
+            })
+        });
         editor.begin_frame();
-        follow_host_theme(document);
         document.show(context, rect);
         editor.end_frame(document);
     }
@@ -134,7 +124,6 @@ impl<A: BeuiApp> Views<A> {
         };
         let creation = creation.clone();
         creation.begin_frame();
-        follow_host_theme(dialog);
         dialog.show(context, rect);
         let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
         measured
@@ -154,10 +143,15 @@ impl<A: BeuiApp> Views<A> {
         };
         let document = self.settings.get_or_insert_with(|| {
             let built = artifacts.clone();
-            beui::reactive::build(move || A::artifact_settings_view(built))
+            beui::reactive::build(move || {
+                beui::reactive::view! {
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                        {A::artifact_settings_view(built)}
+                    </beui::styled::Root>
+                }
+            })
         });
         artifacts.receive_settings(&std::mem::take(draft));
-        follow_host_theme(document);
         document.show(context, rect);
         *draft = artifacts
             .take_settings_edit()
@@ -215,7 +209,6 @@ impl<A: BeuiApp> Views<A> {
         if let Some(editor) = &editor {
             editor.begin_frame();
         }
-        follow_host_theme(chrome.document_mut());
         chrome.document_mut().show(context, rect);
         if let Some(editor) = &editor {
             editor.end_frame(chrome.document());
@@ -224,6 +217,8 @@ impl<A: BeuiApp> Views<A> {
         shown.exit = chrome.exit().take();
         shown.painted = vec![rect];
         shown.floating = chrome.document().overlay_rects();
+        shown.drawing = chrome.document().drawing_rects();
+        shown.every_sample = chrome.document().wants_every_sample();
         shown.claims = chrome.document().press_claims();
     }
 
@@ -271,6 +266,15 @@ impl<A: BeuiApp> BeuiInstance<A> {
             (EditorRegion::Frame, true) => self.views.dialog.as_ref(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_ref(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_ref(),
+        }
+    }
+
+    pub(crate) fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
+        match (region, self.views.creating) {
+            (EditorRegion::Frame, false) => self.views.chrome.as_mut().map(BeuiFrame::document_mut),
+            (EditorRegion::Frame, true) => self.views.dialog.as_mut(),
+            (EditorRegion::Preview, _) => self.views.preview_document.as_mut(),
+            (EditorRegion::ArtifactSettings, _) => self.views.settings.as_mut(),
         }
     }
 
@@ -343,7 +347,13 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .take()
             .unwrap_or_else(|| Creation::for_template(self.host.clone(), template));
         let built = creation.clone();
-        self.views.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
+        self.views.dialog = Some(beui::reactive::build(move || {
+            beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    {A::creation_view(built)}
+                </beui::styled::Root>
+            }
+        }));
         self.views.creation = Some(creation);
     }
 
@@ -462,16 +472,13 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         frame.content = shown.content.map(to_region);
         frame.painted = shown.painted.into_iter().map(to_region).collect();
         frame.floating = shown.floating.into_iter().map(to_region).collect();
+        frame.drawing = shown.drawing.into_iter().map(to_region).collect();
+        frame.every_sample = shown.every_sample;
         frame.claims = shown
             .claims
             .into_iter()
             .map(|(held, rect)| block_editor_plugin::Claim {
-                modifiers: block_plugin_api::Modifiers {
-                    alt: held.alt,
-                    control: held.ctrl,
-                    shift: held.shift,
-                    logo: held.logo,
-                },
+                modifiers: held,
                 rect: to_region(rect),
             })
             .collect();

@@ -16,15 +16,30 @@ fn escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
-    assert!(styled::select_open(harness.document(), select));
+    assert!(harness.document().api::<styled::SelectApi>(select).open());
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(!styled::select_open(harness.document(), select));
-    assert_eq!(styled::select_selected(harness.document(), select), Some(0));
-    assert!(unstyled::button_focused(harness.document(), trigger).get());
+    assert!(!harness.document().api::<styled::SelectApi>(select).open());
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::SelectApi>(select)
+            .selected(),
+        Some(0)
+    );
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(trigger)
+            .focused()
+            .get()
+    );
 }

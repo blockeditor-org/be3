@@ -7,7 +7,7 @@ use crate::reactive::*;
 fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
     let _root = crate::reactive::RootScope::new();
     let zoom = create_signal(1.0_f32);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Interactive
                 @test_id={"surface"}

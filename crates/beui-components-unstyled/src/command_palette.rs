@@ -1,10 +1,9 @@
 use beui_core::layer::Dismiss;
 use std::cell::RefCell;
 
-use accesskit::{Node, Role};
-use beui_core::base::overlay::{OverlayAnchor, OverlayNode, Placement};
+use accesskit::{Node, Role, Toggled};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{Key, KeyPress};
 use beui_core::keys::{KeyAt, KeyPhase};
@@ -23,6 +22,7 @@ pub struct CommandRowHandle {
     pub label: Prop<String>,
     pub glyph: String,
     pub shortcut: Option<String>,
+    pub checked: Memo<Option<bool>>,
     pub disabled: Memo<bool>,
     pub highlighted: Memo<bool>,
     pub hovered: ReadSignal<bool>,
@@ -38,21 +38,21 @@ struct State {
     highlighted: Signal<Option<u64>>,
     searching: Signal<bool>,
     rows: Stored<RefCell<Vec<(u64, NodeRef)>>>,
-    on_close: ClickCallback,
+    open: Binding<bool>,
 }
 
 #[component]
 pub fn CommandPalette(
-    open: Prop<bool>,
-    on_close: ClickCallback,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<CommandPaletteApi>,
+    open: Binding<bool>,
     list_height: Prop<f32>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     search_placeholder: Prop<String>,
-    search_content: Option<Render<TextInputHandle>>,
+    search_content: Option<RenderFn<TextInputHandle>>,
     #[prop(default = TextInputStyle::default())] search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     row: Option<RenderFn<CommandRowHandle>>,
-    #[prop(children)] panel: Option<Render<Child>>,
+    #[prop(children)] panel: Option<RenderFn<Child>>,
 ) -> NodeId {
     let row = row.unwrap_or_else(|| {
         RenderFn::new(|_| {
@@ -61,7 +61,7 @@ pub fn CommandPalette(
             }
         })
     });
-    let panel = panel.unwrap_or_else(|| Render::new(|content| content));
+    let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let query = create_signal(String::new());
     let shown = create_signal(Vec::<u64>::new());
     let highlighted = create_signal(None::<u64>);
@@ -75,9 +75,9 @@ pub fn CommandPalette(
         highlighted,
         searching,
         rows: store(RefCell::new(Vec::new())),
-        on_close,
+        open,
     };
-    set_component_state(state);
+    api.fill(CommandPaletteApi(state));
 
     create_effect(move || {
         if open.get() {
@@ -85,6 +85,7 @@ pub fn CommandPalette(
         }
     });
 
+    let search_placeholder = create_memo(move || search_placeholder.get());
     let highlight = create_selector(move || highlighted.get());
     let keys = create_memo(move || shown.get());
     let reveal = reveal_reader(state);
@@ -110,13 +111,15 @@ pub fn CommandPalette(
                     <unstyled::TextInput
                         @node_ref={&state.search}
                         @test_id={"command-palette.search"}
-                        value={query}
+                        value={Binding::new(query, move |text: String| filter(state, &text))}
                         focused={searching}
                         placeholder={search_placeholder}
                         style={search_style}
                         accessibility={accessibility}
-                        content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
-                        on_change={move |text: String| filter(state, &text)}
+                        content={Render::new(move |handle: TextInputHandle| match search_content {
+                            Some(search) => search.call(handle),
+                            None => handle.field,
+                        })}
                         on_submit={move |_text: String| {
                             if let Some(key) = state.highlighted.get_untracked() {
                                 confirm(state, key);
@@ -151,11 +154,16 @@ fn CommandRow(
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();
+    let checked = action.checked();
+    let checked = create_memo(move || checked.map(|checked| checked.get()));
     let accessibility = create_memo({
         let label = label.clone();
         move || {
             let mut node = Node::new(Role::ListBoxOption);
             node.set_label(label.get());
+            if let Some(on) = checked.get() {
+                node.set_toggled(Toggled::from(on));
+            }
             if disabled.get() {
                 node.set_disabled();
             }
@@ -183,6 +191,7 @@ fn CommandRow(
                 label: label.clone(),
                 glyph: glyph.clone(),
                 shortcut: shortcut.clone(),
+                checked,
                 disabled,
                 highlighted: highlight.memo(Some(key)),
                 hovered: handle.hovered,
@@ -202,7 +211,7 @@ fn find(state: State, key: u64) -> Option<Action> {
 }
 
 fn start(state: State) {
-    let path = with_document(|document| document.focus_ancestry());
+    let path = focus_ancestry();
     let mut actions = active_actions_from(&path);
     actions.sort_by_key(|action| !action.is_enabled());
     *state.actions.value().borrow_mut() = actions;
@@ -214,13 +223,10 @@ fn start(state: State) {
 
 fn close(state: State) {
     state.searching.set(false);
-    state.on_close.call();
-    let overlay = state.overlay.try_get();
-    with_document(|document| {
-        if let Some(overlay) = overlay.and_then(|id| document.arena.kind_of::<OverlayNode>(id)) {
-            document.close_overlay(overlay);
-        }
-    });
+    state.open.set(false);
+    if let Some(overlay) = state.overlay.try_get() {
+        overlay.close_overlay();
+    }
 }
 
 fn dismiss(state: State) {
@@ -311,42 +317,47 @@ fn reveal_reader(state: State) -> Prop<Option<usize>> {
     })
 }
 
-pub fn command_palette_search(document: &Document, palette: NodeId) -> NodeId {
-    document.component_state::<State>(palette).search.get()
-}
+#[derive(Clone, Copy)]
+pub struct CommandPaletteApi(State);
 
-pub fn command_palette_shown(document: &Document, palette: NodeId) -> Vec<String> {
-    let state = *document.component_state::<State>(palette);
-    let actions = state.actions.value();
-    let actions = actions.borrow();
-    state
-        .shown
-        .get_untracked()
-        .iter()
-        .filter_map(|key| actions.iter().find(|action| action.key() == *key))
-        .map(|action| action.id().to_owned())
-        .collect()
-}
+impl CommandPaletteApi {
+    pub fn search(&self) -> NodeId {
+        self.0.search.get()
+    }
 
-pub fn command_palette_highlighted(document: &Document, palette: NodeId) -> Option<String> {
-    let state = *document.component_state::<State>(palette);
-    let key = state.highlighted.get_untracked()?;
-    find(state, key).map(|action| action.id().to_owned())
-}
+    pub fn shown(&self) -> Vec<String> {
+        let state = self.0;
+        let actions = state.actions.value();
+        let actions = actions.borrow();
+        state
+            .shown
+            .get_untracked()
+            .iter()
+            .filter_map(|key| actions.iter().find(|action| action.key() == *key))
+            .map(|action| action.id().to_owned())
+            .collect()
+    }
 
-pub fn command_palette_row(document: &Document, palette: NodeId, id: &str) -> Option<NodeId> {
-    let state = *document.component_state::<State>(palette);
-    let key = state
-        .actions
-        .value()
-        .borrow()
-        .iter()
-        .find(|action| action.id() == id)
-        .map(Action::key)?;
-    let rows = state.rows.value();
-    let rows = rows.borrow();
-    rows.iter()
-        .rev()
-        .find(|(other, _)| *other == key)
-        .and_then(|(_, node)| node.try_get())
+    pub fn highlighted(&self) -> Option<String> {
+        let state = self.0;
+        let key = state.highlighted.get_untracked()?;
+        find(state, key).map(|action| action.id().to_owned())
+    }
+
+    pub fn row(&self, id: &str) -> Option<NodeId> {
+        let state = self.0;
+        let key = state
+            .actions
+            .value()
+            .borrow()
+            .iter()
+            .find(|action| action.id() == id)
+            .map(Action::key)?;
+        let rows = state.rows.value();
+        let rows = rows.borrow();
+        rows.iter()
+            .rev()
+            .find(|(other, _)| *other == key)
+            .and_then(|(_, node)| node.try_get())
+    }
 }

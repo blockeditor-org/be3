@@ -10,7 +10,7 @@ fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
     let open = create_signal(true);
     let heard = create_signal(0);
     let overlay = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
             let escaped = event
                 .press()

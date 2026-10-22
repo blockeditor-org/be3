@@ -233,7 +233,7 @@ fn RulerTick(tick: Tick) -> CanvasItem {
     let label = format!("{}:{:02}", tick.seconds / 60, tick.seconds % 60);
     view! {
         <CanvasItem x={tick.x + 3.0} y=2.0 width=60.0 height={RULER_HEIGHT - 4.0}>
-            <Text style=TextStyle::CAPTION string={label} />
+            <Text style=TextStyle::CAPTION>{label}</Text>
         </CanvasItem>
     }
 }
@@ -312,7 +312,7 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                                     on_state={move |_| {}}
                                 />
                             </Frame>
-                            <Text @sizing=ItemSize::Percent(100.0) string={name} />
+                            <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
                             <TrimHandle state={state} row={row} scale={scale} />
                         </List>
                     </Frame>
@@ -323,7 +323,10 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
 }
 
 #[component]
-fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) -> CanvasItem {
+fn DropMarker(
+    target: Memo<Option<TimelineDropTarget>>,
+    scale: ReadSignal<f32>,
+) -> DynamicSegment<CanvasItem> {
     let preview = create_memo(move || {
         let scale = scale.get();
         match target.get()? {
@@ -361,14 +364,15 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame
-                visible={shown}
-                fill=ColorRole::AccentSoft
-                radius={Radius::custom(CLIP_RADIUS)}
-                border={create_memo(move || shown.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
-            />
-        </CanvasItem>
+        <Show condition={shown}>
+            <CanvasItem x={x} y={y} width={width} height={height}>
+                <Frame
+                    fill=ColorRole::AccentSoft
+                    radius={Radius::custom(CLIP_RADIUS)}
+                    border={Border::new(ColorRole::Accent).width(2.0)}
+                />
+            </CanvasItem>
+        </Show>
     }
 }
 

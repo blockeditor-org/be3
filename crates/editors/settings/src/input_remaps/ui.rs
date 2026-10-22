@@ -74,12 +74,11 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                         }}
                         selected={tab}
                         @test_id={"input-remaps.tabs"}
-                        on_change={move |index: usize| tab.set(index)}
                     />
                 </SettingsRow>
                 <Show condition={offered}>
                     <SettingsRow label="This device" separated=true>
-                        <Text style=TextStyle::CAPTION string={status} wrap=true />
+                        <Text style=TextStyle::CAPTION wrap=true>{status}</Text>
                     </SettingsRow>
                 </Show>
             </SettingsSection>

@@ -11,8 +11,7 @@ fn dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside() {
     );
 
     let from = editor.rect_of("logic-grid.slot.0").center();
-    let column = editor.rect_of("logic-grid.column.1");
-    let to = Pos2::new(column.center().x, column.bottom() - 8.0);
+    let to = editor.rect_of("logic-grid.column.1").center();
     editor.drag(from, to);
     editor.run();
 

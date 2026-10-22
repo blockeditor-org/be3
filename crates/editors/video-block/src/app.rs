@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::VideoContent;
 
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::video::{VideoFrameRate, VideoOperation};
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CONTENT_CUT, ICON_DELETE, ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW,
@@ -9,7 +10,6 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockQuery, Loaded};
 use block_editor_beui::{Creation, Editor, Toolbar};
 use uuid::Uuid;
 
@@ -41,25 +41,19 @@ const FRAME_RATES: [VideoFrameRate; 7] = [
 pub struct VideoApp;
 
 impl block_editor_beui::BeuiApp for VideoApp {
-    fn view(editor: Editor) -> NodeId {
-        let loaded =
-            editor.loaded::<block_editor_beui::be_block::VideoContent>(&[BlockQuery::References(
-                editor.block_id(),
-            )]);
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded loaded={loaded}>
-                <VideoEditor editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <VideoEditor editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
-        let loaded =
-            editor.loaded::<block_editor_beui::be_block::VideoContent>(&[BlockQuery::References(
-                editor.block_id(),
-            )]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <VideoPreview editor={editor} />
             </Loaded>
         }
@@ -124,7 +118,7 @@ fn EffectsColumn(state: VideoState) -> NodeId {
 }
 
 #[component]
-fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> NodeId {
+fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> DynamicSegment<ListChild> {
     let rate = state.frame_rate;
     let chosen = create_memo(move || {
         FRAME_RATES
@@ -140,16 +134,15 @@ fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> NodeId {
                         <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
                     </ForEach>
                 }}
-                selected={chosen}
-                label="Frames per second"
-                @test_id={"video.frame-rate"}
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(chosen, move |index: Option<usize>| {
                     let Some(frame_rate) = index.and_then(|index| FRAME_RATES.get(index).copied())
                     else {
                         return;
                     };
                     state.operate(VideoOperation::SetFrameRate { frame_rate });
-                }}
+                })}
+                label="Frames per second"
+                @test_id={"video.frame-rate"}
             />
         </Toolbar>
     }
@@ -193,7 +186,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
                     label="Go to the end"
                     on_click={move || state.seek(state.duration.get_untracked())}
                 />
-                <Text style=TextStyle::CAPTION string={position} />
+                <Text style=TextStyle::CAPTION>{position}</Text>
             </List>
         </Frame>
     }

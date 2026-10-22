@@ -4,7 +4,7 @@ use super::*;
 fn children_written_as_a_prop_and_between_the_tags_are_rejected() {
     let Err(error) = syn::parse2::<View>(quote! {
         <List spacing=4.0 children>
-            <Text string="one" />
+            <Text>"one"</Text>
         </List>
     }) else {
         panic!("children written both ways are rejected");

@@ -44,8 +44,10 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
             intrinsic: None,
             rotation: 0.0,
             opacity: 1.0,
+            follows_camera: false,
         }],
         occluders: Vec::new(),
+        camera: None,
     });
     assert!(
         instances.frame_child(INSTANCE).is_some(),

@@ -34,7 +34,6 @@ const ROW_PADDING_VERTICAL: f32 = 6.0;
 const ROW_SPACING: f32 = 12.0;
 const PICTURE_SIZE: f32 = 32.0;
 const PAGE: usize = 8;
-const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 90);
 
 const EXACT: u32 = 100;
 const PREFIX: u32 = 90;
@@ -190,6 +189,8 @@ pub fn Launcher(
     on_run: Callback<String>,
     on_close: ClickCallback,
 ) -> NodeId {
+    let theme = use_theme();
+    let scrim = create_memo(move || theme.scrim_soft.get());
     let query = create_signal(String::new());
     let searching = create_signal(false);
     let highlighted = create_signal(None::<Row>);
@@ -255,10 +256,10 @@ pub fn Launcher(
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
             placement=Placement::Center
-            scrim=SCRIM
+            scrim={scrim}
             open
             on_dismiss={move |_: Dismiss| on_close.call()}
-            content={move || view! {
+            content={move || { let items = items.clone(); let placeholder = placeholder.clone(); view! {
                 <Frame padding=MARGIN>
                     <Frame
                         width={Extent::at_most(WIDTH)}
@@ -280,7 +281,6 @@ pub fn Launcher(
                                 content={|handle| view! {
                                     <LauncherSearch handle />
                                 }}
-                                on_change={move |text: String| state.query.set(text)}
                                 on_submit={move |_: String| state.submit()}
                             />
                             <unstyled::Scroll
@@ -295,7 +295,7 @@ pub fn Launcher(
                         </List>
                     </Frame>
                 </Frame>
-            }}
+            } }}
         />
     }
 }
@@ -429,9 +429,9 @@ fn LauncherRowFace(
                     </List>
                 </Frame>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Text string={title} align=TextAlign::Start ellipsis=true />
+                    <Text align=TextAlign::Start ellipsis=true>{title}</Text>
                     <Show condition={described}>
-                        <Text style=TextStyle::CAPTION string={detail} ellipsis=true />
+                        <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                     </Show>
                 </List>
             </List>

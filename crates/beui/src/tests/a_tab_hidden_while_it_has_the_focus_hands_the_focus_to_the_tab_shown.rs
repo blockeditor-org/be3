@@ -26,7 +26,7 @@ fn a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown() {
     let heard: Heard = Rc::default();
     let layout = DockingLayout::new();
     let (one, two) = (Rc::clone(&heard), Rc::clone(&heard));
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <styled::Docking layout>
                 <DockPane id="tabs">

@@ -239,9 +239,11 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     }
 
     fn window(&self, doc: &Document, painter: &Painter, start: f32, main: f32) -> (f32, f32) {
-        let clip = painter
-            .clip_rect()
-            .intersect(doc.viewport_rect().translate(-painter.origin()));
+        let state = painter.state();
+        let clip = state
+            .clip
+            .intersect(state.space_clip)
+            .intersect(state.to_local(doc.viewport_rect()));
         let (from, to) = match self.direction {
             Direction::Horizontal => (clip.left(), clip.right()),
             Direction::Vertical => (clip.top(), clip.bottom()),
@@ -483,6 +485,9 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let main = (doc.pixel_grid().snap(total) != main).then_some(main);
         let window = self.window(doc, painter, start, main.unwrap_or(f32::INFINITY));
         let shift = self.realize(doc, node, painter, window, main, cross);
+        if window.0 > 0.0 || window.1 < self.metrics.total() {
+            painter.ctx().note_space_read();
+        }
         let grid = doc.pixel_grid();
         for row in self.shown() {
             let placed = item_rect(

@@ -1,16 +1,19 @@
+use crate::marks::{Expand, Name, Scope, Seed, Value as MarkValue};
 use crate::{
     Anchor, Bounds, Change, Count, Document, Edit, Grid, Latest, LatestMap, List, Map, Model,
-    ObjectId, Paint, SeqOp, Stamp, Text, Touched,
+    ObjectId, Paint, RichText, SeqOp, Stamp, Text, Touched,
 };
 
 mod a_burst_of_sets_to_one_field_undoes_as_one_step;
 mod a_burst_of_typing_undoes_as_one_step;
 mod a_card_cannot_be_moved_after_itself_or_into_something_that_is_not_a_list;
+mod a_card_cannot_be_moved_into_a_list_of_columns_nor_a_column_among_cards;
 mod a_card_edited_after_a_move_is_edited_where_it_went;
 mod a_card_inserted_after_one_someone_removed_at_once_lands_where_that_one_was;
 mod a_card_moved_to_different_columns_on_each_side_conflicts_and_goes_where_ours_put_it;
 mod a_card_moved_to_the_same_place_on_both_sides_merges_cleanly;
 mod a_card_removed_on_both_sides_merges_without_a_conflict;
+mod a_card_saved_among_columns_by_an_older_build_reads_as_a_column;
 mod a_column_removed_on_one_side_stays_removed_when_the_other_edits_a_card_in_it;
 mod a_column_removed_on_one_side_stays_removed_when_the_other_moves_a_card_into_it;
 mod a_document_reads_back_what_it_was_built_from;
@@ -18,6 +21,7 @@ mod a_document_round_trips_every_kind_of_field_through_bytes;
 mod a_field_added_to_a_type_after_a_document_was_saved_can_be_set;
 mod a_field_changed_on_one_side_merges_to_that_change_from_either_side;
 mod a_frozen_document_keeps_loading_into_a_schema_that_only_adds;
+mod a_gestures_steps_fold_into_one_that_stays_as_small_as_its_last_values;
 mod a_grid_grown_the_same_way_on_both_sides_keeps_both_paints;
 mod a_grid_reshaped_differently_on_each_side_conflicts_and_keeps_ours;
 mod a_key_removed_on_one_side_and_changed_on_the_other_stays_removed;
@@ -27,6 +31,7 @@ mod a_move_that_changes_nothing_has_no_step;
 mod a_newer_schema_that_only_adds_is_compatible_and_one_that_takes_away_is_not;
 mod a_node_cannot_move_inside_itself;
 mod a_paint_the_other_side_cropped_away_counts_as_a_conflict;
+mod a_peer_edit_under_local_edits_touches_only_what_either_changed;
 mod a_property_only_a_newer_build_knows_survives_an_older_build_saving;
 mod a_register_that_cannot_read_without_one_of_its_fields_is_reported;
 mod a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_card;
@@ -36,6 +41,7 @@ mod a_saved_document_names_its_kinds_properties_and_list_ids;
 mod a_stored_grid_whose_size_overflows_reads_as_blank;
 mod a_text_field_keeps_bytes_that_are_not_utf8;
 mod a_text_field_saves_its_bytes_and_reloads_with_fresh_positions;
+mod adopting_session_state_carries_marks_to_a_reloaded_document;
 mod adopting_session_state_carries_text_positions_to_a_reloaded_document;
 mod adopting_session_state_for_different_text_is_refused;
 mod an_edit_that_changes_nothing_has_no_step;
@@ -46,6 +52,7 @@ mod an_insert_whose_subtree_lists_an_object_twice_or_itself_is_refused;
 mod an_older_format_is_migrated_and_a_newer_one_is_refused;
 mod an_unknown_critical_property_locks_only_its_object_and_only_when_set;
 mod block_refs_are_found_wherever_they_are_kept;
+mod block_refs_kept_through_edits_match_a_fresh_walk;
 mod both_sides_setting_a_field_to_the_same_value_merge_without_a_conflict;
 mod bytes_are_stored_as_a_byte_string;
 mod cards_inserted_at_the_same_place_on_both_sides_merge_to_both_in_that_place;
@@ -53,6 +60,7 @@ mod cards_inserted_at_the_start_and_the_end_at_once_keep_their_ends;
 mod count_changes_made_at_once_add_up_in_either_order;
 mod counts_merge_by_adding_both_sides;
 mod counts_saturate_instead_of_wrapping;
+mod formatting_and_typing_at_once_converge_in_either_order;
 mod grids_merge_cell_by_cell_and_keep_coordinates_across_a_resize;
 mod inserting_touches_the_list_and_everything_inserted;
 mod latest_map_keys_merge_to_their_later_write_and_a_later_removal_wins;
@@ -74,6 +82,9 @@ mod removals_are_kept_in_memory_and_never_saved;
 mod removing_a_column_while_the_other_side_moves_a_card_out_of_it_keeps_only_that_card;
 mod removing_touches_the_list_and_everything_that_was_inside;
 mod reorders_of_different_cards_on_each_side_merge_to_both;
+mod rich_text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
+mod rich_text_formatted_and_typed_on_different_lines_merges_cleanly;
+mod rich_text_saves_its_formatting_as_byte_ranges_and_reloads_it;
 mod setting_a_field_of_a_removed_card_changes_nothing;
 mod strokes_into_different_grids_undo_separately;
 mod text_changed_on_different_lines_on_each_side_merges_cleanly;
@@ -83,6 +94,7 @@ mod two_inserts_after_the_same_card_at_once_both_land_after_it;
 mod undo_leaves_a_field_someone_else_changed_since;
 mod undo_of_map_entries_restores_only_what_nobody_changed_since;
 mod undo_puts_a_removed_column_back_with_its_cards;
+mod undoing_a_format_takes_back_only_that_format;
 mod undoing_a_move_puts_the_card_back_even_after_someone_moved_it_since;
 mod undoing_a_move_puts_the_card_back_where_it_was;
 mod undoing_a_put_of_a_new_key_removes_it_unless_someone_changed_it_since;
@@ -326,4 +338,77 @@ fn typed_into(document: &mut Document<Note>, index: usize, typed: &str) -> Edit 
     });
     document.apply(&edit);
     edit
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Caption {
+    words: RichText,
+}
+
+fn caption(text: &str, seeds: Vec<Seed>) -> Document<Caption> {
+    Document::new(&Caption {
+        words: RichText::new(text, seeds),
+    })
+}
+
+fn bold(range: std::ops::Range<usize>) -> Seed {
+    Seed {
+        range,
+        scope: Scope::Inline,
+        expand: Expand::After,
+        key: Name::new("bold"),
+        value: MarkValue::Bool(true),
+    }
+}
+
+fn heading(range: std::ops::Range<usize>) -> Seed {
+    Seed {
+        range,
+        scope: Scope::Block,
+        expand: Expand::After,
+        key: Name::new("heading"),
+        value: MarkValue::Int(1),
+    }
+}
+
+fn words(document: &Document<Caption>) -> String {
+    document.root().words.to_str_lossy().into_owned()
+}
+
+fn seeds(document: &Document<Caption>) -> Vec<Seed> {
+    document.root().words.seeds().to_vec()
+}
+
+fn format(
+    document: &Document<Caption>,
+    client: u64,
+    range: std::ops::Range<usize>,
+    key: &str,
+    value: Option<MarkValue>,
+) -> Edit {
+    let rich = document
+        .rich(ObjectId::ROOT, Caption::WORDS)
+        .expect("the caption has words");
+    let mark = rich
+        .format(
+            client,
+            range,
+            Scope::Inline,
+            Expand::After,
+            &Name::new(key),
+            value,
+        )
+        .expect("the range is in the text");
+    Caption::WORDS.mark(ObjectId::ROOT, mark).into()
+}
+
+fn type_into(document: &Document<Caption>, client: u64, index: usize, typed: &str) -> Edit {
+    let rich = document
+        .rich(ObjectId::ROOT, Caption::WORDS)
+        .expect("the caption has words");
+    let op = rich
+        .text
+        .insert(client, index, typed.as_bytes().to_vec())
+        .expect("the index is in the text");
+    Caption::WORDS.edit(ObjectId::ROOT, op).into()
 }

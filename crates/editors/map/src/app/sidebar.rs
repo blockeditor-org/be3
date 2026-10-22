@@ -64,7 +64,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
 
     view! {
         <List spacing=10.0>
-            <Text style=TextStyle::HEADING string="Map" />
+            <Text style=TextStyle::HEADING>"Map"</Text>
             <Separator />
             <RegionInspector state={state} />
             <Separator />
@@ -76,7 +76,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
             </Show>
             <Show condition={failed}>
                 <List spacing=4.0>
-                    <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                     <Button
                         label="Dismiss"
                         variant=ButtonVariant::Secondary
@@ -96,22 +96,19 @@ fn RegionInspector(state: MapState) -> NodeId {
     let loose_color = TextColor::Muted;
     view! {
         <List spacing=6.0>
-            <Text string="Preview region" />
+            <Text>"Preview region"</Text>
             <Checkbox
                 label="Show a fixed region"
-                checked={fixed}
-                @test_id={"map.preview-region"}
-                on_change={move |on: bool| {
+                checked={Binding::new(fixed, move |on: bool| {
                     let region = on.then(|| state.visible_region.get_untracked());
                     state.record(Map::set_preview_region(region));
-                }}
+                })}
+                @test_id={"map.preview-region"}
             />
             <Show condition={loose}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Previews show the whole world."
-                    color={loose_color}
-                />
+                <Text style=TextStyle::CAPTION color={loose_color}>
+                    "Previews show the whole world."
+                </Text>
             </Show>
             <Show condition={fixed}>
                 <List spacing=6.0>
@@ -249,11 +246,10 @@ fn Coordinate(
 ) -> NodeId {
     view! {
         <NumberInput
-            value={value}
+            value={Binding::new(value, move |next: f64| on_change.call(next))}
             min={-limit}
             max={limit}
             label={label.to_owned()}
-            on_change={move |next: f64| on_change.call(next)}
         />
     }
 }
@@ -273,17 +269,14 @@ fn PointList(state: MapState) -> NodeId {
     let hint = TextColor::Muted;
     view! {
         <List spacing=6.0>
-            <Text string="Points of interest" />
+            <Text>"Points of interest"</Text>
             <Show condition={empty}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Add blocks with the + button, by dragging them in from Files, or by pasting an image."
-                    wrap=true
-                    color={hint}
-                />
+                <Text style=TextStyle::CAPTION wrap=true color={hint}>
+                    "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
+                </Text>
             </Show>
             <Show condition={any}>
-                <Text style=TextStyle::CAPTION string="Select a marker to edit it." />
+                <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text>
             </Show>
             <ForEach keys={ids}>|id: Uuid|
                 <PointRow state id />
@@ -314,7 +307,7 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             on_activate={move || {}}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text @sizing=ItemSize::Percent(100.0) string={label} />
+                <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
                 <Swatch color={swatch} />
             </List>
         </ListRow>
@@ -340,7 +333,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
     let label = create_memo(move || point_name(&state, point.get()));
     let block = create_memo(move || {
         let point = point.get()?;
-        let label = state.label_of(point.block_id)?;
+        let label = state.label_of(point.block_id).ok()?;
         Some(ChildTarget::new(point.block_id, label.block_type))
     });
     let openable = create_memo(move || block.get().is_none());
@@ -362,7 +355,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     @test_id={"map.point.back"}
                     on_click={move || state.select(None)}
                 />
-                <Text @sizing=ItemSize::Percent(100.0) string={label} />
+                <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
             </List>
             <Frame height=PREVIEW_HEIGHT radius=Radius::Sm>
                 <ChildBlock
@@ -403,34 +396,32 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     }}
                 />
             </List>
-            <Text string="Position" />
+            <Text>"Position"</Text>
             <NumberInput
-                value={latitude}
-                min={-MAX_LATITUDE}
-                max=MAX_LATITUDE
-                label="Latitude"
-                on_change={move |value: f64| {
+                value={Binding::new(latitude, move |value: f64| {
                     let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     point.position.latitude = value;
                     state.record(Map::update(&[point]));
-                }}
+                })}
+                min={-MAX_LATITUDE}
+                max=MAX_LATITUDE
+                label="Latitude"
             />
             <NumberInput
-                value={longitude}
-                min=-180.0
-                max=180.0
-                label="Longitude"
-                on_change={move |value: f64| {
+                value={Binding::new(longitude, move |value: f64| {
                     let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     point.position.longitude = value;
                     state.record(Map::update(&[point]));
-                }}
+                })}
+                min=-180.0
+                max=180.0
+                label="Longitude"
             />
-            <Text string="Colour" />
+            <Text>"Colour"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ForEach
                     keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
@@ -439,16 +430,15 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 </ForEach>
             </List>
             <ColorInput
-                value={custom}
-                label="Custom colour"
-                on_change={move |color: Color32| {
+                value={Binding::new(custom, move |color: Color32| {
                     let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     let [red, green, blue, _] = color.to_array();
                     point.color = MapColor::Rgb { red, green, blue };
                     state.record(Map::update(&[point]));
-                }}
+                })}
+                label="Custom colour"
             />
         </List>
     }
@@ -488,11 +478,5 @@ fn preset_role(name: &str) -> Prop<Node> {
 }
 
 fn point_name(state: &MapState, point: Option<MapPoint>) -> String {
-    let Some(point) = point else {
-        return String::new();
-    };
-    match state.label_of(point.block_id) {
-        Some(label) => label.name,
-        None => "Loading…".to_owned(),
-    }
+    point.map_or_else(String::new, |point| state.name_of(point.block_id))
 }

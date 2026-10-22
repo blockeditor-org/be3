@@ -2,14 +2,14 @@ use be_block::BlockContent as _;
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, Camera, ChildContent,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildRect, ChildStatus, CreationOutcome,
+    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewId,
+    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
 };
-use block_plugin_api::{DescribedAction, WindowRequests};
+use block_plugin_api::{ByteBuf, DescribedAction, WindowRequests};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -28,7 +28,6 @@ use crate::{
     editors::plugin::discovery,
     host, performance,
     platform::{SavedFile, http, save_file},
-    plugin_host::web_view::WebViewHost,
 };
 
 thread_local! {
@@ -142,7 +141,7 @@ struct Instance {
     presenting: bool,
     reported_presenting: bool,
     host_values: Watched,
-    web_views: HashMap<WebViewId, WebViewHost>,
+    unshown_web_views: Vec<WebViewId>,
     presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
     next_replacement: u64,
@@ -152,7 +151,8 @@ struct Instance {
     watched: HashMap<Uuid, ContentLink>,
     shown: std::collections::HashSet<(Uuid, Uuid)>,
     block_queries: Vec<block_plugin_api::BlockQuery>,
-    sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
+    sent_blocks:
+        HashMap<block_plugin_api::BlockQuery, Result<Vec<block_plugin_api::BlockInfo>, String>>,
     blocks_seen: Option<u64>,
     version_sent: Option<u64>,
     stale: bool,
@@ -211,6 +211,7 @@ impl ContentLink {
                 content_type,
                 bytes,
                 session,
+                unsettled,
                 applied,
             } => EditorMessage::Content {
                 instance,
@@ -218,15 +219,13 @@ impl ContentLink {
                 content_type: content_type.into_bytes(),
                 bytes,
                 session,
+                unsettled: unsettled.into_iter().map(ByteBuf::from).collect(),
                 applied,
             },
             crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
                 instance,
                 block_id,
-                operations: operations
-                    .into_iter()
-                    .map(|(operation, mine)| block_plugin_api::ContentOperation { operation, mine })
-                    .collect(),
+                operations,
             },
         }))
     }
@@ -269,6 +268,7 @@ pub(super) struct Held {
 pub(crate) struct EditorView {
     pub(crate) rect: Rect,
     pub(crate) scale: f32,
+    pub(crate) moved: bool,
 }
 
 enum Replacement {
@@ -322,7 +322,7 @@ impl Instance {
             presenting: false,
             reported_presenting: false,
             host_values: Watched::default(),
-            web_views: HashMap::new(),
+            unshown_web_views: Vec::new(),
             presence_visible: None,
             replacements: HashMap::new(),
             next_replacement: 0,
@@ -335,11 +335,11 @@ impl Instance {
             version_sent: None,
             stale: true,
             prefetched: match role {
-                InstanceRole::Editor(block) => prefetched_references(block),
+                InstanceRole::Editor(_, block) => prefetched_references(block),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => Vec::new(),
             },
             content: match role {
-                InstanceRole::Editor(block) => own_content_type(block)
+                InstanceRole::Editor(_, block) => own_content_type(block)
                     .map(|content_type| ContentLink::opening(block.id, content_type)),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
@@ -390,18 +390,29 @@ impl Instance {
         self.blocks_seen = Some(revision);
         let mut messages = Vec::new();
         for query in &self.block_queries {
-            if !crate::be::ready(super::graph::query_of(*query)) {
+            let graph_query = super::graph::query_of(*query);
+            let answer = match crate::be::ready(graph_query) {
+                true => Ok(super::graph::answer(*query)),
+                false => match crate::be::failure(graph_query) {
+                    Some(error) => Err(error),
+                    None => continue,
+                },
+            };
+            if self.sent_blocks.get(query) == Some(&answer) {
                 continue;
             }
-            let blocks = super::graph::answer(*query);
-            if self.sent_blocks.get(query) == Some(&blocks) {
-                continue;
-            }
-            self.sent_blocks.insert(*query, blocks.clone());
-            messages.push(Message::Editor(EditorMessage::Blocks {
-                instance,
-                query: *query,
-                blocks,
+            self.sent_blocks.insert(*query, answer.clone());
+            messages.push(Message::Editor(match answer {
+                Ok(blocks) => EditorMessage::Blocks {
+                    instance,
+                    query: *query,
+                    blocks,
+                },
+                Err(error) => EditorMessage::BlocksFailed {
+                    instance,
+                    query: *query,
+                    error,
+                },
             }));
         }
         messages
@@ -438,7 +449,7 @@ impl Instance {
         for (block, link) in &mut self.watched {
             link.messages(instance, *block, &mut messages);
         }
-        if let InstanceRole::Editor(block) = self.role
+        if let InstanceRole::Editor(_, block) = self.role
             && crate::be::is_versioned(block.block_type)
             && let Some((revision, status)) =
                 crate::be::version_since(block.id, block.block_type, self.version_sent)
@@ -525,7 +536,6 @@ impl Instance {
 pub(super) struct Placement {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
-    pub(super) pass: u64,
 }
 
 pub(super) struct Described<'a> {
@@ -570,6 +580,7 @@ struct ChildTable {
     size: Vec2,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
+    camera: Option<Camera>,
 }
 
 struct Hole {
@@ -707,6 +718,14 @@ impl Instances {
             return false;
         };
         crate::be::want(crate::be::Owner::Editor(instance.0), Vec::new());
+        let own = entry.role.block().zip(entry.content.as_ref());
+        let links = own
+            .map(|(block, link)| (block.id, link))
+            .into_iter()
+            .chain(entry.watched.iter().map(|(block, link)| (*block, link)));
+        for (block, link) in links {
+            crate::be::gesture(block, link.origin, block_plugin_api::GesturePhase::Cancel);
+        }
         for preview in &entry.revision_previews {
             crate::be::revisions::release(*preview);
         }
@@ -977,6 +996,7 @@ impl Instances {
         };
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events: vec![screen.input.back(gesture)],
         })]
     }
@@ -1003,6 +1023,7 @@ impl Instances {
         }
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events,
         })]
     }
@@ -1023,11 +1044,12 @@ impl Instances {
         else {
             return Vec::new();
         };
-        let Some(key) = beui_plugin_input::protocol_key(key) else {
+        if key == beui::Key::Unidentified {
             return Vec::new();
-        };
+        }
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
         })]
     }
@@ -1079,7 +1101,11 @@ impl Instances {
             true => input.rect.width() / screen.request.metrics.logical_width,
             false => 1.0,
         };
-        let mut messages = screen.input.forward(input, id, zoom);
+        let every_sample = screen
+            .report
+            .as_ref()
+            .is_some_and(|report| report.every_sample);
+        let mut messages = screen.input.forward(input, id, zoom, every_sample);
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));
         let revoked =
@@ -1236,7 +1262,7 @@ impl Instances {
         instance: EditorInstanceId,
         client_id: Uuid,
         block_types: &Arc<block_plugin_api::Catalog>,
-        source_type: Uuid,
+        editor: Uuid,
         block: EditorBlock,
         data: &[u8],
         resync: bool,
@@ -1246,7 +1272,7 @@ impl Instances {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
-            let mut entry = Instance::new(InstanceRole::Artifact(source_type, block));
+            let mut entry = Instance::new(InstanceRole::Artifact(editor, block));
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -1368,7 +1394,7 @@ impl Instances {
                 })
                 .map(|screen| screen.request.clone())
                 .collect();
-            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(_)) {
+            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) {
                 continue;
             }
             regions.sort_by_key(|request| request.screen.0);
@@ -1381,8 +1407,9 @@ impl Instances {
                 let account_id = account.into_bytes();
                 let organization_id = organization.into_bytes();
                 opened.push(match entry.role {
-                    InstanceRole::Editor(block) => Message::Editor(EditorMessage::Open {
+                    InstanceRole::Editor(editor, block) => Message::Editor(EditorMessage::Open {
                         instance,
+                        editor: editor.into_bytes(),
                         block_id: block.id.into_bytes(),
                         block_type: block.block_type.into_bytes(),
                         view_block: block.view_block.map(Uuid::into_bytes),
@@ -1398,17 +1425,17 @@ impl Instances {
                     InstanceRole::Creation(editor, template) => {
                         Message::Editor(EditorMessage::OpenCreation {
                             instance,
-                            block_type: editor.into_bytes(),
+                            editor: editor.into_bytes(),
                             template: template.to_owned(),
                             account_id,
                             organization_id,
                             client_id,
                         })
                     }
-                    InstanceRole::Artifact(source_type, block) => {
+                    InstanceRole::Artifact(editor, block) => {
                         Message::Editor(EditorMessage::OpenArtifact {
                             instance,
-                            source_type: source_type.into_bytes(),
+                            editor: editor.into_bytes(),
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
                             account_id,
@@ -1438,7 +1465,7 @@ impl Instances {
             }
             opened.append(&mut entry.deferred);
             let stale = std::mem::take(&mut entry.stale);
-            if let InstanceRole::Editor(block) = entry.role
+            if let InstanceRole::Editor(_, block) = entry.role
                 && (stale || graph_moved)
             {
                 let editable = crate::be::access(block.id).can_edit();
@@ -1500,6 +1527,7 @@ impl Instances {
                         width: view.rect.width(),
                         height: view.rect.height(),
                         scale: view.scale,
+                        moved: view.moved,
                     }));
                 }
             }
@@ -1616,6 +1644,7 @@ impl Instances {
             size,
             children,
             occluders,
+            camera,
         } = placements;
         let Some(screen) = self
             .entries
@@ -1640,10 +1669,43 @@ impl Instances {
             size: vec2(size.width, size.height),
             children,
             occluders,
+            camera,
         };
         let changed = screen.children != table;
         screen.children = table;
         (Vec::new(), changed)
+    }
+
+    pub(super) fn only_moves(&self, placements: &ChildPlacements) -> bool {
+        let Some(screen) = self
+            .entries
+            .get(&placements.instance)
+            .and_then(|entry| entry.screens.get(&placements.region))
+        else {
+            return false;
+        };
+        let current = &screen.children.children;
+        current.len() == placements.children.len()
+            && current
+                .iter()
+                .zip(&placements.children)
+                .all(|(current, next)| {
+                    (
+                        current.child,
+                        current.mode,
+                        current.own_frame,
+                        current.top_bar,
+                        current.layer,
+                        current.intrinsic,
+                    ) == (
+                        next.child,
+                        next.mode,
+                        next.own_frame,
+                        next.top_bar,
+                        next.layer,
+                        next.intrinsic,
+                    )
+                })
     }
 
     pub(super) fn host_children(
@@ -1652,6 +1714,7 @@ impl Instances {
         region: EditorRegion,
         rect: Rect,
         clip: Rect,
+        view: Option<EditorView>,
     ) -> (Vec<HostChild>, Holes) {
         let Some(screen) = self
             .entries
@@ -1759,7 +1822,14 @@ impl Instances {
                 }
             };
             let child_rect = host_rect(child.rect, origin, stretch);
-            let child_clip = host_rect(child.clip, origin, stretch).intersect(clip);
+            let (view_rect, child_clip) = match (child.follows_camera, table.camera, view) {
+                (true, Some(camera), Some(view)) => (
+                    host_rect(through(child.rect, camera, view), origin, stretch),
+                    host_rect(followed_clip(child, camera, view), origin, stretch),
+                ),
+                _ => (child_rect, host_rect(child.clip, origin, stretch)),
+            };
+            let child_clip = child_clip.intersect(clip);
             let occluders: Vec<Rect> = table
                 .occluders
                 .iter()
@@ -1786,6 +1856,7 @@ impl Instances {
                 top_bar: child.top_bar,
                 content,
                 rect: child_rect,
+                view_rect,
                 occluders,
                 clip: child_clip,
                 layer: child.layer,
@@ -1944,20 +2015,18 @@ impl Instances {
     pub(super) fn request_pick(
         &self,
         instance: EditorInstanceId,
-        pick: u64,
-        filter: block_plugin_api::BlockFilter,
-        parent: block_plugin_api::BlockLocation,
-        within: Option<Uuid>,
+        pick: super::runtime::Pick,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
         vec![Message::Editor(EditorMessage::PickRequested {
             instance,
-            pick,
-            filter,
-            parent,
-            within: within.map(Uuid::into_bytes),
+            pick: pick.pick,
+            filter: pick.filter,
+            parent: pick.parent,
+            within: pick.within.map(Uuid::into_bytes),
+            touch: pick.touch,
         })]
     }
 
@@ -2013,7 +2082,7 @@ impl Instances {
                     instance: *instance,
                     block: entry.role.block().map(|block| block.id),
                     role: match entry.role {
-                        InstanceRole::Editor(_) => "editor",
+                        InstanceRole::Editor(..) => "editor",
                         InstanceRole::Creation(..) => "creation",
                         InstanceRole::Artifact(..) => "artifact",
                     },
@@ -2155,54 +2224,15 @@ impl Instances {
             .is_some_and(|screen| std::mem::take(&mut screen.focus_requested))
     }
 
-    pub(super) fn drive_web_views(&mut self, pass: u64) -> Vec<Message> {
+    pub(super) fn drive_web_views(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
         for (instance, entry) in &mut self.entries {
-            if entry.web_views.is_empty() {
-                continue;
-            }
-            let mut rects = HashMap::new();
-            for screen in entry.screens.values() {
-                let Some(placement) = screen.placement else {
-                    continue;
-                };
-                let live =
-                    screen.mounted > 0 || (placement.pass == pass && screen.last_seen == pass);
-                if !live {
-                    continue;
-                }
-                let origin = placement.rect.min.to_vec2();
-                let stretch = vec2(
-                    ratio(placement.rect.width(), screen.request.metrics.logical_width),
-                    ratio(
-                        placement.rect.height(),
-                        screen.request.metrics.logical_height,
-                    ),
-                );
-                for child in &screen.children.children {
-                    let ChildContent::WebView(web_view) = child.content else {
-                        continue;
-                    };
-                    if child.rect.is_empty() {
-                        continue;
-                    }
-                    let clip = host_rect(child.clip, origin, stretch).intersect(placement.clip);
-                    rects.insert(
-                        web_view,
-                        host_rect(child.rect, origin, stretch).intersect(clip),
-                    );
-                }
-            }
-            for (web_view, view) in &mut entry.web_views {
-                let mut events = Vec::new();
-                view.drive(rects.get(web_view).copied(), &mut events);
-                for event in events {
-                    messages.push(Message::Editor(EditorMessage::WebViewEvent {
-                        instance: *instance,
-                        web_view: *web_view,
-                        event,
-                    }));
-                }
+            for web_view in entry.unshown_web_views.drain(..) {
+                messages.push(Message::Editor(EditorMessage::WebViewEvent {
+                    instance: *instance,
+                    web_view,
+                    event: WebViewEvent::Failed("This app can't show web pages yet.".to_owned()),
+                }));
             }
         }
         messages
@@ -2224,25 +2254,6 @@ impl Instances {
             instance,
             visible,
         })]
-    }
-
-    pub(super) fn child_view_changes(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        changes: Vec<(ChildId, ViewChange)>,
-    ) -> Vec<Message> {
-        changes
-            .into_iter()
-            .map(|(child, change)| {
-                Message::Editor(EditorMessage::ChildView {
-                    instance,
-                    region,
-                    child,
-                    change,
-                })
-            })
-            .collect()
     }
 
     pub(super) fn child_bar_actions(
@@ -2324,11 +2335,8 @@ impl Instances {
         Some(ImeArea {
             rect: host_rect(area.rect, origin, stretch),
             cursor: host_rect(area.cursor, origin, stretch),
-            text: area.text.as_ref().map(beui_plugin_input::beui_ime_text),
-            keyboard: match area.keyboard {
-                block_plugin_api::Keyboard::Held => beui::Keyboard::Held,
-                block_plugin_api::Keyboard::Shown { asks } => beui::Keyboard::Shown { asks },
-            },
+            text: area.text.clone(),
+            keyboard: area.keyboard,
         })
     }
 
@@ -2347,44 +2355,7 @@ impl Instances {
         region: EditorRegion,
     ) -> Option<beui::CursorIcon> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        Some(match screen.window.cursor {
-            CursorIcon::Default => beui::CursorIcon::Default,
-            CursorIcon::None => beui::CursorIcon::None,
-            CursorIcon::Pointer => beui::CursorIcon::PointingHand,
-            CursorIcon::Text => beui::CursorIcon::Text,
-            CursorIcon::Crosshair => beui::CursorIcon::Crosshair,
-            CursorIcon::Grab => beui::CursorIcon::Grab,
-            CursorIcon::Grabbing => beui::CursorIcon::Grabbing,
-            CursorIcon::Move => beui::CursorIcon::Move,
-            CursorIcon::NotAllowed => beui::CursorIcon::NotAllowed,
-            CursorIcon::Wait => beui::CursorIcon::Wait,
-            CursorIcon::Progress => beui::CursorIcon::Progress,
-            CursorIcon::Help => beui::CursorIcon::Help,
-            CursorIcon::ResizeHorizontal => beui::CursorIcon::ResizeHorizontal,
-            CursorIcon::ResizeVertical => beui::CursorIcon::ResizeVertical,
-            CursorIcon::ResizeNeSw => beui::CursorIcon::ResizeNeSw,
-            CursorIcon::ResizeNwSe => beui::CursorIcon::ResizeNwSe,
-            CursorIcon::Alias => beui::CursorIcon::Alias,
-            CursorIcon::ContextMenu => beui::CursorIcon::ContextMenu,
-            CursorIcon::Cell => beui::CursorIcon::Cell,
-            CursorIcon::VerticalText => beui::CursorIcon::VerticalText,
-            CursorIcon::Copy => beui::CursorIcon::Copy,
-            CursorIcon::NoDrop => beui::CursorIcon::NoDrop,
-            CursorIcon::AllScroll => beui::CursorIcon::AllScroll,
-            CursorIcon::ZoomIn => beui::CursorIcon::ZoomIn,
-            CursorIcon::ZoomOut => beui::CursorIcon::ZoomOut,
-            CursorIcon::ResizeColumn => beui::CursorIcon::ResizeColumn,
-            CursorIcon::ResizeRow => beui::CursorIcon::ResizeRow,
-            CursorIcon::ResizeNorth => beui::CursorIcon::ResizeNorth,
-            CursorIcon::ResizeEast => beui::CursorIcon::ResizeEast,
-            CursorIcon::ResizeSouth => beui::CursorIcon::ResizeSouth,
-            CursorIcon::ResizeWest => beui::CursorIcon::ResizeWest,
-            CursorIcon::ResizeNorthEast => beui::CursorIcon::ResizeNorthEast,
-            CursorIcon::ResizeNorthWest => beui::CursorIcon::ResizeNorthWest,
-            CursorIcon::ResizeSouthEast => beui::CursorIcon::ResizeSouthEast,
-            CursorIcon::ResizeSouthWest => beui::CursorIcon::ResizeSouthWest,
-            CursorIcon::Touch => beui::CursorIcon::Touch,
-        })
+        Some(screen.window.cursor)
     }
 
     pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Message {
@@ -2499,21 +2470,7 @@ impl Instances {
                 reply(HostReply::RevisionReleased);
             }
             HostRequest::PickFile(filter) => {
-                let filter = beui::FileFilter {
-                    name: filter.name,
-                    extensions: filter.extensions,
-                    mime_types: filter.mime_types,
-                };
-                host::pick_file(filter, move |picked| {
-                    reply(HostReply::FilePicked(match picked {
-                        Ok(Some(file)) => FilePick::Chosen {
-                            name: file.name,
-                            data: file.data,
-                        },
-                        Ok(None) => FilePick::Cancelled,
-                        Err(error) => FilePick::Failed(error),
-                    }));
-                });
+                host::pick_file(filter, move |picked| reply(HostReply::FilePicked(picked)));
             }
             HostRequest::SaveFile(file) => {
                 let file = SavedFile {
@@ -2647,6 +2604,7 @@ impl Instances {
                     | EditorMessage::ChangeView { .. }
                     | EditorMessage::Stopped { .. }
                     | EditorMessage::CopyText { .. }
+                    | EditorMessage::CopyImage { .. }
                     | EditorMessage::WebViewCommand { .. }
                     | EditorMessage::Request {
                         request: HostRequest::Fetch(_)
@@ -2811,6 +2769,25 @@ impl Instances {
                     return false;
                 };
                 crate::be::operate_from(block, link.origin, operation);
+                true
+            }
+            EditorMessage::Gesture {
+                instance,
+                block_id,
+                phase,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                if !self.editable(block) {
+                    return false;
+                }
+                let Some(link) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.link_mut(block))
+                else {
+                    return false;
+                };
+                crate::be::gesture(block, link.origin, phase);
                 true
             }
             EditorMessage::WatchContent { instance, blocks } => {
@@ -2997,7 +2974,7 @@ impl Instances {
                     AudioCommand::Reset => player.reset(),
                     AudioCommand::Toggle => {
                         let audio = crate::be::content(Uuid::from_bytes(block_id))
-                            .and_then(|held| be_block::AudioContent::decode(&held.bytes).ok());
+                            .and_then(|held| be_block::AudioContent::decode(held.bytes()).ok());
                         if let Some(audio) = audio {
                             player.toggle(&audio);
                         }
@@ -3013,11 +2990,9 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry
-                    .web_views
-                    .entry(web_view)
-                    .or_default()
-                    .command(command);
+                if let WebViewCommand::Open(_) = command {
+                    entry.unshown_web_views.push(web_view);
+                }
                 true
             }
             EditorMessage::CreationReady { instance, ready } => {
@@ -3059,6 +3034,13 @@ impl Instances {
                     return false;
                 }
                 host::copy_text(text);
+                false
+            }
+            EditorMessage::CopyImage { instance, png } => {
+                if !self.entries.contains_key(&instance) {
+                    return false;
+                }
+                host::copy_image(png);
                 false
             }
             EditorMessage::Paste { instance } => {
@@ -3364,6 +3346,34 @@ impl Instances {
         self.focus = focus;
         true
     }
+}
+
+fn through(rect: ChildRect, camera: Camera, view: EditorView) -> ChildRect {
+    if (camera.x, camera.y, camera.scale) == (view.rect.min.x, view.rect.min.y, view.scale) {
+        return rect;
+    }
+    let scale = ratio(view.scale, camera.scale);
+    ChildRect {
+        x: view.rect.min.x + (rect.x - camera.x) * scale,
+        y: view.rect.min.y + (rect.y - camera.y) * scale,
+        width: rect.width * scale,
+        height: rect.height * scale,
+    }
+}
+
+fn followed_clip(child: &ChildPlacement, camera: Camera, view: EditorView) -> ChildRect {
+    let (clip, swept) = (child.clip, child.rect.swept(child.rotation));
+    let held = |clipped: f32, own: f32, open: f32| match (clipped - own).abs() > 0.01 {
+        true => clipped,
+        false => open,
+    };
+    let held = ChildRect::from_edges(
+        held(clip.x, swept.x, f32::MIN),
+        held(clip.y, swept.y, f32::MIN),
+        held(clip.right(), swept.right(), f32::MAX),
+        held(clip.bottom(), swept.bottom(), f32::MAX),
+    );
+    through(swept, camera, view).intersect(held)
 }
 
 fn host_rect(rect: block_plugin_api::ChildRect, origin: Vec2, stretch: Vec2) -> Rect {

@@ -51,50 +51,41 @@ pub mod typeahead;
 pub use accessibility::labelled_node;
 pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
-pub use button::{Button, ButtonHandle, button_active, button_focused};
-pub use calendar::{
-    Calendar, CalendarCellHandle, CalendarHeaderHandle, CalendarMode, calendar_active,
-    calendar_mode, calendar_selected,
-};
-pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
-pub use color_area::{ColorArea, ColorAreaHandle, color_area_value};
+pub use button::{Button, ButtonApi, ButtonHandle};
+pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
+pub use choice::{Choice, ChoiceApi, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
+pub use color_area::{ColorArea, ColorAreaApi, ColorAreaHandle};
 pub use color_picker::{
     AlphaSlider, ColorModel, ColorPickerArea, ColorPickerState, HexText, HueSlider, SwatchHandle,
     Swatches, alpha_image, hue_image, plane_image, texel_centres,
 };
 pub use color_wheel::{
-    ColorWheel, ColorWheelHandle, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry, WheelPoint,
-    color_wheel_value,
+    ColorWheel, ColorWheelApi, ColorWheelHandle, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry,
+    WheelPoint,
 };
-pub use command_palette::{
-    CommandPalette, CommandRowHandle, command_palette_highlighted, command_palette_row,
-    command_palette_search, command_palette_shown,
-};
+pub use command_palette::{CommandPalette, CommandPaletteApi, CommandRowHandle};
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
-pub use context_menu::{
-    ContextMenu, context_menu_menu, context_menu_more, context_menu_open, context_menu_overlay,
-    context_menu_toolbar,
-};
+pub use context_menu::{ContextMenu, ContextMenuApi};
 pub use date_time_field::{
-    DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
-    date_time_field_value,
+    DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeFieldApi, DateTimeParts,
 };
 pub use date_time_picker::{
     DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePanelHandle, DateTimePanelLayout,
     DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
-pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
+pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
 pub use dock::{
-    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle,
-    DockDialogPresentation, DockDragged, DockDrop, DockEntry, DockFullscreen, DockGripHandle,
-    DockGroup, DockKey, DockLayout, DockMenus, DockMode, DockNode, DockPane, DockPreviewHandle,
-    DockSheetHandle, DockSplit, DockSplitter, DockSplitterHandle, DockStackHandle, DockState,
-    DockSwitch, DockSwitchHandle, DockSwitchRowHandle, DockSwitcherCardHandle, DockSwitcherHandle,
-    DockTab, DockTabControl, DockTabHandle, DockTabMenu, DockTree, DockTreeEntry, DockVisit,
-    DockWindow, Docking, DockingLayout, DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH,
-    MIN_SIDEBAR_WIDTH, OwnedDockingLayout, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId,
-    SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state,
-    layout_surface, layout_tree, sidebar_size, use_dock_tab,
+    DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle,
+    DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments,
+    DockDragged, DockDrop, DockEntry, DockFullscreen, DockGripHandle, DockGroup, DockKey,
+    DockLayout, DockMenus, DockMode, DockNode, DockOpened, DockPane, DockPreviewHandle,
+    DockSheetHandle, DockSlot, DockSplit, DockSplitter, DockSplitterHandle, DockStackHandle,
+    DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle, DockSwitcherCardHandle,
+    DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle, DockTabMenu, DockTree,
+    DockTreeEntry, DockVisit, DockWindow, Docking, DockingLayout, DockingSnapshot, Entry, GroupId,
+    LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, OwnedDockingLayout, SIDEBAR_WIDTH,
+    SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions,
+    dock_menu, dock_menu_items, layout_surface, layout_tree, sidebar_size, use_dock_tab,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
@@ -102,57 +93,42 @@ pub use drag::{
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{
-    MenuCaption, MenuGrid, MenuItem, MenuRowHandle, MenuRowKind, MenuThen, menu_list_back_button,
-    menu_list_len, menu_list_page, menu_list_root_focusable, menu_list_row_button,
-    menu_list_row_submenu_content, menu_list_tile_button,
+    MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,
 };
 pub use menu_button::{MenuButton, MenuButtonHandle};
 pub use menu_popup::{MenuPopup, MenuSheetHandle, MenuStyle};
 pub use number_input::{
-    NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, number_input_face,
-    number_input_field,
+    NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, NumberInputApi,
 };
-pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pan_zoom_view};
+pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomApi, PanZoomHandle, PanZoomView};
 pub use picture::Picture;
 pub use pointer_lock::{PointerLock, PointerLockHandle};
-pub use popover::{
-    Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle, popover_open, popover_trigger,
-};
+pub use popover::{Popover, PopoverApi, PopoverHandle, PopoverPlacement, PopoverTriggerHandle};
 pub use pressable::Pressable;
 pub use scroll::{
-    SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollHandle, ScrollbarStyle, scroll_animating,
+    SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollApi, ScrollHandle, ScrollbarStyle,
 };
 pub use scrollbar::{
     Scrollbar, ScrollbarHandle, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,
 };
-pub use select::{
-    Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
-    select_option_button, select_search, select_selected, select_trigger,
-};
-pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
+pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
+pub use selectable::{Selectable, SelectableState, copy_selection, select_all};
 pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
-pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
+pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
 pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use split_button::SplitButton;
 pub use stack::Stack;
-pub use text_area::text_area_handles;
 pub use text_area::{
     BlockView, Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
-    SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox,
-    TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji, text_area_index_at,
-    text_area_shown, text_area_state,
+    SyntaxColors, TextArea, TextAreaApi, TextAreaColors, TextAreaLayout, TextAreaState,
+    TextCheckbox, TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji,
 };
-pub use text_input::text_input_handles;
-pub use text_input::{
-    TextInput, TextInputHandle, TextInputStyle, measure_prose, text_input_caret,
-    text_input_focused, text_input_index_at, text_input_menu_row, text_input_selection,
-    text_input_shown, text_input_state, text_input_text, text_input_toolbar, text_input_value,
-};
+pub use text_input::{TextInput, TextInputApi, TextInputHandle, TextInputStyle, measure_prose};
 pub use text_menu::TextContextMenu;
-pub use time_list::{TimeList, TimeOptionHandle, grid_columns, time_list_selected};
-pub use toggle::{Toggle, ToggleHandle, toggle_checked};
+pub use time_list::{TimeList, TimeListApi, TimeOptionHandle, grid_columns};
+pub use toggle::{Toggle, ToggleApi, ToggleHandle};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
-    Tree, TreeItem, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit, TreeRowEditor,
-    TreeRowHandle, TreeRowTarget, TreeToggle, TreeToggleHandle, tree_focused, tree_row_node,
+    Tree, TreeApi, TreeItem, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit, TreeRowEditor,
+    TreeRowHandle, TreeRowTarget, TreeToggle, TreeToggleHandle,
 };

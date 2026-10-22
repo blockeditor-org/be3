@@ -8,7 +8,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
     let _root = crate::reactive::RootScope::new();
     let below = create_signal(Vec::<Event>::new());
     let above = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>

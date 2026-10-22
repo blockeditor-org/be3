@@ -48,13 +48,12 @@ pub fn HotbarView(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
 
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={empty}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Nothing is pinned yet. Compiling a grid pins the component it builds."
-                    />
+                    <Text style=TextStyle::CAPTION>
+                        "Nothing is pinned yet. Compiling a grid pins the component it builds."
+                    </Text>
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=ROW_SPACING>
@@ -148,7 +147,7 @@ fn SlotRow(
         }) else {
             return;
         };
-        if let Some(edit) = hotbar.read(|hotbar| hotbar.root().unpin(compiled)) {
+        if let Ok(edit) = hotbar.read(|hotbar| hotbar.root().unpin(compiled)) {
             hotbar.operate(edit);
         }
     };
@@ -161,7 +160,7 @@ fn SlotRow(
                 </Text>
             </Show>
             <Show condition={is_folder}>
-                <Text string={folder} />
+                <Text>{folder}</Text>
             </Show>
             <Show condition={is_component}>
                 <BlockLink
@@ -171,7 +170,7 @@ fn SlotRow(
                     @test_id={format!("hotbar.slot.{index}")}
                 />
             </Show>
-            <Text style=TextStyle::CAPTION string={note} />
+            <Text style=TextStyle::CAPTION>{note}</Text>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={is_component}>
                 <IconButton

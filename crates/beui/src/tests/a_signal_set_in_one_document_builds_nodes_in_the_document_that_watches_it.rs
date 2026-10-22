@@ -8,20 +8,20 @@ fn a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it() {
     let _root = crate::reactive::RootScope::new();
     let shown = create_signal(false);
     let press = NodeRef::new();
-    let pressing = build(move || {
+    let pressing = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Button @node_ref=&press on_click={move || shown.set(true)}>
-                    <Text string="show" />
+                    <Text>"show"</Text>
                 </Button>
             </List>
         }
     });
-    let watching = build(move || {
+    let watching = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Show condition={shown}>
-                    <Text @test_id={"late"} string="late" />
+                    <Text @test_id={"late"}>"late"</Text>
                 </Show>
             </List>
         }

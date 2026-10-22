@@ -6,7 +6,6 @@ use beui_core::color::Color32;
 use crate::theme::{ThemeStore, knob_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -20,17 +19,19 @@ const FOCUS_RING_OFFSET: f32 = 3.0;
 
 #[component]
 pub fn Slider(
-    value: Prop<f32>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SliderApi>,
+
+    value: Binding<f32>,
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_change: Callback<f32>,
     on_drag_change: Callback<bool>,
 ) -> NodeId {
     view! {
         <unstyled::Slider
+            api
             value
             min
             max
@@ -38,7 +39,6 @@ pub fn Slider(
             thumb=KNOB_SIZE
             disabled
             label
-            on_change={on_change}
             on_drag_change={on_drag_change}
         >|handle: SliderHandle|
             <SliderTrack handle />
@@ -93,10 +93,6 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
             </List>
         </Frame>
     }
-}
-
-pub fn slider_value(document: &Document, slider: NodeId) -> f32 {
-    unstyled::slider_value(document, slider).get()
 }
 
 fn filled_size(value: f32) -> ItemSize {

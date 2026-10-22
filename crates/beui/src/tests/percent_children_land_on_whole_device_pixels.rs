@@ -9,7 +9,7 @@ fn percent_children_land_on_whole_device_pixels() {
     let _root = crate::reactive::RootScope::new();
     let children = create_signal(Vec::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let tree = view! {
             <List direction=Direction::Horizontal spacing=1.0>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0></List>

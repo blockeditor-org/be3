@@ -12,7 +12,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
     let above = create_signal(false);
     let heard = create_signal(Vec::<Event>::new());
     let catcher = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Dialog open={open} title="Below" width=600.0 on_dismiss={|| {}}>
@@ -26,7 +26,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
                     </Interactive>
                 </Dialog>
                 <Dialog open={above} title="Above" width=200.0 on_dismiss={|| {}}>
-                    <Text string="Body" color=Color32::WHITE />
+                    <Text color=Color32::WHITE>"Body"</Text>
                 </Dialog>
             </List>
         }

@@ -2,10 +2,12 @@ use super::*;
 use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
+use beui::primitives::Drawing;
 use beui::primitives::Frame;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
+use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -112,11 +114,9 @@ fn FrameSizes() -> NodeId {
                 radius={Radius::Md.px()}
                 padding={Sides::symmetric(12.0, 8.0)}
             >
-                <Text
-                    string="This frame stops growing at 320 points wide."
-                    color={theme.text}
-                    wrap=true
-                />
+                <Text color={theme.text} wrap=true>
+                    "This frame stops growing at 320 points wide."
+                </Text>
             </Frame>
             <Frame
                 width=160.0
@@ -154,24 +154,14 @@ fn TextStyles() -> NodeId {
     let theme = use_theme();
     view! {
         <List spacing=SECTION_SPACING>
-            <Text string="Plain text" color={theme.text} />
-            <Text
-                string="Bold text"
-                color={theme.text}
-                font={FontId::proportional(14.0).bold(true)}
-            />
-            <Text
-                string="Italic text"
-                color={theme.text}
-                font={FontId::proportional(14.0).italic(true)}
-            />
-            <Text string="Underlined text" color={theme.text} underline=true />
-            <Text string="Monospace text" color={theme.text} font={FontId::monospace(14.0)} />
-            <Text
-                string="Large accent text"
-                color={theme.accent}
-                font={FontId::proportional(24.0)}
-            />
+            <Text color={theme.text}>"Plain text"</Text>
+            <Text color={theme.text} font={FontId::proportional(14.0).bold(true)}>"Bold text"</Text>
+            <Text color={theme.text} font={FontId::proportional(14.0).italic(true)}>
+                "Italic text"
+            </Text>
+            <Text color={theme.text} underline=true>"Underlined text"</Text>
+            <Text color={theme.text} font={FontId::monospace(14.0)}>"Monospace text"</Text>
+            <Text color={theme.accent} font={FontId::proportional(24.0)}>"Large accent text"</Text>
             <Text color={theme.warning} font={FontId::proportional(24.0)}>
                 <Icon glyph={ICON_STAR.to_owned()} />
             </Text>
@@ -206,10 +196,10 @@ fn TextWrapping() -> NodeId {
                 fit can end in an ellipsis instead of spilling out of its frame.";
     view! {
         <List spacing=SECTION_SPACING>
-            <Text string={long.to_owned()} color={theme.text} wrap=true />
-            <Text string={long.to_owned()} color={theme.text_muted} ellipsis=true />
-            <Text string="Centered" color={theme.text} align=TextAlign::Center />
-            <Text string="At the end" color={theme.text} align=TextAlign::End />
+            <Text color={theme.text} wrap=true>{long.to_owned()}</Text>
+            <Text color={theme.text_muted} ellipsis=true>{long.to_owned()}</Text>
+            <Text color={theme.text} align=TextAlign::Center>"Centered"</Text>
+            <Text color={theme.text} align=TextAlign::End>"At the end"</Text>
         </List>
     }
 }
@@ -272,7 +262,7 @@ fn Tile(label: Prop<String>) -> NodeId {
             padding={Sides::horizontal(12.0)}
             align={Align2::vertical(Align::Center)}
         >
-            <Text string={label} color={theme.text} wrap=true />
+            <Text color={theme.text} wrap=true>{label}</Text>
         </Frame>
     }
 }
@@ -390,7 +380,7 @@ fn ShowToggle() -> NodeId {
     let shown = create_signal(true);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Shown" on={shown} on_change={move |on| shown.set(on)} />
+            <LabelledSwitch label="Shown" on={shown} />
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
             </Show>
@@ -431,14 +421,14 @@ fn DynamicShape() -> NodeId {
     let round = create_signal(false);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Round" on={round} on_change={move |on| round.set(on)} />
+            <LabelledSwitch label="Round" on={round} />
             <Dynamic value={round}>|round: bool| {
                 match round {
                     true => view! {
                         <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                     },
                     false => view! {
-                        <Text string="Rebuilt whenever its value changes" color={theme.text} />
+                        <Text color={theme.text}>"Rebuilt whenever its value changes"</Text>
                     },
                 }
             }</Dynamic>
@@ -485,9 +475,9 @@ fn InteractiveCard() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Interactive
                 focusable=true
-                on_hover_change={move |on| hovered.set(on)}
-                on_active_change={move |on| active.set(on)}
-                on_focus_change={move |on| focused.set(on)}
+                on_hover_change={hovered}
+                on_active_change={active}
+                on_focus_change={focused}
                 on_click={move || log.set("Clicked".to_owned())}
                 on_key={move |press: KeyPress| {
                     if press.pressed {
@@ -503,15 +493,10 @@ fn InteractiveCard() -> NodeId {
                     radius={Radius::Lg.px()}
                     align=Align::Center
                 >
-                    <Text string={log} color={theme.text} />
+                    <Text color={theme.text}>{log}</Text>
                 </Frame>
             </Interactive>
-            <Text
-                string={state}
-                color={theme.text_muted}
-                wrap=true
-                font={FontId::monospace(14.0)}
-            />
+            <Text color={theme.text_muted} wrap=true font={FontId::monospace(14.0)}>{state}</Text>
         </List>
     }
 }
@@ -553,7 +538,7 @@ fn BadgedCard() -> NodeId {
                     radius={Radius::Lg.px()}
                     padding=12.0
                 >
-                    <Text string="Inbox" color={theme.text} />
+                    <Text color={theme.text}>"Inbox"</Text>
                 </Frame>
                 <Frame align={Align2::new(Align::End, Align::Start)} padding=8.0>
                     <Frame
@@ -563,11 +548,9 @@ fn BadgedCard() -> NodeId {
                         fill={theme.danger}
                         align=Align::Center
                     >
-                        <Text
-                            string="3"
-                            color={theme.on_accent}
-                            font={FontId::proportional(12.0).bold(true)}
-                        />
+                        <Text color={theme.on_accent} font={FontId::proportional(12.0).bold(true)}>
+                            "3"
+                        </Text>
                     </Frame>
                 </Frame>
             </Layers>
@@ -590,7 +573,7 @@ fn NudgedTile() -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive on_click={move || nudged.update(|nudged| *nudged = !*nudged)}>
                 <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
-                    <Text string="Nudge" color={ink} />
+                    <Text color={ink}>"Nudge"</Text>
                 </Frame>
             </Interactive>
             <Shift by={by}>
@@ -605,6 +588,7 @@ fn NudgedTile() -> NodeId {
 fn TurnedLabel() -> NodeId {
     let theme = use_theme();
     let quarters = create_signal(1u8);
+    let angle = create_signal(0.0f32);
     let face = theme.surface_raised;
     let ink = theme.text;
     view! {
@@ -613,16 +597,23 @@ fn TurnedLabel() -> NodeId {
                 on_click={move || quarters.update(|quarters| *quarters = (*quarters + 1) % 4)}
             >
                 <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
-                    <Text string="Turn" color={ink} />
+                    <Text color={ink}>"Turn"</Text>
                 </Frame>
             </Interactive>
-            <Turn quarter_turns={quarters}>
+            <Interactive
+                on_click={move || angle.update(|angle| *angle = (*angle + 0.25) % std::f32::consts::FRAC_PI_2)}
+            >
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text color={ink}>"Tilt"</Text>
+                </Frame>
+            </Interactive>
+            <Turn quarter_turns={quarters} angle={angle}>
                 <Frame
                     fill={theme.accent}
                     radius={Radius::Md.px()}
                     padding={Sides::symmetric(16.0, 10.0)}
                 >
-                    <Text string="Upright at no turns" color={theme.on_accent} />
+                    <Text color={theme.on_accent}>"Upright at no turns"</Text>
                 </Frame>
             </Turn>
         </List>
@@ -666,7 +657,7 @@ fn AnchoredOverlay() -> NodeId {
                     radius={Radius::Md.px()}
                     padding={Sides::symmetric(16.0, 10.0)}
                 >
-                    <Text string="Open the overlay" color={ink} />
+                    <Text color={ink}>"Open the overlay"</Text>
                 </Frame>
             </Interactive>
             <Overlay
@@ -684,11 +675,9 @@ fn AnchoredOverlay() -> NodeId {
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
-                        <Text
-                            string="An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."
-                            color={theme.text}
-                            wrap=true
-                        />
+                        <Text color={theme.text} wrap=true>
+                            "An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."
+                        </Text>
                     </Frame>
                 </Frame>
             </Overlay>
@@ -737,12 +726,13 @@ fn AnimationSample() -> NodeId {
             <Checkbox
                 @test_id="animation.instant"
                 label="Disable animations"
-                checked={create_memo(move || !preference.get().animates())}
-                on_change={move |disabled| with_document(|document| {
+                checked={Binding::new(create_memo(move || !preference.get().animates()), move |disabled: bool| with_document(|document| {
                     if let Some(context) = document.context() {
-                        context.set_motion(if disabled { Motion::Instant } else { Motion::Animated });
+                        let app = context.preference_layer(PreferenceSource::App);
+                        let motion = disabled.then_some(Motion::Instant);
+                        context.set_preference_layer(PreferenceSource::App, PreferenceLayer { motion, ..app });
                     }
-                })}
+                }))}
             />
             <Button
                 @test_id="animation.retarget"
@@ -762,18 +752,228 @@ fn AnimationSample() -> NodeId {
                 variant=ButtonVariant::Secondary
                 on_click={move || { transition.stop(); spring.stop(); }}
             />
-            <Text string="Tween" color={theme.text} />
+            <Text color={theme.text}>"Tween"</Text>
             <Frame
                 width={create_memo(move || position.get() + 20.0)}
                 height=12.0
                 fill={theme.accent}
             />
-            <Text string="Spring" color={theme.text} />
+            <Text color={theme.text}>"Spring"</Text>
             <Frame
                 width={create_memo(move || spring_position.get() + 20.0)}
                 height=12.0
                 fill={theme.success}
             />
         </List>
+    }
+}
+
+const PATH_TILE: f32 = 100.0;
+
+#[component]
+pub(crate) fn PathsPage() -> NodeId {
+    view! {
+        <ScrollPage>
+            <Sample title="Fills and curves" code={vec![PathFills::SOURCE, PathTiles::SOURCE]}>
+                <PathFills />
+            </Sample>
+            <Sample title="Joins and caps" code={vec![PathJoins::SOURCE, PathTiles::SOURCE]}>
+                <PathJoins />
+            </Sample>
+            <Sample title="Dashes" code={vec![PathDashes::SOURCE, PathTiles::SOURCE]}>
+                <PathDashes />
+            </Sample>
+        </ScrollPage>
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct PathColors {
+    accent: Color32,
+    success: Color32,
+    warning: Color32,
+    danger: Color32,
+    text: Color32,
+}
+
+type PaintTile = fn(&Painter, Pos2, PathColors);
+
+#[sample]
+#[component]
+fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
+    let theme = use_theme();
+    let colors = create_memo(move || PathColors {
+        accent: theme.accent.get(),
+        success: theme.success.get(),
+        warning: theme.warning.get(),
+        danger: theme.danger.get(),
+        text: theme.text.get(),
+    });
+    let count = tiles.len();
+    let keys = create_memo(move || (0..count).collect::<Vec<usize>>());
+    view! {
+        <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
+            <ForEach keys={keys}>|index: usize| {
+                let paint = tiles[index];
+                let draw: Prop<Draw> = Prop::dynamic(move || {
+                    let colors = colors.get();
+                    Rc::new(move |painter: &Painter, rect: Rect| {
+                        let scale = rect.width() / PATH_TILE;
+                        match scale < 1.0 {
+                            true => {
+                                let offset = rect.min.to_vec2() * (1.0 - scale);
+                                paint(&painter.transformed(offset, scale), rect.min, colors);
+                            }
+                            false => paint(painter, rect.min, colors),
+                        }
+                    }) as Draw
+                });
+                view! {
+                    <Drawing draw={draw} size={Some(Vec2::splat(PATH_TILE))} />
+                }
+            }</ForEach>
+        </List>
+    }
+}
+
+fn star(center: Pos2, points: usize, outer: f32, inner: f32) -> Path {
+    Path::polygon((0..points * 2).map(|point| {
+        let reach = if point % 2 == 0 { outer } else { inner };
+        let angle = std::f32::consts::PI * (point as f32 / points as f32 - 0.5);
+        center + vec2(angle.cos(), angle.sin()) * reach
+    }))
+}
+
+fn pentagram(center: Pos2, reach: f32) -> Path {
+    Path::polygon((0..5).map(|point| {
+        let angle = std::f32::consts::PI * (point as f32 * 0.8 - 0.5);
+        center + vec2(angle.cos(), angle.sin()) * reach
+    }))
+}
+
+#[sample]
+#[component]
+fn PathFills() -> NodeId {
+    let tiles: Vec<PaintTile> = vec![
+        |painter, at, colors| {
+            let ellipse = Path::ellipse(at + vec2(50.0, 50.0), vec2(46.0, 32.0));
+            painter.fill_path(&ellipse, FillRule::NonZero, colors.accent);
+        },
+        |painter, at, colors| {
+            let star = star(at + vec2(50.0, 54.0), 5, 48.0, 20.0);
+            painter.fill_path(&star, FillRule::NonZero, colors.success);
+        },
+        |painter, at, colors| {
+            let star = pentagram(at + vec2(50.0, 54.0), 48.0);
+            painter.fill_path(&star, FillRule::NonZero, colors.warning);
+        },
+        |painter, at, colors| {
+            let star = pentagram(at + vec2(50.0, 54.0), 48.0);
+            painter.fill_path(&star, FillRule::EvenOdd, colors.warning);
+        },
+        |painter, at, colors| {
+            let heart = Path::new()
+                .move_to(at + vec2(50.0, 92.0))
+                .cubic_to(
+                    at + vec2(-10.0, 50.0),
+                    at + vec2(10.0, 0.0),
+                    at + vec2(50.0, 28.0),
+                )
+                .cubic_to(
+                    at + vec2(90.0, 0.0),
+                    at + vec2(110.0, 50.0),
+                    at + vec2(50.0, 92.0),
+                )
+                .close();
+            painter.fill_path(&heart, FillRule::NonZero, colors.danger);
+        },
+    ];
+    view! {
+        <PathTiles tiles={tiles} />
+    }
+}
+
+#[sample]
+#[component]
+fn PathJoins() -> NodeId {
+    fn zigzag(painter: &Painter, at: Pos2, colors: PathColors, join: LineJoin) {
+        let zigzag = Path::polyline([
+            at + vec2(20.0, 88.0),
+            at + vec2(50.0, 16.0),
+            at + vec2(80.0, 88.0),
+        ]);
+        painter.stroke_path(&zigzag, &Stroke::new(14.0).join(join), colors.accent);
+        painter.stroke_path(&zigzag, &Stroke::new(1.0), colors.text);
+    }
+    fn cap(painter: &Painter, at: Pos2, colors: PathColors, cap: LineCap) {
+        let line = Path::polyline([at + vec2(20.0, 50.0), at + vec2(80.0, 50.0)]);
+        painter.stroke_path(&line, &Stroke::new(20.0).cap(cap), colors.accent);
+        painter.stroke_path(&line, &Stroke::new(1.0), colors.text);
+    }
+    let tiles: Vec<PaintTile> = vec![
+        |painter, at, colors| zigzag(painter, at, colors, LineJoin::Miter),
+        |painter, at, colors| zigzag(painter, at, colors, LineJoin::Round),
+        |painter, at, colors| zigzag(painter, at, colors, LineJoin::Bevel),
+        |painter, at, colors| cap(painter, at, colors, LineCap::Butt),
+        |painter, at, colors| cap(painter, at, colors, LineCap::Round),
+        |painter, at, colors| cap(painter, at, colors, LineCap::Square),
+        |painter, at, colors| {
+            let curve = Path::new()
+                .move_to(at + vec2(8.0, 90.0))
+                .quad_to(at + vec2(30.0, -10.0), at + vec2(55.0, 50.0))
+                .quad_to(at + vec2(75.0, 100.0), at + vec2(92.0, 10.0));
+            let stroke = Stroke::new(8.0).join(LineJoin::Round).cap(LineCap::Round);
+            painter.stroke_path(&curve, &stroke, colors.accent);
+        },
+    ];
+    view! {
+        <PathTiles tiles={tiles} />
+    }
+}
+
+#[sample]
+#[component]
+fn PathDashes() -> NodeId {
+    let tiles: Vec<PaintTile> = vec![
+        |painter, at, colors| {
+            let dashes = [
+                Stroke::new(4.0).dashed([14.0, 6.0], 0.0),
+                Stroke::new(6.0)
+                    .cap(LineCap::Round)
+                    .dashed([0.0, 12.0], 0.0),
+                Stroke::new(4.0).dashed([16.0, 5.0, 3.0, 5.0], 8.0),
+            ];
+            for (index, stroke) in dashes.iter().enumerate() {
+                let y = 22.0 + index as f32 * 28.0;
+                let line = Path::polyline([at + vec2(8.0, y), at + vec2(92.0, y)]);
+                painter.stroke_path(&line, stroke, colors.text);
+            }
+        },
+        |painter, at, colors| {
+            let ellipse = Path::ellipse(at + vec2(50.0, 50.0), vec2(44.0, 32.0));
+            let stroke = Stroke::new(3.0).dashed([10.0, 6.0], 0.0);
+            painter.stroke_path(&ellipse, &stroke, colors.accent);
+        },
+        |painter, at, colors| {
+            let wave = Path::new().move_to(at + vec2(8.0, 50.0)).cubic_to(
+                at + vec2(30.0, -20.0),
+                at + vec2(70.0, 120.0),
+                at + vec2(92.0, 50.0),
+            );
+            let stroke = Stroke::new(5.0)
+                .cap(LineCap::Round)
+                .dashed([12.0, 9.0], 0.0);
+            painter.stroke_path(&wave, &stroke, colors.accent);
+        },
+        |painter, at, colors| {
+            let star = star(at + vec2(50.0, 54.0), 6, 44.0, 24.0);
+            let stroke = Stroke::new(3.0)
+                .join(LineJoin::Round)
+                .dashed([8.0, 4.0], 0.0);
+            painter.stroke_path(&star, &stroke, colors.success);
+        },
+    ];
+    view! {
+        <PathTiles tiles={tiles} />
     }
 }

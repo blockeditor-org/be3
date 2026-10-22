@@ -11,7 +11,7 @@ pub const MAX_SHARE: f32 = 0.5;
 pub trait KeyboardHost: Any {
     fn height(&mut self, width: f32) -> f32;
 
-    fn show(&mut self, ctx: &Context, rect: Rect, app: &Document);
+    fn show(&mut self, ctx: &Context, rect: Rect);
 
     fn closed(&mut self) {}
 }
@@ -271,7 +271,7 @@ pub fn show_with_keyboard(
                     false => input.without_pointer(was),
                 }
             },
-            || host.show(ctx, keyboard, document),
+            || host.show(ctx, keyboard),
         );
         document.set_keyboard_host(host);
     }

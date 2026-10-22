@@ -80,7 +80,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
 
     view! {
         <List spacing=ROW_SPACING>
-            <Text string={title} />
+            <Text>{title}</Text>
             <Bordered corner_radius={Radius::custom(8.0)}>
                 <Frame padding=PADDING>
                     <ProblemGrid
@@ -108,18 +108,14 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     on_click={reset}
                 />
                 <Show condition={passed}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="This page is correct."
-                        color=TextColor::Success
-                    />
+                    <Text style=TextStyle::CAPTION color=TextColor::Success>
+                        "This page is correct."
+                    </Text>
                 </Show>
                 <Show condition={failed}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Some blanks still need work."
-                        color=TextColor::Danger
-                    />
+                    <Text style=TextStyle::CAPTION color=TextColor::Danger>
+                        "Some blanks still need work."
+                    </Text>
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -229,7 +225,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Text style=TextStyle::CAPTION string={sign} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION align=TextAlign::End>{sign}</Text>
             </Frame>
             <ForEach keys={bits}>|column: usize| {
                 let bit = create_memo(move || {
@@ -239,7 +235,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
                 });
                 view! {
                     <Frame width=CELL>
-                        <Text style=TextStyle::CODE string={bit} align=TextAlign::Center />
+                        <Text style=TextStyle::CODE align=TextAlign::Center>{bit}</Text>
                     </Frame>
                 }
             }</ForEach>
@@ -262,7 +258,7 @@ fn BitRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Text style=TextStyle::CAPTION string={label} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION align=TextAlign::End>{label}</Text>
             </Frame>
             <ForEach keys={columns}>|column: usize| {
                 let answer = create_memo(move || {

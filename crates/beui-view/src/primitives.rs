@@ -12,6 +12,7 @@ pub use crate::components::list::{List, Spacer};
 pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
+pub use crate::components::root::{Root, SystemBars};
 pub use crate::components::shift::Shift;
 pub use crate::components::text::{Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
 pub use crate::components::turn::Turn;

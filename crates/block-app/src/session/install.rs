@@ -89,6 +89,7 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
 }
 
 fn root() -> bool {
+    // unsafe(ffi)
     unsafe { libc::geteuid() == 0 }
 }
 

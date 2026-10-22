@@ -268,6 +268,7 @@ impl Textures {
             if data.stride < data.width * 4 || offset + needed > length {
                 return None;
             }
+            // unsafe(ffi)
             let bytes = unsafe { std::slice::from_raw_parts(pointer.add(offset), needed) };
             let size = wgpu::Extent3d {
                 width,

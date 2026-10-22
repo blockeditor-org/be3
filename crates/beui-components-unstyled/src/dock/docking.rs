@@ -22,8 +22,8 @@ use super::state::{
     DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
 };
 use super::{
-    Dock, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode,
-    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
+    Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
+    DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
     DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };
 use crate::menu_popup::MenuStyle;
@@ -154,13 +154,15 @@ pub fn DockDialog<K>(
     size: Prop<Vec2>,
     #[prop(default = false)] modal: Prop<bool>,
     #[prop(default = DockDialogPresentation::Window)] presentation: DockDialogPresentation,
+    #[prop(default = false)] dismiss_on_outside_press: Prop<bool>,
+    #[prop(default = None)] anchor: Prop<Option<Rect>>,
     on_close: Option<ClickCallback>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockNode<K>
 where
     K: DockKey,
 {
-    let sheet = presentation == DockDialogPresentation::Sheet;
+    let card = presentation == DockDialogPresentation::Card;
     DockNode {
         kind: NodeKind::Dialog {
             id,
@@ -170,7 +172,9 @@ where
                 title: create_memo(move || title.get()),
                 icon: create_memo(move || icon.get()),
                 size: create_memo(move || size.get()),
-                modal: create_memo(move || sheet || modal.get()),
+                modal: create_memo(move || card || modal.get()),
+                dismiss_on_outside_press: create_memo(move || dismiss_on_outside_press.get()),
+                anchor: create_memo(move || anchor.get().filter(|_| card)),
                 on_close,
                 content,
             },
@@ -264,7 +268,6 @@ impl<K> Default for KeyMap<K> {
 struct LayoutInner<K> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
-    replacing: RefCell<Vec<(TabId, TabId)>>,
 }
 
 pub struct DockingLayout<K: 'static> {
@@ -334,7 +337,6 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
-            replacing: RefCell::default(),
         };
         let layout = move |inner| Self {
             state,
@@ -358,14 +360,12 @@ impl<K: DockKey> DockingLayout<K> {
             map.tabs.insert(key, tab);
         }
         *self.inner().keys.borrow_mut() = map;
-        self.inner().replacing.borrow_mut().clear();
         self.state.set(state);
         self.restores.update(|restores| *restores += 1);
     }
 
     pub fn reset(&self) {
         *self.inner().keys.borrow_mut() = KeyMap::default();
-        self.inner().replacing.borrow_mut().clear();
         self.state.set(DockState::default());
         self.restores.update(|restores| *restores += 1);
     }
@@ -418,29 +418,6 @@ impl<K: DockKey> DockingLayout<K> {
         self.edit(|state| state.show(tab));
     }
 
-    pub fn replace(&self, key: &K, with: K) -> bool {
-        let Some(tab) = self.tab_of(key) else {
-            return false;
-        };
-        if !self.state.with_untracked(|state| state.contains(tab)) {
-            return false;
-        }
-        let new = self.mint(&with);
-        if self.state.with_untracked(|state| state.contains(new)) {
-            return false;
-        }
-        let inner = self.inner();
-        let mut replacing = inner.replacing.borrow_mut();
-        if replacing
-            .iter()
-            .any(|(from, to)| *from == tab || *to == new)
-        {
-            return false;
-        }
-        replacing.push((tab, new));
-        true
-    }
-
     pub fn fullscreen(&self) -> Option<K> {
         let tab = self.state.with(DockState::fullscreen)?.tab;
         self.key_of(tab)
@@ -488,17 +465,6 @@ impl<K: DockKey> DockingLayout<K> {
     fn reconcile(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
         let current = self.state.get_untracked();
         let mut next = current.clone();
-        let declared = spec.tabs();
-        let replacing = std::mem::take(&mut *self.inner().replacing.borrow_mut());
-        for (tab, with) in replacing {
-            if !declared.contains(&tab)
-                && declared.contains(&with)
-                && !next.contains(with)
-                && next.replace(tab, with)
-            {
-                next.show(with);
-            }
-        }
         next.reconcile(spec);
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
         kept.extend(next.all_tabs());
@@ -712,6 +678,7 @@ impl<K: 'static> Found<K> {
 
 #[component]
 pub fn Docking<K>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<DockApi>,
     layout: DockingLayout<K>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] focus: Prop<Option<K>>,
@@ -735,7 +702,9 @@ pub fn Docking<K>(
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    #[prop(default = Color32::TRANSPARENT)] dialog_scrim: Color32,
+    #[prop(default = Color32::TRANSPARENT)] dialog_scrim: Prop<Color32>,
+    #[prop(default = 0)] dialog_margin: u16,
+    #[prop(default = 0)] dialog_gap: u16,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -814,14 +783,11 @@ where
         let title = found.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
-    let state = layout.state();
     view! {
         <Dock
             config={DockConfig {
-                state: state.into_prop(),
-                on_change: Callback::new(move |next: DockState| {
-                    layout.state.set(next);
-                }),
+                api,
+                state: Binding::from(layout.state),
                 on_close: Callback::new(on_close),
                 title,
                 group_title,
@@ -852,7 +818,9 @@ where
                 dialog,
                 dialog_chrome,
                 dialog_sheet,
-                dialog_scrim,
+                dialog_scrim: create_memo(move || dialog_scrim.get()),
+                dialog_margin,
+                dialog_gap,
             }}
         />
     }

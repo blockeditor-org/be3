@@ -136,91 +136,88 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         _ => theme.danger.get(),
     });
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Toolbar shown={chrome}>
-                    <Select
-                        options={view! {
-                            <ChoiceOption label={FolderView::LargeGrid.label()} />
-                            <ChoiceOption label={FolderView::SmallGrid.label()} />
-                            <ChoiceOption label={FolderView::List.label()} />
-                        }}
-                        selected={mode_index}
-                        label="Layout"
-                        @test_id={"folder.view"}
-                        on_change={move |chosen: Option<usize>| {
-                            if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
-                            {
-                                mode.set(*shown);
+        <List spacing=0.0>
+            <Toolbar shown={chrome}>
+                <Select
+                    options={view! {
+                        <ChoiceOption label={FolderView::LargeGrid.label()} />
+                        <ChoiceOption label={FolderView::SmallGrid.label()} />
+                        <ChoiceOption label={FolderView::List.label()} />
+                    }}
+                    selected={Binding::new(mode_index, move |chosen: Option<usize>| {
+                        if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
+                        {
+                            mode.set(*shown);
+                        }
+                    })}
+                    label="Layout"
+                    @test_id={"folder.view"}
+                />
+                <Select
+                    options={view! {
+                        <ChoiceOption label={FolderSort::Intrinsic.label()} />
+                        <ChoiceOption label={FolderSort::Name.label()} />
+                        <ChoiceOption label={FolderSort::Type.label()} />
+                    }}
+                    selected={Binding::new(sort_index, move |chosen: Option<usize>| {
+                        if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
+                        {
+                            sort.set(*order);
+                        }
+                    })}
+                    label="Sort"
+                    @test_id={"folder.sort"}
+                />
+                <IconButton
+                    glyph={direction_glyph}
+                    label={direction_label}
+                    disabled={unordered}
+                    @test_id={"folder.direction"}
+                    on_click={flip}
+                />
+            </Toolbar>
+            <Frame
+                @sizing=ItemSize::Percent(100.0)
+                @node_ref={&content}
+                border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
+                padding=PADDING
+            >
+                <List spacing=0.0>
+                    <Show condition={empty}>
+                        <Text
+                            style=TextStyle::CAPTION
+                            align=TextAlign::Center
+                            @test_id={"folder.empty"}
+                        >
+                            "This folder is empty."
+                        </Text>
+                    </Show>
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <Dynamic value={mode}>|shown: FolderView| {
+                            match shown {
+                                FolderView::List => view! {
+                                    <EntryRows cells={cells} />
+                                },
+                                FolderView::LargeGrid => view! {
+                                    <EntryTiles
+                                        cells={cells}
+                                        tile=LARGE_TILE
+                                        icon_size=LARGE_ICON
+                                    />
+                                },
+                                FolderView::SmallGrid => view! {
+                                    <EntryTiles
+                                        cells={cells}
+                                        tile=SMALL_TILE
+                                        icon_size=SMALL_ICON
+                                    />
+                                },
                             }
-                        }}
-                    />
-                    <Select
-                        options={view! {
-                            <ChoiceOption label={FolderSort::Intrinsic.label()} />
-                            <ChoiceOption label={FolderSort::Name.label()} />
-                            <ChoiceOption label={FolderSort::Type.label()} />
-                        }}
-                        selected={sort_index}
-                        label="Sort"
-                        @test_id={"folder.sort"}
-                        on_change={move |chosen: Option<usize>| {
-                            if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
-                            {
-                                sort.set(*order);
-                            }
-                        }}
-                    />
-                    <IconButton
-                        glyph={direction_glyph}
-                        label={direction_label}
-                        disabled={unordered}
-                        @test_id={"folder.direction"}
-                        on_click={flip}
-                    />
-                </Toolbar>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
-                    padding=PADDING
-                >
-                    <List spacing=0.0>
-                        <Show condition={empty}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="This folder is empty."
-                                align=TextAlign::Center
-                                @test_id={"folder.empty"}
-                            />
-                        </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <Dynamic value={mode}>|shown: FolderView| {
-                                match shown {
-                                    FolderView::List => view! {
-                                        <EntryRows cells={cells} />
-                                    },
-                                    FolderView::LargeGrid => view! {
-                                        <EntryTiles
-                                            cells={cells}
-                                            tile=LARGE_TILE
-                                            icon_size=LARGE_ICON
-                                        />
-                                    },
-                                    FolderView::SmallGrid => view! {
-                                        <EntryTiles
-                                            cells={cells}
-                                            tile=SMALL_TILE
-                                            icon_size=SMALL_ICON
-                                        />
-                                    },
-                                }
-                            }</Dynamic>
-                        </Scroll>
-                    </List>
-                </Frame>
-            </List>
-        </Frame>
+                        }</Dynamic>
+                    </Scroll>
+                </List>
+            </Frame>
+        </List>
     }
 }
 
@@ -244,12 +241,10 @@ fn EntryRows(cells: Cells) -> NodeId {
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <EntryGlyph entry={entry} size=ROW_ICON />
-                            <Text
-                                @sizing=ItemSize::Percent(100.0)
-                                string={name_of(entry)}
-                                color={name_color(entry)}
-                            />
-                            <Text style=TextStyle::CAPTION string={type_of(entry)} />
+                            <Text @sizing=ItemSize::Percent(100.0) color={name_color(entry)}>
+                                {name_of(entry)}
+                            </Text>
+                            <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>
                         </List>
                     </ListRow>
                 }
@@ -280,16 +275,12 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
                         <Frame height={tile.y}>
                             <List align=Align::Center justify=Justify::Center spacing=4.0>
                                 <EntryGlyph entry={entry} size={icon_size} />
-                                <Text
-                                    string={name_of(entry)}
-                                    color={name_color(entry)}
-                                    align=TextAlign::Center
-                                />
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string={type_of(entry)}
-                                    align=TextAlign::Center
-                                />
+                                <Text color={name_color(entry)} align=TextAlign::Center>
+                                    {name_of(entry)}
+                                </Text>
+                                <Text style=TextStyle::CAPTION align=TextAlign::Center>
+                                    {type_of(entry)}
+                                </Text>
                             </List>
                         </Frame>
                     </ListRow>

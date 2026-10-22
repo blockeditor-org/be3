@@ -154,29 +154,24 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     };
 
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
-                            <Text style=TextStyle::HEADING string="Checkout" />
-                            <Text
-                                style=TextStyle::CAPTION
-                                string={summary}
-                                @test_id={"checkout.summary"}
-                            />
+                            <Text style=TextStyle::HEADING>"Checkout"</Text>
+                            <Text style=TextStyle::CAPTION @test_id={"checkout.summary"}>
+                                {summary}
+                            </Text>
                             <BlockLink
                                 editor={editor}
                                 block={repository}
                                 @test_id={"checkout.repository"}
                             />
                             <Show condition={has_note}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string={note}
-                                    wrap=true
-                                    @test_id={"checkout.note"}
-                                />
+                                <Text style=TextStyle::CAPTION wrap=true @test_id={"checkout.note"}>
+                                    {note}
+                                </Text>
                             </Show>
                         </List>
                         <Show condition={behind}>
@@ -186,10 +181,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     align=Align::Center
                                     spacing=10.0
                                 >
-                                    <Text
-                                        @sizing=ItemSize::Percent(100.0)
-                                        string="The branch has moved on since this checkout's base."
-                                    />
+                                    <Text @sizing=ItemSize::Percent(100.0)>
+                                        "The branch has moved on since this checkout's base."
+                                    </Text>
                                     <Button
                                         label="Bring changes in"
                                         variant=ButtonVariant::Primary
@@ -203,19 +197,18 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         <Show condition={conflicted}>
                             <Card>
                                 <List spacing=12.0>
-                                    <Text style=TextStyle::HEADING string="Conflicts" />
+                                    <Text style=TextStyle::HEADING>"Conflicts"</Text>
                                     <ForEach keys={conflicts} view={conflict_rows} />
                                 </List>
                             </Card>
                         </Show>
                         <Card>
                             <List spacing=10.0>
-                                <Text style=TextStyle::HEADING string="Changes" />
+                                <Text style=TextStyle::HEADING>"Changes"</Text>
                                 <Show condition={unchanged}>
-                                    <Text
-                                        style=TextStyle::CAPTION
-                                        string="Nothing has changed since the last commit."
-                                    />
+                                    <Text style=TextStyle::CAPTION>
+                                        "Nothing has changed since the last commit."
+                                    </Text>
                                 </Show>
                                 <ForEach keys={changes} view={change_rows} />
                                 <List
@@ -229,7 +222,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="What changed?"
                                         label="Commit message"
                                         @test_id={"checkout.message"}
-                                        on_change={move |value| message.set(value)}
                                     />
                                     <Button
                                         label="Commit"
@@ -247,7 +239,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         </Card>
                         <Card>
                             <List spacing=10.0>
-                                <Text style=TextStyle::HEADING string="Branches" />
+                                <Text style=TextStyle::HEADING>"Branches"</Text>
                                 <ForEach keys={branches} view={branch_rows} />
                                 <List
                                     direction=Direction::Horizontal
@@ -260,7 +252,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="New branch"
                                         label="New branch name"
                                         @test_id={"checkout.branch-name"}
-                                        on_change={move |value| branch_name.set(value)}
                                     />
                                     <Button
                                         label="Make branch"
@@ -278,7 +269,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         </Card>
                         <Card>
                             <List spacing=10.0>
-                                <Text style=TextStyle::HEADING string="History" />
+                                <Text style=TextStyle::HEADING>"History"</Text>
                                 <VersionHistory log={log} />
                             </List>
                         </Card>
@@ -302,10 +293,12 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
             spacing=10.0
             @test_id={format!("checkout.change.{block}")}
         >
-            <Text style=TextStyle::CAPTION string={label} />
-            <Show condition={removed}>
-                <Text string={name.clone()} />
-            </Show>
+            <Text style=TextStyle::CAPTION>{label}</Text>
+            <Show condition={removed}>|| {
+                let name = name.clone(); view! {
+                    <Text>{name}</Text>
+                }
+            }</Show>
             <Show condition={!removed}>
                 <BlockLink editor={editor} block={target} />
             </Show>
@@ -338,16 +331,16 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
         <List spacing=8.0 @test_id={format!("checkout.conflict.{block}")}>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <BlockLink editor={editor} block={working} />
-                <Text style=TextStyle::CAPTION string={label} />
+                <Text style=TextStyle::CAPTION>{label}</Text>
             </List>
             <List spacing=8.0>
                 <Show condition={compared}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <Text style=TextStyle::CAPTION string="Base" />
+                        <Text style=TextStyle::CAPTION>"Base"</Text>
                         <BlockLink editor={editor} block={base} fallback="none" />
-                        <Text style=TextStyle::CAPTION string="Yours" />
+                        <Text style=TextStyle::CAPTION>"Yours"</Text>
                         <BlockLink editor={editor} block={ours} fallback="none" />
-                        <Text style=TextStyle::CAPTION string="Theirs" />
+                        <Text style=TextStyle::CAPTION>"Theirs"</Text>
                         <BlockLink editor={editor} block={theirs} fallback="none" />
                     </List>
                 </Show>
@@ -399,6 +392,7 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
         false => "Switch",
     };
     let branch_test_id = format!("checkout.branch.{name}");
+    let switch_test_id = format!("checkout.switch.{name}");
     view! {
         <List
             direction=Direction::Horizontal
@@ -406,12 +400,12 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
             spacing=10.0
             @test_id=branch_test_id
         >
-            <Text @sizing=ItemSize::Percent(100.0) string={name.clone()} />
+            <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
             <Button
                 label={label}
                 variant=ButtonVariant::Secondary
                 disabled={disabled}
-                @test_id={format!("checkout.switch.{name}")}
+                @test_id=switch_test_id
                 on_click={move || editor.version(VersionCommand::Switch { branch: branch.clone() })}
             />
         </List>

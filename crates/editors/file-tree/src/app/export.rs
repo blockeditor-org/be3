@@ -147,11 +147,7 @@ fn read<C>(editor: Editor, id: Uuid, file: impl FnOnce(&C) -> SavedFile) -> Opti
 where
     C: LiveEdit + Clone + Default,
 {
-    let content = editor.content_of::<C>(id);
-    if !content.loaded().get() {
-        return None;
-    }
-    content.read(file)
+    editor.content_of::<C>(id).read(file).ok()
 }
 
 fn source_or(source: &str, fallback: impl FnOnce() -> String) -> String {

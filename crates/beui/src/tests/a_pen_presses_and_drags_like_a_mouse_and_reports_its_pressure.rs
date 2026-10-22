@@ -8,10 +8,10 @@ fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {
     let _root = crate::reactive::RootScope::new();
     let presses = create_signal::<Vec<PointerPress>>(Vec::new());
     let hovered = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Interactive
-                on_hover_change={move |hover: bool| hovered.set(hover)}
+                on_hover_change={hovered}
                 on_press={move |press: PointerPress| presses.update(|presses| presses.push(press))}
                 on_drag={move |press: PointerPress| presses.update(|presses| presses.push(press))}
             >

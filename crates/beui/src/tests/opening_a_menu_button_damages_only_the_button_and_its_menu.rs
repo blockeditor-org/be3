@@ -7,7 +7,7 @@ use crate::styled::*;
 fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let items = view! {
             <unstyled::MenuItem label="Copy" />
             <unstyled::MenuItem label="Paste" />

@@ -18,7 +18,7 @@ fn a_checklist_and_a_counter_are_held_by_one_peer() {
     let listed = |shared: &Shared| {
         let held = shared.blocks.get(&checklist)?;
         (held.content_type == ChecklistContent::CONTENT_TYPE)
-            .then(|| ChecklistContent::decode(&held.bytes).ok())
+            .then(|| ChecklistContent::decode(held.bytes()).ok())
             .flatten()
             .map(|content| {
                 content

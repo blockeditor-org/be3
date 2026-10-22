@@ -140,6 +140,7 @@ pub(crate) fn WindowPanel(
     });
     let banner = create_memo(move || !responding.get() && !waited.get());
     let host = editor.host();
+    let force_close = ClickCallback::new(move || host.act(WindowAction::Close(window)));
     view! {
         <Layers>
             <Subregion
@@ -153,7 +154,7 @@ pub(crate) fn WindowPanel(
                 <NotResponding
                     name
                     on_wait={move || waited.set(true)}
-                    on_force_close={move || host.act(WindowAction::Close(window))}
+                    on_force_close={force_close}
                 />
             </Floating>
         </Layers>
@@ -176,7 +177,7 @@ fn NotResponding(
             @test_id={"workspace.window.not_responding"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BANNER_SPACING>
-                <Text string={message} />
+                <Text>{message}</Text>
                 <Button
                     label="Wait"
                     variant=ButtonVariant::Secondary

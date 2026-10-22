@@ -8,7 +8,6 @@ use crate::button::ButtonHandle;
 use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, pos2};
 use beui_core::icons::ICON_MORE_HORIZ;
 use beui_core::input::PointerPress;
@@ -18,6 +17,7 @@ use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+#[derive(Clone, Copy)]
 struct State {
     overlay: NodeRef,
     content: NodeRef,
@@ -27,6 +27,7 @@ struct State {
 
 #[component]
 pub fn ContextMenu(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,
     children: Child,
     items: Children<MenuItem>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
@@ -34,7 +35,6 @@ pub fn ContextMenu(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
-    #[prop(default = false)] open_at_pointer: Prop<bool>,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
@@ -49,12 +49,12 @@ pub fn ContextMenu(
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    set_component_state(State {
+    api.fill(ContextMenuApi(State {
         overlay,
         content,
         toolbar,
         more: more_button,
-    });
+    }));
 
     let (requested, requested_touch, requested_position, requested_focusing) =
         (open, touched, position, focusing);
@@ -66,23 +66,6 @@ pub fn ContextMenu(
         requested_touch.set(last_pointer().is_some_and(|pointer| pointer.touch));
         requested_focusing.set(open_at_focuses);
         requested.set(true);
-    });
-    let (pointed, pointed_touch, pointed_position, pointed_focusing) =
-        (open, touched, position, focusing);
-    let mut pointer_opened = false;
-    create_effect(move || {
-        if !open_at_pointer.get() {
-            if std::mem::take(&mut pointer_opened) {
-                pointed.set(false);
-            }
-            return;
-        }
-        pointer_opened = true;
-        let pointer = last_pointer();
-        pointed_position.set(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos));
-        pointed_touch.set(pointer.is_some_and(|pointer| pointer.touch));
-        pointed_focusing.set(true);
-        pointed.set(true);
     });
     let shown = create_memo(move || open.get());
     let touch_shown = create_memo(move || !selection && touched.get());
@@ -131,11 +114,10 @@ pub fn ContextMenu(
                 open.set(true);
             }}
             on_press_outside={move |pos: Pos2| {
-                let on_bar = with_document(|document| {
-                    bar.try_get()
-                        .and_then(|bar| document.node_rect(bar))
-                        .is_some_and(|rect| rect.contains(pos))
-                });
+                let on_bar = bar
+                    .try_get()
+                    .and_then(|bar| placements().rect(bar))
+                    .is_some_and(|rect| rect.contains(pos));
                 let on_selection = toolbar_at
                     .get_untracked()
                     .is_some_and(|rect| rect.contains(pos));
@@ -198,21 +180,23 @@ fn Toolbar(
     on_dismiss: ClickCallback,
 ) -> NodeId {
     let shown = store(RefCell::new(Vec::<Rc<MenuItem>>::new()));
-    let buttons = items.build_each(
-        shown,
-        |_, item| item,
-        move |index| {
-            let item = shown.with(|shown| shown.borrow()[index].clone());
-            match item.children.get_untracked().is_empty() {
-                true => view! {
-                    <ToolbarButton item index button on_choose />
-                },
-                false => view! {
-                    <List spacing=0.0 />
-                },
-            }
-        },
-    );
+    let buttons = RenderFn::new(move |()| {
+        items.build_each(
+            shown,
+            |_, item| item,
+            move |index| {
+                let item = shown.with(|shown| shown.borrow()[index].clone());
+                match item.children.get_untracked().is_empty() {
+                    true => view! {
+                        <ToolbarButton item index button on_choose />
+                    },
+                    false => view! {
+                        <List spacing=0.0 />
+                    },
+                }
+            },
+        )
+    });
     view! {
         <Overlay
             anchor
@@ -233,7 +217,7 @@ fn Toolbar(
                     align=Align::Center
                     spacing=0.0
                 >
-                    {buttons}
+                    {buttons.call(())}
                     <unstyled::Button
                         @node_ref=&more
                         label="More"
@@ -282,36 +266,33 @@ fn ToolbarButton(
     }
 }
 
-pub fn context_menu_menu(document: &Document, context_menu: NodeId) -> NodeId {
-    document
-        .component_state::<State>(context_menu)
-        .content
-        .get()
-}
+#[derive(Clone, Copy)]
+pub struct ContextMenuApi(State);
 
-pub fn context_menu_overlay(document: &Document, context_menu: NodeId) -> NodeId {
-    document
-        .component_state::<State>(context_menu)
-        .overlay
-        .get()
-}
+impl ContextMenuApi {
+    pub fn menu(&self) -> NodeId {
+        self.0.content.get()
+    }
 
-pub fn context_menu_open(document: &Document, context_menu: NodeId) -> bool {
-    document
-        .component_state::<State>(context_menu)
-        .overlay
-        .try_get()
-        .is_some_and(|overlay| document.is_overlay_open(overlay))
-}
+    pub fn overlay(&self) -> NodeId {
+        self.0.overlay.get()
+    }
 
-pub fn context_menu_toolbar(document: &Document, context_menu: NodeId) -> Option<NodeId> {
-    document
-        .component_state::<State>(context_menu)
-        .toolbar
-        .try_get()
-        .filter(|toolbar| document.is_overlay_open(*toolbar))
-}
+    pub fn open(&self, tree: &impl Inspect) -> bool {
+        self.0
+            .overlay
+            .try_get()
+            .is_some_and(|overlay| tree.is_overlay_open(overlay))
+    }
 
-pub fn context_menu_more(document: &Document, context_menu: NodeId) -> NodeId {
-    document.component_state::<State>(context_menu).more.get()
+    pub fn toolbar(&self, tree: &impl Inspect) -> Option<NodeId> {
+        self.0
+            .toolbar
+            .try_get()
+            .filter(|toolbar| tree.is_overlay_open(*toolbar))
+    }
+
+    pub fn more(&self) -> NodeId {
+        self.0.more.get()
+    }
 }

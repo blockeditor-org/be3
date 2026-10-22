@@ -23,12 +23,7 @@ pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string={content}
-                    color=TextColor::Danger
-                    wrap=true
-                />
+                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger wrap=true>{content}</Text>
             </Show>
         </List>
     }
@@ -80,10 +75,10 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
     });
     view! {
         <Column>
-            <Text style=TextStyle::TITLE string="Something went wrong" align=TextAlign::Center />
+            <Text style=TextStyle::TITLE align=TextAlign::Center>"Something went wrong"</Text>
             <Frame height=240.0>
                 <Scroll>
-                    <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
+                    <Text style=TextStyle::PARAGRAPH wrap=true>{message}</Text>
                 </Scroll>
             </Frame>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
@@ -127,7 +122,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
                 on_confirm={|| send(UiCommand::ConfirmErrorAction)}
                 on_dismiss={|| send(UiCommand::CancelErrorAction)}
             >
-                <Text style=TextStyle::PARAGRAPH string={confirmation} wrap=true />
+                <Text style=TextStyle::PARAGRAPH wrap=true>{confirmation}</Text>
             </Dialog>
         </Column>
     }
@@ -150,8 +145,8 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
     let accounts = view.accounts;
     view! {
         <Column>
-            <Text style=TextStyle::TITLE string="Block Editor" />
-            <Text style=TextStyle::CAPTION string="Choose an account to continue." />
+            <Text style=TextStyle::TITLE>"Block Editor"</Text>
+            <Text style=TextStyle::CAPTION>"Choose an account to continue."</Text>
             <ForEach keys={keys}>|key: String| {
                 let account = create_memo(move || {
                     accounts
@@ -166,10 +161,7 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
             }</ForEach>
             <Show condition={empty}>
                 <Card>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="No accounts yet. Add one to get started."
-                    />
+                    <Text style=TextStyle::CAPTION>"No accounts yet. Add one to get started."</Text>
                 </Card>
             </Show>
             <Button
@@ -195,7 +187,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
         <Card>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) string={name} />
+                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{name}</Text>
                     <MenuButton
                         label="Account options"
                         glyph={ICON_MORE_HORIZ.to_owned()}
@@ -247,13 +239,13 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
     view! {
         <List spacing=2.0>
             <Show condition={create_memo(move || !email.get().is_empty())}>
-                <Text style=TextStyle::CAPTION string={email} />
+                <Text style=TextStyle::CAPTION>{email}</Text>
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Text size=TextSize::Sm align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Text style=TextStyle::CAPTION string={server} />
+                <Text style=TextStyle::CAPTION>{server}</Text>
             </List>
         </List>
     }
@@ -419,11 +411,9 @@ pub(super) fn AddAccountDialog(
             <List spacing=20.0>
                 <Show condition={choosing}>
                     <List spacing=14.0>
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            string="Choose where to keep your account."
-                            wrap=true
-                        />
+                        <Text style=TextStyle::PARAGRAPH wrap=true>
+                            "Choose where to keep your account."
+                        </Text>
                         <Frame
                             fill=ColorRole::Surface
                             border={Border::DEFAULT}
@@ -464,19 +454,16 @@ pub(super) fn AddAccountDialog(
                     <List spacing=18.0>
                         <Show condition={local}>
                             <List spacing=16.0>
-                                <Text
-                                    style=TextStyle::PARAGRAPH
-                                    string="Your data stays on this device. You only need a display name."
-                                    wrap=true
-                                />
+                                <Text style=TextStyle::PARAGRAPH wrap=true>
+                                    "Your data stays on this device. You only need a display name."
+                                </Text>
                                 <List spacing=6.0>
-                                    <Text style=TextStyle::CAPTION string="Display name" />
+                                    <Text style=TextStyle::CAPTION>"Display name"</Text>
                                     <TextInput
                                         value={display_name}
                                         label="Display name"
                                         placeholder="Your name"
                                         @test_id="account.name"
-                                        on_change={move |value: String| display_name.set(value)}
                                         on_submit={move |_| submit()}
                                     />
                                 </List>
@@ -484,56 +471,50 @@ pub(super) fn AddAccountDialog(
                         </Show>
                         <Show condition={is_default}>
                             <List spacing=4.0>
-                                <Text style=TextStyle::HEADING string={default_name} />
-                                <Text style=TextStyle::CAPTION string={server_name} wrap=true />
+                                <Text style=TextStyle::HEADING>{default_name}</Text>
+                                <Text style=TextStyle::CAPTION wrap=true>{server_name}</Text>
                             </List>
                         </Show>
                         <Show condition={custom}>
                             <List spacing=6.0>
-                                <Text style=TextStyle::CAPTION string="Server address" />
+                                <Text style=TextStyle::CAPTION>"Server address"</Text>
                                 <TextInput
                                     value={remote_url}
                                     label="Server address"
                                     placeholder="https://example.com"
                                     @test_id="account.server"
-                                    on_change={move |value: String| remote_url.set(value)}
                                     on_submit={move |_| submit()}
                                 />
                             </List>
                         </Show>
                         <Show condition={show_gateway}>
                             <List spacing=6.0>
-                                <Text style=TextStyle::CAPTION string={gateway_label} />
+                                <Text style=TextStyle::CAPTION>{gateway_label}</Text>
                                 <TextInput
                                     value={authorization}
                                     label={gateway_label}
                                     password=true
                                     @test_id="account.gateway"
-                                    on_change={move |value: String| authorization.set(value)}
                                     on_submit={move |_| submit()}
                                 />
                             </List>
                         </Show>
                         <Show condition={remote}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="Next, you’ll sign in or create an account in your browser."
-                                wrap=true
-                            />
+                            <Text style=TextStyle::CAPTION wrap=true>
+                                "Next, you’ll sign in or create an account in your browser."
+                            </Text>
                         </Show>
                     </List>
                 </Show>
                 <Show condition={waiting}>
                     <List spacing=16.0>
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            string="Sign in and approve this code in your browser. You can also use a browser on another device."
-                            wrap=true
-                        />
+                        <Text style=TextStyle::PARAGRAPH wrap=true>
+                            "Sign in and approve this code in your browser. You can also use a browser on another device."
+                        </Text>
                         <Card>
                             <List spacing=16.0>
                                 <List spacing=6.0>
-                                    <Text style=TextStyle::CAPTION string="Device code" />
+                                    <Text style=TextStyle::CAPTION>"Device code"</Text>
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
@@ -545,9 +526,10 @@ pub(super) fn AddAccountDialog(
                                         >
                                             <Text
                                                 style=TextStyle::TITLE
-                                                string={browser_code}
                                                 @test_id="account.browser-code"
-                                            />
+                                            >
+                                                {browser_code}
+                                            </Text>
                                         </SelectableText>
                                         <IconButton
                                             label="Copy code"
@@ -560,7 +542,7 @@ pub(super) fn AddAccountDialog(
                                 </List>
                                 <Separator />
                                 <List spacing=6.0>
-                                    <Text style=TextStyle::CAPTION string="Sign-in link" />
+                                    <Text style=TextStyle::CAPTION>"Sign-in link"</Text>
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
@@ -572,10 +554,11 @@ pub(super) fn AddAccountDialog(
                                         >
                                             <Text
                                                 style=TextStyle::CAPTION
-                                                string={browser_url}
                                                 wrap=true
                                                 @test_id="account.browser-url"
-                                            />
+                                            >
+                                                {browser_url}
+                                            </Text>
                                         </SelectableText>
                                         <IconButton
                                             label="Copy link"
@@ -588,15 +571,13 @@ pub(super) fn AddAccountDialog(
                                 </List>
                             </List>
                         </Card>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Waiting for approval. This window will continue automatically."
-                            wrap=true
-                        />
+                        <Text style=TextStyle::CAPTION wrap=true>
+                            "Waiting for approval. This window will continue automatically."
+                        </Text>
                     </List>
                 </Show>
                 <Show condition={connecting}>
-                    <Text style=TextStyle::PARAGRAPH string="Connecting to the server…" />
+                    <Text style=TextStyle::PARAGRAPH>"Connecting to the server…"</Text>
                 </Show>
                 <Show condition={create_memo(move || error.get().is_some())}>
                     <ErrorText text={error} />
@@ -627,11 +608,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
     view! {
         <Column>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text
-                    style=TextStyle::TITLE
-                    @sizing=ItemSize::Percent(100.0)
-                    string="Organizations"
-                />
+                <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0)>"Organizations"</Text>
                 <MenuButton
                     label="Account options"
                     glyph={ICON_MORE_HORIZ.to_owned()}
@@ -652,7 +629,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <List @sizing=ItemSize::Percent(100.0) spacing=4.0>
-                        <Text style=TextStyle::HEADING string={name} />
+                        <Text style=TextStyle::HEADING>{name}</Text>
                         <AccountDetails account />
                     </List>
                     <Button
@@ -663,7 +640,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                     />
                 </List>
             </Card>
-            <Text style=TextStyle::HEADING string="Open an organization" />
+            <Text style=TextStyle::HEADING>"Open an organization"</Text>
             <ForEach keys={keys}>|id: Uuid| {
                 let label = create_memo(move || {
                     organizations.get()
@@ -699,10 +676,10 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                 <Text align=TextAlign::Center>
                     <Icon glyph={ICON_GROUP_ADD.to_owned()} />
                 </Text>
-                <Text style=TextStyle::HEADING string="Join an organization" />
+                <Text style=TextStyle::HEADING>"Join an organization"</Text>
             </List>
             <JoinOrganization view busy={busy} />
-            <Text style=TextStyle::HEADING string="Create an organization" />
+            <Text style=TextStyle::HEADING>"Create an organization"</Text>
             <CreateOrganization busy={busy} created />
             <ErrorText text={error} />
         </Column>
@@ -739,8 +716,8 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Text style=TextStyle::HEADING string={title} wrap=true />
-                            <Text style=TextStyle::CAPTION string={invited} />
+                            <Text style=TextStyle::HEADING wrap=true>{title}</Text>
+                            <Text style=TextStyle::CAPTION>{invited}</Text>
                         </List>
                         <Button
                             label="Cancel"
@@ -760,11 +737,9 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
             </Show>
             <Show condition={pasting}>
                 <List spacing=8.0>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Paste the invite link someone sent you."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "Paste the invite link someone sent you."
+                    </Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
@@ -772,7 +747,6 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             label="Invite link"
                             placeholder="https://…/#invite/…"
                             @test_id={"app.join.link"}
-                            on_change={move |value: String| link.set(value)}
                             on_submit={move |_value: String| open()}
                         />
                         <Button
@@ -817,18 +791,17 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
         create_memo(move || format!("New {} session", session_type_name(session_type.get())));
     view! {
         <Column>
-            <Text style=TextStyle::TITLE string={title} />
+            <Text style=TextStyle::TITLE>{title}</Text>
             <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
-                    <Text style=TextStyle::CAPTION string="Loading sessions and profiles…" />
+                    <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
                 </List>
             </Show>
-            <Text style=TextStyle::HEADING string="Settings profile" />
-            <Text
-                style=TextStyle::CAPTION
-                string="The settings this device uses. Each device starts with a profile of its own."
-            />
+            <Text style=TextStyle::HEADING>"Settings profile"</Text>
+            <Text style=TextStyle::CAPTION>
+                "The settings this device uses. Each device starts with a profile of its own."
+            </Text>
             <ForEach keys={profile_keys}>|id: Uuid| {
                 let row = create_memo(move || {
                     status.get().profiles.into_iter().find(|profile| profile.id == id)
@@ -861,18 +834,16 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 on_click={|| send(UiCommand::NewProfile)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) string="Session" />
-                <Text style=TextStyle::CAPTION string="Show every type" />
+                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>"Session"</Text>
+                <Text style=TextStyle::CAPTION>"Show every type"</Text>
                 <Switch
-                    on={every_type}
+                    on={Binding::new(every_type, |every: bool| send(UiCommand::EverySessionType(every)))}
                     label="Show sessions of every type"
-                    on_change={|every: bool| send(UiCommand::EverySessionType(every))}
                 />
             </List>
-            <Text
-                style=TextStyle::CAPTION
-                string="The blocks you had open. Start a new session to begin again with the same settings."
-            />
+            <Text style=TextStyle::CAPTION>
+                "The blocks you had open. Start a new session to begin again with the same settings."
+            </Text>
             <ForEach keys={session_keys}>|id: Uuid| {
                 let label = create_memo(move || {
                     status.get()
@@ -939,14 +910,13 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={loaded}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string="You do not have any organizations yet. Create one below."
-                />
+                <Text style=TextStyle::CAPTION>
+                    "You do not have any organizations yet. Create one below."
+                </Text>
             </Show>
             <Show condition={failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text style=TextStyle::CAPTION string="Could not load organizations." />
+                    <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
                     <Button
                         label="Retry"
                         variant=ButtonVariant::Secondary
@@ -957,7 +927,7 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
             <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
-                    <Text style=TextStyle::CAPTION string="Loading organizations…" />
+                    <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
                 </List>
             </Show>
         </List>
@@ -984,7 +954,6 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
                 value={name}
                 placeholder="Organization name"
                 label="Organization name"
-                on_change={move |value: String| name.set(value)}
                 on_submit={move |_value: String| create()}
             />
             <Button
@@ -1027,7 +996,7 @@ pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
             }}
         >
             <List spacing=20.0>
-                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
+                <Text style=TextStyle::PARAGRAPH wrap=true>{message}</Text>
                 <Show condition={create_memo(move || error.get().is_some())}>
                     <ErrorText text={error} />
                 </Show>

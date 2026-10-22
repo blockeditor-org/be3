@@ -81,11 +81,9 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
                     emoji=false
                 />
                 <Show condition={failed}>
-                    <Text
-                        style={TextStyle::CAPTION.color(TextColor::Danger)}
-                        string={problem}
-                        wrap=true
-                    />
+                    <Text style={TextStyle::CAPTION.color(TextColor::Danger)} wrap=true>
+                        {problem}
+                    </Text>
                 </Show>
                 <List direction=Direction::Horizontal spacing=ROW_SPACING>
                     <Button

@@ -39,7 +39,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
     let layout = DockingLayout::<u64>::new();
     let dock = NodeRef::new();
     let document = {
-        build(move || {
+        build_node(move || {
             view! {
                 <styled::Docking @node_ref=&dock layout>
                     <DockPane id="tabs">

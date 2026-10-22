@@ -94,56 +94,53 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     state.editor().content(&content);
 
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Canvas view={camera} @test_id={"map.canvas"}>
-                        <ForEach keys={covering}>|tile: TileId| {
-                            let world = world;
-                            let scale = scale;
-                            view! {
-                                <Tile state tile world scale underlay=true />
-                            }
-                        }</ForEach>
-                        <ForEach keys={covering}>|tile: TileId| {
-                            let scale = scale;
-                            view! {
-                                <Tile state tile world scale />
-                            }
-                        }</ForEach>
-                        <ForEach keys={label_keys}>|key: labels::LabelKey|
-                            <MapLabel key shown={by_key} scale />
-                        </ForEach>
-                        <RegionOutline shown={has_region} rect={region_rect} />
-                        <ForEach keys={ids}>|id: Uuid| {
-                            let selected = selection.memo(Some(id));
-                            let world = world;
-                            let scale = scale;
-                            view! {
-                                <PointMarker state id selected world scale />
-                            }
-                        }</ForEach>
-                    </Canvas>
-                </MapSurface>
-                <Attribution />
-            </List>
-        </Frame>
+        <List spacing=0.0>
+            <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                <Canvas view={camera} @test_id={"map.canvas"}>
+                    <ForEach keys={covering}>|tile: TileId| {
+                        let world = world;
+                        let scale = scale;
+                        view! {
+                            <Tile state tile world scale underlay=true />
+                        }
+                    }</ForEach>
+                    <ForEach keys={covering}>|tile: TileId| {
+                        let scale = scale;
+                        view! {
+                            <Tile state tile world scale />
+                        }
+                    }</ForEach>
+                    <ForEach keys={label_keys}>|key: labels::LabelKey|
+                        <MapLabel key shown={by_key} scale />
+                    </ForEach>
+                    <RegionOutline shown={has_region} rect={region_rect} />
+                    <ForEach keys={ids}>|id: Uuid| {
+                        let selected = selection.memo(Some(id));
+                        let world = world;
+                        let scale = scale;
+                        view! {
+                            <PointMarker state id selected world scale />
+                        }
+                    }</ForEach>
+                </Canvas>
+            </MapSurface>
+            <Attribution />
+        </List>
     }
 }
 
 #[component]
-fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> CanvasItem {
+fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasItem> {
     let x = create_memo(move || rect.get().left());
     let y = create_memo(move || rect.get().top());
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame
-                visible={shown}
-                border={Border::new(ColorRole::Custom(REGION_COLOR)).width(1.5)}
-            />
-        </CanvasItem>
+        <Show condition={shown}>
+            <CanvasItem x={x} y={y} width={width} height={height}>
+                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR)).width(1.5)} />
+            </CanvasItem>
+        </Show>
     }
 }
 
@@ -169,13 +166,9 @@ fn PointMarker(
         })
     });
     let label = create_memo(move || {
-        let Some(point) = point.get() else {
-            return String::new();
-        };
-        match state.label_of(point.block_id) {
-            Some(label) => label.name,
-            None => "Loading…".to_owned(),
-        }
+        point
+            .get()
+            .map_or_else(String::new, |point| state.name_of(point.block_id))
     });
     view! {
         <Marker tip={tip} scale={scale} color={color} selected={selected} label={label} />
@@ -190,7 +183,7 @@ fn Attribution() -> NodeId {
             fill={ColorRole::Custom(HALO)}
             padding={Sides::horizontal(6.0)}
         >
-            <Text style=TextStyle::CAPTION string=ATTRIBUTION align=TextAlign::End />
+            <Text style=TextStyle::CAPTION align=TextAlign::End>{ATTRIBUTION}</Text>
         </Frame>
     }
 }

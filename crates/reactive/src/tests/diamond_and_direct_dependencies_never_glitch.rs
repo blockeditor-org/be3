@@ -14,6 +14,8 @@ fn diamond_and_direct_dependencies_never_glitch() {
         create_effect(move || seen.borrow_mut().push((value.get(), sum.get())));
     });
     value.set(2);
+    flush();
     value.set(3);
+    flush();
     assert_eq!(*seen.borrow(), [(1, 5), (2, 10), (3, 15)]);
 }

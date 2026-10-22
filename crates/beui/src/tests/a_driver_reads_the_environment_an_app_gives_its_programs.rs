@@ -19,9 +19,9 @@ impl App for Hosting {
 
 #[test]
 fn a_driver_reads_the_environment_an_app_gives_its_programs() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
-            <Text string="Desktop" />
+            <Text>"Desktop"</Text>
         }
     });
     let mut driven = Driven::with_app(Hosting(document), false);
@@ -33,9 +33,9 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
         "a program started with these variables shows its windows inside the app"
     );
 
-    let plain = build(|| {
+    let plain = build_node(|| {
         view! {
-            <Text string="Plain" />
+            <Text>"Plain"</Text>
         }
     });
     let mut driven = Driven::new(plain);

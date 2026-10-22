@@ -68,8 +68,7 @@ pub struct DateTimePanelHandle {
 
 #[derive(Clone, Copy)]
 struct Field {
-    current: ReadSignal<Option<DateTime>>,
-    report: Callback<Option<DateTime>>,
+    current: Binding<Option<DateTime>>,
     parts: DateTimeParts,
     hour_cycle: HourCycle,
     label: Memo<String>,
@@ -82,7 +81,7 @@ struct Field {
 
 #[component]
 pub fn DateTimePicker(
-    value: Prop<Option<DateTime>>,
+    #[prop(default = None)] value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = String::new())] label: Prop<String>,
@@ -98,32 +97,24 @@ pub fn DateTimePicker(
     field: RenderFn<DateTimeBoxHandle>,
     trigger: Render<DateTimeTriggerHandle>,
     panel: Render<DateTimePanelHandle>,
-    on_change: Callback<Option<DateTime>>,
 ) -> NodeId {
-    let current = create_signal(value.get_untracked());
-    create_effect(move || current.set(value.get()));
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
     let today = create_memo(move || today.get());
     let label = create_memo(move || label.get());
     let disabled = create_memo(move || disabled.get());
     let paged = create_memo(move || paged.get());
-    let report = Callback::new(move |next: Option<DateTime>| {
-        let next = next.map(|next| {
+    let current = Binding::new(value, move |next: Option<DateTime>| {
+        value.set(next.map(|next| {
             let date = next.date.clamp_to(min.get_untracked(), max.get_untracked());
             DateTime::new(date, next.time)
-        });
-        if next != current.get_untracked() {
-            current.set(next);
-            on_change.call(next);
-        }
+        }));
     });
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
             let width = create_memo(move || size.get().x);
             let field = Field {
-                current: current.read_only(),
-                report,
+                current,
                 parts,
                 hour_cycle,
                 label,
@@ -158,17 +149,18 @@ pub fn DateTimePicker(
                 None
             });
             let refocus_trigger = create_memo(move || !from_field.get());
-            let opened = move |now_open: bool| {
+            let shown = open;
+            let open = Binding::new(shown, move |now_open: bool| {
+                shown.set(now_open);
                 if now_open {
                     return;
                 }
-                open.set(false);
                 inner_focus.set(None);
                 if from_field.get_untracked() {
                     from_field.set(false);
                     outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
                 }
-            };
+            });
             let picker_label = create_memo(move || {
                 let what = match parts {
                     DateTimeParts::Time => "Choose a time",
@@ -194,7 +186,6 @@ pub fn DateTimePicker(
                                 anchor=anchor
                                 placement
                                 refocus_trigger
-                                on_open_change={opened}
                                 trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
                                     popover: handle,
                                     label: picker_label,
@@ -242,7 +233,6 @@ fn FieldBox(
 ) -> NodeId {
     let Field {
         current,
-        report,
         parts,
         hour_cycle,
         label,
@@ -255,7 +245,7 @@ fn FieldBox(
     let within = create_signal(false);
     let hovered = create_signal(false);
     view! {
-        <Interactive on_hover_change={move |inside: bool| hovered.set(inside)}>
+        <Interactive on_hover_change={hovered}>
             {frame.call(DateTimeBoxHandle {
                 field: view! {
                     <Interactive
@@ -270,8 +260,7 @@ fn FieldBox(
                                 label
                                 disabled={disabled}
                                 focus_segment={focus}
-                                on_change={report}
-                                on_focus_change={move |inside: bool| within.set(inside)}
+                                on_focus_change={within}
                                 on_segment_focus={on_segment_focus}
                                 on_draft={on_draft}
                                 on_open={on_open}
@@ -307,7 +296,6 @@ fn PickerPanel(
     let PopoverHandle { open, close } = popover;
     let Field {
         current,
-        report,
         parts,
         hour_cycle,
         ..
@@ -351,7 +339,7 @@ fn PickerPanel(
         let time = current
             .get_untracked()
             .map_or(Time::MIDNIGHT, |value| value.time);
-        report.call(Some(DateTime::new(date, time)));
+        current.set(Some(DateTime::new(date, time)));
         match parts {
             DateTimeParts::Date => close.call(()),
             DateTimeParts::DateTime if paged.get_untracked() => tab.set(1),
@@ -364,7 +352,7 @@ fn PickerPanel(
             .map(|value| value.date)
             .or_else(|| today.get_untracked())
             .unwrap_or_else(Date::today);
-        report.call(Some(DateTime::new(date, time)));
+        current.set(Some(DateTime::new(date, time)));
         close.call(());
     });
     let now = ClickCallback::new(move || {
@@ -377,11 +365,11 @@ fn PickerPanel(
             DateTimeParts::Time => DateTime::new(kept.map_or(now.date, |kept| kept.date), now.time),
             DateTimeParts::DateTime => now,
         };
-        report.call(Some(next));
+        current.set(Some(next));
         close.call(());
     });
     let clear = ClickCallback::new(move || {
-        report.call(None);
+        current.set(None);
         close.call(());
     });
     let layout = create_memo(move || match parts {
@@ -407,7 +395,7 @@ fn PickerPanel(
                                 inner_focus.set(None);
                             }
                         }}
-                        on_draft={move |next| draft.set(next)}
+                        on_draft={draft}
                     />
                 },
                 field_width: width,
@@ -428,7 +416,7 @@ fn PickerPanel(
                     pick: pick_time,
                 },
                 page: tab.read_only(),
-                show_page: Callback::new(move |page: usize| tab.set(page)),
+                show_page: Callback::from(tab),
                 now,
                 now_label,
                 clear,

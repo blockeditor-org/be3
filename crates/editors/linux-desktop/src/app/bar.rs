@@ -9,7 +9,9 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Displays, Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
+use block_editor_beui::{
+    Displays, Epaper, EpaperRequest, Media, Power, Wifi, node_anchor, utc_offset,
+};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -81,7 +83,12 @@ pub(crate) fn DesktopBar(
     let rotatable = create_memo(move || {
         display_settings.with(DisplaySettings::rotate_in_bar) && screen.with(Option::is_some)
     });
-    let menu = move || editor.host().show_app_menu(editor.block_id());
+    let menu_button = NodeRef::new();
+    let menu = move || {
+        editor
+            .host()
+            .show_app_menu(editor.block_id(), node_anchor(&menu_button))
+    };
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
     let keys = create_memo(move || {
@@ -109,6 +116,7 @@ pub(crate) fn DesktopBar(
             <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <IconButton
+                        @node_ref={&menu_button}
                         glyph={ICON_MENU.to_owned()}
                         label="Menu"
                         @test_id={"desktop.menu"}

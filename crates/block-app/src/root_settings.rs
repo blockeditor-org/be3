@@ -50,7 +50,7 @@ fn device_name(class: DeviceClass) -> &'static str {
 
 fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
     be::hold(block, C::CONTENT_TYPE);
-    C::decode(&be::content(block)?.bytes).ok()
+    C::decode(be::content(block)?.bytes()).ok()
 }
 
 #[derive(Default)]

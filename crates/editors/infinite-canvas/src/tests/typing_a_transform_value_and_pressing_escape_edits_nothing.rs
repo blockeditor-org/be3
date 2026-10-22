@@ -7,18 +7,24 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
     let mut rectangle = entity(Uuid::from_u128(1));
     rectangle.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(120.0, 80.0), 0.0);
-    rectangle.style.fill = Some(CanvasColor::Rgba {
+    rectangle.style.fill = CanvasFill::Solid;
+    rectangle.style.fill_color = CanvasColor::Rgba {
         red: 60,
         green: 110,
         blue: 90,
         alpha: 255,
-    });
+    };
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
-    let mut editor = editor(std::slice::from_ref(&rectangle));
+    let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
     editor.click(&drawn);
     editor.run();
-    let before = editor.applied(None);
+    editor.click("infinite-canvas.transform.width");
+    editor.run();
+    editor.text("150");
+    editor.run();
+    editor.key_press(Key::Enter);
+    editor.run();
     let resting = editor.rect_of(&drawn);
     editor.click("infinite-canvas.transform.x");
     editor.run();
@@ -38,11 +44,18 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
 
     assert_eq!(editor.rect_of(&drawn), resting);
     assert_eq!(entities(&editor)[0].transform.center.x, 0.0);
+    undo(&mut editor);
     assert_eq!(
-        editor.applied(None),
-        before,
-        "a cancelled edit must not reach the block, or it lands in its undo history"
+        entities(&editor)[0].transform.size.x,
+        120.0,
+        "a cancelled edit leaves nothing in the undo history, so undo takes back the width"
     );
+    editor.click("infinite-canvas.transform.width");
+    editor.run();
+    editor.text("150");
+    editor.run();
+    editor.key_press(Key::Enter);
+    editor.run();
 
     let field = editor.point_of("infinite-canvas.transform.y");
     editor.drag(field, field + Vec2::new(20.0, 0.0));

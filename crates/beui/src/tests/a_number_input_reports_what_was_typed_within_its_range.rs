@@ -10,28 +10,41 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
-                value=4.0
+                value={Binding::new(4.0, move |next| changes.update(|changes| changes.push(next)))}
                 min=0.0
                 max=10.0
-                on_change={move |value| changes.update(|changes| changes.push(value))}
                 on_preview={move |value| previews.update(|previews| previews.push(value))}
             />
         }]
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let shown = number_input_text(harness.document(), input).expect("the input starts closed");
+    let shown = harness
+        .document()
+        .api::<NumberInputTextApi>(input)
+        .text()
+        .expect("the input starts closed");
 
     assert_eq!(text_of(harness.document(), shown), "4");
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
-    let field = number_input_field(harness.document(), input).expect("enter opens the field");
+    let field = harness
+        .document()
+        .api::<NumberInputApi>(input)
+        .field()
+        .expect("enter opens the field");
     harness.type_text("42");
     harness.frame(Vec::new());
 
-    assert_eq!(unstyled::text_input_shown(harness.document(), field), "42");
+    assert_eq!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(field)
+            .shown(harness.document()),
+        "42"
+    );
     assert_eq!(
         previews.with_untracked(|previews| previews.last().copied()),
         Some(Some(10.0))

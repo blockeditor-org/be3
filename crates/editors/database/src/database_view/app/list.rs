@@ -81,7 +81,7 @@ pub fn ListView(data: Data) -> NodeId {
                     <List spacing=0.0>
                         <Show condition={empty}>
                             <Frame padding={Sides::symmetric(GUTTER * 1.5, GUTTER)}>
-                                <Text style=TextStyle::CAPTION string={blank} />
+                                <Text style=TextStyle::CAPTION>{blank}</Text>
                             </Frame>
                         </Show>
                         <VirtualList keys={lines} item_size=LINE_HEIGHT>|line: ReadSignal<Line>|
@@ -117,7 +117,7 @@ pub fn RowBeside(
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Layers @sizing=ItemSize::Percent(100.0)>
-                <Frame visible={main_shown}>{children}</Frame>
+                <ShowKeepAlive condition={main_shown}>{children}</ShowKeepAlive>
                 <Show condition={instead}>
                     <OpenRow data={data} row={selected} />
                 </Show>
@@ -223,11 +223,11 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                     @test_id={format!("database-view.group.{test_key}.toggle")}
                     on_click={toggle}
                 />
-                <Frame visible={marked}>
+                <Show condition={marked}>
                     <ChoiceMark option={option} size=MARK />
-                </Frame>
-                <Text string={label} />
-                <Text style=TextStyle::CAPTION string={count} />
+                </Show>
+                <Text>{label}</Text>
+                <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
                 <IconButton
                     glyph={ICON_ADD.to_owned()}
@@ -370,14 +370,12 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
-                            <Text style=TextStyle::CAPTION string={code} ellipsis=true />
+                            <Text style=TextStyle::CAPTION ellipsis=true>{code}</Text>
                         </Frame>
                         <Marks data={data} entry={entry} marks={marks} />
-                        <Text
-                            @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                            string={title}
-                            ellipsis=true
-                        />
+                        <Text @sizing={ItemSize::Percent(100.0).shrink(1.0)} ellipsis=true>
+                            {title}
+                        </Text>
                         <Parts parts={parts} keys={part_keys} />
                     </List>
                 </Show>
@@ -385,7 +383,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                     <List spacing=4.0>
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                             <Marks data={data} entry={entry} marks={marks} />
-                            <Text @sizing=ItemSize::Percent(100.0) string={title} wrap=true />
+                            <Text @sizing=ItemSize::Percent(100.0) wrap=true>{title}</Text>
                         </List>
                         <List
                             direction=Direction::Horizontal
@@ -393,7 +391,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                             spacing=8.0
                             wrap=true
                         >
-                            <Text style=TextStyle::CAPTION string={code} />
+                            <Text style=TextStyle::CAPTION>{code}</Text>
                             <Parts parts={parts} keys={part_keys} />
                         </List>
                     </List>
@@ -423,9 +421,11 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
                 let set = create_memo(move || option.with(Option::is_some));
                 view! {
                     <Frame width=MARK_SIZE height=MARK_SIZE>
-                        <Frame visible={set}>
-                            <ChoiceMark option={option} size=MARK />
-                        </Frame>
+                        <Layers>
+                            <Show condition={set}>
+                                <ChoiceMark option={option} size=MARK />
+                            </Show>
+                        </Layers>
                     </Frame>
                 }
             }</ForEach>
@@ -489,7 +489,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                         </Text>
                     },
                     PartKind::Plain => view! {
-                        <Text style=TextStyle::CAPTION string={text} ellipsis=true />
+                        <Text style=TextStyle::CAPTION ellipsis=true>{text}</Text>
                     },
                     PartKind::Chip => view! {
                         <Chip part={part} text={text} />
@@ -524,7 +524,7 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
                         <Icon glyph={ICON_LINK.to_owned()} />
                     </Text>
                 </Show>
-                <Text style=TextStyle::CAPTION string={text} align=TextAlign::Start />
+                <Text style=TextStyle::CAPTION align=TextAlign::Start>{text}</Text>
             </List>
         </Frame>
     }

@@ -3,13 +3,10 @@ use beui_components_unstyled::software_keyboard::{
     EMOJI_GROUPS, Face, KeyCapHandle, KeyboardHandle, Latch, Layer, Role, Slot, Value, emojis_in,
     face,
 };
-use beui_core::context::Context;
-use beui_core::document::Document;
 use beui_core::geometry::Rect;
 use beui_core::icons;
 use beui_core::input::Key;
 use beui_core::node::NodeId;
-use beui_core::software_keyboard::KeyboardHost;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -18,7 +15,6 @@ use crate::frame::{ColorRole, Frame, Radius};
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{DocumentTheme, Theme};
 
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: f32 = 4.0;
@@ -202,7 +198,8 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
     };
     view! {
         <Frame align padding>
-            <Text string={text} size color ellipsis={!center}>
+            <Text size color ellipsis={!center}>
+                {text}
                 <Icon glyph={glyph} size color />
                 {after}
             </Text>
@@ -323,7 +320,7 @@ fn EmojiKey(emoji: &'static str, keyboard: KeyboardHandle) -> NodeId {
                         fill
                         radius=Radius::Sm
                     >
-                        <Text string=emoji size=TextSize::Xl />
+                        <Text size=TextSize::Xl>{emoji}</Text>
                     </Frame>
                 }
             }}
@@ -349,7 +346,8 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
                 view! {
                     <Frame padding=Sides::all(GAP)>
                         <Frame fill radius=Radius::Sm align=Align2::CENTER>
-                            <Text string=text size=TextSize::Lg>
+                            <Text size=TextSize::Lg>
+                                {text}
                                 <Icon glyph size=TextSize::Lg />
                             </Text>
                         </Frame>
@@ -358,41 +356,4 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
             }}
         />
     }
-}
-
-#[derive(Default)]
-pub struct KeyboardWindow {
-    document: Option<Document>,
-    theme: Option<Theme>,
-}
-
-impl KeyboardHost for KeyboardWindow {
-    fn height(&mut self, width: f32) -> f32 {
-        keyboard_height(width)
-    }
-
-    fn show(&mut self, ctx: &Context, rect: Rect, app: &Document) {
-        let document = self.document.get_or_insert_with(|| {
-            build(|| {
-                view! {
-                    <SoftwareKeyboard />
-                }
-            })
-        });
-        let theme = app.theme();
-        if self.theme != Some(theme) {
-            self.theme = Some(theme);
-            document.set_theme(theme);
-        }
-        document.show_content(ctx, rect);
-    }
-
-    fn closed(&mut self) {
-        self.document = None;
-        self.theme = None;
-    }
-}
-
-pub fn install_keyboard(document: &mut Document) {
-    document.set_keyboard_host(Box::new(KeyboardWindow::default()));
 }

@@ -515,7 +515,10 @@ impl Walk {
                 ..*self
             },
             Group::Scroll {
-                viewport, offset, ..
+                viewport,
+                offset,
+                scale,
+                ..
             } => {
                 let clip = self.clip.intersect(viewport.translate(self.offset));
                 let at = self.offset + offset;
@@ -524,8 +527,12 @@ impl Walk {
                     self.origin[1] + (at.y * self.factor).round(),
                 ];
                 let bound = overlap(pixels(clip, self.factor, self.origin), self.bound);
+                let scale = match scale > 0.0 && scale.is_finite() {
+                    true => scale,
+                    false => 1.0,
+                };
                 Self {
-                    factor: self.factor,
+                    factor: self.factor * scale,
                     space: space(origin, bound, self.fade),
                     origin,
                     bound,
@@ -663,7 +670,7 @@ impl Renderer {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -1638,6 +1645,19 @@ impl Renderer {
                 rect,
                 clip,
             },
+            Quad::Triangle {
+                corners: [a, b, c],
+                edges,
+                clip,
+                color,
+            } => plain(Instance {
+                rect: [a[0], a[1], b[0], b[1]],
+                clip,
+                uv: [c[0], c[1], 0.0, 0.0],
+                color: self.encode(color),
+                params: [f32::from(edges), 0.0, 4.0, 0.0],
+                turn: turn(Turn::NONE),
+            }),
         })
     }
 
@@ -2013,11 +2033,11 @@ fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {
     ]
 }
 
-pub fn clear_color(color: Color32) -> wgpu::Color {
-    clear_color_in(wgpu::TextureFormat::Rgba8UnormSrgb, color)
+pub fn wgpu_color(color: Color32) -> wgpu::Color {
+    wgpu_color_in(wgpu::TextureFormat::Rgba8UnormSrgb, color)
 }
 
-pub fn clear_color_in(format: wgpu::TextureFormat, color: Color32) -> wgpu::Color {
+pub fn wgpu_color_in(format: wgpu::TextureFormat, color: Color32) -> wgpu::Color {
     let [red, green, blue, alpha] = match format.is_srgb() {
         true => color.to_linear_f32(),
         false => color.to_normalized_gamma_f32(),

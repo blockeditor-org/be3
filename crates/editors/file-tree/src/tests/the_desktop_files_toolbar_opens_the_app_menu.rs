@@ -15,7 +15,7 @@ fn the_desktop_files_toolbar_opens_the_app_menu() {
             .test
             .take_block_commands()
             .iter()
-            .any(|(_, command)| *command == BlockCommand::AppMenu),
+            .any(|(_, command)| matches!(command, BlockCommand::AppMenu { anchor: Some(_) })),
         "the account button asks the host for its menu"
     );
 }

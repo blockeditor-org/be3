@@ -2,7 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::{TextAreaState, text_area_handles};
+use crate::unstyled::{TextAreaApi, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
@@ -11,7 +11,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let lines = (1..=40)
             .map(|line| format!("line {line}"))
             .collect::<Vec<_>>()
@@ -29,14 +29,20 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
-    let surface = text_area_surface(harness.document(), area.get());
+    let surface = harness
+        .document()
+        .api::<TextAreaSurfaceApi>(area.get())
+        .surface();
     let visible = harness.rect(surface);
     let start = pos2(visible.center().x, visible.top() + 16.0);
     harness.touch(TouchPhase::Start, start);
     harness.touch(TouchPhase::End, start);
     harness.frame(Vec::new());
 
-    let handles = text_area_handles(harness.document(), surface);
+    let handles = harness
+        .document()
+        .api::<TextAreaApi>(surface)
+        .handles(harness.document());
     let [handle] = handles[..] else {
         panic!("a caret placed by touch shows one handle, not {handles:?}");
     };

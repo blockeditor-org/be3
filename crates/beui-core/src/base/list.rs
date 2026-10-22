@@ -282,8 +282,9 @@ impl ListNode {
     ) -> Line {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
+        let gaps = self.gaps(spacing, grid);
         let mut slots = Vec::with_capacity(self.items.len());
-        for (index, item) in self.items.iter().enumerate() {
+        for (item, gap) in self.items.iter().zip(gaps) {
             let intrinsic = match item.size.size {
                 ItemSize::Intrinsic => true,
                 ItemSize::Percent(_) => !available_main.is_finite(),
@@ -296,10 +297,6 @@ impl ListNode {
                     self.main_and_cross(size).0
                 }
                 false => 0.0,
-            };
-            let gap = match index {
-                0 => 0.0,
-                _ => grid.snap(item.size.gap.unwrap_or(spacing)),
             };
             slots.push(Slot {
                 size: item.size,
@@ -517,6 +514,10 @@ impl Element for ListNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn children_revision(&self) -> Option<u64> {
+        Some(self.items.revision())
     }
 
     fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {

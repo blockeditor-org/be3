@@ -9,7 +9,7 @@ fn a_signal_written_between_frames_wakes_the_app_and_lands_on_the_next_frame() {
     let count = create_signal(0i64);
     let (document, [value]) = toolbar_of(|| {
         [view! {
-            <Text string={create_memo(move || count.get().to_string())} />
+            <Text>{create_memo(move || count.get().to_string())}</Text>
         }]
     });
     let mut harness = Harness::new(document);

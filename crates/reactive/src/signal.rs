@@ -5,10 +5,11 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State, no_computation};
-use crate::runtime::{RUNTIME, batch, check_tracked_read, untrack};
+use crate::runtime::{RUNTIME, check_tracked_read, untrack};
 
 pub(crate) struct Source {
     pub(crate) version: Cell<u64>,
+    pub(crate) tracked_by: Cell<u64>,
     pub(crate) subscribers: RefCell<Subscribers>,
     pub(crate) producer: RefCell<Weak<Computation>>,
 }
@@ -17,6 +18,7 @@ impl Default for Source {
     fn default() -> Self {
         Self {
             version: Cell::default(),
+            tracked_by: Cell::default(),
             subscribers: RefCell::default(),
             producer: RefCell::new(no_computation()),
         }
@@ -85,6 +87,8 @@ impl<T> Tracked for Value<T> {
     }
 }
 
+const SCANNED_DEPENDENCIES: usize = 16;
+
 pub(crate) fn track(tracked: Rc<dyn Tracked>) {
     let Some(observer) = RUNTIME.with(|runtime| runtime.observer.borrow().upgrade()) else {
         RUNTIME.with(|runtime| {
@@ -104,12 +108,17 @@ pub(crate) fn track(tracked: Rc<dyn Tracked>) {
         if observer.is_disposed() {
             return;
         }
+        let tracking = observer.tracking.get();
+        let source = tracked.source();
+        if source.tracked_by.replace(tracking) == tracking {
+            return;
+        }
         let mut dependencies = observer.dependencies.borrow_mut();
-        if !dependencies
-            .iter()
-            .any(|(source, _, _)| std::ptr::addr_eq(Rc::as_ptr(source), Rc::as_ptr(&tracked)))
-        {
-            let source = tracked.source();
+        let held = dependencies.len() <= SCANNED_DEPENDENCIES
+            && dependencies
+                .iter()
+                .any(|(source, _, _)| std::ptr::addr_eq(Rc::as_ptr(source), Rc::as_ptr(&tracked)));
+        if !held {
             let slot = source
                 .subscribers
                 .borrow_mut()
@@ -285,29 +294,25 @@ impl<T: 'static> Set<T> for Signal<T> {
         let Some(inner) = arena::get::<Value<T>>(self.key) else {
             return;
         };
-        batch(|| {
-            let mut current = inner.value.borrow_mut();
-            if *current != value {
-                *current = value;
-                drop(current);
-                inner.source.changed();
-            }
-        });
+        let mut current = inner.value.borrow_mut();
+        if *current != value {
+            *current = value;
+            drop(current);
+            inner.source.changed();
+        }
     }
 
     fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         assert_writable();
         let inner = stored::<T>(self.key);
-        batch(|| {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                f(&mut inner.value.borrow_mut())
-            }));
-            inner.source.changed();
-            match result {
-                Ok(value) => value,
-                Err(error) => std::panic::resume_unwind(error),
-            }
-        })
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f(&mut inner.value.borrow_mut())
+        }));
+        inner.source.changed();
+        match result {
+            Ok(value) => value,
+            Err(error) => std::panic::resume_unwind(error),
+        }
     }
 }
 

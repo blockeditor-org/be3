@@ -1,6 +1,7 @@
-use block_editor_beui::Editor;
+use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::beui::styled::Root;
+use block_editor_beui::{Editor, Loaded};
 
 mod devices;
 mod setup;
@@ -14,9 +15,13 @@ const INTRINSIC_HEIGHT: f32 = 240.0;
 pub struct SettingsApp;
 
 impl block_editor_beui::BeuiApp for SettingsApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <SettingsView editor={editor} />
+            <Root>
+                <Loaded>
+                    <SettingsView editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 
@@ -28,9 +33,13 @@ impl block_editor_beui::BeuiApp for SettingsApp {
 pub struct SettingsProfileApp;
 
 impl block_editor_beui::BeuiApp for SettingsProfileApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <SettingsProfileView editor={editor} />
+            <Root>
+                <Loaded>
+                    <SettingsProfileView editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

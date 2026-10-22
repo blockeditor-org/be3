@@ -1,6 +1,12 @@
 extern crate self as be_model;
 
-use std::{cell, collections::BTreeMap, fmt, marker::PhantomData};
+use std::{
+    cell,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    marker::PhantomData,
+    sync::OnceLock,
+};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -12,6 +18,7 @@ mod history;
 mod items;
 mod latest;
 mod merge;
+mod rebase;
 pub mod references;
 pub mod schema;
 mod stored;
@@ -27,9 +34,10 @@ pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
 pub use references::BlockRef;
 pub use schema::{Kind, Property, Shape};
+pub use sequence::marks;
 pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
 pub use stored::{BLOB_REF, BLOCK_REF, CRITICAL, Stored, decode as from_cbor, encode as to_cbor};
-pub use text::Text;
+pub use text::{RichText, Text};
 pub use tree::Tree;
 
 thread_local! {
@@ -102,6 +110,7 @@ pub enum Value {
     Grid(Cells),
     Latest(BTreeMap<Vec<u8>, Stamped>),
     Text(Sequence<u8>),
+    Rich(marks::Rich),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -235,6 +244,16 @@ pub enum Change {
         field: u16,
         op: SeqOp<u8>,
     },
+    Mark {
+        object: ObjectId,
+        field: u16,
+        mark: marks::Mark,
+    },
+    Unmark {
+        object: ObjectId,
+        field: u16,
+        id: marks::MarkId,
+    },
 }
 
 impl Change {
@@ -288,6 +307,7 @@ impl std::error::Error for Malformed {}
 
 pub struct Document<R> {
     tree: Tree,
+    references: OnceLock<references::Index>,
     root: PhantomData<fn() -> R>,
 }
 
@@ -301,6 +321,7 @@ impl<R: Model> Document<R> {
     fn from_tree(tree: Tree) -> Self {
         Self {
             tree,
+            references: OnceLock::new(),
             root: PhantomData,
         }
     }
@@ -319,14 +340,89 @@ impl<R: Model> Document<R> {
 
     pub fn apply(&mut self, edit: &Edit) {
         for change in &edit.0 {
-            self.tree.apply(change);
+            self.change(change);
         }
     }
 
     pub fn apply_touching(&mut self, edit: &Edit, touched: &mut Vec<Touched>) {
         for change in &edit.0 {
             self.tree.touched(change, touched);
-            self.tree.apply(change);
+            self.change(change);
+        }
+    }
+
+    pub fn rebase(
+        &mut self,
+        confirmed: &mut Self,
+        incoming: &Edit,
+        local: &[Edit],
+        touched: &mut Vec<Touched>,
+    ) {
+        let mut spots = BTreeSet::new();
+        for edit in local {
+            rebase::around(&[&confirmed.tree, &self.tree], edit, &mut spots);
+        }
+        for change in &incoming.0 {
+            rebase::exact(&confirmed.tree, change, &mut spots);
+            confirmed.change(change);
+        }
+        for spot in &spots {
+            self.tree.touch_spot(*spot, touched);
+        }
+        for spot in &spots {
+            self.tree.restore(*spot, &confirmed.tree);
+        }
+        for spot in &spots {
+            self.tree.touch_spot(*spot, touched);
+        }
+        if let Some(index) = self.references.get_mut() {
+            let objects: BTreeSet<ObjectId> = spots.iter().map(|spot| spot.object()).collect();
+            for object in objects {
+                index.refresh(&self.tree, object);
+            }
+        }
+        for edit in local {
+            self.apply_touching(edit, touched);
+        }
+    }
+
+    fn change(&mut self, change: &Change) {
+        let Some(index) = self.references.get_mut() else {
+            self.tree.apply(R::kind, change);
+            return;
+        };
+        let removed = match change {
+            Change::Remove { object } | Change::RemoveIf { object, .. } => {
+                self.tree.subtree_ids(*object)
+            }
+            _ => Vec::new(),
+        };
+        if !self.tree.apply(R::kind, change) {
+            return;
+        }
+        match change {
+            Change::Set { object, .. }
+            | Change::SetIf { object, .. }
+            | Change::Put { object, .. }
+            | Change::PutIf { object, .. }
+            | Change::Stamp { object, .. } => index.refresh(&self.tree, *object),
+            Change::Insert { objects, .. } => {
+                for (id, _) in objects {
+                    index.refresh(&self.tree, *id);
+                }
+            }
+            Change::Remove { .. } | Change::RemoveIf { .. } => {
+                for id in removed {
+                    index.refresh(&self.tree, id);
+                }
+            }
+            Change::Add { .. }
+            | Change::Paint { .. }
+            | Change::Reshape { .. }
+            | Change::Move { .. }
+            | Change::Text { .. }
+            | Change::Mark { .. }
+            | Change::Unmark { .. } => {}
         }
     }
 
@@ -352,8 +448,25 @@ impl<R: Model> Document<R> {
         }
     }
 
+    pub fn index_of<M, T>(
+        &self,
+        owner: ObjectId,
+        field: FieldRef<M, List<T>>,
+        id: ObjectId,
+    ) -> Option<usize> {
+        match self
+            .tree
+            .object(owner)?
+            .fields
+            .get(usize::from(field.index()))?
+        {
+            Value::List(ids) => ids.index_of(id),
+            _ => None,
+        }
+    }
+
     pub fn step(&self, edit: &Edit) -> Option<Step> {
-        history::step(&self.tree, edit)
+        history::step(&self.tree, R::kind, edit)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -373,7 +486,9 @@ impl<R: Model> Document<R> {
     }
 
     pub fn block_refs(&self) -> Vec<Uuid> {
-        references::collect(&self.tree, &R::kind())
+        self.references
+            .get_or_init(|| references::Index::build(&self.tree))
+            .ids()
     }
 
     pub fn text<M>(&self, object: ObjectId, field: FieldRef<M, Text>) -> Option<&Sequence<u8>> {
@@ -384,6 +499,18 @@ impl<R: Model> Document<R> {
             .get(usize::from(field.index()))?
         {
             Value::Text(sequence) => Some(sequence),
+            _ => None,
+        }
+    }
+
+    pub fn rich<M>(&self, object: ObjectId, field: FieldRef<M, RichText>) -> Option<&marks::Rich> {
+        match self
+            .tree
+            .object(object)?
+            .fields
+            .get(usize::from(field.index()))?
+        {
+            Value::Rich(rich) => Some(rich),
             _ => None,
         }
     }
@@ -415,6 +542,7 @@ impl<R> Clone for Document<R> {
     fn clone(&self) -> Self {
         Self {
             tree: self.tree.clone(),
+            references: self.references.clone(),
             root: PhantomData,
         }
     }

@@ -57,7 +57,7 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
             "usage: drive [--timeout=SECONDS] [--socket=PATH] [--no-settle] [--changes=N|all] COMMAND [ARGUMENTS]\n\
              \x20      drive [--timeout=SECONDS] [--socket=PATH] - < COMMANDS\n\
              `shot` takes the file to write the PNG to first: shot FILE [TARGET].\n\
-             `paint` takes the file to write the paint snapshot to first: paint FILE [TARGET].\n\
+             `paint` takes the .paint file to write the paint snapshot to first: paint FILE.paint [TARGET].\n\
              `-` reads one command a line from standard input, quoted as a shell would, and stops at the first that fails.\n\
              `env` prints the app's environment for programs as export lines, for `eval \"$(drive env)\"`.\n\
              `exec PROGRAM [ARGUMENTS]` runs PROGRAM in that environment, so its windows open inside the app.\n\
@@ -78,6 +78,17 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
         options.into_iter().chain(arguments).collect(),
         timeout,
     )
+}
+
+fn written(file: String, extension: &str, command: &str) -> Result<PathBuf, String> {
+    let file = PathBuf::from(file);
+    match file.extension().is_some_and(|found| found == extension) {
+        true => Ok(file),
+        false => Err(format!(
+            "{command} writes to a .{extension} file named first, {command} FILE [TARGET]; {} is not one",
+            file.display()
+        )),
+    }
 }
 
 pub(crate) fn script(socket: &Path, options: &[String], timeout: Duration) -> Result<(), String> {
@@ -125,7 +136,7 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
         if arguments.len() < first + 2 {
             return Err("shot needs the file to write the PNG to: shot FILE [TARGET]".to_owned());
         }
-        file = Some(PathBuf::from(arguments.remove(first + 1)));
+        file = Some(written(arguments.remove(first + 1), "png", "shot")?);
     }
     if arguments.get(first).map(String::as_str) == Some("paint") {
         if arguments.len() < first + 2 {
@@ -133,7 +144,7 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
                 "paint needs the file to write the painting to: paint FILE [TARGET]".to_owned(),
             );
         }
-        file = Some(PathBuf::from(arguments.remove(first + 1)));
+        file = Some(written(arguments.remove(first + 1), "paint", "paint")?);
     }
     if arguments.get(first).map(String::as_str) == Some("env") {
         for (name, value) in environment(socket, timeout)? {

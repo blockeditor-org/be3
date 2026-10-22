@@ -21,7 +21,10 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
     harness.type_text("an");
@@ -29,7 +32,10 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .highlighted(),
         Some(2),
         "Mango is the second option the search shows"
     );
@@ -38,7 +44,10 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .highlighted(),
         Some(1),
         "an option the search no longer shows gives the highlight to the first one it does"
     );

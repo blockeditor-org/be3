@@ -3,7 +3,7 @@ use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
-use block_editor_beui::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
@@ -64,7 +64,11 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     });
     let back = move || pages.go(pages.page().saturating_sub(1));
     let forward = move || pages.go(pages.page() + 1);
-    let fit = move || editor.fit();
+    let fitting = editor.keep_fitted(move || {
+        let size = shown.get().size();
+        (size.x > 0.0 && size.y > 0.0).then(|| Rect::from_min_size(Pos2::ZERO, size))
+    });
+    let fit = move || fitting.fit();
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
@@ -82,7 +86,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
-                <Text string="PDF" />
+                <Text>"PDF"</Text>
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_BACK.to_owned()}
                     label="Previous page"
@@ -90,7 +94,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                     @test_id={"pdf.previous"}
                     on_click={back}
                 />
-                <Text style=TextStyle::CAPTION string={page_label} />
+                <Text style=TextStyle::CAPTION>{page_label}</Text>
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_FORWARD.to_owned()}
                     label="Next page"
@@ -108,13 +112,16 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             </Toolbar>
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Interactive on_pan_drag={move |delta: Vec2| editor.pan(delta)}>
+                    <Interactive
+                        on_press={move |_: PointerPress| editor.pan_drag()}
+                        on_pan_drag={move |delta: Vec2| editor.pan(delta)}
+                    >
                         <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
                 </Frame>
                 <Sidebar shown={chrome}>
-                    <Text style=TextStyle::HEADING string="PDF" />
-                    <Text style=TextStyle::CAPTION string={name} />
+                    <Text style=TextStyle::HEADING>"PDF"</Text>
+                    <Text style=TextStyle::CAPTION>{name}</Text>
                     <Button
                         label="Replace PDF…"
                         variant=ButtonVariant::Secondary
@@ -123,7 +130,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                         on_click={choose}
                     />
                     <Show condition={refused}>
-                        <Text style=TextStyle::CAPTION string={refusal} color=TextColor::Danger />
+                        <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Sidebar>
@@ -178,12 +185,9 @@ fn PageCanvas(
                 }</ForEach>
             </Canvas>
             <Show condition={failed}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string={reason}
-                    color=TextColor::Danger
-                    @test_id={"pdf.error"}
-                />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"pdf.error"}>
+                    {reason}
+                </Text>
             </Show>
         </List>
     }

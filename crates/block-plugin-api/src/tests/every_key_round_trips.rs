@@ -9,6 +9,7 @@ fn every_key_round_trips() {
     for key in Key::ALL {
         let message = Message::Input(InputBatch {
             screen: ScreenId(1),
+            every_sample: false,
             events: vec![InputEvent::Key {
                 key,
                 pressed: true,

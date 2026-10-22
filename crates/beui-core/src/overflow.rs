@@ -78,7 +78,9 @@ impl Document {
                 }
             }
             if let Some(ink) = self.arena.get(id).ink() {
-                let ink = ink.translate(rect.min.to_vec2());
+                let ink = ink
+                    .scaled(self.rects.scale_of(&id))
+                    .translate(rect.min.to_vec2());
                 if ink.is_positive() && !within(ink, rect) {
                     found.push(self.overflow(id, OverflowKind::Spills, ink, rect));
                 }

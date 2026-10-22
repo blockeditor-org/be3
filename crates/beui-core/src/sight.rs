@@ -78,9 +78,12 @@ impl Sight {
         if own.rotation.turns() {
             return Self::ANYWHERE.exact(true);
         }
-        let offset = own.origin - parent.origin;
-        self.translate(offset)
-            .seen_through(Self::region(own).translate(offset), Self::region(parent))
+        let ratio = own.scale / parent.scale;
+        let offset = (own.origin - parent.origin) / parent.scale;
+        self.scaled(ratio).translate(offset).seen_through(
+            Self::region(own).scaled(ratio).translate(offset),
+            Self::region(parent),
+        )
     }
 
     fn covers(self, region: Rect) -> bool {
@@ -93,6 +96,17 @@ impl Sight {
                 && (start < reach_start || reach_start == f32::INFINITY)
                 && (end > reach_end || reach_end == f32::NEG_INFINITY)
         })
+    }
+
+    fn scaled(self, ratio: f32) -> Self {
+        match ratio == 1.0 {
+            true => self,
+            false => Self {
+                within: self.within.scaled(ratio),
+                reach: self.reach.scaled(ratio),
+                ..self
+            },
+        }
     }
 
     fn translate(self, by: Vec2) -> Self {

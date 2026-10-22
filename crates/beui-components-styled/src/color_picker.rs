@@ -52,15 +52,14 @@ pub const DEFAULT_SWATCHES: [Color32; 10] = [
 
 #[component]
 pub fn ColorPicker(
-    value: Prop<Color32>,
+    value: Binding<Color32>,
     #[prop(default = true)] alpha: bool,
     #[prop(default = DEFAULT_SWATCHES.to_vec())] swatches: Vec<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_change, on_preview);
+    let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_preview);
     let color = picker.color();
     let has_swatches = !swatches.is_empty();
     let shown = picker.shown();
@@ -126,17 +125,15 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     label="Hex"
                     placeholder={hex.placeholder()}
                     select_on_focus=true
-                    on_change={move |typed: String| hex.edit(typed)}
                     on_submit={move |typed: String| hex.submit(typed)}
                 />
                 <Show condition=alpha>
                     <NumberInput
                         @sizing=ItemSize::Fixed(ALPHA_WIDTH)
-                        value={opacity}
+                        value={Binding::new(opacity, set_opacity)}
                         min=0.0
                         max=100.0
                         label="Opacity percent"
-                        on_change={set_opacity}
                     />
                 </Show>
             </List>
@@ -147,51 +144,45 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
             >
                 <ChannelLabel content="R" />
                 <NumberInput
-                    value={picker.channel(0)}
+                    value={Binding::new(picker.channel(0), set_red)}
                     min=0.0
                     max=255.0
                     label="Red"
-                    on_change={set_red}
                 />
                 <ChannelLabel content="G" />
                 <NumberInput
-                    value={picker.channel(1)}
+                    value={Binding::new(picker.channel(1), set_green)}
                     min=0.0
                     max=255.0
                     label="Green"
-                    on_change={set_green}
                 />
                 <ChannelLabel content="B" />
                 <NumberInput
-                    value={picker.channel(2)}
+                    value={Binding::new(picker.channel(2), set_blue)}
                     min=0.0
                     max=255.0
                     label="Blue"
-                    on_change={set_blue}
                 />
                 <ChannelLabel content="H" />
                 <NumberInput
-                    value={picker.hue_degrees()}
+                    value={Binding::new(picker.hue_degrees(), set_hue)}
                     min=0.0
                     max=360.0
                     label="Hue degrees"
-                    on_change={set_hue}
                 />
                 <ChannelLabel content="S" />
                 <NumberInput
-                    value={picker.saturation_percent()}
+                    value={Binding::new(picker.saturation_percent(), set_saturation)}
                     min=0.0
                     max=100.0
                     label="Saturation percent"
-                    on_change={set_saturation}
                 />
                 <ChannelLabel content="V" />
                 <NumberInput
-                    value={picker.value_percent()}
+                    value={Binding::new(picker.value_percent(), set_value)}
                     min=0.0
                     max=100.0
                     label="Value percent"
-                    on_change={set_value}
                 />
             </Grid>
         </List>
@@ -202,7 +193,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
 fn ChannelLabel(content: Prop<String>) -> NodeId {
     view! {
         <Frame align={Align2::vertical(Align::Center)}>
-            <Text style=TextStyle::CAPTION string={content} />
+            <Text style=TextStyle::CAPTION>{content}</Text>
         </Frame>
     }
 }

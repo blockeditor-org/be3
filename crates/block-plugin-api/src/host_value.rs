@@ -26,6 +26,19 @@ impl HostValue for LinkBase {
     type Value = String;
 }
 
+pub enum PreferenceSources {}
+
+impl HostValue for PreferenceSources {
+    const KEY: &'static str = "preference_sources";
+    type Value = HostPreferenceSources;
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostPreferenceSources {
+    pub system: ui_types::PreferenceLayer,
+    pub developer: ui_types::PreferenceLayer,
+}
+
 pub enum Contacts {}
 
 impl HostValue for Contacts {

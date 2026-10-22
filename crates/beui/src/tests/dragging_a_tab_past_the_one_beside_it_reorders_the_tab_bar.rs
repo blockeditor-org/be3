@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar() {
@@ -13,7 +13,7 @@ fn dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar() {
     harness.drag(first, pos2(second.right() + 4.0, second.center().y));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     assert_eq!(
         state.entries(leaf),

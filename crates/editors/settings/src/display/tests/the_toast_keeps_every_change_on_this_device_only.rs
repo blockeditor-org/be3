@@ -17,7 +17,7 @@ fn the_toast_keeps_every_change_on_this_device_only() {
     settings.editor.click("toast.0.action.keep");
     settings.run();
     let here = settings.here();
-    assert_eq!(here.theme, Some(Theme::Dark));
+    assert_eq!(here.theme, Some(ThemeKind::Dark));
     assert_eq!(here.scale_percent, Some(150));
     assert_eq!(here.rotate_in_bar, Some(true));
     assert_eq!(here.screen_off, Some(ScreenOff::Never));

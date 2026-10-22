@@ -7,12 +7,12 @@ fn a_multi_root_view_fills_a_children_prop_in_order() {
     let _root = crate::reactive::RootScope::new();
     let column = NodeRef::new();
     let (first, second, third) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let toolbar = view! {
-            <Text @node_ref=&first string="One" color=Color32::WHITE />
-            <Text @node_ref=&second string="Two" color=Color32::WHITE />
+            <Text @node_ref=&first color=Color32::WHITE>"One"</Text>
+            <Text @node_ref=&second color=Color32::WHITE>"Two"</Text>
             {view! {
-                <Text @node_ref=&third string="Three" color=Color32::WHITE />
+                <Text @node_ref=&third color=Color32::WHITE>"Three"</Text>
             }}
         };
         view! {

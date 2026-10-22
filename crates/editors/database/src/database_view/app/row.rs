@@ -150,11 +150,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 on_click={move || step(1)}
                             />
                             <Frame padding={Sides::horizontal(6.0)}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string={code}
-                                    @test_id={"database-view.detail.id"}
-                                />
+                                <Text style=TextStyle::CAPTION @test_id={"database-view.detail.id"}>
+                                    {code}
+                                </Text>
                             </Frame>
                             <Frame @sizing=ItemSize::Percent(100.0) />
                             <IconButton
@@ -195,12 +193,11 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                         <Frame padding=PADDING>
                             <List spacing={SPACING * 2.0}>
                                 <TextInput
-                                    value={title}
+                                    value={Binding::new(title, retitled)}
                                     placeholder="Title"
                                     disabled={title_off}
                                     focused={untitled}
                                     @test_id={"database-view.detail.title"}
-                                    on_change={retitled}
                                 />
                                 <List spacing=2.0>
                                     <ForEach keys={properties}>|field: Uuid|
@@ -301,7 +298,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Text style=TextStyle::CAPTION string={name} ellipsis=true />
+                <Text style=TextStyle::CAPTION ellipsis=true>{name}</Text>
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <List spacing=0.0>
@@ -399,8 +396,8 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     view! {
         <List spacing=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text string={heading} />
-                <Text style=TextStyle::CAPTION string={count} />
+                <Text>{heading}</Text>
+                <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
                 <Frame @sizing=ItemSize::Fixed(180.0)>
                     <Select
@@ -418,12 +415,11 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                 }
                             }</ForEach>
                         }}
-                        selected={None}
+                        selected={Binding::new(None, added)}
                         label="Link a row"
                         placeholder="Link a row"
                         disabled={add_off}
                         @test_id={format!("database-view.detail.links.{field}.add")}
-                        on_change={added}
                     />
                 </Frame>
             </List>
@@ -502,16 +498,16 @@ fn LinkedRow(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Frame width=MARK_SIZE height=MARK_SIZE>
-                        <Frame visible={marked}>
-                            <ChoiceMark option={option} size=MARK />
-                        </Frame>
+                        <Layers>
+                            <Show condition={marked}>
+                                <ChoiceMark option={option} size=MARK />
+                            </Show>
+                        </Layers>
                     </Frame>
-                    <Text style=TextStyle::CAPTION string={code} />
-                    <Text
-                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                        string={label}
-                        ellipsis=true
-                    />
+                    <Text style=TextStyle::CAPTION>{code}</Text>
+                    <Text @sizing={ItemSize::Percent(100.0).shrink(1.0)} ellipsis=true>
+                        {label}
+                    </Text>
                 </List>
             </ListRow>
             <IconButton

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use be_model::Edit;
 use serde::{Deserialize, Serialize};
 
-use crate::display_settings::{DisplaySettings, Theme};
+use crate::display_settings::{DisplaySettings, Motion, ThemeKind};
 use crate::setting::Setting;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -39,9 +39,16 @@ impl DeviceClass {
         match self {
             Self::Desktop | Self::Phone | Self::Tablet => Vec::new(),
             Self::EpaperTablet => vec![
-                ClassDefault::new(DisplaySettings::theme_setting(), Theme::EInk, |theme| {
-                    theme.name().to_owned()
-                }),
+                ClassDefault::new(
+                    DisplaySettings::theme_setting(),
+                    ThemeKind::EPaper,
+                    |theme| theme.name().to_owned(),
+                ),
+                ClassDefault::new(
+                    DisplaySettings::motion_setting(),
+                    Motion::Instant,
+                    |motion| motion.name().to_owned(),
+                ),
                 ClassDefault::new(DisplaySettings::scale_setting(), 150, |percent| {
                     format!("{percent}%")
                 }),

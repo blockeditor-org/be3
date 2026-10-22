@@ -1,12 +1,12 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{PanZoomView, pan_zoom_view};
+use crate::unstyled::PanZoomApi;
 
 #[test]
 fn pinching_a_pan_zoom_zooms_around_the_pointer() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
-            <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+            <PanZoomStage />
         }
     });
     let mut harness = Harness::new(document);
@@ -16,7 +16,11 @@ fn pinching_a_pan_zoom_zooms_around_the_pointer() {
     harness.pinch(corner, 1.5);
     harness.frame(Vec::new());
 
-    let view = pan_zoom_view(harness.document(), harness.find("stage")).get();
+    let view = harness
+        .document()
+        .api::<PanZoomApi>(harness.find("stage"))
+        .view()
+        .get();
     assert_eq!(view.scale, 1.5);
     let item = harness.rect(harness.find("item"));
     assert!(

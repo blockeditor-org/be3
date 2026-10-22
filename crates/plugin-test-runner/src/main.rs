@@ -85,6 +85,7 @@ fn absolute_guest_paths() {
             continue;
         };
         if path.is_relative() {
+            // unsafe(env)
             unsafe { std::env::set_var(name, current.join(path)) };
         }
     }

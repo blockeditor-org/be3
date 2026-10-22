@@ -81,15 +81,15 @@ fn PressCounter() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Pressable
                 on_click={move || presses.update(|count| *count += 1)}
-                on_hover_change={move |on| hovered.set(on)}
-                on_active_change={move |on| active.set(on)}
+                on_hover_change={hovered}
+                on_active_change={active}
             >
                 <Frame
                     fill={ColorRole::custom(fill)}
                     radius=Radius::Md
                     padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
-                    <Text string={label} />
+                    <Text>{label}</Text>
                 </Frame>
             </unstyled::Pressable>
         </List>
@@ -109,7 +109,7 @@ fn PillButton() -> NodeId {
                     <PillFace handle label="Launch" />
                 </unstyled::Button>
             </List>
-            <Text string={launched} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{launched}</Text>
         </List>
     }
 }
@@ -139,7 +139,7 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
             border={focus_border(focused, Border::new(ColorRole::Text).width(2.0).offset(2.0))}
             padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
-            <Text string={label.to_owned()} color=TextColor::OnAccent weight=Weight::Bold />
+            <Text color=TextColor::OnAccent weight=Weight::Bold>{label.to_owned()}</Text>
         </Frame>
     }
 }
@@ -182,14 +182,13 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
                     border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get())).width(2.0)))}
                     align=Align::Center
                 >
-                    <Frame
-                        width=MARK_SIZE
-                        height=MARK_SIZE
-                        fill=ColorRole::Accent
-                        visible={checked}
-                    />
+                    <Layers>
+                        <Show condition={checked}>
+                            <Frame width=MARK_SIZE height=MARK_SIZE fill=ColorRole::Accent />
+                        </Show>
+                    </Layers>
                 </Frame>
-                <Text string={label.to_owned()} />
+                <Text>{label.to_owned()}</Text>
             </List>
         </Frame>
     }
@@ -245,13 +244,10 @@ fn VolumeMeter() -> NodeId {
     let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
-            <unstyled::Slider
-                value={volume}
-                on_change={move |value| volume.set(value)}
-            >|handle: SliderHandle|
+            <unstyled::Slider value={volume}>|handle: SliderHandle|
                 <MeterFace handle />
             </unstyled::Slider>
-            <Text string={volume_text} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{volume_text}</Text>
         </List>
     }
 }
@@ -306,7 +302,7 @@ fn UnderlinedInput() -> NodeId {
             >|handle: TextInputHandle|
                 <UnderlinedField handle />
             </unstyled::TextInput>
-            <Text string={submitted} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{submitted}</Text>
         </List>
     }
 }
@@ -459,7 +455,7 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(14.0, 6.0)}
         >
-            <Text string={label} color={ink} />
+            <Text color={ink}>{label}</Text>
         </Frame>
     }
 }
@@ -468,7 +464,11 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn SizeRadios() -> NodeId {
     let sizes = ["Small", "Medium", "Large"];
-    let chosen = create_signal("Medium".to_owned());
+    let size = create_signal(Some(1));
+    let chosen = create_memo(move || {
+        size.get()
+            .map_or_else(String::new, |index| sizes[index].to_owned())
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Choice
@@ -477,17 +477,12 @@ fn SizeRadios() -> NodeId {
                     <ChoiceOption label="Medium" />
                     <ChoiceOption label="Large" />
                 }}
-                selected=Some(1)
+                selected={size}
                 kind=ChoiceKind::Radio
-                on_change={move |selected: Option<usize>| {
-                    if let Some(index) = selected {
-                        chosen.set(sizes[index].to_owned());
-                    }
-                }}
             >|handle: ChoiceOptionHandle|
                 <RadioFace handle />
             </unstyled::Choice>
-            <Text string={chosen} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{chosen}</Text>
         </List>
     }
 }
@@ -515,15 +510,18 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                     border={Border::new(ColorRole::TextMuted).width(2.0)}
                     align=Align::Center
                 >
-                    <Frame
-                        width=MARK_SIZE
-                        height=MARK_SIZE
-                        radius={Radius::custom(5.0)}
-                        fill=ColorRole::Accent
-                        visible={selected}
-                    />
+                    <Layers>
+                        <Show condition={selected}>
+                            <Frame
+                                width=MARK_SIZE
+                                height=MARK_SIZE
+                                radius={Radius::custom(5.0)}
+                                fill=ColorRole::Accent
+                            />
+                        </Show>
+                    </Layers>
                 </Frame>
-                <Text string={label} />
+                <Text>{label}</Text>
             </List>
         </Frame>
     }
@@ -549,16 +547,14 @@ fn DetailsDisclosure() -> NodeId {
                     false => TextColor::Accent,
                 });
                 view! {
-                    <Text string={title} color={ink} underline=true />
+                    <Text color={ink} underline=true>{title}</Text>
                 }
             }}
         >
-            <Text
-                string="A disclosure only knows whether it is open. The header and the body are \
+            <Text color={body} wrap=true>
+                "A disclosure only knows whether it is open. The header and the body are \
                  whatever you give it."
-                color={body}
-                wrap=true
-            />
+            </Text>
         </unstyled::Disclosure>
     }
 }
@@ -645,10 +641,9 @@ fn InfoPopover() -> NodeId {
                 view! {
                     <PopupPanel>
                         <List spacing=SECTION_SPACING>
-                            <Text
-                                string="A popover places its content below the trigger and closes on Escape or a click outside."
-                                wrap=true
-                            />
+                            <Text wrap=true>
+                                "A popover places its content below the trigger and closes on Escape or a click outside."
+                            </Text>
                             <unstyled::Button
                                 on_click={move || close.call(())}
                             >|handle: ButtonHandle|
@@ -673,7 +668,7 @@ fn HintTooltip() -> NodeId {
                 content={move |handle: TooltipHandle| view! {
                     <Frame padding={Sides::vertical(4.0)}>
                         <PopupPanel>
-                            <Text string={handle.label} color={ink} />
+                            <Text color={ink}>{handle.label}</Text>
                         </PopupPanel>
                     </Frame>
                 }}
@@ -683,7 +678,7 @@ fn HintTooltip() -> NodeId {
                     radius=Radius::Md
                     padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
-                    <Text string="Hover me" />
+                    <Text>"Hover me"</Text>
                 </Frame>
             </unstyled::Tooltip>
         </List>
@@ -722,7 +717,7 @@ fn ExportMenu() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={exported} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{exported}</Text>
         </List>
     }
 }
@@ -761,7 +756,7 @@ fn RunSplit() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={ran} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{ran}</Text>
         </List>
     }
 }
@@ -786,7 +781,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }
@@ -843,7 +838,7 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
                     padding=12.0
                 >
                     <List spacing=8.0>
-                        <Text string={BINS[bin].to_owned()} color=TextColor::Muted />
+                        <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
                         <ForEach keys={fruits}>|fruit: usize|
                             <unstyled::Draggable
                                 payload={Some(fruit)}
@@ -875,7 +870,7 @@ fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={PRODUCE[fruit].to_owned()} />
+            <Text>{PRODUCE[fruit].to_owned()}</Text>
         </Frame>
     }
 }
@@ -907,7 +902,7 @@ fn ThinScroll() -> NodeId {
                     <Frame padding=12.0>
                         <List spacing=6.0>
                             <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>|line: usize|
-                                <Text string={format!("Line {line}")} />
+                                <Text>{format!("Line {line}")}</Text>
                             </ForEach>
                         </List>
                     </Frame>
@@ -990,7 +985,7 @@ fn OpenableFiles() -> NodeId {
                     {row(2, "photo.png")}
                 </List>
             </Frame>
-            <Text string={opened} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{opened}</Text>
         </List>
     }
 }
@@ -1017,7 +1012,7 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={name.to_owned()} />
+            <Text>{name.to_owned()}</Text>
         </Frame>
     }
 }
@@ -1041,10 +1036,9 @@ fn ScrubbedNumber() -> NodeId {
                     field={move |handle: NumberFieldHandle| view! {
                         <NumberField handle />
                     }}
-                    on_change={move |value: f64| gap.set(value)}
                 />
             </Frame>
-            <Text string={shown} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{shown}</Text>
         </List>
     }
 }
@@ -1075,7 +1069,7 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
-            <Text string={text} align=TextAlign::Center />
+            <Text align=TextAlign::Center>{text}</Text>
         </Frame>
     }
 }
@@ -1086,7 +1080,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
     let NumberFieldHandle {
         text,
         editing,
-        on_change,
         on_submit,
         on_focus_change,
     } = handle;
@@ -1097,7 +1090,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             focused={editing}
             select_on_focus=true
             style={underlined_style()}
-            on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >|handle: TextInputHandle|
@@ -1122,12 +1114,8 @@ fn underlined_style() -> TextInputStyle {
 #[component]
 fn HueAndHex() -> NodeId {
     let color = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
-    let picker: ColorPickerState = ColorPickerState::new(
-        color.into_prop(),
-        Prop::Static(false),
-        Callback::new(move |next: Color32| color.set(next)),
-        Callback::default(),
-    );
+    let picker: ColorPickerState =
+        ColorPickerState::new(color.into(), Prop::Static(false), Callback::default());
     let shown = picker.shown();
     let hex = HexText::new(
         shown,
@@ -1157,7 +1145,6 @@ fn HueAndHex() -> NodeId {
                     value={hex.text()}
                     placeholder={hex.placeholder()}
                     style={underlined_style()}
-                    on_change={move |typed: String| hex.edit(typed)}
                     on_submit={move |typed: String| hex.submit(typed)}
                 >|handle: TextInputHandle|
                     <UnderlinedField handle />
@@ -1181,7 +1168,7 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
     });
     view! {
         <Frame height=PAD_HEIGHT fill={ColorRole::custom(fill)} radius=Radius::Md padding=8.0>
-            <Text string={place} color={TextColor::Custom(Color32::WHITE)} />
+            <Text color={TextColor::Custom(Color32::WHITE)}>{place}</Text>
         </Frame>
     }
 }
@@ -1236,14 +1223,14 @@ fn FolderTree() -> NodeId {
             expanded: expanded.get().contains(&key),
         }
     });
-    let tree = NodeRef::new();
+    let tree = ComponentRef::new();
     let viewport = NodeRef::new();
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=0.0>
                 <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                     <unstyled::Tree
-                        @node_ref={&tree}
+                        api=tree
                         keys
                         item
                         selected={selected}
@@ -1313,7 +1300,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                             false => "+".to_owned(),
                         });
                         view! {
-                            <Text string={marker} color=TextColor::Muted />
+                            <Text color=TextColor::Muted>{marker}</Text>
                         }
                     }</unstyled::TreeToggle>
                 </List>
@@ -1326,7 +1313,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                 padding={Sides::symmetric(6.0, 3.0)}
             >
                 <unstyled::TreeRowArea target>
-                    <Text string={label} />
+                    <Text>{label}</Text>
                 </unstyled::TreeRowArea>
             </Frame>
         </List>
@@ -1357,7 +1344,7 @@ fn ToolbarKey(handle: ButtonHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }
@@ -1453,7 +1440,7 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 4.0)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }
@@ -1482,11 +1469,9 @@ fn PullUpSheet() -> NodeId {
             >
                 <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
-                        <Text
-                            string="Swipe the sheet down, tap above, or press Escape to close."
-                            color={ink}
-                            wrap=true
-                        />
+                        <Text color={ink} wrap=true>
+                            "Swipe the sheet down, tap above, or press Escape to close."
+                        </Text>
                         <List direction=Direction::Horizontal spacing=0.0>
                             <unstyled::Button
                                 on_click={move || open.set(false)}
@@ -1519,7 +1504,7 @@ fn FolderPages() -> NodeId {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
         view! {
             <Frame fill={ColorRole::custom(page)}>
-                <Text string={label} color={ink} wrap=true />
+                <Text color={ink} wrap=true>{label}</Text>
             </Frame>
         }
     };
@@ -1532,7 +1517,7 @@ fn FolderPages() -> NodeId {
         >
             <Frame fill={ColorRole::custom(page)}>
                 <List spacing=SECTION_SPACING>
-                    <Text string={label} color={ink} wrap=true />
+                    <Text color={ink} wrap=true>{label}</Text>
                     <List direction=Direction::Horizontal spacing=0.0>
                         <unstyled::Button
                             on_click={move || depth.set(depth.get_untracked() + 1)}
@@ -1575,7 +1560,7 @@ fn DeadlinePicker() -> NodeId {
                         <DateSegmentFace handle />
                     }}
                     literal={move |text: String| view! {
-                        <Text string={text} color=TextColor::Muted />
+                        <Text color=TextColor::Muted>{text}</Text>
                     }}
                     segments={move |segments: Child| view! {
                         <Frame padding={Sides::symmetric(10.0, 6.0)}>{segments}</Frame>
@@ -1589,10 +1574,9 @@ fn DeadlinePicker() -> NodeId {
                     panel={move |handle: DateTimePanelHandle| view! {
                         <DatePresets handle />
                     }}
-                    on_change={move |next: Option<DateTime>| deadline.set(next)}
                 />
             </List>
-            <Text string={shown} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{shown}</Text>
         </List>
     }
 }
@@ -1621,7 +1605,7 @@ fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
             radius={Radius::custom(3.0)}
             padding={Sides::horizontal(2.0)}
         >
-            <Text string={text} color={ink} />
+            <Text color={ink}>{text}</Text>
         </Frame>
     }
 }

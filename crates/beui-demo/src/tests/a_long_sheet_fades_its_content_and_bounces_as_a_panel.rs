@@ -7,13 +7,15 @@ use beui_macros::view;
 fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     let document = build(move || {
         view! {
-            <ModalSheet open=true rest=0.5 on_close={|| ()}>
-                <List spacing=0.0>
-                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
-                        <ActionRow label={format!("Row {row}")} />
-                    </ForEach>
-                </List>
-            </ModalSheet>
+            <Root>
+                <ModalSheet open=true rest=0.5 on_close={|| ()}>
+                    <List spacing=0.0>
+                        <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
+                            <ActionRow label={format!("Row {row}")} />
+                        </ForEach>
+                    </List>
+                </ModalSheet>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, vec2(400.0, 600.0));

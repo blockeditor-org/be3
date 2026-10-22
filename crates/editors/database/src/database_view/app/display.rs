@@ -64,15 +64,14 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                    <Text style=TextStyle::CAPTION string="Row id prefix" />
+                    <Text style=TextStyle::CAPTION>"Row id prefix"</Text>
                 </Frame>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={prefix}
+                    value={Binding::new(prefix, reprefix)}
                     placeholder="BE"
                     disabled={prefix_off}
                     @test_id={"database-view.prefix"}
-                    on_change={reprefix}
                 />
             </List>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -113,9 +112,8 @@ fn KindSwitch(data: Data) -> NodeId {
                     <ToggleButton
                         label={label}
                         glyph={glyph.to_owned()}
-                        pressed={pressed}
+                        pressed={Binding::new(pressed, choose)}
                         @test_id={format!("database-view.kind.{label}")}
-                        on_change={choose}
                     />
                 }
             }</ForEach>
@@ -295,12 +293,11 @@ fn EmptyGroups(data: Data) -> NodeId {
     let toggle = move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Text @sizing=ItemSize::Percent(100.0) string="Show empty groups" />
+            <Text @sizing=ItemSize::Percent(100.0)>"Show empty groups"</Text>
             <Switch
-                on={on}
+                on={Binding::new(on, toggle)}
                 label="Show empty groups"
                 @test_id={"database-view.empty-groups"}
-                on_change={toggle}
             />
         </List>
     }
@@ -320,7 +317,7 @@ fn ShownFields(data: Data) -> NodeId {
     });
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::CAPTION string="Shown on each row" />
+            <Text style=TextStyle::CAPTION>"Shown on each row"</Text>
             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
                 <ForEach keys={keys}>|field: Uuid| {
                     let name = create_memo(move || {
@@ -342,9 +339,8 @@ fn ShownFields(data: Data) -> NodeId {
                     view! {
                         <ToggleButton
                             label={name}
-                            pressed={pressed}
+                            pressed={Binding::new(pressed, toggle)}
                             @test_id={format!("database-view.shown.{field}")}
-                            on_change={toggle}
                         />
                     }
                 }</ForEach>
@@ -361,7 +357,7 @@ fn Labelled(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Text style=TextStyle::CAPTION string={label} />
+                <Text style=TextStyle::CAPTION>{label}</Text>
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>{children}</Frame>
         </List>
@@ -409,10 +405,9 @@ pub fn FieldPicker(
                     }
                 }</ForEach>
             }}
-            selected={selected}
+            selected={Binding::new(selected, picked)}
             label={label}
             @test_id={picker_id}
-            on_change={picked}
         />
     }
 }

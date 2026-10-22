@@ -6,7 +6,6 @@ use crate::ButtonHandle;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
 use crate::scroll::ScrollbarStyle;
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -29,16 +28,16 @@ pub struct TimeOptionHandle {
 #[derive(Clone, Copy)]
 struct State {
     times: Memo<Vec<u32>>,
-    selected: Signal<Option<Time>>,
+    selected: Binding<Option<Time>>,
     focus: Signal<Option<u32>>,
     anchor: Memo<u32>,
     columns: usize,
-    on_change: Callback<Time>,
 }
 
 #[component]
 pub fn TimeList(
-    value: Prop<Option<Time>>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<TimeListApi>,
+    #[prop(default = None)] value: Binding<Option<Time>>,
     #[prop(default = 15)] step_minutes: u32,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] focused: Prop<bool>,
@@ -48,12 +47,10 @@ pub fn TimeList(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     option: RenderFn<TimeOptionHandle>,
-    on_change: Callback<Time>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
     let columns = grid_columns(step_minutes, max_columns);
-    let selected = create_signal(value.get_untracked());
-    create_effect(move || selected.set(value.get()));
+    let selected = value;
     let times = create_memo(move || {
         let mut times: Vec<u32> = (0..MINUTES_PER_DAY)
             .step_by(step_minutes as usize)
@@ -93,9 +90,8 @@ pub fn TimeList(
         focus,
         anchor,
         columns,
-        on_change,
     };
-    set_component_state(state);
+    api.fill(TimeListApi(state));
     create_effect(move || {
         if focused.get() {
             state.focus.set(Some(state.anchor.get_untracked()));
@@ -214,16 +210,8 @@ fn TimeOption(
     }
 }
 
-pub fn time_list_selected(document: &Document, list: NodeId) -> Option<Time> {
-    document
-        .component_state::<State>(list)
-        .selected
-        .get_untracked()
-}
-
 fn choose(state: State, time: Time) {
-    state.selected.set(Some(time));
-    state.on_change.call(time);
+    state.selected.update(|selected| *selected = Some(time));
 }
 
 fn option_key(state: State, minutes: u32, press: KeyPress) -> bool {
@@ -268,4 +256,13 @@ pub fn grid_columns(step_minutes: u32, max_columns: usize) -> usize {
         _ => 1,
     }
     .max(1)
+}
+
+#[derive(Clone, Copy)]
+pub struct TimeListApi(State);
+
+impl TimeListApi {
+    pub fn selected(&self) -> Option<Time> {
+        self.0.selected.get_untracked()
+    }
 }

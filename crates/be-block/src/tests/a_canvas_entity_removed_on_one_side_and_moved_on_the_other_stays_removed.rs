@@ -7,7 +7,7 @@ fn a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed() {
     let base = canvas_run(
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
-            entity: original.clone(),
+            entity: Box::new(original.clone()),
         },
     );
     let ours = canvas_run(

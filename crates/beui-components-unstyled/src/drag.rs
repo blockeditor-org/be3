@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 
 use beui_core::base::Direction;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::drag_board::{Board, DragPoint, Pending, Target};
+use beui_core::drag_board::{DragPoint, Pending, Target};
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::CursorIcon;
 use beui_core::input::{PointerPress, TOUCH_DRAG_THRESHOLD};
@@ -32,13 +32,6 @@ pub struct DropHandle {
     pub pointer: ReadSignal<Option<DragPoint>>,
 }
 
-fn board() -> Rc<Board> {
-    with_document(|document| document.drag_board())
-}
-
-#[derive(Clone, Copy)]
-struct DropDepth(usize);
-
 #[component]
 pub fn Draggable<P>(
     payload: Prop<Option<P>>,
@@ -55,7 +48,7 @@ pub fn Draggable<P>(
 where
     P: Clone + PartialEq + 'static,
 {
-    let board = store(board());
+    let board = store(drag_board());
     let pressed_at = StoredCell::new(None::<Pos2>);
     let carried = create_signal(None::<P>);
     let pointer = create_signal(Pos2::ZERO);
@@ -186,15 +179,12 @@ pub fn DropTarget<P>(
 where
     P: Clone + 'static,
 {
-    let depth = use_context::<DropDepth>().map_or(0, |DropDepth(depth)| depth + 1);
-    provide_context(DropDepth(depth));
     let accepts = accepts.unwrap_or_else(|| Func::new(|_| true));
     let carrying = create_signal(false);
     let pointer = create_signal(None::<DragPoint>);
-    let board = board();
+    let board = drag_board();
     let id = board.register(Target {
         id: 0,
-        depth,
         node: component_node(),
         accepts: Rc::new(move |payload: &dyn Any| {
             payload

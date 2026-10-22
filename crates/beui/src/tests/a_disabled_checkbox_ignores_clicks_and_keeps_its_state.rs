@@ -5,15 +5,10 @@ use crate::styled::*;
 #[test]
 fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
     let _root = crate::reactive::RootScope::new();
-    let changes = create_signal(Vec::new());
+    let checked = create_signal(false);
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
-            <Checkbox
-                label="Minimum"
-                checked=false
-                disabled=true
-                on_change={move |checked| changes.update(|changes| changes.push(checked))}
-            />
+            <Checkbox label="Minimum" checked={checked} disabled=true />
         }]
     });
     let mut harness = Harness::new(document);
@@ -22,6 +17,12 @@ fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
     harness.click(harness.center(checkbox));
     harness.frame(Vec::new());
 
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
-    assert!(changes.with_untracked(|changes| changes.is_empty()));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
+    assert!(!checked.get_untracked());
 }

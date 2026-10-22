@@ -1,5 +1,5 @@
 use block_plugin_api::{
-    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, ScreenId,
+    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Edits, Message, ScreenId,
     ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
@@ -102,7 +102,7 @@ impl Screens {
         }
     }
 
-    fn open(&mut self, instance: EditorInstanceId, block_type: Uuid) -> &mut EditorSession {
+    fn open(&mut self, instance: EditorInstanceId, editor: Uuid) -> &mut EditorSession {
         let apps = &self.apps;
         let marks = Arc::clone(&self.dirty);
         let inner = self.waker.clone();
@@ -115,13 +115,11 @@ impl Screens {
             inner.wake();
         });
         self.sessions.entry(instance).or_insert_with(|| {
-            let any = Uuid::from_bytes(block_plugin_api::ANY_BLOCK_TYPE);
             let open = apps
                 .iter()
-                .find(|(declared, _)| *declared == block_type)
-                .or_else(|| apps.iter().find(|(declared, _)| *declared == any))
+                .find(|(declared, _)| *declared == editor)
                 .map(|(_, open)| *open)
-                .unwrap_or_else(|| panic!("this plugin has no editor for block type {block_type}"));
+                .unwrap_or_else(|| panic!("this plugin has no editor {editor}"));
             EditorSession::new(instance, waker, open)
         })
     }
@@ -166,11 +164,9 @@ impl Screens {
         match message {
             Message::HelloAccepted(accepted) => {
                 self.surface = accepted.surface;
-                crate::theme::receive(accepted.theme);
-                crate::motion::receive(accepted.motion);
+                crate::preferences::receive(accepted.preferences);
             }
-            Message::Motion(motion) => crate::motion::receive(*motion),
-            Message::Theme(theme) => crate::theme::receive(*theme),
+            Message::Preferences(preferences) => crate::preferences::receive(*preferences),
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
@@ -181,6 +177,7 @@ impl Screens {
             }
             Message::Editor(EditorMessage::Open {
                 instance,
+                editor,
                 block_id,
                 block_type,
                 view_block,
@@ -190,7 +187,7 @@ impl Screens {
                 editable,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*block_type));
+                let session = self.open(*instance, Uuid::from_bytes(*editor));
                 session.set_block_types(block_types);
                 session.set_view_block(view_block.map(Uuid::from_bytes));
                 session.set_client_id(Uuid::from_bytes(*client_id));
@@ -201,14 +198,14 @@ impl Screens {
             }
             Message::Editor(EditorMessage::OpenCreation {
                 instance,
-                block_type,
+                editor,
                 template,
                 account_id,
                 organization_id,
                 client_id,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*block_type));
+                let session = self.open(*instance, Uuid::from_bytes(*editor));
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -217,7 +214,7 @@ impl Screens {
             }
             Message::Editor(EditorMessage::OpenArtifact {
                 instance,
-                source_type,
+                editor,
                 block_id,
                 block_type,
                 account_id,
@@ -226,7 +223,7 @@ impl Screens {
                 data,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*source_type));
+                let session = self.open(*instance, Uuid::from_bytes(*editor));
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -277,6 +274,7 @@ impl Screens {
                 content_type,
                 bytes,
                 session: state,
+                unsettled,
                 applied,
             }) => {
                 let Some(session) = self.sessions.get(instance) else {
@@ -288,6 +286,10 @@ impl Screens {
                         content_type: Uuid::from_bytes(*content_type),
                         bytes: bytes.clone(),
                         session: state.clone(),
+                        unsettled: unsettled
+                            .iter()
+                            .map(|operation| operation.to_vec())
+                            .collect(),
                         applied: *applied,
                     },
                 );
@@ -308,6 +310,16 @@ impl Screens {
                         .map(crate::BlockInfo::decode)
                         .collect(),
                 );
+            }
+            Message::Editor(EditorMessage::BlocksFailed {
+                instance,
+                query,
+                error,
+            }) => {
+                let Some(session) = self.sessions.get(instance) else {
+                    return false;
+                };
+                session.fail_blocks(crate::BlockQuery::decode(*query), error.clone());
             }
             Message::Editor(EditorMessage::PeerPresence {
                 instance,
@@ -337,13 +349,7 @@ impl Screens {
                 let Some(session) = self.sessions.get(instance) else {
                     return false;
                 };
-                session.push_content_operations(
-                    Uuid::from_bytes(*block_id),
-                    operations
-                        .iter()
-                        .map(|operation| (operation.operation.clone(), operation.mine))
-                        .collect(),
-                );
+                session.push_content_operations(Uuid::from_bytes(*block_id), operations.clone());
             }
             Message::Editor(EditorMessage::FocusChanged {
                 instance,
@@ -417,16 +423,6 @@ impl Screens {
                     session.presence_visible(*visible);
                 }
             }
-            Message::Editor(EditorMessage::ChildView {
-                instance,
-                child,
-                change,
-                ..
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.child_view_change(*child, *change);
-                }
-            }
             Message::Editor(EditorMessage::ChildBar {
                 instance,
                 child,
@@ -465,6 +461,7 @@ impl Screens {
                 width,
                 height,
                 scale,
+                moved,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_view(
@@ -473,6 +470,7 @@ impl Screens {
                             geometry::vec2(*width, *height),
                         ),
                         *scale,
+                        *moved,
                     );
                 }
             }
@@ -482,6 +480,7 @@ impl Screens {
                 filter,
                 parent,
                 within,
+                touch,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.pick_requested(
@@ -489,6 +488,7 @@ impl Screens {
                         filter.clone(),
                         crate::graph::BlockParent::decode(*parent),
                         within.map(Uuid::from_bytes),
+                        *touch,
                     );
                 }
             }
@@ -755,6 +755,7 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             Uuid::from_bytes(descriptor.block_type),
             BlockTypeEntry {
                 display_name: descriptor.display_name.clone(),
+                color: descriptor.color,
                 icon: leak(&descriptor.icon_codepoint),
                 child_edits: block_ui::ChildEdits {
                     add: descriptor.children.add,
@@ -764,28 +765,36 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             },
         )
     }))
-    .with_templates(catalog.templates.iter().map(|template| TemplateEntry {
-        editor: Uuid::from_bytes(template.editor),
-        template: template.template.clone(),
-        block_type: Uuid::from_bytes(template.block_type),
-        name: template.name.clone(),
-        icon: leak(&template.icon_codepoint),
-        category: match template.category {
-            TemplateCategory::Important => block_ui::TemplateCategory::Important,
-            TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
-            TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
-            TemplateCategory::Template => block_ui::TemplateCategory::Template,
-        },
-        dialog: template.dialog,
-    }))
-    .with_editors(catalog.editors.iter().map(|editor| {
-        EditorEntry {
-            editor: Uuid::from_bytes(editor.editor),
-            block_type: (editor.block_type != block_plugin_api::ANY_BLOCK_TYPE)
-                .then(|| Uuid::from_bytes(editor.block_type)),
-            name: editor.name.clone(),
-            icon: leak(&editor.icon_codepoint),
+    .with_templates(catalog.templates.iter().map(|template| {
+        TemplateEntry {
+            color: catalog
+                .types
+                .iter()
+                .find(|kind| kind.block_type == template.block_type)
+                .and_then(|kind| kind.color),
+            editor: Uuid::from_bytes(template.editor),
+            template: template.template.clone(),
+            block_type: Uuid::from_bytes(template.block_type),
+            name: template.name.clone(),
+            icon: leak(&template.icon_codepoint),
+            category: match template.category {
+                TemplateCategory::Important => block_ui::TemplateCategory::Important,
+                TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
+                TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
+                TemplateCategory::Template => block_ui::TemplateCategory::Template,
+            },
+            dialog: template.dialog,
         }
+    }))
+    .with_editors(catalog.editors.iter().map(|editor| EditorEntry {
+        editor: Uuid::from_bytes(editor.editor),
+        edits: match editor.edits {
+            Edits::Type(block_type) => block_ui::Edits::Type(Uuid::from_bytes(block_type)),
+            Edits::Any => block_ui::Edits::Any,
+            Edits::Nothing => block_ui::Edits::Nothing,
+        },
+        name: editor.name.clone(),
+        icon: leak(&editor.icon_codepoint),
     }))
 }
 

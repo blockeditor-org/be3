@@ -1,284 +1,274 @@
-use beui_html::elements as html;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
+use std::fs;
 use std::path::{Path, PathBuf};
 
-use beui_html::{Children, Node, component, render_fragment, view};
+use beui_html::{render_fragment, view};
+use paint_review_manifest::{Frame, Manifest, Painting, Status};
 use paint_snapshot::{BrowserSnapshot, Snapshot};
 use sha2::{Digest as _, Sha256};
 
 const ROOT: &str = "PREVIEW_ROOT";
-const MAX_ROWS: usize = 30;
+const MAX_FRAMES: usize = 500;
+const MAX_LISTED: usize = 100;
+const MAX_INLINE_FRAMES: usize = 30;
 
 pub fn generate(
     before: &Path,
     after: &Path,
     output: &Path,
     browser_renderer: Option<&Path>,
+    site: Option<&Path>,
 ) -> Result<String, String> {
     let mut comment = "## Paintings\n\n".to_owned();
 
-    std::fs::create_dir_all(output).map_err(|error| error.to_string())?;
+    fs::create_dir_all(output).map_err(|error| error.to_string())?;
 
     let names: BTreeSet<String> = [before, after].into_iter().flat_map(paintings).collect();
 
-    let mut sections = Vec::new();
-    let mut unshown = Vec::new();
-    let mut rows = 0;
-    let (mut added, mut removed, mut changed) = (0, 0, 0);
+    let mut manifest = Manifest::default();
+    let mut frames = 0;
+    let mut omitted = 0;
     for name in &names {
         let old = read(&before.join(format!("{name}.paint")));
         let new = read(&after.join(format!("{name}.paint")));
-        let summary = match (&old, &new) {
+        let (status, detail) = match (&old, &new) {
             (None, None) => continue,
-            (Some(Err(error)), _) | (_, Some(Err(error))) => format!("is unreadable: {error}"),
-            (None, Some(Ok(_))) => {
-                added += 1;
-                "was added".to_owned()
-            }
-            (Some(Ok(_)), None) => {
-                removed += 1;
-                "was removed".to_owned()
-            }
+            (Some(Err(error)), _) | (_, Some(Err(error))) => (Status::Unreadable, error.clone()),
+            (None, Some(Ok(_))) => (Status::Added, String::new()),
+            (Some(Ok(_)), None) => (Status::Removed, String::new()),
             (Some(Ok(old)), Some(Ok(new))) => match old.difference(new) {
                 None => continue,
-                Some(difference) => {
-                    changed += 1;
-                    format!("changed: {difference}")
-                }
+                Some(difference) => (Status::Changed, difference),
             },
         };
         let old = old.and_then(Result::ok);
         let new = new.and_then(Result::ok);
-        if rows >= MAX_ROWS {
-            unshown.push(format!("- `{name}` {}", escaped(&summary)));
-            continue;
-        }
-        let table = table(
+        let rendered = differing_frames(
             old.as_ref(),
             new.as_ref(),
             output,
-            &mut rows,
+            &mut frames,
+            &mut omitted,
             browser_renderer,
         )?;
-        let (headline, detail) = summary.split_once(": ").unwrap_or((&summary, ""));
-        sections.push(SectionData {
+        manifest.paintings.push(Painting {
             name: name.clone(),
-            headline: headline.to_string(),
-            detail: detail.to_string(),
-            rows: table,
+            status,
+            detail,
+            frames: rendered,
         });
     }
 
-    let total = added + removed + changed;
-    if total == 0 {
+    if manifest.paintings.is_empty() {
         comment.push_str("No paintings changed.\n");
-    } else {
-        let _ = writeln!(
-            comment,
-            "{} in this pull request: {changed} changed, {added} added, {removed} removed. \
-             In the changes column, magenta marks every pixel that differs.\n",
-            match total {
-                1 => "One painting differs".to_owned(),
-                count => format!("{count} paintings differ"),
-            }
-        );
-        let open = sections.len() <= 5;
-        for section in sections {
-            comment.push_str(&render_fragment(|| {
-                view! {
-                    <Section data={section} open={open} />
-                }
-            }));
-            comment.push('\n');
-        }
-        if !unshown.is_empty() {
-            let _ = writeln!(comment, "Not shown, to keep this comment short:\n");
-            for line in unshown {
-                let _ = writeln!(comment, "{line}");
-            }
+        println!("0 paintings differ");
+        return Ok(comment);
+    }
+
+    let json = serde_json::to_vec(&manifest).map_err(|error| error.to_string())?;
+    let manifest_hash = write_hashed(output, "json", &json)?;
+    let page = site
+        .map(|site| copy_site(site, output))
+        .transpose()?
+        .map(|site| format!("{ROOT}/site/{site}/index.html?changes={manifest_hash}"));
+
+    comment.push_str("<details><summary>Painting previews</summary>\n\n");
+    let count = |status: Status| {
+        manifest
+            .paintings
+            .iter()
+            .filter(|painting| painting.status == status)
+            .count()
+    };
+    let total = manifest.paintings.len();
+    let _ = write!(
+        comment,
+        "{} in this pull request: {} changed, {} added, {} removed",
+        match total {
+            1 => "One painting differs".to_owned(),
+            count => format!("{count} paintings differ"),
+        },
+        count(Status::Changed),
+        count(Status::Added),
+        count(Status::Removed),
+    );
+    match count(Status::Unreadable) {
+        0 => comment.push_str(".\n\n"),
+        unreadable => {
+            let _ = write!(comment, ", {unreadable} unreadable.\n\n");
         }
     }
+    if let Some(page) = &page {
+        let _ = writeln!(comment, "**[Review them]({page})**\n");
+    }
+    if omitted > 0 {
+        let _ = writeln!(
+            comment,
+            "{omitted} frames past the first {MAX_FRAMES} were not drawn.\n"
+        );
+    }
+    let mut inline_frames = 0;
+    for painting in manifest.paintings.iter().take(MAX_LISTED) {
+        let name = match &page {
+            Some(page) => format!("[`{0}`]({page}&painting={0})", painting.name),
+            None => format!("`{}`", painting.name),
+        };
+        let status = match painting.status {
+            Status::Changed => "changed",
+            Status::Added => "was added",
+            Status::Removed => "was removed",
+            Status::Unreadable => "is unreadable",
+        };
+        let detail = match painting.detail.as_str() {
+            "" => String::new(),
+            detail => format!(": {}", escaped(&detail.replace('\n', " "))),
+        };
+        let _ = writeln!(comment, "- {name} {status}{detail}");
+        if !painting.frames.is_empty() && inline_frames < MAX_INLINE_FRAMES {
+            comment.push_str(
+                "\n<table><tr><th>Frame</th><th>Before</th><th>After</th><th>Changes</th></tr>\n",
+            );
+            for frame in &painting.frames {
+                if inline_frames >= MAX_INLINE_FRAMES {
+                    break;
+                }
+                inline_frames += 1;
+                let _ = write!(comment, "<tr><td>{}</td>", frame.number);
+                for (label, hash) in [
+                    ("Before", &frame.before),
+                    ("After", &frame.after),
+                    ("Changes", &frame.changes),
+                ] {
+                    match hash {
+                        Some(hash) => {
+                            let _ = write!(
+                                comment,
+                                "<td><img alt=\"{label}\" src=\"{ROOT}/{hash}.png\" width=\"320\"></td>"
+                            );
+                        }
+                        None => comment.push_str("<td></td>"),
+                    }
+                }
+                comment.push_str("</tr>\n");
+            }
+            comment.push_str("</table>\n\nMagenta marks every pixel that differs.\n\n");
+        }
+    }
+    if total > MAX_LISTED {
+        let _ = writeln!(comment, "- and {} more", total - MAX_LISTED);
+    }
+    let available_frames: usize = manifest
+        .paintings
+        .iter()
+        .map(|painting| painting.frames.len())
+        .sum();
+    if available_frames > inline_frames {
+        let _ = writeln!(
+            comment,
+            "\n{} more frames are available on the review page; inline previews stop at {MAX_INLINE_FRAMES} frames.",
+            available_frames - inline_frames
+        );
+    }
+    comment.push_str("\n</details>\n");
     println!("{total} paintings differ");
     Ok(comment)
 }
 
-fn table(
+fn differing_frames(
     old: Option<&ReviewSnapshot>,
     new: Option<&ReviewSnapshot>,
     output: &Path,
-    rows: &mut usize,
+    drawn: &mut usize,
+    omitted: &mut usize,
     browser_renderer: Option<&Path>,
-) -> Result<Vec<RowData>, String> {
+) -> Result<Vec<Frame>, String> {
     let count =
         |snapshot: Option<&ReviewSnapshot>| snapshot.map_or(0, |snapshot| snapshot.frame_count());
     let frames = count(old).max(count(new));
-    let mut table_rows = Vec::new();
+    let mut listed = Vec::new();
     for index in 0..frames {
         let old_frame = old.filter(|snapshot| index < snapshot.frame_count());
         let new_frame = new.filter(|snapshot| index < snapshot.frame_count());
         if matches!((old_frame, new_frame), (Some(old), Some(new)) if old.same_frame(new, index)) {
             continue;
         }
-        if *rows >= MAX_ROWS {
-            table_rows.push(RowData {
-                number: index + 1,
-                before: None,
-                after: None,
-                changes: None,
-                truncated: true,
-            });
-            break;
+        if *drawn >= MAX_FRAMES {
+            *omitted += 1;
+            continue;
         }
-        *rows += 1;
+        *drawn += 1;
         let old_image = old_frame
             .map(|snapshot| snapshot.render(index, output, browser_renderer))
             .transpose()?;
         let new_image = new_frame
             .map(|snapshot| snapshot.render(index, output, browser_renderer))
             .transpose()?;
-        let changes = match (&old_image, &new_image) {
+        let (changes, changed_pixels) = match (&old_image, &new_image) {
             (Some(old), Some(new)) => {
                 let highlight = paint_snapshot::highlight(old, new);
-                let cell = image("changes", &highlight.image, output)?;
-                let label = match highlight.changed {
-                    0 => "no visible difference".to_string(),
-                    1 => "1 pixel".to_string(),
-                    count => format!("{count} pixels"),
-                };
-                Some((cell, label))
+                (
+                    Some(image(&highlight.image, output)?),
+                    Some(highlight.changed as u64),
+                )
             }
-            _ => None,
+            _ => (None, None),
         };
-        let cell = |rendered: &Option<image::RgbaImage>, kind: &str| match rendered {
-            Some(rendered) => image(kind, rendered, output).map(Some),
-            None => Ok(None),
-        };
-        table_rows.push(RowData {
+        listed.push(Frame {
             number: index + 1,
-            before: cell(&old_image, "before")?,
-            after: cell(&new_image, "after")?,
+            before: old_image
+                .as_ref()
+                .map(|old| image(old, output))
+                .transpose()?,
+            after: new_image
+                .as_ref()
+                .map(|new| image(new, output))
+                .transpose()?,
             changes,
-            truncated: false,
+            changed_pixels,
         });
     }
-    Ok(table_rows)
+    Ok(listed)
 }
 
-struct SectionData {
-    name: String,
-    headline: String,
-    detail: String,
-    rows: Vec<RowData>,
-}
-
-struct RowData {
-    number: usize,
-    before: Option<ImageData>,
-    after: Option<ImageData>,
-    changes: Option<(ImageData, String)>,
-    truncated: bool,
-}
-
-struct ImageData {
-    alt: String,
-    src: String,
-}
-
-#[component]
-fn Section(data: SectionData, open: bool) -> Node {
-    let detail: Children<Node> = if data.detail.is_empty() {
-        view! {}
-    } else {
-        view! {
-            <html::Sub>{data.detail}</html::Sub>
-        }
-        .into()
-    };
-    view! {
-        <html::Details open={open}>
-            <html::Summary>
-                <html::Code>{data.name}</html::Code>
-                " "
-                {data.headline}
-            </html::Summary>
-            {detail}
-            <Table rows={data.rows} />
-        </html::Details>
-    }
-}
-
-#[component]
-fn Table(rows: Vec<RowData>) -> Node {
-    let rows: Children<Node> = rows
-        .into_iter()
-        .map(|row| {
-            view! {
-                <Row data={row} />
+fn copy_site(site: &Path, output: &Path) -> Result<String, String> {
+    let mut files = Vec::new();
+    let mut pending = vec![PathBuf::new()];
+    while let Some(relative) = pending.pop() {
+        let entries = fs::read_dir(site.join(&relative))
+            .map_err(|error| format!("could not read {}: {error}", site.display()))?;
+        for entry in entries.flatten() {
+            let path = relative.join(entry.file_name());
+            if site.join(&path).is_dir() {
+                pending.push(path);
+            } else {
+                files.push(path);
             }
-        })
-        .collect();
-    view! {
-        <html::Table>
-            <html::Tr>
-                <html::Th>"Frame"</html::Th>
-                <html::Th>"Before"</html::Th>
-                <html::Th>"After"</html::Th>
-                <html::Th>"Changes"</html::Th>
-            </html::Tr>
-            {rows}
-        </html::Table>
-    }
-}
-
-#[component]
-fn Row(data: RowData) -> Node {
-    if data.truncated {
-        return view! {
-            <html::Tr>
-                <html::Td>{data.number.to_string()}</html::Td>
-                <html::Td colspan=3>"more frames not shown"</html::Td>
-            </html::Tr>
-        };
-    }
-    let changes: Children<Node> = match data.changes {
-        Some((image, label)) => view! {
-            <Image data={image} />
-            <html::Br />
-            {label}
-        },
-        None => view! {},
-    };
-    view! {
-        <html::Tr>
-            <html::Td>{data.number.to_string()}</html::Td>
-            <html::Td>
-                <ImageCell image={data.before} />
-            </html::Td>
-            <html::Td>
-                <ImageCell image={data.after} />
-            </html::Td>
-            <html::Td>{changes}</html::Td>
-        </html::Tr>
-    }
-}
-
-#[component]
-fn ImageCell(image: Option<ImageData>) -> Children<Node> {
-    match image {
-        Some(data) => view! {
-            <Image data={data} />
         }
-        .into(),
-        None => view! {},
     }
-}
-
-#[component]
-fn Image(data: ImageData) -> Node {
-    view! {
-        <html::Img alt={data.alt} src={data.src} />
+    files.sort();
+    let mut hasher = Sha256::new();
+    let mut contents = Vec::new();
+    for file in files {
+        let bytes = fs::read(site.join(&file))
+            .map_err(|error| format!("could not read {}: {error}", file.display()))?;
+        let name = file.to_string_lossy().replace('\\', "/");
+        hasher.update((name.len() as u64).to_le_bytes());
+        hasher.update(name.as_bytes());
+        hasher.update(Sha256::digest(&bytes));
+        contents.push((file, bytes));
     }
+    let hash = hex(&hasher.finalize());
+    let root = output.join("site").join(&hash);
+    for (file, bytes) in contents {
+        let path = root.join(file);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        fs::write(&path, bytes)
+            .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+    }
+    Ok(hash)
 }
 
 enum ReviewSnapshot {
@@ -339,23 +329,24 @@ impl ReviewSnapshot {
     }
 }
 
-fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<ImageData, String> {
+fn image(image: &image::RgbaImage, output: &Path) -> Result<String, String> {
     let mut png = Vec::new();
     image
         .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-        .map_err(|error| format!("could not encode a {kind} image: {error}"))?;
-    let hash: String = Sha256::digest(&png)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    let file = format!("{hash}.png");
-    let path = output.join(&file);
-    std::fs::write(&path, png)
+        .map_err(|error| format!("could not encode an image: {error}"))?;
+    write_hashed(output, "png", &png)
+}
+
+fn write_hashed(output: &Path, extension: &str, bytes: &[u8]) -> Result<String, String> {
+    let hash = hex(&Sha256::digest(bytes));
+    let path = output.join(format!("{hash}.{extension}"));
+    fs::write(&path, bytes)
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-    Ok(ImageData {
-        alt: kind.to_string(),
-        src: format!("{ROOT}/{file}"),
-    })
+    Ok(hash)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn paintings(directory: &Path) -> Vec<String> {
@@ -386,7 +377,7 @@ fn read(path: &Path) -> Option<Result<ReviewSnapshot, String>> {
 }
 
 fn escaped(text: &str) -> String {
-    beui_html::render_fragment(|| {
+    render_fragment(|| {
         view! {
             {text}
         }

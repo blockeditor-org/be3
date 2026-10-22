@@ -72,6 +72,7 @@ fn region_screen(
 }
 
 mod a_layout_gives_each_shown_screen_its_own_surface;
+mod a_menu_nested_too_deeply_is_refused_while_decoding;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod a_screen_readers_action_round_trips_and_a_huge_tree_is_refused;
 mod a_stopped_region_and_pointer_motion_round_trip;
@@ -85,7 +86,6 @@ mod block_content_and_operations_round_trip;
 mod block_types_round_trip;
 mod child_placements_round_trip;
 mod child_statuses_round_trip;
-mod child_view_changes_round_trip;
 mod clipboard_messages_round_trip;
 mod copied_text_round_trips;
 mod creation_messages_round_trip;
@@ -117,6 +117,7 @@ mod open_messages_round_trip;
 mod performance_messages_round_trip;
 mod pick_block_messages_round_trip;
 mod power_messages_round_trip;
+mod preference_messages_round_trip;
 mod presence_messages_round_trip;
 mod present_messages_round_trip;
 mod region_sizes_round_trip;
@@ -130,7 +131,6 @@ mod replacing_a_child_round_trips;
 mod resize_messages_round_trip;
 mod shell_dialog_and_access_messages_round_trip;
 mod show_block_request_round_trips;
-mod theme_messages_round_trip;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;
 mod version_control_messages_round_trip;

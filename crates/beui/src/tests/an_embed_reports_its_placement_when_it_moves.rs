@@ -11,7 +11,7 @@ fn an_embed_reports_its_placement_when_it_moves() {
         placed.update(|placed| placed.push(placement.map(|at| at.rect)))
     });
     let moved = create_signal(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let x = create_signal(10.0);
         moved.update(|moved| *moved = Some(x));
         view! {

@@ -8,7 +8,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
 use beui::{
-    Align, CursorIcon, ForwardedInput, ImeCursor, Modifiers, NodeId, Pos2, Rect, Region, Vec2, pos2,
+    Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
+    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -59,6 +60,101 @@ pub(crate) type ChildView =
 #[derive(Clone)]
 pub(crate) struct Occlusion(pub(crate) Memo<Vec<Rect>>);
 
+#[derive(Clone, Copy)]
+pub(crate) struct PanDrag {
+    pub(crate) asked: ReadSignal<u64>,
+    pub(crate) pan: Callback<Vec2>,
+}
+
+#[derive(Clone, Copy)]
+struct Steering {
+    pressed: Option<(PointerEvent, Pos2)>,
+    panning: Option<PointerEvent>,
+    rect: Rect,
+}
+
+impl Steering {
+    const IDLE: Self = Self {
+        pressed: None,
+        panning: None,
+        rect: Rect::ZERO,
+    };
+
+    fn steer(&mut self, input: ForwardedInput, pan: Callback<Vec2>) -> ForwardedInput {
+        self.rect = input.rect;
+        let mut events = Vec::with_capacity(input.events.len());
+        for forwarded in input.events {
+            let Forwarded::Pointer { event, .. } = &forwarded else {
+                events.push(forwarded);
+                continue;
+            };
+            let event = *event;
+            if let Some(held) = self.panning.filter(|held| held.pointer == event.pointer) {
+                match event.phase {
+                    PointerPhase::Move => {
+                        pan.call(event.pos - held.pos);
+                        self.panning = Some(event);
+                    }
+                    PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone => {
+                        self.panning = None;
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+            match event.phase {
+                PointerPhase::Down(PointerButton::Primary) if self.pressed.is_none() => {
+                    self.pressed = Some((event, event.pos));
+                }
+                PointerPhase::Move
+                    if self
+                        .pressed
+                        .is_some_and(|(pressed, _)| pressed.pointer == event.pointer) =>
+                {
+                    self.pressed = self.pressed.map(|(pressed, _)| (pressed, event.pos));
+                }
+                PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone
+                    if self
+                        .pressed
+                        .is_some_and(|(pressed, _)| pressed.pointer == event.pointer) =>
+                {
+                    self.pressed = None;
+                }
+                _ => {}
+            }
+            events.push(forwarded);
+        }
+        ForwardedInput { events, ..input }
+    }
+
+    fn take_over(&mut self, pan: Callback<Vec2>) -> Option<ForwardedInput> {
+        let (pressed, at) = self.pressed.take()?;
+        if at != pressed.pos {
+            pan.call(at - pressed.pos);
+        }
+        let held = PointerEvent { pos: at, ..pressed };
+        self.panning = Some(held);
+        let cancel = match held.pointer {
+            PointerId::Mouse => Forwarded::Left,
+            _ => Forwarded::Pointer {
+                event: PointerEvent {
+                    phase: PointerPhase::Cancel,
+                    ..held
+                },
+                over: None,
+            },
+        };
+        Some(ForwardedInput {
+            events: vec![cancel],
+            rect: self.rect,
+            hovered: false,
+            focused: true,
+            pointer: None,
+            modifiers: held.modifiers,
+        })
+    }
+}
+
 pub(crate) fn occlusion() -> Option<Memo<Vec<Rect>>> {
     use_context::<Occlusion>().map(|Occlusion(rects)| rects)
 }
@@ -84,6 +180,7 @@ pub(crate) fn PluginRegion(
     #[prop(default = false)] passive: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
+    #[prop(default = None)] pan_drag: Option<PanDrag>,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
@@ -137,7 +234,13 @@ pub(crate) fn PluginRegion(
     });
     let state = create_memo(move || {
         revision.get();
-        plugin_host::region_view(&editor.plugin, instance, region, placed.with(Cell::get))
+        plugin_host::region_view(
+            &editor.plugin,
+            instance,
+            region,
+            placed.with(Cell::get),
+            view.get(),
+        )
     });
     create_effect(move || {
         revision.get();
@@ -193,7 +296,8 @@ pub(crate) fn PluginRegion(
                 (loading, drawn, held, size),
             )
         });
-        let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing)>>> = Rc::new(RefCell::new(None));
+        let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing, u64)>>> =
+            Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _) = shown.get();
             let (drawn, held_rect, size) =
@@ -208,7 +312,8 @@ pub(crate) fn PluginRegion(
                 placed: plugin_host::region_placed(&plugin_id.value(), instance, region),
             };
             let previous = held.borrow().clone();
-            if let Some((_, drawing)) = previous.filter(|(was, _)| *was == key)
+            let published = plugin_host::region_published(&plugin_id.value());
+            if let Some((_, drawing, seen)) = previous.filter(|(was, _, _)| *was == key)
                 && let Some(damage) = state.with_untracked(|view| {
                     plugin_host::region_damage(
                         &plugin_id.value(),
@@ -217,10 +322,12 @@ pub(crate) fn PluginRegion(
                         view,
                         &pieces,
                         rotation,
+                        seen,
                     )
                 })
             {
                 if damage.is_empty() {
+                    *held.borrow_mut() = Some((key, drawing.clone(), published));
                     return Some(drawing);
                 }
                 let damaged = damage.iter().fold(Region::default(), |damaged, fraction| {
@@ -233,7 +340,7 @@ pub(crate) fn PluginRegion(
                     ))
                 });
                 let redrawn = drawing.redrawn(damaged);
-                *held.borrow_mut() = Some((key, redrawn.clone()));
+                *held.borrow_mut() = Some((key, redrawn.clone(), published));
                 return Some(redrawn);
             }
             let drawing = state.with_untracked(|view| {
@@ -247,7 +354,7 @@ pub(crate) fn PluginRegion(
                     opacity,
                 )
             });
-            *held.borrow_mut() = drawing.clone().map(|drawing| (key, drawing));
+            *held.borrow_mut() = drawing.clone().map(|drawing| (key, drawing, published));
             drawing
         });
         Prop::dynamic(move || draw_gpu(drawn.get()))
@@ -317,9 +424,36 @@ pub(crate) fn PluginRegion(
             super::editors::statuses(&reports),
         );
     });
+    let steering = StoredCell::new(Steering::IDLE);
     let forward = move |input: ForwardedInput| {
-        plugin_host::forward_region(&plugin_id.value(), instance, region, &input);
+        let input = match pan_drag {
+            Some(pan_drag) => {
+                let mut steered = steering.get();
+                let input = steered.steer(input, pan_drag.pan);
+                steering.set(steered);
+                input
+            }
+            None => input,
+        };
+        if !input.events.is_empty() {
+            plugin_host::forward_region(&plugin_id.value(), instance, region, &input);
+        }
     };
+    if let Some(pan_drag) = pan_drag {
+        create_effect(move || {
+            if pan_drag.asked.get() == 0 {
+                return;
+            }
+            untrack(|| {
+                let mut steered = steering.get();
+                let cancel = steered.take_over(pan_drag.pan);
+                steering.set(steered);
+                if let Some(cancel) = cancel {
+                    plugin_host::forward_region(&plugin_id.value(), instance, region, &cancel);
+                }
+            });
+        });
+    }
     let back = move |gesture: beui::BackGesture| {
         plugin_host::back_region(&plugin_id.value(), instance, region, gesture);
     };
@@ -381,6 +515,9 @@ pub(crate) fn PluginRegion(
     let claims = move |(position, held): (Pos2, beui::Modifiers)| {
         !passive.get_untracked() && state.with_untracked(|view| view.claims(position, held))
     };
+    let pen_surface = move |position: Pos2| {
+        !passive.get_untracked() && state.with_untracked(|view| view.draws(position))
+    };
     view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
@@ -399,6 +536,7 @@ pub(crate) fn PluginRegion(
                         on_forward={forward}
                         hit_at={takes}
                         claim_at={claims}
+                        drawing_at={pen_surface}
                         on_press_outside={pressed_outside}
                         on_focus_change={move |focused: bool| {
                             if focused {
@@ -576,3 +714,6 @@ fn RegionChildren(
         </Canvas>
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -3,16 +3,19 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::items::ItemsState;
+use crate::rebase::Spot;
 use crate::{
-    Anchor, Change, Items, Malformed, Model, Object, ObjectId, Objects, Place, Sequence, Touched,
-    Value,
+    Anchor, Change, Items, Kind, Malformed, Model, Object, ObjectId, Objects, Place, Sequence,
+    Shape, Touched, Value,
 };
 use sequence::State;
+use sequence::marks::{Rich, RichState};
 
 #[derive(Default, Deserialize, Serialize)]
 struct Session {
     texts: BTreeMap<Place, State>,
     lists: BTreeMap<Place, ItemsState>,
+    riches: BTreeMap<Place, RichState>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -49,17 +52,24 @@ impl Tree {
                 Value::List(items) if !items.is_fresh() => {
                     session.lists.insert(place, items.state());
                 }
+                Value::Rich(rich) if !rich.is_fresh() => {
+                    session.riches.insert(place, rich.state());
+                }
                 _ => {}
             }
         }
-        if session.texts.is_empty() && session.lists.is_empty() {
+        if session.texts.is_empty() && session.lists.is_empty() && session.riches.is_empty() {
             return Vec::new();
         }
         postcard::to_stdvec(&session).unwrap_or_default()
     }
 
     pub(crate) fn adopt_session_state(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
-        let Session { texts, lists } = match bytes.is_empty() {
+        let Session {
+            texts,
+            lists,
+            riches,
+        } = match bytes.is_empty() {
             true => Session::default(),
             false => postcard::from_bytes(bytes).map_err(|_| Malformed)?,
         };
@@ -77,6 +87,13 @@ impl Tree {
             };
             let items = Items::from_state(state, &held.ids()).map_err(|_| Malformed)?;
             adopted.push((place, Value::List(items)));
+        }
+        for (place, state) in riches {
+            let Some(Value::Rich(held)) = self.value(place.object, place.field) else {
+                return Err(Malformed);
+            };
+            let rich = Rich::from_state(state, &held.text.items()).map_err(|_| Malformed)?;
+            adopted.push((place, Value::Rich(rich)));
         }
         self.refresh_sequences();
         for (place, value) in adopted {
@@ -131,7 +148,7 @@ impl Tree {
         fields
     }
 
-    fn permits(&self, change: &Change) -> bool {
+    fn permits(&self, root: fn() -> Kind, change: &Change) -> bool {
         let locked = |id: &ObjectId| self.objects.get(id).is_some_and(Object::is_locked);
         let parent_locked = |id: &ObjectId| {
             self.objects
@@ -148,15 +165,50 @@ impl Tree {
             | Change::Paint { object, .. }
             | Change::Reshape { object, .. }
             | Change::Stamp { object, .. }
-            | Change::Text { object, .. } => !locked(object),
+            | Change::Text { object, .. }
+            | Change::Mark { object, .. }
+            | Change::Unmark { object, .. } => !locked(object),
             Change::Insert { place, .. } => !locked(&place.object),
             Change::Remove { object } | Change::RemoveIf { object, .. } => !parent_locked(object),
-            Change::Move { object, place, .. } => !parent_locked(object) && !locked(&place.object),
+            Change::Move { object, place, .. } => {
+                !parent_locked(object)
+                    && !locked(&place.object)
+                    && self.same_kind(root, *object, *place)
+            }
         }
     }
 
-    pub(crate) fn apply(&mut self, change: &Change) -> bool {
-        if !self.permits(change) {
+    fn same_kind(&self, root: fn() -> Kind, object: ObjectId, place: Place) -> bool {
+        let Some(from) = self.objects.get(&object).and_then(|held| held.parent) else {
+            return false;
+        };
+        if from == place {
+            return true;
+        }
+        let kind = |place| self.listed_kind(root, place);
+        kind(from).is_some_and(|from| kind(place) == Some(from))
+    }
+
+    fn listed_kind(&self, root: fn() -> Kind, place: Place) -> Option<&'static str> {
+        let mut fields = vec![place.field];
+        let mut cursor = place.object;
+        while cursor != ObjectId::ROOT {
+            let parent = self.objects.get(&cursor)?.parent?;
+            fields.push(parent.field);
+            cursor = parent.object;
+        }
+        let mut kind = root();
+        for field in fields.into_iter().rev() {
+            let Shape::List(child) = kind.properties.get(usize::from(field))?.shape else {
+                return None;
+            };
+            kind = child();
+        }
+        Some(kind.name)
+    }
+
+    pub(crate) fn apply(&mut self, root: fn() -> Kind, change: &Change) -> bool {
+        if !self.permits(root, change) {
             return false;
         }
         match change {
@@ -251,6 +303,19 @@ impl Tree {
             },
             Change::Text { object, field, op } => match self.value_mut(*object, *field) {
                 Some(Value::Text(sequence)) => sequence.apply(op).is_some(),
+                Some(Value::Rich(rich)) => rich.apply(op).is_some(),
+                _ => false,
+            },
+            Change::Mark {
+                object,
+                field,
+                mark,
+            } => match self.value_mut(*object, *field) {
+                Some(Value::Rich(rich)) => rich.mark(mark.clone()),
+                _ => false,
+            },
+            Change::Unmark { object, field, id } => match self.value_mut(*object, *field) {
+                Some(Value::Rich(rich)) => rich.unmark(*id).is_some(),
                 _ => false,
             },
             Change::Remove { object } => self.remove(*object),
@@ -266,8 +331,8 @@ impl Tree {
         }
     }
 
-    pub(crate) fn inverse(&self, change: &Change) -> Option<(Change, Change)> {
-        if !self.permits(change) {
+    pub(crate) fn inverse(&self, root: fn() -> Kind, change: &Change) -> Option<(Change, Change)> {
+        if !self.permits(root, change) {
             return None;
         }
         match change {
@@ -400,8 +465,10 @@ impl Tree {
             }
             Change::Stamp { .. } => None,
             Change::Text { object, field, op } => {
-                let Some(Value::Text(sequence)) = self.value(*object, *field) else {
-                    return None;
+                let sequence = match self.value(*object, *field) {
+                    Some(Value::Text(sequence)) => sequence,
+                    Some(Value::Rich(rich)) => &rich.text,
+                    _ => return None,
                 };
                 let (back, forward) = sequence.inverse(op)?;
                 Some((
@@ -415,6 +482,39 @@ impl Tree {
                         field: *field,
                         op: forward,
                     },
+                ))
+            }
+            Change::Mark {
+                object,
+                field,
+                mark,
+            } => {
+                let Some(Value::Rich(rich)) = self.value(*object, *field) else {
+                    return None;
+                };
+                rich.marks.get(mark.id).is_none().then(|| {
+                    (
+                        Change::Unmark {
+                            object: *object,
+                            field: *field,
+                            id: mark.id,
+                        },
+                        change.clone(),
+                    )
+                })
+            }
+            Change::Unmark { object, field, id } => {
+                let Some(Value::Rich(rich)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let held = rich.marks.get(*id)?;
+                Some((
+                    Change::Mark {
+                        object: *object,
+                        field: *field,
+                        mark: held.clone(),
+                    },
+                    change.clone(),
                 ))
             }
             Change::Insert { place, objects, .. } => {
@@ -490,7 +590,9 @@ impl Tree {
             | Change::Paint { object, field, .. }
             | Change::Reshape { object, field, .. }
             | Change::Stamp { object, field, .. }
-            | Change::Text { object, field, .. } => {
+            | Change::Text { object, field, .. }
+            | Change::Mark { object, field, .. }
+            | Change::Unmark { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }
@@ -502,11 +604,7 @@ impl Tree {
                 if let Some(place) = self.objects.get(object).and_then(|held| held.parent) {
                     self.touch_place(place, out);
                 }
-                out.extend(
-                    self.subtree(*object)
-                        .into_iter()
-                        .map(|(id, _)| Touched::Subtree(id)),
-                );
+                out.extend(self.subtree_ids(*object).into_iter().map(Touched::Subtree));
             }
             Change::Move { object, place, .. } => {
                 if let Some(from) = self.objects.get(object).and_then(|held| held.parent) {
@@ -547,6 +645,66 @@ impl Tree {
                 }
             }
             out.push((id, object.clone()));
+        }
+        out
+    }
+
+    pub(crate) fn touch_spot(&self, spot: Spot, out: &mut Vec<Touched>) {
+        match spot {
+            Spot::Field(object, field) => {
+                out.push(Touched::Field(object, field));
+                self.touch_up(object, out);
+            }
+            Spot::Object(object) => {
+                if let Some(held) = self.objects.get(&object) {
+                    out.extend((0..held.fields.len()).filter_map(|index| {
+                        u16::try_from(index)
+                            .ok()
+                            .map(|field| Touched::Field(object, field))
+                    }));
+                    if let Some(parent) = held.parent {
+                        self.touch_place(parent, out);
+                    }
+                }
+                self.touch_up(object, out);
+            }
+        }
+    }
+
+    pub(crate) fn restore(&mut self, spot: Spot, from: &Tree) {
+        let object = spot.object();
+        if let Spot::Field(_, field) = spot
+            && let (Some(held), Some(source)) =
+                (self.value_mut(object, field), from.value(object, field))
+        {
+            held.clone_from(source);
+            return;
+        }
+        match from.objects.get(&object) {
+            Some(source) => {
+                self.objects.insert(object, source.clone());
+            }
+            None => {
+                self.objects.remove(&object);
+            }
+        }
+    }
+
+    pub(crate) fn subtree_ids(&self, top: ObjectId) -> Vec<ObjectId> {
+        let mut out = Vec::new();
+        let mut pending = vec![top];
+        while let Some(id) = pending.pop() {
+            let Some(object) = self.objects.get(&id) else {
+                continue;
+            };
+            for value in object.fields.iter().rev() {
+                if let Value::List(children) = value {
+                    let start = pending.len();
+                    pending.extend(children.iter().copied());
+                    pending[start..].reverse();
+                }
+            }
+            out.push(id);
         }
         out
     }
@@ -642,7 +800,7 @@ impl Tree {
             return false;
         }
         self.detach(object);
-        for (id, _) in self.subtree(object) {
+        for id in self.subtree_ids(object) {
             self.objects.remove(&id);
         }
         true
@@ -805,6 +963,7 @@ fn refresh(fields: &mut [Value]) {
         match value {
             Value::Text(sequence) if !sequence.is_fresh() => *sequence = sequence.refreshed(),
             Value::List(items) if !items.is_fresh() => *items = items.refreshed(),
+            Value::Rich(rich) if !rich.is_fresh() => *rich = rich.refreshed(),
             _ => {}
         }
     }

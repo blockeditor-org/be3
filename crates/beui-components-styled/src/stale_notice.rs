@@ -33,14 +33,10 @@ pub fn StaleNotice(
                 <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph={ICON_HISTORY.to_owned()} />
                 </Text>
-                <Text style=TextStyle::HEADING string={title} align=TextAlign::Center />
-                <Text
-                    string={create_memo(move || detail.get())}
-                    size=TextSize::Sm
-                    color=TextColor::Muted
-                    align=TextAlign::Center
-                    wrap=true
-                />
+                <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
+                <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center wrap=true>
+                    {create_memo(move || detail.get())}
+                </Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button
                         @test_id={reset_id}

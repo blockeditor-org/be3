@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
     let _root = crate::reactive::RootScope::new();
     let (scroll, listbox) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Scroll @node_ref=&scroll>
                 <Listbox
@@ -31,7 +31,10 @@ fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::End, Modifiers::NONE);
     assert_eq!(
-        styled::listbox_selected(harness.document(), listbox),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(listbox)
+            .selected(),
         Some(5)
     );
     let focused = harness.document.focused_node().unwrap();

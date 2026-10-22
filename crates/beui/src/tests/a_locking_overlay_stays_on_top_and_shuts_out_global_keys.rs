@@ -15,7 +15,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let dismissed = create_signal(0);
     let typed = create_signal(String::new());
     let (lock, popup) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         on_global_key(move |event: KeyEvent| {
             globals.update(|globals| *globals += 1);
             event.press().is_some_and(|press| press.modifiers.ctrl)
@@ -41,12 +41,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
                     on_dismiss={move |_: Dismiss| dismissed.update(|dismissed| *dismissed += 1)}
                 >
                     <Frame width=200.0 height=40.0>
-                        <TextInput
-                            @test_id={"password"}
-                            value=""
-                            password=true
-                            on_change={move |value: String| typed.set(value)}
-                        />
+                        <TextInput @test_id={"password"} value={typed} password=true />
                     </Frame>
                 </Overlay>
             </List>

@@ -8,10 +8,10 @@ const LONG: &str = "a caption far too long to sit on one line of this narrow wra
 fn wrapped_rows_wrap_long_text_and_grow_percent_children() {
     let _root = crate::reactive::RootScope::new();
     let (caption, grown, fixed) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal wrap=true spacing=10.0>
-                <Text @node_ref=&caption string=LONG wrap=true />
+                <Text @node_ref=&caption wrap=true>{LONG}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&grown width=40.0 height=20.0 />
                 <Frame @node_ref=&fixed width=40.0 height=20.0 />
             </List>

@@ -12,6 +12,7 @@ import android.provider.OpenableColumns;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.window.BackEvent;
 import android.window.OnBackAnimationCallback;
@@ -29,6 +30,10 @@ public class BeuiActivity extends Activity {
     private static final int PICK_FILE_REQUEST = 0x8E31;
     private static final int MAX_FILE_BYTES = 128 * 1024 * 1024;
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
+
+    private static final int EDGE_TO_EDGE = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
 
     private boolean backHandled;
     private Object backCallback;
@@ -54,14 +59,26 @@ public class BeuiActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 30) {
             window.setDecorFitsSystemWindows(false);
         } else {
-            window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+            window.getDecorView().setSystemUiVisibility(EDGE_TO_EDGE);
         }
         BeuiView view = new BeuiView(this);
         setContentView(new BeuiView.Host(this, view));
         view.requestFocus();
         BeuiView.nativeCreate(this, view, getAssets(), getFilesDir().getAbsolutePath());
+    }
+
+    void setLightBars(boolean light) {
+        Window window = getWindow();
+        if (Build.VERSION.SDK_INT >= 30) {
+            int bars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+            window.getInsetsController().setSystemBarsAppearance(light ? bars : 0, bars);
+            return;
+        }
+        int flags = EDGE_TO_EDGE;
+        if (light && Build.VERSION.SDK_INT >= 23) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (light && Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        window.getDecorView().setSystemUiVisibility(flags);
     }
 
     void setBackHandled(boolean handled) {

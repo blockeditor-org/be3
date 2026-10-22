@@ -9,7 +9,7 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
     let _root = crate::reactive::RootScope::new();
     let runs = create_signal(0);
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.switch", "Switch", move || {
             runs.update(|runs| *runs += 1)
         })
@@ -74,5 +74,5 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
         focused,
         "the key never moves the focus from the control that has it"
     );
-    assert_eq!(text_input_value(harness.document(), field), "");
+    assert_eq!(harness.document().api::<TextInputApi>(field).value(), "");
 }

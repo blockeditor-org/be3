@@ -1,28 +1,28 @@
+use block_editor_beui::be_block::canvas::CanvasProfile;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{
-    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_REDO, ICON_SELECT,
-    ICON_TEXT_FIELDS, ICON_UNDO,
-};
+use block_editor_beui::beui::icons::{ICON_REDO, ICON_UNDO};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Edge, Floating};
-use block_editor_beui::{BottomDock, sheet_open};
+use block_editor_beui::{BottomDock, node_anchor, sheet_open};
 
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
 
-const TOOLS: [(Tool, &str, &str); 6] = [
-    (Tool::Select, ICON_SELECT, "Select"),
-    (Tool::Artboard, ICON_CROP_FREE, "Artboard"),
-    (Tool::Line, ICON_DIAGONAL_LINE, "Line"),
-    (Tool::Rectangle, ICON_RECTANGLE, "Rectangle"),
-    (Tool::Text, ICON_TEXT_FIELDS, "Text"),
-    (Tool::Pen, ICON_DRAW, "Pen"),
+const TOOLS: [(Tool, &str); 10] = [
+    (Tool::Select, "Select"),
+    (Tool::Pen, "Pen"),
+    (Tool::Rectangle, "Rectangle"),
+    (Tool::Ellipse, "Ellipse"),
+    (Tool::Diamond, "Diamond"),
+    (Tool::Arrow, "Arrow"),
+    (Tool::Line, "Line"),
+    (Tool::Text, "Text"),
+    (Tool::Frame, "Frame"),
+    (Tool::Eraser, "Eraser"),
 ];
-
-const DOCK_TOOLS: [usize; 6] = [0, 5, 2, 3, 4, 1];
 const PILL_MARGIN: f32 = 12.0;
 const PILL_RADIUS: f32 = 16.0;
 const PILL_PADDING: f32 = 4.0;
@@ -34,7 +34,18 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let open = create_memo(move || shown.get() && !previewing);
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let tools = actions.clone();
-    let chosen = create_memo(move || !state.selection.get().is_empty());
+    let chosen = create_memo(move || {
+        let tool = state.tool.get();
+        !state.selection.get().is_empty()
+            || tool.draws_a_line()
+            || (state.profile.get() == CanvasProfile::Prototyping && tool.styles())
+    });
+    let tool_keys = create_memo(move || {
+        let profile = state.profile.get();
+        (0..TOOLS.len())
+            .filter(|index| TOOLS[*index].0.belongs_to(profile))
+            .collect::<Vec<usize>>()
+    });
     let selection = move || {
         view! {
             <List align=Align::Center spacing=0.0>
@@ -50,6 +61,11 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
         let editor = state.editor();
         editor.host().undo(editor.block_id());
     };
+    let block_button = NodeRef::new();
+    let add_block = move || match node_anchor(&block_button) {
+        Some(button) => state.open_block_picker_at(button),
+        None => state.open_block_picker(None),
+    };
     let redo = move || {
         let editor = state.editor();
         editor.host().redo(editor.block_id());
@@ -59,22 +75,28 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
             anchor={anchor}
             open={open}
             name="infinite-canvas.dock"
-            above={view! {
-                <List spacing=0.0>
-                    <Show condition={chosen} then={selection} />
-                </List>
+            above={move || view! {
+                <Show condition={chosen} then={selection} />
             }}
         >
-            <ForEach keys={DOCK_TOOLS.to_vec()}>|index: usize| {
+            <ToggleButton
+                icon_only=true
+                action={actions.tool_lock.clone()}
+                @test_id={"infinite-canvas.dock.tool-lock"}
+            />
+            <ForEach keys={tool_keys}>|index: usize| {
                 let actions = tools.clone();
                 view! {
-                    <ToolChoice actions index />
+                    <ToolChoice state actions index />
                 }
             }</ForEach>
             <IconButton
+                @node_ref={&block_button}
                 label="Block"
+                glyph={actions.add_block.glyph().to_owned()}
+                disabled={actions.add_block.disabled()}
                 @test_id={"infinite-canvas.dock.block"}
-                action={actions.add_block}
+                on_click={add_block}
             />
             <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
             <IconButton
@@ -91,6 +113,12 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 @test_id={"infinite-canvas.dock.redo"}
                 on_click={redo}
             />
+            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
+            <ToggleButton
+                icon_only=true
+                action={actions.ignore_touch.clone()}
+                @test_id={"infinite-canvas.dock.ignore-touch"}
+            />
         </BottomDock>
     }
 }
@@ -104,8 +132,8 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let scale = state.editor().scale();
     let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
-    view! {
-        <Floating anchor={anchor} edge=Edge::TopEnd open={open}>
+    let content = Render::new(move |()| {
+        view! {
             <Frame padding=PILL_MARGIN>
                 <Frame
                     fill=ColorRole::SurfaceRaised
@@ -138,20 +166,44 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                     </List>
                 </Frame>
             </Frame>
+        }
+    })
+    .once();
+    view! {
+        <Floating anchor={anchor} edge=Edge::TopEnd open={open} keep_alive=true>
+            {content.call(())}
         </Floating>
     }
 }
 
 #[component]
-fn ToolChoice(actions: CanvasActions, index: usize) -> NodeId {
-    let (tool, glyph, label) = TOOLS[index];
+fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeId {
+    let (tool, name) = TOOLS[index];
+    let (label, glyph, action) = match tool {
+        Tool::Select => {
+            let mode = create_memo(move || state.select_tool());
+            (
+                Prop::dynamic(move || match mode.get() {
+                    Tool::Lasso => "Lasso select".to_owned(),
+                    _ => name.to_owned(),
+                }),
+                Prop::dynamic(move || mode.get().glyph().to_owned()),
+                actions.select_mode,
+            )
+        }
+        _ => (
+            Prop::Static(name.to_owned()),
+            Prop::Static(tool.glyph().to_owned()),
+            actions.tool(tool),
+        ),
+    };
     view! {
         <ToggleButton
             label={label}
-            glyph={glyph.to_owned()}
+            glyph={glyph}
             icon_only=true
-            action={actions.tool(tool)}
-            @test_id={format!("infinite-canvas.dock.tool.{label}")}
+            action={action}
+            @test_id={format!("infinite-canvas.dock.tool.{name}")}
         />
     }
 }
@@ -165,7 +217,7 @@ pub(crate) fn ImportError(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text string={message} color=TextColor::Danger />
+                    <Text color=TextColor::Danger>{message}</Text>
                     <Button
                         label="Dismiss"
                         variant=ButtonVariant::Secondary

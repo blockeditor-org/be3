@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -28,7 +28,7 @@ fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(Vec::new());
-    harness.click(harness.animation_toggle_center());
+    harness.choose_in_simulation("motion", 2);
     harness.frame(Vec::new());
     harness.toggle_inspector();
     harness.frame(Vec::new());

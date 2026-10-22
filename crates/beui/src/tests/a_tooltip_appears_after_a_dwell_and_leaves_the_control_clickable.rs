@@ -11,7 +11,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     let _root = crate::reactive::RootScope::new();
     let clicked = create_signal(0u32);
     let button = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Tooltip
@@ -19,7 +19,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
                     delay={Duration::ZERO}
                     content={move |handle: TooltipHandle| {
                         view! {
-                            <Text @test_id="tip" string={handle.label} />
+                            <Text @test_id="tip">{handle.label}</Text>
                         }
                     }}
                 >
@@ -27,7 +27,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
                         @node_ref=&button
                         on_click={move || clicked.update(|clicked| *clicked += 1)}
                     >
-                        <Text string="add" />
+                        <Text>"add"</Text>
                     </Button>
                 </Tooltip>
             </List>

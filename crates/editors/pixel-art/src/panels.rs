@@ -50,7 +50,11 @@ const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
 ];
 
 #[component]
-pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<bool>) -> NodeId {
+pub(crate) fn TopBar(
+    tools: Tools,
+    size: Memo<(u16, u16)>,
+    shown: ReadSignal<bool>,
+) -> DynamicSegment<ListChild> {
     let editor = tools.editor();
     let tool = tools.tool;
     let label = create_memo(move || tool.get().label().to_owned());
@@ -67,7 +71,7 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
     let reset = move || {
         editor.zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
     };
-    let fit = move || editor.fit();
+    let fit = move || tools.fitting.fit();
     let grid = tools.show_grid;
     let toggle_grid = move |on: bool| grid.set(on);
 
@@ -86,8 +90,8 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
     let reason = create_memo(move || failure.get().unwrap_or_default());
     view! {
         <Toolbar shown={shown}>
-            <Text string={label} />
-            <Text style=TextStyle::CAPTION string={dimensions} />
+            <Text>{label}</Text>
+            <Text style=TextStyle::CAPTION>{dimensions}</Text>
             <IconButton
                 glyph={ICON_ZOOM_OUT.to_owned()}
                 label="Zoom out"
@@ -112,9 +116,9 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
                 @test_id={"pixel-art.fit"}
                 on_click={fit}
             />
-            <Checkbox label="Grid" checked={grid} on_change={toggle_grid} />
+            <Checkbox label="Grid" checked={Binding::new(grid, toggle_grid)} />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
@@ -158,7 +162,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
     let vertical = tools.mirror_vertical;
     view! {
         <List spacing=SPACING>
-            <Text style=TextStyle::HEADING string="Tools" />
+            <Text style=TextStyle::HEADING>"Tools"</Text>
             <ForEach keys={rows}>|row: usize| {
                 let (left, right) = (TOOLS[row * 2], TOOLS[row * 2 + 1]);
                 view! {
@@ -176,50 +180,38 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Text string="Tool options" />
+            <Text>"Tool options"</Text>
             <NumberInput
-                value={size_value}
+                value={Binding::new(size_value, move |value: f64| brush_size.set(value as u16))}
                 min=1.0
                 max={f64::from(MAX_BRUSH_SIZE)}
                 label="Brush size"
                 @test_id={"pixel-art.brush-size"}
-                on_change={move |value: f64| brush_size.set(value as u16)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ToggleButton
                     glyph={ICON_SQUARE.to_owned()}
                     label="Square brush"
                     icon_only=true
-                    pressed={square}
-                    on_change={move |_| shape.set(BrushShape::Square)}
+                    pressed={Binding::new(square, move |_| shape.set(BrushShape::Square))}
                 />
                 <ToggleButton
                     glyph={ICON_CIRCLE.to_owned()}
                     label="Circle brush"
                     icon_only=true
-                    pressed={circle}
-                    on_change={move |_| shape.set(BrushShape::Circle)}
+                    pressed={Binding::new(circle, move |_| shape.set(BrushShape::Circle))}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <ToggleButton
                 glyph={ICON_FORMAT_COLOR_FILL.to_owned()}
-                label="Fill rectangles and ellipses"
+                label="Filled shapes"
                 pressed={filled}
                 disabled={shapes}
-                on_change={move |on| filled.set(on)}
             />
-            <Text string="Symmetry" />
-            <Checkbox
-                label="Mirror horizontally"
-                checked={horizontal}
-                on_change={move |on| horizontal.set(on)}
-            />
-            <Checkbox
-                label="Mirror vertically"
-                checked={vertical}
-                on_change={move |on| vertical.set(on)}
-            />
+            <Text>"Symmetry"</Text>
+            <Checkbox label="Mirror horizontally" checked={horizontal} />
+            <Checkbox label="Mirror vertically" checked={vertical} />
         </List>
     }
 }
@@ -235,9 +227,8 @@ fn ToolButton(tools: Tools, entry: (PixelTool, &'static str, &'static str)) -> N
             glyph={glyph.to_owned()}
             label={format!("{} ({shortcut})", tool.label())}
             icon_only=true
-            pressed={pressed}
+            pressed={Binding::new(pressed, select)}
             @test_id={format!("pixel-art.tool.{}", tool.label())}
-            on_change={select}
         />
     }
 }
@@ -283,22 +274,21 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
     };
     view! {
         <List spacing=SPACING>
-            <Text style=TextStyle::HEADING string="Color" />
+            <Text style=TextStyle::HEADING>"Color"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Swatch color={color} selected=false on_click={move || {}} />
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={hex}
+                    value={Binding::new(hex, typing)}
                     label="Colour"
                     placeholder="#RRGGBBAA"
                     @test_id={"pixel-art.hex"}
-                    on_change={typing}
                 />
             </List>
             <ForEach keys={channels}>|channel: &'static str|
                 <Channel tools={tools} channel={channel} />
             </ForEach>
-            <Text string="Palette" />
+            <Text>"Palette"</Text>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={palette}>|swatch: PixelColor| {
                     let chosen = create_memo(move || color.get() == swatch);
@@ -325,7 +315,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
-            <Text string="Recent" />
+            <Text>"Recent"</Text>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={recent_colors}>|swatch: PixelColor|
                     <Swatch color={swatch} selected=false on_click={move || {}} />
@@ -351,7 +341,7 @@ fn Channel(tools: Tools, channel: &'static str) -> NodeId {
         tools.set_active_color(PixelColor::new(rgba[0], rgba[1], rgba[2], rgba[3]), false);
     };
     view! {
-        <NumberInput value={value} min=0.0 max=255.0 label={channel} on_change={edit} />
+        <NumberInput value={Binding::new(value, edit)} min=0.0 max=255.0 label={channel} />
     }
 }
 
@@ -398,7 +388,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
             height: height.get_untracked(),
             anchor: tools.resize_anchor.get_untracked(),
         });
-        tools.editor().fit();
+        tools.fitting.fit();
         tools.close_dialog();
     };
     let clear = move || {
@@ -421,34 +411,29 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
-                            value={width_value}
+                            value={Binding::new(width_value, move |value: f64| width.set(value as u16))}
                             min=1.0
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Width"
                             @test_id={"pixel-art.resize-width"}
-                            on_change={move |value: f64| width.set(value as u16)}
                         />
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
-                            value={height_value}
+                            value={Binding::new(height_value, move |value: f64| height.set(value as u16))}
                             min=1.0
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Height"
                             @test_id={"pixel-art.resize-height"}
-                            on_change={move |value: f64| height.set(value as u16)}
                         />
                     </List>
-                    <Text style=TextStyle::CAPTION string="Anchor" />
+                    <Text style=TextStyle::CAPTION>"Anchor"</Text>
                     <ForEach keys={anchors}>|row: usize|
                         <AnchorRow tools={tools} row={row} />
                     </ForEach>
                     <Show condition={cropping}>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Shrinking crops pixels outside the anchored region."
-                            color=TextColor::Warning
-                            wrap=true
-                        />
+                        <Text style=TextStyle::CAPTION color=TextColor::Warning wrap=true>
+                            "Shrinking crops pixels outside the anchored region."
+                        </Text>
                     </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
@@ -474,11 +459,9 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                 on_dismiss={dismiss_clear}
             >
                 <List spacing=SPACING>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="This makes every pixel transparent."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "This makes every pixel transparent."
+                    </Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
                             label="Clear"
@@ -515,8 +498,7 @@ fn AnchorRow(tools: Tools, row: usize) -> NodeId {
                         glyph={glyph.to_owned()}
                         label={label}
                         icon_only=true
-                        pressed={pressed}
-                        on_change={move |_| set.set(anchor)}
+                        pressed={Binding::new(pressed, move |_| set.set(anchor))}
                     />
                 }
             }</ForEach>

@@ -32,33 +32,19 @@ const EVENT_INDENT: f32 = 14.0;
 struct Shown(u64);
 
 #[component]
-pub(crate) fn Detail(model: Model, number: u64) -> NodeId {
-    let pull_request = create_memo(move || {
-        model.opened.with(|opened| {
-            opened
-                .iter()
-                .find(|pull_request| pull_request.number == number)
-                .cloned()
-        })
-    });
-    let shown = create_memo(move || pull_request.with(Option::is_some));
-    provide_context(Shown(number));
+pub(crate) fn Detail(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
+    provide_context(Shown(
+        pull_request.with_untracked(|pull_request| pull_request.number),
+    ));
     view! {
-        <List spacing=0.0>
-            <Show condition={shown}>
-                <PullRequestView
-                    @sizing=ItemSize::Percent(100.0)
-                    model={model}
-                    pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
-                />
-            </Show>
-        </List>
+        <PullRequestView model={model} pull_request={pull_request} />
     }
 }
 
-fn placeholder() -> PullRequest {
+#[cfg(target_os = "android")]
+pub(crate) fn placeholder(number: u64) -> PullRequest {
     PullRequest {
-        number: 0,
+        number,
         title: String::new(),
         state: State::Open,
         author: Person {
@@ -119,15 +105,16 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List spacing=0.0>
                 <Frame padding={Sides::symmetric(PADDING, 4.0)}>
                     <List spacing=SPACING>
-                        <Text string={title} size=TextSize::Xl wrap=true />
+                        <Text size=TextSize::Xl wrap=true>{title}</Text>
                         <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <StateBadge state />
                             <Text
                                 style=TextStyle::CAPTION
                                 @sizing=ItemSize::Percent(100.0)
-                                string={summary}
                                 wrap=true
-                            />
+                            >
+                                {summary}
+                            </Text>
                         </List>
                         <Show condition={tagged}>
                             <Labels labels={labels} checked_out={checked_out} />
@@ -156,11 +143,11 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <Show condition={loading}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                                 <Spinner width=20.0 label="Loading the conversation" />
-                                <Text style=TextStyle::CAPTION string="Loading the conversation" />
+                                <Text style=TextStyle::CAPTION>"Loading the conversation"</Text>
                             </List>
                         </Show>
                         <Show condition={failed}>
-                            <Text string={error} color=TextColor::Danger wrap=true />
+                            <Text color=TextColor::Danger wrap=true>{error}</Text>
                         </Show>
                     </List>
                 </Frame>
@@ -275,7 +262,7 @@ fn CommentCard(
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Avatar model={model} url={author.avatar} />
-                            <Text @sizing=ItemSize::Percent(100.0) string={heading} />
+                            <Text @sizing=ItemSize::Percent(100.0)>{heading}</Text>
                             <Link label={time} size=TextSize::Sm on_click={open} />
                         </List>
                     </Frame>
@@ -312,8 +299,8 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
         >
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text style=TextStyle::CODE string={location} />
-                    <Text style=TextStyle::CAPTION string={author} />
+                    <Text style=TextStyle::CODE>{location}</Text>
+                    <Text style=TextStyle::CAPTION>{author}</Text>
                 </List>
                 <Blocks model blocks={body} />
             </List>
@@ -329,8 +316,8 @@ fn CommitRow(sha: String, message: String) -> NodeId {
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_COMMIT />
                 </Text>
-                <Text style=TextStyle::CODE string={sha} color=TextColor::Muted />
-                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) string={message} />
+                <Text style=TextStyle::CODE color=TextColor::Muted>{sha}</Text>
+                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{message}</Text>
             </List>
         </Frame>
     }
@@ -341,7 +328,7 @@ fn EventRow(actor: String, text: String, when: i64) -> NodeId {
     let line = format!("{actor} {text} · {}", relative(now(), when));
     view! {
         <Frame padding={Sides::symmetric(EVENT_INDENT, 3.0)}>
-            <Text style=TextStyle::CAPTION string={line} wrap=true />
+            <Text style=TextStyle::CAPTION wrap=true>{line}</Text>
         </Frame>
     }
 }
@@ -383,7 +370,7 @@ fn BlockView(model: Model, block: Block) -> NodeId {
             <Dynamic value={block}>|block: Block| {
                 match block {
                     Block::Heading(text) => view! {
-                        <Text string={text} size=TextSize::Lg weight=Weight::Bold wrap=true />
+                        <Text size=TextSize::Lg weight=Weight::Bold wrap=true>{text}</Text>
                     },
                     Block::Paragraph(text) => view! {
                         <Prose text />
@@ -435,7 +422,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
 #[component]
 fn Prose(text: String) -> NodeId {
     view! {
-        <Text string={text} wrap=true />
+        <Text wrap=true>{text}</Text>
     }
 }
 
@@ -443,7 +430,7 @@ fn Prose(text: String) -> NodeId {
 fn CodeBlock(text: String) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background radius=Radius::Md padding={Sides::symmetric(10.0, 8.0)}>
-            <Text string={text} size=TextSize::Sm family=Family::Mono wrap=true />
+            <Text size=TextSize::Sm family=Family::Mono wrap=true>{text}</Text>
         </Frame>
     }
 }
@@ -453,7 +440,7 @@ fn Quote(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=10.0>
             <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) fill=ColorRole::Border />
-            <Text @sizing=ItemSize::Percent(100.0) string={text} color=TextColor::Muted wrap=true />
+            <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Muted wrap=true>{text}</Text>
         </List>
     }
 }
@@ -470,7 +457,7 @@ fn Item(text: String) -> NodeId {
                     fill=ColorRole::TextMuted
                 />
             </Frame>
-            <Text @sizing=ItemSize::Percent(100.0) string={text} wrap=true />
+            <Text @sizing=ItemSize::Percent(100.0) wrap=true>{text}</Text>
         </List>
     }
 }
@@ -507,7 +494,7 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
                 let described = described.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner width=18.0 label="Loading an image" />
-                        <Text style=TextStyle::CAPTION string={described} />
+                        <Text style=TextStyle::CAPTION>{described}</Text>
                     </List>
                 }
             }</Show>

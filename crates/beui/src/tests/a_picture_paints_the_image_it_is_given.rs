@@ -10,7 +10,7 @@ fn a_picture_paints_the_image_it_is_given() {
     let picture = NodeRef::new();
     let image = Image::from_rgba(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255]);
     let painted = image.clone();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame width=40.0 height=40.0>
                 <Picture @node_ref={&picture} image={Some(painted)} fit=ImageFit::Contain />

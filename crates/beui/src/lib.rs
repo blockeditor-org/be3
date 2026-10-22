@@ -26,7 +26,8 @@ pub use beui_core::context::{
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
-    Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
+    Document, OverRepaint, Tools, detect_over_repaint, fail_unsettled_layout, take_over_repaints,
+    verify_paint,
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
@@ -55,7 +56,14 @@ pub use beui_core::overflow;
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::painting;
-pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
+pub use beui_core::path::{FillRule, LineCap, LineJoin, Path, PathElement, Stroke};
+pub use beui_core::performance::{
+    FramePerformance, FrameWork, PerformanceSnapshot, PerformanceTimings,
+};
+pub use beui_core::preferences::{
+    CanvasTouch, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
+};
+pub use beui_core::rich;
 pub use beui_core::screens::Screen;
 pub use beui_core::touch_cursor;
 #[cfg(not(target_arch = "wasm32"))]
@@ -68,8 +76,8 @@ pub use beui_inspector::install as install_inspector;
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::{
-    Draw, DrawAt, Renderer, Repaint, Repainting, clear_color, drawing, painted_drawing,
-    renderer_info,
+    Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,
+    wgpu_color,
 };
 pub use beui_view::primitives;
 pub use beui_view::{child_type, value_child_type};
@@ -88,9 +96,13 @@ pub use web::{WebRenderer, run_web, web_adapter};
 
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
+
+mod keyboard;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_adapter};
 
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
+mod saved_preferences;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;
 
@@ -104,12 +116,11 @@ pub mod reactive {
     pub use beui_view::reactive::*;
 
     use beui_core::document::Document;
-    use beui_core::node::NodeId;
 
-    pub fn build(f: impl FnOnce() -> NodeId) -> Document {
+    pub fn build(f: impl FnOnce() -> beui_view::primitives::Root) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
-        beui_components_styled::install_keyboard(&mut document);
+        crate::keyboard::install_keyboard(&mut document);
         document
     }
 }
@@ -130,8 +141,8 @@ pub fn system_context() -> Context {
 }
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    run_with(RunOptions::new(title), app)
+pub fn run(app: impl App + 'static) -> Result<(), Box<dyn Error>> {
+    run_with(RunOptions::default(), app)
 }
 
 #[cfg(test)]

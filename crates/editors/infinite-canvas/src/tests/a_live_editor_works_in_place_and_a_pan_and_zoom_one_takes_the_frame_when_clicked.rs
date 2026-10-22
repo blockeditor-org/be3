@@ -9,10 +9,8 @@ use block_editor_beui::{
 fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clicked() {
     let counter = Uuid::new_v4();
     let mut placed = entity(Uuid::from_u128(1));
-    placed.kind = CanvasEntityKind::DirectEditor {
-        block_id: counter,
-        scale: 1.0,
-    };
+    placed.shape = CanvasShape::Editor;
+    placed.block = Some(counter);
     placed.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(240.0, 180.0), 0.0);
     let mut editor = open(

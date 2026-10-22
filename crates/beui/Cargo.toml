@@ -13,6 +13,7 @@ window = [
     "dep:beui-adapter-headless",
     "dep:beui-adapter-winit",
     "dep:pollster",
+    "dep:serde_json",
 ]
 web = [
     "render",
@@ -25,6 +26,7 @@ dom = [
     "dep:beui-adapter-web",
     "dep:beui-font-browser",
     "dep:beui-renderer-dom",
+    "beui-renderer-dom/web",
     "dep:web-sys",
 ]
 
@@ -42,6 +44,7 @@ reactive = { path = "../reactive" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.4", optional = true }
+serde_json = { version = "1", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 beui-adapter-android = { path = "../beui-adapter-android", optional = true }

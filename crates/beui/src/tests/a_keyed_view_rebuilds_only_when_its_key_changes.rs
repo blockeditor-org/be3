@@ -7,7 +7,7 @@ use crate::unstyled::Button;
 fn a_keyed_view_rebuilds_only_when_its_key_changes() {
     let _root = crate::reactive::RootScope::new();
     let (holder, retitle, reshape) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let state = create_signal((0u32, "first".to_owned()));
         view! {
             <List spacing=0.0>
@@ -16,13 +16,13 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
                         @node_ref=&retitle
                         on_click={move || state.set((0, "second".to_owned()))}
                     >
-                        <Text string="retitle" />
+                        <Text>"retitle"</Text>
                     </Button>
                     <Button
                         @node_ref=&reshape
                         on_click={move || state.set((1, "third".to_owned()))}
                     >
-                        <Text string="reshape" />
+                        <Text>"reshape"</Text>
                     </Button>
                 </List>
                 <List @node_ref=&holder spacing=0.0>
@@ -32,7 +32,7 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
                     >|value: ReadSignal<(u32, String)>| {
                         let label = create_memo(move || value.get().1);
                         view! {
-                            <Text string={label} />
+                            <Text>{label}</Text>
                         }
                     }</Keyed>
                 </List>

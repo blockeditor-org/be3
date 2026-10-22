@@ -2,7 +2,6 @@ use std::ops::Range;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::TextAreaColors;
 use beui::{
     Color32, CursorIcon, FontId, Key, KeyPress, NodeId, Page, PageShape, PointerPress, Pos2, Rect,
     TextLayout, Vec2,
@@ -17,7 +16,6 @@ const TEXT_SIZE: f32 = 13.0;
 const ROW_HEIGHT: f32 = TEXT_SIZE * 1.6;
 const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 const PAGE_ROWS: usize = 16;
-const COLORS: TextAreaColors = TextAreaColors::DEFAULT;
 
 pub(crate) fn intrinsic_size(len: usize, width: f32) -> Vec2 {
     let rows = len.div_ceil(BYTES_PER_ROW).max(1);
@@ -274,7 +272,7 @@ fn key(state: State, press: KeyPress) -> bool {
     true
 }
 
-fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
+fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page {
     let bytes = state.text.bytes();
     let len = bytes.len();
     let rows = len.div_ceil(BYTES_PER_ROW).max(1);
@@ -289,7 +287,7 @@ fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
     let mut shapes = vec![PageShape::Rect {
         rect: Rect::from_min_size(Pos2::ZERO, size),
         corner_radius: 0.0,
-        color: COLORS.surface,
+        color: theme.background,
     }];
     let push_text = |origin: Pos2, string: &str, color: Color32| {
         layout_text(string, font, TextLayout::DEFAULT).map(|galley| PageShape::Text {
@@ -305,7 +303,7 @@ fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
         shapes.extend(push_text(
             Pos2::new(PADDING.x, y),
             &format!("{row_start:08x}"),
-            COLORS.gutter_text,
+            theme.text_muted,
         ));
         for (col, byte) in bytes[row_start..row_end].iter().enumerate() {
             let index = row_start + col;
@@ -318,7 +316,7 @@ fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
                         Vec2::new(geometry.char_width * 2.0, ROW_HEIGHT),
                     ),
                     corner_radius: 0.0,
-                    color: COLORS.widget,
+                    color: theme.accent_soft,
                 });
                 shapes.push(PageShape::Rect {
                     rect: Rect::from_min_size(
@@ -326,15 +324,15 @@ fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
                         Vec2::new(geometry.char_width, ROW_HEIGHT),
                     ),
                     corner_radius: 0.0,
-                    color: COLORS.widget,
+                    color: theme.accent_soft,
                 });
             }
-            shapes.extend(push_text(hex_pos, &format!("{byte:02x}"), Color32::WHITE));
+            shapes.extend(push_text(hex_pos, &format!("{byte:02x}"), theme.text));
             let character = match byte.is_ascii_graphic() || *byte == b' ' {
                 true => *byte as char,
                 false => '.',
             };
-            shapes.extend(push_text(ascii_pos, &character.to_string(), Color32::WHITE));
+            shapes.extend(push_text(ascii_pos, &character.to_string(), theme.text));
         }
     }
     if selected.is_empty()
@@ -352,7 +350,7 @@ fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
                 Vec2::new(2.0, ROW_HEIGHT),
             ),
             corner_radius: 0.0,
-            color: Color32::WHITE,
+            color: theme.accent,
         });
     }
     Page::new(shapes)
@@ -363,6 +361,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
             let scale = pixels_per_point();
+            let theme = use_theme();
             let geometry = create_memo(move || {
                 scale.get();
                 let char_width = layout_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
@@ -387,7 +386,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
             let drawn = create_memo(move || {
                 content.get();
                 state.text.cursors().get();
-                page(state, &geometry.get(), content_size.get())
+                page(state, &theme.get(), &geometry.get(), content_size.get())
             });
             let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
 
@@ -397,7 +396,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                 rows,
             };
             view! {
-                <Frame fill={ColorRole::Custom(COLORS.surface)}>
+                <Frame fill=ColorRole::Surface>
                     <Scroll>
                         <Interactive
                             focusable=true

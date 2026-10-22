@@ -8,14 +8,13 @@ use crate::unstyled::{Container, DateTimeParts};
 fn a_date_field_takes_a_date_typed_segment_by_segment() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value=None
+                    value={Binding::new(None, move |value| reported.update(|reported| reported.push(value)))}
                     parts=DateTimeParts::Date
                     label="Due"
-                    on_change={move |value| reported.update(|reported| reported.push(value))}
                 />
             </Container>
         }

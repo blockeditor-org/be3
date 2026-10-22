@@ -1,5 +1,6 @@
 mod dialog;
 mod docking;
+mod documents;
 mod fullscreen;
 mod keyboard;
 mod modifier_drag;
@@ -34,7 +35,6 @@ use crate::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::image::Image;
 use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
@@ -48,6 +48,9 @@ pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
     Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
+};
+pub use documents::{
+    DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
 };
 use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
@@ -132,7 +135,7 @@ pub struct DockBarHandle {
     pub title: Memo<String>,
     pub vacant: Memo<bool>,
     pub closable: Memo<bool>,
-    pub menu: Memo<Vec<Action>>,
+    pub menu: Memo<Vec<MenuNode>>,
     pub close: ClickCallback,
 }
 
@@ -154,7 +157,7 @@ pub struct DockStackHandle {
     pub icon: Memo<String>,
     pub backward: Memo<bool>,
     pub actions: Memo<Option<NodeId>>,
-    pub menu: Memo<Vec<Action>>,
+    pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
     pub others: Memo<usize>,
     pub switchable: Memo<bool>,
@@ -183,7 +186,7 @@ pub struct DockSwitcherCardHandle {
 #[derive(Clone, Copy)]
 pub struct DockTabControl {
     tab: TabId,
-    state: ReadSignal<DockState>,
+    state: Binding<DockState>,
     dock: State,
 }
 
@@ -301,7 +304,7 @@ struct DockTabActions {
     actions: Signal<HashMap<TabId, NodeId>>,
 }
 
-pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<Action>>)>;
+pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<MenuNode>>)>;
 
 #[derive(Clone, Copy)]
 pub struct DockTabMenu {
@@ -313,7 +316,7 @@ thread_local! {
     static NEXT_MENU: Cell<u64> = const { Cell::new(1) };
 }
 
-pub fn dock_menu(items: Memo<Vec<Action>>) {
+pub fn dock_menu(items: Memo<Vec<MenuNode>>) {
     let Some(DockTabMenu { tab, menu }) = use_context::<DockTabMenu>() else {
         return;
     };
@@ -330,7 +333,7 @@ pub fn dock_menu(items: Memo<Vec<Action>>) {
     });
 }
 
-pub fn dock_menu_items(menus: ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<Action> {
+pub fn dock_menu_items(menus: ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<MenuNode> {
     let Some(tab) = tab else {
         return Vec::new();
     };
@@ -376,8 +379,7 @@ struct Drag {
 
 #[derive(Clone, Copy)]
 struct State {
-    state: Signal<DockState>,
-    on_change: Callback<DockState>,
+    state: Binding<DockState>,
     on_close: Callback<TabId>,
     drag: Signal<Option<Drag>>,
     title: Func<TabId, String>,
@@ -418,7 +420,9 @@ struct State {
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Color32,
+    dialog_scrim: Memo<Color32>,
+    dialog_margin: u16,
+    dialog_gap: u16,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_focus: Signal<Option<TabId>>,
@@ -435,8 +439,7 @@ impl State {
         if next == current {
             return;
         }
-        self.state.set(next.clone());
-        self.on_change.call(next);
+        self.state.set(next);
     }
 
     fn title(&self, tab: TabId) -> String {
@@ -493,7 +496,7 @@ impl State {
         }
     }
 
-    fn leaf_menu(&self, leaf: Option<LeafId>) -> Memo<Vec<Action>> {
+    fn leaf_menu(&self, leaf: Option<LeafId>) -> Memo<Vec<MenuNode>> {
         let dock = *self;
         create_memo(move || {
             let tab = leaf.and_then(|leaf| {
@@ -514,7 +517,7 @@ impl State {
         let menus = self.menus;
         let control = DockTabControl {
             tab,
-            state: self.state.read_only(),
+            state: self.state,
             dock: *self,
         };
         let panel = scope.context().run(|| {
@@ -555,7 +558,7 @@ impl State {
 
     fn pane_rect(&self, tree: Tree) -> Option<Rect> {
         let node = self.panes.value().borrow().get(&tree)?.try_get()?;
-        with_document(|document| document.node_rect(node))
+        placements().rect(node)
     }
 
     fn raise_window(&self, window: NodeRef) {
@@ -566,12 +569,10 @@ impl State {
             .fullscreen_layer
             .try_get()
             .filter(|_| self.fullscreen_in_front());
-        with_document(|document| {
-            document.raise_overlay(window);
-            if let Some(fullscreen) = fullscreen {
-                document.raise_overlay(fullscreen);
-            }
-        });
+        window.raise_overlay();
+        if let Some(fullscreen) = fullscreen {
+            fullscreen.raise_overlay();
+        }
     }
 
     fn surface_node(&self, surface: SurfaceId) -> Option<NodeId> {
@@ -591,30 +592,21 @@ impl State {
     }
 
     fn surfaces_at(&self, state: &DockState, pos: Pos2) -> Vec<SurfaceId> {
-        with_document(|document| {
-            let layers = document.layers();
-            let mut placed: Vec<(usize, SurfaceId)> = state
-                .surfaces()
-                .into_iter()
-                .filter_map(|surface| {
-                    let node = self.surface_node(surface)?;
-                    Some((document.layer_of(&layers, node)?, surface))
-                })
-                .collect();
-            placed.sort_by_key(|(layer, _)| std::cmp::Reverse(*layer));
-            let foreign = (1..layers.len()).rev().find(|index| {
-                layers[*index].policy != LayerPolicy::Inert
-                    && !placed.iter().any(|(layer, _)| layer == index)
-                    && document
-                        .layer_cover(&layers[*index])
-                        .is_some_and(|cover| cover.contains(pos))
-            });
-            placed
-                .into_iter()
-                .filter(|(layer, _)| foreign.is_none_or(|foreign| *layer > foreign))
-                .map(|(_, surface)| surface)
-                .collect()
-        })
+        let surfaces: Vec<(NodeId, SurfaceId)> = state
+            .surfaces()
+            .into_iter()
+            .filter_map(|surface| Some((self.surface_node(surface)?, surface)))
+            .collect();
+        let nodes: Vec<NodeId> = surfaces.iter().map(|(node, _)| *node).collect();
+        stacked_at(&nodes, pos)
+            .into_iter()
+            .filter_map(|node| {
+                surfaces
+                    .iter()
+                    .find(|(held, _)| *held == node)
+                    .map(|(_, surface)| *surface)
+            })
+            .collect()
     }
 
     fn surface_rect(&self, surface: SurfaceId) -> Option<Rect> {
@@ -625,7 +617,7 @@ impl State {
             .get(&surface)
             .and_then(NodeRef::try_get);
         match window {
-            Some(window) => with_document(|document| document.node_rect(window)),
+            Some(window) => placements().rect(window),
             None => self.pane_rect(Tree::Surface(surface)),
         }
     }
@@ -640,13 +632,11 @@ impl State {
         else {
             return Vec::new();
         };
-        with_document(|document| {
-            document
-                .children(node)
-                .into_iter()
-                .filter_map(|child| document.node_rect(child))
-                .collect()
-        })
+        let placements = placements();
+        node.children()
+            .into_iter()
+            .filter_map(|child| placements.rect(child))
+            .collect()
     }
 
     fn over_window_bar(&self, surface: SurfaceId, pos: Pos2) -> bool {
@@ -665,7 +655,7 @@ impl State {
 
     fn bar_rect(&self, leaf: LeafId) -> Option<Rect> {
         let node = self.bars.value().borrow().get(&leaf)?.strip.try_get()?;
-        with_document(|document| document.node_rect(node))
+        placements().rect(node)
     }
 
     fn toggle_vertical(&self, leaf: LeafId) {
@@ -1168,8 +1158,8 @@ fn vacant_leaf(state: &DockState) -> LeafId {
 }
 
 pub(crate) struct DockConfig {
-    pub(crate) state: Prop<DockState>,
-    pub(crate) on_change: Callback<DockState>,
+    pub(crate) api: ComponentRef<DockApi>,
+    pub(crate) state: Binding<DockState>,
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
@@ -1200,14 +1190,16 @@ pub(crate) struct DockConfig {
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    pub(crate) dialog_scrim: Color32,
+    pub(crate) dialog_scrim: Memo<Color32>,
+    pub(crate) dialog_margin: u16,
+    pub(crate) dialog_gap: u16,
 }
 
 #[component]
 pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let DockConfig {
+        api,
         state,
-        on_change,
         on_close,
         title,
         group_title,
@@ -1239,6 +1231,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_chrome,
         dialog_sheet,
         dialog_scrim,
+        dialog_margin,
+        dialog_gap,
     } = config;
     view! {
         <PlacementBuilder>|dock_rect: ReadSignal<Rect>| {
@@ -1246,19 +1240,16 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             let dialog_focus = create_signal(None);
             let attention = create_signal((0, None));
             let given = create_signal((0, None));
-            let current = create_signal(state.get_untracked());
             let actions = create_signal(HashMap::new());
             let menus = create_signal(DockMenus::new());
             let offers = create_signal(HashMap::new());
-            create_effect(move || current.set(state.get()));
             let drag = create_signal(None);
             let dock = State {
-                state: current,
+                state,
                 windows: store(RefCell::default()),
                 fullscreen_layer: NodeRef::new(),
                 panels: store(RefCell::default()),
                 owner: store(owner_scope()),
-                on_change,
                 on_close,
                 drag,
                 title,
@@ -1281,6 +1272,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
                 dialog_sheet,
                 dialog_scrim,
+                dialog_margin,
+                dialog_gap,
                 dialog_frames: store(RefCell::default()),
                 dialog_bodies: store(RefCell::default()),
                 dialog_focus,
@@ -1346,7 +1339,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     })
                 }),
             };
-            set_component_state(dock);
+            api.fill(DockApi(dock));
             on_shortcut(move |press: KeyPress| {
                 if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt
                 {
@@ -1355,7 +1348,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dock.cycle(press.modifiers.shift)
             });
             create_effect(move || {
-                let tabs = current.with(DockState::all_tabs);
+                let tabs = state.with(DockState::all_tabs);
                 dock.keep_panels(&tabs);
             });
             on_cleanup(move || dock.keep_panels(&[]));
@@ -1409,12 +1402,14 @@ fn DockFullscreenView(dock: State) -> NodeId {
             return;
         }
         if let Some(layer) = layer.try_get() {
-            untrack(|| with_document(|document| document.raise_overlay(layer)));
+            untrack(|| layer.raise_overlay());
         }
     });
-    let body = dock.fullscreen.call(view! {
-        <Portal node={panel} />
-    });
+    let body = move || {
+        dock.fullscreen.call(view! {
+            <Portal node={panel} />
+        })
+    };
     view! {
         <Overlay
             @node_ref={&dock.fullscreen_layer}
@@ -1432,7 +1427,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                     }
                 }}
             >
-                <Frame @test_id="dock.fullscreen" width=width height=height>{body}</Frame>
+                <Frame @test_id="dock.fullscreen" width=width height=height>{body()}</Frame>
             </Interactive>
         </Overlay>
     }
@@ -1831,7 +1826,11 @@ fn DockTreeView(
 }
 
 #[component]
-fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> CanvasItem {
+fn DockDropMarker(
+    dock: State,
+    surface: SurfaceId,
+    origin: Memo<Pos2>,
+) -> DynamicSegment<CanvasItem> {
     let marker = create_memo(move || {
         let state = dock.state.get_untracked();
         let drag = dock.drag.get()?;
@@ -1852,9 +1851,11 @@ fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> Canvas
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame visible={shown}>{dock.highlight.call(())}</Frame>
-        </CanvasItem>
+        <Show condition={shown}>
+            <CanvasItem x={x} y={y} width={width} height={height}>
+                {dock.highlight.call(())}
+            </CanvasItem>
+        </Show>
     }
 }
 
@@ -2072,10 +2073,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         }
                     }</ForEach>
                 }}
-                selected={selected}
-                kind=ChoiceKind::Tabs
-                direction
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(selected, move |index: Option<usize>| {
                     let Some(index) = index else {
                         return;
                     };
@@ -2086,12 +2084,14 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     dock.release_dialog_focus();
                     let picked = tab_list
                         .try_get()
-                        .is_some_and(|tabs| with_document(|document| document.focus_is_within(tabs)));
+                        .is_some_and(|tabs| tabs.focus_is_within());
                     let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
                     if let Some(tab) = shown.filter(|_| !picked) {
                         dock.give_keyboard(tab);
                     }
-                }}
+                })}
+                kind=ChoiceKind::Tabs
+                direction
             >|handle: ChoiceOptionHandle| {
                 let dock = dock;
                 let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
@@ -2406,7 +2406,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         <Interactive
             capture_presses=true
             focusable=true
-            on_focus_change={move |has_focus: bool| focused.set(has_focus)}
+            on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2427,8 +2427,8 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 Direction::Vertical => CursorIcon::ResizeVertical,
             }}
             touch_drag_axis={Some(direction)}
-            on_hover_change={move |over: bool| hovered.set(over)}
-            on_active_change={move |held: bool| active.set(held)}
+            on_hover_change={hovered}
+            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((start(), press.pos)));
             }}
@@ -2496,7 +2496,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     view! {
         <Interactive
             focusable=true
-            on_focus_change={move |has_focus: bool| focused.set(has_focus)}
+            on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2512,8 +2512,8 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             }}
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
-            on_hover_change={move |over: bool| hovered.set(over)}
-            on_active_change={move |held: bool| active.set(held)}
+            on_hover_change={hovered}
+            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((width.get_untracked(), press.pos)));
             }}
@@ -2565,7 +2565,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             let limit = |origin: Pos2| {
                 reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
             };
-            let banding = with_document(|document| document.motion().animates());
+            let banding = motion().animates();
             let mut origin = window.min;
             if !band.step(frame.now, &mut origin, limit, banding) {
                 return false;
@@ -2583,9 +2583,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             overshoot.set(Vec2::ZERO);
         },
     );
-    let preference = with_document(|document| document.watch_motion());
+    let preferences = use_preferences();
+    let animates = create_memo(move || preferences.get().motion.animates());
     create_effect(move || {
-        if !preference.get().animates() {
+        if !animates.get() {
             band.value().borrow_mut().settle();
             overshoot.set(Vec2::ZERO);
         }
@@ -2645,7 +2646,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
     let claimed = dock.drag_modifier;
-    let resized = modifier_resize(dock, Resized::Window(surface));
+    let resized = Callback::new(modifier_resize(dock, Resized::Window(surface)));
     let view = view! {
         <Overlay
             @node_ref=&overlay
@@ -2705,7 +2706,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                 Rect::from_min_size(start.min + (press.pos - from), start.size());
                                             let bounds = dock.rect.get_untracked().size();
                                             let origin = reachable_origin(placed, bounds, reach());
-                                            let banding = with_document(|document| document.motion().animates());
+                                            let banding = motion().animates();
                                             let band = band.value();
                                             let mut band = band.borrow_mut();
                                             band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
@@ -2855,11 +2856,9 @@ fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
     let (Some(frame), Some(grip)) = (frame.try_get(), grip.try_get()) else {
         return 0.0;
     };
-    try_with_document(|document| {
-        Some(document.node_rect(grip)?.bottom() - document.node_rect(frame)?.top())
-    })
-    .flatten()
-    .unwrap_or(0.0)
+    let placements = placements();
+    let reach = || Some(placements.rect(grip)?.bottom() - placements.rect(frame)?.top());
+    reach().unwrap_or(0.0)
 }
 
 #[component]
@@ -2880,7 +2879,6 @@ fn DockDragLayer(dock: State) -> NodeId {
         .map(OverlayAnchor::Point);
     let marker_width = create_memo(move || highlight.get().width());
     let marker_height = create_memo(move || highlight.get().height());
-    let face = dock.highlight.call(());
     view! {
         <List spacing=0.0>
             <Overlay
@@ -2890,12 +2888,17 @@ fn DockDragLayer(dock: State) -> NodeId {
                 traps_focus=false
                 open={marking}
             >
-                <Frame width=marker_width height=marker_height>{face}</Frame>
+                <Frame width=marker_width height=marker_height>{dock.highlight.call(())}</Frame>
             </Overlay>
         </List>
     }
 }
 
-pub fn dock_state(document: &Document, dock: NodeId) -> DockState {
-    document.component_state::<State>(dock).state.get()
+#[derive(Clone, Copy)]
+pub struct DockApi(State);
+
+impl DockApi {
+    pub fn state(&self) -> DockState {
+        self.0.state.get()
+    }
 }

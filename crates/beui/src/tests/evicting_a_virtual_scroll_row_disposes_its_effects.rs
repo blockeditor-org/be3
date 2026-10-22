@@ -7,7 +7,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     let _root = crate::reactive::RootScope::new();
     let shown = create_signal(true);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -16,9 +16,11 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                         keys={indices(100)}
                         item_size=20.0
                     >|index: ReadSignal<usize>|
-                        <Frame visible={shown}>
-                            <Text string={create_memo(move || format!("Row {}", index.get()))} />
-                        </Frame>
+                        <List spacing=0.0>
+                            <Show condition={shown}>
+                                <Text>{create_memo(move || format!("Row {}", index.get()))}</Text>
+                            </Show>
+                        </List>
                     </VirtualList>
                 </Offset>
             </List>

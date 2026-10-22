@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, Entry, TabId};
 
 fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
     harness.frame(vec![Event::PointerMoved(pos)]);
@@ -36,7 +36,7 @@ fn dock_tabs_moved_into_a_sidebar_stack_beside_the_panel() {
     let grip = grip_beside(&harness, dock, "Tab 1");
     choose(&mut harness, dock, grip, "Show tabs in a sidebar");
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     assert!(
         state.is_vertical(leaf),
@@ -64,7 +64,11 @@ fn dock_tabs_moved_into_a_sidebar_stack_beside_the_panel() {
     harness.drag(dragged, pos2(onto.center().x, onto.top() - 4.0));
     harness.frame(Vec::new());
     assert_eq!(
-        dock_state(harness.document(), dock).entries(leaf),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .entries(leaf),
         vec![
             Entry::Tab(TabId::new(3)),
             Entry::Tab(TabId::new(1)),
@@ -77,7 +81,11 @@ fn dock_tabs_moved_into_a_sidebar_stack_beside_the_panel() {
     choose(&mut harness, dock, grip, "Show tabs across the top");
 
     assert!(
-        !dock_state(harness.document(), dock).is_vertical(leaf),
+        !harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .is_vertical(leaf),
         "the pane shows its tabs across the top again"
     );
     let first = harness.rect(dock_tab(harness.document(), dock, "Tab 3"));

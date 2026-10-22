@@ -26,7 +26,7 @@ impl HostPlatform {
     pub(crate) fn deliver_picks(&mut self) {
         for (request, answer) in std::mem::take(&mut self.picks) {
             match self.host.take_pick(request) {
-                Some(pick) => answer.send(beui_plugin_input::beui_file_pick(pick)),
+                Some(pick) => answer.send(pick),
                 None => self.picks.push((request, answer)),
             }
         }
@@ -36,6 +36,10 @@ impl HostPlatform {
 impl Platform for HostPlatform {
     fn copy(&mut self, text: String) {
         self.host.copy_text(text);
+    }
+
+    fn copy_image(&mut self, png: Vec<u8>) {
+        self.host.copy_image(png);
     }
 
     fn paste(&mut self, _kinds: &[PasteKind], answer: PasteAnswer) {
@@ -56,11 +60,7 @@ impl Platform for HostPlatform {
     }
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
-        let asked = self.host.pick_file(block_plugin_api::FileFilter {
-            name: request.filter.name,
-            extensions: request.filter.extensions,
-            mime_types: request.filter.mime_types,
-        });
+        let asked = self.host.pick_file(request.filter);
         self.picks.push((asked, answer));
     }
 }

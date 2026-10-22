@@ -96,9 +96,7 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             }
 
             fn write(&self, value: #source) {
-                ::reactive::batch(move || {
-                    #(#writes)*
-                });
+                #(#writes)*
             }
         }
 

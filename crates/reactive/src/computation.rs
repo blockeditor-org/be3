@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
 use crate::runtime::{
-    Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, flush, leave_component_body, probe,
+    Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::Tracked;
@@ -24,6 +24,7 @@ struct Slot<F: ?Sized> {
 impl<F: ?Sized> Slot<F> {
     fn release(&mut self) {
         if std::mem::replace(&mut self.live, false) {
+            // unsafe(memory)
             unsafe { ManuallyDrop::drop(&mut self.callback) }
         }
     }
@@ -42,16 +43,30 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     refreshing: Cell<bool>,
     execution_owner: RefCell<Option<Rc<Owner>>>,
     pub(crate) dependencies: RefCell<Vec<Dependency>>,
+    pub(crate) tracking: Cell<u64>,
     pub(crate) source: Option<Rc<dyn Tracked>>,
     pub(crate) queued: Cell<bool>,
     pub(crate) queued_at: Cell<u64>,
     runs: Cell<(u64, u32)>,
+    binding: Cell<bool>,
     pub(crate) zone: u64,
     gate: Option<Rc<Gate>>,
     callback: RefCell<Slot<F>>,
 }
 
 pub(crate) type Dependency = (Rc<dyn Tracked>, u64, usize);
+
+thread_local! {
+    static TRACKINGS: Cell<u64> = const { Cell::new(0) };
+}
+
+fn next_tracking() -> u64 {
+    TRACKINGS.with(|trackings| {
+        let next = trackings.get() + 1;
+        trackings.set(next);
+        next
+    })
+}
 
 pub(crate) fn no_computation() -> Weak<Computation> {
     Weak::<Computation<fn() -> bool>>::new()
@@ -70,10 +85,12 @@ impl Computation {
             refreshing: Cell::new(false),
             execution_owner: RefCell::new(None),
             dependencies: RefCell::new(Vec::new()),
+            tracking: Cell::new(next_tracking()),
             source,
             queued: Cell::new(false),
             queued_at: Cell::new(0),
             runs: Cell::new((0, 0)),
+            binding: Cell::new(false),
             zone: current_zone(),
             gate: owner.gate.borrow().clone(),
             callback: RefCell::new(Slot {
@@ -97,9 +114,12 @@ impl Computation {
         let stale = read
             .iter()
             .any(|(source, version)| source.source().version.get() != *version);
+        let tracking = next_tracking();
+        self.tracking.set(tracking);
         let dependencies = read
             .into_iter()
             .map(|(source, version)| {
+                source.source().tracked_by.set(tracking);
                 let slot = source
                     .source()
                     .subscribers
@@ -112,7 +132,6 @@ impl Computation {
         self.state.set(State::Clean);
         if stale {
             self.invalidate(State::Dirty);
-            flush();
         }
     }
 
@@ -147,7 +166,7 @@ impl Computation {
         if matches!(self.state.get(), State::Clean | State::Disposed) {
             return;
         }
-        batch(|| {
+        defer(|| {
             self.refreshing.set(true);
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 self.refresh_inner();
@@ -202,7 +221,10 @@ impl Computation {
         let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
         let _memo_guard = Reset::set(
             |runtime| &runtime.memo_depth,
-            memo_depth + usize::from(self.source.is_some()),
+            match self.source {
+                Some(_) => memo_depth + 1,
+                None => 0,
+            },
         );
         self.state.set(State::Clean);
         let result = {
@@ -238,11 +260,21 @@ impl Computation {
         self.owner.upgrade().is_some_and(|owner| owner.within(root))
     }
 
+    pub(crate) fn rerun_whatever_it_reads(&self) {
+        if self.state.get() == State::Check {
+            self.state.set(State::Dirty);
+        }
+    }
+
     pub(crate) fn closed_gate(&self) -> Option<Rc<Gate>> {
         if self.source.is_some() {
             return None;
         }
-        Gate::closed_since(self.gate.as_ref()?, self.queued_at.get())
+        Gate::closed_since(
+            self.gate.as_ref()?,
+            self.queued_at.get(),
+            self.binding.get(),
+        )
     }
 
     fn is_spent(&self) -> bool {
@@ -280,6 +312,7 @@ impl Computation {
     }
 
     fn detach(&self) {
+        self.tracking.set(next_tracking());
         for (source, _, slot) in self.dependencies.take() {
             source.source().subscribers.borrow_mut().remove(slot, self);
         }
@@ -315,7 +348,6 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
         false
     });
     enqueue(&computation);
-    flush();
     Effect { computation }
 }
 
@@ -331,12 +363,13 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) {
         binding();
         false
     });
+    computation.binding.set(true);
     computation.watch(probed.read, probed.owner);
 }
 
 impl Effect {
     pub fn dispose(&self) {
-        batch(|| self.computation.dispose());
+        defer(|| self.computation.dispose());
     }
 
     pub fn is_disposed(&self) -> bool {

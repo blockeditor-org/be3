@@ -6,9 +6,7 @@ use crate::focus_ring::FocusRing;
 use beui_core::color::Color32;
 
 use crate::theme::{ThemeStore, control_border, use_theme};
-use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -22,20 +20,21 @@ const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
 pub fn Switch(
-    on: Prop<bool>,
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ToggleApi>,
+
+    on: Binding<bool>,
     #[prop(default = false)] indeterminate: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_change: Callback<bool>,
 ) -> NodeId {
     view! {
         <Toggle
+            api
             checked={on}
             mixed={indeterminate}
             label
             disabled
             role=Role::Switch
-            on_change={on_change}
         >|handle: ToggleHandle|
             <SwitchTrack handle />
         </Toggle>
@@ -85,10 +84,6 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
             </Frame>
         </FocusRing>
     }
-}
-
-pub fn switch_on(document: &Document, switch: NodeId) -> bool {
-    unstyled::toggle_checked(document, switch).get()
 }
 
 fn knob_align(on: bool, mixed: bool) -> Align {

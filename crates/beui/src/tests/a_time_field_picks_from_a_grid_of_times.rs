@@ -8,15 +8,14 @@ use crate::unstyled::{Container, DateTimeParts};
 fn a_time_field_picks_from_a_grid_of_times() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0)))}
-                    parts=DateTimeParts::Time
-                    on_change={move |value: Option<DateTime>| {
+                    value={Binding::new(Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0))), move |value: Option<DateTime>| {
                         reported.update(|reported| reported.push(value.map(|value| value.time)))
-                    }}
+                    })}
+                    parts=DateTimeParts::Time
                 />
             </Container>
         }

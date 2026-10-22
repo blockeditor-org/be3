@@ -23,8 +23,8 @@ fn ime_messages_round_trip() {
                     text: Some(ImeText {
                         start: 4,
                         text: "say helo".into(),
-                        selection: (8, 8),
-                        composing: Some((4, 8)),
+                        selection: 8..8,
+                        composing: Some(4..8),
                     }),
                     keyboard: Keyboard::Shown { asks: 3 },
                 }),
@@ -33,26 +33,26 @@ fn ime_messages_round_trip() {
         }),
         Message::Input(InputBatch {
             screen: ScreenId(2),
+            every_sample: false,
             events: vec![
-                InputEvent::Ime(ImeInput::Enabled),
-                InputEvent::Ime(ImeInput::SetComposingText("か".into())),
-                InputEvent::Ime(ImeInput::CommitText("漢".into())),
-                InputEvent::Ime(ImeInput::FinishComposing),
-                InputEvent::Ime(ImeInput::SetComposingRegion { start: 4, end: 8 }),
-                InputEvent::Ime(ImeInput::ReplaceText {
-                    start: 4,
-                    end: 8,
+                InputEvent::Ime(ImeEvent::Enabled),
+                InputEvent::Ime(ImeEvent::SetComposingText("か".into())),
+                InputEvent::Ime(ImeEvent::CommitText("漢".into())),
+                InputEvent::Ime(ImeEvent::FinishComposing),
+                InputEvent::Ime(ImeEvent::SetComposingRegion(4..8)),
+                InputEvent::Ime(ImeEvent::ReplaceText {
+                    range: 4..8,
                     text: "hello".into(),
                 }),
-                InputEvent::Ime(ImeInput::DeleteSurrounding {
+                InputEvent::Ime(ImeEvent::DeleteSurrounding {
                     before: 1,
                     after: 2,
                 }),
-                InputEvent::Ime(ImeInput::SetSelection {
+                InputEvent::Ime(ImeEvent::SetSelection {
                     anchor: 3,
                     focus: 3,
                 }),
-                InputEvent::Ime(ImeInput::Disabled),
+                InputEvent::Ime(ImeEvent::Disabled),
             ],
         }),
     ] {

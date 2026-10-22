@@ -19,6 +19,8 @@ pub enum Group {
         space: SpaceId,
         viewport: Rect,
         offset: Vec2,
+        scale: f32,
+        raster: f32,
     },
     Mask {
         space: SpaceId,
@@ -33,8 +35,11 @@ impl Group {
             Self::Transform { offset, scale } => rect.scaled(scale).translate(offset),
             Self::Clip(clip) => rect.intersect(clip),
             Self::Scroll {
-                viewport, offset, ..
-            } => rect.translate(offset).intersect(viewport),
+                viewport,
+                offset,
+                scale,
+                ..
+            } => rect.scaled(scale).translate(offset).intersect(viewport),
             Self::Mask { .. } => rect,
             Self::Filter(filter) => match filter.blur > 0.0 && rect.is_positive() {
                 true => rect.union(rect.expand(filter.blur * 3.0).intersect(filter.region)),
@@ -73,14 +78,23 @@ impl Group {
                 *held = held.intersect(clip);
             }
             Self::Scroll {
-                viewport, offset, ..
-            } => *shape = placed_shape(shape, offset, viewport),
+                viewport,
+                offset,
+                scale,
+                ..
+            } => {
+                if scale != 1.0 {
+                    scale_shape(shape, scale);
+                }
+                *shape = placed_shape(shape, offset, viewport);
+            }
             Self::Mask { .. } | Self::Filter(_) => {}
         }
     }
 }
 
 pub struct Display {
+    pub document: u64,
     pub node: NodeId,
     pub key: u64,
     pub shapes: Rc<[Shape]>,
@@ -125,8 +139,9 @@ fn count_of(parts: &[Part]) -> usize {
 static KEYS: AtomicU64 = AtomicU64::new(1);
 
 impl Display {
-    pub fn new(node: NodeId, shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
+    pub fn new(document: u64, node: NodeId, shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
         Self {
+            document,
             node,
             key: KEYS.fetch_add(1, Ordering::Relaxed),
             shapes: shapes.into(),
@@ -139,6 +154,7 @@ impl Display {
     pub fn with_children(&self, child: &impl Fn(NodeId) -> Option<Rc<Display>>) -> Option<Self> {
         let parts = rechilded(&self.parts, child)?;
         Some(Self {
+            document: self.document,
             node: self.node,
             key: self.key,
             shapes: Rc::clone(&self.shapes),
@@ -178,13 +194,30 @@ impl Display {
                         self.flatten_parts(inner, at, clip.intersect(rect.translate(at)), into)
                     }
                     Group::Scroll {
-                        viewport, offset, ..
+                        viewport,
+                        offset,
+                        scale: 1.0,
+                        ..
                     } => self.flatten_parts(
                         inner,
                         at + offset,
                         clip.intersect(viewport.translate(at)),
                         into,
                     ),
+                    Group::Scroll {
+                        viewport,
+                        offset,
+                        scale,
+                        ..
+                    } => {
+                        let clip = clip.intersect(viewport.translate(at));
+                        let mut scaled = Vec::new();
+                        self.flatten_parts(inner, Vec2::ZERO, Rect::EVERYTHING, &mut scaled);
+                        for mut shape in scaled {
+                            scale_shape(&mut shape, scale);
+                            push_shown(into, placed_shape(&shape, at + offset, clip));
+                        }
+                    }
                     Group::Transform { offset, scale: 1.0 } => {
                         self.flatten_parts(inner, at + offset, clip, into)
                     }

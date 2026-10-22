@@ -1,6 +1,8 @@
 pub mod app;
 
-block_editor_plugin::plugin!(app::TrianglePlugin, "../manifest.json");
+block_editor_plugin::plugin!("../manifest.json", {
+    triangle => app::TrianglePlugin,
+});
 
 #[cfg(test)]
 mod tests;

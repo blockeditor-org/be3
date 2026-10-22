@@ -6,6 +6,7 @@ fn the_view_is_answered_in_the_coordinates_of_the_region_drawn() {
     host.set_view(
         geometry::Rect::from_min_size(geometry::pos2(30.0, 20.0), geometry::vec2(100.0, 50.0)),
         2.0,
+        false,
     );
     assert_eq!(
         host.view(),

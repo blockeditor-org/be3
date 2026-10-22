@@ -8,18 +8,7 @@ use crate::current::with_document;
 use crate::timer::{Timer, create_timer, now};
 use ::reactive::{Get, Stored, create_effect, on_cleanup, store};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Motion {
-    #[default]
-    Animated,
-    Instant,
-}
-
-impl Motion {
-    pub fn animates(self) -> bool {
-        self == Self::Animated
-    }
-}
+pub use ui_types::Motion;
 
 pub fn motion() -> Motion {
     with_document(|document| document.motion())

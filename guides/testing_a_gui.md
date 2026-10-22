@@ -90,15 +90,18 @@ session overwrites what it owns - the chrome, the view, a drag - on the next fra
 
 Call run() after
 every gesture — the view only sees an event on the frame it is delivered in — and click a
-text field before typing into it. click() panics when no node has that test id, which is
-usually a node that was never given one; shown() and label() ask about one without clicking
-it.
+text field before typing into it. click() first scrolls a target that is out of view into it
+(`reveal`, every enclosing scroll, as a person would) and runs a frame, in BeuiTest and
+DocumentTest alike, so a test need not know how much fits on its screen. It panics when no
+node has that test id, which is usually a node that was never given one, or one a virtualized
+list has not built; shown() and label() ask about one without clicking it.
 
 run() hands the editor what was queued since the last one in the frames a person would
 produce it in, as the app batches input between frames: a click (the move to it, the press
 and the release), a key press or typed text arrives in a single frame, and a drag spans three
 - the press, the move, and the last move with the release - since beui folds a frame's
-pointer events into one position. next_frame() ends the frame being queued, and
+pointer events into one position; drag_along(points) spends a frame on each point between
+the first and the last, for a gesture whose path matters, like a lasso. next_frame() ends the frame being queued, and
 step(events) paints one frame with exactly the events it is handed.
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
@@ -190,12 +193,17 @@ way for the test to fail.
 - Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
-- A changed painting is for a person to review, not for you. They review it in a Paint
-  review block, which reads the folder from the repository's dev branch, so a painting is
-  reviewed once it has been pushed rather than from the machine that made it. Approving is
-  not git and a reviewer is not the tests: a painting nobody approved is new again the next
-  time the block is opened, and one nobody had approved before it vanished is not reported
-  at all.
+- A changed painting is for a person to review, not for you. They review it on the pull
+  request: its summary comment links to a page (crates/paint-review, served on the web by
+  crates/paint-review-web) that lists every painting the pull request added, removed or
+  changed, and flips each frame between before and after. The comment also shows up to 30
+  frames inline, with before, after and highlighted changes, inside one collapsed disclosure.
+  The review page uses tiled
+  docking on desktop and stacked docking below 700 points: select a painting to open
+  its view, then use the dock back button to return. Images fit the stage initially;
+  pinch, scroll or middle-drag to inspect them, and use Fit or 100% to reset the view.
+  At 100%, each image pixel occupies one UI point (one CSS pixel on the web), regardless
+  of the screen’s device pixel ratio.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
   bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll,
   pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
@@ -229,6 +237,15 @@ editor's; crates/beui-demo paints every page of the demo that way. Its clock is 
 clock too: every frame() is one frame interval later, and advance(by) moves it on and paints
 a frame. settle() advances frames until the document stops requesting an immediate repaint,
 so a snapshot can wait for a sheet or another animation to finish.
+
+DocumentTest paints through the DOM renderer too: render_dom() starts feeding every frame
+to a `DomRenderer` over an in-memory DOM, and snapshot_dom(name) saves what it built as the
+browser painting `name.browser` (below). It first checks that the elements the renderer
+updated frame by frame are those it builds from the last frame alone, so a test that
+opens and closes something catches an element the DOM renderer lost or left behind. Its
+HTML names the page's fonts but carries none, so a preview draws text in the rasterizer's
+fonts and icons as stray letters. crates/beui-demo's
+the_inspector_opens_and_closes_beside_the_demo_in_the_dom is one.
 
 A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
 colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
@@ -265,8 +282,7 @@ BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate thi
 Tests compare the encoded bytes without starting a browser. Browser paintings share the
 native acceptance and cleanup pipeline, but Git shows their text diffs and prevents line
 merging. GitHub's painting comment and `local-tools rasterize` render them on demand through
-`crates/browser-rasterizer`, a separate binary. Paint review blocks list native paintings;
-browser paintings are reviewed in the pull request's comment and text diff.
+`crates/browser-rasterizer`, a separate binary.
 
 For local browser rasterization, install the optional runtime once:
 
@@ -365,7 +381,7 @@ which close() checks, so a test that ends without calling it fails too.
   overflows`), in the host or in any plugin shown, whatever the crop.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
-- A failure prints the steps so far as `drive` commands, which replay against
+- Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log. A step that times out while the tree shows nothing pending means the
   app never settled: something asks for a frame every frame.

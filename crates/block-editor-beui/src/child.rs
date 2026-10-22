@@ -1,14 +1,19 @@
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use block_plugin_api::{BarAction, ChildLayer, ChildMode, TopBar, ViewChange};
+use std::cell::RefCell;
+use std::collections::HashMap;
+
+use block_plugin_api::{
+    BarAction, ChildId, ChildLayer, ChildMode, KeyChord, MenuCheck, MenuEntry, TopBar,
+};
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent};
 
 #[derive(Clone)]
 pub struct ChildHandle {
     pub state: ReadSignal<ChildState>,
-    pub menu: Memo<Vec<Action>>,
+    pub menu: Memo<Vec<MenuNode>>,
 }
 
 #[component]
@@ -24,7 +29,6 @@ pub fn ChildBlock(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
-    on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
@@ -40,7 +44,6 @@ pub fn ChildBlock(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
         content,
@@ -63,7 +66,6 @@ pub fn Subregion(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
-    on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
@@ -78,7 +80,6 @@ pub fn Subregion(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
         content,
@@ -98,7 +99,6 @@ struct Placing {
     opacity: Prop<f32>,
     intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
-    on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     content: Option<Render<ChildHandle>>,
@@ -120,7 +120,6 @@ fn SubregionView(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
         content,
@@ -141,34 +140,181 @@ fn SubregionView(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
     );
     let entries = create_memo(move || state.with(|state| (state.child, state.menu.clone())));
-    let host = editor.host();
-    let menu = create_memo(move || {
+    let mirror = store(RefCell::new(MenuMirror::new(editor)));
+    let nodes = create_signal(Vec::<MenuNode>::new());
+    create_effect(move || {
         let (child, entries) = entries.get();
-        let Some(child) = child else {
-            return Vec::new();
-        };
-        entries
-            .into_iter()
-            .map(|entry| {
-                let host = host.clone();
-                let id = entry.id.clone();
-                Action::new(entry.id, entry.label, move || {
-                    host.pick_child_menu(child, id.clone());
-                })
-                .glyph(&entry.glyph)
-                .enabled(entry.enabled)
-                .detached()
-            })
-            .collect()
+        let rebuilt = untrack(|| mirror.with(|mirror| mirror.borrow_mut().update(child, &entries)));
+        if let Some(rebuilt) = rebuilt {
+            nodes.set(rebuilt);
+        }
     });
+    let menu = create_memo(move || nodes.get());
     let handle = ChildHandle { state, menu };
     let children = content.map(|content| content.call(handle));
     view! {
         <Embed slot={slot} punch={punch} rotation={turn} children={children} />
+    }
+}
+
+#[derive(Clone, PartialEq)]
+enum Shape {
+    Command {
+        id: String,
+        label: Option<String>,
+        glyph: String,
+        check: Option<bool>,
+        shortcut: Option<KeyChord>,
+    },
+    Submenu {
+        id: String,
+        label: String,
+        glyph: String,
+        entries: Vec<Shape>,
+    },
+    Separator,
+}
+
+struct Mirrored {
+    label: OwnedSignal<String>,
+    enabled: OwnedSignal<bool>,
+    checked: OwnedSignal<bool>,
+}
+
+struct MenuMirror {
+    editor: Editor,
+    commands: HashMap<String, Mirrored>,
+    shape: Option<(Option<ChildId>, Vec<Shape>)>,
+}
+
+impl MenuMirror {
+    fn new(editor: Editor) -> Self {
+        Self {
+            editor,
+            commands: HashMap::new(),
+            shape: None,
+        }
+    }
+
+    fn update(&mut self, child: Option<ChildId>, entries: &[MenuEntry]) -> Option<Vec<MenuNode>> {
+        let entries = match child {
+            Some(_) => entries,
+            None => &[],
+        };
+        let shape = (child, self.shape_of(entries));
+        if self.shape.as_ref() == Some(&shape) {
+            return None;
+        }
+        let nodes = match child {
+            Some(child) => self.nodes(child, &shape.1),
+            None => Vec::new(),
+        };
+        self.shape = Some(shape);
+        Some(nodes)
+    }
+
+    fn shape_of(&mut self, entries: &[MenuEntry]) -> Vec<Shape> {
+        entries
+            .iter()
+            .map(|entry| match entry {
+                MenuEntry::Command(command) => {
+                    let (check, checked) = match command.check {
+                        MenuCheck::None => (None, false),
+                        MenuCheck::Checkbox(checked) => (Some(false), checked),
+                        MenuCheck::Radio(checked) => (Some(true), checked),
+                    };
+                    let mirrored =
+                        self.commands
+                            .entry(command.id.clone())
+                            .or_insert_with(|| Mirrored {
+                                label: OwnedSignal::new(String::new()),
+                                enabled: OwnedSignal::new(false),
+                                checked: OwnedSignal::new(false),
+                            });
+                    let (label, enabled, ticked) = (
+                        mirrored.label.handle(),
+                        mirrored.enabled.handle(),
+                        mirrored.checked.handle(),
+                    );
+                    if label.get_untracked() != command.label {
+                        label.set(command.label.clone());
+                    }
+                    if enabled.get_untracked() != command.enabled {
+                        enabled.set(command.enabled);
+                    }
+                    if ticked.get_untracked() != checked {
+                        ticked.set(checked);
+                    }
+                    Shape::Command {
+                        id: command.id.clone(),
+                        label: None,
+                        glyph: command.glyph.clone(),
+                        check,
+                        shortcut: command.shortcut,
+                    }
+                }
+                MenuEntry::Submenu(submenu) => Shape::Submenu {
+                    id: submenu.id.clone(),
+                    label: submenu.label.clone(),
+                    glyph: submenu.glyph.clone(),
+                    entries: self.shape_of(&submenu.entries),
+                },
+                MenuEntry::Separator => Shape::Separator,
+            })
+            .collect()
+    }
+
+    fn nodes(&self, child: ChildId, shape: &[Shape]) -> Vec<MenuNode> {
+        shape
+            .iter()
+            .filter_map(|shape| match shape {
+                Shape::Command {
+                    id,
+                    glyph,
+                    check,
+                    shortcut,
+                    ..
+                } => {
+                    let mirrored = self.commands.get(id)?;
+                    let (label, enabled, checked) = (
+                        mirrored.label.handle(),
+                        mirrored.enabled.handle(),
+                        mirrored.checked.handle(),
+                    );
+                    let host = self.editor.host();
+                    let picked = id.clone();
+                    let mut action = Action::new(id.clone(), label, move || {
+                        host.pick_child_menu(child, picked.clone())
+                    })
+                    .glyph(glyph)
+                    .enabled(enabled);
+                    action = match check {
+                        None => action,
+                        Some(false) => action.checked(checked),
+                        Some(true) => action.radio(checked),
+                    };
+                    if let Some(shortcut) = shortcut {
+                        action = action.shortcut(Chord::from(*shortcut));
+                    }
+                    Some(MenuNode::action(&action.detached()))
+                }
+                Shape::Submenu {
+                    id,
+                    label,
+                    glyph,
+                    entries,
+                } => Some(MenuNode::submenu(
+                    id.clone(),
+                    label.clone(),
+                    glyph,
+                    self.nodes(child, entries),
+                )),
+                Shape::Separator => Some(MenuNode::Separator),
+            })
+            .collect()
     }
 }

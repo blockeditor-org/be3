@@ -9,7 +9,7 @@ const BREAKPOINT: f32 = 500.0;
 fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let _root = crate::reactive::RootScope::new();
     let tabs = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_|
                 <ResponsiveTabs
@@ -35,7 +35,10 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     };
     assert!(harness.document().node_rect(wide).is_some());
     assert_eq!(
-        styled::responsive_tabs_selected(harness.document(), tabs),
+        harness
+            .document()
+            .api::<styled::ResponsiveTabsApi>(tabs)
+            .selected(),
         1
     );
 
@@ -51,5 +54,11 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     );
     assert!(harness.document().node_rect(narrow).is_some());
     assert!(harness.document().node_rect(wide).is_none());
-    assert_eq!(styled::select_selected(harness.document(), narrow), Some(1));
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::SelectApi>(narrow)
+            .selected(),
+        Some(1)
+    );
 }

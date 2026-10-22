@@ -32,7 +32,12 @@ fn rich_text_formats_kept_across_edits_match_formats_resolved_afresh() {
         for step in 0..120 {
             let len = text.len();
             let at = random.below(len + 1);
-            let op = match random.below(4) {
+            let op = match random.below(5) {
+                4 if !marks.marks().is_empty() => {
+                    let id = marks.marks()[random.below(marks.marks().len())].id;
+                    marks.remove(id);
+                    None
+                }
                 0 => text.insert(
                     1 + random.below(2) as u64,
                     at,

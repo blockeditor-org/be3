@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_test_id_names_the_copy_that_is_shown() {
     let _root = crate::reactive::RootScope::new();
     let wide = create_signal(true);
-    let document = build(move || {
+    let document = build_node(move || {
         let narrow = crate::reactive::create_memo(move || !wide.get());
         view! {
             <List spacing=0.0>

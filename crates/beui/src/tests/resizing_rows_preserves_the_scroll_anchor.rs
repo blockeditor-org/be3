@@ -10,7 +10,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
     let reported = create_signal(None);
     let scroll = NodeRef::new();
     let rows: Vec<NodeRef> = (0..100).map(|_| NodeRef::new()).collect();
-    let document = build({
+    let document = build_node({
         let rows = rows.clone();
         move || {
             view! {

@@ -6,7 +6,7 @@ fn a_closed_sheet_gives_its_space_back() {
     let _root = crate::reactive::RootScope::new();
     let filler = NodeRef::new();
     let open = create_signal(true);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&filler @sizing=ItemSize::Percent(100.0) />

@@ -421,7 +421,7 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of eight things. A `Count` is a counter whose concurrent changes
+A field is one of nine things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
@@ -439,7 +439,20 @@ so concurrent typing and deleting never need rebasing. Positions and tombstones
 are session state (positions only: the receiver fills the visible bytes in from
 its own copy, and an undelete carries the bytes it brings back), and an offline
 merge is a line diff3. The text block is `Document<TextBlock>`, its body a
-`Text` (see `plans/text.md`).
+`Text` (see `plans/text.md`). A `RichText` is a `Text` with formatting, the
+marks beui's rich text editor makes (`sequence::marks`, re-exported as
+`be_model::marks` and by `text_editor_core`): each mark is a key and value
+(bold, a link, a heading level) over a range, inline or over whole lines,
+anchored to positions, so its edits are `Change::Text` for the bytes and
+`Change::Mark` and `Change::Unmark` for the formatting. A mark has an id
+(a clock and the client), the later id wins where marks overlap, and
+concurrent formatting and typing converge like typing does. It saves its
+bytes and its formatting as byte ranges, resolved so no two ranges of one
+key overlap, and reloads them as fresh marks; the session state carries the
+live marks with the positions. Undoing a format removes that mark only. An
+offline merge is a line diff3 where a line is its bytes and its formatting
+together, so formatting a line on one side and typing in it on the other
+conflicts and is rendered with the same markers as text.
 
 Client `0` (`sequence::LOADED`) belongs to the initial buffer; edits cannot
 allocate positions under it. The text editor anchors each boundary before one
@@ -520,7 +533,8 @@ values, and every algorithm is written once against that table:
   `Item` the list reads back as), and edits name the object, not a position.
   An edit to an object that has since moved into another list still lands on
   it, and a `move_into` carries an object and everything under it from one list
-  to another.
+  to another of the same kind (by the schema's kind name); a move into a list
+  of another kind changes nothing, since saving would retype the object.
 - **Edits.** The derive gives each field a typed constant, `CalendarEvent::TITLE`,
   that builds the changes an `Edit` is made of: `set` for a register, `add` for a
   `Count`, `put` for a key of a `Map`, `insert` and `move_into` for a `List`, and
@@ -600,14 +614,19 @@ extension and a branch made at once all survive; they are joined back into
 wires, split at the stored ends, when read. Two components given the same id at
 once are both kept, the later one read with a fresh id. The canvas keeps its
 layering as the order of its entity list, so bringing an entity to the front is
-a move. Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
+a move. Its entities keep their style field by field and their geometry
+in general fields rather than a variant per tool, and an arrow end bound to a
+shape is stored as the shape's id and an anchor and resolved when the canvas is
+read (stopping a gap short of its outline), so it follows a shape a peer moved
+without anyone rewriting the arrow
+(`plans/canvas.md`, Where it stands). Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
 
 A file is the other shape that does not fit a document: a small header and a
 payload that can be megabytes. `Blob<K>` is that shape once, for any `BlobKind`
 that names a content type and a header: `ImageContent`, `AudioContent`,
-`PdfContent`, `GameModuleContent` and `PaintSnapshotContent` are each a `Blob`
+`PdfContent` and `GameModuleContent` are each a `Blob`
 of their own kind. It encodes as a `Streamed`
 type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.
@@ -835,13 +854,17 @@ changes (`Graph::derive`), until the save that publishes it.
 Content crosses the plugin protocol in four messages. Each names the block it is
 about, because an editor can work on more than its own block.
 
-- `EditorMessage::Content { block_id, content_type, bytes, applied }` - host to plugin, a
-  snapshot. `applied` counts the operations *this instance* sent that the
-  snapshot already contains, which is what lets a plugin tell its own
-  unacknowledged edits from everyone else's.
+- `EditorMessage::Content { block_id, content_type, bytes, unsettled, applied }` - host to
+  plugin, a snapshot: the settled content in `bytes`, and the operations on top of it the
+  host still holds unsettled (see below) in `unsettled`. `applied` counts the operations
+  *this instance* sent that the snapshot already contains, which is what lets a plugin tell
+  its own unacknowledged edits from everyone else's.
 - `EditorMessage::ContentOperations { block_id, operations }` - host to plugin, every
   operation since the last thing the instance was sent, in order, each marked
-  `mine` when this instance is the one that sent it.
+  `mine` when this instance is the one that sent it, with how many of the operations
+  sent so far the host still holds unsettled after it (`unsettled`), and, for a peer's
+  operation that goes beneath those, the unsettled operations as the host rebased them
+  (`beneath`).
 - `EditorMessage::Operate { block_id, operation }` - plugin to host.
 - `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks
   (and their content types) the editor wants to follow.
@@ -859,7 +882,7 @@ whichever block that currently names. A database view follows its database and
 the database's schema this way.
 
 Operations, not snapshots, are the normal case. `Live` journals how its visible
-content changed (`Journaled::Edited`, `Applied` or `Replaced`), the worker tags
+content changed (`Journaled::Edited`, `Applied`, `Beneath` or `Replaced`), the worker tags
 each edit with the origin the host gave the instance that sent it
 (`be::operate_from`), and each block's `Content` keeps the last few hundred
 operations beside its bytes. `be::update_since` sends an instance the operations
@@ -867,18 +890,35 @@ it has not seen, and falls back to a snapshot only when it is further behind
 than the log reaches or the content was replaced outright: a join, a reconcile
 or a merge. The worker only re-encodes a block when its journal says it changed.
 
+A follower's own edits stay unsettled until the owner accepts them, and a peer's
+operation that the owner sequenced before them goes beneath them. `Live` applies it
+with `LiveEdit::apply_beneath` (for a be-model `Document`, `Document::rebase`, which
+touches only what either side touched) and journals `Beneath` with the follower's
+operations as rebased, instead of rebuilding its content. Every journaled edit says
+how many operations are unsettled after it, counted the way receivers hold them (an
+edit absorbed into one still unsent counts on its own), so `be_block::Settling`, which
+keeps settled content and the unsettled operations on top, lands each entry the same
+way in the block's `Content` (which folds its log with it and sends snapshots split the
+same way) and in every `ContentProjection`. After a `Replaced` while edits are still
+unsettled, receivers hold them inside their settled content, so `Live` rebuilds again
+for a peer's operation until its unsettled operations drain; the worker likewise
+snapshots a block whose `Content` could not land a `Beneath`.
+
 On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
 per editor. `operate` applies an operation to what the view sees and queues it
 for the host. An operation that comes back `mine` only confirms what is already
 shown; one from anyone else is applied on top of it, unless an edit of this
-instance's is still in flight, in which case the visible state is rebuilt from
-the confirmed state and the pending edits. Applying an operation reports what it
+instance's is still in flight, in which case it goes beneath that edit
+(`LiveEdit::apply_beneath`), as a `Beneath` operation goes beneath the host's
+unsettled operations and this instance's pending ones together. Only an
+operation from another instance that the host itself has not settled, arriving
+while this instance has an edit in flight, rebuilds what the view sees. Applying an operation reports what it
 touched (`LiveEdit::apply_touching`), and a projection only runs when something
 it watches was touched; `guides/reactive.md` says how `project`, `field`, `ids`
-and `object` narrow that. `ContentProjection::read` answers `None` until the
-host has sent the content once, `operate` drops an edit made before then,
-`loaded()` is a signal that turns true when it has (`guides/reactive.md` says
-what an editor shows until it does), and `revision()` counts the changes an editor has seen, for code like the
+and `object` narrow that. `ContentProjection::read` answers `Err(Pending::Loading)`
+until the host has sent the content once, `operate` drops an edit made before
+then, `ready()` is that state on its own (`guides/reactive.md` says what an
+editor shows until it is `Ok`), and `revision()` counts the changes an editor has seen, for code like the
 PDF pane that re-renders on a change rather than projecting.
 
 `block_editor_beui` re-exports `be_block`, so an editor names its content type
@@ -1004,9 +1044,12 @@ The app can read a block itself, not only through an editor:
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
 keyboard, and the display settings to the app and the seat. `DisplaySettings` is
-one block for everything about what the device shows: the theme and the scale,
-which `sync_ui_settings` takes from the display settings last applied (the scale
-is beui's zoom factor, multiplied into the screen's own pixels per point); a
+one block for everything about what the device shows: the theme, motion and scale,
+which `sync_ui_settings` takes from the display settings last applied (the theme,
+motion and canvas touch are the app's layer of beui's preferences, so an unset one follows
+the system's, guides/beui.md; canvas touch, which a canvas's dock turns off, is kept on
+this device only; the scale is beui's zoom factor, multiplied into the screen's own pixels
+per point); a
 `ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
 make, model and serial, or by its connector when it has no EDID), whose modes and
 rotations go to the seat's outputs through `beui_adapter_drm::DisplayControl`,
@@ -1017,7 +1060,7 @@ libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
 with the monitor's modes and an editor reads as the `Displays` host value
-(guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, the app
+(guides/adding_a_plugin_editor.md says how host values reach a plugin). The seat, the stored settings and those host values share one set of types from `ui-types` (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`), so nothing converts between them. Because the seat runs before anyone signs in, the app
 keeps a copy of the last settings of each kind it applied in `app_state` and
 applies that at startup, the theme and scale with it, even before anyone signs
 in; the block stays the source of truth. A kind of setting
@@ -1051,12 +1094,22 @@ before the stack stops, which is when the organization changes.
 Undo lives in the app's peer, not in an editor, because it is the one place that
 sees every edit to a block from this device, whichever editor made it. A content
 type registered with `kind_with_history` gets a session that keeps an undo and a
-redo stack: every operation an editor sends records a step, a step that arrives
-within 750 ms of the last one may be absorbed into it, and `be::undo` and
+redo stack (`be_block::history::History`): every operation an editor sends records a step, a step sent
+within 750 ms of the last one, by beui's frame clock (`be::operate` stamps it),
+may be absorbed into it, and `be::undo` and
 `be::redo` turn a step into operations the session applies like any other edit.
+An editor groups the edits of one gesture into one step, however long it takes, with
+`EditorMessage::Gesture` (`GesturePhase::Begin`, `Commit`, `Cancel`; on the plugin side
+`ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`): every edit from
+that instance until the commit folds into one step (`Undo::then`, which keeps one value
+per register however many frames wrote it), and a cancel reverts the step and leaves
+nothing in the history. The worker runs edits and gesture marks already queued behind
+one another before it publishes, so a gesture written every frame costs one publish per
+batch rather than one per frame.
 Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
-answers with `HistoryStates` whenever they change.
+answers with `HistoryStates` whenever they change. block-ui-test keeps the same history
+for a block a test calls `ContentStore::keep_history::<C>` on, without the 750 ms bursts.
 
 ### Organizations and workspaces
 
@@ -1171,7 +1224,10 @@ Its `LayeredSettingsRow` gives every row a menu (`<id>.menu`) with Keep on this 
 profile, or deletes it there) and Reset to default (`<id>.reset`, which clears the
 layer the setting would be written to), and a "Kept on this device" or "This device
 only" note; on a profile's own page its one item is Stop keeping in this profile
-(`<id>.reset`, clearing it in that block), with a "Kept in this profile" note. Menu items
+(`<id>.reset`, clearing it in that block), with a "Kept in this profile" note. A row whose
+value the inspector overrides says so instead (`overridden`, from the `PreferenceSources` host
+value, which also gives the system's theme and motion that an unset one shows as its
+default). Menu items
 carry icons (`ICON_KEEP`, `ICON_SETTINGS_BACKUP_RESTORE`, `ICON_KEEP_OFF`). `ChangesToast` shows
 one toast per visit to a page naming what now applies on every device ("Theme, scale
 and 1 more now apply on your devices") with Keep on this device only, which moves those
@@ -1181,8 +1237,8 @@ A device's class is known before its profile is made: block-app's
 `root_settings::device_class` says E-paper tablet when the session found an e-paper
 panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
 A class may have defaults, kept on the device: each settings type lists them in one
-place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-ink theme,
-150% scale and rotate button; never when the screens go off, nor a rotation).
+place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-paper theme,
+instant motion, 150% scale and rotate button; never when the screens go off, nor a rotation).
 `ensure_profile` writes a new profile's class and its defaults into the profile's own
 blocks, and when there are any the host asks the shell to open the profile. Its page
 (the settings plugin's `SettingsProfileView`, `app/setup.rs`) leads with the name and
@@ -1218,15 +1274,17 @@ shell when it changes. block-app's sessions screen (the organization list's
 dropdown, or Sessions and profiles in the app menu) picks the device's settings
 profile and its session, or starts a new one of either. A shell keeps its dock
 layout and recents in the session's state; every tab, and the file tree, is an
-`EditorView` child of the session that the layout references, and closing a tab
-detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
-own view, so a workspace-ui session opened on the desktop keeps its tabs in its own
+`EditorView` child of the session that the layout references, naming the editor
+the tab shows it in, and closing a tab detaches its view. A tab on a block that is
+itself an `EditorView` (a session) uses it as its view and opens the editor it
+names, so a workspace-ui session opened on the desktop keeps its tabs in its own
 session and closing it leaves that session alone.
 
 ### View state
 
 What a person has open is blocks too, one generic type for all of it:
-`EditorView { editor, content, state }` names the editor that draws it, the
+`EditorView { editor, content, state }` names the editor that draws it (the
+`id` its manifest gives it, never a block type), the
 block it shows (none for the file tree or workspace-ui itself), and a
 `LatestMap` of opaque `ViewState { bytes, refs }` the editor owns. `refs` are the
 blocks an entry points at; `references()` is `content` plus every entry's refs,
@@ -1244,8 +1302,9 @@ with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
 `editor.set_view_state(key, state)` read and write it; writes skip the block's
 editability, since view state is the viewer's own. An editor on no content (the
 file tree, workspace-ui) is opened on its own view block, and the host links
-that block's content as an `EditorView`. `be_block::profile::VIEW_EDITORS` lists
-the editor ids that are not content types.
+that block's content as an `EditorView`: its manifest names no `edits`, and the
+host opens it on a block of type `EditorView` only when asked for it by id.
+`be_block::profile` holds the ids of the shells and the file tree.
 
 ### What to keep true
 
@@ -1560,20 +1619,33 @@ same way rather than joining it to the peer's `UserActive` entry.
 
 ### Editors with their own model
 
-The text editor cannot hand its state to a projection: `text_editor_core` wants
-a `Document` that hands out anchors, so a cursor stays on its character while
-other people type. An anchor names one byte and dies with it. Only the bytes
-something holds a position on have one: `text_editor_core::AnchorTable` makes
-them on demand and moves them on every edit, so its cost follows the cursors and
-undo steps, not the length of the text. `text_block::document::BlockDocument`
-keeps the bytes and their table itself, turns each local edit into
-`TextOp::Delete` and `TextOp::Insert` that the editor pushes into its
-`ContentProjection` every frame, and adopts a change from elsewhere by diffing
-the projection's text against its own: anchors on unchanged bytes move with
-them, and the rest are dropped. Its undo is its own too, because it has to give the text core back its
-cursors. Each step remembers the anchors either side of the text it replaced
-and both versions of that text, so undo finds the text wherever it has moved to
-and skips it when someone else has changed it since.
+The text editor cannot hand its state to a projection: `text_editor_core`
+wants a `Document` that hands out positions, so a cursor stays on its
+character while other people type. `block_editor_beui::live_text::LiveText`
+is that document for any `Text` or `RichText` field of any block, and it is
+the only one: the text editor and anything else that edits text in place
+(a canvas text shape or label) mount the editor on one. Each projection
+has one log of the edits it applied, so only one `LiveText` per projection
+syncs at a time: the canvas syncs the text being edited and has the others
+take in their whole field when it changes. A `TextField` names the
+object and field it edits, and optionally a language and indentation the
+block stores beside it (`text_block::document::TextBody` does that for a text
+block); `FieldOf::rich` and `FieldOf::plain` name a field and nothing else. It
+keeps its own copy of the field's sequence and marks, turns each local edit
+into `Change::Text` and each format into `Change::Mark` (a plain `Text`
+takes no formats), and `LiveText::sync`, called on every change of the
+document and of the projection (the projection must `record()`, and
+`stop_recording()` once nothing reads its log), sends them,
+asks the host to undo or redo, applies the edits others made to the field in
+place, and takes in the whole field otherwise, which is a no-op when nothing
+in it changed. Undo is the host's (`Document::step`), so it leaves other
+people's typing and formatting alone.
+A caret in a live text travels as presence through
+`block_editor_beui::SharedCaret` (its anchor and focus as `Position`s, which
+every copy of the field resolves to the same place): `SharedCaret::of(area)`
+reads it, and `remote_carets(area, carets)` turns peers' carets into the
+`remote_cursors` a `TextArea` draws. The text editor's `TextCursor` and the
+canvas's `CanvasCursor::caret` (which also names the entity) both carry one.
 
 Dynamic artifacts reach content from the artifact session through the
 host: `EditorHost::content_of` gives a regeneration a projection of its source,
@@ -1599,8 +1671,6 @@ pixel art export regenerate this way.
   a snapshot of.
 - Moving a block into or out of a checkout keeps the ids its content stores, so
   what they name changes with the scope it lands in.
-- Undo in the text editor lives in the editor, so it is gone when the editor
-  closes, and the app's undo command does nothing for text.
 - Nothing vouches for who wrote an item. The deterministic game stores the
   account behind each move as a field the sender fills in, so a player can move
   as someone else. Signing operations would not be enough, because the session

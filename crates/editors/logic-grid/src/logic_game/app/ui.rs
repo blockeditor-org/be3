@@ -63,46 +63,44 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <Frame @node_ref={&content} padding=PADDING>
-                <List spacing=ROW_SPACING>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <Text style=TextStyle::HEADING string="Levels" />
-                        <Show condition={has_hotbar}>
-                            <IconButton
-                                glyph={ICON_WIDGETS.to_owned()}
-                                label="Hotbar"
-                                @test_id={"logic-game.hotbar"}
-                                on_click={open_hotbar}
-                            />
-                        </Show>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
-                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <List spacing=4.0>
-                            <ForEach keys={keys}>|challenge: ChallengeId| {
-                                let level = level_of(levels, challenge);
-                                let here = open.memo(Some(challenge));
-                                let toggle = move || {
-                                    let shown = expanded.get_untracked() == Some(challenge);
-                                    expanded.set((!shown).then_some(challenge));
-                                };
-                                view! {
-                                    <LevelRow
-                                        editor={editor}
-                                        block={block}
-                                        game={game}
-                                        challenge={challenge}
-                                        level={level}
-                                        expanded={here}
-                                        on_toggle={toggle}
-                                    />
-                                }
-                            }</ForEach>
-                        </List>
-                    </Scroll>
+        <Frame @node_ref={&content} padding=PADDING>
+            <List spacing=ROW_SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Text style=TextStyle::HEADING>"Levels"</Text>
+                    <Show condition={has_hotbar}>
+                        <IconButton
+                            glyph={ICON_WIDGETS.to_owned()}
+                            label="Hotbar"
+                            @test_id={"logic-game.hotbar"}
+                            on_click={open_hotbar}
+                        />
+                    </Show>
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
-            </Frame>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
+                    <List spacing=4.0>
+                        <ForEach keys={keys}>|challenge: ChallengeId| {
+                            let level = level_of(levels, challenge);
+                            let here = open.memo(Some(challenge));
+                            let toggle = move || {
+                                let shown = expanded.get_untracked() == Some(challenge);
+                                expanded.set((!shown).then_some(challenge));
+                            };
+                            view! {
+                                <LevelRow
+                                    editor={editor}
+                                    block={block}
+                                    game={game}
+                                    challenge={challenge}
+                                    level={level}
+                                    expanded={here}
+                                    on_toggle={toggle}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
+                </Scroll>
+            </List>
         </Frame>
     }
 }
@@ -135,21 +133,21 @@ fn LevelRow(
                 on_activate={move || {}}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Text string={challenge.name()} />
+                    <Text>{challenge.name()}</Text>
                     <Show condition={completed}>
                         <Text color=TextColor::Success align=TextAlign::Center>
                             <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
                         </Text>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Text style=TextStyle::CAPTION string={attempts} />
+                    <Text style=TextStyle::CAPTION>{attempts}</Text>
                 </List>
             </ListRow>
             <Show condition={expanded}>|| {
                 let goal = goal.clone(); view! {
                     <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
                         <List spacing=ROW_SPACING>
-                            <Text style=TextStyle::CAPTION string={goal} wrap=true />
+                            <Text style=TextStyle::CAPTION wrap=true>{goal}</Text>
                             <Show condition={shows_quiz}>
                                 <BinaryAddition editor={editor} block={block} />
                             </Show>

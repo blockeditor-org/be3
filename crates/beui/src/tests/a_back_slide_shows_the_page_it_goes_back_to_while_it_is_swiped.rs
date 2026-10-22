@@ -10,17 +10,17 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
     let depth = create_signal(2_u32);
     let page = NodeRef::new();
     let previous = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let nested = create_memo(move || depth.get() > 0);
         view! {
             <BackSlide
                 enabled={nested}
                 on_back={move || depth.set(depth.get_untracked() - 1)}
                 behind={move || view! {
-                    <Text string="Previous" color=Color32::WHITE @node_ref={&previous} />
+                    <Text color=Color32::WHITE @node_ref={&previous}>"Previous"</Text>
                 }}
             >
-                <Text string="Page" color=Color32::WHITE @node_ref={&page} />
+                <Text color=Color32::WHITE @node_ref={&page}>"Page"</Text>
             </BackSlide>
         }
     });

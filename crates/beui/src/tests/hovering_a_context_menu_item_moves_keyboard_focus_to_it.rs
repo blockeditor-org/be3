@@ -32,17 +32,38 @@ fn hovering_a_context_menu_item_moves_keyboard_focus_to_it() {
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
-    let paste = unstyled::menu_list_row_button(harness.document(), content, 1);
-    let delete = unstyled::menu_list_row_button(harness.document(), content, 2);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
+    let paste = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(1);
+    let delete = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(2);
 
     let paste_pos = harness.center(paste);
     harness.frame(vec![Event::PointerMoved(paste_pos)]);
 
-    assert!(unstyled::button_focused(harness.document(), paste).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(paste)
+            .focused()
+            .get()
+    );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(unstyled::button_focused(harness.document(), delete).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(delete)
+            .focused()
+            .get()
+    );
 }

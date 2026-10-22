@@ -18,6 +18,7 @@ pub struct InteractiveNode {
     pub child: Option<NodeId>,
     pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
+    pub locks_pointer: bool,
     pub scroll_axis: Option<Direction>,
     pub capture_presses: bool,
     pub press_focus: bool,
@@ -25,6 +26,8 @@ pub struct InteractiveNode {
     pub touch_drags: bool,
     pub touch_drag_axis: Option<Direction>,
     pub claims_touch: bool,
+    pub drawing: bool,
+    pub every_sample: bool,
     pub key_active: bool,
     pub armed: bool,
     pub hovered: bool,
@@ -51,6 +54,7 @@ pub struct InteractiveNode {
     pub capture_at: Callback<Pos2, bool>,
     pub gestures_at: Callback<Pos2, bool>,
     pub hit_at: Callback<Pos2, bool>,
+    pub drawing_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub inhibits_shortcuts: bool,
     pub claim_modifiers: Option<Modifiers>,
@@ -70,6 +74,7 @@ impl InteractiveNode {
             child: None,
             focus: None,
             cursor: None,
+            locks_pointer: false,
             scroll_axis: None,
             capture_presses: false,
             press_focus: true,
@@ -77,6 +82,8 @@ impl InteractiveNode {
             touch_drags: false,
             touch_drag_axis: None,
             claims_touch: true,
+            drawing: false,
+            every_sample: false,
             key_active: false,
             armed: false,
             hovered: false,
@@ -103,6 +110,7 @@ impl InteractiveNode {
             capture_at: Callback::empty(),
             gestures_at: Callback::empty(),
             hit_at: Callback::empty(),
+            drawing_at: Callback::empty(),
             on_forward: Callback::empty(),
             inhibits_shortcuts: false,
             claim_modifiers: None,
@@ -125,6 +133,11 @@ impl InteractiveNode {
     pub fn captures(&self, pos: Pos2, rect: Rect) -> bool {
         (self.capture_presses && rect.contains_half_open(pos))
             || (!self.capture_at.is_empty() && self.capture_at.call(pos))
+    }
+
+    pub fn draws_at(&self, pos: Pos2, rect: Rect) -> bool {
+        (self.drawing && rect.contains_half_open(pos))
+            || (!self.drawing_at.is_empty() && self.drawing_at.call(pos))
     }
 
     pub fn takes_gestures_at(&self, pos: Pos2) -> bool {
@@ -222,6 +235,7 @@ pub fn press_at(
     clicks: u32,
     modifiers: Modifiers,
     touch: bool,
+    time: std::time::Instant,
 ) -> PointerPress {
     PointerPress {
         pos,
@@ -233,6 +247,8 @@ pub fn press_at(
         touch,
         pressure: None,
         pen: None,
+        predicted: None,
+        time,
     }
 }
 
@@ -344,6 +360,7 @@ impl Element for InteractiveNode {
             |focus| {
                 let flags: Vec<&str> = [
                     (focus.tab_stop, "tab stop"),
+                    (focus.yields_tab_stop, "yields tab stop"),
                     (self.press_focus, "press"),
                     (focus.ime, "ime"),
                     (focus.keyboard_on_focus, "keyboard"),
@@ -411,6 +428,33 @@ impl Document {
         }
     }
 
+    pub fn set_interactive_locks_pointer(&mut self, id: NodeOf<InteractiveNode>, locks: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).locks_pointer == locks {
+            return;
+        }
+        self.arena.touch_mut_as::<InteractiveNode>(id).locks_pointer = locks;
+        if locks {
+            self.pointer_lockers.borrow_mut().push(id);
+        }
+        self.publish_pointer_lock(false);
+    }
+
+    pub(crate) fn publish_pointer_lock(&self, reattached: bool) {
+        let mut lockers = self.pointer_lockers.borrow_mut();
+        lockers.retain(|locker| {
+            self.arena
+                .kind_of::<InteractiveNode>(locker.id())
+                .is_some_and(|locker| self.arena.get_as(locker).locks_pointer)
+        });
+        let locked = !lockers.is_empty();
+        let changed = self.pointer_locked.replace(locked) != locked;
+        if (changed || (reattached && locked))
+            && let Some(context) = self.context()
+        {
+            context.set_pointer_locked(locked);
+        }
+    }
+
     pub fn set_interactive_capture_presses(
         &mut self,
         id: NodeOf<InteractiveNode>,
@@ -465,6 +509,43 @@ impl Document {
         if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
             self.arena.touch_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
         }
+    }
+
+    pub fn set_interactive_drawing(&mut self, id: NodeOf<InteractiveNode>, drawing: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).drawing == drawing {
+            return;
+        }
+        self.arena.touch_mut_as::<InteractiveNode>(id).drawing = drawing;
+        match drawing {
+            true => self.drawing_surfaces.insert(id.id()),
+            false => self.drawing_surfaces.remove(&id.id()),
+        };
+    }
+
+    pub fn set_interactive_every_sample(&mut self, id: NodeOf<InteractiveNode>, every: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).every_sample == every {
+            return;
+        }
+        self.arena.get_mut_as::<InteractiveNode>(id).every_sample = every;
+        match every {
+            true => self.every_sample_surfaces.insert(id.id()),
+            false => self.every_sample_surfaces.remove(&id.id()),
+        };
+    }
+
+    pub fn wants_every_sample(&self) -> bool {
+        self.every_sample_surfaces
+            .iter()
+            .any(|id| self.arena.contains(*id))
+    }
+
+    pub fn drawing_rects(&self) -> Vec<Rect> {
+        self.drawing_surfaces
+            .iter()
+            .filter(|id| self.arena.contains(**id))
+            .filter_map(|id| self.rects.visible(id))
+            .filter(|rect| rect.is_positive())
+            .collect()
     }
 
     pub fn set_interactive_inhibits_shortcuts(

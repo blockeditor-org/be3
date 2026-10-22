@@ -9,11 +9,10 @@ fn dragging_a_number_input_sideways_changes_its_value() {
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <NumberInput
-                value=4.0
+                value={Binding::new(4.0, move |next| changes.update(|changes| changes.push(next)))}
                 min=0.0
                 max=100.0
                 drag={NumberDrag::Linear { speed: 0.5 }}
-                on_change={move |value| changes.update(|changes| changes.push(value))}
             />
         }]
     });
@@ -28,7 +27,10 @@ fn dragging_a_number_input_sideways_changes_its_value() {
         changes.with_untracked(|changes| changes.last().copied()),
         Some(14.0)
     );
-    let shown = number_input_text(harness.document(), input)
+    let shown = harness
+        .document()
+        .api::<NumberInputTextApi>(input)
+        .text()
         .expect("a drag must not open the field for editing");
     assert_eq!(text_of(harness.document(), shown), "14");
 
@@ -40,7 +42,16 @@ fn dragging_a_number_input_sideways_changes_its_value() {
         changes.with_untracked(|changes| changes.is_empty()),
         "a click without a drag must not change the value"
     );
-    let field = number_input_field(harness.document(), input)
+    let field = harness
+        .document()
+        .api::<NumberInputApi>(input)
+        .field()
         .expect("a click without a drag must open the field");
-    assert!(unstyled::text_input_focused(harness.document(), field).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(field)
+            .focused()
+            .get()
+    );
 }

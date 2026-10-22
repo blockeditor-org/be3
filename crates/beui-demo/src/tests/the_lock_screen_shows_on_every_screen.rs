@@ -9,7 +9,7 @@ fn the_lock_screen_shows_on_every_screen() {
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
         view! {
-            <Frame fill=ColorRole::Background>
+            <Root>
                 <LockScreen
                     open=true
                     time="09:41"
@@ -20,7 +20,7 @@ fn the_lock_screen_shows_on_every_screen() {
                         glyph: ICON_BEDTIME.to_owned(),
                     }]}
                 />
-            </Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(1100.0, 480.0));

@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Rect, Vec2, pos2};
 use crate::input::{Event, TouchPhase};
@@ -29,10 +28,6 @@ pub fn safe_rect(screen: Vec2, area: SafeArea, scale: f32) -> Rect {
 
 pub trait App {
     fn update(&mut self, context: &Context, rect: Rect);
-
-    fn clear_color(&self) -> Color32 {
-        Color32::BLACK
-    }
 
     fn setup(&mut self, _setup: &Setup) {}
 

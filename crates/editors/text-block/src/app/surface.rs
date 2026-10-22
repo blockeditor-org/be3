@@ -1,9 +1,9 @@
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{RemoteTextCursor, TextWidget};
+use beui::unstyled::TextWidget;
 use beui::{NodeId, Vec2};
 use block_editor_beui::{Drag, block_ui::BlockLabel};
-use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
+use text_editor_core::{CursorLeftRightStop, EditorCommand};
 
 use super::embeds::ResolvedEmbed;
 use super::large_embed::{LargeEmbed, embed_is_live};
@@ -22,12 +22,16 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             .map(ResolvedEmbed::widget)
             .collect::<Vec<TextWidget>>()
     });
-    let remote = state.presence_revision;
     let cursors = state.text.cursors();
     let remote_cursors = create_memo(move || {
-        remote.get();
         cursors.get();
-        remote_cursors(state)
+        let remote = state.remote_cursors.get();
+        block_editor_beui::remote_carets(
+            state.text,
+            remote
+                .into_iter()
+                .map(|(_, cursor)| (cursor.caret, cursor.color)),
+        )
     });
     let drag = state.editor.drag();
     let drop_caret = create_memo(move || drop_target(state, drag.get()));
@@ -60,9 +64,8 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
     let visible = state.editor.presence_visible();
     create_effect(move || {
         let visible = visible.get();
-        state.peers.with(|_| ());
         state.text.cursors().get();
-        untrack(|| state.poll_presence(visible));
+        untrack(|| state.publish_cursor(visible));
     });
     let revealed = state.editor.revealed();
     create_effect(move || {
@@ -85,7 +88,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             drop_caret={drop_caret}
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(state, widget)}
-            on_focus_change={move |focused: bool| typing.set(focused)}
+            on_focus_change={typing}
             pastes_images=true
             on_image_paste={move |image: PickedFile| paste_image(state, image)}
             block={embed_row}
@@ -149,26 +152,6 @@ fn drop_target(state: State, drag: Option<Drag>) -> Option<usize> {
         .text
         .with_core(|core| core.cursor_stop(byte, CursorLeftRightStop::UnicodeGraphemeCluster));
     state.text.with_core(|core| core.position_index(position))
-}
-
-fn remote_cursors(state: State) -> Vec<RemoteTextCursor> {
-    state.text.with_core(|core| {
-        state
-            .remote_cursors()
-            .into_iter()
-            .filter_map(|(_, cursor)| {
-                let color = cursor.color;
-                let selection =
-                    core.selection_range(&CursorPosition::range(cursor.anchor, cursor.focus))?;
-                let caret = core.position_index(cursor.focus)?;
-                Some(RemoteTextCursor {
-                    selection,
-                    caret,
-                    color: block_editor_beui::presence_color(color),
-                })
-            })
-            .collect()
-    })
 }
 
 fn take_drag(state: State, drag: Option<Drag>) {

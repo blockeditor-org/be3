@@ -16,6 +16,7 @@ fn cleanup_precedes_next_execution() {
         });
     });
     value.set(1);
+    flush();
     drop(scope);
     assert_eq!(
         *events.borrow(),

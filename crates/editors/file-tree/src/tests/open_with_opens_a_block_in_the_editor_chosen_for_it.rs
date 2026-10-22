@@ -15,6 +15,7 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
         types: vec![BlockTypeDescriptor {
             block_type: block_type.into_bytes(),
             display_name: "Note".to_owned(),
+            color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
         }],
@@ -22,13 +23,13 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
         editors: vec![
             EditorDescriptor {
                 editor: built_in.into_bytes(),
-                block_type: block_type.into_bytes(),
+                edits: block_editor_beui::Edits::Type(block_type.into_bytes()),
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
-                block_type: block_editor_beui::ANY_BLOCK_TYPE,
+                edits: block_editor_beui::Edits::Any,
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
             },

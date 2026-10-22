@@ -12,7 +12,7 @@ fn keeping_makes_this_devices_display_block_when_it_has_none() {
         .root()
         .kind(DisplaySettings::CONTENT_TYPE);
     assert!(made.is_some(), "the profile gets a display block");
-    assert_eq!(settings.here().theme, Some(Theme::Dark));
+    assert_eq!(settings.here().theme, Some(ThemeKind::Dark));
 
     settings.keep(SCALE);
     assert_eq!(

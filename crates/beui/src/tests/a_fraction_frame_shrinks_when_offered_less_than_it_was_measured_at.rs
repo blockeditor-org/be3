@@ -7,7 +7,7 @@ fn a_fraction_frame_shrinks_when_offered_less_than_it_was_measured_at() {
     let _root = crate::reactive::RootScope::new();
     let quarter = NodeRef::new();
     let width = create_signal(Some(400.0));
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List align=Align::Start spacing=0.0>
                 <Frame width=width>

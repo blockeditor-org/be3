@@ -37,7 +37,7 @@ impl Seen {
             count: 0,
         };
         for (display, at) in painting {
-            let key = walk.node(display, *at, Rect::EVERYTHING, &[]);
+            let key = walk.node(display, Place::at(*at), Rect::EVERYTHING, &[]);
             walk.seen.roots.push(key);
         }
         walk.seen
@@ -57,8 +57,42 @@ struct Walk {
     count: usize,
 }
 
+#[derive(Clone, Copy)]
+struct Place {
+    at: Vec2,
+    scale: f32,
+}
+
+impl Place {
+    fn at(at: Vec2) -> Self {
+        Self { at, scale: 1.0 }
+    }
+
+    fn rect(self, rect: Rect) -> Rect {
+        rect.scaled(self.scale).translate(self.at)
+    }
+
+    fn within(self, offset: Vec2, scale: f32) -> Self {
+        Self {
+            at: self.at + offset * self.scale,
+            scale: self.scale * scale,
+        }
+    }
+
+    fn shape(self, shape: &Shape, clip: Rect) -> Shape {
+        match self.scale == 1.0 {
+            true => placed_shape(shape, self.at, clip),
+            false => {
+                let mut scaled = shape.clone();
+                crate::context::scale_shape(&mut scaled, self.scale);
+                placed_shape(&scaled, self.at, clip)
+            }
+        }
+    }
+}
+
 impl Walk {
-    fn node(&mut self, display: &Display, at: Vec2, clip: Rect, fades: &[Fade]) -> Key {
+    fn node(&mut self, display: &Display, at: Place, clip: Rect, fades: &[Fade]) -> Key {
         let occurrence = self.occurrences.entry(display.node).or_insert(0);
         let key = (display.node, *occurrence);
         *occurrence += 1;
@@ -66,7 +100,7 @@ impl Walk {
             shapes: Vec::new(),
             fades: fades.to_vec(),
             children: Vec::new(),
-            subtree: (self.count, display.bounds.translate(at).intersect(clip)),
+            subtree: (self.count, at.rect(display.bounds).intersect(clip)),
         };
         self.parts(display, &display.parts, at, clip, fades, &mut node);
         self.seen.nodes.insert(key, node);
@@ -77,7 +111,7 @@ impl Walk {
         &mut self,
         display: &Display,
         parts: &[Part],
-        at: Vec2,
+        at: Place,
         clip: Rect,
         fades: &[Fade],
         node: &mut Node,
@@ -86,12 +120,7 @@ impl Walk {
             match part {
                 Part::Shapes { start, end, .. } => {
                     for shape in &display.shapes[*start as usize..*end as usize] {
-                        let placed = placed_shape(shape, at, clip);
-                        if !bounds(&placed).is_positive()
-                            && !matches!(placed, Shape::Drawing { .. })
-                        {
-                            continue;
-                        }
+                        let placed = at.shape(shape, clip);
                         let index = self.count;
                         self.count += 1;
                         if let Some(area) = self.area
@@ -104,26 +133,29 @@ impl Walk {
                     }
                 }
                 Part::Child(_, translation, child) => {
-                    let key = self.node(child, at + *translation, clip, fades);
+                    let key = self.node(child, at.within(*translation, 1.0), clip, fades);
                     node.children.push(key);
                 }
                 Part::Group(group, inner) => match *group {
                     Group::Clip(rect) => {
-                        let clip = clip.intersect(rect.translate(at));
+                        let clip = clip.intersect(at.rect(rect));
                         self.parts(display, inner, at, clip, fades, node);
                     }
                     Group::Scroll {
-                        viewport, offset, ..
+                        viewport,
+                        offset,
+                        scale,
+                        ..
                     } => {
-                        let clip = clip.intersect(viewport.translate(at));
-                        self.parts(display, inner, at + offset, clip, fades, node);
+                        let clip = clip.intersect(at.rect(viewport));
+                        self.parts(display, inner, at.within(offset, scale), clip, fades, node);
                     }
-                    Group::Transform { offset, .. } => {
-                        self.parts(display, inner, at + offset, clip, fades, node);
+                    Group::Transform { offset, scale } => {
+                        self.parts(display, inner, at.within(offset, scale), clip, fades, node);
                     }
                     Group::Mask { fade, .. } => {
                         let mut within = fades.to_vec();
-                        within.push(fade.translate(at));
+                        within.push(fade.scaled(at.scale, at.at));
                         self.parts(display, inner, at, clip, &within, node);
                     }
                     Group::Filter(_) => self.parts(display, inner, at, clip, fades, node),

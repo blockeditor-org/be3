@@ -5,10 +5,8 @@ use block_editor_beui::be_block::{BlockContent, CounterContent};
 fn a_direct_editor_entity_draws_the_frame_it_reserves() {
     let counter = Uuid::new_v4();
     let mut placed = entity(Uuid::from_u128(1));
-    placed.kind = CanvasEntityKind::DirectEditor {
-        block_id: counter,
-        scale: 1.0,
-    };
+    placed.shape = CanvasShape::Editor;
+    placed.block = Some(counter);
     placed.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(240.0, 180.0), 0.0);
     let mut editor = open(

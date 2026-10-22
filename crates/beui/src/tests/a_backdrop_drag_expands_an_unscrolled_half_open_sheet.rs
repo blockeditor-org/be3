@@ -7,7 +7,7 @@ fn a_backdrop_drag_expands_an_unscrolled_half_open_sheet() {
     let _root = RootScope::new();
     let sheet = NodeRef::new();
     let closed = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <ModalSheet
                 @node_ref=&sheet

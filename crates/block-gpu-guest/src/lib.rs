@@ -11,6 +11,7 @@ pub fn device_and_queue() -> (wgpu::Device, wgpu::Queue) {
     )
 }
 
+// unsafe(ffi)
 pub fn configure_surface(surface: u32, width: u32, height: u32, format: wgpu::TextureFormat) {
     let configuration = abi::SurfaceConfiguration {
         width,
@@ -21,6 +22,7 @@ pub fn configure_surface(surface: u32, width: u32, height: u32, format: wgpu::Te
     unsafe { imports::surface_configure(surface, bytes.as_ptr() as u32, bytes.len() as u32) };
 }
 
+// unsafe(ffi)
 pub fn acquire_surface_texture(surface: u32) -> Result<wgpu::Texture, String> {
     let handle = unsafe { imports::surface_acquire(surface) };
     if handle == abi::NULL_HANDLE {
@@ -47,18 +49,22 @@ pub fn acquire_surface_texture(surface: u32) -> Result<wgpu::Texture, String> {
     ))
 }
 
+// unsafe(ffi)
 pub fn surface_age(surface: u32) -> u32 {
     unsafe { imports::surface_age(surface) }
 }
 
+// unsafe(ffi)
 pub fn present_surface(surface: u32) {
     unsafe { imports::surface_present(surface) };
 }
 
+// unsafe(ffi)
 pub fn release_surface(surface: u32) {
     unsafe { imports::surface_release(surface) };
 }
 
+// unsafe(ffi)
 fn describe(texture: abi::Handle) -> Result<abi::TextureDescriptor, String> {
     let mut buffer = vec![0u8; 512];
     let needed = unsafe {
@@ -77,6 +83,7 @@ fn describe(texture: abi::Handle) -> Result<abi::TextureDescriptor, String> {
     abi::decode(&buffer)
 }
 
+// unsafe(ffi)
 fn host_error() -> String {
     let mut buffer = vec![0u8; 256];
     let needed = unsafe { imports::error_take(buffer.as_mut_ptr() as u32, buffer.len() as u32) };

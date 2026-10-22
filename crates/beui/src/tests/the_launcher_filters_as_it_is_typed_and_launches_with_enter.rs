@@ -21,7 +21,7 @@ fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
         item("foot", "Foot", &["terminal"]),
         item("term", "Terminal", &["shell"]),
     ]);
-    let document = build(move || {
+    let document = build_node(move || {
         let open = create_signal(true);
         view! {
             <Launcher

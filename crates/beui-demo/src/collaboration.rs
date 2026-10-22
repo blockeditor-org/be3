@@ -5,9 +5,9 @@ use std::time::{Duration, Instant};
 
 use text_editor_core::{
     Change, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, FormatOp, Formats,
-    Mark, Marks, Pos, Position, RichOp, Seed, SeqOp, Sequence, Splice, TextChange, TextIndentation,
-    TextLanguage, TextRun, anchor_in, anchor_index_in, changed, deleted_anchor_index_in,
-    format_change, format_op, formats_in, runs_in,
+    Mark, MarkId, Marks, Pos, Position, RichOp, Seed, SeqOp, Sequence, Splice, TextChange,
+    TextIndentation, TextLanguage, TextRun, anchor_in, anchor_index_in, changed,
+    deleted_anchor_index_in, format_change, format_op, formats_in, remint, runs_in,
 };
 
 mod page;
@@ -49,12 +49,13 @@ pub(crate) struct Caret {
 enum Message {
     Edit(Side, SeqOp<u8>),
     Mark(Mark),
+    Unmark(MarkId),
     Caret(Caret),
 }
 
 impl Message {
     const fn edits(&self) -> bool {
-        matches!(self, Self::Edit(..) | Self::Mark(_))
+        matches!(self, Self::Edit(..) | Self::Mark(_) | Self::Unmark(_))
     }
 }
 
@@ -125,7 +126,7 @@ impl Peer {
         }
         self.visible = visible;
         self.marks.invalidate();
-        difference(&before, self.visible.mirrored().unwrap_or_default())
+        TextChange::between(&before, self.visible.mirrored().unwrap_or_default())
     }
 }
 
@@ -305,6 +306,15 @@ impl Simulation {
                 let sent = self.sent(now);
                 self.down.push_back((Message::Mark(mark), sent));
             }
+            Message::Unmark(id) => {
+                if let Some(op) = owner.marks.remove(id) {
+                    let change = format_change(&owner.visible, &op);
+                    owner.external = true;
+                    owner.bump(Some(change));
+                }
+                let sent = self.sent(now);
+                self.down.push_back((Message::Unmark(id), sent));
+            }
             Message::Edit(author, op) => {
                 owner.confirmed.apply(&op);
                 let change = owner.show(&op).map_or(TextChange::NONE, |splices| {
@@ -325,6 +335,13 @@ impl Simulation {
             Message::Mark(mark) => {
                 if follower.marks.apply(&follower.visible, mark.clone()) {
                     let change = format_change(&follower.visible, &mark.op);
+                    follower.external = true;
+                    follower.bump(Some(change));
+                }
+            }
+            Message::Unmark(id) => {
+                if let Some(op) = follower.marks.remove(id) {
+                    let change = format_change(&follower.visible, &op);
                     follower.external = true;
                     follower.bump(Some(change));
                 }
@@ -369,18 +386,31 @@ impl Simulation {
         Some(changed(TextChange::NONE, &splices))
     }
 
-    fn mark(&mut self, side: Side, op: FormatOp, now: Instant) -> TextChange {
+    fn mark(&mut self, side: Side, op: FormatOp, now: Instant) -> (TextChange, MarkId) {
         let peer = &mut self.peers[side.index()];
         let change = format_change(&peer.visible, &op);
         let mark = peer.marks.mint(&peer.visible, side.client(), op);
+        let id = mark.id;
         let sent = self.sent(now);
         self.queue_mut(side).push_back((Message::Mark(mark), sent));
+        (change, id)
+    }
+
+    fn unmark(&mut self, side: Side, id: MarkId, now: Instant) -> TextChange {
+        let peer = &mut self.peers[side.index()];
+        let Some(op) = peer.marks.remove(id) else {
+            return TextChange::NONE;
+        };
+        let change = format_change(&peer.visible, &op);
+        let sent = self.sent(now);
+        self.queue_mut(side).push_back((Message::Unmark(id), sent));
         change
     }
 
-    fn replay(&mut self, side: Side, ops: &[RichOp]) {
+    fn replay(&mut self, side: Side, ops: &[RichOp]) -> Vec<MarkId> {
         let now = beui::reactive::now();
         let mut change = TextChange::NONE;
+        let mut minted = Vec::new();
         for op in ops {
             match op {
                 RichOp::Text(op) => {
@@ -388,29 +418,16 @@ impl Simulation {
                         change = change.then(made);
                     }
                 }
-                RichOp::Format(op) => change = change.then(self.mark(side, op.clone(), now)),
+                RichOp::Format(op) => {
+                    let (made, id) = self.mark(side, op.clone(), now);
+                    change = change.then(made);
+                    minted.push(id);
+                }
+                RichOp::Unformat(id) => change = change.then(self.unmark(side, *id, now)),
             }
         }
         self.peers[side.index()].bump(Some(change));
-    }
-}
-
-fn difference(old: &[u8], new: &[u8]) -> TextChange {
-    let prefix = old
-        .iter()
-        .zip(new)
-        .take_while(|(before, after)| before == after)
-        .count();
-    let suffix = old[prefix..]
-        .iter()
-        .rev()
-        .zip(new[prefix..].iter().rev())
-        .take_while(|(before, after)| before == after)
-        .count();
-    TextChange {
-        start: prefix,
-        old_end: old.len() - suffix,
-        new_end: new.len() - suffix,
+        minted
     }
 }
 
@@ -524,8 +541,9 @@ impl Document for SideDocument {
         let mut simulation = self.write_simulation();
         let peer = &mut simulation.peers[self.side.index()];
         peer.group_open = false;
-        let group = peer.redo.pop()?;
-        simulation.replay(self.side, &group.redo);
+        let mut group = peer.redo.pop()?;
+        let minted = simulation.replay(self.side, &group.redo);
+        remint(&mut group.undo, minted);
         let cursors = group.cursors.clone();
         simulation.peers[self.side.index()].undo.push(group);
         Some(cursors)
@@ -687,14 +705,12 @@ impl DocumentEdit for Transaction<'_> {
             return;
         }
         let bytes = peer.visible.items();
-        let Some((op, undo)) = format_op(&peer.visible, &peer.marks, &bytes, range, change) else {
+        let Some(op) = format_op(&peer.visible, &peer.marks, &bytes, range, change) else {
             return;
         };
-        let made = self.simulation.mark(self.side, op.clone(), self.now);
+        let (made, id) = self.simulation.mark(self.side, op.clone(), self.now);
         self.change = self.change.then(made);
-        self.group
-            .undo
-            .extend(undo.into_iter().rev().map(RichOp::Format));
+        self.group.undo.push(RichOp::Unformat(id));
         self.group.redo.push(RichOp::Format(op));
     }
 }

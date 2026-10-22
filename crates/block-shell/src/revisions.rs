@@ -24,16 +24,17 @@ pub(crate) struct RevisionHistory {
     editor: Editor,
     target: Signal<Option<TabItem>>,
     entries: Signal<Vec<Revision>>,
+    listed: Signal<Option<Uuid>>,
     selected: Signal<Option<Selected>>,
     error: Signal<Option<String>>,
     loading: Signal<bool>,
     busy: Signal<bool>,
     confirm: Signal<bool>,
-    state: Stored<Pending>,
+    state: Stored<Requests>,
 }
 
 #[derive(Default)]
-struct Pending {
+struct Requests {
     generation: Cell<u64>,
     latest_list: Cell<u64>,
     lists: RefCell<Vec<(u64, u64)>>,
@@ -45,6 +46,7 @@ impl RevisionHistory {
     pub(crate) fn new(editor: Editor) -> Self {
         let target = create_signal(None);
         let entries = create_signal(Vec::new());
+        let listed = create_signal(None);
         let selected = create_signal(None);
         let error = create_signal(None);
         let loading = create_signal(false);
@@ -54,12 +56,13 @@ impl RevisionHistory {
             editor,
             target,
             entries,
+            listed,
             selected,
             error,
             loading,
             busy,
             confirm,
-            state: store(Pending::default()),
+            state: store(Requests::default()),
         };
         let changed = editor.pushed(Pushed::Histories);
         let previous = Cell::new(None);
@@ -100,7 +103,10 @@ impl RevisionHistory {
             .generation
             .set(self.state.value().generation.get() + 1);
         self.busy.set(false);
-        self.entries.set(Vec::new());
+        if target.is_none() {
+            self.entries.set(Vec::new());
+            self.listed.set(None);
+        }
         self.error.set(None);
         self.target.set(target);
     }
@@ -179,8 +185,19 @@ impl RevisionHistory {
             if *generation == state.generation.get() && *request == state.latest_list.get() {
                 self.loading.set(false);
                 match result {
-                    Ok(entries) => self.entries.set(entries),
-                    Err(error) => self.error.set(Some(error)),
+                    Ok(entries) => {
+                        self.entries.set(entries);
+                        self.listed
+                            .set(self.target.get_untracked().map(|item| item.id));
+                    }
+                    Err(error) => {
+                        let target = self.target.get_untracked().map(|item| item.id);
+                        if self.listed.get_untracked() != target {
+                            self.entries.set(Vec::new());
+                            self.listed.set(None);
+                        }
+                        self.error.set(Some(error));
+                    }
                 }
             }
             false
@@ -270,6 +287,9 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
             .with(|entries| entries.iter().map(|entry| entry.commit).collect::<Vec<_>>())
     });
     let no_file = create_memo(move || history.target.get().is_none());
+    let stale = create_memo(move || {
+        history.busy.get() || history.listed.get() != history.target.get().map(|item| item.id)
+    });
     let has_file = create_memo(move || !no_file.get());
     let empty = create_memo(move || {
         !no_file.get()
@@ -290,29 +310,27 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
         <Scroll @test_id={"workspace.revisions"}>
             <Frame padding=14.0>
                 <List spacing=8.0>
-                    <Text wrap=true style=TextStyle::HEADING string="Revision history" />
+                    <Text wrap=true style=TextStyle::HEADING>"Revision history"</Text>
                     <Show condition={no_file}>
-                        <Text
-                            wrap=true
-                            style=TextStyle::CAPTION
-                            string="Open a file to see its revision history."
-                        />
+                        <Text wrap=true style=TextStyle::CAPTION>
+                            "Open a file to see its revision history."
+                        </Text>
                     </Show>
                     <Show condition={has_file}>
-                        <Text wrap=true string={name} />
+                        <Text wrap=true>{name}</Text>
                     </Show>
                     <Show condition={history.loading}>
-                        <Text wrap=true style=TextStyle::CAPTION string="Loading revisions…" />
+                        <Text wrap=true style=TextStyle::CAPTION>"Loading revisions…"</Text>
                     </Show>
                     <Show condition={history.busy}>
-                        <Text wrap=true style=TextStyle::CAPTION string="Working…" />
+                        <Text wrap=true style=TextStyle::CAPTION>"Working…"</Text>
                     </Show>
                     <Show condition={empty}>
-                        <Text wrap=true style=TextStyle::CAPTION string="No saved revisions yet." />
+                        <Text wrap=true style=TextStyle::CAPTION>"No saved revisions yet."</Text>
                     </Show>
                     <Show condition={failed}>
                         <List spacing=8.0>
-                            <Text wrap=true style=TextStyle::CAPTION string={error} />
+                            <Text wrap=true style=TextStyle::CAPTION>{error}</Text>
                             <Button
                                 variant=ButtonVariant::Secondary
                                 label="Retry"
@@ -330,7 +348,7 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
                             <Button
                                 label
                                 variant=ButtonVariant::Secondary
-                                disabled={history.busy}
+                                disabled={stale}
                                 @test_id={format!("workspace.revision.{}", revision_key(&commit))}
                                 on_click={move || {
                                     let revision = revisions.with(|entries| entries.get(&commit).cloned());
@@ -378,7 +396,7 @@ pub(crate) fn RevisionPreviewBar(
             <Show condition={visible}>
                 <Frame padding=14.0>
                     <List spacing=8.0>
-                        <Text wrap=true style=TextStyle::CAPTION string={label} />
+                        <Text wrap=true style=TextStyle::CAPTION>{label}</Text>
                         <List direction=Direction::Horizontal spacing=8.0>
                             <Button
                                 label="Back to current"
@@ -398,15 +416,13 @@ pub(crate) fn RevisionPreviewBar(
                             </Show>
                         </List>
                         <Show condition={failed}>
-                            <Text wrap=true style=TextStyle::CAPTION string={error} />
+                            <Text wrap=true style=TextStyle::CAPTION>{error}</Text>
                         </Show>
                         <Show condition={history.confirm}>
                             <List spacing=8.0>
-                                <Text
-                                    wrap=true
-                                    style=TextStyle::CAPTION
-                                    string="Restore this file as a new revision? Current edits will be saved. Contained and linked files will stay unchanged."
-                                />
+                                <Text wrap=true style=TextStyle::CAPTION>
+                                    "Restore this file as a new revision? Current edits will be saved. Contained and linked files will stay unchanged."
+                                </Text>
                                 <List direction=Direction::Horizontal spacing=8.0>
                                     <Button
                                         variant=ButtonVariant::Primary

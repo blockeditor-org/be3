@@ -88,42 +88,42 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                    <List spacing=SPACING>
-                        <Text size=TextSize::Xl4 align=TextAlign::Center>
-                            <Icon glyph={ICON_AUDIO_FILE.to_owned()} />
-                        </Text>
-                        <Text string={source} align=TextAlign::Center />
-                        <IconButton
-                            @sizing={ItemSize::Intrinsic.align(Align::Center)}
-                            glyph={glyph}
-                            label={action}
-                            @test_id={"audio.play"}
-                            on_click={toggle}
-                        />
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
+                <List spacing=SPACING>
+                    <Text size=TextSize::Xl4 align=TextAlign::Center>
+                        <Icon glyph={ICON_AUDIO_FILE.to_owned()} />
+                    </Text>
+                    <Text align=TextAlign::Center>{source}</Text>
+                    <IconButton
+                        @sizing={ItemSize::Intrinsic.align(Align::Center)}
+                        glyph={glyph}
+                        label={action}
+                        @test_id={"audio.play"}
+                        on_click={toggle}
+                    />
+                    <Text
+                        style=TextStyle::CAPTION
+                        align=TextAlign::Center
+                        @test_id={"audio.position"}
+                    >
+                        {elapsed}
+                    </Text>
+                    <Show condition={failed}>
                         <Text
                             style=TextStyle::CAPTION
-                            string={elapsed}
                             align=TextAlign::Center
-                            @test_id={"audio.position"}
-                        />
-                        <Show condition={failed}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string={reason}
-                                align=TextAlign::Center
-                                color=TextColor::Danger
-                            />
-                        </Show>
-                    </List>
-                </Frame>
-                <Sidebar shown={chrome}>
-                    <AudioPanel editor={editor} />
-                </Sidebar>
-            </List>
-        </Frame>
+                            color=TextColor::Danger
+                        >
+                            {reason}
+                        </Text>
+                    </Show>
+                </List>
+            </Frame>
+            <Sidebar shown={chrome}>
+                <AudioPanel editor={editor} />
+            </Sidebar>
+        </List>
     }
 }
 
@@ -148,7 +148,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
     let replace = move || chooser.open();
     view! {
         <List spacing=SPACING>
-            <Text style=TextStyle::HEADING string="Audio" />
+            <Text style=TextStyle::HEADING>"Audio"</Text>
             <Button
                 label="Replace audio..."
                 variant=ButtonVariant::Secondary
@@ -157,7 +157,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </List>
     }

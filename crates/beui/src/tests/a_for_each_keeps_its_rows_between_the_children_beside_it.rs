@@ -7,7 +7,7 @@ use crate::unstyled::Button;
 fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let (lead, trail, add) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let items = create_signal(vec![1u32, 2]);
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
@@ -17,7 +17,7 @@ fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
                 </ForEach>
                 <Frame @node_ref=&trail width=5.0 />
                 <Button @node_ref=&add on_click={move || items.set(vec![1, 2, 3])}>
-                    <Text string="add" />
+                    <Text>"add"</Text>
                 </Button>
             </List>
         }

@@ -1,12 +1,10 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::theme::{ThemeStore, use_theme};
-use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -63,7 +61,7 @@ fn ChoiceLabel(
             <Show condition={kind == Kind::Radio}>
                 <RadioMark checked={checked} />
             </Show>
-            <Text @sizing=ItemSize::Percent(100.0) string={label} color align />
+            <Text @sizing=ItemSize::Percent(100.0) color align>{label}</Text>
         </List>
     }
 }
@@ -80,19 +78,18 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             radius={Radius::custom(MARK_RADIUS)}
             align=Align::Center
         >
-            <Frame
-                visible={checked}
-                width=MARK_DOT
-                height=MARK_DOT
-                fill=ColorRole::Accent
-                radius={Radius::custom(MARK_RADIUS)}
-            />
+            <Layers>
+                <Show condition={checked}>
+                    <Frame
+                        width=MARK_DOT
+                        height=MARK_DOT
+                        fill=ColorRole::Accent
+                        radius={Radius::custom(MARK_RADIUS)}
+                    />
+                </Show>
+            </Layers>
         </Frame>
     }
-}
-
-pub(super) fn selected_index(document: &Document, choice: NodeId) -> Option<usize> {
-    unstyled::choice_selected(document, choice)
 }
 
 fn ring(theme: &ThemeStore, checked: bool) -> Color32 {

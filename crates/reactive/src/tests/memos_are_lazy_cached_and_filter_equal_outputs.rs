@@ -14,6 +14,7 @@ fn memos_are_lazy_cached_and_filter_equal_outputs() {
         })
     });
     value.set(3);
+    flush();
     assert_eq!(calls.get(), 1);
     assert_eq!(memo.get(), 1);
     assert_eq!(memo.get(), 1);
@@ -24,6 +25,8 @@ fn memos_are_lazy_cached_and_filter_equal_outputs() {
         create_effect(move || seen.borrow_mut().push(memo.get()));
     });
     value.set(5);
+    flush();
     value.set(6);
+    flush();
     assert_eq!(*seen.borrow(), [1, 0]);
 }

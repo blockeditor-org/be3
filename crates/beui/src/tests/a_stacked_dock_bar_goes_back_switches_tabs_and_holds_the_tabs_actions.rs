@@ -35,7 +35,7 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     let _root = crate::reactive::RootScope::new();
     let closed = create_signal(Vec::new());
     let open = create_signal(Vec::<u64>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking layout mode=DockMode::Stacked focus=FIRST>
