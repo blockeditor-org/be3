@@ -9,6 +9,7 @@ use super::{ContentProjection, OwnedContentProjection};
 use crate::{EditorHost, HostContent};
 
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
+mod a_foreign_edit_during_an_edit_in_flight_runs_only_what_either_touched;
 mod a_snapshot_carries_where_removed_items_were;
 mod an_edit_before_the_content_arrives_is_dropped;
 mod an_edit_coming_back_as_mine_runs_nothing_again;

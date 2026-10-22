@@ -109,6 +109,16 @@ impl<R: Root> LiveEdit for Document<R> {
         Document::apply_touching(self, operation, touched);
     }
 
+    fn apply_beneath(
+        &mut self,
+        confirmed: &mut Self,
+        operation: &Self::Op,
+        local: &[Self::Op],
+        touched: &mut Vec<Touched>,
+    ) {
+        Document::rebase(self, confirmed, operation, local, touched);
+    }
+
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         self.root().child_edit(change).map(|edit| vec![edit])
     }

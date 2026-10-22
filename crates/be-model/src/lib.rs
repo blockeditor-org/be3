@@ -1,6 +1,12 @@
 extern crate self as be_model;
 
-use std::{cell, collections::BTreeMap, fmt, marker::PhantomData, sync::OnceLock};
+use std::{
+    cell,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    marker::PhantomData,
+    sync::OnceLock,
+};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -12,6 +18,7 @@ mod history;
 mod items;
 mod latest;
 mod merge;
+mod rebase;
 pub mod references;
 pub mod schema;
 mod stored;
@@ -341,6 +348,41 @@ impl<R: Model> Document<R> {
         for change in &edit.0 {
             self.tree.touched(change, touched);
             self.change(change);
+        }
+    }
+
+    pub fn rebase(
+        &mut self,
+        confirmed: &mut Self,
+        incoming: &Edit,
+        local: &[Edit],
+        touched: &mut Vec<Touched>,
+    ) {
+        let mut spots = BTreeSet::new();
+        for edit in local {
+            rebase::around(&[&confirmed.tree, &self.tree], edit, &mut spots);
+        }
+        for change in &incoming.0 {
+            rebase::exact(&confirmed.tree, change, &mut spots);
+            confirmed.change(change);
+        }
+        for spot in &spots {
+            self.tree.touch_spot(*spot, touched);
+        }
+        for spot in &spots {
+            self.tree.restore(*spot, &confirmed.tree);
+        }
+        for spot in &spots {
+            self.tree.touch_spot(*spot, touched);
+        }
+        if let Some(index) = self.references.get_mut() {
+            let objects: BTreeSet<ObjectId> = spots.iter().map(|spot| spot.object()).collect();
+            for object in objects {
+                index.refresh(&self.tree, object);
+            }
+        }
+        for edit in local {
+            self.apply_touching(edit, touched);
         }
     }
 

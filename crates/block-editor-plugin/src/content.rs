@@ -280,30 +280,34 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
                     if !self.loaded.get() || self.resyncing.get() {
                         continue;
                     }
-                    let mut rebuild = false;
                     for (bytes, mine) in operations {
                         let Ok(operation) = C::decode_operation(&bytes) else {
                             self.resyncing.set(true);
                             self.host.request_content_resend(self.block);
                             break;
                         };
-                        self.confirmed.borrow_mut().apply(&operation);
                         let mut pending = self.pending.borrow_mut();
                         if mine {
+                            self.confirmed.borrow_mut().apply(&operation);
                             pending.pop_front();
                             self.acknowledged.set(self.acknowledged.get() + 1);
-                        } else if pending.is_empty() && !rebuild {
+                        } else if pending.is_empty() {
+                            self.confirmed.borrow_mut().apply(&operation);
                             self.visible
                                 .borrow_mut()
                                 .apply_touching(&operation, &mut self.touched.borrow_mut());
                             self.revision.set(self.revision.get() + 1);
                             self.log(Projected::Applied(operation));
                         } else {
-                            rebuild = true;
+                            self.visible.borrow_mut().apply_beneath(
+                                &mut self.confirmed.borrow_mut(),
+                                &operation,
+                                pending.make_contiguous(),
+                                &mut self.touched.borrow_mut(),
+                            );
+                            self.revision.set(self.revision.get() + 1);
+                            self.log(Projected::Rebuilt);
                         }
-                    }
-                    if rebuild {
-                        self.rebuild();
                     }
                 }
             }

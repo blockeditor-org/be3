@@ -179,6 +179,23 @@ pub trait LiveEdit: BlockContent {
         touched.push(Touched::Everything);
     }
 
+    fn apply_beneath(
+        &mut self,
+        confirmed: &mut Self,
+        operation: &Self::Op,
+        local: &[Self::Op],
+        touched: &mut Vec<Touched>,
+    ) where
+        Self: Clone,
+    {
+        confirmed.apply(operation);
+        *self = confirmed.clone();
+        for pending in local {
+            self.apply(pending);
+        }
+        touched.push(Touched::Everything);
+    }
+
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         let _ = change;
         None

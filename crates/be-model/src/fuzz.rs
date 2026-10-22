@@ -240,26 +240,28 @@ impl Client {
     }
 
     fn catch_up(&mut self, log: &[(usize, Edit)]) {
-        let mut rebuild = false;
         for (author, edit) in &log[self.seen..] {
-            self.confirmed.apply(edit);
             if *author == self.id {
+                self.confirmed.apply(edit);
                 let mine = self.pending.pop_front().map(|mine| wire(&mine));
                 assert_eq!(mine, Some(wire(edit)));
                 self.sent -= 1;
-            } else if self.pending.is_empty() && !rebuild {
+            } else if self.pending.is_empty() {
+                self.confirmed.apply(edit);
                 self.visible.apply(edit);
             } else {
-                rebuild = true;
+                let local: Vec<Edit> = self.pending.iter().cloned().collect();
+                self.visible
+                    .rebase(&mut self.confirmed, edit, &local, &mut Vec::new());
+                let mut rebuilt = self.confirmed.clone();
+                for edit in &local {
+                    rebuilt.apply(edit);
+                }
+                assert_eq!(self.visible, rebuilt);
+                assert_eq!(self.visible.session_state(), rebuilt.session_state());
             }
         }
         self.seen = log.len();
-        if rebuild {
-            self.visible = self.confirmed.clone();
-            for edit in &self.pending {
-                self.visible.apply(edit);
-            }
-        }
         check(&self.confirmed);
         check(&self.visible);
         if self.pending.is_empty() {

@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::items::ItemsState;
+use crate::rebase::Spot;
 use crate::{
     Anchor, Change, Items, Kind, Malformed, Model, Object, ObjectId, Objects, Place, Sequence,
     Shape, Touched, Value,
@@ -646,6 +647,47 @@ impl Tree {
             out.push((id, object.clone()));
         }
         out
+    }
+
+    pub(crate) fn touch_spot(&self, spot: Spot, out: &mut Vec<Touched>) {
+        match spot {
+            Spot::Field(object, field) => {
+                out.push(Touched::Field(object, field));
+                self.touch_up(object, out);
+            }
+            Spot::Object(object) => {
+                if let Some(held) = self.objects.get(&object) {
+                    out.extend((0..held.fields.len()).filter_map(|index| {
+                        u16::try_from(index)
+                            .ok()
+                            .map(|field| Touched::Field(object, field))
+                    }));
+                    if let Some(parent) = held.parent {
+                        self.touch_place(parent, out);
+                    }
+                }
+                self.touch_up(object, out);
+            }
+        }
+    }
+
+    pub(crate) fn restore(&mut self, spot: Spot, from: &Tree) {
+        let object = spot.object();
+        if let Spot::Field(_, field) = spot
+            && let (Some(held), Some(source)) =
+                (self.value_mut(object, field), from.value(object, field))
+        {
+            held.clone_from(source);
+            return;
+        }
+        match from.objects.get(&object) {
+            Some(source) => {
+                self.objects.insert(object, source.clone());
+            }
+            None => {
+                self.objects.remove(&object);
+            }
+        }
     }
 
     pub(crate) fn subtree_ids(&self, top: ObjectId) -> Vec<ObjectId> {
