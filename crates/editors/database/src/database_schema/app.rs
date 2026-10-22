@@ -1,8 +1,8 @@
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::DatabaseSchemaContent;
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -13,11 +13,13 @@ use ui::SchemaView;
 pub struct DatabaseSchemaApp;
 
 impl block_editor_beui::BeuiApp for DatabaseSchemaApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <SchemaView editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <SchemaView editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

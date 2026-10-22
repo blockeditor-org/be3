@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::styled::Root;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -457,14 +458,16 @@ impl GameCreationModel for GameCreation {
 pub struct DeterministicGameApp;
 
 impl block_editor_beui::BeuiApp for DeterministicGameApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         let game = store(BlockGame::new(editor));
         let snapshot = create_signal(GameSnapshot::Loading);
         create_effect(move || snapshot.set(game.value().snapshot()));
         let model: Rc<dyn GameModel> = game.value();
         let model = store(model);
         view! {
-            <GameView editor game={model} snapshot={snapshot.read_only()} />
+            <Root>
+                <GameView editor game={model} snapshot={snapshot.read_only()} />
+            </Root>
         }
     }
 

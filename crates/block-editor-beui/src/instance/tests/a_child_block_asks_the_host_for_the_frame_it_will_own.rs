@@ -10,17 +10,22 @@ const SLIDE_TYPE: Uuid = Uuid::from_u128(2);
 struct NestingApp;
 
 impl crate::BeuiApp for NestingApp {
-    fn view(editor: crate::Editor) -> beui::NodeId {
+    fn view(editor: crate::Editor) -> beui::styled::Root {
+        let node = {
+            view! {
+                <Frame>
+                    <ChildBlock
+                        editor={editor}
+                        block={Some(ChildTarget::new(SLIDE, SLIDE_TYPE))}
+                        mode=ChildMode::Live
+                        own_frame=true
+                        on_state={move |_: ChildState| {}}
+                    />
+                </Frame>
+            }
+        };
         view! {
-            <Frame>
-                <ChildBlock
-                    editor={editor}
-                    block={Some(ChildTarget::new(SLIDE, SLIDE_TYPE))}
-                    mode=ChildMode::Live
-                    own_frame=true
-                    on_state={move |_: ChildState| {}}
-                />
-            </Frame>
+            <beui::styled::Root>{node}</beui::styled::Root>
         }
     }
 }

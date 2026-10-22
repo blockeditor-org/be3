@@ -23,6 +23,7 @@ fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
         (artwork.0 - card.0).abs() < card.2 && (artwork.1 - card.1).abs() < card.3,
         "the artwork stays where the card was, at {artwork:?} rather than {card:?}"
     );
+    app.snapshot("a_pixel_art_on_a_canvas_takes_the_frame_in_place");
 
     app.run(&["wheel", &inside, "2"]);
     let panned = app.place(ARTWORK);

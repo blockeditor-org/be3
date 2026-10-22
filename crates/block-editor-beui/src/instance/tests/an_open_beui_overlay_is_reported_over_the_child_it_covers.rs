@@ -13,25 +13,30 @@ const PANEL: f32 = 120.0;
 struct OverlaidApp;
 
 impl crate::BeuiApp for OverlaidApp {
-    fn view(editor: crate::Editor) -> beui::NodeId {
-        let child = NodeRef::new();
+    fn view(editor: crate::Editor) -> beui::styled::Root {
+        let node = {
+            let child = NodeRef::new();
+            view! {
+                <Frame>
+                    <List spacing=0.0>
+                        <ChildBlock
+                            @node_ref={&child}
+                            @sizing=ItemSize::Percent(100.0)
+                            editor={editor}
+                            block={Some(ChildTarget::new(BLOCK, BLOCK_TYPE))}
+                            mode=ChildMode::Live
+                            own_frame=true
+                            on_state={move |_: ChildState| {}}
+                        />
+                        <Floating anchor={child}>
+                            <Frame width=PANEL height=PANEL />
+                        </Floating>
+                    </List>
+                </Frame>
+            }
+        };
         view! {
-            <Frame>
-                <List spacing=0.0>
-                    <ChildBlock
-                        @node_ref={&child}
-                        @sizing=ItemSize::Percent(100.0)
-                        editor={editor}
-                        block={Some(ChildTarget::new(BLOCK, BLOCK_TYPE))}
-                        mode=ChildMode::Live
-                        own_frame=true
-                        on_state={move |_: ChildState| {}}
-                    />
-                    <Floating anchor={child}>
-                        <Frame width=PANEL height=PANEL />
-                    </Floating>
-                </List>
-            </Frame>
+            <beui::styled::Root>{node}</beui::styled::Root>
         }
     }
 }

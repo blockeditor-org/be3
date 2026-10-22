@@ -56,8 +56,27 @@ pub fn painting(
     let turn_of = |turn: crate::draw::Turn| turned(turn, pixels_per_point);
     let mut textures = BTreeMap::new();
     let mut primitives = Vec::new();
+    let quads = crate::draw::quads(output, pixels_per_point).list;
+    let mut background = background;
+    if punches == Punches::Erase
+        && background.alpha() > 0
+        && quads.iter().any(|quad| matches!(quad, Quad::Punch { .. }))
+    {
+        let whole = [0.0, 0.0, size.x, size.y];
+        primitives.push(Primitive {
+            clip: whole,
+            content: Content::RoundedRect(RoundedRect {
+                rect: whole,
+                corner_radius: 0.0,
+                stroke_width: 0.0,
+                color: background.to_array(),
+                turn: Turn::NONE,
+            }),
+        });
+        background = Color32::TRANSPARENT;
+    }
     let mut joined = false;
-    for quad in crate::draw::quads(output, pixels_per_point).list {
+    for quad in quads {
         let joining = std::mem::replace(&mut joined, false);
         if let Quad::Triangle {
             corners,

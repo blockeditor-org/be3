@@ -261,7 +261,7 @@ impl PluginSurface {
                 height as f32 / pixels_per_point,
             ),
             pixels_per_point,
-            beui_core::color::Color32::TRANSPARENT,
+            output.window.appearance.clear_color,
             beui_core::painting::Punches::Erase,
         )
         .ok()

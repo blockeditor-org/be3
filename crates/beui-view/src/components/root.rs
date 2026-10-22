@@ -14,6 +14,10 @@ impl Root {
     pub fn child(&self) -> NodeId {
         self.child
     }
+
+    pub fn holding(self, child: NodeId) -> Root {
+        Root { child }
+    }
 }
 
 #[component]

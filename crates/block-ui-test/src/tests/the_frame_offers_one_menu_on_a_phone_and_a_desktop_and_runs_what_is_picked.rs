@@ -1,5 +1,6 @@
 use beui::Vec2;
 use beui::icons::ICON_AUTO_FIX_HIGH;
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{BarAction, BlockCommand};
 use block_plugin_api::MenuCheck;
 
@@ -8,9 +9,11 @@ use super::*;
 struct ActionApp;
 
 impl BeuiApp for ActionApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Tidy editor={editor} />
+            <Root>
+                <Tidy editor={editor} />
+            </Root>
         }
     }
 }

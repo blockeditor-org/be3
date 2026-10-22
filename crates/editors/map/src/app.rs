@@ -22,11 +22,13 @@ use toolbar::MapToolbar;
 pub struct MapApp;
 
 impl block_editor_beui::BeuiApp for MapApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <MapEditor editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <MapEditor editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

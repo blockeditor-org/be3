@@ -111,7 +111,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
-    pub fn with_view(editor: OwnedEditor, view: impl FnOnce() -> beui::NodeId + 'static) -> Self {
+    pub fn with_view(
+        editor: OwnedEditor,
+        view: impl FnOnce() -> beui::styled::Root + 'static,
+    ) -> Self {
         let block = editor.block_id();
         Self::open(
             Kind::Frame(block),

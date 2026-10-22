@@ -1,3 +1,4 @@
+use block_editor_beui::beui::styled::Root;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -22,7 +23,9 @@ fn a_pick_keeps_the_anchor_and_the_tab_it_was_asked_from() {
         let workspace = Workspace::new(editor, true, false);
         keep.set(Some(workspace));
         view! {
-            <WorkspaceBody workspace />
+            <Root>
+                <WorkspaceBody workspace />
+            </Root>
         }
     });
     test.run();

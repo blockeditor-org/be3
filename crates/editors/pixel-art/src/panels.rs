@@ -205,7 +205,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
             </List>
             <ToggleButton
                 glyph={ICON_FORMAT_COLOR_FILL.to_owned()}
-                label="Fill rectangles and ellipses"
+                label="Filled shapes"
                 pressed={filled}
                 disabled={shapes}
             />

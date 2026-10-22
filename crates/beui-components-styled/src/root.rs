@@ -6,6 +6,8 @@ use beui_view::reactive::{Child, Get, Prop, create_memo};
 use crate::frame::ColorRole;
 use crate::theme::{ThemeKind, use_theme};
 
+pub type Root = primitives::Root;
+
 #[component]
 pub fn Root(
     clear_color: Option<Prop<ColorRole>>,

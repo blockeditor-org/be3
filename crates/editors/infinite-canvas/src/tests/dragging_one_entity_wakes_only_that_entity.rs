@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::styled::Root;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -62,9 +63,11 @@ fn dragging_one_entity_wakes_only_that_entity() {
     let mut editor = BeuiTest::<CanvasApp>::with_view(owner, move || {
         let ids = watched.clone();
         view! {
-            <Loaded>
-                <CountingCanvas editor={handle} ids={ids} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <CountingCanvas editor={handle} ids={ids} />
+                </Loaded>
+            </Root>
         }
     })
     .in_viewport();

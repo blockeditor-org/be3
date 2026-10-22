@@ -2321,9 +2321,14 @@ accessibility tree with its title and passes it to `Platform::show_window`.
 winit retitles the window and the web adapter retitles the browser tab and
 colours the page's body to match; Android follows `system_bars`; DRM, headless
 and plugins ignore the title. A plugin pane has no title of its own and the
-plugin protocol carries none: block-editor-beui roots each pane's document in a
-transparent `primitives::Root`, so the host shows behind wherever the editor
-does not paint. Documents drawn over another one (the inspector's panels, the
+plugin protocol carries none: `BeuiApp::view` returns the editor's own `Root`,
+whose `clear_color` the plugin's surface is cleared to (the theme's background
+unless the editor names another role), and block-editor-beui puts the frame's
+chrome around that root's child. The pieces drawn over something of the host's
+(a preview, a creation dialog, artifact settings) are rooted in a transparent
+one. Holes are cut from that colour, never left by it: a child editor's `Embed`
+punches its rectangle, and a painting with holes records the colour as its first
+primitive so they cut it. Documents drawn over another one (the inspector's panels, the
 software keyboard) are built with `Document::new`, `enter` and `set_root` and
 have no `Root`, so they leave the window's appearance alone.
 
@@ -2943,9 +2948,11 @@ pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
 pub struct CounterApp;
 
 impl block_editor_beui::BeuiApp for CounterApp {
-    fn view(editor: block_editor_beui::Editor) -> NodeId {
+    fn view(editor: block_editor_beui::Editor) -> Root {
         view! {
-            <Counter editor={editor} />
+            <Root>
+                <Counter editor={editor} />
+            </Root>
         }
     }
 

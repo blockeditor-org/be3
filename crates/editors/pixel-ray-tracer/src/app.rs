@@ -22,11 +22,13 @@ const TOOLS_WIDTH: f32 = 148.0;
 pub struct PixelRayTracerApp;
 
 impl block_editor_beui::BeuiApp for PixelRayTracerApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <PixelRayTracerEditor editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <PixelRayTracerEditor editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

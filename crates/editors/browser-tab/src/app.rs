@@ -1,7 +1,8 @@
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::BrowserTabContent;
+use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -16,11 +17,13 @@ use ui::BrowserTab;
 pub struct BrowserTabApp;
 
 impl block_editor_beui::BeuiApp for BrowserTabApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <BrowserTab editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <BrowserTab editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

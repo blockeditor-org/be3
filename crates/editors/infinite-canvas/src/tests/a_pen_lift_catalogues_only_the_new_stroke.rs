@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::styled::Root;
 use std::cell::Cell;
 
 use block_editor_beui::Loaded;
@@ -59,9 +60,11 @@ fn a_pen_lift_catalogues_only_the_new_stroke() {
     let handle = *owner;
     let mut editor = BeuiTest::<CanvasApp>::with_view(owner, move || {
         view! {
-            <Loaded>
-                <CataloguedCanvas editor={handle} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <CataloguedCanvas editor={handle} />
+                </Loaded>
+            </Root>
         }
     })
     .in_viewport();

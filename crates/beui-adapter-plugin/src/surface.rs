@@ -40,7 +40,7 @@ pub(crate) struct Surface {
     pub(crate) age: u32,
     pub(crate) laid: Rect,
     pub(crate) screens: Vec<Screen>,
-    look: Option<(f32, Rect)>,
+    look: Option<(f32, Rect, Color32)>,
     pending: Option<Damage>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     history: VecDeque<Option<Damage>>,
@@ -93,8 +93,8 @@ impl Surface {
         self.pending.is_some()
     }
 
-    fn note(&mut self, output: &FrameOutput, scale: f32) {
-        let look = (scale, self.laid);
+    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+        let look = (scale, self.laid, background);
         let moved = self.look.as_ref() != Some(&look);
         self.look = Some(look);
         let damage = match output.damaged() {
@@ -122,16 +122,18 @@ impl Surface {
         let Some(damage) = self.repaint(painted) else {
             return false;
         };
+        let background = self
+            .look
+            .map_or(Color32::TRANSPARENT, |(_, _, background)| background);
         let whole = Repaint::Region {
             region: Region::from(frame),
-            background: Color32::TRANSPARENT,
+            background,
         };
         let repaint = match (self.age, damage) {
-            (0, _) => Repaint::Everything,
-            (_, Damage::Everything) => whole,
+            (0, _) | (_, Damage::Everything) => whole,
             (_, Damage::Region(region)) => Repaint::Region {
                 region: region.clipped(frame),
-                background: Color32::TRANSPARENT,
+                background,
             },
         };
         if let Repaint::Region { region, .. } = repaint
@@ -292,14 +294,14 @@ impl Renderer for SurfaceRenderer {
         Some(self.0.borrow().screens.clone())
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, _background: Color32) -> bool {
+    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
         let mut surface = self.0.borrow_mut();
-        surface.note(output, scale);
+        surface.note(output, scale, background);
         surface.prepare(output, scale)
     }
 
-    fn note(&mut self, output: &FrameOutput, scale: f32, _background: Color32) {
-        self.0.borrow_mut().note(output, scale);
+    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+        self.0.borrow_mut().note(output, scale, background);
     }
 
     fn present(&mut self, _background: Color32) -> bool {
