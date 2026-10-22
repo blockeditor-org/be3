@@ -31,6 +31,8 @@ const HOST_ROUNDS: usize = 8;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
+
+const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 const WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(1_772_444_460);
 
@@ -166,6 +168,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 store.own(block, block_type);
                 EditorMessage::Open {
                     instance: INSTANCE,
+                    editor: ADOPTED_EDITOR,
                     block_id: block.into_bytes(),
                     block_type: block_type.into_bytes(),
                     view_block: host.view_block().map(Uuid::into_bytes),
@@ -177,7 +180,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
             Kind::Creation => EditorMessage::OpenCreation {
                 instance: INSTANCE,
-                block_type: block_type.into_bytes(),
+                editor: ADOPTED_EDITOR,
                 template: template.clone(),
                 account_id,
                 organization_id,
@@ -185,7 +188,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             },
             Kind::Settings => EditorMessage::OpenArtifact {
                 instance: INSTANCE,
-                source_type: block_type.into_bytes(),
+                editor: ADOPTED_EDITOR,
                 block_id: artifact.unwrap_or_default().into_bytes(),
                 block_type: block_type.into_bytes(),
                 account_id,

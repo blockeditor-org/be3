@@ -2,12 +2,12 @@
   "id": "be3.beui_gallery",
   "name": "beui demo",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "62657569-2d64-656d-6f2d-626c6f636b31",
+  "editors": {
+    "gallery": {
+      "id": "010432b8-4c49-48b1-b6e1-67fa19feafea",
+      "edits": "62657569-2d64-656d-6f2d-626c6f636b31",
       "display_name": "beui demo",
-      "color": [44, 158, 128],
-      "icon": "",
+      "icon": "\ue1bd",
       "templates": {
         "main": {
           "category": "debug"
@@ -17,6 +17,6 @@
         "Frame"
       ]
     }
-  ],
+  },
   "entry_point": "beui_gallery.wasm"
 }

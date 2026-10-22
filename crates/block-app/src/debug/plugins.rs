@@ -65,9 +65,11 @@ fn manifest_lines(lines: &mut Vec<Line>, manifest: &PluginManifest) {
             LineStyle::Body,
             1,
             format!(
-                "{} — {}",
+                "{} ({}) — {} · edits {:?}",
                 editor.display_name,
-                uuid::Uuid::from_bytes(editor.block_type)
+                editor.name,
+                uuid::Uuid::from_bytes(editor.id),
+                editor.edits.block_type().map(uuid::Uuid::from_bytes)
             ),
         );
         let mut small = |text: String| push(lines, LineStyle::Muted, 2, text);
@@ -75,10 +77,6 @@ fn manifest_lines(lines: &mut Vec<Line>, manifest: &PluginManifest) {
         small(format!(
             "interaction {:?} · resize {:?}",
             editor.interaction, editor.resize
-        ));
-        small(format!(
-            "children add {} · delete {} · replace {}",
-            editor.children.add, editor.children.delete, editor.children.replace
         ));
         small(format!(
             "capabilities {}",

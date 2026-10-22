@@ -6,12 +6,13 @@ fn manifest(id: &str, name: &str, block_type: &str) -> PluginManifest {
             "id": "{id}",
             "name": "{name}",
             "version": "0.1.0",
-            "editors": [{{
-                "block_type": "{block_type}",
+            "editors": {{"main": {{
+                "id": "00000000-0000-4000-8000-00000000e417",
+                "edits": "{block_type}",
                 "display_name": "{name}",
                 "icon": "x",
                 "regions": ["Frame"]
-            }}],
+            }}}},
             "entry_point": "{id}.wasm"
         }}"#
     ))

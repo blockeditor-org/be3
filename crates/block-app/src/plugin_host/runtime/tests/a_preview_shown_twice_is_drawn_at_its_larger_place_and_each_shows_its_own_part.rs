@@ -10,12 +10,13 @@ fn manifest() -> PluginManifest {
             "id": "test.previewed",
             "name": "Previewed",
             "version": "0.1.0",
-            "editors": [{
-                "block_type": "00000000-0000-4000-8000-0000000000d1",
+            "editors": {"main": {
+                "id": "00000000-0000-4000-8000-00000000e417",
+                "edits": "00000000-0000-4000-8000-0000000000d1",
                 "display_name": "Previewed",
                 "icon": "x",
                 "regions": ["Frame", "Preview"]
-            }],
+            }},
             "entry_point": "test.previewed.wasm"
         }"#,
     )
@@ -68,11 +69,14 @@ fn a_preview_shown_twice_is_drawn_at_its_larger_place_and_each_shows_its_own_par
             .insert(plugin.identity.id.clone(), Runtime::new(&plugin, 0));
     });
     let block_types = Arc::new(block_plugin_api::Catalog::default());
-    let role = InstanceRole::Editor(EditorBlock {
-        id: Uuid::nil(),
-        block_type: Uuid::nil(),
-        view_block: None,
-    });
+    let role = InstanceRole::Editor(
+        Uuid::nil(),
+        EditorBlock {
+            id: Uuid::nil(),
+            block_type: Uuid::nil(),
+            view_block: None,
+        },
+    );
     for _ in 0..2 {
         with("test.previewed", |runtime| {
             runtime

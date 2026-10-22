@@ -2,19 +2,14 @@
   "id": "be3.map",
   "name": "Map",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "6d617076-6965-7762-6c6f-636b00000001",
+  "editors": {
+    "map": {
+      "id": "6f298cb3-c1c9-4b9b-8661-886a6466c1d8",
+      "edits": "6d617076-6965-7762-6c6f-636b00000001",
       "display_name": "Map",
-      "color": [64, 155, 173],
       "icon": "\ue55b",
       "templates": {
         "main": {}
-      },
-      "children": {
-        "add": true,
-        "delete": true,
-        "replace": true
       },
       "capabilities": {
         "rotation": false,
@@ -28,7 +23,7 @@
         "Preview"
       ]
     }
-  ],
+  },
   "entry_point": "map.wasm",
   "network": [
     "vector.openstreetmap.org"

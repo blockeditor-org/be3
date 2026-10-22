@@ -1274,15 +1274,17 @@ shell when it changes. block-app's sessions screen (the organization list's
 dropdown, or Sessions and profiles in the app menu) picks the device's settings
 profile and its session, or starts a new one of either. A shell keeps its dock
 layout and recents in the session's state; every tab, and the file tree, is an
-`EditorView` child of the session that the layout references, and closing a tab
-detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
-own view, so a workspace-ui session opened on the desktop keeps its tabs in its own
+`EditorView` child of the session that the layout references, naming the editor
+the tab shows it in, and closing a tab detaches its view. A tab on a block that is
+itself an `EditorView` (a session) uses it as its view and opens the editor it
+names, so a workspace-ui session opened on the desktop keeps its tabs in its own
 session and closing it leaves that session alone.
 
 ### View state
 
 What a person has open is blocks too, one generic type for all of it:
-`EditorView { editor, content, state }` names the editor that draws it, the
+`EditorView { editor, content, state }` names the editor that draws it (the
+`id` its manifest gives it, never a block type), the
 block it shows (none for the file tree or workspace-ui itself), and a
 `LatestMap` of opaque `ViewState { bytes, refs }` the editor owns. `refs` are the
 blocks an entry points at; `references()` is `content` plus every entry's refs,
@@ -1300,8 +1302,9 @@ with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
 `editor.set_view_state(key, state)` read and write it; writes skip the block's
 editability, since view state is the viewer's own. An editor on no content (the
 file tree, workspace-ui) is opened on its own view block, and the host links
-that block's content as an `EditorView`. `be_block::profile::VIEW_EDITORS` lists
-the editor ids that are not content types.
+that block's content as an `EditorView`: its manifest names no `edits`, and the
+host opens it on a block of type `EditorView` only when asked for it by id.
+`be_block::profile` holds the ids of the shells and the file tree.
 
 ### What to keep true
 

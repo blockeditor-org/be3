@@ -45,21 +45,31 @@ impl Plugins {
             }
         };
         for block_type in manifest.editors.iter().flat_map(|editor| {
-            std::iter::once(editor.block_type)
+            editor
+                .edits
+                .block_type()
+                .into_iter()
                 .chain(editor.templates.iter().map(|template| template.block_type))
         }) {
-            if block_type == block_plugin_api::ANY_BLOCK_TYPE {
-                continue;
-            }
             let block_type = Uuid::from_bytes(block_type);
-            if !crate::be::is_known(block_type)
-                && !be_block::profile::VIEW_EDITORS.contains(&block_type)
-            {
+            if !crate::be::is_known(block_type) || be_block::block_type(block_type).is_none() {
                 self.errors.push(format!(
                     "{source}: {block_type} is not a block type this app has"
                 ));
                 return;
             }
+        }
+        if let Some(editor) = manifest.editors.iter().find(|editor| {
+            self.manifests
+                .iter()
+                .flat_map(|existing| &existing.editors)
+                .any(|existing| existing.id == editor.id)
+        }) {
+            self.errors.push(format!(
+                "{source}: {} is already the id of an editor that was found first",
+                Uuid::from_bytes(editor.id)
+            ));
+            return;
         }
         if let Some(existing) = self
             .manifests

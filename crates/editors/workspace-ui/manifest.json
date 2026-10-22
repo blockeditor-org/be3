@@ -2,11 +2,10 @@
   "id": "be3.workspace-ui",
   "name": "Workspace",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "776f726b-7370-6163-652d-75692d303031",
+  "editors": {
+    "workspace": {
+      "id": "de8b500a-12d8-4bc0-8381-8bbfdc9fe34f",
       "display_name": "Workspace",
-      "color": [203, 91, 125],
       "icon": "\ue8f0",
       "interaction": "Live",
       "resize": "None",
@@ -21,6 +20,6 @@
         "window"
       ]
     }
-  ],
+  },
   "entry_point": "workspace_ui.wasm"
 }

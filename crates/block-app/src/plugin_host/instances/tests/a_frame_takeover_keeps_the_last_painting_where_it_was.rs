@@ -4,11 +4,14 @@ const CARD: Rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(110.0, 110.0));
 const FRAME: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(400.0, 400.0));
 
 fn resize(instances: &mut Instances, rect: Rect) {
-    let role = InstanceRole::Editor(EditorBlock {
-        id: Uuid::nil(),
-        block_type: Uuid::nil(),
-        view_block: None,
-    });
+    let role = InstanceRole::Editor(
+        Uuid::nil(),
+        EditorBlock {
+            id: Uuid::nil(),
+            block_type: Uuid::nil(),
+            view_block: None,
+        },
+    );
     instances.report(
         INSTANCE,
         REGION,

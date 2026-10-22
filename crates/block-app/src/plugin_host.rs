@@ -253,7 +253,7 @@ pub(crate) struct EditorBlock {
 
 #[derive(Clone, Copy)]
 pub(crate) enum InstanceRole {
-    Editor(EditorBlock),
+    Editor(Uuid, EditorBlock),
     Creation(Uuid, &'static str),
     Artifact(Uuid, EditorBlock),
 }
@@ -261,7 +261,7 @@ pub(crate) enum InstanceRole {
 impl InstanceRole {
     pub(crate) fn block(self) -> Option<EditorBlock> {
         match self {
-            Self::Editor(block) | Self::Artifact(_, block) => Some(block),
+            Self::Editor(_, block) | Self::Artifact(_, block) => Some(block),
             Self::Creation(..) => None,
         }
     }
@@ -272,7 +272,7 @@ pub(crate) struct ArtifactSlot<'a> {
     pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
-    pub(crate) source_type: Uuid,
+    pub(crate) editor: Uuid,
     pub(crate) block: EditorBlock,
     pub(crate) data: &'a [u8],
     pub(crate) resync: bool,

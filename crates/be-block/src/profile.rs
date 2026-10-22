@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const WORKSPACE_EDITOR: Uuid = Uuid::from_u128(0x776f_726b_7370_6163_652d_7569_2d30_3031);
-pub const FILES_EDITOR: Uuid = Uuid::from_u128(0x6669_6c65_2d74_7265_652d_626c_6f63_6b01);
-pub const LINUX_DESKTOP_EDITOR: Uuid = Uuid::from_u128(0x6c69_6e75_782d_6465_736b_746f_702d_3031);
-pub const VIEW_EDITORS: [Uuid; 3] = [WORKSPACE_EDITOR, FILES_EDITOR, LINUX_DESKTOP_EDITOR];
+pub const WORKSPACE_EDITOR: Uuid = Uuid::from_u128(0xde8b_500a_12d8_4bc0_8381_8bbf_dc9f_e34f);
+pub const FILES_EDITOR: Uuid = Uuid::from_u128(0x9026_bab5_b23e_4b81_a693_d3a2_5090_5f9e);
+pub const LINUX_DESKTOP_EDITOR: Uuid = Uuid::from_u128(0x378d_6c68_d52a_4781_addb_fde9_a8af_f2e2);
 pub const RECENTS: &str = "recents";
 pub const MAX_RECENT: usize = 20;
 

@@ -1,6 +1,8 @@
 pub mod app;
 
-block_editor_beui::beui_plugin!(app::WorkspaceUiApp, "../manifest.json");
+block_editor_beui::beui_plugin!("../manifest.json", {
+    workspace => app::WorkspaceUiApp,
+});
 
 #[cfg(test)]
 mod tests;
