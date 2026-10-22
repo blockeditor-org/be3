@@ -168,7 +168,7 @@ impl AppTest {
         let mut words = vec!["paint"];
         words.extend(self.crop.as_deref());
         self.steps
-            .push(line(&words).replacen("paint", "paint FILE", 1));
+            .push(line(&words).replacen("paint", "paint painted.paint", 1));
         let painted = match self.driven().request(&words) {
             Ok(Reply::Painting(bytes)) => Painting::decode(&bytes).and_then(Snapshot::of_painting),
             Ok(_) => Err("paint answered with something other than a painting".to_owned()),
