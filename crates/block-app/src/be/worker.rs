@@ -5,7 +5,7 @@ use std::{
 };
 
 use be_block::history::History as UndoHistory;
-use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
+use be_block::{BlockContent, BlockMetadata, Landed, LiveEdit, Merge, Undo};
 use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
@@ -804,8 +804,13 @@ where
 }
 
 pub(crate) enum Logged {
-    Operation { bytes: Vec<u8>, origin: Option<u64> },
-    Replaced { acknowledged: HashMap<u64, u64> },
+    Operation {
+        landed: Landed<Vec<u8>>,
+        origin: Option<u64>,
+    },
+    Replaced {
+        acknowledged: HashMap<u64, u64>,
+    },
 }
 
 fn drain<C>(live: &mut Live<Store, C>, log: &mut Vec<Logged>, origin: Option<u64>)
@@ -813,40 +818,41 @@ where
     C: LiveEdit + Clone + Default,
 {
     for entry in live.take_journal() {
-        match entry {
-            Journaled::Edited(operation) => log.push(Logged::Operation {
-                bytes: C::encode_operation(&operation),
-                origin,
-            }),
-            Journaled::Applied(operation) => log.push(Logged::Operation {
-                bytes: C::encode_operation(&operation),
-                origin: None,
-            }),
-            Journaled::Replaced { edits } => {
-                let mut acknowledged = HashMap::new();
-                for logged in log.drain(..) {
-                    match logged {
-                        Logged::Operation {
-                            origin: Some(origin),
-                            ..
-                        } => *acknowledged.entry(origin).or_default() += 1,
-                        Logged::Operation { origin: None, .. } => {}
-                        Logged::Replaced {
-                            acknowledged: earlier,
-                        } => {
-                            for (origin, count) in earlier {
-                                *acknowledged.entry(origin).or_default() += count;
-                            }
+        let from = match entry {
+            Journaled::Edited { .. } => origin,
+            _ => None,
+        };
+        if let Journaled::Replaced { edits } = entry {
+            let mut acknowledged = HashMap::new();
+            for logged in log.drain(..) {
+                match logged {
+                    Logged::Operation {
+                        origin: Some(origin),
+                        ..
+                    } => *acknowledged.entry(origin).or_default() += 1,
+                    Logged::Operation { origin: None, .. } => {}
+                    Logged::Replaced {
+                        acknowledged: earlier,
+                    } => {
+                        for (origin, count) in earlier {
+                            *acknowledged.entry(origin).or_default() += count;
                         }
                     }
                 }
-                if let Some(origin) = origin
-                    && edits > 0
-                {
-                    *acknowledged.entry(origin).or_default() += edits;
-                }
-                log.push(Logged::Replaced { acknowledged });
             }
+            if let Some(origin) = origin
+                && edits > 0
+            {
+                *acknowledged.entry(origin).or_default() += edits;
+            }
+            log.push(Logged::Replaced { acknowledged });
+            continue;
+        }
+        if let Some(landed) = entry.landed() {
+            log.push(Logged::Operation {
+                landed: landed.map(C::encode_operation),
+                origin: from,
+            });
         }
     }
 }
@@ -2155,12 +2161,19 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<M
 }
 
 fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
-    let known: HashMap<Uuid, usize> = {
+    let logs: HashMap<Uuid, Vec<Logged>> = sessions
+        .iter_mut()
+        .map(|(block, session)| (*block, session.take_log()))
+        .collect();
+    let known: HashMap<Uuid, (usize, bool)> = {
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         sessions
             .keys()
             .filter(|block| !held.previewed.contains(*block))
-            .filter_map(|block| Some((*block, held.blocks.get(block)?.unfolded())))
+            .filter_map(|block| {
+                let content = held.blocks.get(block)?;
+                Some((*block, (content.unfolded(), content.lands(&logs[block]))))
+            })
             .collect()
     };
     let unsealed = sessions
@@ -2171,19 +2184,22 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         .values()
         .filter(|session| session.owes_seal())
         .count();
+    let mut logs = logs;
     let published: Vec<Published> = sessions
         .iter_mut()
         .map(|(block, session)| {
-            let log = session.take_log();
-            let snapshot = match known.get(block) {
-                None => true,
-                Some(unfolded) => {
-                    log.iter()
-                        .any(|entry| matches!(entry, Logged::Replaced { .. }))
-                        || unfolded + log.len() > super::LOG_LIMIT / 2
-                }
+            let log = logs.remove(block).unwrap_or_default();
+            let (snapshot, compact) = match known.get(block) {
+                None => (true, false),
+                Some((unfolded, lands)) => (
+                    !lands
+                        || log
+                            .iter()
+                            .any(|entry| matches!(entry, Logged::Replaced { .. })),
+                    unfolded + log.len() > super::LOG_LIMIT / 2,
+                ),
             };
-            let content = (snapshot || !log.is_empty()).then(|| {
+            let content = (snapshot || compact || !log.is_empty()).then(|| {
                 (
                     session.content_type(),
                     snapshot.then(|| (session.bytes(), session.session_state())),
@@ -2250,8 +2266,10 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 for entry in published.log {
                     content.record(entry);
                 }
-                if let Some((bytes, session)) = snapshot {
-                    content.settle(bytes, session);
+                match snapshot {
+                    Some((bytes, session)) => content.settle(bytes, session),
+                    None if content.unfolded() > super::LOG_LIMIT / 2 => content.compact(),
+                    None => {}
                 }
                 content.derived = derived;
             }

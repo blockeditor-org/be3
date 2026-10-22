@@ -32,7 +32,10 @@ async fn the_journal_says_how_each_peer_saw_its_content_change() {
     .await;
     assert_eq!(
         on_phone.take_journal(),
-        [Journaled::Edited(Counter::add(1))]
+        [Journaled::Edited {
+            operation: Counter::add(1),
+            unsettled: 0
+        }]
     );
     assert_eq!(
         on_laptop.take_journal(),
@@ -52,7 +55,10 @@ async fn the_journal_says_how_each_peer_saw_its_content_change() {
     );
     assert_eq!(
         on_laptop.take_journal(),
-        [Journaled::Edited(Counter::add(10))],
+        [Journaled::Edited {
+            operation: Counter::add(10),
+            unsettled: 1
+        }],
         "the laptop's own edit coming back changed nothing it could see"
     );
 

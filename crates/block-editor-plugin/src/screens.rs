@@ -275,6 +275,7 @@ impl Screens {
                 content_type,
                 bytes,
                 session: state,
+                unsettled,
                 applied,
             }) => {
                 let Some(session) = self.sessions.get(instance) else {
@@ -286,6 +287,10 @@ impl Screens {
                         content_type: Uuid::from_bytes(*content_type),
                         bytes: bytes.clone(),
                         session: state.clone(),
+                        unsettled: unsettled
+                            .iter()
+                            .map(|operation| operation.to_vec())
+                            .collect(),
                         applied: *applied,
                     },
                 );
@@ -345,13 +350,7 @@ impl Screens {
                 let Some(session) = self.sessions.get(instance) else {
                     return false;
                 };
-                session.push_content_operations(
-                    Uuid::from_bytes(*block_id),
-                    operations
-                        .iter()
-                        .map(|operation| (operation.operation.clone(), operation.mine))
-                        .collect(),
-                );
+                session.push_content_operations(Uuid::from_bytes(*block_id), operations.clone());
             }
             Message::Editor(EditorMessage::FocusChanged {
                 instance,

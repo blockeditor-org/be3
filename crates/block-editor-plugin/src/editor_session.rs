@@ -181,7 +181,11 @@ impl EditorSession {
         self.host.set_peers(block, peers);
     }
 
-    pub(crate) fn push_content_operations(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
+    pub(crate) fn push_content_operations(
+        &self,
+        block: Uuid,
+        operations: Vec<block_plugin_api::ContentOperation>,
+    ) {
         match self.own_block == Some(block) {
             true => self.host.push_content_operations(operations),
             false => self.host.push_content_operations_of(block, operations),

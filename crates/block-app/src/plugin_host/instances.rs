@@ -9,7 +9,7 @@ use block_plugin_api::{
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
 };
-use block_plugin_api::{DescribedAction, WindowRequests};
+use block_plugin_api::{ByteBuf, DescribedAction, WindowRequests};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -211,6 +211,7 @@ impl ContentLink {
                 content_type,
                 bytes,
                 session,
+                unsettled,
                 applied,
             } => EditorMessage::Content {
                 instance,
@@ -218,15 +219,13 @@ impl ContentLink {
                 content_type: content_type.into_bytes(),
                 bytes,
                 session,
+                unsettled: unsettled.into_iter().map(ByteBuf::from).collect(),
                 applied,
             },
             crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
                 instance,
                 block_id,
-                operations: operations
-                    .into_iter()
-                    .map(|(operation, mine)| block_plugin_api::ContentOperation { operation, mine })
-                    .collect(),
+                operations,
             },
         }))
     }

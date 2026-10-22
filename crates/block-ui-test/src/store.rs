@@ -287,6 +287,8 @@ impl Block {
                     .map(|(operation, mine)| ContentOperation {
                         operation: operation.clone(),
                         mine: *mine,
+                        unsettled: 0,
+                        beneath: None,
                     })
                     .collect(),
             },
@@ -296,6 +298,7 @@ impl Block {
                 content_type: self.content.content_type().into_bytes(),
                 bytes: self.content.bytes(),
                 session: self.content.session_state(),
+                unsettled: Vec::new(),
                 applied: self.taken,
             },
         };

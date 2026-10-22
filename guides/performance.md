@@ -54,8 +54,10 @@ document: a be-model `Document` keeps its block references up to date from what 
 touched once they have been asked for (the test host asks after every edit, the app's
 worker on every publish), the app's worker publishes a block's operations and encodes a
 snapshot only every few hundred of them (`Content` folds the operations since its snapshot
-when something reads it), and an editor holding edits the host has not acknowledged rebases
-them under a peer's edit by what either touched (`Document::rebase`) instead of rebuilding.
+when something reads it), and an editor holding edits the host has not acknowledged, or a
+follower holding edits the owner has not accepted, rebases them under a peer's edit by what
+either touched (`Document::rebase`) instead of rebuilding; the follower's app tells its
+editors with a `Beneath` operation rather than a snapshot (guides/the_new_block_stack.md).
 
 Accessibility follows the camera the way placement does. Each space a node lays children
 into (a canvas's clipped, unclipped and scaled spaces, a scroll's content) is one

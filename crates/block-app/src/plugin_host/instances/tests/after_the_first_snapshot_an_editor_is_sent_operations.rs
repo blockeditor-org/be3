@@ -62,6 +62,8 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
             operations: vec![ContentOperation {
                 operation: own,
                 mine: true,
+                unsettled: 0,
+                beneath: None,
             }],
         }]
     );
@@ -77,6 +79,8 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
             operations: vec![ContentOperation {
                 operation: elsewhere,
                 mine: false,
+                unsettled: 0,
+                beneath: None,
             }],
         }]
     );

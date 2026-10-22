@@ -34,6 +34,7 @@ pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
     pub session: Vec<u8>,
+    pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
 }
 
@@ -43,6 +44,7 @@ impl HostContent {
             content_type: C::CONTENT_TYPE,
             bytes: content.encode(),
             session: content.session_state(),
+            unsettled: Vec::new(),
             applied: 0,
         }
     }
@@ -75,7 +77,7 @@ pub struct PeerPresence {
 #[derive(Clone)]
 pub enum ContentUpdate {
     Snapshot(HostContent),
-    Operations(Vec<(Vec<u8>, bool)>),
+    Operations(Vec<block_plugin_api::ContentOperation>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -925,11 +927,15 @@ impl EditorHost {
         self.update_content(Some(block), ContentUpdate::Snapshot(content));
     }
 
-    pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+    pub fn push_content_operations(&self, operations: Vec<block_plugin_api::ContentOperation>) {
         self.update_content(None, ContentUpdate::Operations(operations));
     }
 
-    pub fn push_content_operations_of(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
+    pub fn push_content_operations_of(
+        &self,
+        block: Uuid,
+        operations: Vec<block_plugin_api::ContentOperation>,
+    ) {
         self.update_content(Some(block), ContentUpdate::Operations(operations));
     }
 

@@ -854,13 +854,17 @@ changes (`Graph::derive`), until the save that publishes it.
 Content crosses the plugin protocol in four messages. Each names the block it is
 about, because an editor can work on more than its own block.
 
-- `EditorMessage::Content { block_id, content_type, bytes, applied }` - host to plugin, a
-  snapshot. `applied` counts the operations *this instance* sent that the
-  snapshot already contains, which is what lets a plugin tell its own
-  unacknowledged edits from everyone else's.
+- `EditorMessage::Content { block_id, content_type, bytes, unsettled, applied }` - host to
+  plugin, a snapshot: the settled content in `bytes`, and the operations on top of it the
+  host still holds unsettled (see below) in `unsettled`. `applied` counts the operations
+  *this instance* sent that the snapshot already contains, which is what lets a plugin tell
+  its own unacknowledged edits from everyone else's.
 - `EditorMessage::ContentOperations { block_id, operations }` - host to plugin, every
   operation since the last thing the instance was sent, in order, each marked
-  `mine` when this instance is the one that sent it.
+  `mine` when this instance is the one that sent it, with how many of the operations
+  sent so far the host still holds unsettled after it (`unsettled`), and, for a peer's
+  operation that goes beneath those, the unsettled operations as the host rebased them
+  (`beneath`).
 - `EditorMessage::Operate { block_id, operation }` - plugin to host.
 - `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks
   (and their content types) the editor wants to follow.
@@ -878,7 +882,7 @@ whichever block that currently names. A database view follows its database and
 the database's schema this way.
 
 Operations, not snapshots, are the normal case. `Live` journals how its visible
-content changed (`Journaled::Edited`, `Applied` or `Replaced`), the worker tags
+content changed (`Journaled::Edited`, `Applied`, `Beneath` or `Replaced`), the worker tags
 each edit with the origin the host gave the instance that sent it
 (`be::operate_from`), and each block's `Content` keeps the last few hundred
 operations beside its bytes. `be::update_since` sends an instance the operations
@@ -886,12 +890,29 @@ it has not seen, and falls back to a snapshot only when it is further behind
 than the log reaches or the content was replaced outright: a join, a reconcile
 or a merge. The worker only re-encodes a block when its journal says it changed.
 
+A follower's own edits stay unsettled until the owner accepts them, and a peer's
+operation that the owner sequenced before them goes beneath them. `Live` applies it
+with `LiveEdit::apply_beneath` (for a be-model `Document`, `Document::rebase`, which
+touches only what either side touched) and journals `Beneath` with the follower's
+operations as rebased, instead of rebuilding its content. Every journaled edit says
+how many operations are unsettled after it, counted the way receivers hold them (an
+edit absorbed into one still unsent counts on its own), so `be_block::Settling`, which
+keeps settled content and the unsettled operations on top, lands each entry the same
+way in the block's `Content` (which folds its log with it and sends snapshots split the
+same way) and in every `ContentProjection`. After a `Replaced` while edits are still
+unsettled, receivers hold them inside their settled content, so `Live` rebuilds again
+for a peer's operation until its unsettled operations drain; the worker likewise
+snapshots a block whose `Content` could not land a `Beneath`.
+
 On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
 per editor. `operate` applies an operation to what the view sees and queues it
 for the host. An operation that comes back `mine` only confirms what is already
 shown; one from anyone else is applied on top of it, unless an edit of this
-instance's is still in flight, in which case the visible state is rebuilt from
-the confirmed state and the pending edits. Applying an operation reports what it
+instance's is still in flight, in which case it goes beneath that edit
+(`LiveEdit::apply_beneath`), as a `Beneath` operation goes beneath the host's
+unsettled operations and this instance's pending ones together. Only an
+operation from another instance that the host itself has not settled, arriving
+while this instance has an edit in flight, rebuilds what the view sees. Applying an operation reports what it
 touched (`LiveEdit::apply_touching`), and a projection only runs when something
 it watches was touched; `guides/reactive.md` says how `project`, `field`, `ids`
 and `object` narrow that. `ContentProjection::read` answers `Err(Pending::Loading)`

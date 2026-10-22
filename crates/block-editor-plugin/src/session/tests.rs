@@ -64,6 +64,7 @@ fn content(instance: EditorInstanceId) -> Message {
         content_type: [7; 16],
         bytes: vec![0; 8],
         session: Vec::new(),
+        unsettled: Vec::new(),
         applied: 0,
     })
 }

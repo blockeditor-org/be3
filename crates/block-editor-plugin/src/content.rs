@@ -6,7 +6,7 @@ use std::{
 };
 
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
-use be_block::{LiveEdit, ObjectId, Root, Touched};
+use be_block::{LiveEdit, ObjectId, Root, Settling, Touched};
 use reactive::{
     Get, KeyedStore, OwnedSignal, OwnedStored, Pending, ReadSignal, Ready, Set, Stored,
     create_signal, on_cleanup,
@@ -61,7 +61,7 @@ pub enum Projected<Op> {
 struct Projection<C: LiveEdit> {
     host: EditorHost,
     block: Option<uuid::Uuid>,
-    confirmed: RefCell<C>,
+    confirmed: RefCell<Settling<C>>,
     visible: RefCell<C>,
     pending: RefCell<VecDeque<C::Op>>,
     acknowledged: Cell<u64>,
@@ -82,7 +82,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         Self {
             host,
             block,
-            confirmed: RefCell::new(C::default()),
+            confirmed: RefCell::new(Settling::new(C::default(), Vec::new())),
             visible: RefCell::new(C::default()),
             pending: RefCell::new(VecDeque::new()),
             acknowledged: Cell::new(0),
@@ -257,12 +257,20 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
                     if content.content_type != C::CONTENT_TYPE {
                         continue;
                     }
-                    let Ok(mut confirmed) = C::decode(&content.bytes) else {
+                    let Ok(mut settled) = C::decode(&content.bytes) else {
                         continue;
                     };
-                    if confirmed.adopt_session_state(&content.session).is_err() {
+                    if settled.adopt_session_state(&content.session).is_err() {
                         continue;
                     }
+                    let Ok(unsettled) = content
+                        .unsettled
+                        .iter()
+                        .map(|operation| C::decode_operation(operation))
+                        .collect::<Result<Vec<_>, _>>()
+                    else {
+                        continue;
+                    };
                     let taken = content.applied.saturating_sub(self.acknowledged.get());
                     self.acknowledged.set(content.applied);
                     {
@@ -271,7 +279,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
                             pending.pop_front();
                         }
                     }
-                    *self.confirmed.borrow_mut() = confirmed;
+                    *self.confirmed.borrow_mut() = Settling::new(settled, unsettled);
                     self.resyncing.set(false);
                     self.loaded.set(true);
                     self.rebuild();
@@ -280,33 +288,11 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
                     if !self.loaded.get() || self.resyncing.get() {
                         continue;
                     }
-                    for (bytes, mine) in operations {
-                        let Ok(operation) = C::decode_operation(&bytes) else {
+                    for operation in operations {
+                        if !self.take(operation) {
                             self.resyncing.set(true);
                             self.host.request_content_resend(self.block);
                             break;
-                        };
-                        let mut pending = self.pending.borrow_mut();
-                        if mine {
-                            self.confirmed.borrow_mut().apply(&operation);
-                            pending.pop_front();
-                            self.acknowledged.set(self.acknowledged.get() + 1);
-                        } else if pending.is_empty() {
-                            self.confirmed.borrow_mut().apply(&operation);
-                            self.visible
-                                .borrow_mut()
-                                .apply_touching(&operation, &mut self.touched.borrow_mut());
-                            self.revision.set(self.revision.get() + 1);
-                            self.log(Projected::Applied(operation));
-                        } else {
-                            self.visible.borrow_mut().apply_beneath(
-                                &mut self.confirmed.borrow_mut(),
-                                &operation,
-                                pending.make_contiguous(),
-                                &mut self.touched.borrow_mut(),
-                            );
-                            self.revision.set(self.revision.get() + 1);
-                            self.log(Projected::Rebuilt);
                         }
                     }
                 }
@@ -314,8 +300,71 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         }
     }
 
+    fn take(&self, landed: block_plugin_api::ContentOperation) -> bool {
+        let Ok(operation) = C::decode_operation(&landed.operation) else {
+            return false;
+        };
+        let mut confirmed = self.confirmed.borrow_mut();
+        let mut pending = self.pending.borrow_mut();
+        if let Some(local) = landed.beneath {
+            let Ok(local) = local
+                .iter()
+                .map(|operation| C::decode_operation(operation))
+                .collect::<Result<Vec<_>, _>>()
+            else {
+                return false;
+            };
+            let landed = confirmed.beneath(
+                &mut self.visible.borrow_mut(),
+                &operation,
+                landed.unsettled,
+                local,
+                pending.iter().cloned(),
+                &mut self.touched.borrow_mut(),
+            );
+            if landed {
+                self.revision.set(self.revision.get() + 1);
+                self.log(Projected::Rebuilt);
+            }
+            return landed;
+        }
+        if landed.mine {
+            pending.pop_front();
+            self.acknowledged.set(self.acknowledged.get() + 1);
+            confirmed.push(operation, landed.unsettled);
+            return true;
+        }
+        if pending.is_empty() {
+            self.visible
+                .borrow_mut()
+                .apply_touching(&operation, &mut self.touched.borrow_mut());
+            confirmed.push(operation.clone(), landed.unsettled);
+            self.revision.set(self.revision.get() + 1);
+            self.log(Projected::Applied(operation));
+            return true;
+        }
+        if landed.unsettled == 0 {
+            confirmed.settle_to(0);
+            confirmed.beneath(
+                &mut self.visible.borrow_mut(),
+                &operation,
+                0,
+                Vec::new(),
+                pending.iter().cloned(),
+                &mut self.touched.borrow_mut(),
+            );
+            self.revision.set(self.revision.get() + 1);
+            self.log(Projected::Rebuilt);
+            return true;
+        }
+        confirmed.push(operation, landed.unsettled);
+        drop((confirmed, pending));
+        self.rebuild();
+        true
+    }
+
     fn rebuild(&self) {
-        let mut visible = self.confirmed.borrow().clone();
+        let mut visible = self.confirmed.borrow().visible();
         for operation in self.pending.borrow().iter() {
             visible.apply(operation);
         }

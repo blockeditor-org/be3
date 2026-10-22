@@ -79,6 +79,8 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
             operations: vec![ContentOperation {
                 operation: add,
                 mine: true,
+                unsettled: 0,
+                beneath: None,
             }],
         }]
     );

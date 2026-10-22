@@ -1,5 +1,7 @@
 use super::*;
 
+use be_block::Landed;
+
 fn value(content: &Content) -> i64 {
     CounterContent::decode(content.bytes())
         .expect("the counter decodes")
@@ -17,7 +19,10 @@ fn shared_content_folds_the_operations_logged_since_its_snapshot() {
     );
     for _ in 0..3 {
         content.record(worker::Logged::Operation {
-            bytes: CounterContent::encode_operation(&Counter::add(2)),
+            landed: Landed::On {
+                operation: CounterContent::encode_operation(&Counter::add(2)),
+                unsettled: 0,
+            },
             origin: None,
         });
     }
@@ -31,7 +36,10 @@ fn shared_content_folds_the_operations_logged_since_its_snapshot() {
     assert_eq!(value(&content), 10);
 
     content.record(worker::Logged::Operation {
-        bytes: CounterContent::encode_operation(&Counter::add(1)),
+        landed: Landed::On {
+            operation: CounterContent::encode_operation(&Counter::add(1)),
+            unsettled: 0,
+        },
         origin: None,
     });
     assert_eq!(

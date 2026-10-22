@@ -866,6 +866,7 @@ pub enum EditorMessage {
         bytes: Vec<u8>,
         #[serde(with = "serde_bytes")]
         session: Vec<u8>,
+        unsettled: Vec<serde_bytes::ByteBuf>,
         applied: u64,
     },
     ContentOperations {
@@ -1522,6 +1523,8 @@ pub struct ContentOperation {
     #[serde(with = "serde_bytes")]
     pub operation: Vec<u8>,
     pub mine: bool,
+    pub unsettled: u64,
+    pub beneath: Option<Vec<serde_bytes::ByteBuf>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2513,7 +2516,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
-        EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
+        EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
+        EditorMessage::ContentOperations { operations, .. } => {
+            collection(operations.len())?;
+            for operation in operations {
+                collection(operation.beneath.as_ref().map_or(0, Vec::len))?;
+            }
+            Ok(())
+        }
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
         EditorMessage::BlocksFailed { error, .. } => string(error),
