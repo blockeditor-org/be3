@@ -603,11 +603,7 @@ impl Tree {
                 if let Some(place) = self.objects.get(object).and_then(|held| held.parent) {
                     self.touch_place(place, out);
                 }
-                out.extend(
-                    self.subtree(*object)
-                        .into_iter()
-                        .map(|(id, _)| Touched::Subtree(id)),
-                );
+                out.extend(self.subtree_ids(*object).into_iter().map(Touched::Subtree));
             }
             Change::Move { object, place, .. } => {
                 if let Some(from) = self.objects.get(object).and_then(|held| held.parent) {
@@ -648,6 +644,25 @@ impl Tree {
                 }
             }
             out.push((id, object.clone()));
+        }
+        out
+    }
+
+    pub(crate) fn subtree_ids(&self, top: ObjectId) -> Vec<ObjectId> {
+        let mut out = Vec::new();
+        let mut pending = vec![top];
+        while let Some(id) = pending.pop() {
+            let Some(object) = self.objects.get(&id) else {
+                continue;
+            };
+            for value in object.fields.iter().rev() {
+                if let Value::List(children) = value {
+                    let start = pending.len();
+                    pending.extend(children.iter().copied());
+                    pending[start..].reverse();
+                }
+            }
+            out.push(id);
         }
         out
     }
@@ -743,7 +758,7 @@ impl Tree {
             return false;
         }
         self.detach(object);
-        for (id, _) in self.subtree(object) {
+        for id in self.subtree_ids(object) {
             self.objects.remove(&id);
         }
         true

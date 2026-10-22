@@ -1,10 +1,13 @@
-use std::{collections::HashSet, ops::Deref};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
 
 use ciborium::tag::Required;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::{Kind, ObjectId, Shape, Stored, Tree, Value, stored};
+use crate::{Object, ObjectId, Stored, Tree, Value, stored};
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct BlockRef(pub Uuid);
@@ -70,50 +73,128 @@ pub mod block_ref {
     }
 }
 
-pub(crate) fn collect(tree: &Tree, kind: &Kind) -> Vec<Uuid> {
-    let mut found = Vec::new();
-    walk_object(tree, ObjectId::ROOT, kind, &mut found);
-    let mut seen = HashSet::new();
-    found.retain(|id| seen.insert(*id));
-    found
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Index {
+    held: HashMap<ObjectId, Vec<Uuid>>,
+    counts: HashMap<Uuid, usize>,
+    order: Vec<Uuid>,
 }
 
-fn walk_object(tree: &Tree, id: ObjectId, kind: &Kind, found: &mut Vec<Uuid>) {
-    let Some(object) = tree.object(id) else {
-        return;
-    };
-    if object.kept.kind.is_none() {
-        for (value, property) in object.fields.iter().zip(&kind.properties) {
-            match value {
-                Value::Register(held) => walk_bytes(held, found),
-                Value::Map(entries) => {
-                    for (key, value) in entries {
-                        walk_bytes(key, found);
-                        walk_bytes(value, found);
-                    }
-                }
-                Value::Latest(entries) => {
-                    for (key, stamped) in entries {
-                        walk_bytes(key, found);
-                        if let Some(value) = &stamped.value {
-                            walk_bytes(value, found);
+impl Index {
+    pub(crate) fn build(tree: &Tree) -> Self {
+        let mut index = Self::default();
+        let mut found = Vec::new();
+        index.visit(tree, ObjectId::ROOT, &mut found);
+        let mut seen = HashSet::new();
+        index.order = found.into_iter().filter(|id| seen.insert(*id)).collect();
+        index
+    }
+
+    fn visit(&mut self, tree: &Tree, id: ObjectId, found: &mut Vec<Uuid>) {
+        let Some(object) = tree.object(id) else {
+            return;
+        };
+        let mut own = Vec::new();
+        if object.kept.kind.is_none() {
+            for value in &object.fields {
+                match value {
+                    Value::List(items) => {
+                        for child in items.iter() {
+                            self.visit(tree, *child, found);
                         }
                     }
-                }
-                Value::List(items) => {
-                    if let Shape::List(child) = &property.shape {
-                        let child = child();
-                        for item in items.ids() {
-                            walk_object(tree, item, &child, found);
-                        }
+                    value => {
+                        let start = own.len();
+                        walk_value(value, &mut own);
+                        found.extend_from_slice(&own[start..]);
                     }
                 }
-                Value::Count(_) | Value::Grid(_) | Value::Text(_) | Value::Rich(_) => {}
             }
+        }
+        let start = own.len();
+        for held in object.kept.properties.values() {
+            walk_bytes(held, &mut own);
+        }
+        found.extend_from_slice(&own[start..]);
+        let mut seen = HashSet::new();
+        own.retain(|held| seen.insert(*held));
+        for held in &own {
+            *self.counts.entry(*held).or_default() += 1;
+        }
+        if !own.is_empty() {
+            self.held.insert(id, own);
+        }
+    }
+
+    pub(crate) fn ids(&self) -> Vec<Uuid> {
+        self.order.clone()
+    }
+
+    pub(crate) fn refresh(&mut self, tree: &Tree, id: ObjectId) {
+        let found = tree.object(id).map(held_by).unwrap_or_default();
+        self.set(id, found);
+    }
+
+    fn set(&mut self, id: ObjectId, found: Vec<Uuid>) {
+        if found.is_empty() && !self.held.contains_key(&id) {
+            return;
+        }
+        for gone in self.held.remove(&id).unwrap_or_default() {
+            let Some(count) = self.counts.get_mut(&gone) else {
+                continue;
+            };
+            *count -= 1;
+            if *count == 0 {
+                self.counts.remove(&gone);
+                self.order.retain(|held| *held != gone);
+            }
+        }
+        let mut seen = HashSet::new();
+        let found: Vec<Uuid> = found.into_iter().filter(|id| seen.insert(*id)).collect();
+        for added in &found {
+            let count = self.counts.entry(*added).or_default();
+            if *count == 0 {
+                self.order.push(*added);
+            }
+            *count += 1;
+        }
+        if !found.is_empty() {
+            self.held.insert(id, found);
+        }
+    }
+}
+
+fn held_by(object: &Object) -> Vec<Uuid> {
+    let mut found = Vec::new();
+    if object.kept.kind.is_none() {
+        for value in &object.fields {
+            walk_value(value, &mut found);
         }
     }
     for held in object.kept.properties.values() {
-        walk_bytes(held, found);
+        walk_bytes(held, &mut found);
+    }
+    found
+}
+
+fn walk_value(value: &Value, found: &mut Vec<Uuid>) {
+    match value {
+        Value::Register(held) => walk_bytes(held, found),
+        Value::Map(entries) => {
+            for (key, value) in entries {
+                walk_bytes(key, found);
+                walk_bytes(value, found);
+            }
+        }
+        Value::Latest(entries) => {
+            for (key, stamped) in entries {
+                walk_bytes(key, found);
+                if let Some(value) = &stamped.value {
+                    walk_bytes(value, found);
+                }
+            }
+        }
+        Value::List(_) | Value::Count(_) | Value::Grid(_) | Value::Text(_) | Value::Rich(_) => {}
     }
 }
 

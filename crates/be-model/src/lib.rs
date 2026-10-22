@@ -1,6 +1,6 @@
 extern crate self as be_model;
 
-use std::{cell, collections::BTreeMap, fmt, marker::PhantomData};
+use std::{cell, collections::BTreeMap, fmt, marker::PhantomData, sync::OnceLock};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -300,6 +300,7 @@ impl std::error::Error for Malformed {}
 
 pub struct Document<R> {
     tree: Tree,
+    references: OnceLock<references::Index>,
     root: PhantomData<fn() -> R>,
 }
 
@@ -313,6 +314,7 @@ impl<R: Model> Document<R> {
     fn from_tree(tree: Tree) -> Self {
         Self {
             tree,
+            references: OnceLock::new(),
             root: PhantomData,
         }
     }
@@ -331,14 +333,54 @@ impl<R: Model> Document<R> {
 
     pub fn apply(&mut self, edit: &Edit) {
         for change in &edit.0 {
-            self.tree.apply(R::kind, change);
+            self.change(change);
         }
     }
 
     pub fn apply_touching(&mut self, edit: &Edit, touched: &mut Vec<Touched>) {
         for change in &edit.0 {
             self.tree.touched(change, touched);
+            self.change(change);
+        }
+    }
+
+    fn change(&mut self, change: &Change) {
+        let Some(index) = self.references.get_mut() else {
             self.tree.apply(R::kind, change);
+            return;
+        };
+        let removed = match change {
+            Change::Remove { object } | Change::RemoveIf { object, .. } => {
+                self.tree.subtree_ids(*object)
+            }
+            _ => Vec::new(),
+        };
+        if !self.tree.apply(R::kind, change) {
+            return;
+        }
+        match change {
+            Change::Set { object, .. }
+            | Change::SetIf { object, .. }
+            | Change::Put { object, .. }
+            | Change::PutIf { object, .. }
+            | Change::Stamp { object, .. } => index.refresh(&self.tree, *object),
+            Change::Insert { objects, .. } => {
+                for (id, _) in objects {
+                    index.refresh(&self.tree, *id);
+                }
+            }
+            Change::Remove { .. } | Change::RemoveIf { .. } => {
+                for id in removed {
+                    index.refresh(&self.tree, id);
+                }
+            }
+            Change::Add { .. }
+            | Change::Paint { .. }
+            | Change::Reshape { .. }
+            | Change::Move { .. }
+            | Change::Text { .. }
+            | Change::Mark { .. }
+            | Change::Unmark { .. } => {}
         }
     }
 
@@ -402,7 +444,9 @@ impl<R: Model> Document<R> {
     }
 
     pub fn block_refs(&self) -> Vec<Uuid> {
-        references::collect(&self.tree, &R::kind())
+        self.references
+            .get_or_init(|| references::Index::build(&self.tree))
+            .ids()
     }
 
     pub fn text<M>(&self, object: ObjectId, field: FieldRef<M, Text>) -> Option<&Sequence<u8>> {
@@ -456,6 +500,7 @@ impl<R> Clone for Document<R> {
     fn clone(&self) -> Self {
         Self {
             tree: self.tree.clone(),
+            references: self.references.clone(),
             root: PhantomData,
         }
     }
