@@ -157,12 +157,14 @@ enum Phase {
         before: String,
     },
     Capturing {
+        target: Option<String>,
         crop: Option<Rect>,
         drawn: bool,
     },
     Painting {
         asked: bool,
         ready: bool,
+        target: Option<String>,
         crop: Option<[f32; 4]>,
         overflows: bool,
     },
@@ -357,16 +359,38 @@ impl Automation {
         let settling = |before: &mut String| Phase::Settling {
             before: Some(std::mem::take(before)),
         };
-        if let Phase::Capturing { drawn, .. } = &mut active.phase {
-            *drawn = !settled.drawing;
-        }
-        if let Phase::Painting {
-            asked: true, ready, ..
-        } = &mut active.phase
-        {
-            *ready = quiet;
-        }
         let mut failed = None;
+        match &mut active.phase {
+            Phase::Capturing {
+                target,
+                crop,
+                drawn,
+            } => {
+                *drawn = !settled.drawing;
+                if *drawn && let Some(target) = target {
+                    match locate(target, view.lines) {
+                        Ok(rect) => *crop = Some(rect),
+                        Err(error) => failed = Some(error),
+                    }
+                }
+            }
+            Phase::Painting {
+                asked: true,
+                ready,
+                target,
+                crop,
+                ..
+            } => {
+                *ready = quiet;
+                if *ready && let Some(target) = target {
+                    match locate(target, view.lines) {
+                        Ok(rect) => *crop = Some(in_points(rect, view.pixels_per_point)),
+                        Err(error) => failed = Some(error),
+                    }
+                }
+            }
+            _ => {}
+        }
         match &mut active.phase {
             Phase::Input {
                 steps,
@@ -1281,29 +1305,30 @@ impl Automation {
                 }))
             }
             "shot" => {
-                let crop = match arguments.first() {
+                let target = arguments.first().cloned();
+                let crop = match &target {
                     Some(target) => Some(locate(target, view.lines)?),
                     None => None,
                 };
-                Ok(Started::Phase(Phase::Capturing { crop, drawn: false }))
+                Ok(Started::Phase(Phase::Capturing {
+                    target,
+                    crop,
+                    drawn: false,
+                }))
             }
             "paint" => {
-                let scale = view.pixels_per_point;
-                let crop = match arguments.first() {
-                    Some(target) => {
-                        let rect = locate(target, view.lines)?;
-                        Some([
-                            rect.min.x / scale,
-                            rect.min.y / scale,
-                            rect.max.x / scale,
-                            rect.max.y / scale,
-                        ])
-                    }
+                let target = arguments.first().cloned();
+                let crop = match &target {
+                    Some(target) => Some(in_points(
+                        locate(target, view.lines)?,
+                        view.pixels_per_point,
+                    )),
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Painting {
                     asked: false,
                     ready: false,
+                    target,
                     crop,
                     overflows: false,
                 }))
@@ -1311,6 +1336,7 @@ impl Automation {
             "overflows" => Ok(Started::Phase(Phase::Painting {
                 asked: false,
                 ready: false,
+                target: None,
                 crop: None,
                 overflows: true,
             })),
@@ -1589,6 +1615,15 @@ fn actions(groups: &[ActionGroup], all: bool) -> String {
         }
     }
     text
+}
+
+fn in_points(rect: Rect, scale: f32) -> [f32; 4] {
+    [
+        rect.min.x / scale,
+        rect.min.y / scale,
+        rect.max.x / scale,
+        rect.max.y / scale,
+    ]
 }
 
 fn cropped(capture: Capture, crop: Option<Rect>) -> Reply {
