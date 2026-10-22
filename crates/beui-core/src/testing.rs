@@ -1,17 +1,18 @@
-use std::cell::{Ref, RefCell, RefMut};
+use std::any::Any;
 use std::future::Future;
 use std::pin::pin;
-use std::rc::Rc;
+use std::marker::PhantomData;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
-use crate::app::automation::{Inbox, Reply, Simulation, WindowSize, ask};
+use crate::app::automation::{Inbox, Reply, Resize, Simulation, WindowSize, ask};
 use crate::app::{App, SafeArea, Setup, Waker};
 use crate::color::Color32;
 use crate::context::RendererInfo;
 use crate::context::{Context, FrameOutput};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
+use crate::input::Event;
 use crate::renderer::{Loaded, Renderer};
 use crate::runner::{Launch, Platform, RunOptions, Runner};
 
@@ -51,46 +52,6 @@ pub struct Showing(pub Document);
 impl App for Showing {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.0.show(context, rect);
-    }
-}
-
-struct Shared<A>(Rc<RefCell<A>>);
-
-impl<A: App> App for Shared<A> {
-    fn update(&mut self, context: &Context, rect: Rect) {
-        self.0.borrow_mut().update(context, rect);
-    }
-
-    fn setup(&mut self, setup: &Setup) {
-        self.0.borrow_mut().setup(setup);
-    }
-
-    fn renderer_replaced(&mut self, setup: &Setup) {
-        self.0.borrow_mut().renderer_replaced(setup);
-    }
-
-    fn close_requested(&mut self) -> bool {
-        self.0.borrow_mut().close_requested()
-    }
-
-    fn exiting(&mut self) {
-        self.0.borrow_mut().exiting();
-    }
-
-    fn busy(&self) -> bool {
-        self.0.borrow().busy()
-    }
-
-    fn environment(&self) -> Vec<(String, String)> {
-        self.0.borrow().environment()
-    }
-
-    fn drawing(&self) -> bool {
-        self.0.borrow().drawing()
-    }
-
-    fn request_painting(&mut self) {
-        self.0.borrow_mut().request_painting();
     }
 }
 
@@ -152,8 +113,8 @@ impl From<Pos2> for Target {
 }
 
 pub struct Stepped<A: App = Showing> {
+    app: PhantomData<A>,
     runner: Runner,
-    app: Rc<RefCell<A>>,
     window: Window,
     inbox: Inbox,
     steps: Vec<String>,
@@ -178,14 +139,13 @@ impl<A: App + 'static> Stepped<A> {
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
-        let app = Rc::new(RefCell::new(app));
         let mut runner = Runner::new(Launch {
             options: RunOptions {
                 automation: Some(inbox.clone()),
                 ..RunOptions::default()
             },
             context,
-            app: Box::new(Shared(Rc::clone(&app))),
+            app: Box::new(app),
         });
         let window = window(&runner);
         runner
@@ -199,23 +159,27 @@ impl<A: App + 'static> Stepped<A> {
             .expect("a screen without a gpu always loads");
         runner.context().stop_clock();
         let mut stepped = Self {
+            app: PhantomData,
             runner,
-            app,
             window,
             inbox,
             steps: Vec::new(),
             closed: false,
         };
-        stepped.frame();
+        stepped.paint();
         stepped
     }
 
-    pub fn app(&self) -> Ref<'_, A> {
-        self.app.borrow()
+    pub fn app(&self) -> &A {
+        let app: &dyn Any = self.runner.app();
+        app.downcast_ref()
+            .expect("the app is there until it exits")
     }
 
-    pub fn app_mut(&self) -> RefMut<'_, A> {
-        self.app.borrow_mut()
+    pub fn app_mut(&mut self) -> &mut A {
+        let app: &mut dyn Any = self.runner.app_mut();
+        app.downcast_mut()
+            .expect("the app is there until it exits")
     }
 
     pub fn context(&self) -> &Context {
@@ -245,7 +209,30 @@ impl<A: App + 'static> Stepped<A> {
         &self.steps
     }
 
-    pub fn frame(&mut self) {
+    pub fn frame(&mut self) -> FrameOutput {
+        self.step(Vec::new())
+    }
+
+    pub fn step(&mut self, events: Vec<Event>) -> FrameOutput {
+        self.runner.send(events);
+        self.paint();
+        self.runner
+            .take_output()
+            .expect("a started runner that has not exited draws every frame")
+    }
+
+    pub fn resize(&mut self, size: Vec2) {
+        let resized = match &mut self.window {
+            Window::Simulated(simulation) => simulation.resize(Resize::Window(WindowSize {
+                size,
+                scale: simulation.window.scale,
+            })),
+            Window::Other(_) => Err("only a simulated window resizes".to_owned()),
+        };
+        resized.unwrap_or_else(|error| panic!("{error}"));
+    }
+
+    fn paint(&mut self) {
         self.runner.context().advance_clock(FRAME_INTERVAL);
         let platform: &mut dyn Platform = match &mut self.window {
             Window::Simulated(simulation) => simulation,
@@ -270,7 +257,7 @@ impl<A: App + 'static> Stepped<A> {
         let mut answered = pin!(ask(&self.inbox, owned));
         let mut waiting = TaskContext::from_waker(TaskWaker::noop());
         for _ in 0..ANSWER_FRAMES {
-            self.frame();
+            self.paint();
             if let Poll::Ready(reply) = answered.as_mut().poll(&mut waiting) {
                 return match reply {
                     Reply::Text(text) => Ok(text),
@@ -334,12 +321,12 @@ impl<A: App + 'static> Stepped<A> {
 }
 
 impl Stepped<Showing> {
-    pub fn document(&self) -> Ref<'_, Document> {
-        Ref::map(self.app(), |showing| &showing.0)
+    pub fn document(&self) -> &Document {
+        &self.app().0
     }
 
-    pub fn document_mut(&self) -> RefMut<'_, Document> {
-        RefMut::map(self.app_mut(), |showing| &mut showing.0)
+    pub fn document_mut(&mut self) -> &mut Document {
+        &mut self.app_mut().0
     }
 }
 
