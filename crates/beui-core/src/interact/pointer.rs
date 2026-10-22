@@ -609,9 +609,10 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
         .copied()
         .filter(|id| interactive(doc, *id).is_some_and(InteractiveNode::holds_presses))
         .collect();
+    let target = focus_target(doc, frame.rects, &reached, pos);
     session.focus = match captured {
-        true => doc.focused_node(),
-        false => focus_target(doc, frame.rects, &reached, pos),
+        true => target.or_else(|| doc.focused_node()),
+        false => target,
     };
     let focused = doc.focused_node();
     doc.set_focus_visible(false);

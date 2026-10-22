@@ -3012,8 +3012,9 @@ callback accepts). Every catcher it reached that
 handles presses arms: it hears `on_press`, `on_drag` wherever the pointer goes
 (once in the frame of the press too), and `on_click` when it is let go over the
 catcher, or for a finger, let go without having been dragged. The press then
-focuses the innermost focusable catcher it reached, or clears the focus,
-unless it was claimed or captured: those leave the focus to their catcher. A
+focuses the innermost focusable catcher it reached, or clears the focus;
+a claimed or captured press that reached no focusable catcher leaves the focus
+where it was. A
 secondary press reaches every catcher on the path that takes one, and a middle
 press the innermost that pans, autoscrolls or forwards.
 
