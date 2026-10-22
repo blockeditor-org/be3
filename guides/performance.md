@@ -35,40 +35,46 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 
 | | 100 shapes | 10,000 shapes |
 |---|---|---|
-| open | 28 ms | 2.0 s |
-| pan at scale 1, p50 wall | 0.06 ms | 0.07 ms (layout 0.01 ms) |
-| pan at scale 0.1, p50 wall | 0.08 ms | 0.48 ms (layout 0.30 ms) |
-| zoom, p50 wall | 0.16 ms | 0.43 ms (layout 0.24 ms) |
-| drag, p50 wall | 0.39 ms (interaction 0.16 ms) | 15 ms (interaction 0.56 ms) |
-| pen move, p50 wall | 0.47 ms (interaction 0.17 ms) | 14 ms (interaction 0.42 ms) |
-| pen lift, p50 wall | 0.23 ms | 14 ms (interaction 0.23 ms) |
+| open | 26 ms | 1.9 s |
+| pan at scale 1, p50 wall | 0.11 ms | 0.56 ms (layout 0.08 ms) |
+| pan at scale 0.1, p50 wall | 0.29 ms | 27 ms (layout 2.4 ms, paint 2.5 ms) |
+| zoom, p50 wall | 0.25 ms | 3.8 ms (layout 0.56 ms) |
+| drag, p50 wall | 0.27 ms (interaction 0.13 ms) | 0.70 ms (interaction 0.32 ms) |
+| pen move, p50 wall | 0.26 ms (interaction 0.13 ms) | 0.65 ms (interaction 0.25 ms) |
+| pen lift, p50 wall | 0.14 ms | 0.30 ms (interaction 0.17 ms) |
 | frames from pen event to ink | 0 | 0 |
 
-Every frame of a gesture writes the document (guides/adding_a_plugin_editor.md), so a drag
-or a pen move is an edit the host applies and the editor reads back. The editor's own work
-stays the same few nodes and entities whatever the count; what grows with 10,000 shapes is
-the host's: the test host, like the app's worker each time it publishes, finds the block's
-references by walking every object of the document (be-model `references::collect`, which
-skips decoding values that hold no block ref). Walking only what an edit touched is the next
-thing to do there, and it belongs in be-model and the client, not in editors.
+`camera()` centres a world point in the canvas: a view is where the content sits on
+screen, not the world rectangle it shows.
 
-A pan, zoom or pen move places and paints the same few nodes whatever the count. A canvas
+Every frame of a gesture writes the document (guides/adding_a_plugin_editor.md), so a drag
+or a pen move is an edit the host applies and the editor reads back. None of that walks the
+document: a be-model `Document` keeps its block references up to date from what each edit
+touched once they have been asked for (the test host asks after every edit, the app's
+worker on every publish), the app's worker publishes a block's operations and encodes a
+snapshot only every few hundred of them (`Content` folds the operations since its snapshot
+when something reads it), and an editor holding edits the host has not acknowledged rebases
+them under a peer's edit by what either touched (`Document::rebase`) instead of rebuilding.
+
+A pan or zoom at scale 0.1 shows several thousand shapes, and what it costs beyond layout
+and paint is accessibility: `Document::refresh_accessibility` visits every shown canvas item
+on each frame the camera moves, and the test host renders its accessibility dump from
+that. Making accessibility follow the camera the way placement does is the next thing to do
+there.
+
+A pan, zoom or pen move places and paints only what is in view. A canvas
 finds the items near its view through a grid of world cells, so only what is in view costs
-anything: at scale 0.1 all 10,000 shapes are in view. A pen lift reads only the new stroke:
+anything. A pen lift reads only the new stroke:
 the editor keeps its frames, embedded blocks and content bounds in a catalog fed by the
 entities each change touched, a keyed mapping that grows at its end builds only the new
-rows, and the canvas files only the items that changed into its grid. What is left of a
-lift on 10,000 shapes is building the stroke's item and copying the lists of ids, which
-is linear but cheap.
+rows, and the canvas files only the items that changed into its grid. The same catalog
+files each shape's reach into a grid of world cells, which is what the eraser tests.
 
 Opening still builds an item for every shape. Building them only once they come near the
 view would need each item's reach (stroke, hand-drawn wobble, labels and text) before the
 item exists, and would move the cost into the first pans over a dense canvas; it would at
 best halve opening 10,000 shapes, since loading the document and the test host's store
 take as long as building the items.
-
-The test host fits a canvas to its content until the viewer moves it, and `set_view` does
-not count as moving it, so the bench sets its view again before each stroke.
 
 2. Comparing two builds
 
