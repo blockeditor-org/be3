@@ -15,7 +15,11 @@ fn a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place() {
 
     editor.double_click_at(pos2(rect.right() - 2.0, rect.center().y));
     editor.run();
-    let placed = entities(&editor)[0].transform;
+    assert_eq!(
+        entities(&editor)[0].transform,
+        note.transform,
+        "starting to edit text leaves its box as it was"
+    );
     let rect = editor.rect_of(&field);
     let y = rect.center().y;
 
@@ -24,7 +28,7 @@ fn a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place() {
     editor.run();
     assert_eq!(
         entities(&editor)[0].transform,
-        placed,
+        note.transform,
         "a drag in the text being edited leaves it where it is"
     );
     editor.text("Hi there");
