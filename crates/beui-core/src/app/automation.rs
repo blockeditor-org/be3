@@ -9,6 +9,7 @@ use crate::app::Waker;
 
 mod diff;
 mod engine;
+pub mod gestures;
 pub mod keys;
 #[cfg(all(unix, not(target_arch = "wasm32")))]
 pub mod socket;
