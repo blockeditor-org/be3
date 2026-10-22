@@ -1788,7 +1788,9 @@ The `DockState` the layout holds is a plain value underneath:
 `state()` reads it, and `find`, `all_tabs`, `focused_tab` and `surface_tabs`
 answer from it.
 
-Tiled, `Docking` keeps its panes inset from its own edges.
+Tiled, the styled `Docking` lays its panes edge to edge, divided by a one-point line
+(`splitter_thickness`) that takes presses a few points either side of it (`splitter_reach`);
+only floating windows and cards keep a border, rounded corners and a focus outline.
 A dock narrower than `NARROW_WIDTH` stacks: it draws the same state as one screen, the focused tab
 filling the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so widening it tiles the layout again. The dock picks the mode

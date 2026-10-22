@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_docked_pane_lays_its_content_inside_its_border() {
+fn a_docked_pane_lays_its_content_edge_to_edge() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
@@ -22,8 +22,10 @@ fn a_docked_pane_lays_its_content_inside_its_border() {
 
     let pane = harness.rect(dock);
     let content = harness.rect(harness.find("content"));
-    let border = styled::DOCK_INSET + styled::CHROME_BORDER;
-    assert_eq!(content.min.x, pane.min.x + border);
-    assert_eq!(content.max.x, pane.max.x - border);
-    assert_eq!(content.max.y, pane.max.y - border);
+    assert_eq!(
+        content.min.x, pane.min.x,
+        "no inset or border at the dock's edge"
+    );
+    assert_eq!(content.max.x, pane.max.x);
+    assert_eq!(content.max.y, pane.max.y);
 }

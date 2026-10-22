@@ -43,12 +43,14 @@ const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
 const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
+const RULE: f32 = 1.0;
+const SPLITTER_LINE: f32 = 1.0;
+const SPLITTER_REACH: f32 = 3.0;
+const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: f32 = 16.0;
-const GROUP_INSET: f32 = 6.0;
-pub const DOCK_INSET: f32 = 8.0;
 pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::new(
     2.0 * CHROME_BORDER,
-    TAB_HEIGHT + 2.0 * BAR_PADDING + 3.0 * CHROME_BORDER,
+    TAB_HEIGHT + 2.0 * BAR_PADDING + 2.0 * CHROME_BORDER + RULE,
 );
 const DROP_ALPHA: u8 = 64;
 const AWAY_SPACING: f32 = 12.0;
@@ -70,10 +72,6 @@ where
     K: DockKey,
 {
     let mode = layout.mode();
-    let padding = create_memo(move || match mode.get() {
-        DockMode::Tiled => DOCK_INSET,
-        DockMode::Stacked => 0.0,
-    });
     let theme = use_theme();
     let backdrop = theme.background;
     let dialog_scrim = create_memo(move || theme.scrim.get());
@@ -87,8 +85,8 @@ where
             stack_below=NARROW_WIDTH
             focus
             drag_modifier
-            inset={padding}
-            group_inset=GROUP_INSET
+            splitter_thickness=SPLITTER_LINE
+            splitter_reach=SPLITTER_REACH
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
@@ -237,7 +235,7 @@ fn DockTabChrome(
         create_memo(
             move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
                 (_, _, true) => theme.accent_soft.get(),
-                (true, _, false) => theme.background.get(),
+                (true, _, false) => theme.surface_raised.get(),
                 (false, true, false) => theme.hover.get(),
                 (false, false, false) => theme.surface.get(),
             },
@@ -312,13 +310,14 @@ fn TabPicture(picture: Memo<Option<Image>>) -> NodeId {
 #[component]
 fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     let DockChromeHandle {
+        floating,
         barred,
         focused,
         content,
-        ..
     } = handle;
+    let framed = barred && floating;
     let outline = create_memo(move || {
-        barred.then(|| {
+        framed.then(|| {
             let color = match focused.get() {
                 true => ColorRole::Accent,
                 false => ColorRole::Border,
@@ -326,7 +325,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
             Border::new(color).width(CHROME_BORDER)
         })
     });
-    let border = match barred {
+    let border = match framed {
         true => CHROME_BORDER,
         false => 0.0,
     };
@@ -334,7 +333,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         <Frame
             fill=ColorRole::Background
             border=outline
-            radius={if barred { Radius::Lg } else { Radius::None }}
+            radius={if framed { Radius::Lg } else { Radius::None }}
             padding=border
         >
             {content}
@@ -513,7 +512,7 @@ fn DockTitleBar(
                     </List>
                 </Frame>
             </Frame>
-            <Frame fill={ColorRole::custom(rule)} height=CHROME_BORDER />
+            <Frame fill={ColorRole::custom(rule)} height=RULE />
         </List>
     }
 }
@@ -563,7 +562,7 @@ fn DockSideBar(
                     }</Show>
                 </List>
             </Frame>
-            <Frame fill={ColorRole::custom(rule)} width=CHROME_BORDER />
+            <Frame fill={ColorRole::custom(rule)} width=RULE />
         </List>
     }
 }
@@ -688,19 +687,32 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
 #[component]
 fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
     let DockSplitterHandle {
+        direction,
         hovered,
         active,
         focused,
-        ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match (active.get(), hovered.get()) {
+    let lit = create_memo(move || active.get() || hovered.get());
+    let line = create_memo(move || match (active.get(), hovered.get()) {
         (true, _) => theme.accent.get(),
-        (false, true) => theme.border.get(),
-        (false, false) => theme.background.get(),
+        (false, true) => theme.text_muted.get(),
+        (false, false) => theme.border.get(),
+    });
+    let padding = create_memo(move || {
+        let side = match lit.get() {
+            true => (SPLITTER_REACH - SPLITTER_HELD / 2.0 + SPLITTER_LINE / 2.0).max(0.0),
+            false => SPLITTER_REACH,
+        };
+        match direction {
+            Direction::Horizontal => Sides::horizontal(side),
+            Direction::Vertical => Sides::vertical(side),
+        }
     });
     view! {
-        <Frame fill={ColorRole::custom(fill)} border={focus_border(focused, Border::FOCUS)} />
+        <Frame padding={padding} border={focus_border(focused, Border::FOCUS)}>
+            <Frame fill={ColorRole::custom(line)} />
+        </Frame>
     }
 }
 
