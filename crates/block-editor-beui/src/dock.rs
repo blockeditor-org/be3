@@ -15,8 +15,8 @@ pub fn BottomDock(
     anchor: NodeRef,
     #[prop(default = true)] open: Prop<bool>,
     name: String,
-    above: Option<Child>,
-    #[prop(children)] children: Children<ListChild>,
+    above: Option<Render<(), Children<ListChild>>>,
+    #[prop(children)] tools: Render<(), Children<ListChild>>,
 ) -> NodeId {
     let sheet = sheet_open();
     let open = create_memo(move || open.get() && !sheet.get());
@@ -26,7 +26,7 @@ pub fn BottomDock(
         view! {
             <Frame padding=DOCK_MARGIN>
                 <List align=Align::Center spacing=0.0>
-                    <Frame children={above} />
+                    {above.map(|above| above.call(())).unwrap_or_default()}
                     <Frame
                         fill=ColorRole::SurfaceRaised
                         border={Border::DEFAULT}
@@ -45,8 +45,9 @@ pub fn BottomDock(
                                         direction=Direction::Horizontal
                                         align=Align::Center
                                         spacing=DOCK_SPACING
-                                        children={children}
-                                    />
+                                    >
+                                        {tools.call(())}
+                                    </List>
                                 </Frame>
                             </Scroll>
                         </List>

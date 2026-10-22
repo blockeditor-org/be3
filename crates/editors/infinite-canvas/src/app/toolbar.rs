@@ -75,10 +75,8 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
             anchor={anchor}
             open={open}
             name="infinite-canvas.dock"
-            above={view! {
-                <List spacing=0.0>
-                    <Show condition={chosen} then={selection} />
-                </List>
+            above={move || view! {
+                <Show condition={chosen} then={selection} />
             }}
         >
             <ToggleButton

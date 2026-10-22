@@ -22,6 +22,7 @@ use crate::app::state::{attach_component, remove_component, set_component_value}
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use block_editor_beui::beui::{PenPhase, PointerButton};
 
+mod a_bottom_dock_builds_its_tools_only_once_it_opens;
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools;
 mod a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place;
