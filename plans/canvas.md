@@ -49,11 +49,25 @@ with a freehand stroke's points; `block` and `scale` hold an embed; `text` is
 rich text (`be_model::RichText`): a text shape's text, a shape's or line's
 label, and a frame's name, which stays plain. Text and labels are drawn as
 read-only rich text areas the renderer scales, and the one being edited syncs
-live with peers through the shared `LiveText`. A path's
-`start_binding` and `end_binding` name a shape and an anchor in its unit
-square; the end is resolved against that shape whenever the canvas is read
-(`CanvasEntity::follow`), so it follows the shape whoever moved it. Every
-part of the style is its own field, so concurrent restyles merge.
+live with peers through the shared `LiveText`. Every part of the style is its
+own field, so concurrent restyles merge.
+
+A line's or arrow's end drawn or dragged onto a shape binds to it, as in
+Excalidraw. A path's `start_binding` and `end_binding` name the shape and an
+anchor in its unit square: where the pointer put the end, pulled just inside
+the outline when it was dropped beside the shape. The end is resolved
+against that shape whenever the canvas is read (`CanvasEntity::follow`): it
+stops a gap (`BINDING_GAP`) short of the outline on the way from its
+neighbouring point to the anchor, so it follows the shape whoever moved it.
+In the editor one memo per entity resolves its ends from the held memos of
+the shapes it follows, so an end moves in the same frame as its shape. A
+selected line or arrow, and one being drawn, shows each bound end's anchor
+with a dashed segment from the end to a dot on it. Binding is on by default
+and is a per-viewer option of the line and arrow tools (the link button in
+the selection bar while one is picked, and "Bind lines and arrows to shapes"
+in the Tools menu and the palette); holding Ctrl (Cmd on a Mac) while drawing
+or dragging an end keeps that end free. Turning it off leaves lines already
+bound as they are.
 
 Shapes, lines and arrows have a clean look and a hand-drawn one: `rough.rs`
 ports rough.js, seeded by the shape's stored `seed`, and `app/sketch.rs` turns
@@ -112,8 +126,10 @@ can change freely until step 8.
 
 - Shapes: rectangle, ellipse, diamond, lines and arrows with any number of
   points, freehand, text, image, block embed, and frame (today's artboard).
-- Arrow ends bind to shapes and follow them. A shape or an arrow can carry a
-  text label.
+- Line and arrow ends bind to shapes and follow them, stopping a gap short of
+  the outline, and a selected one shows its anchors with dashed segments.
+  Binding is a per-viewer option of the line and arrow tools, and Ctrl keeps
+  an end free while drawing. A shape or an arrow can carry a text label.
 - Style saved field by field, so concurrent changes merge.
 - A hand-drawn look (like rough.js) with a fixed seed per shape, and a clean
   look.

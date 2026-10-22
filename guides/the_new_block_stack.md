@@ -617,7 +617,8 @@ layering as the order of its entity list, so bringing an entity to the front is
 a move. Its entities keep their style field by field and their geometry
 in general fields rather than a variant per tool, and an arrow end bound to a
 shape is stored as the shape's id and an anchor and resolved when the canvas is
-read, so it follows a shape a peer moved without anyone rewriting the arrow
+read (stopping a gap short of its outline), so it follows a shape a peer moved
+without anyone rewriting the arrow
 (`plans/canvas.md`, Where it stands). Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
