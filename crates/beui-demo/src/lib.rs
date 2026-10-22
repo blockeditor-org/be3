@@ -358,16 +358,10 @@ pub fn page_titles() -> impl Iterator<Item = &'static str> {
 
 #[component]
 pub fn Demo() -> NodeId {
-    let fill = match use_context::<DemoWindow>() {
-        Some(_) => ColorRole::None,
-        None => ColorRole::Background,
-    };
     view! {
-        <Frame fill={fill}>
-            <Container>|_|
-                <DemoShell />
-            </Container>
-        </Frame>
+        <Container>|_|
+            <DemoShell />
+        </Container>
     }
 }
 
