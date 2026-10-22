@@ -338,22 +338,27 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     });
     let held = create_memo(move || (!stacked.get()).then_some(body));
     let pointer = NodeRef::new();
-    let face = dock.dialog_chrome.call(DockDialogHandle {
-        tab,
-        presentation,
-        title,
-        icon,
-        size,
-        modal,
-        focused,
-        attention: attention.read_only(),
-        closable: on_close.is_some(),
-        close,
-        pointer,
-        body: view! {
-            <Portal node={held} />
-        },
-    });
+    let closable = on_close.is_some();
+    let chrome = dock.dialog_chrome;
+    let face = Render::new(move |()| {
+        chrome.call(DockDialogHandle {
+            tab,
+            presentation,
+            title,
+            icon,
+            size,
+            modal,
+            focused,
+            attention: attention.read_only(),
+            closable,
+            close,
+            pointer,
+            body: view! {
+                <Portal node={held} />
+            },
+        })
+    })
+    .once();
     let lent = create_memo(move || stacked.get().then_some(body));
     let fallback = fallback.map(|render| {
         render.call(DockSheetHandle {
@@ -406,6 +411,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 policy
                 traps_focus=false
                 open={anchored}
+                keep_alive=true
                 on_dismiss={move |reason: Dismiss| match reason {
                     Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => {
                         close.call()
@@ -419,7 +425,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                     @node_ref=&frame
                     on_press={move |_: PointerPress| dock.focus_dialog(tab)}
                 >
-                    {face}
+                    {face.call(())}
                 </Interactive>
             </Overlay>
             {fallback}
