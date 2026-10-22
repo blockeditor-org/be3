@@ -1557,6 +1557,7 @@ fn Editing(field: Field) -> NodeId {
             }}
             cursor
             repeat_drag={autoscroll}
+            capture_presses={create_memo(move || !disabled.get())}
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
                 !cx.disabled.get_untracked() && cx.handle_at(pos).is_some()
             }}
