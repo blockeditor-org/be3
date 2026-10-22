@@ -522,8 +522,14 @@ impl Document {
     }
 
     pub(crate) fn set_focused(&mut self, focused: Option<NodeId>) {
+        let entered = focused.filter(|node| self.focused != Some(*node));
         self.focused = focused;
         self.focus_watched.set(focused);
+        if let Some(node) = entered
+            && self.focus_takes_text()
+        {
+            self.reveal_in_canvases(node);
+        }
     }
 
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {

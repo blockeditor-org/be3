@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use crate::reactive::{
-    Child, Children, Get, Placed, Prop, create_effect, create_memo, create_timer, with_document,
+    Callback, Child, Children, Get, Placed, Prop, create_effect, create_memo, create_timer,
+    with_document,
 };
 use beui_core::base::canvas::{CanvasNode, CanvasView};
 use beui_core::document::Document;
@@ -19,10 +20,14 @@ pub fn Canvas(
     #[prop(default = 0.0)] width: Prop<f32>,
     #[prop(default = 0.0)] height: Prop<f32>,
     #[prop(default = false)] scrolls_across: bool,
+    on_reveal: Callback<Vec2>,
     children: Children<CanvasItem>,
 ) -> NodeId {
     let canvas = with_document(Document::create_canvas);
-    with_document(|document| document.set_canvas_scrolls_across(canvas, scrolls_across));
+    with_document(|document| {
+        document.set_canvas_scrolls_across(canvas, scrolls_across);
+        document.set_canvas_on_reveal(canvas, on_reveal);
+    });
     children.mount(canvas);
     create_effect(move || with_document(|document| document.set_canvas_view(canvas, view.get())));
     let scale = create_memo(move || view.get().map_or(1.0, |view| view.scale));

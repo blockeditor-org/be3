@@ -7,7 +7,7 @@ use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, FocusChild, NodeId, NodeOf};
+use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
 use std::ops::Range;
 
 pub type KeyCallback = Callback<KeyPress, bool>;
@@ -248,6 +248,15 @@ impl Document {
         if self.contains(focusable) {
             self.focus_mut(focusable).ime_text = text;
         }
+    }
+
+    pub(crate) fn ime_cursor_in(&self, rects: &Rects, node: NodeId) -> Option<Rect> {
+        let cursor = focus_of(self.arena.get(node))?.ime_cursor?;
+        let anchor = rects.get(&cursor.node)?;
+        Some(match cursor.rect {
+            Some(rect) => rect.translate(anchor.min.to_vec2()),
+            None => anchor,
+        })
     }
 
     pub fn focused_ime_area(&self) -> Option<ImeArea> {

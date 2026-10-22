@@ -2870,9 +2870,22 @@ by that input under way while the document lays out.
 Revealing something in a scroll is resolved inside the scroll's own layout:
 `reveal_node` and `reveal_focus` leave a request on each enclosing `Offset`,
 which lays its content out, finds the target (or its nearest placed ancestor)
-and moves itself until the target is in view. A node's parent is the node whose
-`children` lists it; the arena learns it when that node changes, not from the
-layout walk.
+and moves itself until the target is in view. A `Canvas` cannot move itself,
+since its view belongs to whoever hands it one, so it takes the same request
+and answers through its `on_reveal` callback: after each layout at a new view
+it measures the target (or, when that does not fit, the focused text's caret)
+against its own rect less the floating layers over it (a dock, a zoom pill),
+and calls `on_reveal(delta)` with the least pan that brings it into view. It
+keeps measuring at each new view the owner pans to, for up to a second and
+only while the distance shrinks, so the owner can ease there a step at a time
+(the infinite canvas pans 35% of each delta, or all of it under reduced motion)
+and a view that also moved for another reason (an editor following its
+content after a resize) is measured as it is, never panned twice. Besides
+`reveal_node` and a resize while text has the focus, a canvas reveals text as
+the focus enters it, so text placed at a canvas's edge is moved into view; a
+scroll does not, as a long text area clicked partway down would jump to its
+top. A node's parent is the node whose `children` lists it; the arena learns it
+when that node changes, not from the layout walk.
 
 ### Update a document from outside its events
 

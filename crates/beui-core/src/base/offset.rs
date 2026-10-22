@@ -4,6 +4,7 @@ use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
+use crate::base::canvas::CanvasNode;
 use crate::callback::Callback;
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
@@ -439,10 +440,10 @@ impl Document {
 }
 
 impl Document {
-    fn reveal_in(&mut self, offset: NodeOf<OffsetNode>, target: NodeId) {
-        self.reveals.insert(offset.id(), target);
-        if !self.arena.taken(offset.id()) {
-            self.arena.invalidate_node(offset);
+    fn reveal_in(&mut self, host: NodeId, target: NodeId) {
+        self.reveals.insert(host, target);
+        if !self.arena.taken(host) {
+            self.arena.invalidate_node(host);
         }
     }
 
@@ -450,22 +451,34 @@ impl Document {
         self.reveals.remove(&offset)
     }
 
-    fn enclosing_offsets(&self, node: NodeId) -> Vec<NodeOf<OffsetNode>> {
-        let mut offsets = Vec::new();
+    fn enclosing_viewers(&self, node: NodeId) -> Vec<NodeId> {
+        let mut viewers = Vec::new();
         let mut current = self.arena.parent(node);
         for _ in 0..crate::node::ANCESTOR_LIMIT {
             let Some(id) = current else {
                 break;
             };
-            offsets.extend(self.arena.made_as::<OffsetNode>(id));
+            if self.arena.made_as::<OffsetNode>(id).is_some()
+                || self.arena.made_as::<CanvasNode>(id).is_some()
+            {
+                viewers.push(id);
+            }
             current = self.arena.parent(id);
         }
-        offsets
+        viewers
     }
 
     pub fn reveal_node(&mut self, node: NodeId) {
-        for offset in self.enclosing_offsets(node) {
-            self.reveal_in(offset, node);
+        for viewer in self.enclosing_viewers(node) {
+            self.reveal_in(viewer, node);
+        }
+    }
+
+    pub(crate) fn reveal_in_canvases(&mut self, node: NodeId) {
+        for viewer in self.enclosing_viewers(node) {
+            if self.arena.made_as::<CanvasNode>(viewer).is_some() {
+                self.reveal_in(viewer, node);
+            }
         }
     }
 

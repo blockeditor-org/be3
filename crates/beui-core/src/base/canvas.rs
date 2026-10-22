@@ -1,8 +1,12 @@
 use std::any::Any;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use foldhash::{HashMap, HashSet};
 
 use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
+use crate::callback::Callback;
+use crate::current::with_document;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::node::{ANCESTOR_LIMIT, Element, NodeId, NodeOf, Rects, SpaceId};
@@ -205,7 +209,18 @@ pub struct CanvasNode {
     shift: Vec2,
     zoom: Zoom,
     scrolls_across: bool,
+    on_reveal: Callback<Vec2>,
+    revealing: Option<Revealing>,
 }
+
+struct Revealing {
+    target: NodeId,
+    since: Instant,
+    view: Option<CanvasView>,
+    distance: f32,
+}
+
+const REVEAL_FOR: Duration = Duration::from_secs(1);
 
 const CLIPPED: u8 = 1;
 const UNCLIPPED: u8 = 2;
@@ -254,6 +269,111 @@ impl CanvasNode {
             (false, true) => CLIPPED,
             (false, false) => UNCLIPPED,
         }
+    }
+}
+
+impl CanvasNode {
+    fn follow_reveal(&mut self, doc: &mut Document, host: NodeId) {
+        if let Some(target) = doc.take_reveal(host) {
+            self.revealing = Some(Revealing {
+                target,
+                since: doc.now(),
+                view: None,
+                distance: f32::INFINITY,
+            });
+        }
+        let Some(revealing) = self.revealing.as_mut() else {
+            return;
+        };
+        if doc.now().saturating_duration_since(revealing.since) > REVEAL_FOR
+            || self.on_reveal.is_empty()
+        {
+            self.revealing = None;
+            return;
+        }
+        if self.view.is_none() || revealing.view == self.view {
+            return;
+        }
+        revealing.view = self.view;
+        let (target, distance, on_reveal) = (revealing.target, revealing.distance, self.on_reveal);
+        doc.report_after_layout(move || {
+            let delta = with_document(|doc| {
+                let delta = doc
+                    .canvas_reveal(host, target)
+                    .filter(|delta| delta.length() < distance);
+                let canvas = doc.arena.state_mut(host).as_any_mut();
+                if let Some(canvas) = canvas.downcast_mut::<CanvasNode>() {
+                    match delta {
+                        Some(delta) => {
+                            if let Some(revealing) = canvas.revealing.as_mut() {
+                                revealing.distance = delta.length();
+                            }
+                        }
+                        None => canvas.revealing = None,
+                    }
+                }
+                delta
+            });
+            if let Some(delta) = delta {
+                on_reveal.call(delta);
+            }
+        });
+    }
+}
+
+impl Document {
+    fn canvas_reveal(&self, canvas: NodeId, target: NodeId) -> Option<Vec2> {
+        let rects = Rc::clone(&self.rects);
+        let node = std::iter::successors(Some(target), |node| self.arena.parent(*node))
+            .take(ANCESTOR_LIMIT)
+            .take_while(|node| *node != canvas)
+            .find(|node| rects.contains_key(node))?;
+        let extent = self.outlined_extent(&rects, node)?;
+        let shown = clear_of(rects.get(&canvas)?, &self.floating_rects());
+        let caret = (Some(target) == self.focused_node())
+            .then(|| self.ime_cursor_in(&rects, target))
+            .flatten();
+        let fits = extent.width() <= shown.width() && extent.height() <= shown.height();
+        let wanted = match (fits, caret) {
+            (false, Some(caret)) => caret,
+            _ => extent,
+        };
+        let delta = Vec2::new(
+            revealing(wanted.min.x, wanted.max.x, shown.min.x, shown.max.x),
+            revealing(wanted.min.y, wanted.max.y, shown.min.y, shown.max.y),
+        );
+        (delta.length() >= 0.5).then_some(delta)
+    }
+}
+
+fn clear_of(shown: Rect, covers: &[Rect]) -> Rect {
+    covers
+        .iter()
+        .filter(|cover| cover.intersects(shown))
+        .fold(shown, |free, cover| {
+            let mut sides = [free; 4];
+            sides[0].min.y = cover.max.y.min(free.max.y);
+            sides[1].max.y = cover.min.y.max(free.min.y);
+            sides[2].min.x = cover.max.x.min(free.max.x);
+            sides[3].max.x = cover.min.x.max(free.min.x);
+            sides
+                .into_iter()
+                .max_by(|a, b| area(*a).total_cmp(&area(*b)))
+                .unwrap_or(free)
+        })
+}
+
+fn area(rect: Rect) -> f32 {
+    rect.width().max(0.0) * rect.height().max(0.0)
+}
+
+fn revealing(start: f32, end: f32, shown_start: f32, shown_end: f32) -> f32 {
+    if end - start > shown_end - shown_start || start < shown_start {
+        shown_start - start
+    } else if end > shown_end {
+        shown_end - end
+    } else {
+        0.0
     }
 }
 
@@ -347,6 +467,7 @@ impl Element for CanvasNode {
         if was_laid != self.laid || painted != (self.host, self.shift, self.zoom) {
             doc.arena.note_relaid(host);
         }
+        self.follow_reveal(doc, host);
     }
 
     fn paints_from_layout(&self) -> bool {
@@ -523,7 +644,13 @@ impl Document {
             shift: Vec2::ZERO,
             zoom: Zoom::NONE,
             scrolls_across: false,
+            on_reveal: Callback::empty(),
+            revealing: None,
         })
+    }
+
+    pub fn set_canvas_on_reveal(&mut self, canvas: NodeOf<CanvasNode>, on_reveal: Callback<Vec2>) {
+        self.arena.touch_mut_as::<CanvasNode>(canvas).on_reveal = on_reveal;
     }
 
     pub fn set_canvas_scrolls_across(&mut self, canvas: NodeOf<CanvasNode>, scrolls: bool) {
