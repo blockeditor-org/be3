@@ -5,7 +5,7 @@ use foldhash::{HashMap, HashSet};
 use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
+use crate::node::{ANCESTOR_LIMIT, Element, NodeId, NodeOf, Rects, SpaceId};
 use crate::painter::{Painter, Zoom};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -257,6 +257,18 @@ impl CanvasNode {
     }
 }
 
+fn item_holding(doc: &Document, host: NodeId, node: NodeId) -> Option<NodeId> {
+    let mut current = node;
+    for _ in 0..ANCESTOR_LIMIT {
+        let parent = doc.arena.parent(current)?;
+        if parent == host {
+            return Some(current);
+        }
+        current = parent;
+    }
+    None
+}
+
 fn scaled_rect(rect: Rect, scale: f32) -> Rect {
     Rect::from_min_max(
         pos2(rect.min.x * scale, rect.min.y * scale),
@@ -307,10 +319,18 @@ impl Element for CanvasNode {
             _ => self.index.rebuild(doc, &self.items),
         }
         self.index.read = doc.canvas_moves_from + doc.canvas_moves.len() as u64;
-        let near = self
+        let mut near = self
             .index
             .near(seen)
             .unwrap_or_else(|| self.items.iter().copied().collect());
+        let focused = doc
+            .focused_node()
+            .and_then(|focused| item_holding(doc, host, focused));
+        if let Some(focused) = focused
+            && !near.contains(&focused)
+        {
+            near.push(focused);
+        }
         for item in &near {
             let world = doc.canvas_item_rect(NodeOf::assumed(*item));
             let slot = Self::slot(doc, NodeOf::assumed(*item));
@@ -319,7 +339,7 @@ impl Element for CanvasNode {
                 CLIPPED => (&clipped, scaled_rect(world, zoom.scale), visible),
                 _ => (&unclipped, scaled_rect(world, zoom.scale), visible),
             };
-            if placed.intersects(shown) {
+            if placed.intersects(shown) || focused == Some(*item) {
                 crate::layout::layout(doc, painter, *item, placed, out);
                 self.laid.push((*item, slot));
             }

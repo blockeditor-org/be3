@@ -957,7 +957,11 @@ parent's painter: it keeps its rect, so `node_rect`, `reveal_node` and
 placement signals still find it, but nothing inside it is laid out, painted or
 interacted with (`Document::is_culled` says which). This holds for the children
 of any container, and the node holding the focus and its ancestors and
-descendants are never culled. Each placement records its `Sight`, the range of
+descendants are never culled. A `Canvas`, which lays out only the items its
+view reaches, likewise always lays out the item holding the focus, so a field
+panned out of sight or under an on-screen keyboard keeps the focus and keeps
+asking for its input method instead of the keyboard closing and reopening as
+the field leaves and returns. Each placement records its `Sight`, the range of
 visible regions it stays right for (a node that reads its space through the
 painter is right only exactly where it was), and a parent's sight takes in its
 children's, so a scroll lays a subtree out again only once a node in it crosses

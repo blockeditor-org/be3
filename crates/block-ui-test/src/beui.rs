@@ -1177,6 +1177,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.window.wants_keyboard
     }
 
+    pub fn window(&self) -> &block_plugin_api::WindowRequests {
+        &self.window
+    }
+
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
         self.window.intercepted_keys.clone()
     }
