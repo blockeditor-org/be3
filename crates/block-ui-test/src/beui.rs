@@ -429,7 +429,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             width: view.width(),
             height: view.height(),
             scale,
+            moved: true,
         }));
+    }
+
+    pub fn move_view(&mut self, change: ViewChange) {
+        let band = self.band(self.rect());
+        self.viewport
+            .as_mut()
+            .expect("only an editor in a viewport has a view to move")
+            .apply(change, band);
     }
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
@@ -499,6 +508,17 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn in_viewport(mut self) -> Self {
         self.viewport = Some(Viewport::new());
+        self.run();
+        self
+    }
+
+    pub fn in_moved_viewport(mut self, zoom: f32, pan: Vec2) -> Self {
+        self.viewport = Some(Viewport {
+            zoom,
+            pan,
+            moved: true,
+            ..Viewport::new()
+        });
         self.run();
         self
     }
@@ -1507,7 +1527,8 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
 struct Viewport {
     zoom: f32,
     pan: Vec2,
-    sent: Option<(Rect, f32)>,
+    moved: bool,
+    sent: Option<(Rect, f32, bool)>,
 }
 
 impl Viewport {
@@ -1515,6 +1536,7 @@ impl Viewport {
         Self {
             zoom: 1.0,
             pan: Vec2::ZERO,
+            moved: false,
             sent: None,
         }
     }
@@ -1527,10 +1549,11 @@ impl Viewport {
         let size = content * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
-        if self.sent == Some((view, self.zoom)) {
+        let sent = (view, self.zoom, self.moved);
+        if self.sent == Some(sent) {
             return None;
         }
-        self.sent = Some((view, self.zoom));
+        self.sent = Some(sent);
         Some(Message::Editor(EditorMessage::ViewChanged {
             instance: INSTANCE,
             x: view.min.x,
@@ -1538,6 +1561,7 @@ impl Viewport {
             width: view.width(),
             height: view.height(),
             scale: self.zoom,
+            moved: self.moved,
         }))
     }
 
@@ -1551,19 +1575,54 @@ impl Viewport {
             _ => true,
         });
         for change in changes {
+            let anchored = |(x, y): (f32, f32)| Pos2::new(x, y) + origin.to_vec2();
             match change {
-                ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
-                ViewChange::Zoom { factor, anchor } => {
-                    let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
-                    let anchor = anchor
-                        .map_or(region.center(), |(x, y)| Pos2::new(x, y) + origin.to_vec2())
-                        - region.center();
-                    self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
-                    self.zoom = zoom;
+                ViewChange::Follow {
+                    factor,
+                    anchor,
+                    x,
+                    y,
+                    resume,
+                } => {
+                    if self.moved && !resume {
+                        continue;
+                    }
+                    self.zoom_at(factor, anchored(anchor), region);
+                    self.pan += Vec2::new(x, y);
+                    self.moved = false;
                 }
-                ViewChange::PanDrag => {}
+                ViewChange::Zoom { factor, anchor } => self.apply(
+                    ViewChange::Zoom {
+                        factor,
+                        anchor: anchor.map(|anchor| {
+                            let at = anchored(anchor);
+                            (at.x, at.y)
+                        }),
+                    },
+                    region,
+                ),
+                change => self.apply(change, region),
             }
         }
+    }
+
+    fn apply(&mut self, change: ViewChange, region: Rect) {
+        match change {
+            ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
+            ViewChange::Zoom { factor, anchor } => {
+                let anchor = anchor.map_or(region.center(), |(x, y)| Pos2::new(x, y));
+                self.zoom_at(factor, anchor, region);
+            }
+            ViewChange::Follow { .. } | ViewChange::PanDrag => return,
+        }
+        self.moved = true;
+    }
+
+    fn zoom_at(&mut self, factor: f32, anchor: Pos2, region: Rect) {
+        let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+        let anchor = anchor - region.center();
+        self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
+        self.zoom = zoom;
     }
 }
 

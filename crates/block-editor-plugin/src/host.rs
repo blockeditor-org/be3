@@ -337,6 +337,7 @@ impl Children {
 struct View {
     rect: Rect,
     scale: f32,
+    moved: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1118,6 +1119,10 @@ impl EditorHost {
         self.framed_view().map(|view| view.scale)
     }
 
+    pub fn view_moved(&self) -> bool {
+        self.framed_view().is_some_and(|view| view.moved)
+    }
+
     pub(crate) fn camera(&self) -> Option<Camera> {
         self.framed_view().map(|view| Camera {
             x: view.rect.min.x,
@@ -1145,6 +1150,17 @@ impl EditorHost {
         self.view_changes.borrow_mut().push(ViewChange::Zoom {
             factor,
             anchor: anchor.map(|anchor| (anchor.x - origin.x, anchor.y - origin.y)),
+        });
+    }
+
+    pub fn follow_view(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
+        let origin = self.region.get().origin;
+        self.view_changes.borrow_mut().push(ViewChange::Follow {
+            factor,
+            anchor: (anchor.x - origin.x, anchor.y - origin.y),
+            x: delta.x,
+            y: delta.y,
+            resume,
         });
     }
 
@@ -1702,8 +1718,12 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn set_view(&self, view: Rect, scale: f32) {
-        self.view.set(Some(View { rect: view, scale }));
+    pub fn set_view(&self, view: Rect, scale: f32, moved: bool) {
+        self.view.set(Some(View {
+            rect: view,
+            scale,
+            moved,
+        }));
         self.changed();
     }
 

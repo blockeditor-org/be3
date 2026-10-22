@@ -923,6 +923,7 @@ pub enum EditorMessage {
         width: f32,
         height: f32,
         scale: f32,
+        moved: bool,
     },
     ChangeView {
         instance: EditorInstanceId,
@@ -2075,6 +2076,13 @@ pub enum ViewChange {
     Zoom {
         factor: f32,
         anchor: Option<(f32, f32)>,
+    },
+    Follow {
+        factor: f32,
+        anchor: (f32, f32),
+        x: f32,
+        y: f32,
+        resume: bool,
     },
     PanDrag,
 }

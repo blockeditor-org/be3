@@ -10,6 +10,7 @@ fn view_messages_round_trip() {
             width: 320.0,
             height: 240.5,
             scale: 1.5,
+            moved: true,
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
@@ -27,6 +28,16 @@ fn view_messages_round_trip() {
             change: ViewChange::Zoom {
                 factor: 0.8,
                 anchor: None,
+            },
+        }),
+        Message::Editor(EditorMessage::ChangeView {
+            instance: EditorInstanceId(3),
+            change: ViewChange::Follow {
+                factor: 0.5,
+                anchor: (40.0, 30.0),
+                x: -6.0,
+                y: 2.5,
+                resume: true,
             },
         }),
         Message::Editor(EditorMessage::ChangeView {
