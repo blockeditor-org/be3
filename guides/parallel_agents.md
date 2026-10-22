@@ -34,4 +34,9 @@ In auto mode the permission classifier has refused a subagent's `merge --ff-only
 
 ## Separate cloud sessions
 
-The claude-code-remote tools can create a separate cloud session (`create_session`), send it messages (`send_message`) and read its transcript (`list_events`). That would give each agent its own VM and avoid the memory and disk limits above. It hasn't been tried here: work would have to move between sessions by pushing branches.
+A coordinator can instead run each agent as its own cloud session, with its own VM (15G of memory, 4 cores, about 30G of disk), which avoids the memory and disk limits above. Tested on this repository:
+
+- `create_session` with `source_url` (the repository) and `source_revision` (the integration branch) starts a session checked out on that branch, in the same environment, with the given prompt. It runs commands without anyone approving them.
+- `send_message` delivers a further message to it. The child can answer with its own `send_message` to `@parent`, which arrives in the coordinator as a notification. `list_events` reads its transcript; filter with `kinds: ["assistant", "result"]`.
+- `get_session` shows whether it is working or idle, and `archive_session` releases its VM when it is done.
+- Work moves only through git: each child pushes its own branch, and the coordinator fetches it and fast-forwards the integration branch, or has the child rebase and push again. Give each child a distinct branch name, and tell it not to open a pull request.
