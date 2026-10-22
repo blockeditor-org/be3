@@ -1,45 +1,48 @@
 use super::*;
+use beui::pos2;
 
 #[test]
 fn a_followed_fit_gives_way_to_a_move_by_hand() {
-    let rect = Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0));
-    let follow = |resume| Command::Follow {
-        scale: 2.0,
-        world: vec2(200.0, 150.0),
-        at: rect.center() + vec2(10.0, 0.0),
-        resume,
-    };
+    let rect = Rect::from_min_size(pos2(100.0, 50.0), vec2(400.0, 300.0));
+    let content = vec2(800.0, 300.0);
+    let world = Some(FitArea::World);
     let mut viewport = Viewport::default();
 
-    settle(&mut viewport, follow(false), rect, rect.size(), MAX_ZOOM);
-    assert_eq!((viewport.zoom, viewport.pan), (2.0, vec2(10.0, 0.0)));
-    assert!(
-        !viewport.moved,
-        "a fit the editor keeps is not a move by hand"
-    );
+    follow(&mut viewport, world, rect, content, MAX_ZOOM);
+    assert_eq!((viewport.zoom, viewport.pan), (0.5, Vec2::ZERO));
+    let fitted = viewport;
+    follow(&mut viewport, world, rect, content, MAX_ZOOM);
+    assert_eq!(viewport, fitted, "following again lands on the same view");
 
-    settle(
+    follow(
         &mut viewport,
-        Command::Pan(vec2(0.0, 5.0)),
+        Some(FitArea::Centre),
         rect,
-        rect.size(),
+        content,
         MAX_ZOOM,
     );
+    assert_eq!((viewport.zoom, viewport.pan), (1.0, Vec2::ZERO));
+
+    settle(&mut viewport, Command::Pan(vec2(0.0, 5.0)), rect, MAX_ZOOM);
     assert!(
         viewport.moved,
         "a pan the person made moves the view by hand"
     );
     let moved = viewport;
-    settle(&mut viewport, follow(false), rect, rect.size(), MAX_ZOOM);
+    follow(&mut viewport, world, rect, content, MAX_ZOOM);
     assert_eq!(
         viewport, moved,
-        "a fit asked for before the editor saw the move leaves the view where the person put it"
+        "a fit kept while the view is moved by hand leaves it where the person put it"
     );
 
-    settle(&mut viewport, follow(true), rect, rect.size(), MAX_ZOOM);
-    assert_eq!((viewport.zoom, viewport.pan), (2.0, vec2(10.0, 0.0)));
-    assert!(
-        !viewport.moved,
+    viewport.moved = false;
+    follow(&mut viewport, world, rect, content, MAX_ZOOM);
+    assert_eq!(
+        viewport,
+        Viewport {
+            center: moved.center,
+            ..fitted
+        },
         "a Fit the person pressed follows the content again"
     );
 }

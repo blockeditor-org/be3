@@ -12,7 +12,8 @@ use beui::{
 };
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
-    FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar, ViewChange,
+    FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
+    ViewChange,
 };
 use uuid::Uuid;
 
@@ -788,19 +789,10 @@ struct CameraOwner(Callback<Command>);
 #[derive(Clone, Copy)]
 enum Command {
     Pan(Vec2),
-    Zoom {
-        factor: f32,
-        anchor: Option<Pos2>,
-    },
-    Follow {
-        scale: f32,
-        world: Vec2,
-        at: Pos2,
-        resume: bool,
-    },
+    Zoom { factor: f32, anchor: Option<Pos2> },
 }
 
-fn settle(viewport: &mut Viewport, command: Command, rect: Rect, content: Vec2, max_zoom: f32) {
+fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) {
     match command {
         Command::Pan(delta) => {
             viewport.pan += delta;
@@ -816,21 +808,22 @@ fn settle(viewport: &mut Viewport, command: Command, rect: Rect, content: Vec2, 
             );
             viewport.moved = true;
         }
-        Command::Follow {
-            scale,
-            world,
-            at,
-            resume,
-        } => {
-            if viewport.moved && !resume {
-                return;
-            }
-            viewport.zoom = scale.clamp(MIN_ZOOM, max_zoom);
-            viewport.pan =
-                at - world * viewport.zoom + content * viewport.zoom * 0.5 - rect.center();
-            viewport.moved = false;
-        }
     }
+}
+
+fn follow(
+    viewport: &mut Viewport,
+    area: Option<FitArea>,
+    rect: Rect,
+    content: Vec2,
+    max_zoom: f32,
+) {
+    let Some(area) = area.filter(|_| !viewport.moved) else {
+        return;
+    };
+    let (scale, (x, y)) = area.fit((content.x, content.y), (rect.width(), rect.height()));
+    viewport.zoom = scale.clamp(MIN_ZOOM, max_zoom);
+    viewport.pan = (content * 0.5 - vec2(x, y)) * viewport.zoom;
 }
 
 fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom: f32) {
@@ -840,31 +833,6 @@ fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom
         let offset = anchor - rect.center();
         viewport.pan = offset - (offset - viewport.pan) * (new / old);
         viewport.zoom = new;
-    }
-}
-
-fn by_hand(command: Command, view: Option<Rect>, scale: f32) -> Vec<Command> {
-    match (command, view) {
-        (
-            Command::Follow {
-                scale: target,
-                world,
-                at,
-                ..
-            },
-            Some(view),
-        ) => {
-            let anchor = view.min + world * scale;
-            vec![
-                Command::Zoom {
-                    factor: target / scale.max(f32::EPSILON),
-                    anchor: Some(anchor),
-                },
-                Command::Pan(at - anchor),
-            ]
-        }
-        (Command::Follow { .. }, None) => Vec::new(),
-        (command, _) => vec![command],
     }
 }
 
@@ -1149,7 +1117,6 @@ fn BlockFrameView(
                         return Some(EditorView {
                             rect: content_rect.get().translate(-origin.to_vec2()),
                             scale: state.zoom,
-                            moved: state.moved,
                         });
                     }
                     revision.get();
@@ -1162,31 +1129,37 @@ fn BlockFrameView(
                     Some(EditorView {
                         rect: shown.translate(-origin.to_vec2()),
                         scale,
-                        moved: false,
                     })
                 },
             );
+            let fitted = create_signal(None::<FitArea>);
+            let fit = move || {
+                if !pan_and_zoom {
+                    return;
+                }
+                let mut state = viewport.get_untracked();
+                state.moved = false;
+                follow(
+                    &mut state,
+                    fitted.get_untracked(),
+                    viewport_rect.get_untracked(),
+                    content_size.get_untracked(),
+                    max_zoom,
+                );
+                if state != viewport.get_untracked() {
+                    viewport.set(state);
+                }
+            };
             let owner = use_context::<CameraOwner>();
             let command = move |command: Command| {
                     if !pan_and_zoom {
                         if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
-                            let view = editor_view.get_untracked();
-                            let shown = view.map(|view| view.rect.translate(rect.get_untracked().min.to_vec2()));
-                            let scale = view.map_or(1.0, |view| view.scale);
-                            for command in by_hand(command, shown, scale) {
-                                owner.0.call(command);
-                            }
+                            owner.0.call(command);
                         }
                         return;
                     }
                     let mut state = viewport.get_untracked();
-                    settle(
-                        &mut state,
-                        command,
-                        viewport_rect.get_untracked(),
-                        content_size.get_untracked(),
-                        max_zoom,
-                    );
+                    settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
                     if state != viewport.get_untracked() {
                         viewport.set(state);
                     }
@@ -1200,10 +1173,13 @@ fn BlockFrameView(
                         return;
                     }
                     let rect = viewport_rect.get();
+                    let content = content_size.get();
+                    let area = fitted.get().filter(|_| chrome.get() == Chrome::Drawn);
                     let mut state = viewport.get_untracked();
                     if let Some(previous) = state.center.replace(rect.center()) {
                         state.pan += previous - rect.center();
                     }
+                    follow(&mut state, area, rect, content, max_zoom);
                     if state != viewport.get_untracked() {
                         viewport.set(state);
                     }
@@ -1221,17 +1197,14 @@ fn BlockFrameView(
                                 factor,
                                 anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
                             },
-                            ViewChange::Follow {
-                                scale,
-                                world: (wx, wy),
-                                at: (ax, ay),
-                                resume,
-                            } => Command::Follow {
-                                scale,
-                                world: vec2(wx, wy),
-                                at: rect.min + vec2(ax, ay),
-                                resume,
-                            },
+                            ViewChange::KeepFitted(area) => {
+                                fitted.set(area);
+                                continue;
+                            }
+                            ViewChange::Fit => {
+                                fit();
+                                continue;
+                            }
                             ViewChange::PanDrag => {
                                 pan_drags.update(|asked| *asked += 1);
                                 continue;

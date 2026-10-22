@@ -268,7 +268,6 @@ pub(super) struct Held {
 pub(crate) struct EditorView {
     pub(crate) rect: Rect,
     pub(crate) scale: f32,
-    pub(crate) moved: bool,
 }
 
 enum Replacement {
@@ -1527,7 +1526,6 @@ impl Instances {
                         width: view.rect.width(),
                         height: view.rect.height(),
                         scale: view.scale,
-                        moved: view.moved,
                     }));
                 }
             }

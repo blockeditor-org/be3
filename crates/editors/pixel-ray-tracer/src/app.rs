@@ -1,3 +1,4 @@
+use block_editor_beui::Fit;
 use block_editor_beui::be_block::PixelRayTracerContent;
 
 use block_editor_beui::Loaded;
@@ -5,7 +6,7 @@ use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
-use block_editor_beui::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Fitting, Side, Sidebar, Toolbar};
 use uuid::Uuid;
 
@@ -59,12 +60,7 @@ fn PixelRayTracerEditor(editor: Editor) -> NodeId {
     state.watch();
     let content = NodeRef::new();
     editor.content(&content);
-    let world = editor.world();
-    let fitting = editor.keep_fitted(move || {
-        world
-            .get()
-            .map(|world| Rect::from_min_size(Pos2::ZERO, world))
-    });
+    let fitting = editor.keep_fitted(|| Some(Fit::World));
 
     let chrome = editor.chrome_shown();
     view! {
