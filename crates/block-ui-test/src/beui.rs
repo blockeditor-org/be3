@@ -1214,6 +1214,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         true
     }
 
+    fn held(&self) -> Modifiers {
+        self.input.held_after(self.frames.iter().flatten())
+    }
+
     pub fn hold_modifiers(&mut self, modifiers: Modifiers) {
         self.push(Event::Modifiers(modifiers));
     }
@@ -1312,7 +1316,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click_button_at(&mut self, pos: Pos2, button: PointerButton) {
-        let modifiers = self.input.held();
+        let modifiers = self.held();
         self.hover_at(pos);
         for pressed in [true, false] {
             self.push(Event::PointerButton {
@@ -1350,7 +1354,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn press_at(&mut self, pos: Pos2) {
-        let modifiers = self.input.held();
+        let modifiers = self.held();
         self.hover_at(pos);
         self.push(Event::PointerButton {
             pos,
@@ -1361,7 +1365,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn release_at(&mut self, pos: Pos2) {
-        let modifiers = self.input.held();
+        let modifiers = self.held();
         self.push(Event::PointerButton {
             pos,
             button: PointerButton::Primary,
@@ -1371,7 +1375,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
-        let modifiers = self.input.held();
+        let modifiers = self.held();
         self.hover_at(from);
         self.push(Event::PointerButton {
             pos: from,
@@ -1460,7 +1464,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn key_press_modifiers(&mut self, modifiers: Modifiers, key: Key) {
-        let held = self.input.held();
+        let held = self.held();
         if modifiers != held {
             self.push(Event::Modifiers(modifiers));
         }

@@ -67,7 +67,6 @@ fn with_binding_off_or_ctrl_held_a_line_drawn_onto_a_shape_stays_free() {
     editor.click("infinite-canvas.bind-lines");
     editor.run();
     editor.hold_modifiers(Modifiers::CTRL);
-    editor.run();
     editor.drag(at(-150.0, 0.0), at(160.0, 0.0));
     editor.run();
     editor.hold_modifiers(Modifiers::NONE);
