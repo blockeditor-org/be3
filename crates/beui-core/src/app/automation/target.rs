@@ -20,6 +20,15 @@ pub(crate) fn describe(rect: Rect) -> String {
 
 pub(crate) fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
     if let Some(id) = target.strip_prefix('#') {
+        if let Some((id, offset)) = id.rsplit_once('+')
+            && let Some([x, y]) = numbers(offset).as_deref()
+        {
+            let rect = locate(&format!("#{id}"), lines)?;
+            return Ok(Rect::from_min_size(
+                rect.min + Vec2::new(*x, *y),
+                Vec2::ZERO,
+            ));
+        }
         let named: Vec<&Line> = lines
             .iter()
             .filter(|line| line.test_ids.iter().any(|named| named == id))
@@ -40,11 +49,7 @@ pub(crate) fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
         };
         return placed(line);
     }
-    let numbers: Option<Vec<f32>> = target
-        .split(',')
-        .map(|number| number.trim().parse::<f32>().ok())
-        .collect();
-    match numbers.as_deref() {
+    match numbers(target).as_deref() {
         Some([x, y]) => return Ok(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO)),
         Some([x, y, width, height]) => {
             return Ok(Rect::from_min_size(
@@ -76,6 +81,12 @@ pub(crate) fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
         }
     };
     placed(line)
+}
+
+fn numbers(text: &str) -> Option<Vec<f32>> {
+    text.split(',')
+        .map(|number| number.trim().parse::<f32>().ok())
+        .collect()
 }
 
 fn placed(line: &Line) -> Result<Rect, String> {

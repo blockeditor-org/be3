@@ -794,11 +794,7 @@ fn follow(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2, r
                 settle(doc, session, pos);
             }
             session.pos = pos;
-            let last = match releasing {
-                true => Some(session.last_drag.unwrap_or(session.origin)),
-                false => session.last_drag,
-            };
-            if !session.cancelled && last != Some(pos) {
+            if !session.cancelled && session.last_drag != Some(pos) {
                 drag(doc, frame, session, pos);
             }
         }

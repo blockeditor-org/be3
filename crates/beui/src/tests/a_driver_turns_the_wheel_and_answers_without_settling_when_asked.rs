@@ -29,7 +29,7 @@ fn a_driver_turns_the_wheel_and_answers_without_settling_when_asked() {
     let _root = crate::reactive::RootScope::new();
     let frames = create_signal(0);
     let scrolled = create_signal(Vec::new());
-    let mut driven = Driven::with_app(Busy { frames, scrolled }, false);
+    let mut driven = stepped(Busy { frames, scrolled });
 
     driven
         .ask(&["--no-settle", "move", "10,10"])

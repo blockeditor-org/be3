@@ -16,7 +16,7 @@ fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
             </BackHandler>
         }
     });
-    let mut driven = Driven::new(document);
+    let mut driven = stepped(crate::testing::Showing(document));
 
     driven.ask(&["back", "right"]).expect("the gesture starts");
     driven

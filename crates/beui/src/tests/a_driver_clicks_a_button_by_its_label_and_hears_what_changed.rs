@@ -20,7 +20,7 @@ fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {
             </List>
         }
     });
-    let mut driven = Driven::new(document);
+    let mut driven = stepped(crate::testing::Showing(document));
 
     let changed = driven
         .ask(&["click", "\"Add\""])

@@ -24,7 +24,7 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
             <Text>"Desktop"</Text>
         }
     });
-    let mut driven = Driven::with_app(Hosting(document), false);
+    let mut driven = stepped(Hosting(document));
     assert_eq!(
         driven
             .ask(&["env"])
@@ -38,7 +38,7 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
             <Text>"Plain"</Text>
         }
     });
-    let mut driven = Driven::new(plain);
+    let mut driven = stepped(crate::testing::Showing(plain));
     assert_eq!(
         driven
             .ask(&["env"])

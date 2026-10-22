@@ -260,6 +260,7 @@ mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
 mod a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on;
 mod a_press_just_outside_a_windows_border_resizes_it;
 mod a_press_outside_an_interactive_is_reported_to_it;
+mod a_press_released_in_the_frame_it_began_drags_once_where_it_was;
 mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
@@ -320,6 +321,7 @@ mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
 mod a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame;
 mod a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
+mod a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
 mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
 mod a_split_button_runs_its_action_or_opens_its_menu;
@@ -2221,42 +2223,6 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     assert_eq!(heard.get_untracked(), ["close", "run true"]);
 }
 
-pub(crate) struct Driven {
-    runner: beui_core::runner::Runner,
-    window: Option<beui_core::app::automation::Simulation>,
-    platform: DrivenPlatform,
-    inbox: beui_core::app::automation::Inbox,
-    pub(crate) closed: bool,
-}
-
-struct DrivenScreen(Vec2);
-
-impl beui_core::renderer::Renderer for DrivenScreen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
-    fn info(&self) -> RendererInfo {
-        RendererInfo::default()
-    }
-
-    fn resize(&mut self, width: u32, height: u32) {
-        self.0 = Vec2::new(width as f32, height as f32);
-    }
-
-    fn physical(&self) -> Option<Vec2> {
-        Some(self.0)
-    }
-
-    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
-        output.changed
-    }
-
-    fn present(&mut self, _background: Color32) -> bool {
-        false
-    }
-}
-
 #[derive(Default)]
 struct DrivenPlatform {
     unanswered: Vec<crate::PasteAnswer>,
@@ -2268,99 +2234,20 @@ impl beui_core::runner::Platform for DrivenPlatform {
     }
 }
 
-struct DrivenDocument(Document);
-
-impl App for DrivenDocument {
-    fn update(&mut self, context: &Context, rect: Rect) {
-        self.0.show(context, rect);
-    }
+pub(crate) fn stepped<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
+    crate::testing::Stepped::on(context(), app, VIEWPORT, DrivenPlatform::default())
 }
 
-impl Driven {
-    pub(crate) fn new(document: Document) -> Self {
-        Self::with_app(DrivenDocument(document), false)
-    }
-
-    pub(crate) fn headless(document: Document) -> Self {
-        Self::with_app(DrivenDocument(document), true)
-    }
-
-    pub(crate) fn with_app(app: impl App + 'static, headless: bool) -> Self {
-        let inbox = beui_core::app::automation::Inbox::default();
-        let options = beui_core::runner::RunOptions {
-            automation: Some(inbox.clone()),
-            ..Default::default()
-        };
-        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
-            options,
-            context: context(),
-            app: Box::new(app),
-        });
-        let window = headless.then(|| {
-            beui_core::app::automation::Simulation::new(
-                beui_core::app::automation::WindowSize {
-                    size: VIEWPORT,
-                    scale: 1.0,
-                },
-                Some(WIDE_VIEWPORT),
-                runner.reports().clone(),
-            )
-        });
-        runner
-            .start(
-                vec![beui_core::renderer::Loaded {
-                    renderer: Box::new(DrivenScreen(VIEWPORT)),
-                    fonts: None,
-                }],
-                Setup::new(Waker::new(|| {})),
-            )
-            .expect("the screen loads");
-        runner.context().stop_clock();
-        let mut driven = Self {
-            runner,
-            window,
-            platform: DrivenPlatform::default(),
-            inbox,
-            closed: false,
-        };
-        driven.frame();
-        driven
-    }
-
-    fn frame(&mut self) {
-        self.runner
-            .context()
-            .advance_clock(Duration::from_micros(16_667));
-        let area = beui_core::app::SafeArea::default();
-        match &mut self.window {
-            Some(window) => self.runner.frame(window, area),
-            None => self.runner.frame(&mut self.platform, area),
-        };
-        self.closed |= self.runner.exited();
-        if let Some(failure) = self.runner.failure() {
-            panic!("the driven app panicked: {failure}");
-        }
-    }
-
-    pub(crate) fn ask(&mut self, words: &[&str]) -> Result<String, String> {
-        use beui_core::app::automation::{Reply, ask};
-        use std::future::Future;
-        let owned = words.iter().map(|word| (*word).to_owned()).collect();
-        let mut answered = std::pin::pin!(ask(&self.inbox, owned));
-        let mut waiting = std::task::Context::from_waker(std::task::Waker::noop());
-        for _ in 0..600 {
-            self.frame();
-            if let std::task::Poll::Ready(reply) = answered.as_mut().poll(&mut waiting) {
-                return match reply {
-                    Reply::Text(text) => Ok(text),
-                    Reply::Error(error) => Err(error),
-                    Reply::Image { .. } => Err("an image".to_owned()),
-                    Reply::Painting(_) => Err("a painting".to_owned()),
-                };
-            }
-        }
-        panic!("the app never answered {words:?}");
-    }
+pub(crate) fn headless<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
+    crate::testing::Stepped::new(
+        context(),
+        app,
+        beui_core::app::automation::WindowSize {
+            size: VIEWPORT,
+            scale: 1.0,
+        },
+        Some(WIDE_VIEWPORT),
+    )
 }
 
 pub(crate) type Dialogs = Vec<(u64, u64, bool)>;
@@ -2554,7 +2441,7 @@ impl Intaken {
         runner
             .start(
                 vec![beui_core::renderer::Loaded {
-                    renderer: Box::new(DrivenScreen(VIEWPORT)),
+                    renderer: Box::new(crate::testing::Screen(VIEWPORT)),
                     fonts: None,
                 }],
                 Setup::new(Waker::new(|| {})),

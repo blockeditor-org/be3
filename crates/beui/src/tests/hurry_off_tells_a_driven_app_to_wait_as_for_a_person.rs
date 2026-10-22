@@ -13,7 +13,7 @@ impl App for Hurrying {
 fn hurry_off_tells_a_driven_app_to_wait_as_for_a_person() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(Vec::new());
-    let mut driven = Driven::with_app(Hurrying(seen), true);
+    let mut driven = headless(Hurrying(seen));
 
     driven.ask(&["settle"]).expect("the app settles");
     assert_eq!(

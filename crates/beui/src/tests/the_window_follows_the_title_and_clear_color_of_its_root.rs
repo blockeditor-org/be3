@@ -59,7 +59,7 @@ fn the_window_follows_the_title_and_clear_color_of_its_root() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(DrivenDocument(document)),
+        app: Box::new(crate::testing::Showing(document)),
     });
     let loaded = vec![Loaded {
         renderer: Box::new(Screen(Rc::clone(&backgrounds))),
