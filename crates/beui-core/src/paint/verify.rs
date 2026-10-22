@@ -183,6 +183,18 @@ pub enum Why {
     Restacked(NodeId),
 }
 
+impl Why {
+    pub fn node(self) -> NodeId {
+        match self {
+            Self::Added(id)
+            | Self::Removed(id)
+            | Self::Faded(id)
+            | Self::Changed(id)
+            | Self::Restacked(id) => id,
+        }
+    }
+}
+
 struct Compare<'a> {
     old: &'a Seen,
     new: &'a Seen,
@@ -283,7 +295,18 @@ impl Compare<'_> {
                 self.need(rects, Why::Faded(id));
             }
         }
-        for rect in shape_changes(&was.shapes, &now.shapes, |old, new| old.same_look(new)) {
+        let painting = |shapes: &[(usize, Shape)], within: Rect| -> Vec<(usize, Shape)> {
+            shapes
+                .iter()
+                .filter(|(_, shape)| bounds(shape).intersect(within).is_positive())
+                .cloned()
+                .collect()
+        };
+        let (painted, paints) = (
+            painting(&was.shapes, Rect::EVERYTHING),
+            painting(&now.shapes, Rect::EVERYTHING),
+        );
+        for rect in shape_changes(&painted, &paints, |old, new| old.same_look(new)) {
             let rects = self.outside(rect);
             self.need(rects, Why::Changed(id));
         }
@@ -294,12 +317,14 @@ impl Compare<'_> {
                 .filter(|(index, _)| self.visible_old(*index))
                 .map(|(index, shape)| (*index, placed_shape(shape, by, Rect::EVERYTHING)))
                 .collect();
+            let shifted = painting(&shifted, landed);
             let shown: Vec<(usize, Shape)> = now
                 .shapes
                 .iter()
                 .filter(|(index, _)| self.visible_new(*index))
                 .cloned()
                 .collect();
+            let shown = painting(&shown, landed);
             let shifted_fades: Vec<Fade> =
                 was.fades.iter().map(|fade| fade.translate(by)).collect();
             if shifted_fades != now.fades {
@@ -383,8 +408,58 @@ fn moved_same(old: &Shape, new: &Shape, landed: Rect) -> bool {
         _ => None,
     };
     (uniform(old) && uniform(new) && fill(old) == fill(new))
-        || (unclipped(old).same_look(&unclipped(new))
+        || (nearly_same(old, new)
             && clip_of(old).intersect(landed) == clip_of(new).intersect(landed))
+}
+
+fn nearly_same(old: &Shape, new: &Shape) -> bool {
+    let (mut old, mut new) = (unclipped(old), unclipped(new));
+    let (was, now) = (take_positions(&mut old), take_positions(&mut new));
+    was.len() == now.len()
+        && was
+            .iter()
+            .zip(&now)
+            .all(|(was, now)| (was - now).abs() <= ROUNDING)
+        && old.same_look(&new)
+}
+
+fn take_positions(shape: &mut Shape) -> Vec<f32> {
+    let mut taken = Vec::new();
+    let mut take = |pos: &mut Pos2| {
+        taken.extend([pos.x, pos.y]);
+        *pos = Pos2::ZERO;
+    };
+    match shape {
+        Shape::Rect { rect, rotation, .. }
+        | Shape::Image { rect, rotation, .. }
+        | Shape::Punch { rect, rotation, .. } => {
+            take(&mut rect.min);
+            take(&mut rect.max);
+            take(&mut rotation.pivot);
+        }
+        Shape::Text {
+            origin, rotation, ..
+        } => {
+            take(origin);
+            take(&mut rotation.pivot);
+        }
+        Shape::Line { from, to, .. } => {
+            take(from);
+            take(to);
+        }
+        Shape::Drawing { rect, .. } => {
+            take(&mut rect.min);
+            take(&mut rect.max);
+        }
+        Shape::Path {
+            offset, rotation, ..
+        } => {
+            take(&mut rotation.pivot);
+            taken.extend([offset.x, offset.y]);
+            *offset = Vec2::ZERO;
+        }
+    }
+    taken
 }
 
 fn unclipped(shape: &Shape) -> Shape {

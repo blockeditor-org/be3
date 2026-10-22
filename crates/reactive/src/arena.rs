@@ -89,7 +89,6 @@ pub(crate) fn remove(key: Key) {
     drop(removed);
 }
 
-#[cfg(test)]
 pub(crate) fn live() -> usize {
     ARENA.with(|arena| {
         let arena = arena.borrow();

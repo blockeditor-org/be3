@@ -30,3 +30,17 @@ constraint_value(
     constraint_setting = ":profile",
     visibility = ["PUBLIC"],
 )
+
+# A fuzz target's build: every first-party crate under it carries libFuzzer's
+# coverage instrumentation and everything is optimised, which
+# fuzzing_transition (buck/cargo/defs.bzl) gives the target's binary.
+constraint_setting(
+    name = "instrumentation",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "fuzzing",
+    constraint_setting = ":instrumentation",
+    visibility = ["PUBLIC"],
+)

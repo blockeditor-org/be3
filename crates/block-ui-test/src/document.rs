@@ -26,6 +26,8 @@ pub struct DocumentTest {
 impl DocumentTest {
     pub fn new(document: Document, size: Vec2) -> Self {
         beui::fail_unsettled_layout(true);
+        beui::verify_paint(true);
+        beui::verify_layout(true);
         let fonts = FontLibrary::bundled();
         let context = Context::new(FreetypeFonts::new(fonts.clone()));
         context.stop_clock();

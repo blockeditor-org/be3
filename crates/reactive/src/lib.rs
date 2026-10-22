@@ -11,6 +11,10 @@ mod selector;
 mod signal;
 mod stored;
 
+pub fn live_values() -> usize {
+    arena::live()
+}
+
 pub use computation::{Effect, create_binding, create_effect};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
 pub use loading::{Boundary, Pending, Ready, hold, wait_for, wait_while};
