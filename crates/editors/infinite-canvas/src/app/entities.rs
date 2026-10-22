@@ -562,20 +562,12 @@ impl Entities {
     }
 
     fn release(&self, slots: &Slots, ids: &[Uuid]) {
-        let held = untrack(|| {
-            slots.content.read(|content| {
-                ids.iter()
-                    .filter(|id| content.tree().contains(ObjectId::from_uuid(**id)))
-                    .copied()
-                    .collect::<HashSet<_>>()
-            })
-        })
-        .unwrap_or_default();
         let released: Vec<Slot> = {
+            let catalog = slots.catalog.borrow();
             let mut map = slots.slots.borrow_mut();
             let idle: Vec<Uuid> = ids
                 .iter()
-                .filter(|id| !held.contains(id))
+                .filter(|id| !catalog.listed.contains_key(id))
                 .filter(|id| map.get(id).is_some_and(|slot| slot.watchers == 0))
                 .copied()
                 .collect();
