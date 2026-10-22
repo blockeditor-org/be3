@@ -4,7 +4,7 @@ use beui::TextAlign;
 use beui::icons::{
     ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_CLOSE, ICON_FOLDER, ICON_FORMAT_QUOTE,
     ICON_FORMAT_SIZE, ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT,
-    ICON_TABLE_CHART, ICON_UPLOAD_FILE, ICON_WARNING,
+    ICON_TABLE_CHART, ICON_UNDO, ICON_UPLOAD_FILE, ICON_WARNING,
 };
 use beui::unstyled::MenuThen;
 
@@ -713,6 +713,7 @@ fn ButtonVariants() -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={move || clicked.set("Clicked With an icon".to_owned())}
                 />
+                <Button label="Compact" variant=ButtonVariant::Secondary size=ButtonSize::Compact />
                 <Button label="Disabled" variant=ButtonVariant::Primary disabled=true />
             </List>
             <Text style=TextStyle::CAPTION>{clicked}</Text>
@@ -744,6 +745,13 @@ fn IconButtons() -> NodeId {
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
                     on_click={move || clicked.set("Clicked Delete".to_owned())}
+                />
+                <IconButton
+                    glyph=ICON_UNDO
+                    label="Undo"
+                    variant=ButtonVariant::Ghost
+                    size=IconButtonSize::Toolbar
+                    on_click={move || clicked.set("Clicked Undo".to_owned())}
                 />
                 <IconButton glyph=ICON_EDIT label="Edit" disabled=true />
             </List>

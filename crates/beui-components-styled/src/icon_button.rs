@@ -7,12 +7,15 @@ use crate::text::{Icon, Text, TextSize};
 use crate::theme::use_theme;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
+use beui_core::base::frame::{Align2, Extent};
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
 const PADDING: f32 = 8.0;
 const COMPACT_PADDING: f32 = 2.0;
+const TOOLBAR_SIDE: f32 = 30.0;
+const TOOLBAR_RADIUS: f32 = 7.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 const COMPACT_FOCUS_RING_OFFSET: f32 = 1.0;
 
@@ -20,6 +23,7 @@ const COMPACT_FOCUS_RING_OFFSET: f32 = 1.0;
 pub enum IconButtonSize {
     Compact,
     Regular,
+    Toolbar,
 }
 
 impl IconButtonSize {
@@ -27,20 +31,35 @@ impl IconButtonSize {
         match self {
             IconButtonSize::Compact => COMPACT_PADDING,
             IconButtonSize::Regular => PADDING,
+            IconButtonSize::Toolbar => 0.0,
+        }
+    }
+
+    fn side(self) -> Extent {
+        match self {
+            IconButtonSize::Compact | IconButtonSize::Regular => Extent::INTRINSIC,
+            IconButtonSize::Toolbar => Extent::px(TOOLBAR_SIDE),
+        }
+    }
+
+    fn radius(self) -> f32 {
+        match self {
+            IconButtonSize::Compact | IconButtonSize::Regular => Radius::Md.px(),
+            IconButtonSize::Toolbar => TOOLBAR_RADIUS,
         }
     }
 
     fn glyph(self) -> TextSize {
         match self {
             IconButtonSize::Compact => TextSize::Xs,
-            IconButtonSize::Regular => TextSize::Base,
+            IconButtonSize::Regular | IconButtonSize::Toolbar => TextSize::Base,
         }
     }
 
     fn focus_ring_offset(self) -> f32 {
         match self {
             IconButtonSize::Compact => COMPACT_FOCUS_RING_OFFSET,
-            IconButtonSize::Regular => FOCUS_RING_OFFSET,
+            IconButtonSize::Regular | IconButtonSize::Toolbar => FOCUS_RING_OFFSET,
         }
     }
 }
@@ -95,13 +114,16 @@ pub(crate) fn IconButtonFace(
     view! {
         <FocusRing
             focused
-            radius={Radius::custom(Radius::Md.px() + 4.0)}
+            radius={Radius::custom(size.radius() + 4.0)}
             offset={size.focus_ring_offset()}
         >
             <Frame
                 fill={ColorRole::custom(fill_color)}
                 border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
-                radius=Radius::Md
+                radius={Radius::custom(size.radius())}
+                width={size.side()}
+                height={size.side()}
+                align=Align2::CENTER
                 padding={size.padding()}
             >
                 <Text size={size.glyph()} color={icon_color} align=TextAlign::Center>

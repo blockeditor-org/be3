@@ -15,7 +15,33 @@ use beui_view::reactive::*;
 const GLYPH_SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 16.0;
 const PADDING_VERTICAL: f32 = 9.0;
+const COMPACT_PADDING_HORIZONTAL: f32 = 11.0;
+const COMPACT_PADDING_VERTICAL: f32 = 7.0;
+const COMPACT_RADIUS: f32 = 8.0;
 const FOCUS_RING_OFFSET: f32 = 6.0;
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum ButtonSize {
+    #[default]
+    Regular,
+    Compact,
+}
+
+impl ButtonSize {
+    fn padding(self) -> (f32, f32) {
+        match self {
+            ButtonSize::Regular => (PADDING_HORIZONTAL, PADDING_VERTICAL),
+            ButtonSize::Compact => (COMPACT_PADDING_HORIZONTAL, COMPACT_PADDING_VERTICAL),
+        }
+    }
+
+    fn radius(self) -> f32 {
+        match self {
+            ButtonSize::Regular => Radius::Md.px(),
+            ButtonSize::Compact => COMPACT_RADIUS,
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ButtonVariant {
@@ -67,6 +93,7 @@ impl ButtonVariant {
 pub fn Button(
     #[prop(default = String::new())] label: Prop<String>,
     variant: Prop<ButtonVariant>,
+    #[prop(default = ButtonSize::Regular)] size: ButtonSize,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
@@ -75,7 +102,7 @@ pub fn Button(
 ) -> NodeId {
     view! {
         <unstyled::Button label glyph action disabled focused on_click={on_click}>|handle|
-            <ButtonFace handle variant />
+            <ButtonFace handle variant size />
         </unstyled::Button>
     }
 }
@@ -84,6 +111,7 @@ pub fn Button(
 pub fn ButtonFace(
     handle: unstyled::ButtonHandle,
     variant: Prop<ButtonVariant>,
+    #[prop(default = ButtonSize::Regular)] size: ButtonSize,
     #[prop(default = String::new())] trailing_glyph: Prop<String>,
     #[prop(default = false)] icon_only: Prop<bool>,
 ) -> NodeId {
@@ -109,16 +137,17 @@ pub fn ButtonFace(
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || !trailing.get().is_empty());
     let labelled = create_memo(move || !icon_only.get());
+    let (horizontal, vertical) = size.padding();
     let padding = create_memo(move || match icon_only.get() {
-        true => Sides::symmetric(PADDING_VERTICAL, PADDING_VERTICAL),
-        false => Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL),
+        true => Sides::symmetric(vertical, vertical),
+        false => Sides::symmetric(horizontal, vertical),
     });
     view! {
-        <FocusRing focused radius={Radius::custom(Radius::Md.px() + 4.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={Radius::custom(size.radius() + 4.0)} offset=FOCUS_RING_OFFSET>
             <Frame
                 fill={ColorRole::custom(fill_color)}
                 border={border}
-                radius=Radius::Md
+                radius={Radius::custom(size.radius())}
                 padding={padding}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>

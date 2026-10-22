@@ -1814,8 +1814,10 @@ tab bar or at the top of its sidebar, and so does a window. An action built with
 beside it. A tiled tab bar shows the icon pins, a divider, then the label pins as
 labelled buttons (the workspace's undo and redo, then Share); a sidebar shows every
 pin as an icon; the stacked bar shows only the icon pins and leaves the label pins
-in its menu. The bar's controls are regular-sized buttons; a tab's own close button
-stays compact. Pinning is how a tab puts its few most used controls in reach without
+in its menu. A tiled bar is 40 points with its rule, its tabs 30; its controls are
+`IconButtonSize::Toolbar` buttons (30 square) and the labelled pins compact
+`Button`s of the same height, while a tab's own close button stays compact. The
+stacked bar keeps regular-sized buttons. Pinning is how a tab puts its few most used controls in reach without
 giving the dock a node; everything else stays in the menu, and the tab keeps the
 rest of its page for its own toolbar. A menu is a list of
 actions rather than a node, so a dock that lays out tabs built somewhere else

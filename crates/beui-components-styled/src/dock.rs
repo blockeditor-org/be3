@@ -5,7 +5,7 @@ use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::sheet::ModalSheet;
 use beui_macros::{component, view};
 
-use crate::button::{Button, ButtonVariant};
+use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
@@ -18,6 +18,7 @@ use beui_components_unstyled::{
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
     DockingLayout, Entry, MenuNodes, Picture,
 };
+use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
@@ -34,14 +35,17 @@ use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
-const TAB_HEIGHT: f32 = 33.0;
-const TAB_SPACING: f32 = 6.0;
+const TAB_HEIGHT: f32 = 30.0;
+const TAB_RADIUS: Radius = Radius::custom(7.0);
+const TAB_SPACING: f32 = 8.0;
+const BAR_HEIGHT: f32 = 39.0;
 const BAR_PADDING: f32 = 4.0;
-const BAR_SPACING: f32 = 4.0;
-const DIVIDER_HEIGHT: f32 = 20.0;
+const BAR_SPACING: f32 = 2.0;
+const DIVIDER_HEIGHT: f32 = 18.0;
+const DIVIDER_MARGIN: f32 = 4.0;
+const SHARE_MARGIN: f32 = 2.0;
 const CONTROL_PADDING: f32 = 5.0;
-const GRIP_WIDTH: f32 = 22.0;
-const GRIP_PADDING: f32 = 3.0;
+const GRIP_WIDTH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const RULE: f32 = 1.0;
@@ -49,10 +53,8 @@ const SPLITTER_LINE: f32 = 1.0;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: f32 = 16.0;
-pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::new(
-    2.0 * CHROME_BORDER,
-    TAB_HEIGHT + 2.0 * BAR_PADDING + 2.0 * CHROME_BORDER + RULE,
-);
+pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
+    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
 const DROP_ALPHA: u8 = 64;
 const AWAY_SPACING: f32 = 12.0;
 const AWAY_PADDING: f32 = 24.0;
@@ -254,19 +256,19 @@ fn DockTabChrome(
     view! {
         <Frame
             fill={ColorRole::custom(fill)}
-            radius=Radius::Md
+            radius=TAB_RADIUS
             height=TAB_HEIGHT
             padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
             border={focus_border(focused, Border::FOCUS)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <Text size=TextSize::Sm color={label} align=TextAlign::Center>
+                    <Text color={label} align=TextAlign::Center>
                         <Icon glyph=ICON_TAB_GROUP />
                     </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <Text size=TextSize::Sm color={label} align=TextAlign::Center>
+                    <Text color={label} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
                 </Show>
@@ -498,8 +500,13 @@ fn DockTitleBar(
     let rule = bar_rule(vacant);
     view! {
         <List spacing=0.0>
-            <Frame fill={ColorRole::custom(fill)} padding=BAR_PADDING>
-                <Frame height={Extent::at_least(TAB_HEIGHT)}>
+            <Frame
+                fill={ColorRole::custom(fill)}
+                height=BAR_HEIGHT
+                padding={Sides::horizontal(BAR_PADDING)}
+                align={Align2::new(Align::Stretch, Align::Center)}
+            >
+                <Frame>
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         {grip}
                         {tabs} @sizing=ItemSize::Percent(100.0)
@@ -574,6 +581,13 @@ pub(crate) enum BarRoom {
 }
 
 impl BarRoom {
+    fn button(self) -> IconButtonSize {
+        match self {
+            BarRoom::Wide | BarRoom::Narrow => IconButtonSize::Toolbar,
+            BarRoom::Phone => IconButtonSize::Regular,
+        }
+    }
+
     fn shows(self, pin: Pin) -> bool {
         self != BarRoom::Phone || pin == Pin::Icon
     }
@@ -623,7 +637,9 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
             <ForEach keys={icons}>|key: u64| { pin(key) }</ForEach>
             <Show condition={divided}>
-                <Frame width=RULE height=DIVIDER_HEIGHT fill=ColorRole::Border />
+                <Frame padding={Sides::horizontal(DIVIDER_MARGIN)}>
+                    <Frame width=RULE height=DIVIDER_HEIGHT fill=ColorRole::Border />
+                </Frame>
             </Show>
             <ForEach keys={labels}>|key: u64| { pin(key) }</ForEach>
             <Show condition={offered}>
@@ -631,6 +647,7 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
                     @test_id={"dock.menu"}
                     label="More"
                     glyph=ICON_MORE_VERT
+                    size={room.button()}
                     items={view! {
                         <MenuNodes nodes={rest} test_prefix={"dock.menu".to_owned()} />
                     }}
@@ -645,10 +662,22 @@ fn DockPin(action: Action, room: BarRoom) -> NodeId {
     let id = format!("dock.pin.{}", action.id());
     match room == BarRoom::Wide && action.pinned() == Some(Pin::Label) {
         true => view! {
-            <Button @test_id={id} action={action} variant=ButtonVariant::Primary />
+            <Frame padding={Sides::horizontal(SHARE_MARGIN)}>
+                <Button
+                    @test_id={id}
+                    action={action}
+                    variant=ButtonVariant::Primary
+                    size=ButtonSize::Compact
+                />
+            </Frame>
         },
         false => view! {
-            <IconButton @test_id={id} action={action} variant=ButtonVariant::Ghost />
+            <IconButton
+                @test_id={id}
+                action={action}
+                variant=ButtonVariant::Ghost
+                size={room.button()}
+            />
         },
     }
 }
@@ -690,6 +719,7 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListC
             <IconButton
                 glyph=ICON_CLOSE
                 label="Close pane"
+                size=IconButtonSize::Toolbar
                 variant=ButtonVariant::Ghost
                 capture_presses=true
                 on_click={close}
@@ -706,7 +736,7 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
         false => TextColor::Faint,
     });
     view! {
-        <Frame width=GRIP_WIDTH padding={Sides::symmetric(GRIP_PADDING, CONTROL_PADDING)}>
+        <Frame width=GRIP_WIDTH padding={Sides::vertical(CONTROL_PADDING)}>
             <Text size=TextSize::Sm color={color} align=TextAlign::Center>
                 <Icon glyph=ICON_DRAG_INDICATOR />
             </Text>
@@ -770,7 +800,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
         <Frame
             fill={ColorRole::custom(fill)}
             border={Border::FOCUS}
-            radius=Radius::Md
+            radius=TAB_RADIUS
             height=TAB_HEIGHT
             padding={Sides::horizontal(PREVIEW_PADDING)}
         >
