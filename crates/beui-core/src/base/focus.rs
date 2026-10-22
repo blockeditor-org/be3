@@ -678,7 +678,7 @@ impl Document {
         let old = self.focused;
         self.composed.clear();
         self.cancel_focus_activation();
-        self.focused = new_focus;
+        self.set_focused(new_focus);
         self.focus_before = old;
         if let Some(new) = new_focus {
             self.note_focus_outside_scopes(new);

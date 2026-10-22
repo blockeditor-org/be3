@@ -86,6 +86,7 @@ pub struct Document {
     scale: ::reactive::OwnedSignal<f32>,
     attached: ::reactive::OwnedSignal<u64>,
     focus_visible: ::reactive::OwnedSignal<bool>,
+    focus_watched: ::reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::reactive::OwnedSignal<bool>,
     screens: ::reactive::OwnedSignal<Vec<Screen>>,
     offered_screens: Option<Vec<Screen>>,
@@ -305,6 +306,7 @@ impl Document {
             scale: ::reactive::OwnedSignal::new(1.0),
             attached: ::reactive::OwnedSignal::new(0),
             focus_visible: ::reactive::OwnedSignal::new(false),
+            focus_watched: ::reactive::OwnedSignal::new(None),
             fullscreen: ::reactive::OwnedSignal::new(false),
             screens: ::reactive::OwnedSignal::new(Vec::new()),
             offered_screens: None,
@@ -511,6 +513,15 @@ impl Document {
         self.screens
             .read_only()
             .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
+    }
+
+    pub fn watch_focused(&self) -> ::reactive::ReadSignal<Option<NodeId>> {
+        self.focus_watched.read_only()
+    }
+
+    pub(crate) fn set_focused(&mut self, focused: Option<NodeId>) {
+        self.focused = focused;
+        self.focus_watched.set(focused);
     }
 
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
@@ -1007,7 +1018,7 @@ impl Document {
             .focused
             .is_some_and(|focused| self.is_within(focused, id))
         {
-            self.focused = None;
+            self.set_focused(None);
         }
         let mut removed = Vec::new();
         self.detach_subtree(id, &mut removed);
@@ -1080,7 +1091,7 @@ impl Document {
             self.root = None;
         }
         if self.focused == Some(id) {
-            self.focused = None;
+            self.set_focused(None);
         }
         if self.focus_before == Some(id) {
             self.focus_before = None;

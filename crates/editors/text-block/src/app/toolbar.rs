@@ -165,7 +165,10 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
 pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
     let typing = state.typing;
     let hex = state.hex_view;
-    let shown = create_memo(move || typing.get() && !hex.get());
+    let row = NodeRef::new();
+    let held = holds_focus(row);
+    arrow_focus(row, Direction::Horizontal);
+    let shown = create_memo(move || (typing.get() || held.get()) && !hex.get());
     let touch = state.text.touch_mode();
     let keyboard = create_memo(move || touch.get());
     let content = state.text.content();
@@ -182,7 +185,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
     let bar = move || {
         let controls = controls.clone();
         view! {
-            <Interactive press_focus=false @test_id={"text.format"}>
+            <Interactive press_focus=false @node_ref=&row @test_id={"text.format"}>
                 <Frame fill=ColorRole::Surface>
                     <List spacing=0.0>
                         <Separator />

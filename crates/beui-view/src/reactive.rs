@@ -141,6 +141,17 @@ pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     create_memo(move || focused.get() && visible.get())
 }
 
+pub fn holds_focus(node: NodeRef) -> Memo<bool> {
+    let focused = with_document(|document| document.watch_focused());
+    create_memo(move || {
+        focused.get().is_some()
+            && with_document(|document| {
+                node.try_get()
+                    .is_some_and(|node| document.focus_is_within(node))
+            })
+    })
+}
+
 pub fn focus_outline(
     focused: impl IntoProp<bool>,
     color: impl IntoProp<beui_core::color::Color32>,
