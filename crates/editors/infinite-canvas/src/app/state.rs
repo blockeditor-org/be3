@@ -420,6 +420,7 @@ struct CanvasCells {
     shown: RefCell<Option<CanvasCursor>>,
     writing: Cell<bool>,
     scrubbing: Cell<bool>,
+    drafting: Cell<Option<Uuid>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
 }
@@ -541,6 +542,7 @@ impl CanvasState {
             shown: RefCell::new(None),
             writing: Cell::new(false),
             scrubbing: Cell::new(false),
+            drafting: Cell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
         });
@@ -861,17 +863,32 @@ impl CanvasState {
     }
 
     pub(crate) fn commit_writes(&self) {
-        if self.cells.value().scrubbing.get() {
+        let cells = self.cells.value();
+        if cells.scrubbing.get() || cells.drafting.get().is_some() {
             return;
         }
-        if self.cells.value().writing.replace(false) {
+        if cells.writing.replace(false) {
             self.content().commit_gesture();
         }
     }
 
     pub(crate) fn cancel_writes(&self) {
+        if self.cells.value().drafting.get().is_none() {
+            self.drop_writes();
+        }
+    }
+
+    fn drop_writes(&self) {
         if self.cells.value().writing.replace(false) {
             self.content().cancel_gesture();
+        }
+    }
+
+    fn keep_draft(&self, id: Uuid) {
+        let drafting = &self.cells.value().drafting;
+        if drafting.get() == Some(id) {
+            drafting.set(None);
+            self.commit_writes();
         }
     }
 
@@ -1102,19 +1119,35 @@ impl CanvasState {
         }
         self.editing_text.set(entity);
         if let Some(was) = was {
-            self.remove_if_empty(was);
+            self.stop_editing(was);
         }
     }
 
-    fn remove_if_empty(&self, id: Uuid) {
-        let Some(entity) = self.entities.get_untracked(id) else {
-            return;
-        };
-        if entity.shape == CanvasShape::Text && entity.text.is_empty() && !entity.locked {
+    fn draft_text(&self, id: Uuid) {
+        self.edit_text(Some(id));
+        self.open_writes();
+        self.cells.value().drafting.set(Some(id));
+    }
+
+    fn stop_editing(&self, id: Uuid) {
+        let drafting = &self.cells.value().drafting;
+        let draft = drafting.get() == Some(id);
+        if draft {
+            drafting.set(None);
+        }
+        let empty = self.entities.get_untracked(id).is_some_and(|entity| {
+            entity.shape == CanvasShape::Text && entity.text.is_empty() && !entity.locked
+        });
+        if empty {
             self.selection.update(|selection| {
                 selection.remove(&id);
             });
-            self.record(InfiniteCanvasOperation::Remove { ids: vec![id] });
+        }
+        match (draft, empty) {
+            (true, true) => self.drop_writes(),
+            (true, false) => self.commit_writes(),
+            (false, true) => self.record(InfiniteCanvasOperation::Remove { ids: vec![id] }),
+            (false, false) => {}
         }
     }
 
@@ -1578,7 +1611,7 @@ impl CanvasState {
     pub(crate) fn add_entity(&self, entity: CanvasEntity) {
         let (id, shape) = (entity.id, entity.shape);
         if shape == CanvasShape::Text {
-            self.edit_text(Some(id));
+            self.draft_text(id);
         }
         self.record(InfiniteCanvasOperation::Add {
             entity: Box::new(entity),
@@ -2412,7 +2445,7 @@ impl CanvasState {
                 };
                 let (created, shape) = (entity.id, entity.shape);
                 if shape == CanvasShape::Text {
-                    self.edit_text(Some(created));
+                    self.draft_text(created);
                 }
                 self.put_live(vec![entity]);
                 self.select_added(created, shape);
@@ -2598,6 +2631,19 @@ impl CanvasState {
         if self.preview {
             return;
         }
+        let state = self;
+        create_effect(move || {
+            let Some(id) = state.editing_text.get() else {
+                return;
+            };
+            if state
+                .entities
+                .get(id)
+                .is_some_and(|text| !text.text.is_empty())
+            {
+                untrack(|| state.keep_draft(id));
+            }
+        });
         let state = self;
         create_effect(move || {
             state.entities.track_edits();
