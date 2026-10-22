@@ -135,6 +135,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
         beui::verify_paint(true);
+        beui::fail_unsettled_layout(true);
         block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),

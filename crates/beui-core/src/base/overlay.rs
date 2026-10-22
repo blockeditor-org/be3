@@ -590,12 +590,18 @@ impl Element for OverlayNode {
 }
 
 impl Document {
+    fn overlay_anchor_moved(&self, overlay: NodeOf<OverlayNode>, out: &Rects) -> bool {
+        out.contains_key(&overlay.id())
+            && !self.is_culled(overlay.id())
+            && self.arena.get_as(overlay).anchor_moved(out)
+    }
+
     pub(crate) fn relay_moved_overlays(&mut self) -> bool {
         let rects = Rc::clone(&self.rects);
         let moved: Vec<NodeOf<OverlayNode>> = self
             .open_overlays()
             .into_iter()
-            .filter(|overlay| self.arena.get_as(*overlay).anchor_moved(&rects))
+            .filter(|overlay| self.overlay_anchor_moved(*overlay, &rects))
             .collect();
         for overlay in &moved {
             self.arena.invalidate_node(*overlay);
@@ -606,13 +612,12 @@ impl Document {
     pub(crate) fn place_moved_overlays(&mut self, ctx: &crate::context::Context, out: &Rects) {
         let painter = ctx.painter();
         for overlay in self.open_overlays() {
-            let node = self.arena.get_as(overlay);
-            let Some(content) = node.content.filter(|_| node.anchor_moved(out)) else {
-                continue;
-            };
-            if !out.contains_key(&overlay.id()) || self.is_culled(overlay.id()) {
+            if !self.overlay_anchor_moved(overlay, out) {
                 continue;
             }
+            let Some(content) = self.arena.get_as(overlay).content else {
+                continue;
+            };
             let mut element = self.arena.take(overlay);
             let outer = self.enter_measure(overlay.id());
             if let Some(node) = element.as_any_mut().downcast_mut::<OverlayNode>() {

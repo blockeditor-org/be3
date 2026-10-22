@@ -2861,7 +2861,11 @@ never painted from a layout the tree no longer has. A frame lays out at most
 four times: when the reports after the third still change something, the
 fourth layout holds its own reports back for the next frame, the frame is
 painted from it and asks for another, and debug builds log what was still
-changing. Each of those extra layouts is a cost the frame pays, so keep what a
+changing. Tests fail there instead: beui-core's own, and every test run through
+`block-ui-test`'s `DocumentTest` or `BeuiTest`, which turn on
+`beui::fail_unsettled_layout`. An open overlay whose anchor moved is placed
+again after the walk, but only one the walk placed: an overlay under a culled
+ancestor is not placed at all, so its anchor moving is nothing to report. Each of those extra layouts is a cost the frame pays, so keep what a
 report drives to painting where you can: a scrollbar's thumb is painted where
 the position says rather than laid out, which keeps scrolling to one layout a
 frame. Reach for a report only for what depends on how other nodes ended up,

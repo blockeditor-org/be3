@@ -2207,10 +2207,12 @@ impl Document {
                 format!("{} {id:?} ({names})", self.node_kind(*id))
             })
             .collect();
-        eprintln!(
+        let message = format!(
             "beui: layout did not settle in {LAYOUTS_PER_FRAME} layouts; what each reported kept \
              changing the layout of {relaid:?}"
         );
+        assert!(!failing_unsettled_layout(), "{message}");
+        eprintln!("{message}");
     }
 
     fn run_laid_out(&mut self) {
@@ -2352,6 +2354,17 @@ pub fn verify_paint(enabled: bool) {
 
 fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+static FAIL_UNSETTLED_LAYOUT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub fn fail_unsettled_layout(enabled: bool) {
+    FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn failing_unsettled_layout() -> bool {
+    cfg!(test) || FAIL_UNSETTLED_LAYOUT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 const LAYOUTS_PER_FRAME: usize = 4;
