@@ -22,8 +22,8 @@ fn tap(harness: &mut Harness, test_id: &str) {
 fn a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs() {
     let _root = crate::reactive::RootScope::new();
     let shared = create_signal(Vec::<u64>::new());
-    let layout = DockingLayout::new();
     let document = build_node(move || {
+        let layout = DockingLayout::new();
         view! {
             <styled::Docking layout focus=2u64>
                 <DockPane id="tabs">
@@ -51,8 +51,8 @@ fn a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs() {
     });
     let mut harness = Harness::sized(document, PHONE);
     harness.settle();
-    layout.show(&1u64);
-    harness.settle();
+    tap(&mut harness, "dock.switch");
+    tap(&mut harness, "dock.switcher.tab.1");
     tap(&mut harness, "dock.switch");
     assert!(laid_out(&harness, "dock.switcher.menu.2"));
 
