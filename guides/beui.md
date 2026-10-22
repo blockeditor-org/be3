@@ -110,7 +110,11 @@ time it becomes true and disposes of them when it turns false, as SolidJS's does
 Both it and `ShowKeepAlive` accept sibling children and components returning
 `Children<_>` without a wrapper. `ShowKeepAlive` builds its children once and,
 while hidden, takes them out of the tree but keeps their identities and pauses
-their effects until shown again.
+their effects until shown again. A memo is worked out when it is read, so what
+reads one from outside is never stale. Showing it again runs each effect whose
+sources changed while it was hidden once, with their current values, even when
+a memo it reads came back to what it was, so a controlled prop such as
+`focused` that went false and true again takes the focus back.
 Use it for a tab panel whose scroll position and state should survive switching away.
 `Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two

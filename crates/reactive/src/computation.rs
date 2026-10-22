@@ -260,6 +260,12 @@ impl Computation {
         self.owner.upgrade().is_some_and(|owner| owner.within(root))
     }
 
+    pub(crate) fn rerun_whatever_it_reads(&self) {
+        if self.state.get() == State::Check {
+            self.state.set(State::Dirty);
+        }
+    }
+
     pub(crate) fn closed_gate(&self) -> Option<Rc<Gate>> {
         if self.source.is_some() {
             return None;
