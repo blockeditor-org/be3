@@ -29,7 +29,7 @@ fn key_handlers_can_move_focus_and_change_their_tab_stop() {
             },
         ]
     });
-    let flag = unstyled::button_focused(&document, second.get());
+    let flag = document.api::<unstyled::ButtonApi>(second.get()).focused();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);

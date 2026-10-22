@@ -6,10 +6,8 @@ use crate::focus_ring::FocusRing;
 use crate::text::{Icon, Text, TextColor};
 use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
-use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -17,6 +15,8 @@ use beui_view::reactive::*;
 
 #[component]
 pub fn ToggleButton(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ToggleApi>,
+
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] pressed: Binding<bool>,
     #[prop(default = String::new())] glyph: Prop<String>,
@@ -28,6 +28,7 @@ pub fn ToggleButton(
     let named = create_memo(move || !icon_only.get());
     view! {
         <Toggle
+            api
             checked={pressed}
             label
             glyph
@@ -105,8 +106,4 @@ fn fill_for(theme: &ThemeStore, pressed: bool, hovered: bool) -> Color32 {
     } else {
         theme.surface.get()
     }
-}
-
-pub fn toggle_button_pressed(document: &Document, button: NodeId) -> bool {
-    unstyled::toggle_checked(document, button).get()
 }

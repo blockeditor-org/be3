@@ -43,9 +43,10 @@ pub fn Spinner(
         },
         move || phase.set(0.5),
     );
-    let preference = with_document(|document| document.watch_motion());
+    let preferences = use_preferences();
+    let animates = create_memo(move || preferences.get().motion.animates());
     create_effect(move || {
-        let animate = preference.get().animates();
+        let animate = animates.get();
         if placed.get() && animate {
             ticking.start();
         } else {

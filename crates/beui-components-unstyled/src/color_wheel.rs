@@ -4,7 +4,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::{Hsva, Oklch};
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
@@ -178,6 +177,7 @@ pub struct ColorWheelHandle {
 
 #[component]
 pub fn ColorWheel(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ColorWheelApi>,
     value: Binding<WheelPoint>,
     ring_width: f32,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -193,7 +193,7 @@ pub fn ColorWheel(
     let hovered = create_signal(false);
     let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    set_component_state(point);
+    api.fill(ColorWheelApi(point));
 
     match accessibility {
         Some(accessibility) => component_accessibility(accessibility),
@@ -352,8 +352,11 @@ pub fn ColorWheel(
     }
 }
 
-pub fn color_wheel_value(document: &Document, wheel: NodeId) -> WheelPoint {
-    document
-        .component_state::<Binding<WheelPoint>>(wheel)
-        .get_untracked()
+#[derive(Clone, Copy)]
+pub struct ColorWheelApi(Binding<WheelPoint>);
+
+impl ColorWheelApi {
+    pub fn value(&self) -> WheelPoint {
+        self.0.get_untracked()
+    }
 }

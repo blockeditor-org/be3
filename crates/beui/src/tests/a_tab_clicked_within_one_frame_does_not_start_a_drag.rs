@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_tab_clicked_within_one_frame_does_not_start_a_drag() {
@@ -34,7 +34,7 @@ fn a_tab_clicked_within_one_frame_does_not_start_a_drag() {
         !harness.document().dragging(),
         "a click that lets go in the frame it pressed leaves nothing carried"
     );
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     assert_eq!(
         state.active_tab(leaf),

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn dragging_a_tab_within_a_window_bar_reorders_it() {
@@ -15,7 +15,7 @@ fn dragging_a_tab_within_a_window_bar_reorders_it() {
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     let rect = state.window_rect(window).expect("the window has a rect");
     let origin = harness.rect(dock).min + rect.min.to_vec2();
@@ -29,7 +29,7 @@ fn dragging_a_tab_within_a_window_bar_reorders_it() {
     harness.drag(first, pos2(second.right() + 4.0, second.center().y));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.surface_tabs(window),
         vec![TabId::new(1), TabId::new(2)],

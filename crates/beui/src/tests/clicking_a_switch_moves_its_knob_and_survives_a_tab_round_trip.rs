@@ -29,7 +29,7 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
     harness.frame(Vec::new());
     let on_rect = harness.rect(knob);
     assert_ne!(off_rect, on_rect, "clicking the switch must move the knob");
-    assert!(switch_on(harness.document(), switch));
+    assert!(harness.document().api::<ToggleApi>(switch).checked().get());
 
     with_installed(harness.document_mut(), |_| tab.set(1));
     harness.frame(Vec::new());
@@ -39,7 +39,7 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(knob), off_rect, "the knob must move back off");
-    assert!(!switch_on(harness.document(), switch));
+    assert!(!harness.document().api::<ToggleApi>(switch).checked().get());
 }
 
 fn knob_of(document: &Document, switch: NodeId) -> NodeId {

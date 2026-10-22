@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {
@@ -7,7 +7,10 @@ fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
-    let stored = dock_state(harness.document(), dock)
+    let stored = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let tab = |harness: &Harness| harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
@@ -24,7 +27,11 @@ fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {
         "the window is pulled back so its grip and bar stay inside the smaller dock: {drawn:?} in {shrunk:?}"
     );
     assert_eq!(
-        dock_state(harness.document(), dock).window_rect(window),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .window_rect(window),
         Some(stored),
         "shrinking the dock leaves where the window belongs alone"
     );

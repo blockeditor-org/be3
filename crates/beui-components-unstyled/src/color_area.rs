@@ -5,7 +5,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::Hsva;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
@@ -27,6 +26,7 @@ pub struct ColorAreaHandle {
 
 #[component]
 pub fn ColorArea(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ColorAreaApi>,
     value: Binding<Hsva>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
@@ -42,7 +42,7 @@ pub fn ColorArea(
     let disabled = create_memo(move || disabled.get());
     let x = create_memo(move || color.get().saturation);
     let y = create_memo(move || 1.0 - color.get().value);
-    set_component_state(color);
+    api.fill(ColorAreaApi(color));
 
     component_accessibility(create_memo(move || {
         let color = color.get();
@@ -177,8 +177,11 @@ fn thumb_centre(size: Vec2, color: Hsva) -> Pos2 {
     pos2(color.saturation * size.x, (1.0 - color.value) * size.y)
 }
 
-pub fn color_area_value(document: &Document, area: NodeId) -> Hsva {
-    document
-        .component_state::<Binding<Hsva>>(area)
-        .get_untracked()
+#[derive(Clone, Copy)]
+pub struct ColorAreaApi(Binding<Hsva>);
+
+impl ColorAreaApi {
+    pub fn value(&self) -> Hsva {
+        self.0.get_untracked()
+    }
 }

@@ -32,7 +32,7 @@ These four cover most review comments on beui code.
 If a function returns a `NodeId`, or a value built around one such as a
 `CanvasItem`, annotate it `#[component]` and name it in `CamelCase`. The
 attribute is what makes the function usable as a tag, gives it `@test_id`,
-`@node_ref` and `@sizing`, makes `component_state`, `component_accessibility`
+`@node_ref` and `@sizing`, makes `ComponentRef::fill`, `component_accessibility`
 and `component_placed` available inside it (they panic anywhere else), and
 gives it a scope of its own, so the contexts it provides reach only what it
 builds rather than its siblings. Nothing checks for the attribute; a plain
@@ -58,7 +58,7 @@ built it, exactly as a node's does: a value built inside a `show` branch or a
 `for_each` row goes with that branch or row, whatever happens to the value.
 That is how an item made of data rather than nodes — a label, a key, a
 callback — can still be a component, with its own scope, context, memos and
-cleanups, and still be written as a tag. Such a component has nothing for `component_state`, `component_accessibility`,
+cleanups, and still be written as a tag. Such a component has nothing for `ComponentRef::fill`, `component_accessibility`,
 or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
@@ -74,9 +74,9 @@ is kept, so a `show` or a `for_each` can build one; a generic type names its
 parameters first, as in `value_child_type!(<K> DockNode<K>)`.
 
 Functions that build no part of a view are ordinary functions. Deriving a
-colour from theme tokens and interaction state, mapping a value to a label,
-reading state back out of a built node — write those as plain functions, as
-`beui-components-styled`'s `checkbox.rs` does with `box_fill` and `checkbox_checked`.
+colour from theme tokens and interaction state, mapping a value to a label —
+write those as plain functions, as
+`beui-components-styled`'s `checkbox.rs` does with `box_fill`.
 
 ### A component usually ends with one `view!` and nothing after it
 
@@ -265,7 +265,7 @@ direction:
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
-| `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, and layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
+| `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`, and the node functions and `Inspect` through which components reach the tree); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
@@ -292,8 +292,8 @@ hooks the higher crates fill in:
   runners use, adds the system's own fonts for whatever the bundled ones do
   not cover. The fonts live in a `FontLibrary` that contexts can share and
   that can be given more fonts later, which lays their text out again.
-- The document's theme lives in a typed slot on the document
-  (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
+- The document's theme store lives in a typed slot on the document
+  (`Document::extension`, which components reach as `tree_local`).
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
 - Each platform is a `beui_core::runner::Adapter`, a trait object the facade
@@ -1342,7 +1342,8 @@ Set a layer with `Context::set_preference_layer(source, layer)` and read them wi
 `preference_layers()`. Each document mirrors them at the start of a frame (`preferences()`, and
 `watch_theme()`, `watch_motion()` and `watch_canvas_touch()` for one each);
 `Document::watch_preference_layers()` is that, reactively, for settings that show where a value
-comes from. `styled::PreferencesSection` is a settings section over the app layer, with a
+comes from; components read these as `use_preferences()` and `use_preference_layers()`, and
+write a layer through `use_preference_layer(source)`. `styled::PreferencesSection` is a settings section over the app layer, with a
 `styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
 below, and notes a developer override. An app that keeps its own choices passes
 `RunOptions::saving_preferences(name)`, which loads and saves the app layer in the platform's
@@ -1643,8 +1644,9 @@ the deepest row still shown above a selection hidden inside a collapsed one, and
 while the selection is hidden or scrolled out of view it floats a button over
 the top or bottom edge that reports `on_reveal` - the caller expands the
 ancestors - and then scrolls the row into view once it is laid out. The file
-tree and the beui inspector both work this way. `styled::tree_row_node` and
-`styled::tree_focused` reach the rows through the styled tree's node.
+tree and the beui inspector both work this way, and both hold the tree's
+`TreeApi` through its `api` prop to find its rows (`row_node`) and its focus
+(`focused`).
 
 ### Screens
 
@@ -2180,8 +2182,9 @@ Escape, when it loses focus, and when it is removed, and keys it does not use
 itself go on to `on_key`, which is what a control that also walks with the
 keyboard binds.
 
-Beui does not hold the pointer itself - it asks. `Document::show` publishes the
-wish as `WindowState::pointer_locked`, and whoever is showing the document does
+Beui does not hold the pointer itself - it asks. `PointerLock` sets
+`pointer_locked` on its `Interactive`, the document publishes whether any
+`Interactive` in it asks as `WindowState::pointer_locked`, and whoever is showing the document does
 it: the winit runner locks the cursor and hides it, and a plugin region passes
 it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). An
 adapter reads raw motion only while `Runner::window()`, the state it was
@@ -3076,9 +3079,41 @@ shapes in this layer. A new skin should be able to use the unstyled control
 without undoing visual decisions.
 
 State that belongs to the component's own handlers should be captured directly.
-Use `set_component_state` only when tests or host integration need to read the
-state from the component's `NodeId`, and expose a focused helper such as
-`toggle_checked(&Document, NodeId)`. State the user changes is a `Binding<T>`
+When callers, tests or host integration need to read it, the component exposes a
+typed handle: a `Copy` struct named after it (`ToggleApi`, `SelectApi`), usually
+wrapping its private state, whose methods answer what may be asked
+(`checked()`, `selected()`, `option_button(index)`). The component takes it as
+an ordinary prop, `#[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi>`,
+and calls `api.fill(SelectApi(state))` while it builds. A caller that wants the
+handle passes its own `ComponentRef` (`<Select api=select ...>`, then
+`select.get().selected()`), so the type checks that it fits; a styled component
+that wraps an unstyled one takes the unstyled one's handle and passes it on.
+`fill` also records the handle against the component's node, so a test holding
+only a `NodeId` (from a test id) reads it as `document.api::<SelectApi>(node)`.
+A method that needs to know where nodes were laid out takes
+`tree: &impl Inspect`, which is what a test holds of a built tree (`api`,
+`node_rect` and `is_overlay_open`, which `Document` implements). Never look
+another component's state up by its node from inside the tree; take its
+`ComponentRef` as a prop, as `TreeReveal` takes its tree's.
+
+The styled and unstyled crates never name `Document`, `with_document` or
+`NodeOf` outside their tests, so their components can be built on another
+backend; `fix-rust-source` reports it when they do. They reach the tree they
+were built into through `beui::reactive` (`beui-view/src/nodes.rs`). What
+concerns one node is a method of the `TreeNode` trait on `NodeId`
+(`panel.focus_is_within()`, `overlay.raise_overlay()`, `offset.drive_offset(..)`,
+`text.caret_rect(..)`), which answers `None`, `false` or nothing for a node of
+another kind or one that is gone. Where nodes were laid out is a `Placements`
+handle from `placements()`, which can be kept and read later, even by a memo a
+test reads outside the document. The rest are functions: `focused_node`,
+`set_focus`, `stacked_at`, `tree_local` for a value kept once per tree,
+`use_preferences()` and `use_preference_layers()` as signals,
+`use_preference_layer(source)` as a `Binding` that writes that layer, and
+`use_font_revision()`, which changes whenever text may measure differently.
+When a component needs something the document has and these do not offer, add
+it there rather than reaching for the document.
+
+State the user changes is a `Binding<T>`
 prop that the component reads and writes, with no copy of it kept in sync; see
 `unstyled::Toggle` for the pattern.
 
@@ -3178,7 +3213,7 @@ and a theme's `kind` says which it is, for code that must tell them apart withou
 colors. What dims the app under an overlay is a theme colour too: `scrim` under a dialog,
 sheet or dock dialog, `scrim_soft` under the command palette and launcher, which leave
 the app readable, and `scrim_strong` under `Fullscreen`. Styled components that no provider covers use the document's theme, the one its
-preferences choose (Preferences, above); `theme()` from the `styled::DocumentTheme` trait reads
+preferences choose (Preferences, above); `Theme::of(document.preferences().theme)` reads
 it, for example to pick an app's clear color.
 
 `ThemeProvider` overrides the theme for the subtree written between its tags and

@@ -11,7 +11,12 @@ fn touch_dragging_across_a_text_input_does_not_select_its_text() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let text = harness.rect(unstyled::text_input_text(harness.document(), input));
+    let text = harness.rect(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .text(),
+    );
     let from = pos2(text.left() + 4.0, text.center().y);
     let to = pos2(text.left() + 60.0, text.center().y);
 
@@ -20,9 +25,18 @@ fn touch_dragging_across_a_text_input_does_not_select_its_text() {
     harness.touch(TouchPhase::End, to);
     harness.frame(Vec::new());
 
-    assert!(unstyled::text_input_selection(harness.document(), input).is_empty());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .selection()
+            .is_empty()
+    );
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "Hello world"
     );
 }

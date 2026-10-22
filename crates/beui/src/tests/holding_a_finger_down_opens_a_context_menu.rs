@@ -60,7 +60,10 @@ fn holding_a_finger_down_opens_a_context_menu() {
         "holding a finger still opens the menu, as a sheet"
     );
     assert!(
-        !unstyled::context_menu_open(harness.document(), menu.get()),
+        !harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(menu.get())
+            .open(harness.document()),
         "a finger never opens the menu that a mouse gets"
     );
     assert_eq!(

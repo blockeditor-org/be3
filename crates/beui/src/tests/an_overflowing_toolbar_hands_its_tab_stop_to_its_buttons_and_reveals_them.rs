@@ -43,12 +43,24 @@ fn an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them() {
     };
 
     harness.key(Key::Tab, Modifiers::NONE);
-    assert!(unstyled::button_focused(harness.document(), buttons[0]).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(buttons[0])
+            .focused()
+            .get()
+    );
     for _ in 0..4 {
         harness.key(Key::Tab, Modifiers::NONE);
     }
     harness.frame(Vec::new());
-    assert!(unstyled::button_focused(harness.document(), buttons[4]).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(buttons[4])
+            .focused()
+            .get()
+    );
     assert!(harness.document.scroll_offset(scroll) > 0.0);
     assert!(visible(&harness, buttons[4]));
 
@@ -56,17 +68,35 @@ fn an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them() {
         harness.key(Key::ArrowRight, Modifiers::NONE);
     }
     harness.frame(Vec::new());
-    assert!(unstyled::button_focused(harness.document(), buttons[8]).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(buttons[8])
+            .focused()
+            .get()
+    );
     assert!(visible(&harness, buttons[8]));
 
     harness.key(Key::Home, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert!(unstyled::button_focused(harness.document(), buttons[0]).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(buttons[0])
+            .focused()
+            .get()
+    );
     assert_eq!(harness.document.scroll_offset(scroll), 0.0);
 
     harness.key(Key::End, Modifiers::NONE);
     harness.key(Key::ArrowLeft, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert!(unstyled::button_focused(harness.document(), buttons[8]).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(buttons[8])
+            .focused()
+            .get()
+    );
     assert!(visible(&harness, buttons[8]));
 }

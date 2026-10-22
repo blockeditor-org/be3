@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::pan_zoom_view;
+use crate::unstyled::PanZoomApi;
 
 #[test]
 fn plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale() {
@@ -16,7 +16,7 @@ fn plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Plus, Modifiers::NONE);
     harness.frame(Vec::new());
-    let zoomed = pan_zoom_view(harness.document(), stage).get();
+    let zoomed = harness.document().api::<PanZoomApi>(stage).view().get();
     assert!(
         (zoomed.scale - 1.25).abs() < 0.001,
         "the view reached {}",
@@ -26,11 +26,29 @@ fn plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale() {
 
     harness.key(Key::Minus, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert!((pan_zoom_view(harness.document(), stage).get().scale - 1.0).abs() < 0.001);
+    assert!(
+        (harness
+            .document()
+            .api::<PanZoomApi>(stage)
+            .view()
+            .get()
+            .scale
+            - 1.0)
+            .abs()
+            < 0.001
+    );
 
     harness.key(Key::Plus, Modifiers::NONE);
     harness.key(Key::Plus, Modifiers::NONE);
     harness.key(Key::Zero, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert_eq!(pan_zoom_view(harness.document(), stage).get().scale, 1.0);
+    assert_eq!(
+        harness
+            .document()
+            .api::<PanZoomApi>(stage)
+            .view()
+            .get()
+            .scale,
+        1.0
+    );
 }

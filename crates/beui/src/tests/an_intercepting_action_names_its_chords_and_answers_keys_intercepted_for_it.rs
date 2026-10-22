@@ -74,5 +74,5 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
         focused,
         "the key never moves the focus from the control that has it"
     );
-    assert_eq!(text_input_value(harness.document(), field), "");
+    assert_eq!(harness.document().api::<TextInputApi>(field).value(), "");
 }

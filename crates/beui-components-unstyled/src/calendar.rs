@@ -7,7 +7,6 @@ use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{Date, Weekday};
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -77,6 +76,7 @@ struct State {
 
 #[component]
 pub fn Calendar(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<CalendarApi>,
     #[prop(default = None)] selected: Binding<Option<Date>>,
     #[prop(default = None)] min: Prop<Option<Date>>,
     #[prop(default = None)] max: Prop<Option<Date>>,
@@ -113,7 +113,7 @@ pub fn Calendar(
         today,
         first_weekday,
     };
-    set_component_state(state);
+    api.fill(CalendarApi(state));
 
     create_effect(move || {
         if let Some(date) = selected.get() {
@@ -544,27 +544,6 @@ fn toggle_accessibility(label: Memo<String>, choose: &'static str, open: Memo<bo
     })
 }
 
-pub fn calendar_selected(document: &Document, calendar: NodeId) -> Option<Date> {
-    document
-        .component_state::<State>(calendar)
-        .selected
-        .get_untracked()
-}
-
-pub fn calendar_active(document: &Document, calendar: NodeId) -> Date {
-    document
-        .component_state::<State>(calendar)
-        .active
-        .get_untracked()
-}
-
-pub fn calendar_mode(document: &Document, calendar: NodeId) -> CalendarMode {
-    document
-        .component_state::<State>(calendar)
-        .mode
-        .get_untracked()
-}
-
 fn in_range(state: State, date: Date) -> bool {
     state.min.get().is_none_or(|min| date >= min) && state.max.get().is_none_or(|max| date <= max)
 }
@@ -712,4 +691,21 @@ fn month_key(state: State, number: u8, press: KeyPress) -> bool {
         state.month_focus.set(Some(next.first_of_month()));
     }
     true
+}
+
+#[derive(Clone, Copy)]
+pub struct CalendarApi(State);
+
+impl CalendarApi {
+    pub fn selected(&self) -> Option<Date> {
+        self.0.selected.get_untracked()
+    }
+
+    pub fn active(&self) -> Date {
+        self.0.active.get_untracked()
+    }
+
+    pub fn mode(&self) -> CalendarMode {
+        self.0.mode.get_untracked()
+    }
 }

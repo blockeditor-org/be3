@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn splitting_a_dock_tab_with_the_next_shows_both_side_by_side() {
@@ -22,7 +22,7 @@ fn splitting_a_dock_tab_with_the_next_shows_both_side_by_side() {
     harness.click(harness.center(row));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     assert_eq!(
         state.entries(leaf).len(),

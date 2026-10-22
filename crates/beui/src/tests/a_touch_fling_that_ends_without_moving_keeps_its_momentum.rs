@@ -32,6 +32,11 @@ fn a_touch_fling_that_ends_without_moving_keeps_its_momentum() {
     harness.touch(TouchPhase::Move, end);
     let released = harness.frame(vec![touch_event(1, TouchPhase::End, end)]);
 
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
     assert!(released.repaint || released.repaint_after == Duration::ZERO);
 }

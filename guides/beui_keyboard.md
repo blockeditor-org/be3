@@ -351,8 +351,9 @@ overlay element: an anchored, viewport-relative popup painted above the rest of
 the tree that traps Tab while open. The demo's Choices and Menus pages show them.
 
 Reading a control's state back out, rather than owning the signal that drives
-it, is for tests and host integration: `*_selected`, `*_open`, `*_pressed`,
-`slider_value`, `text_input_value` and friends take `&Document` and a node.
+it, is for tests and host integration: each control's typed handle
+(`SelectApi`, `ToggleApi`, `SliderApi`, ...) comes from its `api` prop, or from
+`document.api::<SelectApi>(node)` given its node.
 `focus_*` takes just the node and focuses the control ambiently.
 
 ## Composing controls and embedding beui

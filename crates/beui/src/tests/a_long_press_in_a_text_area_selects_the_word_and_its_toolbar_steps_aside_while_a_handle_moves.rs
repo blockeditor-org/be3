@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::{TextAreaState, text_area_handles};
+use crate::unstyled::{TextAreaApi, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
@@ -23,7 +23,7 @@ fn a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whil
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let root = area.get();
-    let surface = text_area_surface(harness.document(), root);
+    let surface = harness.document().api::<TextAreaSurfaceApi>(root).surface();
     let canvas = harness.rect(state.canvas().get());
     let on_hello = pos2(canvas.left() + 12.0, canvas.top() + 16.0);
 
@@ -46,7 +46,10 @@ fn a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whil
         "with the selection's actions on it"
     );
 
-    let handles = text_area_handles(harness.document(), surface);
+    let handles = harness
+        .document()
+        .api::<TextAreaApi>(surface)
+        .handles(harness.document());
     let [_, end] = handles[..] else {
         panic!("a word selected by touch shows two handles, not {handles:?}");
     };

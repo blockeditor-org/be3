@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
@@ -22,7 +22,7 @@ fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
     harness.click(harness.center(row));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.windows().len(),
         1,

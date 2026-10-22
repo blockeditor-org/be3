@@ -26,13 +26,6 @@ pub fn PointerLock(
     let hovered = create_signal(false);
     let focused = create_signal(false);
 
-    let attached = with_document(|document| document.watch_context());
-    create_effect(move || {
-        attached.get();
-        publish(current.get());
-    });
-    on_cleanup(|| publish(false));
-
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
     component_accessibility(accessibility);
 
@@ -72,17 +65,10 @@ pub fn PointerLock(
             on_key={key}
             on_motion={move |motion: Vec2| on_motion.call(motion)}
             cursor={cursor}
+            pointer_locked={current}
             on_click={engage}
             on_hover_change={hovered}
             children={content_node}
         />
     }
-}
-
-fn publish(locked: bool) {
-    try_with_document(|document| {
-        if let Some(context) = document.context() {
-            context.set_pointer_locked(locked);
-        }
-    });
 }

@@ -33,7 +33,11 @@ fn a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames() {
     let released = harness.document().scroll_offset(scroll);
 
     let mut offsets = vec![released];
-    while unstyled::scroll_animating(harness.document(), scroll) {
+    while harness
+        .document()
+        .api::<unstyled::ScrollApi>(scroll)
+        .animating()
+    {
         assert!(offsets.len() < 600, "the fling never stopped");
         harness.frame(Vec::new());
         offsets.push(harness.document().scroll_offset(scroll));

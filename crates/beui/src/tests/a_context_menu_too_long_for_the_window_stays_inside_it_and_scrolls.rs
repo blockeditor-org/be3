@@ -39,7 +39,10 @@ fn a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls() {
 
     let overlay = kind_of::<OverlayNode>(
         harness.document(),
-        unstyled::context_menu_overlay(harness.document(), menu),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(menu)
+            .overlay(),
     );
     let panel = harness
         .document()
@@ -52,10 +55,16 @@ fn a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls() {
         "a menu longer than the window is cut to fit inside it: {panel_rect:?}"
     );
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
     harness.key(Key::End, Modifiers::NONE);
     harness.frame(Vec::new());
-    let last = unstyled::menu_list_row_button(harness.document(), content, 39);
+    let last = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(39);
     let last_rect = harness.rect(last);
     assert!(
         panel_rect.contains_rect(last_rect),

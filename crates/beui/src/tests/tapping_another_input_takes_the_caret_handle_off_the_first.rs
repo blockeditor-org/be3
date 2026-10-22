@@ -17,7 +17,12 @@ fn tapping_another_input_takes_the_caret_handle_off_the_first() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let tap = |harness: &mut Harness, input: NodeId| {
-        let text = harness.rect(unstyled::text_input_text(harness.document(), input));
+        let text = harness.rect(
+            harness
+                .document()
+                .api::<unstyled::TextInputApi>(input)
+                .text(),
+        );
         let pos = pos2(text.right() - 1.0, text.center().y);
         harness.touch(TouchPhase::Start, pos);
         harness.touch(TouchPhase::End, pos);

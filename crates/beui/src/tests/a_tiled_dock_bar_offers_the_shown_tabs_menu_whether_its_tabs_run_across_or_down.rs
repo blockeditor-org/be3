@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, dock_menu, dock_state};
+use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, dock_menu};
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -87,7 +87,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
         .expect("the grip's menu offers a sidebar");
     harness.click(harness.center(sidebar));
     harness.settle();
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     assert!(
         state.is_vertical(leaf),

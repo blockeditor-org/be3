@@ -44,6 +44,7 @@ pub fn Interactive(
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Option<Prop<CursorIcon>>,
+    #[prop(default = false)] pointer_locked: Prop<bool>,
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
@@ -193,6 +194,10 @@ pub fn Interactive(
             });
         });
     }
+    create_binding(move || {
+        let locked = pointer_locked.get();
+        with_document(|document| document.set_interactive_locks_pointer(interactive, locked));
+    });
     if let Some(cursor) = cursor {
         create_binding(move || {
             with_document(|document| {

@@ -21,7 +21,13 @@ fn escape_discards_what_was_typed_into_a_number_input() {
 
     harness.click(middle);
     harness.frame(Vec::new());
-    assert!(number_input_field(harness.document(), input).is_some());
+    assert!(
+        harness
+            .document()
+            .api::<NumberInputApi>(input)
+            .field()
+            .is_some()
+    );
     harness.type_text("35");
     harness.frame(Vec::new());
     assert_eq!(
@@ -40,6 +46,10 @@ fn escape_discards_what_was_typed_into_a_number_input() {
         previews.with_untracked(|previews| previews.last().copied()),
         Some(None)
     );
-    let shown = number_input_text(harness.document(), input).expect("escape closes the field");
+    let shown = harness
+        .document()
+        .api::<NumberInputTextApi>(input)
+        .text()
+        .expect("escape closes the field");
     assert_eq!(text_of(harness.document(), shown), "7");
 }

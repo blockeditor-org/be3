@@ -14,22 +14,22 @@ fn the_image_can_return_to_fit_after_zooming() {
     review.test.settle();
     let camera = || {
         let document = review.test.document();
-        beui::unstyled::pan_zoom_view(
-            document,
-            document.find_test_id("paint_review.pan_zoom").unwrap(),
-        )
-        .get()
+        document
+            .api::<beui::unstyled::PanZoomApi>(
+                document.find_test_id("paint_review.pan_zoom").unwrap(),
+            )
+            .view()
+            .get()
     };
     assert_eq!(camera().scale, 1.0);
     review.test.snapshot("the_images_at_actual_size");
     review.test.click("paint_review.fit");
     review.test.settle();
     let document = review.test.document();
-    let fitted = beui::unstyled::pan_zoom_view(
-        document,
-        document.find_test_id("paint_review.pan_zoom").unwrap(),
-    )
-    .get();
+    let fitted = document
+        .api::<beui::unstyled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
+        .view()
+        .get();
     assert!(fitted.scale < 1.0);
     review.test.snapshot("the_images_fit_the_stage");
 }

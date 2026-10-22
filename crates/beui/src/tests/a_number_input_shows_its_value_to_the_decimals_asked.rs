@@ -25,7 +25,11 @@ fn a_number_input_shows_its_value_to_the_decimals_asked() {
     harness.frame(Vec::new());
 
     let shown = |input| {
-        let face = number_input_text(harness.document(), input).expect("the input starts closed");
+        let face = harness
+            .document()
+            .api::<NumberInputTextApi>(input)
+            .text()
+            .expect("the input starts closed");
         text_of(harness.document(), face)
     };
     assert_eq!(shown(rounded), "182.22");

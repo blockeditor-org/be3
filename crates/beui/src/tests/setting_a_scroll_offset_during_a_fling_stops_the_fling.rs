@@ -31,11 +31,19 @@ fn setting_a_scroll_offset_during_a_fling_stops_the_fling() {
     }
     harness.touch(TouchPhase::End, pos2(x, 160.0));
     harness.frame(Vec::new());
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
 
     harness.document.set_scroll_offset(scroll, 100.0);
     assert!(
-        !unstyled::scroll_animating(harness.document(), scroll),
+        !harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating(),
         "setting the offset stops the fling as it is set"
     );
     for _ in 0..10 {

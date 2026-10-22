@@ -29,7 +29,11 @@ fn a_tap_outside_selectable_text_puts_its_toolbar_away() {
     harness.frame(Vec::new());
     harness.touch(TouchPhase::End, on_hello);
     assert!(
-        unstyled::context_menu_toolbar(harness.document(), region).is_some(),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .toolbar(harness.document())
+            .is_some(),
         "a long press shows the toolbar"
     );
 
@@ -39,7 +43,11 @@ fn a_tap_outside_selectable_text_puts_its_toolbar_away() {
     harness.touch(TouchPhase::End, away);
     harness.frame(Vec::new());
     assert!(
-        unstyled::context_menu_toolbar(harness.document(), region).is_none(),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .toolbar(harness.document())
+            .is_none(),
         "a tap outside the text puts the toolbar away"
     );
 }

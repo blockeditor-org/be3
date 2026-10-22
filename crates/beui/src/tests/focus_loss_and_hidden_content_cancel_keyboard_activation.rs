@@ -41,6 +41,18 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
     assert_ne!(harness.document().focused_node(), Some(button));
     with_installed(harness.document_mut(), |_| shown.set(true));
     harness.frame(Vec::new());
-    assert!(!unstyled::button_focused(harness.document(), button).get());
-    assert!(!unstyled::button_active(harness.document(), button).get());
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::ButtonApi>(button)
+            .focused()
+            .get()
+    );
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::ButtonApi>(button)
+            .active()
+            .get()
+    );
 }

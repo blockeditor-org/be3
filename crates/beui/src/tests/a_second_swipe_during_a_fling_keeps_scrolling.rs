@@ -30,7 +30,12 @@ fn a_second_swipe_during_a_fling_keeps_scrolling() {
     ];
     harness.finger_drag(&swipe);
     harness.frame(Vec::new());
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
 
     harness.touch(TouchPhase::Start, swipe[0]);
     let caught = harness.document().scroll_offset(scroll);
@@ -45,7 +50,10 @@ fn a_second_swipe_during_a_fling_keeps_scrolling() {
     harness.touch(TouchPhase::End, swipe[3]);
     harness.frame(Vec::new());
     assert!(
-        unstyled::scroll_animating(harness.document(), scroll),
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating(),
         "letting go of the second swipe flings again"
     );
 }

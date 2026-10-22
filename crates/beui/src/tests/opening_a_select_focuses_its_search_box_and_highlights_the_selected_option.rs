@@ -17,15 +17,30 @@ fn opening_a_select_focuses_its_search_box_and_highlights_the_selected_option() 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
 
-    assert!(styled::select_open(harness.document(), select));
-    let search = unstyled::select_search(harness.document(), select);
-    assert!(unstyled::text_input_focused(harness.document(), search).get());
+    assert!(harness.document().api::<styled::SelectApi>(select).open());
+    let search = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .search();
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(search)
+            .focused()
+            .get()
+    );
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .highlighted(),
         Some(1)
     );
 }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() {
@@ -7,7 +7,10 @@ fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() 
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
-    let before = dock_state(harness.document(), dock)
+    let before = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let bounds = harness.rect(dock);
@@ -50,7 +53,10 @@ fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() 
         "the window comes to rest exactly against the edge"
     );
     assert_eq!(
-        dock_state(harness.document(), dock)
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
             .window_rect(window)
             .expect("the window is still open")
             .min

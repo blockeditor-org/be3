@@ -26,33 +26,63 @@ fn the_more_button_of_a_selection_toolbar_opens_the_full_menu() {
     harness.touch(TouchPhase::Start, on_hello);
     harness.touch(TouchPhase::End, on_hello);
     assert_eq!(
-        unstyled::selectable_text(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text(),
         "hello"
     );
 
     assert!(
-        unstyled::context_menu_toolbar(harness.document(), region).is_some(),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .toolbar(harness.document())
+            .is_some(),
         "a double tap shows the toolbar"
     );
-    let more = harness.center(unstyled::context_menu_more(harness.document(), region));
+    let more = harness.center(
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .more(),
+    );
     harness.advance(Duration::from_secs(1));
     harness.touch(TouchPhase::Start, more);
     harness.touch(TouchPhase::End, more);
 
     assert!(
-        unstyled::context_menu_open(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .open(harness.document()),
         "More opens the full menu"
     );
     assert!(
-        unstyled::context_menu_toolbar(harness.document(), region).is_none(),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(region)
+            .toolbar(harness.document())
+            .is_none(),
         "in place of the toolbar"
     );
-    let menu = unstyled::context_menu_menu(harness.document(), region);
-    let select_all = harness.center(unstyled::menu_list_row_button(harness.document(), menu, 1));
+    let menu = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(region)
+        .menu();
+    let select_all = harness.center(
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(menu)
+            .row_button(1),
+    );
     harness.touch(TouchPhase::Start, select_all);
     harness.touch(TouchPhase::End, select_all);
     assert_eq!(
-        unstyled::selectable_text(harness.document(), region),
+        harness
+            .document()
+            .api::<unstyled::SelectableState>(region)
+            .selected_text(),
         "hello world"
     );
 }

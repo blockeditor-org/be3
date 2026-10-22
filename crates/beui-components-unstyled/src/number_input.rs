@@ -1,7 +1,6 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{CursorIcon, Key, PointerPress};
 use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
@@ -49,6 +48,7 @@ pub struct NumberFieldHandle {
     pub on_focus_change: Callback<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct Parts {
     face: NodeId,
     field: NodeId,
@@ -57,6 +57,7 @@ struct Parts {
 
 #[component]
 pub fn NumberInput(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<NumberInputApi>,
     value: Binding<f64>,
     #[prop(default = f64::NEG_INFINITY)] min: f64,
     #[prop(default = f64::INFINITY)] max: f64,
@@ -219,11 +220,11 @@ pub fn NumberInput(
         on_submit: Callback::new(submitted),
         on_focus_change: Callback::new(focus_changed),
     });
-    set_component_state(Parts {
+    api.fill(NumberInputApi(Parts {
         face,
         field,
         editing: editing.read_only(),
-    });
+    }));
     view! {
         <List spacing=0.0>
             <ShowKeepAlive condition={idle}>
@@ -247,16 +248,6 @@ pub fn NumberInput(
             <ShowKeepAlive condition={editing}>{field}</ShowKeepAlive>
         </List>
     }
-}
-
-pub fn number_input_field(document: &Document, input: NodeId) -> Option<NodeId> {
-    let parts = document.component_state::<Parts>(input);
-    parts.editing.get_untracked().then_some(parts.field)
-}
-
-pub fn number_input_face(document: &Document, input: NodeId) -> Option<NodeId> {
-    let parts = document.component_state::<Parts>(input);
-    (!parts.editing.get_untracked()).then_some(parts.face)
 }
 
 fn parse(text: &str) -> Option<f64> {
@@ -295,5 +286,20 @@ fn format_number(value: f64, decimals: Option<u32>) -> String {
             fixed.trim_end_matches('0').trim_end_matches('.').to_owned()
         }
         None => format!("{value}"),
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct NumberInputApi(Parts);
+
+impl NumberInputApi {
+    pub fn field(&self) -> Option<NodeId> {
+        let parts = &self.0;
+        parts.editing.get_untracked().then_some(parts.field)
+    }
+
+    pub fn face(&self) -> Option<NodeId> {
+        let parts = &self.0;
+        (!parts.editing.get_untracked()).then_some(parts.face)
     }
 }

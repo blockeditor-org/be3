@@ -11,12 +11,13 @@ use beui_view::reactive::*;
 
 #[component]
 pub fn SelectableText(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
 ) -> NodeId {
     let theme = use_theme();
     let state = SelectableState::default();
-    set_component_state(state);
+    api.fill(state);
     let color = create_memo(move || theme.accent_soft.get());
     let handle_color = create_memo(move || theme.accent.get());
     let toolbar_at = create_signal(None::<Rect>);

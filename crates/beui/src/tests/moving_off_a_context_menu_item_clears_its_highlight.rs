@@ -31,11 +31,23 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
-    let copy = unstyled::menu_list_row_button(harness.document(), content, 0);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
+    let copy = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(0);
     let copy_pos = harness.center(copy);
     harness.frame(vec![Event::PointerMoved(copy_pos)]);
-    assert!(unstyled::button_focused(harness.document(), copy).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(copy)
+            .focused()
+            .get()
+    );
 
     let rect = harness
         .document()
@@ -48,7 +60,11 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     harness.frame(Vec::new());
 
     assert!(
-        !unstyled::button_focused(harness.document(), copy).get(),
+        !harness
+            .document()
+            .api::<unstyled::ButtonApi>(copy)
+            .focused()
+            .get(),
         "the row the pointer left is no longer highlighted"
     );
 
@@ -56,7 +72,11 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     harness.frame(Vec::new());
 
     assert!(
-        unstyled::button_focused(harness.document(), copy).get(),
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(copy)
+            .focused()
+            .get(),
         "the keyboard still walks the menu from its top"
     );
 }

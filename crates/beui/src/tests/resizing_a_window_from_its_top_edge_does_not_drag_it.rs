@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
@@ -15,7 +15,10 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
         },
     );
     let window = floated_window(&mut harness, dock);
-    let floated = dock_state(harness.document(), dock)
+    let floated = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let bounds = harness.rect(dock);
@@ -28,7 +31,10 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
             ..PreferenceLayer::EMPTY
         },
     );
-    let before = dock_state(harness.document(), dock)
+    let before = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(before.min.x, 0.0);
@@ -38,7 +44,10 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     harness.press_at(edge);
     harness.frame(vec![Event::PointerMoved(edge + vec2(-150.0, -30.0))]);
 
-    let after = dock_state(harness.document(), dock)
+    let after = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(

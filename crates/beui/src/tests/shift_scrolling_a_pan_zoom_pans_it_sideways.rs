@@ -1,7 +1,7 @@
 use super::*;
 use crate::geometry::vec2;
 use crate::reactive::*;
-use crate::unstyled::{PanZoomView, pan_zoom_view};
+use crate::unstyled::{PanZoomApi, PanZoomView};
 
 #[test]
 fn shift_scrolling_a_pan_zoom_pans_it_sideways() {
@@ -16,7 +16,11 @@ fn shift_scrolling_a_pan_zoom_pans_it_sideways() {
     harness.scroll(pos2(200.0, 150.0), vec2(0.0, -20.0), Modifiers::SHIFT);
     harness.frame(Vec::new());
 
-    let view = pan_zoom_view(harness.document(), harness.find("stage")).get();
+    let view = harness
+        .document()
+        .api::<PanZoomApi>(harness.find("stage"))
+        .view()
+        .get();
     assert_eq!(view, PanZoomView::new(pos2(20.0, 0.0), 1.0));
     assert_eq!(
         harness.rect(harness.find("item")),
