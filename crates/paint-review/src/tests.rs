@@ -16,6 +16,7 @@ mod a_phone_link_opens_the_named_painting;
 mod a_phone_opens_a_painting_and_returns_to_the_list;
 mod a_recording_steps_through_the_frames_that_changed;
 mod a_removed_painting_has_only_a_before;
+mod actual_size_uses_image_pixels_even_on_a_dense_screen;
 mod an_added_painting_has_only_an_after;
 mod an_image_that_has_not_arrived_shows_it_is_loading;
 mod an_unreadable_painting_says_why;

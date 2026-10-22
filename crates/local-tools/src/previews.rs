@@ -73,6 +73,7 @@ pub fn generate(
         .transpose()?
         .map(|site| format!("{ROOT}/site/{site}/index.html?changes={manifest_hash}"));
 
+    comment.push_str("<details><summary>Painting previews</summary>\n\n");
     let count = |status: Status| {
         manifest
             .paintings
@@ -125,10 +126,8 @@ pub fn generate(
         };
         let _ = writeln!(comment, "- {name} {status}{detail}");
         if !painting.frames.is_empty() && inline_frames < MAX_INLINE_FRAMES {
-            let _ = writeln!(
-                comment,
-                "\n<details{}><summary>Preview</summary>\n\n<table><tr><th>Frame</th><th>Before</th><th>After</th><th>Changes</th></tr>",
-                if total <= 5 { " open" } else { "" }
+            comment.push_str(
+                "\n<table><tr><th>Frame</th><th>Before</th><th>After</th><th>Changes</th></tr>\n",
             );
             for frame in &painting.frames {
                 if inline_frames >= MAX_INLINE_FRAMES {
@@ -153,8 +152,7 @@ pub fn generate(
                 }
                 comment.push_str("</tr>\n");
             }
-            comment
-                .push_str("</table>\n\nMagenta marks every pixel that differs.\n\n</details>\n\n");
+            comment.push_str("</table>\n\nMagenta marks every pixel that differs.\n\n");
         }
     }
     if total > MAX_LISTED {
@@ -172,6 +170,7 @@ pub fn generate(
             available_frames - inline_frames
         );
     }
+    comment.push_str("\n</details>\n");
     println!("{total} paintings differ");
     Ok(comment)
 }

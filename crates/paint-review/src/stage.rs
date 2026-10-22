@@ -24,14 +24,12 @@ pub(crate) fn Stage(review: Review) -> NodeId {
             .map(|hash| images.state(&hash).get())
             .collect::<Vec<ImageState>>()
     });
-    let ppp = pixels_per_point();
     let sizes = create_memo(move || {
-        let ppp = ppp.get().max(f32::EPSILON);
         slots.with(|slots| {
             slots
                 .iter()
                 .map(|slot| match slot {
-                    ImageState::Ready(image) => Some(image.size() / ppp),
+                    ImageState::Ready(image) => Some(image.size()),
                     _ => None,
                 })
                 .collect::<Vec<Option<Vec2>>>()
