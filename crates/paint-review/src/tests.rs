@@ -12,14 +12,18 @@ mod a_changed_painting_shows_its_changes_in_magenta;
 mod a_changed_painting_shows_what_it_became;
 mod a_changed_painting_shows_what_it_was;
 mod a_missing_image_says_why;
+mod a_phone_link_opens_the_named_painting;
+mod a_phone_opens_a_painting_and_returns_to_the_list;
 mod a_recording_steps_through_the_frames_that_changed;
 mod a_removed_painting_has_only_a_before;
+mod actual_size_uses_image_pixels_even_on_a_dense_screen;
 mod an_added_painting_has_only_an_after;
 mod an_image_that_has_not_arrived_shows_it_is_loading;
 mod an_unreadable_painting_says_why;
 mod j_and_k_move_through_the_paintings_in_the_order_listed;
 mod only_the_frame_shown_is_fetched;
 mod space_flips_between_before_and_after;
+mod the_image_can_return_to_fit_after_zooming;
 mod the_manifest_shows_it_is_loading_until_it_arrives;
 mod the_manifest_that_failed_says_why;
 mod the_painting_named_in_the_address_is_shown_first;
@@ -40,6 +44,10 @@ struct Review {
 
 impl Review {
     fn open(painting: Option<&str>) -> Self {
+        Self::sized(painting, WIDE)
+    }
+
+    fn sized(painting: Option<&str>, size: Vec2) -> Self {
         let requests: Rc<RefCell<Vec<ImageRequest>>> = Rc::default();
         let asked = requests.clone();
         let app = PaintReviewApp::new(painting.map(str::to_owned), move |request| {
@@ -52,7 +60,7 @@ impl Review {
             images,
         } = app;
         Self {
-            test: DocumentTest::new(document, WIDE),
+            test: DocumentTest::new(document, size),
             manifest,
             requests,
             _app: (owned, images),

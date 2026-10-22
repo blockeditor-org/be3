@@ -59,5 +59,13 @@ fn an_added_painting_is_linked_into_the_review_page() {
     assert_eq!(frame.before, None);
     let after = frame.after.as_ref().unwrap();
     assert!(files.contains(&format!("{after}.png")));
+    assert!(comment.contains(&format!("src=\"PREVIEW_ROOT/{after}.png\"")));
+    assert!(comment.contains("<th>Before</th><th>After</th><th>Changes</th>"));
+    assert_eq!(comment.matches("<details>").count(), 1);
+    assert_eq!(comment.matches("</details>").count(), 1);
+    assert!(!comment.contains("<details open"));
+    let disclosure = comment.find("<details>").unwrap();
+    assert!(disclosure < comment.find("**[Review them]").unwrap());
+    assert!(comment.ends_with("</details>\n"));
     fs::remove_dir_all(root).unwrap();
 }

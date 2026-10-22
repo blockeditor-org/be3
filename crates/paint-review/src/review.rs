@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use beui::reactive::*;
-use beui::unstyled::PanZoomView;
+use beui::unstyled::{DockingLayout, PanZoomView};
 
 use crate::Fetch;
 use crate::images::Images;
@@ -63,6 +63,7 @@ pub(crate) struct Review {
     pub(crate) frame_index: Memo<usize>,
     pub(crate) frame: Memo<Option<Frame>>,
     pub(crate) mode: Memo<Option<Mode>>,
+    pub(crate) layout: DockingLayout<u64>,
     pub(crate) camera: Signal<PanZoomView>,
     wanted: Signal<Option<String>>,
     frame_wanted: Signal<usize>,
@@ -141,6 +142,7 @@ impl Review {
             frame_index,
             frame,
             mode,
+            layout: DockingLayout::new(),
             camera: create_signal(PanZoomView::IDENTITY),
             wanted,
             frame_wanted,
@@ -178,6 +180,7 @@ impl Review {
             _ => None,
         });
         if let Some(name) = name {
+            self.layout.show(&2);
             self.wanted.set(Some(name));
             self.frame_wanted.set(0);
         }

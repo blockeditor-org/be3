@@ -195,7 +195,14 @@ way for the test to fail.
 - A changed painting is for a person to review, not for you. They review it on the pull
   request: its summary comment links to a page (crates/paint-review, served on the web by
   crates/paint-review-web) that lists every painting the pull request added, removed or
-  changed, and flips each frame between before and after.
+  changed, and flips each frame between before and after. The comment also shows up to 30
+  frames inline, with before, after and highlighted changes, inside one collapsed disclosure.
+  The review page uses tiled
+  docking on desktop and stacked docking below 700 points: select a painting to open
+  its view, then use the dock back button to return. Images fit the stage initially;
+  pinch, scroll or middle-drag to inspect them, and use Fit or 100% to reset the view.
+  At 100%, each image pixel occupies one UI point (one CSS pixel on the web), regardless
+  of the screen’s device pixel ratio.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
   bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll,
   pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
