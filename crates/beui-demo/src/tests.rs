@@ -138,7 +138,7 @@ fn open(test: &mut DocumentTest, page: Page) {
             test.frame(Vec::new());
             return;
         }
-        test.scroll_at(pos2(CATALOG_X, bottom / 2.0), Vec2::new(0.0, -REVEAL_STEP));
+        test.scroll(pos2(CATALOG_X, bottom / 2.0), Vec2::new(0.0, REVEAL_STEP));
     }
     panic!("the catalog never showed {}", page.title());
 }
@@ -155,7 +155,7 @@ fn reveal(test: &mut DocumentTest, test_id: &str) {
         if test.shows(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
             return;
         }
-        test.scroll_at(page, Vec2::new(0.0, -REVEAL_STEP));
+        test.scroll(page, Vec2::new(0.0, REVEAL_STEP));
     }
     panic!("the page never showed {test_id}");
 }
@@ -165,24 +165,12 @@ fn press_key(test: &mut DocumentTest, key: beui::Key) {
 }
 
 fn press_key_with(test: &mut DocumentTest, key: beui::Key, modifiers: beui::Modifiers) {
-    test.frame(
-        [true, false]
-            .into_iter()
-            .map(|pressed| {
-                beui::Event::key(beui::KeyPress {
-                    key,
-                    pressed,
-                    repeat: false,
-                    modifiers,
-                })
-            })
-            .collect(),
-    );
+    test.key(key, modifiers);
     test.frame(Vec::new());
 }
 
 fn select_line(test: &mut DocumentTest, at: Pos2) {
-    test.click_at(at);
+    test.click(at);
     test.frame(Vec::new());
     press_key(test, beui::Key::Home);
     press_key_with(test, beui::Key::End, beui::Modifiers::SHIFT);

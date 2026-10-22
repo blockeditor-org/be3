@@ -16,7 +16,7 @@ fn the_demo_pages_scroll_rather_than_spilling_off_a_small_window() {
             let mut test = demo(window);
             open(&mut test, page);
             for _ in 0..WHEEL_TICKS {
-                test.scroll_at(over_the_page(window), Vec2::new(0.0, -WHEEL_STEP));
+                test.scroll(over_the_page(window), Vec2::new(0.0, WHEEL_STEP));
             }
             let root = test.document().root().expect("the demo built a root");
             let bottom = lowest_edge(test.document(), root, f32::INFINITY);

@@ -9,7 +9,7 @@ fn a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_p
     test.frame(Vec::new());
     test.snapshot("scrollbar_hidden_at_rest");
 
-    test.scroll_at(over_the_page(WINDOW), Vec2::new(0.0, -120.0));
+    test.scroll(over_the_page(WINDOW), Vec2::new(0.0, 120.0));
     test.frame(Vec::new());
     test.snapshot("scrollbar_shown_while_scrolling");
 

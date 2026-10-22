@@ -16,6 +16,8 @@ fn the_keep_changes_sample_reverts_once_its_countdown_runs_out() {
     test.snapshot("keep_changes");
 
     test.advance(Duration::from_secs(13));
+
+    test.frame(Vec::new());
     assert!(
         test.shows("keep-changes.0"),
         "the prompt waits out the countdown"
@@ -23,6 +25,8 @@ fn the_keep_changes_sample_reverts_once_its_countdown_runs_out() {
     assert_eq!(showing(test.document(), root, "Reverting in 2 seconds."), 1);
 
     test.advance(Duration::from_secs(2));
+
+    test.frame(Vec::new());
     test.frame(Vec::new());
     assert!(!test.shows("keep-changes.0"), "the prompt closes at zero");
     assert_eq!(

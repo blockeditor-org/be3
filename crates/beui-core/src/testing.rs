@@ -107,11 +107,25 @@ impl From<&str> for Target {
     }
 }
 
+impl From<&String> for Target {
+    fn from(id: &String) -> Self {
+        Self::id(id.as_str())
+    }
+}
+
+impl From<String> for Target {
+    fn from(id: String) -> Self {
+        Self::id(id)
+    }
+}
+
 impl From<Pos2> for Target {
     fn from(at: Pos2) -> Self {
         Self::point(at)
     }
 }
+
+type Observer = Box<dyn FnMut(&FrameOutput)>;
 
 pub struct Stepped<A: App = Showing> {
     app: PhantomData<A>,
@@ -120,6 +134,7 @@ pub struct Stepped<A: App = Showing> {
     size: Vec2,
     painted: bool,
     settling: bool,
+    observers: Vec<Observer>,
     inbox: Inbox,
     steps: Vec<String>,
     closed: bool,
@@ -172,6 +187,7 @@ impl<A: App + 'static> Stepped<A> {
             size,
             painted: false,
             settling: true,
+            observers: Vec::new(),
             inbox,
             steps: Vec::new(),
             closed: false,
@@ -221,6 +237,10 @@ impl<A: App + 'static> Stepped<A> {
         self.runner
             .take_output()
             .expect("a started runner that has not exited draws every frame")
+    }
+
+    pub fn observe(&mut self, observer: impl FnMut(&FrameOutput) + 'static) {
+        self.observers.push(Box::new(observer));
     }
 
     pub fn advance(&mut self, by: Duration) {
@@ -273,6 +293,11 @@ impl<A: App + 'static> Stepped<A> {
             Window::Other(platform) => &mut **platform,
         };
         self.runner.frame(platform, SafeArea::default());
+        if let Some(output) = self.runner.output() {
+            for observer in &mut self.observers {
+                observer(output);
+            }
+        }
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
             panic!("the app panicked: {failure}\n{}", self.replay());

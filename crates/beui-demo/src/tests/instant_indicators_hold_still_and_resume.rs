@@ -28,6 +28,7 @@ fn instant_indicators_hold_still_and_resume() {
     test.frame(Vec::new());
     test.snapshot("instant_indicators");
     test.advance(Duration::from_secs(2));
+    test.frame(Vec::new());
     test.snapshot("instant_indicators_after_waiting");
     test.context().set_preference_layer(
         PreferenceSource::System,
@@ -37,5 +38,6 @@ fn instant_indicators_hold_still_and_resume() {
         },
     );
     test.advance(Duration::from_millis(100));
+    test.frame(Vec::new());
     test.snapshot("indicators_resumed");
 }

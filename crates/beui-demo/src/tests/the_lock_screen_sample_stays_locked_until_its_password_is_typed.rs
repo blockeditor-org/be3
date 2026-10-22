@@ -41,7 +41,7 @@ fn the_lock_screen_sample_stays_locked_until_its_password_is_typed() {
     test.snapshot("lock_screen_after_a_wrong_password");
 
     press(&mut test, Key::Escape);
-    test.click_at(pos2(4.0, 4.0));
+    test.click(pos2(4.0, 4.0));
     test.frame(Vec::new());
     assert!(
         test.shows("demo.lock.0"),

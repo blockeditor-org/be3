@@ -9,7 +9,7 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
         if test.shows("demo.fullscreen") && test.rect_of("demo.fullscreen").bottom() <= WIDE.y {
             break;
         }
-        test.scroll_at(page, Vec2::new(0.0, -REVEAL_STEP));
+        test.scroll(page, Vec2::new(0.0, REVEAL_STEP));
     }
     let docked = test.rect_of("demo.fullscreen");
 

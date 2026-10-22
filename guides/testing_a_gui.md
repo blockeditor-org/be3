@@ -231,12 +231,16 @@ way for the test to fail.
   --images takes a folder to write to in place of target/changed-paintings.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
-block_ui_test::DocumentTest, which drives the document itself with only the fonts beui
-carries, never the system's. Its tests are compiled to wasm with plugin_tests like an
-editor's; crates/beui-demo paints every page of the demo that way. Its clock is a frame
-clock too: every frame() is one frame interval later, and advance(by) moves it on and paints
-a frame. settle() advances frames until the document stops requesting an immediate repaint,
-so a snapshot can wait for a sheet or another animation to finish.
+block_ui_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
+are compiled to wasm with plugin_tests like an editor's; crates/beui-demo paints every page of
+the demo that way. A DocumentTest is beui's `testing::Stepped` (guides/beui.md, Test and
+verify changes) with snapshots added: the document runs through the real `Runner`, and its
+gestures are drive's - `click`, `drag`, `scroll`, `key`, `type_text`, `fingers` - each
+answering after the frame that took it. `click` and `scroll` reveal a test id that is out of
+view first and move the pointer out of the window afterwards, so a painting shows hover only
+where the test hovers. Its clock is a frame clock too: every frame is one frame interval
+later, and advance(by) moves it on without painting. settle() waits as drive does, which a
+page that animates forever, such as one showing a spinner, never finishes.
 
 DocumentTest paints through the DOM renderer too: render_dom() starts feeding every frame
 to a `DomRenderer` over an in-memory DOM, and snapshot_dom(name) saves what it built as the

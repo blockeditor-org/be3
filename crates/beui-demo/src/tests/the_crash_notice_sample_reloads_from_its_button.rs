@@ -11,9 +11,9 @@ fn the_crash_notice_sample_reloads_from_its_button() {
         {
             break;
         }
-        test.scroll_at(
+        test.scroll(
             pos2(WIDE.x / 2.0, bottom / 2.0),
-            Vec2::new(0.0, -REVEAL_STEP),
+            Vec2::new(0.0, REVEAL_STEP),
         );
     }
     assert!(test.shows("crash-notice"));

@@ -10,7 +10,7 @@ fn the_demo_leaves_a_pane_saying_nothing_is_open() {
         "the demo opens with a page rather than the empty workspace"
     );
 
-    test.click(&format!("dock.tab.{}.close", tab(Page::Docking)));
+    test.click(format!("dock.tab.{}.close", tab(Page::Docking)));
     test.frame(Vec::new());
 
     assert_eq!(

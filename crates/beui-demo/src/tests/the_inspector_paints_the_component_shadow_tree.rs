@@ -43,7 +43,7 @@ fn expand_internals(test: &mut DocumentTest, component: &str, test_id: &str) {
         .unwrap()
         .scaled(scale(test.context()))
         .center();
-    test.click_at(center);
+    test.click(center);
     test.frame(Vec::new());
 }
 
@@ -103,7 +103,7 @@ fn the_inspector_paints_the_component_shadow_tree() {
         .unwrap()
         .scaled(scale(test.context()))
         .center();
-    test.click_at(center);
+    test.click(center);
     test.frame(Vec::new());
 
     expand_internals(&mut test, "styled::Text", "example.heading");
