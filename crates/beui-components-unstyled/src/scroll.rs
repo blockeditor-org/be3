@@ -410,11 +410,15 @@ impl Motion {
             Key::Home => 0.0,
             Key::End => position.max_offset(),
             _ => return false,
-        };
+        }
+        .clamp(0.0, position.max_offset());
+        if offset == position.offset {
+            return false;
+        }
         if press.pressed {
             let mut momentum = self.momentum.borrow_mut();
             momentum.rest();
-            self.publish(&momentum, offset.clamp(0.0, position.max_offset()));
+            self.publish(&momentum, offset);
         }
         true
     }
