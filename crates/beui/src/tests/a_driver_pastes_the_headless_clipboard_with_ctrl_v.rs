@@ -10,7 +10,7 @@ fn a_driver_pastes_the_headless_clipboard_with_ctrl_v() {
             <TextInput @test_id={"field"} value={text} />
         }
     });
-    let mut driven = Driven::headless(document);
+    let mut driven = headless(crate::testing::Showing(document));
     driven
         .ask(&["click", "#field"])
         .expect("the field is focused");

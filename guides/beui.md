@@ -3468,6 +3468,18 @@ repository keeps one test per file. The document tests use their `Harness` to
 build a `Document`, send `Event` values through a `Context`, and inspect
 component state, layout, accessibility, or painting output.
 
+`beui::testing::Stepped` runs an app the way an adapter does instead: through the
+real `Runner`, on the headless window's `Simulation` (`Stepped::new`) or on a
+`Platform` the test supplies (`Stepped::on`), with a gpu-free `testing::Screen`, the
+clock stopped, and one frame interval per frame. `testing::Showing(document)` is a
+`Document` as an app. Its gestures are `drive`'s commands, run by the same automation
+engine and settling the same way: `click(Target::id("wheel").at(offset))`, `drag`,
+`type_text`, `key`, `wait` and `settle` are typed forms of them, and `ask(&["pinch",
+"#map", "2"])` sends any other. A failure prints the steps so far as `drive` commands
+(guides/running/drive.md), which replay against a `:dev` app. New tests that drive
+a document prefer it to `Harness`, and tests of the `Runner` take `testing::Screen`
+rather than a renderer of their own.
+
 For a beui block editor, use `block_ui_test::BeuiTest`, built from an `Editor`
 (or a `Creation`, for a dialog) so the test holds the same handle the component
 was handed. Give every interacted node an `@test_id`, call `run` after queued

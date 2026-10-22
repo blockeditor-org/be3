@@ -17,7 +17,7 @@ fn a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger() {
             </List>
         }
     });
-    let mut driven = Driven::new(document);
+    let mut driven = stepped(crate::testing::Showing(document));
 
     driven
         .ask(&["down", "\"Press\""])

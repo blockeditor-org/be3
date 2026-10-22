@@ -13,7 +13,7 @@ impl App for Animating {
 fn a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it() {
     let _root = crate::reactive::RootScope::new();
     let now = create_signal(None);
-    let mut driven = Driven::with_app(Animating(now), true);
+    let mut driven = headless(Animating(now));
 
     driven
         .ask(&["clock", "stop"])

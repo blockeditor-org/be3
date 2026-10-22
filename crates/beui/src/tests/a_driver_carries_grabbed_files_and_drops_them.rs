@@ -23,7 +23,7 @@ impl App for Recording {
 fn a_driver_carries_grabbed_files_and_drops_them() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::new());
-    let mut driven = Driven::with_app(Recording(heard), true);
+    let mut driven = headless(Recording(heard));
 
     driven.ask(&["move", "10,10"]).expect("the pointer moves");
     driven

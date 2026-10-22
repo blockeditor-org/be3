@@ -99,7 +99,8 @@ Waiting:
   clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
   hurry off / hurry on      stop or start the app's shortcuts for a driven run, such as saving at once,
                             so it waits as it does for a person
-A TARGET is #TEST_ID, X,Y or X,Y,WIDTH,HEIGHT in the tree's pixels, or text found in one line of the tree.
+A TARGET is #TEST_ID, #TEST_ID+X,Y (that far from its top left corner), X,Y or X,Y,WIDTH,HEIGHT
+in the tree's pixels, or text found in one line of the tree.
 Every command that gives input waits for the app to settle and answers with what changed in the tree,
 at most 60 lines of it; before the command, --changes=N|all changes that, and --no-settle answers
 after the frame that took the input instead of waiting.";

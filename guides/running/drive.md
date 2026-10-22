@@ -118,6 +118,8 @@ so dialogs, the file tree and every editor read like the host's own controls.
 
 A command that acts on something takes a TARGET:
 - `#TEST_ID`, such as `#checklist.add`;
+- `#TEST_ID+X,Y`, the point X,Y pixels right of and below that node's top left corner, for a
+  gesture that must land somewhere particular inside it, such as `#wheel+60,60`;
 - `X,Y` in the tree's pixels, or `X,Y,WIDTH,HEIGHT` for an area (to `shot`);
 - text found in one line of the tree, such as `'"Send invitation"'` or `'Button "Create"'`.
   A match inside another match counts as that one, so a button and its own label are one
