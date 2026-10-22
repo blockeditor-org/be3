@@ -530,8 +530,10 @@ impl Runner {
         for request in std::mem::take(&mut output.file_picks) {
             let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
             match &mut self.automation {
-                Some(automation) => automation.pick_file(request, answer),
-                None => platform.pick_file(request, answer),
+                Some(automation) if !cfg!(target_arch = "wasm32") => {
+                    automation.pick_file(request, answer);
+                }
+                _ => platform.pick_file(request, answer),
             }
         }
         self.events.append(&mut output.typed);

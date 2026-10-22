@@ -969,8 +969,17 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     fetch_listings(&peer, shared).await;
     sync_contacts(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
-    for (block, content_type) in open.clone() {
-        rejoin(&peer, &mut sessions, shared, block, content_type).await;
+    let rejoining: Vec<(Uuid, Uuid)> = open.clone().into_iter().collect();
+    let rejoined = futures_util::future::join_all(
+        rejoining
+            .iter()
+            .map(|(block, content_type)| join_session(&peer, shared, *block, *content_type)),
+    )
+    .await;
+    for ((block, _), session) in rejoining.into_iter().zip(rejoined) {
+        if let Some(session) = session {
+            sessions.insert(block, session);
+        }
     }
     let mut versions = Versions::default();
     publish(&mut sessions, shared);
@@ -1038,6 +1047,23 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                         Command::Import(blocks) => {
                             uploads.add(blocks);
                             ran.done();
+                        }
+                        command @ Command::Open { .. } => {
+                            let mut opens = vec![command];
+                            while let Ok(queued) = commands.try_recv() {
+                                match queued {
+                                    queued @ Command::Open { .. } => opens.push(queued),
+                                    queued => {
+                                        next = Some(queued);
+                                        break;
+                                    }
+                                }
+                            }
+                            let opens = opens
+                                .into_iter()
+                                .filter_map(|open| uploads.defer(open))
+                                .collect();
+                            ran.open_all(opens).await;
                         }
                         command => {
                             if let Some(command) = uploads.defer(command) {
@@ -1234,6 +1260,47 @@ impl Ran<'_> {
         };
         self.done();
         applied
+    }
+
+    async fn open_all(&mut self, opens: Vec<Command>) {
+        let mut joining: Vec<(Uuid, Uuid)> = Vec::new();
+        let count = opens.len();
+        for command in opens {
+            let Command::Open {
+                block,
+                content_type,
+                owned,
+            } = command
+            else {
+                continue;
+            };
+            if owned {
+                self.shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .owned
+                    .insert(block);
+            }
+            self.open.insert(block, content_type);
+            if !self.sessions.contains_key(&block)
+                && !joining.iter().any(|(joined, _)| *joined == block)
+            {
+                joining.push((block, content_type));
+            }
+        }
+        want_open(self.shared, self.open);
+        let joined = futures_util::future::join_all(joining.iter().map(|(block, content_type)| {
+            join_session(self.peer, self.shared, *block, *content_type)
+        }))
+        .await;
+        for ((block, _), session) in joining.into_iter().zip(joined) {
+            if let Some(session) = session {
+                self.sessions.insert(block, session);
+            }
+        }
+        for _ in 0..count {
+            self.done();
+        }
     }
 
     fn done(&self) {
@@ -1527,9 +1594,18 @@ async fn rejoin(
     block: Uuid,
     content_type: Uuid,
 ) {
-    let Some(kind) = super::kind_of(content_type) else {
-        return;
-    };
+    if let Some(session) = join_session(peer, shared, block, content_type).await {
+        sessions.insert(block, session);
+    }
+}
+
+async fn join_session(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+    content_type: Uuid,
+) -> Option<Box<dyn Session>> {
+    let kind = super::kind_of(content_type)?;
     let owned = !kind.frozen
         && shared
             .lock()
@@ -1539,7 +1615,7 @@ async fn rejoin(
     let joined = (kind.join)(peer, block).await;
     set_locked(shared, block, matches!(joined, Err(ClientError::Locked(_))));
     match joined {
-        Err(ClientError::Locked(_)) => {}
+        Err(ClientError::Locked(_)) => None,
         Ok(mut session) => {
             set_unreadable(shared, block, None);
             if owned && reshaped(shared, block, kind) {
@@ -1548,24 +1624,33 @@ async fn rejoin(
                     Err(error) => record(shared, error),
                 }
             }
-            sessions.insert(block, session);
+            Some(session)
         }
         Err(ClientError::Content(_)) if owned => {
             if let Err(error) = (kind.replace)(peer, block, (kind.blank)()).await {
                 set_unreadable(shared, block, Some(error.to_string()));
-                return;
+                return None;
             }
             reset_notice();
             match (kind.join)(peer, block).await {
                 Ok(session) => {
                     set_unreadable(shared, block, None);
-                    sessions.insert(block, session);
+                    Some(session)
                 }
-                Err(error) => set_unreadable(shared, block, Some(error.to_string())),
+                Err(error) => {
+                    set_unreadable(shared, block, Some(error.to_string()));
+                    None
+                }
             }
         }
-        Err(ClientError::Content(error)) => set_unreadable(shared, block, Some(error.to_string())),
-        Err(error) => record(shared, error),
+        Err(ClientError::Content(error)) => {
+            set_unreadable(shared, block, Some(error.to_string()));
+            None
+        }
+        Err(error) => {
+            record(shared, error);
+            None
+        }
     }
 }
 
@@ -2128,6 +2213,7 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
                 Listing::Children(parent) => peer.children(parent).await,
                 Listing::Shared => peer.shared().await,
                 Listing::Backrefs(block) => peer.backrefs(block).await,
+                Listing::References(block) => peer.referenced(block).await,
                 Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
             }
         }));
@@ -2175,6 +2261,7 @@ fn listing_failure(listing: Listing) -> &'static str {
         Listing::Children(BlockParent::Block(_)) => "Couldn't load what's inside this block",
         Listing::Shared => "Couldn't load what's shared with you",
         Listing::Backrefs(_) => "Couldn't load what links here",
+        Listing::References(_) => "Couldn't load what this block links to",
         Listing::Block(_) => "Couldn't load this block",
     }
 }

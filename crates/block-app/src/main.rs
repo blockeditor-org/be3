@@ -439,6 +439,9 @@ struct BlockApp {
     joining: Option<Joining>,
     organizations_loaded: bool,
     organizations_load_failed: bool,
+    resumed: bool,
+    warmed: bool,
+    plugins_in_use: Vec<String>,
     pending_organization_request:
         Option<platform::RequestResult<Result<OrganizationResult, OrganizationRequestError>>>,
     organization_created: u64,
@@ -678,7 +681,7 @@ impl BlockApp {
         };
         let registry = Rc::new(EditorRegistry::new());
         let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
-        Ok(Self {
+        let mut app = Self {
             app_state,
             client_id,
             local_server_url: url,
@@ -695,6 +698,9 @@ impl BlockApp {
             joining: None,
             organizations_loaded: false,
             organizations_load_failed: false,
+            resumed: false,
+            warmed: false,
+            plugins_in_use: Vec::new(),
             pending_organization_request: None,
             organization_created: 0,
             organization_error: None,
@@ -767,7 +773,9 @@ impl BlockApp {
             tray: None,
             #[cfg(target_os = "linux")]
             wifi: None,
-        })
+        };
+        app.resume_organization();
+        Ok(app)
     }
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -1286,6 +1294,9 @@ impl BlockApp {
                     self.look_up_invite();
                     return;
                 }
+                if self.refresh_open_organization() {
+                    return;
+                }
                 if let Some(last_organization_id) = self.account.last_organization_id
                     && let Some(organization) = self
                         .organizations
@@ -1428,7 +1439,55 @@ impl BlockApp {
         }
     }
 
+    fn resume_organization(&mut self) {
+        if !self.signed_in || self.identity.is_none() || self.organization.is_some() {
+            return;
+        }
+        let last = self
+            .app_state
+            .last_organization(&self.account)
+            .ok()
+            .flatten()
+            .filter(|organization| Some(organization.id) == self.account.last_organization_id);
+        if let Some(organization) = last {
+            self.open_organization(organization);
+            self.resumed = true;
+        }
+    }
+
+    fn refresh_open_organization(&mut self) -> bool {
+        if !std::mem::take(&mut self.resumed) {
+            return false;
+        }
+        let Some(open) = self.organization.clone() else {
+            return false;
+        };
+        match self
+            .organizations
+            .iter()
+            .find(|organization| organization.id == open.id)
+            .cloned()
+        {
+            Some(listed) if listed == open => {}
+            Some(listed) => {
+                let _ = self
+                    .app_state
+                    .set_last_organization_details(&self.account, &listed);
+                self.organization = Some(listed);
+                self.publish_administrator();
+            }
+            None => {
+                let mut account = self.account.clone();
+                account.last_organization_id = None;
+                let _ = self.app_state.set_last_organization(&account, None);
+                self.switch_account(account);
+            }
+        }
+        true
+    }
+
     fn open_organization(&mut self, organization: Organization) {
+        self.resumed = false;
         self.cancel_forwarded_picks();
         self.focus_reports.clear();
         self.artifact_watches.clear();
@@ -1459,6 +1518,10 @@ impl BlockApp {
         if let Err(error) = self
             .app_state
             .set_last_organization(&self.account, Some(organization.id))
+            .and_then(|()| {
+                self.app_state
+                    .set_last_organization_details(&self.account, &organization)
+            })
         {
             self.organization_error = Some(error.to_string());
         }
@@ -1522,6 +1585,7 @@ impl BlockApp {
         self.allow_close = false;
         self.organization = None;
         self.organizations.clear();
+        self.resumed = false;
         self.organizations_loaded = false;
         self.organizations_load_failed = false;
         self.pending_organization_request = None;
@@ -1549,6 +1613,7 @@ impl BlockApp {
         if let Err(error) = self.app_state.set_active_account(&self.account) {
             self.account_error = Some(error.to_string());
         }
+        self.resume_organization();
     }
 
     fn close_requested(&mut self) -> bool {
@@ -2539,6 +2604,7 @@ impl BlockApp {
             performance::end_frame();
             return;
         }
+        self.warm_plugins();
         if self.scheduled_organization_list {
             self.scheduled_organization_list = false;
             let mut account = self.account.clone();
@@ -2573,7 +2639,7 @@ impl BlockApp {
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
         self.members.poll();
-        self.poll_organization_request();
+        self.load_organizations_if_needed();
         if self.choosing_session {
             self.root_settings.ensure();
             performance::end_frame();
@@ -2588,8 +2654,38 @@ impl BlockApp {
             remap::frame(&self.app_state);
         }
         self.poll_artifacts();
+        self.record_plugins_in_use();
         plugin_host::flush();
         performance::end_frame();
+    }
+
+    fn warm_plugins(&mut self) {
+        if std::mem::replace(&mut self.warmed, true) {
+            return;
+        }
+        let shell = self.root_settings.shell();
+        let in_use = self.app_state.warm_plugins().unwrap_or_default();
+        for manifest in editors::plugin::discovery::manifests() {
+            let edits_shell = manifest
+                .editors
+                .iter()
+                .any(|editor| Uuid::from_bytes(editor.id) == shell);
+            if edits_shell || in_use.contains(&manifest.identity.id) {
+                plugin_host::warm(&manifest);
+            }
+        }
+        self.plugins_in_use = in_use;
+    }
+
+    fn record_plugins_in_use(&mut self) {
+        let in_use = plugin_host::in_use();
+        if in_use.is_empty() || in_use == self.plugins_in_use {
+            return;
+        }
+        if let Err(error) = self.app_state.set_warm_plugins(&in_use) {
+            eprintln!("block-app: the plugins in use were not saved: {error}");
+        }
+        self.plugins_in_use = in_use;
     }
 
     fn sync_be_stack(&mut self) {
@@ -2612,12 +2708,7 @@ impl BlockApp {
             accounts::link_base(&self.server_url)
         };
         plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
-        plugin_host::publish::<block_plugin_api::Administrator>(
-            &self.organization.as_ref().is_some_and(|organization| {
-                organization.kind == be_protocol::OrganizationKind::Company
-                    && organization.role == OrganizationRole::Administrator
-            }),
-        );
+        self.publish_administrator();
         be::start(be::Config {
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),
@@ -2629,6 +2720,15 @@ impl BlockApp {
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
+    }
+
+    fn publish_administrator(&self) {
+        plugin_host::publish::<block_plugin_api::Administrator>(
+            &self.organization.as_ref().is_some_and(|organization| {
+                organization.kind == be_protocol::OrganizationKind::Company
+                    && organization.role == OrganizationRole::Administrator
+            }),
+        );
     }
 
     fn sync_local_settings(&mut self) {

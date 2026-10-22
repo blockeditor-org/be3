@@ -59,6 +59,12 @@ impl Interest {
                 .references
                 .iter()
                 .any(|target| self.listings.contains(&Listing::Backrefs(*target)))
+            || self.listings.iter().any(|listing| {
+                matches!(listing, Listing::References(referrer) if self
+                    .known
+                    .get(referrer)
+                    .is_some_and(|referrer| referrer.references.contains(&block)))
+            })
     }
 
     fn told(&mut self, block: Uuid, facts: Facts) -> bool {

@@ -117,7 +117,7 @@ impl Graph {
             let members = self
                 .nodes
                 .values()
-                .filter(|node| member(listing, node) == Some(true))
+                .filter(|node| member(listing, node, &self.nodes) == Some(true))
                 .map(|node| node.id)
                 .collect();
             self.listings.insert(
@@ -157,9 +157,7 @@ impl Graph {
             }
             Query::References(block) => {
                 into.insert(Listing::Block(block));
-                if let Some(node) = self.nodes.get(&block) {
-                    into.extend(node.references.iter().map(|id| Listing::Block(*id)));
-                }
+                into.insert(Listing::References(block));
             }
             Query::Parents(block) => {
                 into.insert(Listing::Block(block));
@@ -225,7 +223,7 @@ impl Graph {
                             .get(&node.id)
                             .is_some_and(|heard| *heard > revision)
                 })
-                .filter(|node| member(listing, node) == Some(true))
+                .filter(|node| member(listing, node, &self.nodes) == Some(true))
                 .map(|node| node.id),
         );
         self.floor = self.floor.max(revision);
@@ -397,6 +395,7 @@ impl Graph {
         {
             node.references.clone_from(&references);
             self.revision += 1;
+            self.relist(Listing::References(block));
         }
         self.referenced.insert(block, references);
     }
@@ -412,8 +411,15 @@ impl Graph {
         if let Some(references) = self.referenced.get(&node.id) {
             node.references.clone_from(references);
         }
+        if self
+            .nodes
+            .get(&node.id)
+            .is_some_and(|known| known.references != node.references)
+        {
+            self.relist(Listing::References(node.id));
+        }
         for (listing, listed) in &mut self.listings {
-            match member(*listing, &node) {
+            match member(*listing, &node, &self.nodes) {
                 Some(true) => listed.members.insert(node.id),
                 Some(false) => listed.members.remove(&node.id),
                 None => continue,
@@ -608,11 +614,16 @@ impl Graph {
     }
 }
 
-fn member(listing: Listing, node: &Node) -> Option<bool> {
+fn member(listing: Listing, node: &Node, nodes: &HashMap<Uuid, Node>) -> Option<bool> {
     match listing {
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Block(block) => Some(block == node.id),
         Listing::Backrefs(block) => Some(node.references.contains(&block)),
+        Listing::References(block) => Some(
+            nodes
+                .get(&block)
+                .is_some_and(|referrer| referrer.references.contains(&node.id)),
+        ),
         Listing::Shared => None,
     }
 }
