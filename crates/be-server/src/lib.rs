@@ -761,7 +761,6 @@ impl Connection {
                     pinned,
                 })
             }
-
             ClientMessage::PutObjects { request, objects } => {
                 self.identity()?;
                 Ok(ServerMessage::Stored {

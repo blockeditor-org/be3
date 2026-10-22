@@ -59,8 +59,10 @@ subject to issuance limits. Password reset changes authentication only: encrypte
 still needs a recovery phrase or another unlocked Block device.
 
 Browser authorization lasts ten minutes independently of the initiating connection.
-The app retains a private secret separately from the displayed code, checks completion
-on fresh connections, and retries when the network is unavailable. Only that secret
+The app retains a private secret separately from the displayed code and keeps the
+connection that began the request open, asking again whenever the server reports the
+browser's decision. Only if that connection drops does it reconnect, every two seconds,
+and ask on the new one. Only that secret
 can redeem an approved request, once. Approval is explicit after portal authentication;
 email verification alone does not approve a device. A revoked approving browser session
 cannot issue an app session from an unclaimed approval.

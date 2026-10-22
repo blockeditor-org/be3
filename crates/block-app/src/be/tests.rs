@@ -424,15 +424,6 @@ impl Someone {
 }
 
 impl Harness {
-    fn me(&self) -> crate::accounts::Me {
-        crate::accounts::Me {
-            account: self.account,
-            identity: self.identity(),
-            display_name: "Counter".to_owned(),
-            email: "counter@example.com".to_owned(),
-        }
-    }
-
     fn personal(&self) -> Uuid {
         runtime()
             .block_on(crate::accounts::organizations(

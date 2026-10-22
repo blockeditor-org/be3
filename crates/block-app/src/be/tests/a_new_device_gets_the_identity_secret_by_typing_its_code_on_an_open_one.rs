@@ -11,7 +11,14 @@ fn pair_in_background(
     harness: &Harness,
     code: String,
 ) -> std::thread::JoinHandle<Result<[u8; 32], crate::accounts::AccountError>> {
-    let (url, token, account) = (harness.url.clone(), harness.token.clone(), harness.account);
+    let (url, account) = (harness.url.clone(), harness.account);
+    let token = runtime()
+        .block_on(
+            be_server::ServerStore::open(harness.directory.join("server"))
+                .unwrap()
+                .issue_session(account),
+        )
+        .expect("the new device signs in");
     std::thread::spawn(move || {
         let (_cancel, cancelled) = tokio::sync::oneshot::channel::<()>();
         runtime().block_on(crate::accounts::pair(

@@ -1317,6 +1317,36 @@ pub(crate) fn remove_member(account: Uuid, reply: MembersReply) {
     }));
 }
 
+pub(crate) async fn invite(
+    email: String,
+    role: be_protocol::OrganizationRole,
+) -> Result<String, String> {
+    let (reply, made) = tokio::sync::oneshot::channel();
+    send(Command::Invite {
+        email,
+        role,
+        reply: Box::new(move |made| {
+            let _ = reply.send(made);
+        }),
+    });
+    made.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))
+}
+
+pub(crate) async fn create_agent(
+    name: String,
+) -> Result<crate::accounts::AgentCredentials, String> {
+    let (reply, made) = tokio::sync::oneshot::channel();
+    send(Command::CreateAgent {
+        name,
+        reply: Box::new(move |made| {
+            let _ = reply.send(made);
+        }),
+    });
+    made.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))
+}
+
+const NOT_OPEN: &str = "Open the organization first.";
+
 pub(crate) fn list_access(
     block: Uuid,
     reply: impl FnOnce(Result<Vec<be_protocol::AccessEntry>, String>) + Send + 'static,

@@ -758,6 +758,18 @@ and `be/web.rs` runs it on the browser's own executor with a `MemoryStore`,
 because there is no file system to keep objects in there and every open fetches
 what it needs.
 
+The app holds one connection per signed-in account and server, in
+`crates/block-app/src/link.rs`, and keeps it until it closes. Sign-in hands its
+connection over (`link::adopt`); the account requests in `accounts.rs` and the
+worker's `Peer` borrow it (`link::signed_in`), which reconnects and
+authenticates again only once it has closed. Natively it runs on a runtime of
+its own, so it outlives the request that opened it. The server keeps one open
+organization per connection, so only the worker opens one, and a worker waits
+for the last one to stop before it does (`Link::open_organization`). Opening it
+again, even the same one, drops the connection's watches and listings, so what
+needs the open organization's verified escrow key (inviting, creating an agent)
+goes through the worker's `Peer` rather than opening it.
+
 ### The graph mirror
 
 The app keeps a mirror of the part of the server's graph something in the app

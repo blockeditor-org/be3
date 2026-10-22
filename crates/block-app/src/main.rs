@@ -16,6 +16,7 @@ mod host;
 mod input;
 mod invite_link;
 mod keys;
+mod link;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod media;
@@ -539,7 +540,7 @@ enum OrganizationOperation {
     Create(String),
     LookUp(be_keys::InviteCode),
     Join(be_keys::InviteCode),
-    Invite(Uuid, String, OrganizationRole),
+    Invite(String, OrganizationRole),
     ListAgents(Uuid),
     CreateAgent(Uuid, String),
     RemoveAgent(Uuid, Uuid),
@@ -1219,25 +1220,25 @@ impl BlockApp {
                         .await
                         .map(OrganizationResult::Joined)
                 }
-                OrganizationOperation::Invite(organization, email, role) => {
-                    accounts::invite(url, token, me()?, organization, email, role)
-                        .await
-                        .map(OrganizationResult::Invited)
-                }
+                OrganizationOperation::Invite(email, role) => be::invite(email, role)
+                    .await
+                    .map(OrganizationResult::Invited)
+                    .map_err(|message| AccountError {
+                        message,
+                        invalid_token: false,
+                    }),
                 OrganizationOperation::ListAgents(organization) => {
                     accounts::agents(url, token, organization)
                         .await
                         .map(|agents| OrganizationResult::Agents(Some(agents), None))
                 }
                 OrganizationOperation::CreateAgent(organization, name) => {
-                    let created = accounts::create_agent(
-                        url.clone(),
-                        token.clone(),
-                        me()?,
-                        organization,
-                        name,
-                    )
-                    .await?;
+                    let created = be::create_agent(name)
+                        .await
+                        .map_err(|message| AccountError {
+                            message,
+                            invalid_token: false,
+                        })?;
                     let agents = accounts::agents(url, token, organization).await.ok();
                     Ok(OrganizationResult::Agents(agents, Some(created)))
                 }
@@ -2836,12 +2837,9 @@ impl BlockApp {
             #[cfg(not(target_os = "linux"))]
             UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
             UiCommand::SendInvite(email, role) => {
-                if let Some(organization) = &self.organization
-                    && !email.trim().is_empty()
-                {
-                    let id = organization.id;
+                if self.organization.is_some() && !email.trim().is_empty() {
                     self.invite_link = None;
-                    self.begin_organization_request(OrganizationOperation::Invite(id, email, role));
+                    self.begin_organization_request(OrganizationOperation::Invite(email, role));
                 }
             }
             UiCommand::CloseInvite => {

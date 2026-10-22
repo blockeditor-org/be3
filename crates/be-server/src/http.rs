@@ -126,11 +126,10 @@ pub(crate) async fn route(
         return Ok(None);
     }
     if services.config.local_profiles && head.origin.is_some() {
-        respond(
+        refuse(
             &mut stream,
             403,
-            None,
-            b"browser access to local profiles is unavailable",
+            "browser access to local profiles is unavailable",
         )
         .await?;
         return Ok(None);
@@ -160,7 +159,7 @@ async fn serve_auth(
 ) -> Result<(), ServerError> {
     let head = Head::parse(&buffer)?;
     if head.length > 16 * 1024 {
-        return respond(&mut stream, 413, None, b"the form is too large").await;
+        return refuse(&mut stream, 413, "the form is too large").await;
     }
     let host = head.host.as_deref().unwrap_or_default();
     let local = host == "localhost"
@@ -175,11 +174,10 @@ async fn serve_auth(
         .clone()
         .unwrap_or_else(|| format!("{}://{host}", if local { "http" } else { "https" }));
     if !local && services.config.auth_origin.is_none() {
-        return respond(
+        return refuse(
             &mut stream,
             503,
-            None,
-            b"The server operator must configure --auth-origin before using the account portal.",
+            "The server operator must configure --auth-origin before using the account portal.",
         )
         .await;
     }
@@ -188,11 +186,10 @@ async fn serve_auth(
     let mut fields = HashMap::new();
     if head.method == "POST" {
         if head.origin.as_deref() != Some(origin.as_str()) {
-            return respond(
+            return refuse(
                 &mut stream,
                 403,
-                None,
-                b"submit this form from the server's account portal",
+                "submit this form from the server's account portal",
             )
             .await;
         }
@@ -202,7 +199,7 @@ async fn serve_auth(
             .and_then(|value| value.split(';').next())
             != Some("application/x-www-form-urlencoded")
         {
-            return respond(&mut stream, 415, None, b"use the account portal's form").await;
+            return refuse(&mut stream, 415, "use the account portal's form").await;
         }
         let mut body = buffer.split_off(head.size);
         tokio::time::timeout(HANDSHAKE_TIMEOUT, async {
@@ -267,7 +264,7 @@ async fn serve(
     loop {
         let head = Head::parse(&buffer)?;
         if head.length > MAX_BODY_BYTES {
-            return respond(&mut stream, 413, None, b"the frame is too large").await;
+            return refuse(&mut stream, 413, "the frame is too large").await;
         }
         let mut body = buffer.split_off(head.size);
         while body.len() < head.length {
@@ -291,6 +288,7 @@ async fn serve(
             &mut stream,
             answer.status,
             answer.session.as_deref(),
+            "application/octet-stream",
             &answer.body,
         )
         .await?;
@@ -408,21 +406,36 @@ fn framed(frames: &[Vec<u8>]) -> Vec<u8> {
     body
 }
 
+async fn refuse(stream: &mut TcpStream, status: u16, message: &str) -> Result<(), ServerError> {
+    respond(
+        stream,
+        status,
+        None,
+        "text/plain; charset=utf-8",
+        message.as_bytes(),
+    )
+    .await
+}
+
 async fn respond(
     stream: &mut TcpStream,
     status: u16,
     session: Option<&str>,
+    content_type: &str,
     body: &[u8],
 ) -> Result<(), ServerError> {
     let reason = match status {
         200 => "OK",
         400 => "Bad Request",
+        403 => "Forbidden",
         404 => "Not Found",
         413 => "Payload Too Large",
+        415 => "Unsupported Media Type",
+        503 => "Service Unavailable",
         _ => "Error",
     };
     let mut head = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/octet-stream\r\nCache-Control: no-store\r\nContent-Length: {}\r\n",
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nCache-Control: no-store\r\nContent-Length: {}\r\n",
         body.len()
     );
     if let Some(session) = session {
