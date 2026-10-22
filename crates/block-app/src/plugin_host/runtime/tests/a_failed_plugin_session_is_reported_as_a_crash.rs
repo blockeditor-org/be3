@@ -7,12 +7,13 @@ fn a_failed_plugin_session_is_reported_as_a_crash() {
             "id": "test.failing",
             "name": "Failing",
             "version": "0.1.0",
-            "editors": [{
-                "block_type": "00000000-0000-4000-8000-0000000000c3",
+            "editors": {"main": {
+                "id": "00000000-0000-4000-8000-00000000e417",
+                "edits": "00000000-0000-4000-8000-0000000000c3",
                 "display_name": "Failing",
                 "icon": "x",
                 "regions": ["Frame"]
-            }],
+            }},
             "entry_point": "test.failing.wasm"
         }"#,
     )

@@ -26,7 +26,7 @@ pub use linux::{
     WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
 };
 pub use manifest::{
-    EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
+    EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 pub use ui_types::{
@@ -531,12 +531,12 @@ pub struct PluginManifest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorManifest {
-    pub block_type: [u8; 16],
+    pub id: [u8; 16],
+    pub name: String,
+    pub edits: Edits,
     pub display_name: String,
-    pub color: Option<[u8; 3]>,
     pub icon: String,
     pub templates: Vec<TemplateManifest>,
-    pub children: ChildOperations,
     pub interaction: InteractionMode,
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
@@ -587,19 +587,26 @@ pub enum TemplateCategory {
 }
 
 impl PluginManifest {
-    pub fn editor(&self, block_type: [u8; 16]) -> Option<&EditorManifest> {
-        self.editors
-            .iter()
-            .find(|editor| editor.block_type == block_type)
-            .or_else(|| {
-                self.editors
-                    .iter()
-                    .find(|editor| editor.block_type == ANY_BLOCK_TYPE)
-            })
+    pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
+        self.editors.iter().find(|editor| editor.id == id)
     }
+}
 
-    pub fn editor_id(&self) -> [u8; 16] {
-        editor_id(&self.identity.id)
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Edits {
+    Type([u8; 16]),
+    Any,
+    Nothing,
+}
+
+impl Edits {
+    pub const ANY_NAME: &str = "any";
+
+    pub fn block_type(self) -> Option<[u8; 16]> {
+        match self {
+            Self::Type(block_type) => Some(block_type),
+            Self::Any | Self::Nothing => None,
+        }
     }
 }
 
@@ -693,27 +700,12 @@ pub struct Catalog {
     pub editors: Vec<EditorDescriptor>,
 }
 
-pub const ANY_BLOCK_TYPE: [u8; 16] = [0; 16];
-
-pub const ANY_BLOCK_TYPE_NAME: &str = "any";
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorDescriptor {
     pub editor: [u8; 16],
-    pub block_type: [u8; 16],
+    pub edits: Edits,
     pub name: String,
     pub icon_codepoint: String,
-}
-
-pub fn editor_id(plugin_id: &str) -> [u8; 16] {
-    const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
-    const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
-    plugin_id
-        .bytes()
-        .fold(OFFSET, |hash, byte| {
-            (hash ^ u128::from(byte)).wrapping_mul(PRIME)
-        })
-        .to_be_bytes()
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -734,11 +726,13 @@ pub enum ManifestError {
     TooLong(&'static str),
     InvalidIdentity,
     InvalidBlockType,
+    InvalidEditorId,
     InvalidRegions,
     InvalidNetworkHost,
     NoEditors,
-    DuplicateBlockType,
+    DuplicateEditor,
     DuplicateTemplate,
+    TemplateWithoutBlockType,
 }
 
 impl fmt::Display for ManifestError {
@@ -749,6 +743,7 @@ impl fmt::Display for ManifestError {
             Self::TooLong(field) => write!(formatter, "{field} is too long"),
             Self::InvalidIdentity => formatter.write_str("the plugin id is not a plain identifier"),
             Self::InvalidBlockType => formatter.write_str("the block type is not a uuid"),
+            Self::InvalidEditorId => formatter.write_str("the editor id is not a uuid"),
             Self::InvalidRegions => {
                 formatter.write_str("the regions must include the frame exactly once")
             }
@@ -756,9 +751,12 @@ impl fmt::Display for ManifestError {
                 formatter.write_str("a network host is not a plain host name")
             }
             Self::NoEditors => formatter.write_str("the plugin declares no editors"),
-            Self::DuplicateBlockType => {
-                formatter.write_str("two editors are declared for the same block type")
+            Self::DuplicateEditor => {
+                formatter.write_str("two editors are declared with the same id or name")
             }
+            Self::TemplateWithoutBlockType => formatter.write_str(
+                "a template of an editor that edits no one block type names no block type",
+            ),
             Self::DuplicateTemplate => {
                 formatter.write_str("an editor declares the same template twice")
             }
@@ -785,9 +783,9 @@ impl PluginManifest {
         for (index, editor) in self.editors.iter().enumerate() {
             if self.editors[..index]
                 .iter()
-                .any(|other| other.block_type == editor.block_type)
+                .any(|other| other.id == editor.id || other.name == editor.name)
             {
-                return Err(ManifestError::DuplicateBlockType);
+                return Err(ManifestError::DuplicateEditor);
             }
             editor.validate()?;
         }
@@ -807,6 +805,7 @@ impl PluginManifest {
 
 impl EditorManifest {
     fn validate(&self) -> Result<(), ManifestError> {
+        manifest_string("editor name", &self.name)?;
         manifest_string("display name", &self.display_name)?;
         manifest_string("icon", &self.icon)?;
         if !self.regions.contains(&EditorRegion::Frame)
@@ -845,6 +844,7 @@ fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError
 pub enum EditorMessage {
     Open {
         instance: EditorInstanceId,
+        editor: [u8; 16],
         block_id: [u8; 16],
         block_type: [u8; 16],
         view_block: Option<[u8; 16]>,
@@ -1114,7 +1114,7 @@ pub enum EditorMessage {
     },
     OpenCreation {
         instance: EditorInstanceId,
-        block_type: [u8; 16],
+        editor: [u8; 16],
         template: String,
         account_id: [u8; 16],
         organization_id: [u8; 16],
@@ -1152,7 +1152,7 @@ pub enum EditorMessage {
     },
     OpenArtifact {
         instance: EditorInstanceId,
-        source_type: [u8; 16],
+        editor: [u8; 16],
         block_id: [u8; 16],
         block_type: [u8; 16],
         account_id: [u8; 16],

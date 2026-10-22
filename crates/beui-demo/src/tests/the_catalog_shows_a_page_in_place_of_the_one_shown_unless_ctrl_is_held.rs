@@ -1,7 +1,10 @@
 use super::*;
 
 fn close(page: Page) -> String {
-    format!("dock.tab.{}.close", page.tab().value())
+    match Pages::tab_of(page) {
+        Some(tab) => format!("dock.tab.{}.close", tab.value()),
+        None => format!("demo.{}.not_open", page.title()),
+    }
 }
 
 #[test]

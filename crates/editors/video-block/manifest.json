@@ -2,19 +2,14 @@
   "id": "be3.video",
   "name": "Video Editor",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "76696465-6f5f-626c-6f63-6b0000000001",
+  "editors": {
+    "video": {
+      "id": "4c026c68-864f-4c15-83e3-a9268b377648",
+      "edits": "76696465-6f5f-626c-6f63-6b0000000001",
       "display_name": "Video Editor",
-      "color": [44, 158, 128],
       "icon": "\ue404",
       "templates": {
         "main": {}
-      },
-      "children": {
-        "add": true,
-        "delete": true,
-        "replace": true
       },
       "resize": "Both",
       "regions": [
@@ -22,6 +17,6 @@
         "Preview"
       ]
     }
-  ],
+  },
   "entry_point": "video_block.wasm"
 }

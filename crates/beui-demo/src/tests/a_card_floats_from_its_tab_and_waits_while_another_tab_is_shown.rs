@@ -8,7 +8,7 @@ fn a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown() {
     test.click("demo.dialog.card");
     test.frame(Vec::new());
     let card = dialog_id(0);
-    let waiting = format!("dock.tab.{}.waiting", Page::Docking.tab().value());
+    let waiting = format!("dock.tab.{}.waiting", tab(Page::Docking));
     assert!(test.shows(&card), "the card opens under the tab bar");
     assert!(test.shows(&waiting), "its tab waits on it");
     test.snapshot("docking_card");
@@ -36,7 +36,7 @@ fn a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown() {
 
     open_beside(&mut test, Page::Text);
     assert!(
-        test.shows(&format!("dock.tab.{}.close", Page::Text.tab().value())),
+        test.shows(&format!("dock.tab.{}.close", tab(Page::Text))),
         "the catalog beside the card still opens a page"
     );
     assert!(

@@ -149,6 +149,7 @@ fn hello_accepted() -> Message {
 fn open() -> Message {
     Message::Editor(EditorMessage::Open {
         instance: EditorInstanceId(1),
+        editor: [6; 16],
         block_id: [1; 16],
         block_type: [2; 16],
         view_block: None,

@@ -4,6 +4,7 @@ use super::*;
 fn open_messages_round_trip() {
     let message = Message::Editor(EditorMessage::Open {
         instance: EditorInstanceId(9),
+        editor: [7; 16],
         block_id: [1; 16],
         block_type: [2; 16],
         view_block: Some([6; 16]),

@@ -23,12 +23,12 @@ mod wasm;
 
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
-    ANY_BLOCK_TYPE, AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction,
-    AudioOutput, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation,
-    BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
-    ChildOperations, ChildPlacement, ChildRect, ChildStatus, ConflictSide, ContactLinkResult,
-    Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction, Description, DisplayMode,
-    Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Epaper,
+    AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction, AudioOutput,
+    AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation, BlockPick,
+    BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
+    ChildPlacement, ChildRect, ChildStatus, ConflictSide, ContactLinkResult, Contacts,
+    CreationProgress, CursorIcon, DataListing, DescribedAction, Description, DisplayMode, Displays,
+    EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Edits, Epaper,
     EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact,
     HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
     HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
@@ -70,44 +70,16 @@ pub use wgpu;
 pub mod __private {
     #[cfg(target_arch = "wasm32")]
     pub struct App {
-        block_type: uuid::Uuid,
+        name: &'static str,
         open: crate::screens::Opener,
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn app<P: crate::Plugin>(block_type: uuid::Uuid) -> App {
+    pub fn app<P: crate::Plugin>(name: &'static str) -> App {
         App {
-            block_type,
+            name,
             open: P::open,
         }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn only_app<P: crate::Plugin>(manifest: &str) -> Vec<App> {
-        let editors = document(manifest).editors;
-        let [editor] = editors.as_slice() else {
-            panic!(
-                "a plugin with one app declares exactly one editor, not {}",
-                editors.len()
-            );
-        };
-        vec![app::<P>(declared_block_type(&editor.block_type))]
-    }
-
-    pub fn declared_block_types(manifest: &str) -> Vec<uuid::Uuid> {
-        document(manifest)
-            .editors
-            .iter()
-            .map(|editor| declared_block_type(&editor.block_type))
-            .collect()
-    }
-
-    fn declared_block_type(source: &str) -> uuid::Uuid {
-        if source == block_plugin_api::ANY_BLOCK_TYPE_NAME {
-            return uuid::Uuid::from_bytes(block_plugin_api::ANY_BLOCK_TYPE);
-        }
-        uuid::Uuid::parse_str(source)
-            .unwrap_or_else(|error| panic!("this plugin's block type is invalid: {error}"))
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -118,20 +90,32 @@ pub mod __private {
     #[cfg(target_arch = "wasm32")]
     pub fn start_wasm(manifest: &str, apps: Vec<App>) {
         crate::wasm::report_panics();
-        let identity = identity(manifest);
-        let mut declared = declared_block_types(manifest);
-        let mut implemented: Vec<_> = apps.iter().map(|app| app.block_type).collect();
-        declared.sort();
-        implemented.sort();
+        let manifest = parsed(manifest);
+        let name = &manifest.identity.name;
+        let mut declared: Vec<_> = manifest
+            .editors
+            .iter()
+            .map(|editor| editor.name.as_str())
+            .collect();
+        let mut implemented: Vec<_> = apps.iter().map(|app| app.name).collect();
+        declared.sort_unstable();
+        implemented.sort_unstable();
         assert_eq!(
             declared, implemented,
-            "{} must implement exactly the editors its manifest declares",
-            identity.name
+            "{name} must implement exactly the editors its manifest declares"
         );
         let apps = apps
             .into_iter()
-            .map(|app| (app.block_type, app.open))
+            .map(|app| {
+                let editor = manifest
+                    .editors
+                    .iter()
+                    .find(|editor| editor.name == app.name)
+                    .expect("every app names a declared editor");
+                (uuid::Uuid::from_bytes(editor.id), app.open)
+            })
             .collect();
+        let identity = &manifest.identity;
         if let Err(error) =
             crate::wasm::start(apps, &identity.id, &identity.name, &identity.version)
         {
@@ -151,13 +135,9 @@ pub mod __private {
         crate::wasm::shutdown();
     }
 
-    pub fn document(manifest: &str) -> block_plugin_api::ManifestDocument {
-        block_plugin_api::ManifestDocument::parse(manifest)
+    pub fn parsed(manifest: &str) -> block_plugin_api::PluginManifest {
+        block_plugin_api::manifest_from_json(manifest)
             .unwrap_or_else(|error| panic!("this plugin's manifest is invalid: {error}"))
-    }
-
-    pub fn identity(manifest: &str) -> block_plugin_api::PluginIdentity {
-        document(manifest).identity()
     }
 }
 
@@ -195,23 +175,13 @@ macro_rules! platform_entry {
 
 #[macro_export]
 macro_rules! plugin {
-    ($plugin:ty, $manifest:expr) => {
-        const PLUGIN_MANIFEST: &str = include_str!($manifest);
-
-        $crate::platform_entry!(
-            PLUGIN_MANIFEST,
-            $crate::__private::only_app::<$plugin>(PLUGIN_MANIFEST)
-        );
-    };
-    ($manifest:expr, { $($content:ty => $plugin:ty),+ $(,)? }) => {
+    ($manifest:expr, { $($name:ident => $plugin:ty),+ $(,)? }) => {
         const PLUGIN_MANIFEST: &str = include_str!($manifest);
 
         $crate::platform_entry!(
             PLUGIN_MANIFEST,
             vec![$(
-                $crate::__private::app::<$plugin>(
-                    <$content as $crate::be_block::BlockContent>::CONTENT_TYPE,
-                )
+                $crate::__private::app::<$plugin>(stringify!($name))
             ),+]
         );
     };

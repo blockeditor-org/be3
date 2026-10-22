@@ -268,7 +268,6 @@ impl<K> Default for KeyMap<K> {
 struct LayoutInner<K> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
-    replacing: RefCell<Vec<(TabId, TabId)>>,
 }
 
 pub struct DockingLayout<K: 'static> {
@@ -338,7 +337,6 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
-            replacing: RefCell::default(),
         };
         let layout = move |inner| Self {
             state,
@@ -362,14 +360,12 @@ impl<K: DockKey> DockingLayout<K> {
             map.tabs.insert(key, tab);
         }
         *self.inner().keys.borrow_mut() = map;
-        self.inner().replacing.borrow_mut().clear();
         self.state.set(state);
         self.restores.update(|restores| *restores += 1);
     }
 
     pub fn reset(&self) {
         *self.inner().keys.borrow_mut() = KeyMap::default();
-        self.inner().replacing.borrow_mut().clear();
         self.state.set(DockState::default());
         self.restores.update(|restores| *restores += 1);
     }
@@ -422,29 +418,6 @@ impl<K: DockKey> DockingLayout<K> {
         self.edit(|state| state.show(tab));
     }
 
-    pub fn replace(&self, key: &K, with: K) -> bool {
-        let Some(tab) = self.tab_of(key) else {
-            return false;
-        };
-        if !self.state.with_untracked(|state| state.contains(tab)) {
-            return false;
-        }
-        let new = self.mint(&with);
-        if self.state.with_untracked(|state| state.contains(new)) {
-            return false;
-        }
-        let inner = self.inner();
-        let mut replacing = inner.replacing.borrow_mut();
-        if replacing
-            .iter()
-            .any(|(from, to)| *from == tab || *to == new)
-        {
-            return false;
-        }
-        replacing.push((tab, new));
-        true
-    }
-
     pub fn fullscreen(&self) -> Option<K> {
         let tab = self.state.with(DockState::fullscreen)?.tab;
         self.key_of(tab)
@@ -492,17 +465,6 @@ impl<K: DockKey> DockingLayout<K> {
     fn reconcile(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
         let current = self.state.get_untracked();
         let mut next = current.clone();
-        let declared = spec.tabs();
-        let replacing = std::mem::take(&mut *self.inner().replacing.borrow_mut());
-        for (tab, with) in replacing {
-            if !declared.contains(&tab)
-                && declared.contains(&with)
-                && !next.contains(with)
-                && next.replace(tab, with)
-            {
-                next.show(with);
-            }
-        }
         next.reconcile(spec);
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
         kept.extend(next.all_tabs());

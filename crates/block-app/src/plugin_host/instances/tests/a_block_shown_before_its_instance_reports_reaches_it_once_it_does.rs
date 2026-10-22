@@ -6,11 +6,14 @@ fn report(instances: &mut Instances) {
         INSTANCE,
         REGION,
         Uuid::nil(),
-        InstanceRole::Editor(EditorBlock {
-            id: Uuid::nil(),
-            block_type: Uuid::nil(),
-            view_block: None,
-        }),
+        InstanceRole::Editor(
+            Uuid::nil(),
+            EditorBlock {
+                id: Uuid::nil(),
+                block_type: Uuid::nil(),
+                view_block: None,
+            },
+        ),
         &block_types,
         Some(block_plugin_api::FrameSpec::default()),
         SIZE,

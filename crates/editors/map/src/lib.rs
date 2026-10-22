@@ -8,4 +8,6 @@ mod tiles;
 #[cfg(test)]
 mod tests;
 
-block_editor_beui::beui_plugin!(app::MapApp, "../manifest.json");
+block_editor_beui::beui_plugin!("../manifest.json", {
+    map => app::MapApp,
+});

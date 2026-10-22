@@ -96,10 +96,7 @@ pub fn presence_color(color: PresenceColor) -> beui::Color32 {
 
 #[macro_export]
 macro_rules! beui_plugin {
-    ($app:ty, $manifest:expr) => {
-        $crate::block_editor_plugin::plugin!($crate::BeuiPlugin<$app>, $manifest);
-    };
-    ($manifest:expr, { $($content:ty => $app:ty),+ $(,)? }) => {
-        $crate::block_editor_plugin::plugin!($manifest, { $($content => $crate::BeuiPlugin<$app>),+ });
+    ($manifest:expr, { $($name:ident => $app:ty),+ $(,)? }) => {
+        $crate::block_editor_plugin::plugin!($manifest, { $($name => $crate::BeuiPlugin<$app>),+ });
     };
 }

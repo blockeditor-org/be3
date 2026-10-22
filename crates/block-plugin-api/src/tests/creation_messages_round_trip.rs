@@ -5,7 +5,7 @@ fn creation_messages_round_trip() {
     for message in [
         Message::Editor(EditorMessage::OpenCreation {
             instance: EditorInstanceId(2),
-            block_type: [1; 16],
+            editor: [1; 16],
             template: "title-slide".into(),
             account_id: [3; 16],
             organization_id: [4; 16],

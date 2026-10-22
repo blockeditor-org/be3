@@ -18,7 +18,8 @@ use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockMode, DockPane,
+    ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockDocument,
+    DockDocumentBody, DockDocumentTabs, DockDocuments, DockMode, DockOpened, DockPane, DockSlot,
     DockSplit, DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom,
     PanZoomHandle, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState,
     TreeItem, dock_actions, narrower_than, use_dock_tab,
@@ -177,14 +178,6 @@ const PAGES: [Page; 30] = [
 ];
 
 impl Page {
-    fn tab(self) -> TabId {
-        TabId::new(self as u64 + 2)
-    }
-
-    fn of(tab: TabId) -> Option<Page> {
-        PAGES.into_iter().find(|page| page.tab() == tab)
-    }
-
     fn title(self) -> &'static str {
         match self {
             Page::Docking => "Docking",
@@ -518,62 +511,61 @@ impl DemoDialogs {
 #[derive(Clone, Copy)]
 struct Pages {
     layout: DockingLayout<TabId>,
-    open: Signal<Vec<Page>>,
+    documents: DockDocuments<TabId, Page, Page>,
     dialogs: DemoDialogs,
+}
+
+#[cfg(test)]
+thread_local! {
+    static SHOWN_PAGES: std::cell::Cell<Option<Pages>> = const { std::cell::Cell::new(None) };
 }
 
 impl Pages {
     fn new(dialogs: DemoDialogs) -> Self {
-        let open = create_signal(vec![Page::Docking]);
-        Self {
-            layout: DockingLayout::new(),
-            open,
+        let layout = DockingLayout::new();
+        let documents = DockDocuments::new(
+            layout,
+            |slot: DockSlot| TabId::new(CATALOG.value() + slot.value()),
+            |page: &Page| *page,
+        );
+        documents.open(Page::Docking, true);
+        let pages = Self {
+            layout,
+            documents,
             dialogs,
-        }
+        };
+        #[cfg(test)]
+        SHOWN_PAGES.with(|shown| shown.set(Some(pages)));
+        pages
     }
 
     fn open(&self, page: Page, beside: bool) {
-        if self.open.with_untracked(|open| open.contains(&page)) {
-            self.layout.show(&page.tab());
-            return;
-        }
-        let shown = self.active().filter(|_| !beside);
-        match shown {
-            Some(shown) if self.layout.replace(&shown.tab(), page.tab()) => {
-                self.dialogs.close_from(shown.tab());
-                self.open.update(|open| {
-                    for held in open.iter_mut().filter(|held| **held == shown) {
-                        *held = page;
-                    }
-                });
-            }
-            _ => self.open.update(|open| open.push(page)),
+        if let DockOpened::Replaced(slot, _) = self.documents.open(page, beside) {
+            self.dialogs.close_from(self.documents.key(slot));
         }
     }
 
-    fn close(&self, page: Page) {
-        self.dialogs.close_from(page.tab());
-        self.open.update(|open| open.retain(|other| *other != page));
+    fn close(&self, document: DockDocument<TabId, Page, Page>) {
+        self.dialogs.close_from(document.key());
+        document.close();
     }
 
     fn reset(&self) {
-        self.open.set(vec![Page::Docking]);
+        self.documents.clear();
         self.layout.reset();
+        self.documents.open(Page::Docking, true);
     }
 
     fn active(&self) -> Option<Page> {
-        self.layout.state().with(|state| {
-            state
-                .recent_tabs()
-                .into_iter()
-                .filter(|tab| *tab != CATALOG)
-                .find(|tab| {
-                    state
-                        .find(*tab)
-                        .is_some_and(|position| state.active_tab(position.leaf) == Some(*tab))
-                })
-                .and_then(Page::of)
-        })
+        let slot = self.documents.shown()?;
+        Some(self.documents.content(slot)?.get())
+    }
+
+    #[cfg(test)]
+    fn tab_of(page: Page) -> Option<TabId> {
+        let pages = SHOWN_PAGES.with(std::cell::Cell::get)?;
+        let slot = untrack(|| pages.documents.find(&page))?;
+        Some(pages.documents.key(slot))
     }
 }
 
@@ -630,7 +622,6 @@ fn DemoShell() -> NodeId {
     let active = create_selector(move || pages.active());
     let layout = pages.layout;
     switch_tabs_with_alt_q(layout);
-    let open = pages.open;
     let drag_modifier = create_signal(None);
     provide_context(DragModifier {
         held: drag_modifier,
@@ -656,18 +647,25 @@ fn DemoShell() -> NodeId {
                             <EmptyPanel />
                         }}
                     >
-                        <ForEach keys={open}>|page: Page|
-                            <DockTab
-                                id={page.tab()}
-                                title={page.title()}
-                                icon={page.icon()}
-                                on_close={move || pages.close(page)}
-                            >
-                                <Container>|_|
-                                    <PageView page />
-                                </Container>
-                            </DockTab>
-                        </ForEach>
+                        <DockDocumentTabs
+                            documents={pages.documents}
+                        >|document: DockDocument<TabId, Page, Page>| {
+                            let page = document.content();
+                            view! {
+                                <DockTab
+                                    id={document.key()}
+                                    title={create_memo(move || page.get().title().to_owned())}
+                                    icon={create_memo(move || page.get().icon().to_owned())}
+                                    on_close={move || pages.close(document)}
+                                >
+                                    <DockDocumentBody document>|page: ReadSignal<Page>|
+                                        <Container>|_|
+                                            <PageView page={page.get_untracked()} />
+                                        </Container>
+                                    </DockDocumentBody>
+                                </DockTab>
+                            }
+                        }</DockDocumentTabs>
                     </DockPane>
                 </DockSplit>
                 <ForEach keys={attached}>|dialog: DemoDialog|

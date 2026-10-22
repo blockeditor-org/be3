@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use block_editor_beui::be_block::profile::VIEW_EDITORS;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::*;
@@ -191,8 +190,10 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         true => TopBar::Phone,
         false => TopBar::Shown,
     });
-    let session =
-        untrack(|| workspace.tab(tab)).is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
+    let session = untrack(|| workspace.tab(tab)).is_some_and(|item| {
+        item.block_type
+            == <block_editor_beui::be_block::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE
+    });
     let desktop = create_memo(move || !phone.get() && !session);
     let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
     let previewing = create_memo(move || preview.get().is_some());

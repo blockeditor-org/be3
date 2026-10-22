@@ -22,7 +22,9 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             .block_types()
             .editors_for(InputRemapper::CONTENT_TYPE)
             .into_iter()
-            .filter(|entry| entry.block_type == Some(InputRemapper::CONTENT_TYPE))
+            .filter(|entry| {
+                entry.edits == block_editor_beui::block_ui::Edits::Type(InputRemapper::CONTENT_TYPE)
+            })
             .map(|entry| (entry.editor, entry.name.clone()))
             .collect::<Vec<(Uuid, String)>>()
     });

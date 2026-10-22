@@ -269,7 +269,7 @@ fn offers_remapper(plugin: &str) -> bool {
             && manifest
                 .editors
                 .iter()
-                .any(|editor| editor.block_type == remapper)
+                .any(|editor| editor.edits == block_plugin_api::Edits::Type(remapper))
     })
 }
 

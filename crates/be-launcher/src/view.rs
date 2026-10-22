@@ -12,7 +12,7 @@ use beui::unstyled::ChoiceOption;
 use beui::{Color32, Document, NodeId};
 
 #[cfg(target_os = "android")]
-use crate::detail::Detail;
+use crate::detail::{Detail, placeholder};
 use crate::github::{Filter, Label, PullRequest, State};
 use crate::model::{Loaded, Model};
 #[cfg(target_os = "android")]
@@ -77,9 +77,24 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                                     on_click={back}
                                 />
                             </Frame>
-                            <ForEach keys={opened}>|number: u64|
-                                <Detail @sizing=ItemSize::Percent(100.0) model={model} number />
-                            </ForEach>
+                            <ForEach keys={opened}>|number: u64| {
+                                let pull_request = create_memo(move || {
+                                    model.opened.with(|opened| {
+                                        opened
+                                            .iter()
+                                            .find(|pull_request| pull_request.number == number)
+                                            .cloned()
+                                            .unwrap_or_else(|| placeholder(number))
+                                    })
+                                });
+                                view! {
+                                    <Detail
+                                        @sizing=ItemSize::Percent(100.0)
+                                        model={model}
+                                        pull_request
+                                    />
+                                }
+                            }</ForEach>
                         </List>
                     </Frame>
                 </BackSlide>

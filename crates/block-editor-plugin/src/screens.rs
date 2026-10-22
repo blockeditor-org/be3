@@ -1,5 +1,5 @@
 use block_plugin_api::{
-    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, ScreenId,
+    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Edits, Message, ScreenId,
     ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
@@ -102,7 +102,7 @@ impl Screens {
         }
     }
 
-    fn open(&mut self, instance: EditorInstanceId, block_type: Uuid) -> &mut EditorSession {
+    fn open(&mut self, instance: EditorInstanceId, editor: Uuid) -> &mut EditorSession {
         let apps = &self.apps;
         let marks = Arc::clone(&self.dirty);
         let inner = self.waker.clone();
@@ -115,13 +115,11 @@ impl Screens {
             inner.wake();
         });
         self.sessions.entry(instance).or_insert_with(|| {
-            let any = Uuid::from_bytes(block_plugin_api::ANY_BLOCK_TYPE);
             let open = apps
                 .iter()
-                .find(|(declared, _)| *declared == block_type)
-                .or_else(|| apps.iter().find(|(declared, _)| *declared == any))
+                .find(|(declared, _)| *declared == editor)
                 .map(|(_, open)| *open)
-                .unwrap_or_else(|| panic!("this plugin has no editor for block type {block_type}"));
+                .unwrap_or_else(|| panic!("this plugin has no editor {editor}"));
             EditorSession::new(instance, waker, open)
         })
     }
@@ -179,6 +177,7 @@ impl Screens {
             }
             Message::Editor(EditorMessage::Open {
                 instance,
+                editor,
                 block_id,
                 block_type,
                 view_block,
@@ -188,7 +187,7 @@ impl Screens {
                 editable,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*block_type));
+                let session = self.open(*instance, Uuid::from_bytes(*editor));
                 session.set_block_types(block_types);
                 session.set_view_block(view_block.map(Uuid::from_bytes));
                 session.set_client_id(Uuid::from_bytes(*client_id));
@@ -199,14 +198,14 @@ impl Screens {
             }
             Message::Editor(EditorMessage::OpenCreation {
                 instance,
-                block_type,
+                editor,
                 template,
                 account_id,
                 organization_id,
                 client_id,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*block_type));
+                let session = self.open(*instance, Uuid::from_bytes(*editor));
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -215,7 +214,7 @@ impl Screens {
             }
             Message::Editor(EditorMessage::OpenArtifact {
                 instance,
-                source_type,
+                editor,
                 block_id,
                 block_type,
                 account_id,
@@ -224,7 +223,7 @@ impl Screens {
                 data,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*source_type));
+                let session = self.open(*instance, Uuid::from_bytes(*editor));
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -787,14 +786,15 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             dialog: template.dialog,
         }
     }))
-    .with_editors(catalog.editors.iter().map(|editor| {
-        EditorEntry {
-            editor: Uuid::from_bytes(editor.editor),
-            block_type: (editor.block_type != block_plugin_api::ANY_BLOCK_TYPE)
-                .then(|| Uuid::from_bytes(editor.block_type)),
-            name: editor.name.clone(),
-            icon: leak(&editor.icon_codepoint),
-        }
+    .with_editors(catalog.editors.iter().map(|editor| EditorEntry {
+        editor: Uuid::from_bytes(editor.editor),
+        edits: match editor.edits {
+            Edits::Type(block_type) => block_ui::Edits::Type(Uuid::from_bytes(block_type)),
+            Edits::Any => block_ui::Edits::Any,
+            Edits::Nothing => block_ui::Edits::Nothing,
+        },
+        name: editor.name.clone(),
+        icon: leak(&editor.icon_codepoint),
     }))
 }
 

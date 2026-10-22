@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::profile::{RECENTS, VIEW_EDITORS};
+use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
     BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, MY_FILES, Recents,
     ViewState, WorkspaceContent,
@@ -1024,9 +1024,9 @@ impl Workspace {
         }
         let tab = TabId::new(inner.next_tab.get());
         inner.next_tab.set(inner.next_tab.get() + 1);
-        let view = match VIEW_EDITORS.contains(&item.block_type) {
+        let view = match item.block_type == EditorViewContent::CONTENT_TYPE {
             true => Some(item.id),
-            false => self.create_view(item.block_type, Some(item.id)),
+            false => self.create_view(self.editor_of(&item).unwrap_or_default(), Some(item.id)),
         };
         if let Some(view) = view {
             self.views.update(|views| {
@@ -1048,14 +1048,16 @@ impl Workspace {
             return;
         }
         held.editor = item.editor;
-        if !VIEW_EDITORS.contains(&item.block_type) {
+        if item.block_type != EditorViewContent::CONTENT_TYPE {
             let mut views = self.views.get_untracked();
             if let Some(view) = views.remove(&tab)
                 && view != item.id
             {
                 self.blocks().set_parent(view, BlockParent::Detached);
             }
-            if let Some(view) = self.create_view(item.block_type, Some(item.id)) {
+            if let Some(view) =
+                self.create_view(self.editor_of(&item).unwrap_or_default(), Some(item.id))
+            {
                 views.insert(tab, view);
             }
             self.views.set(views);
@@ -1070,6 +1072,17 @@ impl Workspace {
                 types
                     .editor(*editor)
                     .is_some_and(|entry| entry.edits(item.block_type))
+            })
+            .or_else(|| {
+                (item.block_type == EditorViewContent::CONTENT_TYPE)
+                    .then(|| {
+                        self.editor
+                            .content_of::<EditorViewContent>(item.id)
+                            .read(|view| view.root().editor)
+                            .ok()
+                    })
+                    .flatten()
+                    .filter(|editor| !editor.is_nil())
             })
             .or_else(|| {
                 self.default_editors

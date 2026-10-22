@@ -1864,12 +1864,16 @@ impl BlockApp {
             self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
-        self.block_types.insert(id, shell_editor);
+        let view_type = be_block::EditorView::CONTENT_TYPE;
+        self.block_types.insert(id, view_type);
         let open_as = self
             .editors
-            .with(|open| open.get(&id).map(PluginEditor::block_type));
+            .with(|open| open.get(&id).and_then(PluginEditor::editor_id));
         if open_as != Some(shell_editor) {
-            let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
+            let editor = self
+                .registry
+                .open_with(id, view_type, Some(shell_editor))
+                .viewed_by(Some(id));
             if let Some(missing) = ShellRequest::ALL
                 .into_iter()
                 .find(|request| !editor.accepts(*request))

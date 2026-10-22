@@ -1,6 +1,6 @@
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{
-    EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
+    BlockContent, EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::root_settings::RootSettings;
@@ -33,7 +33,8 @@ impl Sessions {
     }
 
     pub(crate) fn open(&self, session: Uuid) {
-        self.workspace.open_block(session, WORKSPACE_EDITOR);
+        self.workspace
+            .open_block(session, EditorViewContent::CONTENT_TYPE);
     }
 
     pub(crate) fn create(&self) {

@@ -6,4 +6,6 @@ mod raytracer;
 #[cfg(test)]
 mod tests;
 
-block_editor_beui::beui_plugin!(app::PixelRayTracerApp, "../manifest.json");
+block_editor_beui::beui_plugin!("../manifest.json", {
+    ray_tracer => app::PixelRayTracerApp,
+});

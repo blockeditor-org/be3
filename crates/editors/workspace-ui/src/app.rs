@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
+use block_editor_beui::be_block::{BlockContent, EditorViewContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_HISTORY, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
@@ -127,9 +127,11 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
 fn FilesPanel(workspace: Workspace) -> NodeId {
     let files = workspace.files();
     let target = create_memo(move || {
-        files
-            .get()
-            .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
+        files.get().map(|id| {
+            ChildTarget::new(id, EditorViewContent::CONTENT_TYPE)
+                .edited_with(Some(FILES_EDITOR))
+                .viewed_by(id)
+        })
     });
     view! {
         <SidePanel workspace target loading="Files are loading…" id="workspace.files" />
