@@ -4,9 +4,6 @@ use super::*;
 fn a_presentation_menu_offers_new_slides_first() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Presentation");
-    app.wait("TextInput \"Name\" value=\"Presentation\" focused");
-    app.key("Enter");
-    app.wait("TreeItem \"Presentation\"");
     app.click("#presentation.add");
     app.wait("#picker.slides");
     assert!(

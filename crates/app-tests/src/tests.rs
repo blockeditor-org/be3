@@ -41,9 +41,17 @@ mod the_organizations_screen_takes_an_invite_link;
 mod typing_after_a_pause_undoes_as_its_own_step;
 
 fn add_to_my_files(app: &mut AppTest, label: &str) {
+    start_adding_to_my_files(app, label);
+    app.key("Enter");
+    app.gone(&format!("TextInput \"Name\" value=\"{label}\""));
+    app.wait(&format!("TreeItem \"{label}\""));
+}
+
+fn start_adding_to_my_files(app: &mut AppTest, label: &str) {
     app.click(ADD_TO_MY_FILES);
     choose_type(app, label);
     app.wait(&format!("Pane \"{label}\""));
+    app.wait(&format!("TextInput \"Name\" value=\"{label}\" focused"));
 }
 
 fn add_to_canvas(app: &mut AppTest, label: &str) {

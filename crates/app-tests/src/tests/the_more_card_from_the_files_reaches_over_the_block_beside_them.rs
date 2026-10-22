@@ -4,7 +4,6 @@ use super::*;
 fn the_more_card_from_the_files_reaches_over_the_block_beside_them() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Text");
-    app.key("Enter");
     app.wait("Tab \"Text\"");
     app.click(ADD_TO_MY_FILES);
     let (_, button_y, _, button_height) = app.place(ADD_TO_MY_FILES);
