@@ -250,7 +250,11 @@ impl Nodes {
         let value = value.as_deref();
         let test_ids: Vec<String> = node
             .author_id()
-            .map(|ids| ids.split(' ').map(str::to_owned).collect())
+            .map(|ids| {
+                ids.split(crate::accessibility::TEST_ID_SEPARATOR)
+                    .map(str::to_owned)
+                    .collect()
+            })
             .unwrap_or_default();
         let shown = node.role() != Role::GenericContainer
             || label.is_some()
