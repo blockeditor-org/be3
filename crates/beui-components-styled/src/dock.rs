@@ -7,7 +7,7 @@ use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
-use crate::icon_button::IconButton;
+use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
@@ -34,11 +34,11 @@ use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
-const TAB_HEIGHT: f32 = 40.0;
-const TAB_RING_ROOM: f32 = 6.0;
+const TAB_HEIGHT: f32 = 33.0;
 const TAB_SPACING: f32 = 6.0;
-const BAR_PADDING: f32 = TAB_RING_ROOM;
+const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 4.0;
+const DIVIDER_HEIGHT: f32 = 20.0;
 const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
@@ -88,7 +88,6 @@ where
             drag_modifier
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
-            tab_bleed=TAB_RING_ROOM
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
@@ -289,6 +288,7 @@ fn DockTabChrome(
                         @test_id={close_test_id.clone()}
                         glyph=ICON_CLOSE
                         label="Close tab"
+                        size=IconButtonSize::Compact
                         variant=ButtonVariant::Ghost
                         capture_presses=true
                         on_click={close}
@@ -445,6 +445,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                                 @test_id={format!("dock.dialog.{}.close", tab.value())}
                                 glyph=ICON_CLOSE
                                 label="Close"
+                                size=IconButtonSize::Compact
                                 variant=ButtonVariant::Ghost
                                 capture_presses=true
                                 on_click={close}
@@ -507,7 +508,7 @@ fn DockTitleBar(
                                 <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
                             }
                         }</Show>
-                        <DockMenu menu labels=true />
+                        <DockMenu menu room=BarRoom::Wide />
                         <DockClose closable close={close} />
                     </List>
                 </Frame>
@@ -549,7 +550,7 @@ fn DockSideBar(
                             align=Align::Center
                             spacing=BAR_SPACING
                         >
-                            <DockMenu menu />
+                            <DockMenu menu room=BarRoom::Narrow />
                             <DockClose closable close={close} />
                         </List>
                     </List>
@@ -565,26 +566,66 @@ fn DockSideBar(
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BarRoom {
+    Wide,
+    Narrow,
+    Phone,
+}
+
+impl BarRoom {
+    fn shows(self, pin: Pin) -> bool {
+        self != BarRoom::Phone || pin == Pin::Icon
+    }
+}
+
 #[component]
-pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, #[prop(default = false)] labels: bool) -> NodeId {
-    let pins = create_memo(move || menu.with(|nodes| pinned(nodes)));
-    let keys =
-        create_memo(move || pins.with(|pins| pins.iter().map(Action::key).collect::<Vec<_>>()));
-    let rest = create_memo(move || unpinned(menu.get()));
+pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
+    let pins = create_memo(move || {
+        menu.with(|nodes| {
+            pinned(nodes)
+                .into_iter()
+                .filter(|action| action.pinned().is_some_and(|pin| room.shows(pin)))
+                .collect::<Vec<_>>()
+        })
+    });
+    let keys_of = move |labelled: bool| {
+        create_memo(move || {
+            pins.with(|pins| {
+                pins.iter()
+                    .filter(|pin| (pin.pinned() == Some(Pin::Label)) == labelled)
+                    .map(Action::key)
+                    .collect::<Vec<_>>()
+            })
+        })
+    };
+    let icons = keys_of(false);
+    let labels = keys_of(true);
+    let divided = create_memo(move || {
+        room == BarRoom::Wide
+            && icons.with(|icons| !icons.is_empty())
+            && labels.with(|labels| !labels.is_empty())
+    });
+    let rest = create_memo(move || unpinned(menu.get(), room));
     let offered = create_memo(move || rest.with(|items| !items.is_empty()));
+    let pin = move |key: u64| {
+        let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
+        match action {
+            Some(action) => view! {
+                <DockPin action room />
+            },
+            None => view! {
+                <Frame />
+            },
+        }
+    };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-            <ForEach keys={keys}>|key: u64| {
-                let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
-                match action {
-                    Some(action) => view! {
-                        <DockPin action labels />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</ForEach>
+            <ForEach keys={icons}>|key: u64| { pin(key) }</ForEach>
+            <Show condition={divided}>
+                <Frame width=RULE height=DIVIDER_HEIGHT fill=ColorRole::Border />
+            </Show>
+            <ForEach keys={labels}>|key: u64| { pin(key) }</ForEach>
             <Show condition={offered}>
                 <IconMenuButton
                     @test_id={"dock.menu"}
@@ -600,9 +641,9 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, #[prop(default = false)] label
 }
 
 #[component]
-fn DockPin(action: Action, labels: bool) -> NodeId {
+fn DockPin(action: Action, room: BarRoom) -> NodeId {
     let id = format!("dock.pin.{}", action.id());
-    match labels && action.pinned() == Some(Pin::Label) {
+    match room == BarRoom::Wide && action.pinned() == Some(Pin::Label) {
         true => view! {
             <Button @test_id={id} action={action} variant=ButtonVariant::Primary />
         },
@@ -623,13 +664,17 @@ fn pinned(nodes: &[MenuNode]) -> Vec<Action> {
         .collect()
 }
 
-fn unpinned(nodes: Vec<MenuNode>) -> Vec<MenuNode> {
+fn unpinned(nodes: Vec<MenuNode>, room: BarRoom) -> Vec<MenuNode> {
     let kept = nodes
         .into_iter()
         .filter_map(|node| match node {
-            MenuNode::Action { action, .. } if action.pinned().is_some() => None,
+            MenuNode::Action { action, .. }
+                if action.pinned().is_some_and(|pin| room.shows(pin)) =>
+            {
+                None
+            }
             MenuNode::Submenu(mut submenu) => {
-                submenu.items = unpinned(std::mem::take(&mut submenu.items));
+                submenu.items = unpinned(std::mem::take(&mut submenu.items), room);
                 Some(MenuNode::Submenu(submenu))
             }
             node => Some(node),
@@ -642,15 +687,13 @@ fn unpinned(nodes: Vec<MenuNode>) -> Vec<MenuNode> {
 fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={closable}>
-            <Frame padding={Sides::horizontal(CONTROL_PADDING)}>
-                <IconButton
-                    glyph=ICON_CLOSE
-                    label="Close pane"
-                    variant=ButtonVariant::Ghost
-                    capture_presses=true
-                    on_click={close}
-                />
-            </Frame>
+            <IconButton
+                glyph=ICON_CLOSE
+                label="Close pane"
+                variant=ButtonVariant::Ghost
+                capture_presses=true
+                on_click={close}
+            />
         </Show>
     }
 }

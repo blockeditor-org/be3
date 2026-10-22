@@ -1811,9 +1811,11 @@ The menu is not tied to the stacked bar: a tiled pane offers the menu of the tab
 it shows behind a More button just before its close button, at the end of its
 tab bar or at the top of its sidebar, and so does a window. An action built with
 `.pin(Pin::Icon)` or `.pin(Pin::Label)` leaves the More menu and sits in the bar
-beside it, in every mode: `Pin::Label` shows its label in a tiled tab bar
-(the workspace's Share) and an icon where there is less room, the stacked bar and
-a sidebar. The bar's controls are regular-sized buttons, and a tab's close button too. Pinning is how a tab puts its few most used controls in reach without
+beside it. A tiled tab bar shows the icon pins, a divider, then the label pins as
+labelled buttons (the workspace's undo and redo, then Share); a sidebar shows every
+pin as an icon; the stacked bar shows only the icon pins and leaves the label pins
+in its menu. The bar's controls are regular-sized buttons; a tab's own close button
+stays compact. Pinning is how a tab puts its few most used controls in reach without
 giving the dock a node; everything else stays in the menu, and the tab keeps the
 rest of its page for its own toolbar. A menu is a list of
 actions rather than a node, so a dock that lays out tabs built somewhere else

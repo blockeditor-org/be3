@@ -68,13 +68,15 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
 
     *harness.viewport_mut() = PHONE;
     harness.settle();
-    let pin = harness.find("dock.pin.share");
     assert!(
-        laid_out(&harness, "dock.pin.share"),
-        "a stacked bar holds it too"
+        !laid_out(&harness, "dock.pin.share"),
+        "a stacked bar keeps only the actions pinned as icons"
     );
+    let at = harness.center(harness.find("dock.menu"));
+    harness.click(at);
+    harness.settle();
     assert!(
-        text_within(harness.document(), pin, "Share").is_none(),
-        "as an icon"
+        laid_out(&harness, "dock.menu.share"),
+        "and its menu offers the one pinned with a label"
     );
 }

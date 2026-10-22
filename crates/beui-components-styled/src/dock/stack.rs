@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate::action_row::ActionRow;
 use crate::border::Separator;
 use crate::button::ButtonVariant;
-use crate::dock::DockMenu;
+use crate::dock::{BarRoom, DockMenu};
 use crate::icon_button::IconButton;
 use crate::list_row::ListRow;
 use crate::menu_button::IconMenuButton;
@@ -87,7 +87,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             </Text>
                         </List>
                     </Frame>
-                    <DockMenu menu />
+                    <DockMenu menu room=BarRoom::Phone />
                     <DockTabCount
                         count={closable_tabs}
                         label={switch_label}

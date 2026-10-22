@@ -365,7 +365,6 @@ struct State {
     offers: Signal<HashMap<TabId, u64>>,
     thickness: f32,
     reach: f32,
-    tab_bleed: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
@@ -1143,7 +1142,6 @@ pub(crate) struct DockConfig {
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
     pub(crate) splitter_thickness: f32,
     pub(crate) splitter_reach: f32,
-    pub(crate) tab_bleed: f32,
     pub(crate) group_inset: f32,
     pub(crate) inset: Prop<f32>,
     pub(crate) tab: RenderFn<DockTabHandle>,
@@ -1186,7 +1184,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         drag_modifier,
         splitter_thickness,
         splitter_reach,
-        tab_bleed,
         group_inset,
         inset,
         tab,
@@ -1264,7 +1261,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 remembered: store(RefCell::default()),
                 thickness: splitter_thickness,
                 reach: splitter_reach,
-                tab_bleed,
                 group_inset,
                 rect: dock_rect,
                 panes: store(RefCell::default()),
@@ -2073,12 +2069,8 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let state = dock.state;
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let selected = create_memo(move || Some(state.with(|state| state.active_index(leaf))));
-    let bleed = match vertical {
-        true => Sides::horizontal(dock.tab_bleed),
-        false => Sides::vertical(dock.tab_bleed),
-    };
     view! {
-        <Scroll direction bleed @node_ref=&strip>
+        <Scroll direction @node_ref=&strip>
             <Choice
                 @node_ref=&tab_list
                 options={view! {
