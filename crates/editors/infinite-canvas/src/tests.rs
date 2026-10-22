@@ -75,6 +75,7 @@ mod dragging_with_the_frame_tool_adds_a_frame;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod drawing_with_a_finger_adds_a_rectangle;
 mod enter_on_a_selected_shape_edits_its_label;
+mod every_frame_of_a_drag_draws_a_bound_end_on_the_moved_shape;
 mod every_shape_is_drawn_in_the_clean_look;
 mod every_shape_is_drawn_in_the_hand_drawn_look;
 mod every_transform_field_previews_what_is_typed;
