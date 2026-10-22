@@ -5471,6 +5471,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5480,7 +5481,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5492,6 +5492,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5501,7 +5502,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5513,6 +5513,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5522,7 +5523,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5534,6 +5534,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5543,7 +5544,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5555,6 +5555,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5564,7 +5565,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5576,6 +5576,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5585,7 +5586,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5597,6 +5597,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5606,7 +5607,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5618,6 +5618,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5627,7 +5628,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5639,6 +5639,7 @@ crates = {
                 "deps": [
                     "//crates/beui-tree:beui-tree",
                     "//crates/geometry:geometry",
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
                     "//crates/ui-types:ui-types",
@@ -5648,7 +5649,6 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -11531,6 +11531,111 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/grapheme-segmentation": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "grapheme_segmentation",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "grapheme-segmentation",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/local-tools": {
         "binaries": [
             {
@@ -15067,6 +15172,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15075,7 +15181,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15085,6 +15190,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15093,7 +15199,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15103,6 +15208,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15111,7 +15217,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15121,6 +15226,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15129,7 +15235,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15139,6 +15244,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15147,7 +15253,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15157,6 +15262,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15165,7 +15271,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15175,6 +15280,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15183,7 +15289,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15193,6 +15298,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15201,7 +15307,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -15211,6 +15316,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -15219,7 +15325,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -34389,7 +34494,7 @@ third_party = {
         "size_bytes": 36801,
         "version": "0.4.15",
     },
-    "icu_collections-2.2.0": {
+    "icu_collections-2.4.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -34398,12 +34503,12 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
-            "CARGO_PKG_RUST_VERSION": "1.86",
+            "CARGO_PKG_RUST_VERSION": "1.88",
         },
         "library": {
             "crate": "icu_collections",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "icu_collections",
@@ -34413,9 +34518,9 @@ third_party = {
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
                     ":utf8_iter-1.0.4",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
             },
             "linux-arm64": {
@@ -34423,9 +34528,9 @@ third_party = {
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
                     ":utf8_iter-1.0.4",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
             },
             "linux-x86_64": {
@@ -34433,9 +34538,9 @@ third_party = {
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
                     ":utf8_iter-1.0.4",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
             },
             "macos-arm64": {
@@ -34443,9 +34548,9 @@ third_party = {
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
                     ":utf8_iter-1.0.4",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
             },
             "macos-x86_64": {
@@ -34453,9 +34558,29 @@ third_party = {
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
                     ":utf8_iter-1.0.4",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":potential_utf-0.1.5",
+                    ":utf8_iter-1.0.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-0.11.9",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":potential_utf-0.1.5",
+                    ":utf8_iter-1.0.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-0.11.9",
                 ],
             },
             "windows-arm64": {
@@ -34463,9 +34588,9 @@ third_party = {
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
                     ":utf8_iter-1.0.4",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
             },
             "windows-x86_64": {
@@ -34473,20 +34598,20 @@ third_party = {
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
                     ":utf8_iter-1.0.4",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2984d1cd16c883d7935b9e07e44071dca8d917fd52ecc02c04d5fa0b5a3f191c",
-        "size_bytes": 88011,
-        "version": "2.2.0",
+        "sha256": "fe090a42a0d3140fed8c63263ed1fecc02422cb2f4bfe55cd8de2de1b8e105dd",
+        "size_bytes": 102334,
+        "version": "2.4.0",
     },
-    "icu_locale_core-2.2.0": {
+    "icu_locale_core-2.4.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -34495,12 +34620,12 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
-            "CARGO_PKG_RUST_VERSION": "1.86",
+            "CARGO_PKG_RUST_VERSION": "1.88",
         },
         "library": {
             "crate": "icu_locale_core",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "icu_locale_core",
@@ -34509,9 +34634,9 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
-                    ":tinystr-0.8.3",
-                    ":writeable-0.6.3",
-                    ":zerovec-0.11.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -34521,9 +34646,9 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
-                    ":tinystr-0.8.3",
-                    ":writeable-0.6.3",
-                    ":zerovec-0.11.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -34533,9 +34658,9 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
-                    ":tinystr-0.8.3",
-                    ":writeable-0.6.3",
-                    ":zerovec-0.11.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -34545,9 +34670,9 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
-                    ":tinystr-0.8.3",
-                    ":writeable-0.6.3",
-                    ":zerovec-0.11.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -34557,9 +34682,33 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
-                    ":tinystr-0.8.3",
-                    ":writeable-0.6.3",
-                    ":zerovec-0.11.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":litemap-0.8.2",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":litemap-0.8.2",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -34569,9 +34718,9 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
-                    ":tinystr-0.8.3",
-                    ":writeable-0.6.3",
-                    ":zerovec-0.11.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -34581,9 +34730,9 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
-                    ":tinystr-0.8.3",
-                    ":writeable-0.6.3",
-                    ":zerovec-0.11.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -34593,11 +34742,11 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "92219b62b3e2b4d88ac5119f8904c10f8f61bf7e95b640d25ba3075e6cac2c29",
-        "size_bytes": 78639,
-        "version": "2.2.0",
+        "sha256": "25d29b57c17c6528d0dc4c2141cfa2d08200465acb537a3909c8b9b8a4a984c0",
+        "size_bytes": 80269,
+        "version": "2.4.0",
     },
-    "icu_normalizer-2.2.0": {
+    "icu_normalizer-2.4.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -34606,23 +34755,23 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
-            "CARGO_PKG_RUST_VERSION": "1.86",
+            "CARGO_PKG_RUST_VERSION": "1.88",
         },
         "library": {
             "crate": "icu_normalizer",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "icu_normalizer",
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_normalizer_data-2.2.0",
-                    ":icu_provider-2.2.0",
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
                     ":smallvec-1.15.1",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
@@ -34630,11 +34779,11 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_normalizer_data-2.2.0",
-                    ":icu_provider-2.2.0",
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
                     ":smallvec-1.15.1",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
@@ -34642,11 +34791,11 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_normalizer_data-2.2.0",
-                    ":icu_provider-2.2.0",
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
                     ":smallvec-1.15.1",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
@@ -34654,11 +34803,11 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_normalizer_data-2.2.0",
-                    ":icu_provider-2.2.0",
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
                     ":smallvec-1.15.1",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
@@ -34666,11 +34815,11 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_normalizer_data-2.2.0",
-                    ":icu_provider-2.2.0",
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
                     ":smallvec-1.15.1",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
@@ -34678,11 +34827,11 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_normalizer_data-2.2.0",
-                    ":icu_provider-2.2.0",
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
                     ":smallvec-1.15.1",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
@@ -34690,11 +34839,11 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_normalizer_data-2.2.0",
-                    ":icu_provider-2.2.0",
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
                     ":smallvec-1.15.1",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
@@ -34704,14 +34853,14 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c56e5ee99d6e3d33bd91c5d85458b6005a22140021cc324cea84dd0e72cff3b4",
-        "size_bytes": 78154,
-        "version": "2.2.0",
+        "sha256": "404a3b8c486f205c87fe7f23ab6894d84a4ad76d6e4671ae1981ba7def87c599",
+        "size_bytes": 536741,
+        "version": "2.4.0",
     },
-    "icu_normalizer_data-2.2.0": {
+    "icu_normalizer_data-2.4.0": {
         "build_script": {
             "crate_root": "build.rs",
-            "edition": "2021",
+            "edition": "2024",
         },
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -34720,12 +34869,12 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
-            "CARGO_PKG_RUST_VERSION": "1.86",
+            "CARGO_PKG_RUST_VERSION": "1.88",
         },
         "library": {
             "crate": "icu_normalizer_data",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "icu_normalizer_data",
@@ -34741,11 +34890,11 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "da3be0ae77ea334f4da67c12f149704f19f81d1adf7c51cf482943e84a2bad38",
-        "size_bytes": 67134,
-        "version": "2.2.0",
+        "sha256": "20f0088bfb7441f7a37fa0c9e20cb1e9cba1cac6b9ce8cd2a6dc44294f8e8cbc",
+        "size_bytes": 68011,
+        "version": "2.4.0",
     },
-    "icu_properties-2.2.0": {
+    "icu_properties-2.4.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -34754,119 +34903,163 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
-            "CARGO_PKG_RUST_VERSION": "1.86",
+            "CARGO_PKG_RUST_VERSION": "1.88",
         },
         "library": {
             "crate": "icu_properties",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "icu_properties",
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_locale_core-2.2.0",
-                    ":icu_properties_data-2.2.0",
-                    ":icu_provider-2.2.0",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
+                    "default",
                 ],
             },
             "linux-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_locale_core-2.2.0",
-                    ":icu_properties_data-2.2.0",
-                    ":icu_provider-2.2.0",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
+                    "default",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_locale_core-2.2.0",
-                    ":icu_properties_data-2.2.0",
-                    ":icu_provider-2.2.0",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
+                    "default",
                 ],
             },
             "macos-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_locale_core-2.2.0",
-                    ":icu_properties_data-2.2.0",
-                    ":icu_provider-2.2.0",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
+                    "default",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_locale_core-2.2.0",
-                    ":icu_properties_data-2.2.0",
-                    ":icu_provider-2.2.0",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
+                    "default",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                    "default",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                    "default",
                 ],
             },
             "windows-arm64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_locale_core-2.2.0",
-                    ":icu_properties_data-2.2.0",
-                    ":icu_provider-2.2.0",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
+                    "default",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
-                    ":icu_collections-2.2.0",
-                    ":icu_locale_core-2.2.0",
-                    ":icu_properties_data-2.2.0",
-                    ":icu_provider-2.2.0",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "compiled_data",
+                    "default",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bee3b67d0ea5c2cca5003417989af8996f8604e34fb9ddf96208a033901e70de",
-        "size_bytes": 63950,
-        "version": "2.2.0",
+        "sha256": "2ea83d991c56158f7cf898bf86436c1dfe7c07ee82fe88951f2695c9f37a379f",
+        "size_bytes": 146217,
+        "version": "2.4.0",
     },
-    "icu_properties_data-2.2.0": {
+    "icu_properties_data-2.4.0": {
         "build_script": {
             "crate_root": "build.rs",
-            "edition": "2021",
+            "edition": "2024",
         },
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -34875,12 +35068,12 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
-            "CARGO_PKG_RUST_VERSION": "1.86",
+            "CARGO_PKG_RUST_VERSION": "1.88",
         },
         "library": {
             "crate": "icu_properties_data",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "icu_properties_data",
@@ -34890,17 +35083,19 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8e2bbb201e0c04f7b4b3e14382af113e17ba4f63e2c9d2ee626b720cbce54a14",
-        "size_bytes": 168901,
-        "version": "2.2.0",
+        "sha256": "b98f29af82d02b163fe50161388350e743bb3107cc8e8c2f7314cb505faddfcf",
+        "size_bytes": 186846,
+        "version": "2.4.0",
     },
-    "icu_provider-2.2.0": {
+    "icu_provider-2.4.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -34909,12 +35104,12 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
-            "CARGO_PKG_RUST_VERSION": "1.86",
+            "CARGO_PKG_RUST_VERSION": "1.88",
         },
         "library": {
             "crate": "icu_provider",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "icu_provider",
@@ -34922,12 +35117,12 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.2.0",
-                    ":writeable-0.6.3",
-                    ":yoke-0.8.3",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "baked",
@@ -34936,12 +35131,12 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.2.0",
-                    ":writeable-0.6.3",
-                    ":yoke-0.8.3",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "baked",
@@ -34950,12 +35145,12 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.2.0",
-                    ":writeable-0.6.3",
-                    ":yoke-0.8.3",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "baked",
@@ -34964,12 +35159,12 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.2.0",
-                    ":writeable-0.6.3",
-                    ":yoke-0.8.3",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "baked",
@@ -34978,12 +35173,40 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.2.0",
-                    ":writeable-0.6.3",
-                    ":yoke-0.8.3",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "baked",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "baked",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "baked",
@@ -34992,12 +35215,12 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.2.0",
-                    ":writeable-0.6.3",
-                    ":yoke-0.8.3",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "baked",
@@ -35006,12 +35229,12 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.2.0",
-                    ":writeable-0.6.3",
-                    ":yoke-0.8.3",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.4",
-                    ":zerovec-0.11.6",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "baked",
@@ -35021,9 +35244,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "139c4cf31c8b5f33d7e199446eff9c1e02decfc2f0eec2c8d71f65befa45b421",
-        "size_bytes": 51620,
-        "version": "2.2.0",
+        "sha256": "413099315636c588ee8f011190b329b971a09a8fae9d157e01dcae8379468514",
+        "size_bytes": 52461,
+        "version": "2.4.0",
     },
     "id-arena-2.3.0": {
         "build_script": None,
@@ -35182,8 +35405,8 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":icu_normalizer-2.2.0",
-                    ":icu_properties-2.2.0",
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
                 ],
                 "features": [
                     "compiled_data",
@@ -35191,8 +35414,8 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
-                    ":icu_normalizer-2.2.0",
-                    ":icu_properties-2.2.0",
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
                 ],
                 "features": [
                     "compiled_data",
@@ -35200,8 +35423,8 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
-                    ":icu_normalizer-2.2.0",
-                    ":icu_properties-2.2.0",
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
                 ],
                 "features": [
                     "compiled_data",
@@ -35209,8 +35432,8 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
-                    ":icu_normalizer-2.2.0",
-                    ":icu_properties-2.2.0",
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
                 ],
                 "features": [
                     "compiled_data",
@@ -35218,8 +35441,8 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
-                    ":icu_normalizer-2.2.0",
-                    ":icu_properties-2.2.0",
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
                 ],
                 "features": [
                     "compiled_data",
@@ -35227,8 +35450,8 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
-                    ":icu_normalizer-2.2.0",
-                    ":icu_properties-2.2.0",
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
                 ],
                 "features": [
                     "compiled_data",
@@ -35236,8 +35459,8 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
-                    ":icu_normalizer-2.2.0",
-                    ":icu_properties-2.2.0",
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
                 ],
                 "features": [
                     "compiled_data",
@@ -38753,6 +38976,8 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -46151,7 +46376,7 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -46159,7 +46384,7 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -46167,7 +46392,7 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -46175,7 +46400,7 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -46183,7 +46408,23 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -46191,7 +46432,7 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -46199,7 +46440,7 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -56904,10 +57145,13 @@ third_party = {
                     "clone-impls",
                     "default",
                     "derive",
+                    "extra-traits",
+                    "fold",
                     "full",
                     "parsing",
                     "printing",
                     "proc-macro",
+                    "visit",
                     "visit-mut",
                 ],
             },
@@ -56991,6 +57235,43 @@ third_party = {
         "sha256": "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2",
         "size_bytes": 18950,
         "version": "0.13.2",
+    },
+    "synstructure-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nika Layzell <nika@thelayzells.com>",
+            "CARGO_PKG_DESCRIPTION": "Helper methods and macros for custom derives",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/mystor/synstructure",
+            "CARGO_PKG_RUST_VERSION": "1.71",
+        },
+        "library": {
+            "crate": "synstructure",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "synstructure",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-3.0.3",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02",
+        "size_bytes": 19010,
+        "version": "0.14.0",
     },
     "target-lexicon-0.13.5": {
         "build_script": {
@@ -58227,7 +58508,7 @@ third_party = {
         "size_bytes": 49022,
         "version": "0.12.0",
     },
-    "tinystr-0.8.3": {
+    "tinystr-0.8.5": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -58248,7 +58529,7 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -58257,7 +58538,7 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -58266,7 +58547,7 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -58275,7 +58556,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -58284,7 +58565,25 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -58293,7 +58592,7 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -58302,7 +58601,7 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":zerovec-0.11.6",
+                    ":zerovec-0.11.9",
                 ],
                 "features": [
                     "zerovec",
@@ -58312,9 +58611,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c8323304221c2a851516f22236c5722a72eaa19749016521d6dff0824447d96d",
-        "size_bytes": 24710,
-        "version": "0.8.3",
+        "sha256": "abc840c238154d58f9e86b2792261edfde565a17696e1cda1a449de27979801a",
+        "size_bytes": 25049,
+        "version": "0.8.5",
     },
     "tinyvec-1.12.0": {
         "build_script": None,
@@ -61662,13 +61961,6 @@ third_party = {
         },
         "name": "unicode-segmentation",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "wasi": {},
-            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -62452,6 +62744,8 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -71495,7 +71789,7 @@ third_party = {
         "size_bytes": 45928,
         "version": "0.9.1",
     },
-    "writeable-0.6.3": {
+    "writeable-0.6.4": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -71518,15 +71812,17 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4",
-        "size_bytes": 26685,
-        "version": "0.6.3",
+        "sha256": "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc",
+        "size_bytes": 31222,
+        "version": "0.6.4",
     },
     "x11-dl-2.21.0": {
         "build_script": {
@@ -72618,7 +72914,7 @@ third_party = {
         "size_bytes": 52826,
         "version": "0.8.28",
     },
-    "yoke-0.8.3": {
+    "yoke-0.8.4": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Manish Goregaokar <manishsmail@gmail.com>",
@@ -72639,7 +72935,7 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.2",
+                    ":yoke-derive-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -72650,7 +72946,7 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.2",
+                    ":yoke-derive-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -72661,7 +72957,7 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.2",
+                    ":yoke-derive-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -72672,7 +72968,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.2",
+                    ":yoke-derive-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -72683,7 +72979,29 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.2",
+                    ":yoke-derive-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "derive",
+                    "zerofrom",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":stable_deref_trait-1.2.1",
+                    ":yoke-derive-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "derive",
+                    "zerofrom",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":stable_deref_trait-1.2.1",
+                    ":yoke-derive-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -72694,7 +73012,7 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.2",
+                    ":yoke-derive-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -72705,7 +73023,7 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.2",
+                    ":yoke-derive-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -72717,11 +73035,11 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "709fe23a0424b6a435d82152b1bd3fdfb0833487d5fa90d05d42762a9891fef5",
-        "size_bytes": 33132,
-        "version": "0.8.3",
+        "sha256": "417ef3fcf6c300b7dbd25c85531a746931c02ad536f3cf4786ed1e88223340b3",
+        "size_bytes": 33270,
+        "version": "0.8.4",
     },
-    "yoke-derive-0.8.2": {
+    "yoke-derive-0.8.4": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Manish Goregaokar <manishsmail@gmail.com>",
@@ -72729,6 +73047,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
         },
         "library": {
             "crate": "yoke_derive",
@@ -72742,17 +73061,17 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-2.0.117",
-                    ":synstructure-0.13.2",
+                    ":syn-3.0.3",
+                    ":synstructure-0.14.0",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e",
-        "size_bytes": 15077,
-        "version": "0.8.2",
+        "sha256": "ec8ebde2db3681e8c9980cc27822030e68752690ddfa9473e739aeb4dbde6d71",
+        "size_bytes": 15054,
+        "version": "0.8.4",
     },
     "zbus-5.18.0": {
         "build_script": None,
@@ -73270,6 +73589,22 @@ third_party = {
                     "derive",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":zerofrom-derive-0.1.7",
+                ],
+                "features": [
+                    "derive",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":zerofrom-derive-0.1.7",
+                ],
+                "features": [
+                    "derive",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":zerofrom-derive-0.1.7",
@@ -73467,7 +73802,7 @@ third_party = {
         "size_bytes": 12034,
         "version": "1.5.0",
     },
-    "zerotrie-0.2.4": {
+    "zerotrie-0.2.5": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -73489,7 +73824,7 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -73500,7 +73835,7 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -73511,7 +73846,7 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -73522,7 +73857,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -73533,7 +73868,29 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "yoke",
+                    "zerofrom",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "yoke",
+                    "zerofrom",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -73544,7 +73901,7 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -73555,7 +73912,7 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":displaydoc-0.2.6",
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
@@ -73567,11 +73924,11 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0f9152d31db0792fa83f70fb2f83148effb5c1f5b8c7686c3459e361d9bc20bf",
-        "size_bytes": 83690,
-        "version": "0.2.4",
+        "sha256": "4ea269c3bd32f0a32c321907a2ae912ba6f4649bb0fc764a15627e99a7095a3f",
+        "size_bytes": 84204,
+        "version": "0.2.5",
     },
-    "zerovec-0.11.6": {
+    "zerovec-0.11.9": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
@@ -73591,9 +73948,9 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.3",
+                    ":zerovec-derive-0.11.7",
                 ],
                 "features": [
                     "derive",
@@ -73602,9 +73959,9 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.3",
+                    ":zerovec-derive-0.11.7",
                 ],
                 "features": [
                     "derive",
@@ -73613,9 +73970,9 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.3",
+                    ":zerovec-derive-0.11.7",
                 ],
                 "features": [
                     "derive",
@@ -73624,9 +73981,9 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.3",
+                    ":zerovec-derive-0.11.7",
                 ],
                 "features": [
                     "derive",
@@ -73635,9 +73992,31 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.3",
+                    ":zerovec-derive-0.11.7",
+                ],
+                "features": [
+                    "derive",
+                    "yoke",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-derive-0.11.7",
+                ],
+                "features": [
+                    "derive",
+                    "yoke",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-derive-0.11.7",
                 ],
                 "features": [
                     "derive",
@@ -73646,9 +74025,9 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.3",
+                    ":zerovec-derive-0.11.7",
                 ],
                 "features": [
                     "derive",
@@ -73657,9 +74036,9 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
-                    ":yoke-0.8.3",
+                    ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.3",
+                    ":zerovec-derive-0.11.7",
                 ],
                 "features": [
                     "derive",
@@ -73670,11 +74049,11 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "90f911cbc359ab6af17377d242225f4d75119aec87ea711a880987b18cd7b239",
-        "size_bytes": 128583,
-        "version": "0.11.6",
+        "sha256": "f58a2799cfe9a1670c7ea8edbd52ef8edb93cb37a7f83bf31ba9e35d9dae6a40",
+        "size_bytes": 132005,
+        "version": "0.11.9",
     },
-    "zerovec-derive-0.11.3": {
+    "zerovec-derive-0.11.7": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Manish Goregaokar <manishsmail@gmail.com>",
@@ -73682,6 +74061,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "Unicode-3.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.83",
         },
         "library": {
             "crate": "zerovec_derive",
@@ -73695,16 +74075,16 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-2.0.117",
+                    ":syn-3.0.3",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555",
-        "size_bytes": 22115,
-        "version": "0.11.3",
+        "sha256": "c3743ddbf47738d929cd1ae2e199d40d0162979dfe31aef8ae646d2bf00bf97a",
+        "size_bytes": 23232,
+        "version": "0.11.7",
     },
     "zip-8.6.0": {
         "build_script": None,

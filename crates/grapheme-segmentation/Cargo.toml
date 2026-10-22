@@ -1,0 +1,11 @@
+[package]
+name = "grapheme-segmentation"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+icu_properties = "2.4"
+
+[lints]
+workspace = true
