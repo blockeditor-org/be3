@@ -600,11 +600,19 @@ impl Inspector {
             pos2(edge - GRIP_WIDTH, rect.top()),
             pos2(edge + GRIP_WIDTH, rect.bottom()),
         );
+        let maximum = (rect.width() / scale - NARROWEST_APP_WIDTH).max(MINIMUM_WIDTH);
+        let width_at = |at: Pos2, grabbed: f32| {
+            ((rect.right() - at.x + grabbed) / scale).clamp(MINIMUM_WIDTH, maximum)
+        };
         for (down, at) in primary(ctx) {
             match down {
                 true if grip.contains(at) => self.grabbed = Some(at.x - edge),
                 true => {}
-                false => self.grabbed = None,
+                false => {
+                    if let Some(grabbed) = self.grabbed.take() {
+                        self.width = width_at(at, grabbed);
+                    }
+                }
             }
         }
         let Some(pointer) = ctx.input(|input| input.pointer.interact_pos()) else {
@@ -612,9 +620,7 @@ impl Inspector {
             return;
         };
         if let Some(grabbed) = self.grabbed {
-            let maximum = (rect.width() / scale - NARROWEST_APP_WIDTH).max(MINIMUM_WIDTH);
-            self.width =
-                ((rect.right() - pointer.x + grabbed) / scale).clamp(MINIMUM_WIDTH, maximum);
+            self.width = width_at(pointer, grabbed);
         }
         self.grip = self.grabbed.is_some() || grip.contains(pointer);
     }
@@ -742,7 +748,11 @@ impl Inspector {
                 }
                 true => {}
                 false => {
-                    if self.resizing.take().is_some() {
+                    if let Some(resizing) = self.resizing.take() {
+                        let moved = (at - resizing.origin) / resizing.scale;
+                        let size = resizing.handle.resized(resizing.size, moved);
+                        self.state()
+                            .update_screen(|simulation| simulation.resized(size));
                         self.state().touch();
                     }
                 }
