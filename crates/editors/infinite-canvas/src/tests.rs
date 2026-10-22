@@ -88,6 +88,7 @@ mod panning_paints_no_frame_backdrop_again;
 mod panning_paints_no_grid_dot_again;
 mod panning_paints_no_selection_handle_again;
 mod pasting_puts_the_objects_under_the_pointer;
+mod pen_strokes_are_smooth_curves_at_any_zoom;
 mod removing_component_deletes_its_values_from_all_selected_entities;
 mod replacing_a_referenced_block_rewrites_the_entity;
 mod resizing_an_editor_that_cannot_resize_scales_it;

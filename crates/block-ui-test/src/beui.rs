@@ -1413,6 +1413,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         });
     }
 
+    pub fn pinch(&mut self, pos: Pos2, factor: f32) {
+        let anchor = pos - self.rect().min;
+        self.sent.push(EditorMessage::ChangeView {
+            instance: INSTANCE,
+            change: ViewChange::Zoom {
+                factor,
+                anchor: Some((anchor.x, anchor.y)),
+            },
+        });
+        self.run();
+    }
+
     pub fn predict(&mut self, pos: Pos2) {
         self.push(Event::Predicted(pos));
     }
