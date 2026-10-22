@@ -210,6 +210,11 @@ pinned_rust_toolchain(
     })
     + select({
         "DEFAULT": [],
+        # A fuzz target's whole tree, the third-party crates included.
+        "root//buck/constraints:fuzzing": ["-Copt-level=3"],
+    })
+    + select({
+        "DEFAULT": [],
         # Plugins only: a game runs in wasmi, which takes no SIMD.
         "prelude//os:wasi": ["-Ctarget-feature=+simd128"],
     }),

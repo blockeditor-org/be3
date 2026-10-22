@@ -48,6 +48,8 @@ use unstyled_pages::{
 
 mod base_pages;
 mod collaboration;
+#[cfg(feature = "fuzzing")]
+pub mod fuzz;
 mod rich_text;
 mod sample;
 mod styled_pages;

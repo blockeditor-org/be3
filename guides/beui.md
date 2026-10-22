@@ -3415,16 +3415,26 @@ the area they cover, so a large change spread over nearby spots is drawn once. A
 `Drawing` whose content changed in part hands its `Drawing` node
 `draw_gpu(Some(drawing.redrawn(region)))` rather than a new `Drawing`: only that region, in the
 drawing's own coordinates, is damaged (the plugin host does this with the
-rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
-`block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
+rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin or a
+document through `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
 outside the damage. The second check (`paint/verify.rs`) sets the frame before
-against this one node by node, matched by id: a node's own shapes, the fades
-over it and its place among its siblings are what it shows, and every pixel a
-difference touches, rounded out to whole pixels as a renderer repaints them,
-must be damaged, or, inside a region the frame copied, must be what the copy
-brought there. Painting from scratch runs every paint again, so a test that
+against this one node by node, matched by id: a node's own shapes that paint
+anything, the fades over it and its place among its siblings are what it shows,
+and every pixel a difference touches, rounded out to whole pixels as a renderer
+repaints them, must be damaged, or, inside a region the frame copied, must be
+what the copy brought there, give or take float rounding in where it lands.
+Painting from scratch runs every paint again, so a test that
 counts paints skips the ones made while `Context::is_verifying_paint` is set.
+`block-ui-test` also turns on `beui::verify_layout`: on every frame that laid
+out, the document lays out again from scratch and fails when what that paints on
+screen differs from what the incremental layout painted. It compares what shows
+rather than the placements, since a layout from scratch places a different set
+of nodes in the culling margin. It runs after the frame's own paint and keeps
+the second layout, painting what it changed again with neither the work counters
+nor the damage seeing it, so a test that counts a frame's layout and paint work
+still counts only the incremental frame. A frame that does not lay out is not
+checked, and a settled document still lays out and paints nothing.
 With `BEUI_OVER_REPAINT=1` in the environment (or
 `beui::detect_over_repaint(true)` on the thread that paints) they also report
 every frame whose damage is more than four times the area of the shapes that
