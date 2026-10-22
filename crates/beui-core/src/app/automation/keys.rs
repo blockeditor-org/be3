@@ -187,6 +187,32 @@ fn stroke(
     }
 }
 
+pub fn name(key: Key) -> Option<String> {
+    let debug = format!("{key:?}");
+    if named(&debug) == Some(key) {
+        return Some(debug);
+    }
+    ('!'..='~')
+        .find(|single| character(*single) == Some(key))
+        .map(String::from)
+}
+
+pub fn chord_name(key: Key, modifiers: Modifiers) -> Option<String> {
+    let mut chord = String::new();
+    for (held, name) in [
+        (modifiers.ctrl, "ctrl+"),
+        (modifiers.alt, "alt+"),
+        (modifiers.shift, "shift+"),
+        (modifiers.logo, "super+"),
+    ] {
+        if held {
+            chord.push_str(name);
+        }
+    }
+    chord.push_str(&name(key)?);
+    Some(chord)
+}
+
 pub fn named(name: &str) -> Option<Key> {
     if let Some(key) = modifier(name) {
         return Some(key);

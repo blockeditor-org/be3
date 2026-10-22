@@ -32,7 +32,7 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                             if input.focused {
                                 forwarded.update(|forwarded| forwarded.extend(input.inputs().filter_map(
                                     |event| match event {
-                                        Event::Key { press, .. } if press.pressed => {
+                                        Event::Key { press, .. } if press.pressed && !press.key.is_modifier() => {
                                             Some(press.key)
                                         }
                                         _ => None,

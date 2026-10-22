@@ -43,15 +43,7 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
     let copy = text_within(harness.document(), toolbar, "Copy").expect("the toolbar copies");
     let row = harness.center(copy);
     harness.touch(TouchPhase::Start, row);
-    let output = harness.frame(vec![Event::Touch {
-        id: TouchId {
-            device: 1,
-            finger: 1,
-        },
-        phase: TouchPhase::End,
-        pos: row,
-        force: None,
-    }]);
+    let output = harness.touch(TouchPhase::End, row);
 
     assert_eq!(output.copied_text.as_deref().map(str::trim), Some("Hello"));
     assert!(

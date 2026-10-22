@@ -12,7 +12,8 @@ use crate::context::RendererInfo;
 use crate::context::{Context, FrameOutput};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::Event;
+use crate::app::automation::keys;
+use crate::input::{Event, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
 use crate::runner::{Launch, Platform, RunOptions, Runner};
 
@@ -118,6 +119,7 @@ pub struct Stepped<A: App = Showing> {
     window: Window,
     size: Vec2,
     painted: bool,
+    settling: bool,
     inbox: Inbox,
     steps: Vec<String>,
     closed: bool,
@@ -167,6 +169,7 @@ impl<A: App + 'static> Stepped<A> {
             window,
             size,
             painted: false,
+            settling: true,
             inbox,
             steps: Vec::new(),
             closed: false,
@@ -229,6 +232,12 @@ impl<A: App + 'static> Stepped<A> {
             Window::Simulated(simulation) => simulation.shown(),
             Window::Other(_) => self.size,
         }
+    }
+
+    pub fn take_output(&mut self) -> FrameOutput {
+        self.runner
+            .take_output()
+            .expect("a frame was painted since the output was last taken")
     }
 
     pub fn resize(&mut self, size: Vec2) {
@@ -301,36 +310,158 @@ impl<A: App + 'static> Stepped<A> {
         );
     }
 
+    pub fn settle_after_gestures(&mut self, settling: bool) {
+        self.settling = settling;
+    }
+
     pub fn run(&mut self, words: &[&str]) -> String {
         self.ask(words)
             .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
     }
 
     pub fn click(&mut self, target: impl Into<Target>) -> String {
-        let target = self.word(target.into());
-        self.run(&["click", &target])
+        self.gesture(&["click"], &[target.into()], &[])
+    }
+
+    pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
+        let button = match button {
+            PointerButton::Primary => None,
+            PointerButton::Secondary => Some("right"),
+            PointerButton::Middle => Some("middle"),
+            other => panic!("drive clicks the primary, right and middle buttons, not {other:?}"),
+        };
+        self.gesture(&["click"], &[target.into()], button.as_slice())
+    }
+
+    pub fn double_click(&mut self, target: impl Into<Target>) -> String {
+        self.gesture(&["click"], &[target.into()], &["double"])
+    }
+
+    pub fn hover(&mut self, target: impl Into<Target>) -> String {
+        self.gesture(&["move"], &[target.into()], &[])
+    }
+
+    pub fn leave(&mut self) -> String {
+        self.gesture(&["leave"], &[], &[])
+    }
+
+    pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
+        let button = button_name(button);
+        self.gesture(&["down"], &[target.into()], &[&button])
+    }
+
+    pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
+        let button = button_name(button);
+        self.gesture(&["up"], &[target.into()], &[&button])
     }
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        let (from, to) = (self.word(from.into()), self.word(to.into()));
-        self.run(&["drag", &from, &to])
+        self.gesture(&["drag"], &[from.into(), to.into()], &[])
+    }
+
+    pub fn drag_in(
+        &mut self,
+        from: impl Into<Target>,
+        to: impl Into<Target>,
+        steps: usize,
+    ) -> String {
+        let steps = steps.to_string();
+        self.gesture(&["drag"], &[from.into(), to.into()], &[&steps])
+    }
+
+    pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) -> String {
+        let scale = self.runner.context().pixels_per_point();
+        let (down, right) = ((by.y * scale).to_string(), (by.x * scale).to_string());
+        self.gesture(&["scroll"], &[target.into()], &[&down, &right])
+    }
+
+    pub fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) -> String {
+        let (down, right) = (down.to_string(), right.to_string());
+        self.gesture(&["wheel"], &[target.into()], &[&down, &right])
+    }
+
+    pub fn zoom(&mut self, target: impl Into<Target>, factor: f32) -> String {
+        let factor = factor.to_string();
+        self.gesture(&["zoom"], &[target.into()], &[&factor])
+    }
+
+    pub fn pinch(&mut self, target: impl Into<Target>, factor: f32) -> String {
+        let factor = factor.to_string();
+        self.gesture(&["pinch"], &[target.into()], &[&factor])
+    }
+
+    pub fn tap(&mut self, target: impl Into<Target>) -> String {
+        self.gesture(&["tap"], &[target.into()], &[])
+    }
+
+    pub fn swipe(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
+        self.gesture(&["swipe"], &[from.into(), to.into()], &[])
+    }
+
+    pub fn touch(&mut self, phase: TouchPhase, fingers: &[(u64, Target)]) -> String {
+        let phase = match phase {
+            TouchPhase::Start => "down",
+            TouchPhase::Move => "move",
+            TouchPhase::End => "up",
+            TouchPhase::Cancel => "cancel",
+        };
+        let fingers: Vec<String> = fingers
+            .iter()
+            .map(|(finger, target)| format!("{finger}={}", self.word(target.clone())))
+            .collect();
+        let fingers: Vec<&str> = fingers.iter().map(String::as_str).collect();
+        self.gesture(&["touch", phase], &[], &fingers)
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
-        self.run(&["type", text])
+        self.gesture(&["type"], &[], &[text])
     }
 
-    pub fn key(&mut self, chord: &str) -> String {
-        self.run(&["key", chord])
+    pub fn key(&mut self, key: Key, modifiers: Modifiers) -> String {
+        let chord = keys::chord_name(key, modifiers)
+            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        self.gesture(&["key"], &[], &[&chord])
+    }
+
+    pub fn key_down(&mut self, key: Key) -> String {
+        let name = keys::name(key).unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        self.gesture(&["keydown"], &[], &[&name])
+    }
+
+    pub fn key_up(&mut self, key: Key) -> String {
+        let name = keys::name(key).unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        self.gesture(&["keyup"], &[], &[&name])
     }
 
     pub fn wait(&mut self, target: impl Into<Target>) -> String {
-        let target = self.word(target.into());
-        self.run(&["wait", &target])
+        self.gesture(&["wait"], &[target.into()], &[])
+    }
+
+    pub fn gone(&mut self, target: impl Into<Target>) -> String {
+        self.gesture(&["gone"], &[target.into()], &[])
+    }
+
+    pub fn pause(&mut self, by: Duration) -> String {
+        self.run(&["pause", &by.as_millis().to_string()])
     }
 
     pub fn settle(&mut self) -> String {
         self.run(&["settle"])
+    }
+
+    fn gesture(&mut self, command: &[&str], targets: &[Target], rest: &[&str]) -> String {
+        let targets: Vec<String> = targets
+            .iter()
+            .map(|target| self.word(target.clone()))
+            .collect();
+        let mut words = match self.settling {
+            true => Vec::new(),
+            false => vec!["--no-settle"],
+        };
+        words.extend(command);
+        words.extend(targets.iter().map(String::as_str));
+        words.extend(rest);
+        self.run(&words)
     }
 
     fn word(&self, target: Target) -> String {
@@ -355,6 +486,17 @@ impl Stepped<Showing> {
 
     pub fn document_mut(&mut self) -> &mut Document {
         &mut self.app_mut().0
+    }
+}
+
+fn button_name(button: PointerButton) -> String {
+    match button {
+        PointerButton::Primary => "left".to_owned(),
+        PointerButton::Secondary => "right".to_owned(),
+        PointerButton::Middle => "middle".to_owned(),
+        PointerButton::Back => "back".to_owned(),
+        PointerButton::Forward => "forward".to_owned(),
+        PointerButton::Other(code) => format!("button:{code:#x}"),
     }
 }
 

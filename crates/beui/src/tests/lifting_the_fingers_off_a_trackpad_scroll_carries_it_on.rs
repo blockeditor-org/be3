@@ -25,8 +25,9 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
     harness.frame(Vec::new());
     let pos = harness.rect(scroll).center();
 
+    harness.frame(vec![Event::PointerMoved(pos)]);
     for _ in 0..6 {
-        harness.scroll(pos, vec2(0.0, -20.0), Modifiers::NONE);
+        harness.frame(vec![Event::Scroll(vec2(0.0, -20.0))]);
     }
     assert_eq!(harness.document().scroll_offset(scroll), 120.0);
     assert!(

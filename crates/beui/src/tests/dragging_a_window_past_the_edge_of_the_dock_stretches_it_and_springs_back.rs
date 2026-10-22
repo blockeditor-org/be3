@@ -42,7 +42,12 @@ fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
         "the window is drawn past the edge, but by less than the pointer went: {stretched}"
     );
 
-    let released = harness.release_at(pulled);
+    let released = harness.frame(vec![Event::PointerButton {
+        pos: pulled,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    }]);
 
     let rested = harness
         .document()

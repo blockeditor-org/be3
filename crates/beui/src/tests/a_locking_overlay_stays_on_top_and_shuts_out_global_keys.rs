@@ -60,8 +60,8 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     harness.key(Key::K, Modifiers::CTRL);
     assert_eq!(
         globals.get_untracked(),
-        2,
-        "global keys are heard while unlocked"
+        4,
+        "global keys are heard while unlocked, Ctrl going down and up around K"
     );
     set(&mut harness, locked, true);
     assert!(harness.document().locked());

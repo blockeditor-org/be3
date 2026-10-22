@@ -895,6 +895,18 @@ fn flattened(input: crate::ForwardedInput) -> Vec<Event> {
         .collect()
 }
 
+fn held_keys(modifiers: Modifiers) -> Vec<Key> {
+    [
+        (modifiers.ctrl, Key::Ctrl),
+        (modifiers.alt, Key::Alt),
+        (modifiers.shift, Key::Shift),
+        (modifiers.logo, Key::Logo),
+    ]
+    .into_iter()
+    .filter_map(|(held, key)| held.then_some(key))
+    .collect()
+}
+
 fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
     Event::Touch {
         id: TouchId { device: 1, finger },
@@ -946,14 +958,14 @@ impl Harness {
             size: viewport,
             scale: 1.0,
         };
-        Self {
-            stepped: crate::testing::Stepped::new(
-                context(),
-                crate::testing::Showing(document),
-                window,
-                None,
-            ),
-        }
+        let mut stepped = crate::testing::Stepped::new(
+            context(),
+            crate::testing::Showing(document),
+            window,
+            None,
+        );
+        stepped.settle_after_gestures(false);
+        Self { stepped }
     }
 
     pub(crate) fn viewport(&self) -> Vec2 {
@@ -977,55 +989,19 @@ impl Harness {
     }
 
     pub(crate) fn click(&mut self, pos: Pos2) {
-        self.frame(vec![Event::PointerMoved(pos)]);
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }]);
+        self.stepped.click(pos);
     }
 
     pub(crate) fn press_at(&mut self, pos: Pos2) {
-        self.frame(vec![Event::PointerMoved(pos)]);
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
+        self.stepped.down(pos, PointerButton::Primary);
     }
 
-    pub(crate) fn release_at(&mut self, pos: Pos2) -> crate::FrameOutput {
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }])
+    pub(crate) fn release_at(&mut self, pos: Pos2) {
+        self.stepped.up(pos, PointerButton::Primary);
     }
 
     pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
-        self.frame(vec![Event::PointerMoved(from)]);
-        self.frame(vec![Event::PointerButton {
-            pos: from,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerMoved(to)]);
-        self.frame(vec![Event::PointerButton {
-            pos: to,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }]);
+        self.stepped.drag(from, to);
     }
 
     pub(crate) fn finger_drag(&mut self, path: &[Pos2]) {
@@ -1041,7 +1017,7 @@ impl Harness {
 
     pub(crate) fn finger_drag_and_hold(&mut self, from: Pos2, to: Pos2) {
         const STEP: f32 = 10.0;
-        const HOLD_FRAMES: usize = 12;
+        const HOLD: Duration = Duration::from_millis(200);
         self.touch(TouchPhase::Start, from);
         let steps = ((to - from).length() / STEP).ceil().max(1.0) as usize;
         for step in 1..=steps {
@@ -1050,74 +1026,73 @@ impl Harness {
                 from + (to - from) * (step as f32 / steps as f32),
             );
         }
-        for _ in 0..HOLD_FRAMES {
-            self.touch(TouchPhase::Move, to);
-        }
+        self.stepped.pause(HOLD);
         self.touch(TouchPhase::End, to);
     }
 
     pub(crate) fn scroll(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
-        self.frame(vec![
-            Event::PointerMoved(pos),
-            Event::Modifiers(modifiers),
-            Event::Scroll(delta),
-        ]);
+        let held = held_keys(modifiers);
+        for key in &held {
+            self.stepped.key_down(*key);
+        }
+        self.stepped.scroll(pos, -delta);
+        for key in held.iter().rev() {
+            self.stepped.key_up(*key);
+        }
     }
 
     pub(crate) fn pinch(&mut self, pos: Pos2, factor: f32) {
-        self.frame(vec![Event::PointerMoved(pos), Event::Zoom(factor)]);
+        self.stepped.zoom(pos, factor);
     }
 
     pub(crate) fn middle_button(&mut self, pos: Pos2, pressed: bool) {
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Middle,
-            pressed,
-            modifiers: Modifiers::NONE,
-        }]);
+        match pressed {
+            true => self.stepped.down(pos, PointerButton::Middle),
+            false => self.stepped.up(pos, PointerButton::Middle),
+        };
     }
 
     pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {
-        self.frame(vec![Event::PointerMoved(from)]);
-        self.frame(vec![Event::PointerButton {
-            pos: from,
-            button: PointerButton::Middle,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerMoved(to)]);
-        self.frame(vec![Event::PointerButton {
-            pos: to,
-            button: PointerButton::Middle,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }]);
+        self.stepped.down(from, PointerButton::Middle);
+        self.stepped.hover(to);
+        self.stepped.up(to, PointerButton::Middle);
     }
 
     pub(crate) fn move_fingers(&mut self, first: Pos2, second: Pos2) {
-        self.frame(vec![
-            touch_event(1, TouchPhase::Move, first),
-            touch_event(2, TouchPhase::Move, second),
-        ]);
+        self.fingers(TouchPhase::Move, &[(1, first), (2, second)]);
     }
 
-    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) {
-        self.finger(1, phase, pos);
+    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
+        self.finger(1, phase, pos)
     }
 
-    pub(crate) fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) {
-        self.frame(vec![touch_event(finger, phase, pos)]);
+    pub(crate) fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
+        self.fingers(phase, &[(finger, pos)])
+    }
+
+    pub(crate) fn fingers(&mut self, phase: TouchPhase, fingers: &[(u64, Pos2)]) -> crate::FrameOutput {
+        let fingers: Vec<(u64, crate::testing::Target)> = fingers
+            .iter()
+            .map(|(finger, pos)| (*finger, crate::testing::Target::point(*pos)))
+            .collect();
+        self.stepped.touch(phase, &fingers);
+        self.stepped.take_output()
     }
 
     pub(crate) fn key(&mut self, key: Key, modifiers: Modifiers) {
-        self.frame(vec![key_event(key, true, modifiers)]);
-        self.frame(vec![key_event(key, false, modifiers)]);
+        self.stepped.key(key, modifiers);
+    }
+
+    pub(crate) fn key_down(&mut self, key: Key) {
+        self.stepped.key_down(key);
+    }
+
+    pub(crate) fn key_up(&mut self, key: Key) {
+        self.stepped.key_up(key);
     }
 
     pub(crate) fn type_text(&mut self, text: &str) {
-        for letter in text.chars() {
-            self.frame(vec![Event::Text(letter.to_string())]);
-        }
+        self.stepped.type_text(text);
     }
 
     pub(crate) fn toggle_inspector(&mut self) {
