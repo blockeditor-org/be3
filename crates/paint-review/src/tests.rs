@@ -127,7 +127,10 @@ impl Review {
         let node = document
             .find_test_id(&format!("paint_review.mode.{mode}"))
             .expect("the mode has a button");
-        beui::styled::toggle_button_pressed(document, node)
+        document
+            .api::<beui::styled::ToggleApi>(node)
+            .checked()
+            .get()
     }
 }
 

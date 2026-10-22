@@ -11,7 +11,12 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let text = harness.rect(unstyled::text_input_text(harness.document(), input));
+    let text = harness.rect(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .text(),
+    );
     let word = pos2(text.left() + 10.0, text.center().y);
     for _ in 0..2 {
         harness.touch(TouchPhase::Start, word);
@@ -22,10 +27,17 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
     harness.touch(TouchPhase::End, inside);
     harness.frame(Vec::new());
 
-    let toolbar = unstyled::text_input_toolbar(harness.document(), input)
+    let toolbar = harness
+        .document()
+        .api::<unstyled::TextInputApi>(input)
+        .toolbar(harness.document())
         .expect("tapping the selection shows its toolbar");
     assert!(
-        unstyled::text_input_menu_row(harness.document(), input, 0).is_none(),
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .menu_row(harness.document(), 0)
+            .is_none(),
         "the toolbar stands in for the menu"
     );
     let copy = text_within(harness.document(), toolbar, "Copy").expect("the toolbar copies");
@@ -42,9 +54,19 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
     }]);
 
     assert_eq!(output.copied_text.as_deref().map(str::trim), Some("Hello"));
-    assert!(unstyled::text_input_focused(harness.document(), input).get_untracked());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .focused()
+            .get_untracked()
+    );
     assert_eq!(
-        unstyled::text_input_selection(harness.document(), input).first(),
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .selection()
+            .first(),
         Some(&(0..5))
     );
 }

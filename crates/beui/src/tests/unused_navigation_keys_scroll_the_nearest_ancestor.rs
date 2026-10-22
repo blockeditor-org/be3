@@ -30,12 +30,26 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
     let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(styled::tabs_selected(harness.document(), tabs), 0);
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        0
+    );
     assert_eq!(harness.document.scroll_offset(scroll), 40.0);
     harness.key(Key::PageUp, Modifiers::NONE);
     assert_eq!(harness.document.scroll_offset(scroll), 0.0);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
-    assert!(styled::slider_value(harness.document(), slider) < 0.5);
+    assert!(
+        harness
+            .document()
+            .api::<styled::SliderApi>(slider)
+            .value()
+            .get()
+            < 0.5
+    );
     assert_eq!(harness.document.scroll_offset(scroll), 0.0);
 }

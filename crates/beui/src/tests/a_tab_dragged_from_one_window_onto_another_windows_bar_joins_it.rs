@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it() {
@@ -12,7 +12,7 @@ fn a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it() {
         drag_with(&mut harness, tab, to, Modifiers::ALT);
         harness.frame(Vec::new());
     }
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let [first, second] = [state.windows()[0], state.windows()[1]];
     assert_eq!(state.surface_tabs(second), [TabId::new(3)]);
 
@@ -38,7 +38,7 @@ fn a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it() {
     }]);
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert!(
         state.surface_tabs(first).contains(&TabId::new(3)),
         "the dragged tab joins the window whose bar it was dropped on: {:?}",

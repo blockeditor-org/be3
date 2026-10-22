@@ -13,7 +13,7 @@ fn enter_activates_the_focused_button() {
             />
         }]
     });
-    let active = unstyled::button_active(&document, button);
+    let active = document.api::<unstyled::ButtonApi>(button).active();
     let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);

@@ -19,9 +19,12 @@ fn a_disabled_select_does_not_open_when_its_trigger_is_clicked() {
     harness.click(harness.center(select));
     harness.frame(Vec::new());
 
-    assert!(!unstyled::select_open(harness.document(), select));
+    assert!(!harness.document().api::<unstyled::SelectApi>(select).open());
     assert_eq!(
-        unstyled::select_selected(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .selected(),
         Some(0)
     );
 }

@@ -15,5 +15,11 @@ fn ctrl_a_selects_everything_so_typing_replaces_the_value() {
     harness.key(Key::A, Modifiers::CTRL);
     harness.type_text("bye");
 
-    assert_eq!(styled::text_input_value(harness.document(), input), "bye");
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
+        "bye"
+    );
 }

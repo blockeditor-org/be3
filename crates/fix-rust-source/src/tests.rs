@@ -24,6 +24,7 @@ mod fix_repository_merges_imports_without_repeating_them;
 mod fix_repository_removes_test_path_attributes;
 mod fix_repository_reports_a_primitive_used_outside_beui;
 mod fix_repository_reports_beui_rule_breaks;
+mod fix_repository_reports_document_use_in_a_component;
 mod fix_repository_reports_unsafe_tag_problems;
 mod fix_repository_skips_hidden_directories;
 mod fix_repository_sorts_test_modules;

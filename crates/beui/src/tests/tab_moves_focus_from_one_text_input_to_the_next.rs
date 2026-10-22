@@ -20,9 +20,18 @@ fn tab_moves_focus_from_one_text_input_to_the_next() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("second");
 
-    assert_eq!(styled::text_input_value(harness.document(), first), "");
     assert_eq!(
-        styled::text_input_value(harness.document(), second),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(first)
+            .value(),
+        ""
+    );
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(second)
+            .value(),
         "second"
     );
 }

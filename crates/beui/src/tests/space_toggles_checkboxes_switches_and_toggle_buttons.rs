@@ -20,13 +20,37 @@ fn space_toggles_checkboxes_switches_and_toggle_buttons() {
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Space, Modifiers::NONE);
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Space, Modifiers::NONE);
-    assert!(styled::switch_on(harness.document(), switch));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(switch)
+            .checked()
+            .get()
+    );
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Space, Modifiers::NONE);
-    assert!(styled::toggle_button_pressed(harness.document(), toggle));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(toggle)
+            .checked()
+            .get()
+    );
     harness.key(Key::Enter, Modifiers::NONE);
-    assert!(!styled::toggle_button_pressed(harness.document(), toggle));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(toggle)
+            .checked()
+            .get()
+    );
 }

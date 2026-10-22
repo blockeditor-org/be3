@@ -12,7 +12,12 @@ fn hovering_a_text_input_shows_the_text_cursor() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let text = harness.rect(unstyled::text_input_text(harness.document(), input));
+    let text = harness.rect(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .text(),
+    );
 
     let output = harness.frame(vec![Event::PointerMoved(text.center())]);
 

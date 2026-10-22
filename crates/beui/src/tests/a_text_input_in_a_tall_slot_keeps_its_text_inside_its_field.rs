@@ -19,7 +19,12 @@ fn a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field() {
     harness.frame(Vec::new());
     let output = harness.frame(Vec::new());
 
-    let field = harness.rect(unstyled::text_input_text(harness.document(), input));
+    let field = harness.rect(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .text(),
+    );
     let caret = output
         .shapes()
         .iter()

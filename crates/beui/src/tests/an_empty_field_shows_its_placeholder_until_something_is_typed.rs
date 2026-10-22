@@ -13,7 +13,10 @@ fn an_empty_field_shows_its_placeholder_until_something_is_typed() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        unstyled::text_input_shown(harness.document(), input),
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .shown(harness.document()),
         "Search"
     );
 
@@ -21,5 +24,11 @@ fn an_empty_field_shows_its_placeholder_until_something_is_typed() {
     harness.type_text("a");
     harness.frame(Vec::new());
 
-    assert_eq!(unstyled::text_input_shown(harness.document(), input), "a");
+    assert_eq!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .shown(harness.document()),
+        "a"
+    );
 }

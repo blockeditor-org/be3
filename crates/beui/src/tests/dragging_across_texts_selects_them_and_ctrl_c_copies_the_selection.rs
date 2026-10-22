@@ -36,7 +36,10 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
         pos2(labels.right() + 20.0, labels.center().y),
     );
     assert_eq!(
-        crate::unstyled::selectable_text(harness.document(), region.get()),
+        harness
+            .document()
+            .api::<crate::unstyled::SelectableState>(region.get())
+            .selected_text(),
         "Fix the launcher\n#210 by someone ready"
     );
     assert_eq!(

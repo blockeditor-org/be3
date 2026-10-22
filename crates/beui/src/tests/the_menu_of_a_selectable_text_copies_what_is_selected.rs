@@ -38,8 +38,16 @@ fn the_menu_of_a_selectable_text_copies_what_is_selected() {
         pressed: false,
         modifiers: Modifiers::NONE,
     }]);
-    let menu = unstyled::context_menu_menu(harness.document(), region.get());
-    let copy = harness.center(unstyled::menu_list_row_button(harness.document(), menu, 0));
+    let menu = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(region.get())
+        .menu();
+    let copy = harness.center(
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(menu)
+            .row_button(0),
+    );
     harness.frame(vec![Event::PointerMoved(copy)]);
     harness.frame(vec![Event::PointerButton {
         pos: copy,

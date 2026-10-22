@@ -43,6 +43,11 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     assert_eq!(harness.document().focused_node(), None);
 
     harness.touch(TouchPhase::End, end);
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
     assert!(!hovered.get_untracked());
 }

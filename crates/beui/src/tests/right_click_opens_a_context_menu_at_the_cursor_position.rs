@@ -32,11 +32,23 @@ fn right_click_opens_a_context_menu_at_the_cursor_position() {
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
-    assert_eq!(unstyled::menu_list_len(harness.document(), content), 2);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
+    assert_eq!(
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .row_count(),
+        2
+    );
     let overlay = kind_of::<OverlayNode>(
         harness.document(),
-        unstyled::context_menu_overlay(harness.document(), menu),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(menu)
+            .overlay(),
     );
     let panel = harness
         .document()

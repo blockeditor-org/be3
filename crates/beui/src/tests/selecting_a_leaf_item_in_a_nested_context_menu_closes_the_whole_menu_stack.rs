@@ -39,7 +39,10 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
     }]);
     harness.frame(Vec::new());
 
-    let overlay = unstyled::context_menu_overlay(harness.document(), menu);
+    let overlay = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .overlay();
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());

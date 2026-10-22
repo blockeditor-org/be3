@@ -387,7 +387,7 @@ pub struct Inspector {
     selection: Signal<Vec<Key>>,
     panel_compact: Signal<bool>,
     shown_compact: bool,
-    tree: NodeRef,
+    tree: ComponentRef<beui_components_styled::TreeApi<Key>>,
     bar: panel::Bar,
     toolbar: responsive::Toolbar,
     resizing: Option<Resize>,
@@ -492,16 +492,16 @@ impl Inspector {
     }
 
     pub fn focused_row(&self) -> Option<Key> {
-        beui_components_styled::tree_focused::<Key>(&self.document, self.tree.get())
+        self.tree_api()?.focused()
     }
 
     pub fn highlighted(&self) -> Option<NodeId> {
         self.state().hovered.get().or_else(|| {
-            let tree = self.tree_node()?;
+            let tree = self.tree_api()?;
             self.document
                 .watch_focus_visible()
                 .get_untracked()
-                .then(|| beui_components_styled::tree_focused::<Key>(&self.document, tree))
+                .then(|| tree.focused())
                 .flatten()
                 .map(Key::node)
         })
@@ -969,11 +969,8 @@ impl Inspector {
         let root = self.document.root()?;
         let order = self.document.focusables_within(root);
         let rows = self
-            .tree_node()
-            .map(|tree| {
-                let rows = beui_components_styled::tree_rows(&self.document, tree);
-                self.document.focusables_within(rows)
-            })
+            .tree_api()
+            .map(|tree| self.document.focusables_within(tree.node()))
             .unwrap_or_default();
         order
             .iter()
@@ -982,10 +979,10 @@ impl Inspector {
             .copied()
     }
 
-    fn tree_node(&self) -> Option<NodeId> {
+    fn tree_api(&self) -> Option<beui_components_styled::TreeApi<Key>> {
         self.tree
             .try_get()
-            .filter(|tree| self.document.contains(*tree))
+            .filter(|tree| self.document.contains(tree.node()))
     }
 
     fn release_focus(&mut self, ctx: &Context) {

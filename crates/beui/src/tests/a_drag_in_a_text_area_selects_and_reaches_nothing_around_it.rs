@@ -2,7 +2,7 @@ use super::*;
 use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{TextArea, TextAreaState, text_area_shown};
+use crate::unstyled::{TextArea, TextAreaApi, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
@@ -37,7 +37,7 @@ fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
     harness.type_text("Bye");
     assert_eq!(
         (
-            text_area_shown(harness.document(), area.get()),
+            harness.document().api::<TextAreaApi>(area.get()).shown(),
             around.get_untracked()
         ),
         ("Bye".to_owned(), 0),

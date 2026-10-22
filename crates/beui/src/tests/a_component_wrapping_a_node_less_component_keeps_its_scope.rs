@@ -32,15 +32,24 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
     count.set(2);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu.get());
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu.get())
+        .menu();
     assert_eq!(
-        unstyled::menu_list_len(harness.document(), content),
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .row_count(),
         2,
         "a wrapper component contributes one item per row"
     );
     let labels: Vec<String> = (0..2)
         .map(|index| {
-            let button = unstyled::menu_list_row_button(harness.document(), content, index);
+            let button = harness
+                .document()
+                .api::<unstyled::MenuListApi>(content)
+                .row_button(index);
             text_within(harness.document(), button).expect("a row shows its label")
         })
         .collect();

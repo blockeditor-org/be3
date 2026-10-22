@@ -22,6 +22,10 @@ fn holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor
     harness.finger(1, TouchPhase::End, left);
     harness.frame(Vec::new());
 
-    let value = styled::slider_value(harness.document(), slider);
+    let value = harness
+        .document()
+        .api::<styled::SliderApi>(slider)
+        .value()
+        .get();
     assert!((value - 0.5).abs() < 0.01, "the slider read {value}");
 }
