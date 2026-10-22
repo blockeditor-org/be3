@@ -125,6 +125,21 @@ impl CanvasShape {
         )
     }
 
+    pub fn within(self, local: CanvasPoint) -> CanvasPoint {
+        if self.contains_local(local) {
+            return local;
+        }
+        let (mut inside, mut outside) = (0.0, 1.0);
+        for _ in 0..24 {
+            let middle = (inside + outside) * 0.5;
+            match self.contains_local(CanvasPoint::new(local.x * middle, local.y * middle)) {
+                true => inside = middle,
+                false => outside = middle,
+            }
+        }
+        CanvasPoint::new(local.x * inside, local.y * inside)
+    }
+
     pub fn contains_local(self, local: CanvasPoint) -> bool {
         match self {
             Self::Ellipse => (local.x * 2.0).powi(2) + (local.y * 2.0).powi(2) <= 1.0,

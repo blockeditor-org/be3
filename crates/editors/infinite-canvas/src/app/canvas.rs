@@ -228,12 +228,17 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
         let selection = state.selection.get();
         let selected = state.entities.among(&selection);
         let scale = scale.get();
+        let selected_path = state.selected_path();
         let mut overlay = Overlay {
             camera: Camera::item(Pos2::ZERO, scale),
             palette: palette(&theme),
             outlines: super::state::selected_outlines(&selected, &selection),
             frame: super::state::selection_frame(&selected, &selection),
-            path: state.selected_path().map(|path| path_grips(&path, scale)),
+            path: selected_path.as_ref().map(|path| path_grips(path, scale)),
+            anchors: selected_path
+                .as_ref()
+                .map(|path| state.anchors(path))
+                .unwrap_or_default(),
             group: entered_group_bounds(state),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),

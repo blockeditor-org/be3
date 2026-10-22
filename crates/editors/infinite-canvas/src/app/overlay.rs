@@ -23,6 +23,7 @@ const FRAME_LABEL_SIZE: f32 = 12.0;
 const DASHES: [f32; 2] = [4.0, 4.0];
 const GROUP_MARGIN: f32 = 6.0;
 const OVERLAY_REACH: f32 = 24.0;
+const ANCHOR_RADIUS: f32 = 3.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PathGrips {
@@ -121,6 +122,7 @@ pub(crate) struct Overlay {
     pub(crate) outlines: Vec<SelectionFrame>,
     pub(crate) frame: Option<SelectionFrame>,
     pub(crate) path: Option<PathGrips>,
+    pub(crate) anchors: Vec<[CanvasPoint; 2]>,
     pub(crate) group: Option<WorldRect>,
     pub(crate) resize: ResizeMode,
     pub(crate) rotatable: bool,
@@ -136,6 +138,7 @@ impl Overlay {
         if let Some(group) = self.group {
             points.extend([group.min, group.max]);
         }
+        points.extend(self.anchors.iter().flatten());
         match (&self.path, self.frame) {
             (Some(grips), _) => {
                 points.extend(
@@ -173,6 +176,7 @@ impl Overlay {
             outline(painter, corners, 1.0, SELECTION);
         }
         self.draw_group(painter);
+        self.draw_anchors(painter);
         match (&self.path, self.frame) {
             (Some(grips), _) => self.draw_path_grips(painter, grips),
             (None, Some(frame)) => self.draw_selection(painter, frame),
@@ -200,6 +204,19 @@ impl Overlay {
             rect.left_bottom(),
         ]);
         painter.stroke_path(&outline, &Stroke::new(1.0).dashed(DASHES, 0.0), SELECTION);
+    }
+
+    fn draw_anchors(&self, painter: &Painter) {
+        for [end, anchor] in &self.anchors {
+            let (end, anchor) = (self.camera.at(*end), self.camera.at(*anchor));
+            painter.stroke_path(
+                &Path::polyline([end, anchor]),
+                &Stroke::new(1.0).dashed(DASHES, 0.0),
+                SELECTION,
+            );
+            let dot = Path::ellipse(anchor, Vec2::splat(ANCHOR_RADIUS));
+            painter.fill_path(&dot, FillRule::NonZero, SELECTION);
+        }
     }
 
     fn draw_path_grips(&self, painter: &Painter, grips: &PathGrips) {

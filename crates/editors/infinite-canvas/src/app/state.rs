@@ -1280,6 +1280,18 @@ impl CanvasState {
         }
     }
 
+    pub(crate) fn anchors(&self, path: &CanvasEntity) -> Vec<[CanvasPoint; 2]> {
+        path.bindings
+            .iter()
+            .zip(path_ends(path))
+            .filter_map(|(binding, end)| {
+                let binding = (*binding)?;
+                let target = self.entities.get(binding.entity)?;
+                Some([end, target.transform.to_world(binding.anchor)])
+            })
+            .collect()
+    }
+
     pub(crate) fn binding_at(&self, point: CanvasPoint, path: Uuid) -> Option<CanvasBinding> {
         let radius = HIT_RADIUS / self.scale();
         self.entities
@@ -1297,7 +1309,7 @@ impl CanvasState {
             })
             .map(|entity| CanvasBinding {
                 entity: entity.id,
-                anchor: entity.transform.to_local(point),
+                anchor: entity.shape.within(entity.transform.to_local(point)),
             })
     }
 
