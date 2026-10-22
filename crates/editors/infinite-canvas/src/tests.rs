@@ -24,6 +24,8 @@ use block_editor_beui::beui::{PenPhase, PointerButton};
 
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools;
+mod a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place;
+mod a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place;
 mod a_drawing_tool_returns_to_select_unless_the_tool_is_locked;
 mod a_dropped_slide_takes_its_own_size_rather_than_the_cards;
 mod a_finger_drags_a_transform_field_in_the_sheet;
