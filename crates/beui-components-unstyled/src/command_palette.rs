@@ -224,7 +224,7 @@ fn close(state: State) {
     state.searching.set(false);
     state.open.set(false);
     if let Some(overlay) = state.overlay.try_get() {
-        close_overlay(overlay);
+        overlay.close_overlay();
     }
 }
 

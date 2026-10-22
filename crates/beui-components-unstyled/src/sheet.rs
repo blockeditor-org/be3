@@ -157,7 +157,7 @@ fn banding() -> bool {
 
 impl Motion {
     fn node(&self) -> Option<NodeId> {
-        first_offset_within(self.content.try_get()?)
+        self.content.try_get()?.first_offset_within()
     }
 
     fn laid_out(&self) -> (Option<Rect>, Option<Rect>, ScrollPosition) {
@@ -166,7 +166,9 @@ impl Motion {
         let placements = placements();
         let sheet = slot.and_then(|slot| placements.rect(slot));
         let body = node.and_then(|node| placements.rect(node));
-        let position = node.and_then(offset_position).unwrap_or_default();
+        let position = node
+            .and_then(|node| node.scroll_position())
+            .unwrap_or_default();
         (sheet, body, position)
     }
 
@@ -224,8 +226,8 @@ impl Motion {
         let Some(node) = self.node() else {
             return (0.0, 0.0);
         };
-        match offset_value(node) {
-            Some(offset) => (offset, offset_overscroll(node)),
+        match node.offset() {
+            Some(offset) => (offset, node.overscroll()),
             None => (0.0, 0.0),
         }
     }
@@ -234,8 +236,8 @@ impl Motion {
         let Some(node) = self.node() else {
             return;
         };
-        drive_offset(node, offset);
-        set_offset_overscroll(node, overscroll);
+        node.drive_offset(offset);
+        node.set_overscroll(overscroll);
     }
 
     fn place_height(&self, rest: Rest) {
@@ -1143,9 +1145,10 @@ pub fn Sheet(
         move || motion.value().finish(),
     );
     motion.with(|motion| motion.animation.set(Some(animation)));
-    let preference = use_motion();
+    let preferences = use_preferences();
+    let animates = create_memo(move || preferences.get().motion.animates());
     create_effect(move || {
-        if !preference.get().animates() {
+        if !animates.get() {
             let motion = motion.value();
             let (offset, _) = motion.content();
             motion.place_content(offset, 0.0);

@@ -422,7 +422,7 @@ fn RowText(
             && text.borrow().is_none()
             && let Some(id) = node.try_get()
         {
-            *text.borrow_mut() = text_geometry(id);
+            *text.borrow_mut() = id.text_geometry();
         }
     });
     let keys = create_memo(move || piece_keys(&model.get(), layer));

@@ -64,7 +64,7 @@ impl SelectableState {
             .value()
             .region
             .try_get()
-            .map_or_else(Vec::new, texts_within)
+            .map_or_else(Vec::new, |region| region.texts_within())
     }
 
     fn caret_at(&self, pos: Pos2) -> Option<Caret> {
@@ -74,13 +74,13 @@ impl SelectableState {
             .filter_map(|text| Some((text, distance(placements().rect(text)?, pos))))
             .min_by(|(_, left), (_, right)| left.total_cmp(right))?
             .0;
-        let index = text_index_at(text, pos)?;
+        let index = text.text_index_at(pos)?;
         Some(Caret { text, index })
     }
 
     fn word_at(&self, pos: Pos2) -> Option<(Caret, Caret)> {
         let caret = self.caret_at(pos)?;
-        let (start, end) = word_bounds(&text_content(caret.text), caret.index);
+        let (start, end) = word_bounds(&caret.text.text(), caret.index);
         Some((
             Caret {
                 text: caret.text,
@@ -99,7 +99,7 @@ impl SelectableState {
             Unit::Word => self.word_at(pos),
             Unit::Text => {
                 let caret = self.caret_at(pos)?;
-                let end = text_content(caret.text).len();
+                let end = caret.text.text().len();
                 Some((
                     Caret {
                         text: caret.text,
@@ -120,8 +120,8 @@ impl SelectableState {
         if start == end {
             return None;
         }
-        let first = text_caret_rect(start.text, start.index, CARET_WIDTH)?;
-        let last = text_caret_rect(end.text, end.index, CARET_WIDTH)?;
+        let first = start.text.caret_rect(start.index, CARET_WIDTH)?;
+        let last = end.text.caret_rect(end.index, CARET_WIDTH)?;
         Some(toolbar_anchor(first.union(last)))
     }
 
@@ -161,7 +161,7 @@ impl SelectableState {
                 let begin = if *text == start.text { start.index } else { 0 };
                 let finish = match *text == end.text {
                     true => end.index,
-                    false => text_content(*text).len(),
+                    false => text.text().len(),
                 };
                 (*text, begin..finish)
             })
@@ -186,7 +186,7 @@ impl SelectableState {
         self.handles()
             .into_iter()
             .filter_map(|(handle, caret)| {
-                let rect = text_caret_rect(caret.text, caret.index, CARET_WIDTH)?;
+                let rect = caret.text.caret_rect(caret.index, CARET_WIDTH)?;
                 if pos.y < rect.max.y {
                     return None;
                 }
@@ -202,12 +202,12 @@ impl SelectableState {
         let color = self.0.value().color.get();
         let previous = std::mem::take(&mut *self.0.value().painted.borrow_mut());
         for text in previous {
-            if node_exists(text) && !ranges.iter().any(|(held, _)| *held == text) {
-                set_text_selection(text, None);
+            if text.exists() && !ranges.iter().any(|(held, _)| *held == text) {
+                text.set_text_selection(None);
             }
         }
         for (text, range) in &ranges {
-            set_text_selection(*text, Some((range.clone(), color)));
+            text.set_text_selection(Some((range.clone(), color)));
         }
         *self.0.value().painted.borrow_mut() = ranges.into_iter().map(|(text, _)| text).collect();
 
@@ -215,8 +215,8 @@ impl SelectableState {
         let handle_color = self.0.value().handle_color.get();
         let previous = std::mem::take(&mut *self.0.value().handled.borrow_mut());
         for text in previous {
-            if node_exists(text) {
-                set_text_selection_handles(text, Vec::new());
+            if text.exists() {
+                text.set_text_selection_handles(Vec::new());
             }
         }
         let mut handled: Vec<NodeId> = Vec::new();
@@ -231,7 +231,7 @@ impl SelectableState {
                 .filter(|(_, caret)| caret.text == *text)
                 .map(|(handle, caret)| (caret.index, *handle, handle_color))
                 .collect();
-            set_text_selection_handles(*text, on_text);
+            text.set_text_selection_handles(on_text);
         }
         *self.0.value().handled.borrow_mut() = handled;
         *self.0.value().copied.borrow_mut() = self.copied();
@@ -254,7 +254,7 @@ impl SelectableState {
         };
         let focus = Caret {
             text: *last,
-            index: text_content(*last).len(),
+            index: last.text().len(),
         };
         self.select(Some(anchor), Some(focus));
     }
@@ -282,7 +282,7 @@ impl SelectableState {
                     false => ' ',
                 });
             }
-            copied.push_str(text_content(text).get(range).unwrap_or_default());
+            copied.push_str(text.text().get(range).unwrap_or_default());
             above = Some(rect);
         }
         copied
@@ -386,14 +386,16 @@ fn press(
             CaretHandle::Start => end,
             _ => start,
         };
-        let offset = text_caret_rect(moving.text, moving.index, CARET_WIDTH)
+        let offset = moving
+            .text
+            .caret_rect(moving.index, CARET_WIDTH)
             .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
         state.0.value().grab.set(Some(Grab { fixed, offset }));
         on_toolbar.call(None);
         return;
     }
     if let Some(target) = focusable.try_get() {
-        focus_node(target);
+        target.focus();
     }
     state.0.value().touch.set(false);
     on_toolbar.call(None);

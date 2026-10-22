@@ -181,11 +181,11 @@ impl super::State {
         else {
             return;
         };
-        if focus_is_within(frame) || focus_pending_within(frame) {
+        if frame.focus_is_within() || frame.focus_pending_within() {
             return;
         }
-        if let Some(first) = focusables_within(frame).first().copied() {
-            focus_node(first);
+        if let Some(first) = frame.focusables_within().first().copied() {
+            first.focus();
         }
     }
 
@@ -434,7 +434,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             return;
         }
         if let Some(overlay) = overlay.try_get() {
-            raise_overlay(overlay);
+            overlay.raise_overlay();
         }
     });
     create_effect(move || {

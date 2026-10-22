@@ -270,7 +270,7 @@ impl Motion {
     fn placed(&self) -> Option<ScrollPosition> {
         let reported = self.reported.get_untracked()?;
         let node = self.node?;
-        let offset = offset_value(node)?;
+        let offset = node.offset()?;
         Some(ScrollPosition { offset, ..reported })
     }
 
@@ -278,8 +278,8 @@ impl Motion {
         let Some(node) = self.node else {
             return;
         };
-        drive_offset(node, offset);
-        set_offset_overscroll(node, momentum.overscroll);
+        node.drive_offset(offset);
+        node.set_overscroll(momentum.overscroll);
     }
 
     fn flinging(&self) -> bool {
@@ -426,7 +426,7 @@ impl Motion {
         if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
             momentum.rest();
         }
-        set_offset_overscroll(node, 0.0);
+        node.set_overscroll(0.0);
     }
 
     fn finish(&self) {
@@ -442,7 +442,7 @@ impl Motion {
 
     fn step(&self, elapsed: f32) -> Option<Duration> {
         let node = self.node?;
-        if !node_exists(node) {
+        if !node.exists() {
             return None;
         }
         let mut momentum = self.momentum.borrow_mut();
@@ -477,7 +477,7 @@ fn Scrolling(
         on_change.call(position);
     }));
     let motion = store(Motion {
-        node: first_offset_within(node),
+        node: node.first_offset_within(),
         reported: reported.read_only(),
         direction,
         momentum: RefCell::new(Momentum::new()),
@@ -499,14 +499,15 @@ fn Scrolling(
     });
     motion.with(|motion| motion.autoscrolling.set(Some(autoscrolling)));
     motion.with(|motion| motion.animation.set(Some(animation)));
-    let preference = use_motion();
+    let preferences = use_preferences();
+    let animates = create_memo(move || preferences.get().motion.animates());
     create_effect(move || {
-        if !preference.get().animates() {
+        if !animates.get() {
             motion.value().finish();
         }
     });
     if let Some(offset) = motion.with(|motion| motion.node) {
-        on_offset_steer(offset, move |()| motion.value().steer());
+        offset.on_steer(move |()| motion.value().steer());
     }
     set_component_state(motion);
 
@@ -717,8 +718,8 @@ pub fn Scroll(
             return;
         };
         let rows = rows.get();
-        if let Some(row) = node_children(rows).get(index).copied() {
-            reveal_node(row);
+        if let Some(row) = rows.children().get(index).copied() {
+            row.reveal();
         }
     });
     scroll

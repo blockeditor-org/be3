@@ -41,7 +41,7 @@ impl State {
         let Some(panel) = self.panel_node(tab) else {
             return false;
         };
-        let focused = focused_node().filter(|_| focus_is_within(panel));
+        let focused = focused_node().filter(|_| panel.focus_is_within());
         let Some(focused) = focused else {
             return false;
         };
@@ -68,13 +68,13 @@ impl State {
             }
         }
         let remembered = self.remembered.value().borrow().get(&tab).copied();
-        if focus_is_within(panel) {
+        if panel.focus_is_within() {
             return;
         }
-        let remembered = remembered.filter(|node| focusables_within(panel).contains(node));
+        let remembered = remembered.filter(|node| panel.focusables_within().contains(node));
         match remembered {
             Some(node) => set_focus(Some(node)),
-            None => focus_into(panel),
+            None => panel.focus_into(),
         }
     }
 }

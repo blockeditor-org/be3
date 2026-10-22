@@ -248,7 +248,8 @@ pub fn use_theme() -> ThemeStore {
 }
 
 fn tree_theme_store() -> ThemeStore {
-    let kind = use_theme_kind();
+    let preferences = use_preferences();
+    let kind = create_memo(move || preferences.get().theme);
     tree_local(|| {
         let store = ThemeStore::new(Theme::of(kind.get_untracked()));
         create_effect(move || store.set(Theme::of(kind.get())));

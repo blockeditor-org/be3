@@ -93,16 +93,22 @@ pub fn PreferencesSection(
     #[prop(default = String::from("Appearance"))] title: Prop<String>,
 ) -> NodeId {
     let layers = use_preference_layers();
-    let app = create_memo(move || layers.get().layer(PreferenceSource::App));
+    let app = use_preference_layer(PreferenceSource::App);
     let inherited = create_memo(move || layers.get().below(PreferenceSource::App).resolve());
     let developer = create_memo(move || layers.get().layer(PreferenceSource::Developer));
     let theme = create_memo(move || app.get().theme);
     let motion = create_memo(move || app.get().motion);
     let set_theme = Callback::new(move |theme: Option<ThemeKind>| {
-        change_app_layer(move |layer| PreferenceLayer { theme, ..layer });
+        app.set(PreferenceLayer {
+            theme,
+            ..app.get_untracked()
+        });
     });
     let set_motion = Callback::new(move |motion: Option<Motion>| {
-        change_app_layer(move |layer| PreferenceLayer { motion, ..layer });
+        app.set(PreferenceLayer {
+            motion,
+            ..app.get_untracked()
+        });
     });
     let theme_menu: Children<MenuItem> = [view! {
         <MenuItem
@@ -170,8 +176,4 @@ fn overridden(by_developer: Memo<bool>) -> Memo<String> {
         true => DEVELOPER_OVERRIDE.to_owned(),
         false => String::new(),
     })
-}
-
-fn change_app_layer(change: impl FnOnce(PreferenceLayer) -> PreferenceLayer) {
-    update_preference_layer(PreferenceSource::App, change);
 }

@@ -254,7 +254,7 @@ impl Surface {
         let list = self.list.try_get()?;
         let canvas = self.canvas_rect()?;
         let rect = self.held.value().placements.rect(list)?;
-        let offset = virtual_list_offset::<usize>(list, &line)?;
+        let offset = list.row_offset(&line)?;
         Some(rect.min.y - canvas.min.y + offset)
     }
 
@@ -418,7 +418,7 @@ impl Surface {
             Key::Enter | Key::Tab => self.complete(highlighted),
             _ => match self.completion_layer.try_get() {
                 Some(layer) => {
-                    dismiss_overlay(layer, Dismiss::Escape);
+                    layer.dismiss_overlay(Dismiss::Escape);
                 }
                 None => self.dismiss(),
             },
@@ -1106,7 +1106,7 @@ pub fn TextArea(
                     false => area.get(),
                 });
                 let scale = pixels_per_point();
-                let attached = use_attached();
+                let fonts = use_font_revision();
                 let scroll = create_signal(ScrollPosition::ZERO);
                 let offset = create_signal(0.0_f32);
                 let shift = create_signal(0.0_f32);
@@ -1194,7 +1194,7 @@ pub fn TextArea(
                 });
                 let gutter = create_memo(move || {
                     scale.get();
-                    attached.get();
+                    fonts.get();
                     content.get();
                     let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
                     match single_line || !line_numbers || rich {
@@ -1210,7 +1210,7 @@ pub fn TextArea(
                     move || {
                         content.get();
                         let scale = scale.get();
-                        let attached = attached.get();
+                        let fonts = fonts.get();
                         let wrap_width = wrap_width.get();
                         let starts = starts.get();
                         let widgets = widgets.get();
@@ -1230,7 +1230,7 @@ pub fn TextArea(
                                 options,
                                 starts: &starts,
                                 scale,
-                                attached,
+                                fonts,
                                 cache: &table_cache,
                             }),
                             false => HashMap::new(),
@@ -1297,7 +1297,7 @@ pub fn TextArea(
                     placeholder,
                     font_size,
                     prose,
-                    metrics: create_memo(move || (scale.get(), attached.get())),
+                    metrics: create_memo(move || (scale.get(), fonts.get())),
                     gutter,
                     padding,
                     scroll: scroll.read_only(),

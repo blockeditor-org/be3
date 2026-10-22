@@ -437,7 +437,7 @@ pub fn TreeRowEditor(
     let placed = create_memo(move || field.try_get().is_some_and(|node| node_placed(node).get()));
     create_effect(move || {
         if placed.get() {
-            reveal_node(field.get());
+            field.get().reveal();
         }
     });
     let keyboard = use_keyboard();
@@ -521,7 +521,7 @@ where
         if !node_placed(row).get() {
             return;
         }
-        reveal_node(row);
+        row.reveal();
         pending.set(None);
     });
     let open = create_memo(move || astray.get().is_some());

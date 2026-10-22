@@ -565,9 +565,9 @@ impl State {
             .fullscreen_layer
             .try_get()
             .filter(|_| self.fullscreen_in_front());
-        raise_overlay(window);
+        window.raise_overlay();
         if let Some(fullscreen) = fullscreen {
-            raise_overlay(fullscreen);
+            fullscreen.raise_overlay();
         }
     }
 
@@ -629,7 +629,7 @@ impl State {
             return Vec::new();
         };
         let placements = placements();
-        node_children(node)
+        node.children()
             .into_iter()
             .filter_map(|child| placements.rect(child))
             .collect()
@@ -1396,7 +1396,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
             return;
         }
         if let Some(layer) = layer.try_get() {
-            untrack(|| raise_overlay(layer));
+            untrack(|| layer.raise_overlay());
         }
     });
     let body = move || {
@@ -2078,7 +2078,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     dock.release_dialog_focus();
                     let picked = tab_list
                         .try_get()
-                        .is_some_and(focus_is_within);
+                        .is_some_and(|tabs| tabs.focus_is_within());
                     let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
                     if let Some(tab) = shown.filter(|_| !picked) {
                         dock.give_keyboard(tab);
@@ -2577,9 +2577,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             overshoot.set(Vec2::ZERO);
         },
     );
-    let preference = use_motion();
+    let preferences = use_preferences();
+    let animates = create_memo(move || preferences.get().motion.animates());
     create_effect(move || {
-        if !preference.get().animates() {
+        if !animates.get() {
             band.value().borrow_mut().settle();
             overshoot.set(Vec2::ZERO);
         }

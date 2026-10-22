@@ -1335,8 +1335,8 @@ Set a layer with `Context::set_preference_layer(source, layer)` and read them wi
 `preference_layers()`. Each document mirrors them at the start of a frame (`preferences()`, and
 `watch_theme()`, `watch_motion()` and `watch_canvas_touch()` for one each);
 `Document::watch_preference_layers()` is that, reactively, for settings that show where a value
-comes from; components read these as `use_theme_kind()`, `use_motion()` and
-`use_preference_layers()`. `styled::PreferencesSection` is a settings section over the app layer, with a
+comes from; components read these as `use_preferences()` and `use_preference_layers()`, and
+write a layer through `use_preference_layer(source)`. `styled::PreferencesSection` is a settings section over the app layer, with a
 `styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
 below, and notes a developer override. An app that keeps its own choices passes
 `RunOptions::saving_preferences(name)`, which loads and saves the app layer in the platform's
@@ -2174,8 +2174,9 @@ Escape, when it loses focus, and when it is removed, and keys it does not use
 itself go on to `on_key`, which is what a control that also walks with the
 keyboard binds.
 
-Beui does not hold the pointer itself - it asks. `Document::show` publishes the
-wish as `WindowState::pointer_locked`, and whoever is showing the document does
+Beui does not hold the pointer itself - it asks. `PointerLock` sets
+`pointer_locked` on its `Interactive`, the document publishes whether any
+`Interactive` in it asks as `WindowState::pointer_locked`, and whoever is showing the document does
 it: the winit runner locks the cursor and hides it, and a plugin region passes
 it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). An
 adapter reads raw motion only while `Runner::window()`, the state it was
@@ -3079,17 +3080,21 @@ is what a test holds of a built tree: `component_state`, `node_rect` and
 The styled and unstyled crates never name `Document`, `with_document` or
 `NodeOf` outside their tests, so their components can be built on another
 backend; `fix-rust-source` reports it when they do. They reach the tree they
-were built into through the node functions in `beui::reactive`
-(`beui-view/src/nodes.rs`), which take a plain `NodeId` and answer `None`,
-`false` or nothing for a node of another kind or one that is gone:
-`placements()` for where nodes were laid out, `focus_is_within`, `focus_node`
-and the other focus calls, `raise_overlay`, `dismiss_overlay` and
-`stacked_at` for layers, `first_offset_within`, `drive_offset` and the other
-offset calls for scrolling, `texts_within`, `text_index_at` and the other text
-calls, `component_state` for another component's state, `use_motion` and the
-other preference signals, and `tree_local` for a value kept once per tree.
+were built into through `beui::reactive` (`beui-view/src/nodes.rs`). What
+concerns one node is a method of the `TreeNode` trait on `NodeId`
+(`panel.focus_is_within()`, `overlay.raise_overlay()`, `offset.drive_offset(..)`,
+`text.caret_rect(..)`), which answers `None`, `false` or nothing for a node of
+another kind or one that is gone. Where nodes were laid out is a `Placements`
+handle from `placements()`, which can be kept and read later, even by a memo a
+test reads outside the document. The rest are functions: `focused_node`,
+`set_focus`, `stacked_at`, `tree_local` for a value kept once per tree,
+`use_preferences()` and `use_preference_layers()` as signals,
+`use_preference_layer(source)` as a `Binding` that writes that layer, and
+`use_font_revision()`, which changes whenever text may measure differently.
 When a component needs something the document has and these do not offer, add
-a function there rather than reaching for the document. State the user changes is a `Binding<T>`
+it there rather than reaching for the document.
+
+State the user changes is a `Binding<T>`
 prop that the component reads and writes, with no copy of it kept in sync; see
 `unstyled::Toggle` for the pattern.
 
