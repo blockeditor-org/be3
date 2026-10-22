@@ -349,6 +349,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"X"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="X"
                     value={Binding::new(center_x, x)}
                     disabled={locked}
@@ -360,6 +361,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"Y"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="Y"
                     value={Binding::new(center_y, y)}
                     disabled={locked}
@@ -371,6 +373,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"W"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="W"
                     min={MIN_SIZE as f64}
                     value={Binding::new(size_x, width)}
@@ -383,6 +386,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"H"</Text>
                 </Frame>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     label="H"
                     min={MIN_SIZE as f64}
                     value={Binding::new(size_y, height)}
@@ -395,6 +399,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Text style=TextStyle::CAPTION>"Rotation"</Text>
                 <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
                     @sizing=ItemSize::Percent(100.0)
                     label="Rotation"
                     value={Binding::new(angle, rotation)}
@@ -484,6 +489,7 @@ fn EditorScale(state: CanvasState) -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <Text style=TextStyle::CAPTION>"Scale"</Text>
             <NumberInput
+                on_scrub={move |scrubbing| state.scrub(scrubbing)}
                 @sizing=ItemSize::Percent(100.0)
                 label="Scale"
                 min=10.0
@@ -1083,6 +1089,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                         <Text style=TextStyle::CAPTION>"Font size"</Text>
                         <NumberInput
+                            on_scrub={move |scrubbing| state.scrub(scrubbing)}
                             @sizing=ItemSize::Percent(100.0)
                             label="Font size"
                             min=4.0
@@ -1095,6 +1102,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                         <Text style=TextStyle::CAPTION>"Line height"</Text>
                         <NumberInput
+                            on_scrub={move |scrubbing| state.scrub(scrubbing)}
                             @sizing=ItemSize::Percent(100.0)
                             label="Line height"
                             min=0.5

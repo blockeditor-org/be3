@@ -129,18 +129,6 @@ impl Tool {
         matches!(self, Tool::Line | Tool::Arrow)
     }
 
-    pub(crate) fn draws_live(self) -> bool {
-        matches!(
-            self,
-            Tool::Rectangle
-                | Tool::Ellipse
-                | Tool::Diamond
-                | Tool::Line
-                | Tool::Arrow
-                | Tool::Frame
-        )
-    }
-
     pub(crate) fn styles(self) -> bool {
         !self.selects() && self != Tool::Eraser
     }
@@ -428,6 +416,7 @@ struct CanvasCells {
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
     writing: Cell<bool>,
+    scrubbing: Cell<bool>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
 }
@@ -545,6 +534,7 @@ impl CanvasState {
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
             writing: Cell::new(false),
+            scrubbing: Cell::new(false),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
         });
@@ -836,7 +826,18 @@ impl CanvasState {
         }
     }
 
+    pub(crate) fn scrub(&self, scrubbing: bool) {
+        self.cells.value().scrubbing.set(scrubbing);
+        match scrubbing {
+            true => self.open_writes(),
+            false => self.commit_writes(),
+        }
+    }
+
     pub(crate) fn commit_writes(&self) {
+        if self.cells.value().scrubbing.get() {
+            return;
+        }
         if self.cells.value().writing.replace(false) {
             self.content().commit_gesture();
         }
@@ -881,7 +882,7 @@ impl CanvasState {
                 start,
                 current,
                 ..
-            } if tool.draws_live() && start != current => match self.drawn_shape(&gesture) {
+            } if start != current => match self.drawn_shape(&gesture) {
                 Some(entity) => self.put_live(vec![entity]),
                 None if self.holds(*id) => {
                     self.operate(&InfiniteCanvasOperation::Remove { ids: vec![*id] })
@@ -2334,18 +2335,16 @@ impl CanvasState {
 
     pub(crate) fn finish_gesture(&self, gesture: Gesture) {
         match gesture {
-            Gesture::Create { tool, .. } => {
+            Gesture::Create { .. } => {
                 let Some(entity) = self.drawn_shape(&gesture) else {
                     return;
                 };
                 let (created, shape) = (entity.id, entity.shape);
-                match tool.draws_live() {
-                    true => {
-                        self.put_live(vec![entity]);
-                        self.select_added(created, shape);
-                    }
-                    false => self.add_entity(entity),
+                if shape == CanvasShape::Text {
+                    self.edit_text(Some(created));
                 }
+                self.put_live(vec![entity]);
+                self.select_added(created, shape);
                 if !self.tool_locked.get_untracked() {
                     self.put_down_tool();
                     self.selection.set(HashSet::from([created]));

@@ -67,6 +67,7 @@ pub fn NumberInput(
     face: Render<NumberFaceHandle>,
     field: Render<NumberFieldHandle>,
     on_preview: Callback<Option<f64>>,
+    on_scrub: Callback<bool>,
 ) -> NodeId {
     let text = create_signal(format_number(
         value.get_untracked(),
@@ -123,6 +124,9 @@ pub fn NumberInput(
             return;
         };
         held.set(Some((origin, start, true)));
+        if !moved {
+            on_scrub.call(true);
+        }
         let next = next.clamp(min, max);
         text.set(format_number(next, decimals.get_untracked()));
         value.set(next);
@@ -132,11 +136,14 @@ pub fn NumberInput(
             editing.set(true);
         }
     };
-    let clicked = move || {
-        if let Some((_, _, moved)) = held.take()
-            && !moved
-        {
-            open();
+    let clicked = move || match held.take() {
+        Some((_, _, false)) => open(),
+        Some((_, _, true)) => on_scrub.call(false),
+        None => {}
+    };
+    let cancelled = move || {
+        if let Some((_, _, true)) = held.take() {
+            on_scrub.call(false);
         }
     };
 
@@ -231,6 +238,7 @@ pub fn NumberInput(
                     on_press={pressed}
                     on_drag={dragged}
                     on_click={clicked}
+                    on_cancel={cancelled}
                     on_hover_change={hovered}
                     on_active_change={active}
                     children={Some(face)}

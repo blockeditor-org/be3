@@ -30,6 +30,7 @@ pub fn NumberInput(
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     #[prop(default = None)] decimals: Prop<Option<u32>>,
     on_preview: Callback<Option<f64>>,
+    on_scrub: Callback<bool>,
 ) -> NodeId {
     let shown = NodeRef::new();
     set_component_state(FaceText(shown));
@@ -68,6 +69,7 @@ pub fn NumberInput(
                 }
             }}
             on_preview={on_preview}
+            on_scrub={on_scrub}
         />
     }
 }
