@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Pos2, TouchPhase, pos2};
+use block_editor_beui::beui::{Event, Pos2, TouchPhase, pos2};
 
 #[test]
 fn text_left_empty_leaves_nothing_behind() {
@@ -20,13 +20,16 @@ fn text_left_empty_leaves_nothing_behind() {
             }
         };
         let write = |editor: &mut BeuiTest<CanvasApp>, at: Pos2| {
-            editor.click("infinite-canvas.dock.tool.Text");
+            match finger {
+                true => editor.tap("infinite-canvas.dock.tool.Text"),
+                false => editor.click("infinite-canvas.dock.tool.Text"),
+            }
             editor.run();
             tap(editor, at);
         };
 
         write(&mut editor, spot(60.0, 120.0));
-        editor.text("Kept");
+        editor.step(vec![Event::Text("Kept".to_owned())]);
         editor.run();
         write(&mut editor, spot(60.0, 260.0));
         write(&mut editor, spot(60.0, 400.0));

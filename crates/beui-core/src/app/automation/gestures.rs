@@ -277,6 +277,37 @@ impl Gestures {
         Ok(vec![frame])
     }
 
+    pub fn pen_sample(&mut self, phase: PenPhase, pos: Pos2, pressure: f32, pen: Pen) -> Frames {
+        self.pen = match phase {
+            PenPhase::Gone => None,
+            PenPhase::Down(_) => Some((pos, true)),
+            PenPhase::Up(_) => Some((pos, false)),
+            PenPhase::Move => Some((pos, self.pen.is_some_and(|(_, down)| down))),
+        };
+        vec![vec![Event::Pen {
+            phase,
+            pos,
+            pressure,
+            pen,
+        }]]
+    }
+
+    pub fn hold(&mut self, modifiers: Modifiers) -> Frames {
+        let mut events = Vec::new();
+        for (key, wanted, held) in [
+            (Key::Ctrl, modifiers.ctrl, self.held.ctrl),
+            (Key::Alt, modifiers.alt, self.held.alt),
+            (Key::Shift, modifiers.shift, self.held.shift),
+            (Key::Logo, modifiers.logo, self.held.logo),
+        ] {
+            if wanted != held {
+                keys::set_modifier(&mut self.held, key, wanted);
+                keys::modifier_event(key, wanted, self.held, &mut events);
+            }
+        }
+        vec![events]
+    }
+
     pub fn back(&mut self) -> Frames {
         let mut events = Vec::new();
         self.start_back(BackEdge::Left, &mut events);

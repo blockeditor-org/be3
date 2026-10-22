@@ -96,13 +96,18 @@ DocumentTest alike, so a test need not know how much fits on its screen. It pani
 node has that test id, which is usually a node that was never given one, or one a virtualized
 list has not built; shown() and label() ask about one without clicking it.
 
-run() hands the editor what was queued since the last one in the frames a person would
-produce it in, as the app batches input between frames: a click (the move to it, the press
-and the release), a key press or typed text arrives in a single frame, and a drag spans three
-- the press, the move, and the last move with the release - since beui folds a frame's
-pointer events into one position; drag_along(points) spends a frame on each point between
-the first and the last, for a gesture whose path matters, like a lasso. next_frame() ends the frame being queued, and
-step(events) paints one frame with exactly the events it is handed.
+run() hands the editor what was queued since the last one, frame by frame. Its gestures are
+drive's, built by the same `beui::automation::gestures::Gestures` (guides/running/drive.md),
+so an editor test presses, types and touches as drive and the app tests do: the pointer spends
+a frame arriving where a click, a press or a drag starts before it presses, a click or a key
+then arrives in one frame, a key carries the text it types and a chord presses its modifiers
+as keys of their own, text() types key by key, and drag(from, to) is the press, a move halfway
+and the last move with the release. drag_along(points) spends a frame on each point and lets
+go in a frame of its own, for a gesture whose path matters, like a lasso, or one that should
+come to rest where it ends, like a sheet dragged by its handle. tap(test_id) is a finger's
+click: a test that touches keeps touching, since a mouse arriving after a finger can change
+what a phone layout shows. next_frame() ends the frame being queued, and step(events) paints
+one frame with exactly the events it is handed.
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
 of the two a test captures is down to whether the thread beat it to the frame: a snapshot

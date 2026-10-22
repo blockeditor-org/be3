@@ -24,6 +24,7 @@ fn revision_history_previews_a_file_on_a_phone() {
     fixture.settle();
     fixture.test.click("dock.switch");
     fixture.settle();
+    fixture.test.settle();
     fixture.test.click(&format!(
         "dock.switcher.tab.{}",
         block_shell::REVISIONS.value()

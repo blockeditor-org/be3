@@ -9,13 +9,6 @@ pub(crate) struct Input {
 }
 
 impl Input {
-    pub(crate) fn held_after<'a>(
-        &self,
-        queued: impl DoubleEndedIterator<Item = &'a Event>,
-    ) -> Modifiers {
-        queued.rev().find_map(holds).unwrap_or(self.held)
-    }
-
     pub(crate) fn normalize(&mut self, events: Vec<Event>, time_micros: u64) -> Vec<InputEvent> {
         self.time_micros = time_micros;
         let mut output = Vec::new();
@@ -133,13 +126,5 @@ impl Input {
             }
             _ => {}
         }
-    }
-}
-
-fn holds(event: &Event) -> Option<Modifiers> {
-    match event {
-        Event::Modifiers(modifiers) | Event::PointerButton { modifiers, .. } => Some(*modifiers),
-        Event::Key { press, .. } | Event::InterceptedKey(press) => Some(press.modifiers),
-        _ => None,
     }
 }

@@ -1,6 +1,6 @@
 use beui::{
     Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
-    TouchId, TouchPhase, Vec2,
+    TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -21,6 +21,7 @@ use uuid::Uuid;
 use crate::document::FRAME_INTERVAL;
 use crate::input::Input;
 use crate::{ContentStore, overflow, snapshot};
+use beui::automation::gestures::{Frames, Gestures};
 
 pub(crate) mod capture;
 
@@ -46,6 +47,7 @@ pub struct BeuiTest<A: BeuiApp> {
     monitors: Vec<block_plugin_api::Monitor>,
     frame: Option<block_plugin_api::FrameSpec>,
     input: Input,
+    gestures: Gestures,
     frames: Vec<Vec<Event>>,
     inbox: Vec<Message>,
     sent: Vec<EditorMessage>,
@@ -216,6 +218,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             monitors: Vec::new(),
             frame,
             input: Input::default(),
+            gestures: Gestures::default(),
             frames: Vec::new(),
             inbox: Vec::new(),
             sent: Vec::new(),
@@ -1168,6 +1171,17 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
+    fn perform(&mut self, frames: Frames) {
+        for (index, frame) in frames.into_iter().enumerate() {
+            if index > 0 {
+                self.next_frame();
+            }
+            for event in frame {
+                self.push(event);
+            }
+        }
+    }
+
     pub fn next_frame(&mut self) {
         if self.frames.last().is_some_and(|frame| !frame.is_empty()) {
             self.frames.push(Vec::new());
@@ -1175,7 +1189,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn back(&mut self) {
-        self.push(Event::Back(beui::BackGesture::Invoked));
+        let frames = self.gestures.back();
+        self.perform(frames);
     }
 
     pub fn handles_back(&self) -> bool {
@@ -1205,6 +1220,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             return false;
         }
+        self.hold_modifiers(modifiers);
         let presses = std::iter::once((true, false))
             .chain(std::iter::repeat_n((true, true), repeats))
             .chain(std::iter::once((false, false)));
@@ -1227,16 +1243,14 @@ impl<A: BeuiApp> BeuiTest<A> {
         true
     }
 
-    fn held(&self) -> Modifiers {
-        self.input.held_after(self.frames.iter().flatten())
-    }
-
     pub fn hold_modifiers(&mut self, modifiers: Modifiers) {
-        self.push(Event::Modifiers(modifiers));
+        let frames = self.gestures.hold(modifiers);
+        self.perform(frames);
     }
 
     pub fn hover_at(&mut self, pos: Pos2) {
-        self.push(Event::PointerMoved(pos));
+        let frames = self.gestures.hover(pos);
+        self.perform(frames);
     }
 
     pub fn shown(&self, test_id: &str) -> bool {
@@ -1311,13 +1325,19 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.run();
     }
 
+    pub fn tap(&mut self, test_id: &str) {
+        self.reveal(test_id);
+        let frames = self.gestures.tap(self.point_of(test_id), 1);
+        self.perform(frames);
+    }
+
     pub fn double_click(&mut self, test_id: &str) {
         self.double_click_at(self.point_of(test_id));
     }
 
     pub fn double_click_at(&mut self, pos: Pos2) {
-        self.click_at(pos);
-        self.click_at(pos);
+        let frames = self.gestures.click(pos, PointerButton::Primary, 2);
+        self.perform(frames);
     }
 
     pub fn click_at(&mut self, pos: Pos2) {
@@ -1329,27 +1349,18 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click_button_at(&mut self, pos: Pos2, button: PointerButton) {
-        let modifiers = self.held();
-        self.hover_at(pos);
-        for pressed in [true, false] {
-            self.push(Event::PointerButton {
-                pos,
-                button,
-                pressed,
-                modifiers,
-            });
-        }
+        let frames = self.gestures.click(pos, button, 1);
+        self.perform(frames);
     }
 
     pub fn scroll(&mut self, test_id: &str, delta: Vec2) {
-        self.hover_at(self.point_of(test_id));
-        self.push(Event::Scroll(delta));
-        self.next_frame();
-        self.push(Event::ScrollEnded);
+        let frames = self.gestures.scroll(self.point_of(test_id), -delta);
+        self.perform(frames);
     }
 
     pub fn drag(&mut self, from: Pos2, to: Pos2) {
-        self.drag_along(&[from, to]);
+        let frames = self.gestures.drag(from, to, 2);
+        self.perform(frames);
     }
 
     pub fn drag_along(&mut self, points: &[Pos2]) {
@@ -1359,51 +1370,26 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.press_at(from);
         for &at in &points[1..] {
             self.next_frame();
-            self.push(Event::PointerMoved(at));
+            self.hover_at(at);
         }
         self.next_frame();
-        self.push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
         self.release_at(to);
     }
 
     pub fn press_at(&mut self, pos: Pos2) {
-        let modifiers = self.held();
-        self.hover_at(pos);
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers,
-        });
+        let frames = self.gestures.down(pos, PointerButton::Primary);
+        self.perform(frames);
     }
 
     pub fn release_at(&mut self, pos: Pos2) {
-        let modifiers = self.held();
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers,
-        });
+        let frames = self.gestures.up(Some(pos), PointerButton::Primary);
+        self.perform(frames);
     }
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
-        let modifiers = self.held();
-        self.hover_at(from);
-        self.push(Event::PointerButton {
-            pos: from,
-            button: PointerButton::Secondary,
-            pressed: true,
-            modifiers,
-        });
-        self.next_frame();
-        self.push(Event::PointerMoved(to));
-        self.push(Event::PointerButton {
-            pos: to,
-            button: PointerButton::Secondary,
-            pressed: false,
-            modifiers,
-        });
+        let mut frames = self.gestures.down(from, PointerButton::Secondary);
+        frames.extend(self.gestures.up(Some(to), PointerButton::Secondary));
+        self.perform(frames);
     }
 
     pub fn touch_start(&mut self, pos: Pos2) {
@@ -1427,33 +1413,27 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) {
-        self.push(Event::Touch {
-            id: TouchId { device: 1, finger },
-            phase,
-            pos,
-            force: None,
-        });
+        let frames = self
+            .gestures
+            .touch(phase, &[(finger, Some(pos))])
+            .unwrap_or_else(|error| panic!("{error}"));
+        self.perform(frames);
     }
 
     pub fn pen(&mut self, phase: PenPhase, pos: Pos2, pressure: f32) {
-        self.push(Event::Pen {
-            phase,
-            pos,
-            pressure,
-            pen: Pen::default(),
-        });
+        let frames = self
+            .gestures
+            .pen_sample(phase, pos, pressure, Pen::default());
+        self.perform(frames);
     }
 
     pub fn eraser(&mut self, phase: PenPhase, pos: Pos2) {
-        self.push(Event::Pen {
-            phase,
-            pos,
-            pressure: 1.0,
-            pen: Pen {
-                eraser: true,
-                ..Pen::default()
-            },
-        });
+        let eraser = Pen {
+            eraser: true,
+            ..Pen::default()
+        };
+        let frames = self.gestures.pen_sample(phase, pos, 1.0, eraser);
+        self.perform(frames);
     }
 
     pub fn pinch(&mut self, pos: Pos2, factor: f32) {
@@ -1477,19 +1457,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn key_press_modifiers(&mut self, modifiers: Modifiers, key: Key) {
-        let held = self.held();
-        if modifiers != held {
-            self.push(Event::Modifiers(modifiers));
-        }
-        self.push(Event::key(KeyPress::down(key, modifiers)));
-        self.push(Event::key(KeyPress::up(key, modifiers)));
-        if modifiers != held {
-            self.push(Event::Modifiers(held));
-        }
+        let frames = self.gestures.chord(key, modifiers);
+        self.perform(frames);
     }
 
     pub fn text(&mut self, text: impl Into<String>) {
-        self.push(Event::Text(text.into()));
+        let frames = self.gestures.type_text(&text.into());
+        self.perform(frames);
     }
 
     pub fn record(&mut self) {

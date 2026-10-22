@@ -6,6 +6,7 @@ fn widening_the_phone_with_its_switcher_open_keeps_the_workspace() {
     show(&mut fixture, opened, None);
     fixture.test.click("dock.switch");
     fixture.settle();
+    fixture.test.settle();
     assert!(fixture.test.shown("dock.switcher.tab.1"));
 
     fixture.test.set_size(Vec2::new(1200.0, 800.0));

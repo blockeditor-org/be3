@@ -11,10 +11,16 @@ fn a_finger_drags_a_transform_field_in_the_sheet() {
     editor.run();
     editor.finger(1, TouchPhase::End, at);
     editor.run();
-    editor.click("infinite-canvas.inspect");
+    editor.tap("infinite-canvas.inspect");
     editor.run();
     let handle = editor.rect_of("sheet.handle").center();
-    editor.drag(handle, handle - Vec2::new(0.0, 400.0));
+    let raised = handle - Vec2::new(0.0, 400.0);
+    editor.finger(1, TouchPhase::Start, handle);
+    editor.run();
+    editor.finger(1, TouchPhase::Move, raised);
+    editor.run();
+    editor.finger(1, TouchPhase::End, raised);
+    editor.run();
     editor.settle_until("the sheet to come to rest", |editor| {
         !editor.wants_another_frame()
     });

@@ -15,7 +15,7 @@ fn a_phone_opens_a_context_submenu_as_a_page_of_its_sheet() {
     editor.run();
     assert!(editor.shown("infinite-canvas.menu.canvas.grid-menu"));
 
-    editor.click("infinite-canvas.menu.canvas.grid-menu");
+    editor.tap("infinite-canvas.menu.canvas.grid-menu");
     editor.run();
     assert!(
         !editor.shown("infinite-canvas.menu.canvas.delete"),
@@ -25,7 +25,7 @@ fn a_phone_opens_a_context_submenu_as_a_page_of_its_sheet() {
     editor.advance(std::time::Duration::from_secs(1));
     editor.snapshot("a_phone_opens_a_context_submenu_as_a_page_of_its_sheet");
 
-    editor.click("infinite-canvas.menu.canvas.grid-large");
+    editor.tap("infinite-canvas.menu.canvas.grid-large");
     editor.run();
     assert_eq!(
         editor.content::<CanvasContent>(None).root().grid.shown(),
