@@ -17,7 +17,7 @@ How a coordinating agent splits a large task across subagents on one Claude Code
 - Memory is the tightest limit. The VM has 15G and each worktree runs its own buck2 daemon of about 1.5G, and verify runs got OOM-killed with six worktrees building at once. Five concurrent agents is about the most that fits, and each must run `./scripts/buck kill` in its worktree when it finishes. The coordinator should kill its own idle daemon too.
 - Disk is a fixed allowance of about 39G. A worktree's `buck-out` can reach 11G after verify. Delete `buck-out` when space runs low: everything is cached on the build server. Run `./scripts/buck kill` first, or buck2 reports a stale working directory.
 - Never run `pkill -x buck2` or any other command that kills processes by name across the machine: it kills every agent's build.
-- Running seven agents at once used up the account's session usage limit within hours. After the limit resets, resume each stopped agent by messaging it; its worktree and transcript survive. A worker restart kills background builds, so tell resumed agents to rerun theirs.
+- When the account's usage limit is reached, every agent stops at once. After it resets, resume each one by messaging it; its worktree and transcript survive. A worker restart kills background builds, so tell resumed agents to rerun theirs.
 
 ## The build server
 
