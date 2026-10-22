@@ -11,6 +11,7 @@ use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
+use crate::input::Keyboard;
 use crate::input::{
     BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, Pen, PenPhase,
     PointerButton, TouchId, TouchPhase,
@@ -1412,14 +1413,15 @@ impl Automation {
         if !keys.is_empty() {
             text.push_str(&format!("keys down {}\n", keys.join(", ")));
         }
-        match (
-            &self.composing,
-            view.window.ime.as_ref().map(|area| area.cursor),
-        ) {
+        match (&self.composing, view.window.ime.as_ref()) {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
-            (None, Some(cursor)) => text.push_str(&format!(
-                "the app asks for an input method, its caret {}\n",
-                describe(scaled(cursor, scale))
+            (None, Some(area)) => text.push_str(&format!(
+                "the app asks for an input method, its caret {}, {}\n",
+                describe(scaled(area.cursor, scale)),
+                match area.keyboard {
+                    Keyboard::Shown { asks } => format!("its keyboard shown (ask {asks})"),
+                    Keyboard::Held => "its keyboard held back".to_owned(),
+                }
             )),
             (None, None) => {}
         }

@@ -93,7 +93,8 @@ so dialogs, the file tree and every editor read like the host's own controls.
   Like `hit`, this sees the host document, not plugin documents.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
-  method's composition, a back gesture under way, files being dragged in, and any open file
+  method's composition or where the app asks for one and whether it shows the on-screen
+  keyboard or holds it back, a back gesture under way, files being dragged in, and any open file
   dialog.
 - `drive actions` lists the actions the command palette would offer where the focus is
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
