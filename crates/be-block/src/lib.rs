@@ -41,6 +41,7 @@ pub mod presentation;
 pub mod profile;
 pub mod setting;
 pub mod settings;
+pub mod settling;
 pub mod streamed;
 pub mod text;
 pub mod version_control;
@@ -89,6 +90,7 @@ pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
 };
+pub use settling::{Landed, Settling};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
