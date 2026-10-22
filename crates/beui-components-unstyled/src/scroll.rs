@@ -600,6 +600,7 @@ fn Scrolling(
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
+    let marker = marker.once();
     on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
         event
             .press()
@@ -649,17 +650,16 @@ fn Scrolling(
                     >
                         <List direction={marker_axis} spacing=0.0>
                             {node} @sizing={content_sizing(fit)}
-                            <ShowKeepAlive condition={marked}>
-                                <Overlay
-                                    anchor
-                                    placement=Placement::Around
-                                    policy=LayerPolicy::Inert
-                                    traps_focus=false
-                                    open={marked}
-                                >
-                                    {marker.call(marker_axis)}
-                                </Overlay>
-                            </ShowKeepAlive>
+                            <Overlay
+                                anchor
+                                placement=Placement::Around
+                                policy=LayerPolicy::Inert
+                                traps_focus=false
+                                open={marked}
+                                keep_alive=true
+                            >
+                                {marker.call(marker_axis)}
+                            </Overlay>
                         </List>
                     </Frame>
                 </Interactive>

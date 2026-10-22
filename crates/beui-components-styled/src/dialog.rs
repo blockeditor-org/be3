@@ -51,26 +51,31 @@ pub fn Dialog(
         on_confirm,
         on_cancel: on_dismiss,
     };
+    let body = Render::new(move |()| {
+        view! {
+            <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
+                <DialogSurface
+                    width={width}
+                    title={title}
+                    role=Role::Dialog
+                    actions={actions}
+                    extra={ExtraActions(extra_actions)}
+                >
+                    {content.call(())}
+                </DialogSurface>
+            </BackSlide>
+        }
+    })
+    .once();
     view! {
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
             open={open}
+            keep_alive=true
             placement=Placement::Center
             scrim={scrim}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
-            content={move || view! {
-                <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
-                    <DialogSurface
-                        width={width}
-                        title={title}
-                        role=Role::Dialog
-                        actions={actions}
-                        extra={ExtraActions(extra_actions)}
-                    >
-                        {content.call(())}
-                    </DialogSurface>
-                </BackSlide>
-            }}
+            content={move || body.call(())}
         />
     }
 }

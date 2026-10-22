@@ -191,12 +191,16 @@ impl super::State {
         });
     }
 
-    fn anchor_node(&self, parent: TabId) -> Option<NodeId> {
+    fn anchor_ref(&self, parent: TabId) -> Option<NodeRef> {
         if self.is_dialog(parent) {
-            return self.dialog_frames.value().borrow().get(&parent)?.try_get();
+            return self.dialog_frames.value().borrow().get(&parent).copied();
         }
         let shown = self.state.with_untracked(|state| state.contains(parent));
-        shown.then(|| self.panel(parent))
+        shown.then(|| {
+            let panel = NodeRef::new();
+            panel.fill(self.panel(parent));
+            panel
+        })
     }
 }
 
@@ -266,13 +270,13 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         create_memo(move || card && fallback.is_some() && mode.get() == DockMode::Stacked);
     let anchored = create_memo(move || shown.get() && !stacked.get());
     let in_sheet = create_memo(move || shown.get() && stacked.get());
-    let anchor = NodeRef::new();
+    let anchor = create_signal(NodeRef::new());
     create_effect(move || {
         if !shown.get() {
             return;
         }
-        if let Some(node) = untrack(|| dock.anchor_node(parent)) {
-            anchor.fill(node);
+        if let Some(node) = untrack(|| dock.anchor_ref(parent)) {
+            anchor.set(node);
         }
     });
     let blocking = create_memo(move || shown.get() && modal.get());
@@ -367,22 +371,25 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         dock.call_attention();
     };
     let (margin, gap, dims) = (dock.dialog_margin, dock.dialog_gap, dock.dialog_scrim);
-    let placed = create_memo(move || match (card, asked_from.get()) {
-        (true, Some(rect)) => (
-            OverlayAnchor::Pinned { node: anchor, rect },
-            Placement::Popover { gap, margin },
-            Color32::TRANSPARENT,
-        ),
-        (true, None) => (
-            OverlayAnchor::Node(anchor),
-            Placement::HangFrom(margin),
-            dims.get(),
-        ),
-        (false, _) => (
-            OverlayAnchor::Node(anchor),
-            Placement::CenterOn,
-            Color32::TRANSPARENT,
-        ),
+    let placed = create_memo(move || {
+        let anchor = anchor.get();
+        match (card, asked_from.get()) {
+            (true, Some(rect)) => (
+                OverlayAnchor::Pinned { node: anchor, rect },
+                Placement::Popover { gap, margin },
+                Color32::TRANSPARENT,
+            ),
+            (true, None) => (
+                OverlayAnchor::Node(anchor),
+                Placement::HangFrom(margin),
+                dims.get(),
+            ),
+            (false, _) => (
+                OverlayAnchor::Node(anchor),
+                Placement::CenterOn,
+                Color32::TRANSPARENT,
+            ),
+        }
     });
     let at = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);

@@ -1357,13 +1357,23 @@ frame in its content, the overlay moves the content so that frame, not the
 content's padded edge, stands `gap` off the anchor, and points the frame's beak
 at the anchor's middle on whichever side it opened.
 
-Hand an `Overlay` what it shows as `content={move || ...}` rather than as
-children: it calls that the first time it opens, so a closed tooltip, select,
-menu or prompt costs its overlay node and nothing else. Children are built with
-the overlay, whether or not it ever opens; use them only for content that must
-exist while closed. State the rest of the component reads, such as which rows
-a select's search hides, belongs outside the content, derived from data rather
-than from nodes that may not have been built.
+An `Overlay`'s children (or `content={move || ...}`) are built when it opens
+and taken out of the tree when it closes, like a `Show`: a closed tooltip,
+select, menu or prompt costs its overlay node and nothing else, and nothing in
+it is focusable, hit or in the accessibility tree. `keep_alive=true` makes it a
+`ShowKeepAlive` instead: built the first time it opens, then kept with its
+state while closed (a dialog, a popover, a dock's window). Its children are
+built more than once, so they are an `Fn`; a component holding a `Render` it
+can call only once hands it over as `render.once()` to a `keep_alive` overlay,
+which never calls it twice. State the rest of the component reads, such as
+which rows a select's search hides, belongs outside the content, derived from
+data rather than from nodes that may not have been built.
+
+A close that animates is the overlay's business, not its owner's: the content
+calls `use_overlay_presence()` and hands `linger_while` a memo that stays true
+until its exit has finished, and the overlay stays open and keeps the content
+until then, so its owner writes `open` false and sees nothing hidden in
+between. `ModalSheet` slides away this way.
 
 Each layer has one `policy` (`LayerPolicy`):
 

@@ -416,8 +416,9 @@ impl Document {
             .filter(|other| *other != overlay && self.is_within(other.id(), overlay.id()))
             .collect();
         for id in std::iter::once(overlay).chain(nested.iter().copied()) {
-            self.arena.get_mut_as::<OverlayNode>(id).open = false;
-            self.arena.invalidate_node(id);
+            let node = self.arena.get_mut_as::<OverlayNode>(id);
+            node.open = false;
+            node.content = None;
         }
         self.layer_state
             .open

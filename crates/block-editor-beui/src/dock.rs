@@ -22,8 +22,8 @@ pub fn BottomDock(
     let open = create_memo(move || open.get() && !sheet.get());
     let row = NodeRef::new();
     arrow_focus(row, Direction::Horizontal);
-    view! {
-        <Floating anchor={anchor} edge=Edge::Bottom open={open}>
+    let content = Render::new(move |()| {
+        view! {
             <Frame padding=DOCK_MARGIN>
                 <List align=Align::Center spacing=0.0>
                     <Frame children={above} />
@@ -53,6 +53,12 @@ pub fn BottomDock(
                     </Frame>
                 </List>
             </Frame>
+        }
+    })
+    .once();
+    view! {
+        <Floating anchor={anchor} edge=Edge::Bottom open={open} keep_alive=true>
+            {content.call(())}
         </Floating>
     }
 }

@@ -134,8 +134,8 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let scale = state.editor().scale();
     let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
-    view! {
-        <Floating anchor={anchor} edge=Edge::TopEnd open={open}>
+    let content = Render::new(move |()| {
+        view! {
             <Frame padding=PILL_MARGIN>
                 <Frame
                     fill=ColorRole::SurfaceRaised
@@ -168,6 +168,12 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                     </List>
                 </Frame>
             </Frame>
+        }
+    })
+    .once();
+    view! {
+        <Floating anchor={anchor} edge=Edge::TopEnd open={open} keep_alive=true>
+            {content.call(())}
         </Floating>
     }
 }

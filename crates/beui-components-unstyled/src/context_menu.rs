@@ -180,21 +180,23 @@ fn Toolbar(
     on_dismiss: ClickCallback,
 ) -> NodeId {
     let shown = store(RefCell::new(Vec::<Rc<MenuItem>>::new()));
-    let buttons = items.build_each(
-        shown,
-        |_, item| item,
-        move |index| {
-            let item = shown.with(|shown| shown.borrow()[index].clone());
-            match item.children.get_untracked().is_empty() {
-                true => view! {
-                    <ToolbarButton item index button on_choose />
-                },
-                false => view! {
-                    <List spacing=0.0 />
-                },
-            }
-        },
-    );
+    let buttons = RenderFn::new(move |()| {
+        items.build_each(
+            shown,
+            |_, item| item,
+            move |index| {
+                let item = shown.with(|shown| shown.borrow()[index].clone());
+                match item.children.get_untracked().is_empty() {
+                    true => view! {
+                        <ToolbarButton item index button on_choose />
+                    },
+                    false => view! {
+                        <List spacing=0.0 />
+                    },
+                }
+            },
+        )
+    });
     view! {
         <Overlay
             anchor
@@ -215,7 +217,7 @@ fn Toolbar(
                     align=Align::Center
                     spacing=0.0
                 >
-                    {buttons}
+                    {buttons.call(())}
                     <unstyled::Button
                         @node_ref=&more
                         label="More"

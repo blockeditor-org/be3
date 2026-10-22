@@ -739,21 +739,24 @@ fn MenuRow(
                         placement=Placement::RightStart
                         open={open}
                         on_dismiss={move |_: Dismiss| open.set(false)}
-                        content={move || panel.call(view! {
-                            <MenuList
-                                @node_ref={&content_ref}
-                                items={children}
-                                row
-                                panel={panel}
-                                parent={leave}
-                                active={open}
-                                focus_first=true
-                                on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
-                                    path.insert(0, index);
-                                    state.on_select.call((path, then));
-                                }}
-                            />
-                        })}
+                        content={move || {
+                            let children = children.clone();
+                            panel.call(view! {
+                                <MenuList
+                                    @node_ref={&content_ref}
+                                    items={children}
+                                    row
+                                    panel={panel}
+                                    parent={leave}
+                                    active={open}
+                                    focus_first=true
+                                    on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
+                                        path.insert(0, index);
+                                        state.on_select.call((path, then));
+                                    }}
+                                />
+                            })
+                        }}
                     />
                 }
             }</Show>

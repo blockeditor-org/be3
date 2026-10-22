@@ -68,8 +68,8 @@ pub fn Toasts(
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
 ) -> NodeId {
-    let listed = toasts.clone();
-    let open = create_memo(move || !listed.get().is_empty());
+    let toasts = create_memo(move || toasts.get());
+    let open = create_memo(move || toasts.with(|toasts| !toasts.is_empty()));
     let placement = edge.map(|edge| match edge {
         Edge::Top => Placement::InsideTop,
         Edge::TopEnd => Placement::InsideTopEnd,

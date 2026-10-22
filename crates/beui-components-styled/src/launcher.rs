@@ -259,7 +259,7 @@ pub fn Launcher(
             scrim={scrim}
             open
             on_dismiss={move |_: Dismiss| on_close.call()}
-            content={move || view! {
+            content={move || { let items = items.clone(); let placeholder = placeholder.clone(); view! {
                 <Frame padding=MARGIN>
                     <Frame
                         width={Extent::at_most(WIDTH)}
@@ -295,7 +295,7 @@ pub fn Launcher(
                         </List>
                     </Frame>
                 </Frame>
-            }}
+            } }}
         />
     }
 }

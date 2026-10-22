@@ -150,8 +150,11 @@ where
                 tree={rows}
                 viewport={viewport}
                 on_reveal={on_reveal}
-                button={move |handle: TreeRevealHandle| view! {
-                    <RevealButton handle named={reveal_test_id} />
+                button={move |handle: TreeRevealHandle| {
+                    let named = reveal_test_id.clone();
+                    view! {
+                        <RevealButton handle named />
+                    }
                 }}
             />
         </List>

@@ -48,11 +48,11 @@ pub fn CommandPalette(
     list_height: Prop<f32>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     search_placeholder: Prop<String>,
-    search_content: Option<Render<TextInputHandle>>,
+    search_content: Option<RenderFn<TextInputHandle>>,
     #[prop(default = TextInputStyle::default())] search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     row: Option<RenderFn<CommandRowHandle>>,
-    #[prop(children)] panel: Option<Render<Child>>,
+    #[prop(children)] panel: Option<RenderFn<Child>>,
 ) -> NodeId {
     let row = row.unwrap_or_else(|| {
         RenderFn::new(|_| {
@@ -61,7 +61,7 @@ pub fn CommandPalette(
             }
         })
     });
-    let panel = panel.unwrap_or_else(|| Render::new(|content| content));
+    let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let query = create_signal(String::new());
     let shown = create_signal(Vec::<u64>::new());
     let highlighted = create_signal(None::<u64>);
@@ -85,6 +85,7 @@ pub fn CommandPalette(
         }
     });
 
+    let search_placeholder = create_memo(move || search_placeholder.get());
     let highlight = create_selector(move || highlighted.get());
     let keys = create_memo(move || shown.get());
     let reveal = reveal_reader(state);
@@ -115,7 +116,10 @@ pub fn CommandPalette(
                         placeholder={search_placeholder}
                         style={search_style}
                         accessibility={accessibility}
-                        content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
+                        content={Render::new(move |handle: TextInputHandle| match search_content {
+                            Some(search) => search.call(handle),
+                            None => handle.field,
+                        })}
                         on_submit={move |_text: String| {
                             if let Some(key) = state.highlighted.get_untracked() {
                                 confirm(state, key);

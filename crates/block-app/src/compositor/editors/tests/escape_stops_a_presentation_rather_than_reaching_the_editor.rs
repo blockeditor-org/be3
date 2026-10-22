@@ -16,6 +16,9 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
         move || {
             let overlay = NodeRef::new();
             stop_on_escape(overlay);
+            let forward = Callback::new(move |input: ForwardedInput| {
+                heard.borrow_mut().extend(input.inputs().cloned())
+            });
             view! {
                 <beui::styled::Root>
                     <Overlay
@@ -26,11 +29,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
                         on_dismiss={move |_: Dismiss| stopped.set(stopped.get() + 1)}
                     >
                         <List spacing=0.0>
-                            <Interactive
-                                @node_ref={&catcher}
-                                focusable=true
-                                on_forward={move |input: ForwardedInput| heard.borrow_mut().extend(input.inputs().cloned())}
-                            >
+                            <Interactive @node_ref={&catcher} focusable=true on_forward={forward}>
                                 <Frame width=100.0 height=100.0 />
                             </Interactive>
                             <Overlay

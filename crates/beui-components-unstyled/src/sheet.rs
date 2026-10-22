@@ -15,7 +15,7 @@ use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
 use beui_core::node::{NodeId, NodeOf};
-use beui_view::components::overlay::Overlay;
+use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -1249,38 +1249,36 @@ pub fn ModalSheet(
     on_close: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
-    let gone = create_signal(true);
     let presence = create_signal(0.0_f32);
-    create_effect(move || {
-        if open.get() {
-            gone.set(false);
-        }
-    });
-    let shown = create_memo(move || open.get() || !gone.get());
     let faded = create_memo(move || scrim.get().scale_alpha(presence.get()));
+    let shown = open;
+    let body = Render::new(move |()| {
+        view! {
+            <ModalSheetBody
+                open={shown}
+                rest
+                stops
+                fit
+                fade
+                grip
+                panel
+                on_presence={presence}
+                on_close={on_close}
+            >
+                {content.call(())}
+            </ModalSheetBody>
+        }
+    })
+    .once();
     view! {
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
-            open={shown}
+            open={open}
+            keep_alive=true
             placement=Placement::Fill
             scrim={faded}
             on_dismiss={move |_: Dismiss| on_close.call()}
-            content={move || view! {
-                <ModalSheetBody
-                    open
-                    rest
-                    stops
-                    fit
-                    fade
-                    grip
-                    panel
-                    on_presence={presence}
-                    on_gone={move || gone.set(true)}
-                    on_close={on_close}
-                >
-                    {content.call(())}
-                </ModalSheetBody>
-            }}
+            content={move || body.call(())}
         />
     }
 }
@@ -1295,10 +1293,19 @@ fn ModalSheetBody(
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_presence: Callback<f32>,
-    on_gone: ClickCallback,
     on_close: ClickCallback,
     children: Child,
 ) -> NodeId {
+    let gone = create_signal(false);
+    let reopened = open;
+    create_effect(move || {
+        if reopened.get() {
+            gone.set(false);
+        }
+    });
+    if let Some(presence) = use_overlay_presence() {
+        presence.linger_while(create_memo(move || !gone.get()));
+    }
     let drag = Rc::new(Cell::new(None::<Callback<DragGesture>>));
     let target = drag.clone();
     let grip = Render::new(move |handle: SheetGripHandle| {
@@ -1336,7 +1343,7 @@ fn ModalSheetBody(
                         grip
                         panel
                         on_presence={move |presence: f32| on_presence.call(presence)}
-                        on_gone={on_gone}
+                        on_gone={move || gone.set(true)}
                         on_close={on_close}
                     >
                         {children}

@@ -67,12 +67,12 @@ pub fn Select(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     search_placeholder: Prop<String>,
-    search_content: Option<Render<TextInputHandle>>,
+    search_content: Option<RenderFn<TextInputHandle>>,
     #[prop(default = TextInputStyle::default())] search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     trigger: Option<Render<SelectTriggerHandle>>,
     option: Option<RenderFn<SelectOptionHandle>>,
-    #[prop(children)] popup: Option<Render<Child>>,
+    #[prop(children)] popup: Option<RenderFn<Child>>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let options = options.into_run();
@@ -86,9 +86,10 @@ pub fn Select(
             }
         })
     });
-    let popup = popup.unwrap_or_else(|| Render::new(|content| content));
+    let popup = popup.unwrap_or_else(|| RenderFn::new(|content| content));
 
     let highlighted = create_signal(initial);
+    let search_placeholder = create_memo(move || search_placeholder.get());
     let highlight = create_selector(move || highlighted.get());
     let is_open = create_signal(false);
     let focus = create_signal(Focus::Away);
@@ -144,18 +145,21 @@ pub fn Select(
         })
     };
 
-    let items = options.build_each(
-        state.rows,
-        |_, option| Row {
-            button: NodeRef::new(),
-            label: option.label(),
-        },
-        move |index| {
-            view! {
-                <SelectRow state={state} index option={option} highlight={highlight} />
-            }
-        },
-    );
+    let rows = options.clone();
+    let items = RenderFn::new(move |()| {
+        rows.build_each(
+            state.rows,
+            |_, option| Row {
+                button: NodeRef::new(),
+                label: option.label(),
+            },
+            move |index| {
+                view! {
+                    <SelectRow state={state} index option={option} highlight={highlight} />
+                }
+            },
+        )
+    });
 
     create_effect(move || {
         let query = state.search_text.get().to_lowercase();
@@ -206,7 +210,10 @@ pub fn Select(
                             keyboard_on_focus=false
                             placeholder={search_placeholder}
                             style={search_style}
-                            content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
+                            content={Render::new(move |handle: TextInputHandle| match search_content {
+                                Some(search) => search.call(handle),
+                                None => handle.field,
+                            })}
                             on_focus_change={move |has_focus: bool| blur(state, has_focus, Focus::Search)}
                             on_submit={move |_text: String| {
                                 if let Some(index) = state.highlighted.get_untracked() {
@@ -218,7 +225,7 @@ pub fn Select(
                             @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT)
                             reveal
                             scrollbar={scrollbar}
-                            children={items}
+                            children={items.call(())}
                         />
                     </List>
                 })}

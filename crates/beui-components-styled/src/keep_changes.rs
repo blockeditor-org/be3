@@ -96,7 +96,7 @@ pub fn KeepChanges(
             placement=Placement::At
             scrim={scrim}
             on_dismiss={move |_: Dismiss| revert()}
-            content={move || view! {
+            content={move || { let id = id.clone(); view! {
                 <Frame width=width height=height>
                     <Layers>
                         <ForEach keys={places}>|index: usize| {
@@ -124,7 +124,7 @@ pub fn KeepChanges(
                         }</ForEach>
                     </Layers>
                 </Frame>
-            }}
+            } }}
         />
     }
 }

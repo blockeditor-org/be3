@@ -1414,9 +1414,11 @@ fn DockFullscreenView(dock: State) -> NodeId {
             untrack(|| with_document(|document| document.raise_overlay(layer)));
         }
     });
-    let body = dock.fullscreen.call(view! {
-        <Portal node={panel} />
-    });
+    let body = move || {
+        dock.fullscreen.call(view! {
+            <Portal node={panel} />
+        })
+    };
     view! {
         <Overlay
             @node_ref={&dock.fullscreen_layer}
@@ -1434,7 +1436,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                     }
                 }}
             >
-                <Frame @test_id="dock.fullscreen" width=width height=height>{body}</Frame>
+                <Frame @test_id="dock.fullscreen" width=width height=height>{body()}</Frame>
             </Interactive>
         </Overlay>
     }
@@ -2652,7 +2654,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
     let claimed = dock.drag_modifier;
-    let resized = modifier_resize(dock, Resized::Window(surface));
+    let resized = Callback::new(modifier_resize(dock, Resized::Window(surface)));
     let view = view! {
         <Overlay
             @node_ref=&overlay
@@ -2887,7 +2889,6 @@ fn DockDragLayer(dock: State) -> NodeId {
         .map(OverlayAnchor::Point);
     let marker_width = create_memo(move || highlight.get().width());
     let marker_height = create_memo(move || highlight.get().height());
-    let face = dock.highlight.call(());
     view! {
         <List spacing=0.0>
             <Overlay
@@ -2897,7 +2898,7 @@ fn DockDragLayer(dock: State) -> NodeId {
                 traps_focus=false
                 open={marking}
             >
-                <Frame width=marker_width height=marker_height>{face}</Frame>
+                <Frame width=marker_width height=marker_height>{dock.highlight.call(())}</Frame>
             </Overlay>
         </List>
     }
