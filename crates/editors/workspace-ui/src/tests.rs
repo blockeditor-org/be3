@@ -34,6 +34,8 @@ mod a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab;
 mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_open_menu_is_withheld_from_the_block_under_it;
+mod block_type_colors_are_shown_in_the_add_menu_and_full_list;
+mod block_type_colors_are_shown_on_a_phone;
 mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
@@ -281,6 +283,7 @@ fn catalog() -> block_editor_beui::Catalog {
     let kind = |block_type: Uuid, name: &str, icon: &str| block_editor_beui::BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
         display_name: name.to_owned(),
+        color: None,
         icon_codepoint: icon.to_owned(),
         children: block_plugin_api::ChildOperations {
             add: true,

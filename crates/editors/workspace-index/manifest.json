@@ -6,6 +6,7 @@
     {
       "block_type": "d4e367ab-db73-4419-bffc-b9131288c2e7",
       "display_name": "Folder",
+      "color": [155, 112, 211],
       "icon": "\ue2c7",
       "templates": {
         "main": {
@@ -26,6 +27,7 @@
     {
       "block_type": "776f726b-7370-6163-652d-626c6f636b01",
       "display_name": "Workspace",
+      "color": [211, 126, 59],
       "icon": "\uea0f",
       "children": {
         "add": true,

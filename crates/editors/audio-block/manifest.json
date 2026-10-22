@@ -6,6 +6,7 @@
     {
       "block_type": "61756469-6f2d-626c-6f63-6b2d74797001",
       "display_name": "Audio",
+      "color": [65, 145, 210],
       "icon": "\ueb82",
       "templates": {
         "main": {

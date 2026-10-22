@@ -3,7 +3,10 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::ViewState;
+use block_editor_beui::be_block::{
+    ViewState,
+    metadata::{ICON, ICON_COLOR},
+};
 use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
@@ -34,6 +37,7 @@ pub(crate) struct Row {
     pub(crate) block_type: Uuid,
     pub(crate) label: String,
     pub(crate) glyph: String,
+    pub(crate) icon_color: Option<[u8; 3]>,
     pub(crate) automatic: bool,
     pub(crate) depth: usize,
     pub(crate) section: bool,
@@ -80,6 +84,7 @@ impl Row {
             block_type: Uuid::nil(),
             label: label.to_owned(),
             glyph: String::new(),
+            icon_color: None,
             automatic: true,
             depth,
             section: false,
@@ -720,7 +725,22 @@ pub(crate) fn describe(
     let label = reference
         .label(types)
         .deleted(reference.deleted && !trashed);
-    let glyph = label_glyph(&label).unwrap_or_default().to_owned();
+    let ordinary = label.reach == block_editor_beui::block_ui::Reach::Open && !label.deleted;
+    let default_glyph = label_glyph(&label).unwrap_or_default().to_owned();
+    let (glyph, icon_color) = if ordinary {
+        (
+            reference
+                .metadata
+                .get(&ICON)
+                .map_or(default_glyph, |icon| icon.to_string()),
+            reference
+                .metadata
+                .get(&ICON_COLOR)
+                .or_else(|| types.color(reference.block_type)),
+        )
+    } else {
+        (default_glyph, None)
+    };
     let inspection = inspect(
         types,
         reference,
@@ -735,6 +755,7 @@ pub(crate) fn describe(
         block_type: reference.block_type,
         label: label.name.clone(),
         glyph,
+        icon_color,
         automatic: label.automatic,
         depth,
         section: false,

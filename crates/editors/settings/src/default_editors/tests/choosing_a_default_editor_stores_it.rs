@@ -20,6 +20,7 @@ fn choosing_a_default_editor_stores_it() {
         types: vec![BlockTypeDescriptor {
             block_type: block_type.into_bytes(),
             display_name: "Note".to_owned(),
+            color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
         }],

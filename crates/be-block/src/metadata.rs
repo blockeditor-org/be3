@@ -9,6 +9,11 @@ pub const MAX_NAME_BYTES: usize = 128;
 pub const NAME: MetaKey<String> =
     MetaKey::defined(0x6be3_6d65_7461_4e00_8a1e_6e61_6d65_0001, "name");
 
+pub const ICON: MetaKey<char> = MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_6963_6f6e_0001, "icon");
+
+pub const ICON_COLOR: MetaKey<[u8; 3]> =
+    MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_636f_6c72_0001, "icon_color");
+
 pub const INTRINSIC_NAME: MetaKey<String> =
     MetaKey::derived(0x6be3_6d65_7461_4e00_8a1e_6e61_6d65_0002, "intrinsic_name");
 

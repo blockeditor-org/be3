@@ -14,6 +14,7 @@ fn plugin(id: &str, block_type: [u8; 16]) -> Arc<PluginManifest> {
         editors: vec![EditorManifest {
             block_type,
             display_name: id.to_owned(),
+            color: None,
             icon: String::new(),
             templates: Vec::new(),
             children: Default::default(),

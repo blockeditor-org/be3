@@ -23,6 +23,9 @@ pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) 
 pub trait BlockTypes {
     fn display_name(&self, block_type: Uuid) -> Option<&str>;
     fn icon(&self, block_type: Uuid) -> Option<&'static str>;
+    fn color(&self, _block_type: Uuid) -> Option<[u8; 3]> {
+        None
+    }
     fn child_edits(&self, _block_type: Uuid) -> ChildEdits {
         ChildEdits::default()
     }
@@ -37,6 +40,7 @@ pub struct ChildEdits {
 
 pub struct BlockTypeEntry {
     pub display_name: String,
+    pub color: Option<[u8; 3]>,
     pub icon: Option<&'static str>,
     pub child_edits: ChildEdits,
 }
@@ -52,6 +56,7 @@ pub enum TemplateCategory {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemplateEntry {
+    pub color: Option<[u8; 3]>,
     pub editor: Uuid,
     pub template: String,
     pub block_type: Uuid,
@@ -142,6 +147,10 @@ impl BlockTypes for BlockCatalog {
 
     fn icon(&self, block_type: Uuid) -> Option<&'static str> {
         self.types.get(&block_type).and_then(|entry| entry.icon)
+    }
+
+    fn color(&self, block_type: Uuid) -> Option<[u8; 3]> {
+        self.types.get(&block_type).and_then(|entry| entry.color)
     }
 
     fn child_edits(&self, block_type: Uuid) -> ChildEdits {

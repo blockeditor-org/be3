@@ -287,6 +287,12 @@ fn TypeItem(
     entry: Memo<Option<TemplateEntry>>,
     separated: Memo<bool>,
 ) -> unstyled::MenuItem {
+    let glyph_color = create_memo(move || {
+        entry
+            .get()
+            .and_then(|entry| entry.color)
+            .map(|[r, g, b]| Color32::from_rgb(r, g, b))
+    });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
     let glyph = create_memo(move || {
         entry
@@ -299,6 +305,7 @@ fn TypeItem(
         <unstyled::MenuItem
             label
             glyph
+            glyph_color
             separated
             then=MenuThen::Stay
             row_test_id={format!("picker.menu.{key}")}
@@ -675,6 +682,12 @@ fn TypeGroupView(act: Act, group: Memo<Option<TypeGroup>>) -> NodeId {
 
 #[component]
 fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId {
+    let glyph_color = create_memo(move || {
+        entry
+            .get()
+            .and_then(|entry| entry.color)
+            .map(|[r, g, b]| Color32::from_rgb(r, g, b))
+    });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
     let glyph = create_memo(move || {
         entry
@@ -697,6 +710,7 @@ fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId 
                 handle
                 label
                 glyph
+                glyph_color={create_memo(move || glyph_color.get().map_or(TextColor::Muted, TextColor::Custom))}
                 detail={create_memo(String::new)}
                 enabled={create_memo(|| true)}
             />
@@ -709,6 +723,7 @@ fn ChoiceFace(
     handle: ButtonHandle,
     label: Memo<String>,
     glyph: Memo<String>,
+    #[prop(default = TextColor::Muted)] glyph_color: Prop<TextColor>,
     detail: Memo<String>,
     enabled: Memo<bool>,
 ) -> NodeId {
@@ -732,7 +747,7 @@ fn ChoiceFace(
             padding={Sides::symmetric(ROW_PADDING, ROW_PADDING)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Text color=TextColor::Muted align=TextAlign::Center>
+                <Text color={glyph_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
                 <Text @sizing=ItemSize::Percent(100.0) color ellipsis=true>{label}</Text>

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::app::FileTreeApp;
 
+mod a_block_can_override_and_reset_its_icon_and_color;
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
 mod a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown;
 mod a_folder_still_loading_says_so_only_after_a_moment;
@@ -149,6 +150,7 @@ fn containers_hold_blocks(fixture: &mut Fixture) {
     let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
         display_name: name.to_owned(),
+        color: None,
         icon_codepoint: String::new(),
         children: ChildOperations {
             add: true,

@@ -6,6 +6,7 @@
     {
       "block_type": "6c6f6769-632d-6772-6964-2d626c6b0101",
       "display_name": "Logic Grid",
+      "color": [44, 158, 128],
       "icon": "\uefa7",
       "templates": {
         "main": {}
@@ -25,6 +26,7 @@
     {
       "block_type": "6c6f6769-632d-6761-6d65-2d626c6b0101",
       "display_name": "Logic Game",
+      "color": [155, 112, 211],
       "icon": "\uea28",
       "templates": {
         "main": {}
@@ -36,6 +38,7 @@
     {
       "block_type": "6c6f6769-632d-686f-7462-617201010101",
       "display_name": "Hotbar",
+      "color": [211, 126, 59],
       "icon": "\ue1bd",
       "regions": [
         "Frame"
@@ -44,6 +47,7 @@
     {
       "block_type": "636f6d70-696c-6564-2d6c-6f6769630101",
       "display_name": "Compiled Logic",
+      "color": [203, 91, 125],
       "icon": "\ue322",
       "regions": [
         "Frame"

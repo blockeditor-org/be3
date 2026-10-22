@@ -475,7 +475,13 @@ fn TreeRow(
     });
     let glyph_size = glyph_size();
     let (detail, detailed) = detail(editor, row);
-    let glyph_color = TextColor::Muted;
+    let glyph_color = create_memo(move || {
+        row.get()
+            .and_then(|row| row.icon_color)
+            .map_or(TextColor::Muted, |[r, g, b]| {
+                TextColor::Custom(Color32::from_rgb(r, g, b))
+            })
+    });
     let generated_color = TextColor::Muted;
     let access_color = TextColor::Muted;
     let color = create_memo(move || match muted.get() {

@@ -6,6 +6,7 @@
     {
       "block_type": "62657569-2d64-656d-6f2d-626c6f636b31",
       "display_name": "beui demo",
+      "color": [44, 158, 128],
       "icon": "",
       "templates": {
         "main": {

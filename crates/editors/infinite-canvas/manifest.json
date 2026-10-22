@@ -6,6 +6,7 @@
     {
       "block_type": "696e6669-6e69-7465-2d63-616e76617301",
       "display_name": "Canvas",
+      "color": [172, 145, 47],
       "icon": "\ue746",
       "templates": {
         "main": {

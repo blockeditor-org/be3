@@ -755,6 +755,7 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             Uuid::from_bytes(descriptor.block_type),
             BlockTypeEntry {
                 display_name: descriptor.display_name.clone(),
+                color: descriptor.color,
                 icon: leak(&descriptor.icon_codepoint),
                 child_edits: block_ui::ChildEdits {
                     add: descriptor.children.add,
@@ -764,19 +765,26 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             },
         )
     }))
-    .with_templates(catalog.templates.iter().map(|template| TemplateEntry {
-        editor: Uuid::from_bytes(template.editor),
-        template: template.template.clone(),
-        block_type: Uuid::from_bytes(template.block_type),
-        name: template.name.clone(),
-        icon: leak(&template.icon_codepoint),
-        category: match template.category {
-            TemplateCategory::Important => block_ui::TemplateCategory::Important,
-            TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
-            TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
-            TemplateCategory::Template => block_ui::TemplateCategory::Template,
-        },
-        dialog: template.dialog,
+    .with_templates(catalog.templates.iter().map(|template| {
+        TemplateEntry {
+            color: catalog
+                .types
+                .iter()
+                .find(|kind| kind.block_type == template.block_type)
+                .and_then(|kind| kind.color),
+            editor: Uuid::from_bytes(template.editor),
+            template: template.template.clone(),
+            block_type: Uuid::from_bytes(template.block_type),
+            name: template.name.clone(),
+            icon: leak(&template.icon_codepoint),
+            category: match template.category {
+                TemplateCategory::Important => block_ui::TemplateCategory::Important,
+                TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
+                TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
+                TemplateCategory::Template => block_ui::TemplateCategory::Template,
+            },
+            dialog: template.dialog,
+        }
     }))
     .with_editors(catalog.editors.iter().map(|editor| {
         EditorEntry {

@@ -6,6 +6,7 @@
     {
       "block_type": "7765622d-6272-6f77-7365-722d74616201",
       "display_name": "Web Browser Tab",
+      "color": [155, 112, 211],
       "icon": "\ue894",
       "templates": {
         "main": {}

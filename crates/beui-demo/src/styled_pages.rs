@@ -1755,6 +1755,8 @@ fn FolderRow(
 #[sample]
 #[component]
 fn NewBlockMenu() -> NodeId {
+    let theme = use_theme();
+    let text_icon_color = create_memo(move || Some(TextColor::Success.resolve(&theme)));
     let location = create_signal(1_usize);
     let expanded = create_signal(vec![0_usize, 1]);
     let added = create_signal("Nothing added yet".to_owned());
@@ -1784,7 +1786,12 @@ fn NewBlockMenu() -> NodeId {
                                 <FolderRow folder location expanded />
                             </ForEach>
                         </unstyled::MenuItem>
-                        <unstyled::MenuItem label="Text" glyph=ICON_NOTES separated=true />
+                        <unstyled::MenuItem
+                            label="Text"
+                            glyph=ICON_NOTES
+                            glyph_color={text_icon_color}
+                            separated=true
+                        />
                         <unstyled::MenuItem label="Canvas" glyph=ICON_DRAW />
                         <unstyled::MenuItem label="Folder" glyph=ICON_FOLDER />
                         <unstyled::MenuItem label="Database" glyph=ICON_TABLE_CHART />

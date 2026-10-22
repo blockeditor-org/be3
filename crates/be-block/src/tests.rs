@@ -100,6 +100,7 @@ mod frozen_database_view;
 mod frozen_folder;
 mod frozen_text;
 mod frozen_workspace;
+mod icon_overrides_round_trip_and_merge_independently;
 mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
 mod items_added_by_two_peers_at_once_are_both_kept;
