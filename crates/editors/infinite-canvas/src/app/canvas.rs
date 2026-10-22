@@ -16,7 +16,7 @@ use super::menu::CanvasMenu;
 use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::sketch::{Sketch, SketchKey, rough_reach};
-use super::state::CanvasState;
+use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
 
 const ITEM_MARGIN: f32 = 2.0;
@@ -224,6 +224,12 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     let bounds = create_signal(None::<Rect>);
     let shown = RefCell::new(None::<Overlay>);
     let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
+    let drawn_line = create_memo(move || {
+        state.gesture.with(|gesture| match gesture {
+            Some(Gesture::Create { id, tool, .. }) if tool.draws_a_line() => Some(*id),
+            _ => None,
+        })
+    });
     create_effect(move || {
         let selection = state.selection.get();
         let selected = state.entities.among(&selection);
@@ -235,9 +241,11 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
             outlines: super::state::selected_outlines(&selected, &selection),
             frame: super::state::selection_frame(&selected, &selection),
             path: selected_path.as_ref().map(|path| path_grips(path, scale)),
-            anchors: selected_path
-                .as_ref()
-                .map(|path| state.anchors(path))
+            anchors: drawn_line
+                .get()
+                .and_then(|id| state.entities.get(id))
+                .or_else(|| selected_path.clone())
+                .map(|path| state.anchors(&path))
                 .unwrap_or_default(),
             group: entered_group_bounds(state),
             resize: state.selection_handles().0,

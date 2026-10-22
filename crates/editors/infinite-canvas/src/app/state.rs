@@ -906,10 +906,12 @@ impl CanvasState {
             Gesture::Move {
                 duplicate: true, ..
             } => self.put_live(gesture_entities(&gesture)),
+            Gesture::Endpoint { .. } => self.operate(&InfiniteCanvasOperation::Update {
+                entities: self.endpoint_entities(&gesture),
+            }),
             Gesture::Move { .. }
             | Gesture::Resize { .. }
             | Gesture::Rotate { .. }
-            | Gesture::Endpoint { .. }
             | Gesture::Bend { .. }
             | Gesture::Erase { .. } => {
                 let updates = gesture_entities(&gesture);
@@ -2443,19 +2445,26 @@ impl CanvasState {
                     self.record(InfiniteCanvasOperation::Remove { ids });
                 }
             }
-            Gesture::Endpoint { end, .. } => {
-                let mut updates = gesture_entities(&gesture);
-                for path in &mut updates {
-                    let at = path_ends(path)[end];
-                    path.bindings[end] = self.binding_at(at, path.id);
-                }
-                self.record(InfiniteCanvasOperation::Update { entities: updates });
-            }
+            Gesture::Endpoint { .. } => self.record(InfiniteCanvasOperation::Update {
+                entities: self.endpoint_entities(&gesture),
+            }),
             Gesture::Move { .. }
             | Gesture::Resize { .. }
             | Gesture::Rotate { .. }
             | Gesture::Bend { .. } => {}
         }
+    }
+
+    fn endpoint_entities(&self, gesture: &Gesture) -> Vec<CanvasEntity> {
+        let Gesture::Endpoint { end, .. } = *gesture else {
+            return Vec::new();
+        };
+        let mut moved = gesture_entities(gesture);
+        for path in &mut moved {
+            let at = path_ends(path)[end];
+            path.bindings[end] = self.binding_at(at, path.id);
+        }
+        moved
     }
 
     fn created_entity(
