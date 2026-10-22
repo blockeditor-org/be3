@@ -94,6 +94,7 @@ impl Group {
 }
 
 pub struct Display {
+    pub document: u64,
     pub node: NodeId,
     pub key: u64,
     pub shapes: Rc<[Shape]>,
@@ -138,8 +139,9 @@ fn count_of(parts: &[Part]) -> usize {
 static KEYS: AtomicU64 = AtomicU64::new(1);
 
 impl Display {
-    pub fn new(node: NodeId, shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
+    pub fn new(document: u64, node: NodeId, shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
         Self {
+            document,
             node,
             key: KEYS.fetch_add(1, Ordering::Relaxed),
             shapes: shapes.into(),
@@ -152,6 +154,7 @@ impl Display {
     pub fn with_children(&self, child: &impl Fn(NodeId) -> Option<Rc<Display>>) -> Option<Self> {
         let parts = rechilded(&self.parts, child)?;
         Some(Self {
+            document: self.document,
             node: self.node,
             key: self.key,
             shapes: Rc::clone(&self.shapes),
