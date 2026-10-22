@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn dragging_a_tab_onto_a_window_bar_moves_it_into_the_window() {
@@ -15,7 +15,7 @@ fn dragging_a_tab_onto_a_window_bar_moves_it_into_the_window() {
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     let rect = state.window_rect(window).expect("the window has a rect");
     let origin = harness.rect(dock).min + rect.min.to_vec2();
@@ -25,7 +25,7 @@ fn dragging_a_tab_onto_a_window_bar_moves_it_into_the_window() {
     harness.drag(tab, pos2(floated.right() + 20.0, origin.y + 10.0));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.surface_tabs(window),
         vec![TabId::new(2), TabId::new(1)],

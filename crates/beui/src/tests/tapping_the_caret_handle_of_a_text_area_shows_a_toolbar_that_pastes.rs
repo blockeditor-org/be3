@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::{TextAreaState, text_area_handles};
+use crate::unstyled::{TextAreaApi, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
@@ -22,14 +22,17 @@ fn tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes() {
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let root = area.get();
-    let surface = text_area_surface(harness.document(), root);
+    let surface = harness.document().api::<TextAreaSurfaceApi>(root).surface();
     let canvas = harness.rect(state.canvas().get());
     let start = pos2(canvas.left() + 1.0, canvas.top() + 16.0);
     harness.touch(TouchPhase::Start, start);
     harness.touch(TouchPhase::End, start);
     harness.frame(Vec::new());
 
-    let handles = text_area_handles(harness.document(), surface);
+    let handles = harness
+        .document()
+        .api::<TextAreaApi>(surface)
+        .handles(harness.document());
     let [handle] = handles[..] else {
         panic!("a caret placed by touch shows one handle, not {handles:?}");
     };

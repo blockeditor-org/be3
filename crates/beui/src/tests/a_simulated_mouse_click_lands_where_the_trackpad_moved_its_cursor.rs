@@ -17,9 +17,21 @@ fn a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor() {
     let target = harness.center(checkbox);
     harness.point_at(target);
     assert!(harness.simulated_cursor().distance(target) < 1.0);
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 
     harness.tap_trackpad();
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

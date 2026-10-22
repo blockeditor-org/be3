@@ -3,7 +3,6 @@ use beui_macros::{component, view};
 
 use beui_core::input::{CursorIcon, KeyPress, PointerPress};
 
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -19,6 +18,7 @@ pub struct ButtonHandle {
     pub tooltip: Memo<String>,
 }
 
+#[derive(Clone, Copy)]
 struct State {
     active: ReadSignal<bool>,
     focused: ReadSignal<bool>,
@@ -26,6 +26,7 @@ struct State {
 
 #[component]
 pub fn Button(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ButtonApi>,
     #[prop(children)] content: Option<Render<ButtonHandle>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
@@ -102,10 +103,10 @@ pub fn Button(
     };
     let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
 
-    set_component_state(State {
+    api.fill(ButtonApi(State {
         active: active.read_only(),
         focused: focused.read_only(),
-    });
+    }));
 
     view! {
         <Interactive
@@ -135,10 +136,15 @@ pub fn Button(
     }
 }
 
-pub fn button_active(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).active
-}
+#[derive(Clone, Copy)]
+pub struct ButtonApi(State);
 
-pub fn button_focused(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).focused
+impl ButtonApi {
+    pub fn active(&self) -> ReadSignal<bool> {
+        self.0.active
+    }
+
+    pub fn focused(&self) -> ReadSignal<bool> {
+        self.0.focused
+    }
 }

@@ -2,7 +2,7 @@ use super::*;
 use crate::KeyAt;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::command_palette_shown;
+use crate::unstyled::CommandPaletteApi;
 
 #[test]
 fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
@@ -39,7 +39,10 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
-        command_palette_shown(harness.document(), palette.get()),
+        harness
+            .document()
+            .api::<CommandPaletteApi>(palette.get())
+            .shown(),
         vec!["test.lock", "test.louder", "test.typed"],
         "the palette lists global actions"
     );

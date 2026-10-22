@@ -5,7 +5,6 @@ use beui_macros::{component, view};
 use crate as unstyled;
 use crate::ButtonHandle;
 use beui_core::base::overlay::Placement;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
@@ -37,6 +36,7 @@ struct State {
 
 #[component]
 pub fn Popover(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<PopoverApi>,
     trigger: Render<PopoverTriggerHandle>,
     #[prop(children)] content: Render<PopoverHandle>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -52,10 +52,10 @@ pub fn Popover(
     let disabled = create_memo(move || disabled.get());
     let label = create_memo(move || label.get());
     let trigger_ref = NodeRef::new();
-    set_component_state(State {
+    api.fill(PopoverApi(State {
         open,
         trigger: trigger_ref,
-    });
+    }));
 
     create_effect(move || {
         if disabled.get() {
@@ -152,13 +152,15 @@ fn PopoverSurface(label: Memo<String>, children: Child) -> NodeId {
     }
 }
 
-pub fn popover_open(document: &Document, popover: NodeId) -> bool {
-    document
-        .component_state::<State>(popover)
-        .open
-        .get_untracked()
-}
+#[derive(Clone, Copy)]
+pub struct PopoverApi(State);
 
-pub fn popover_trigger(document: &Document, popover: NodeId) -> NodeId {
-    document.component_state::<State>(popover).trigger.get()
+impl PopoverApi {
+    pub fn open(&self) -> bool {
+        self.0.open.get_untracked()
+    }
+
+    pub fn trigger(&self) -> NodeId {
+        self.0.trigger.get()
+    }
 }

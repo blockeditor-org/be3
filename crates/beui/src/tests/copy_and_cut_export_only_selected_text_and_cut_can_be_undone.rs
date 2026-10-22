@@ -25,22 +25,37 @@ fn copy_and_cut_export_only_selected_text_and_cut_can_be_undone() {
     let output = harness.frame(vec![key_event(Key::C, true, Modifiers::CTRL)]);
     assert_eq!(output.copied_text.as_deref().map(str::trim), Some("Hello"));
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "Hello world"
     );
     harness.key(Key::A, Modifiers::CTRL);
     let output = harness.frame(vec![key_event(Key::X, true, Modifiers::CTRL)]);
     assert_eq!(output.copied_text.as_deref(), Some("Hello world"));
-    assert_eq!(styled::text_input_value(harness.document(), input), "");
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
+        ""
+    );
     harness.key(Key::Z, Modifiers::CTRL);
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "Hello world"
     );
     harness.key(Key::A, Modifiers::CTRL);
     harness.frame(vec![Event::Text("Pasted text".to_owned())]);
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "Pasted text"
     );
 }

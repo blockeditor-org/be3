@@ -34,13 +34,19 @@ fn a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar() {
         .document()
         .find_test_id("demo.code")
         .expect("the code is shown");
-    let selected = beui::unstyled::selectable_text(test.document(), region);
+    let selected = test
+        .document()
+        .api::<beui::unstyled::SelectableState>(region)
+        .selected_text();
     assert!(
         !selected.is_empty() && !selected.contains(' '),
         "a long press selects one word, not {selected:?}"
     );
     assert!(
-        beui::unstyled::context_menu_toolbar(test.document(), region).is_some(),
+        test.document()
+            .api::<beui::unstyled::ContextMenuApi>(region)
+            .toolbar(test.document())
+            .is_some(),
         "and shows the toolbar above it"
     );
     assert_eq!(

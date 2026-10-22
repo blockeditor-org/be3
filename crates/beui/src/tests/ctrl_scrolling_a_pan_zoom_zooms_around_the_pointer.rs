@@ -1,7 +1,7 @@
 use super::*;
 use crate::geometry::vec2;
 use crate::reactive::*;
-use crate::unstyled::pan_zoom_view;
+use crate::unstyled::PanZoomApi;
 
 #[test]
 fn ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer() {
@@ -17,7 +17,11 @@ fn ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer() {
     harness.scroll(corner, vec2(0.0, 25.0), Modifiers::CTRL);
     harness.frame(Vec::new());
 
-    let view = pan_zoom_view(harness.document(), harness.find("stage")).get();
+    let view = harness
+        .document()
+        .api::<PanZoomApi>(harness.find("stage"))
+        .view()
+        .get();
     assert!(view.scale > 1.05, "the view only reached {}", view.scale);
     let item = harness.rect(harness.find("item"));
     assert!(

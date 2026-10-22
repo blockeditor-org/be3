@@ -3,7 +3,6 @@ use beui_macros::{component, view};
 
 use beui_core::input::CursorIcon;
 
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -22,6 +21,7 @@ pub struct ToggleHandle {
 
 #[component]
 pub fn Toggle(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ToggleApi>,
     checked: Binding<bool>,
     #[prop(default = false)] mixed: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -102,7 +102,7 @@ pub fn Toggle(
         false => CursorIcon::PointingHand,
     });
 
-    set_component_state(checked);
+    api.fill(ToggleApi(checked));
 
     view! {
         <Interactive
@@ -123,6 +123,11 @@ pub fn Toggle(
     }
 }
 
-pub fn toggle_checked(document: &Document, toggle: NodeId) -> Binding<bool> {
-    *document.component_state::<Binding<bool>>(toggle)
+#[derive(Clone, Copy)]
+pub struct ToggleApi(Binding<bool>);
+
+impl ToggleApi {
+    pub fn checked(&self) -> Binding<bool> {
+        self.0
+    }
 }

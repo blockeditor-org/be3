@@ -17,12 +17,24 @@ fn clicking_a_checkbox_toggles_it() {
     harness.click(harness.center(checkbox));
     harness.frame(Vec::new());
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
     assert!(checked.get_untracked());
 
     harness.click(harness.center(checkbox));
     harness.frame(Vec::new());
 
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
     assert!(!checked.get_untracked());
 }

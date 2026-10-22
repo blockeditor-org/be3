@@ -15,7 +15,6 @@ use beui_components_unstyled::{
 };
 use beui_core::base::ItemSize;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::file_picker::PickedFile;
 use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
@@ -27,6 +26,7 @@ use find::FindBar;
 
 #[component]
 pub fn TextArea(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<TextAreaSurfaceApi>,
     state: TextAreaState,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
     #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
@@ -62,7 +62,7 @@ pub fn TextArea(
         syntax: theme.syntax.get(),
     });
     let surface = NodeRef::new();
-    set_component_state(surface);
+    api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
     let render_block = render_block.unwrap_or_else(|| RenderFn::new(|block: BlockView| block.text));
@@ -133,6 +133,11 @@ fn blank_widget() -> RenderFn<usize> {
     })
 }
 
-pub fn text_area_surface(document: &Document, area: NodeId) -> NodeId {
-    document.component_state::<NodeRef>(area).get()
+#[derive(Clone, Copy)]
+pub struct TextAreaSurfaceApi(NodeRef);
+
+impl TextAreaSurfaceApi {
+    pub fn surface(&self) -> NodeId {
+        self.0.get()
+    }
 }

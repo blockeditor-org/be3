@@ -7,9 +7,7 @@ use beui_core::color::Color32;
 
 use crate::text::{Text, TextColor};
 use crate::theme::{ThemeStore, use_theme};
-use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -22,6 +20,8 @@ const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
 pub fn Checkbox(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ToggleApi>,
+
     #[prop(default = String::new())] label: Prop<String>,
     checked: Binding<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -30,7 +30,15 @@ pub fn Checkbox(
     #[prop(default = true)] press_focus: Prop<bool>,
 ) -> NodeId {
     view! {
-        <Toggle checked label disabled capture_presses tab_stop press_focus>|handle: ToggleHandle|
+        <Toggle
+            api
+            checked
+            label
+            disabled
+            capture_presses
+            tab_stop
+            press_focus
+        >|handle: ToggleHandle|
             <CheckboxFace handle />
         </Toggle>
     }
@@ -92,10 +100,6 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
             </List>
         </FocusRing>
     }
-}
-
-pub fn checkbox_checked(document: &Document, checkbox: NodeId) -> bool {
-    unstyled::toggle_checked(document, checkbox).get()
 }
 
 fn box_fill(theme: &ThemeStore, disabled: bool, checked: bool, hovered: bool) -> Color32 {

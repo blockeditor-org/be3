@@ -14,12 +14,20 @@ fn arrow_keys_step_the_focused_slider() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);
 
-    let raised = styled::slider_value(harness.document(), slider);
+    let raised = harness
+        .document()
+        .api::<styled::SliderApi>(slider)
+        .value()
+        .get();
     assert!(raised > 0.5, "the slider read {raised}");
 
     harness.key(Key::ArrowLeft, Modifiers::NONE);
     harness.key(Key::ArrowLeft, Modifiers::NONE);
 
-    let lowered = styled::slider_value(harness.document(), slider);
+    let lowered = harness
+        .document()
+        .api::<styled::SliderApi>(slider)
+        .value()
+        .get();
     assert!(lowered < 0.5, "the slider read {lowered}");
 }

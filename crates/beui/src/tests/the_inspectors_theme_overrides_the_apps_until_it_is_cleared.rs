@@ -37,7 +37,10 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
     harness.frame(vec![]);
     harness.choose_in_simulation("theme", 4);
     let restyled = harness.frame(vec![]);
-    assert_eq!(harness.document().theme(), Theme::EPAPER);
+    assert_eq!(
+        Theme::of(harness.document().preferences().theme),
+        Theme::EPAPER
+    );
     assert_eq!(captions(&restyled, Theme::EPAPER), 1);
     assert_eq!(
         harness.context.preference_layer(PreferenceSource::App),
@@ -47,5 +50,8 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
 
     harness.choose_in_simulation("theme", 0);
     harness.frame(vec![]);
-    assert_eq!(harness.document().theme(), Theme::LIGHT);
+    assert_eq!(
+        Theme::of(harness.document().preferences().theme),
+        Theme::LIGHT
+    );
 }

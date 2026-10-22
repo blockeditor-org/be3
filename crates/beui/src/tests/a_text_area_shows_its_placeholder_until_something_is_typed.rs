@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{TextArea, TextAreaState, text_area_shown};
+use crate::unstyled::{TextArea, TextAreaApi, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
@@ -19,12 +19,15 @@ fn a_text_area_shows_its_placeholder_until_something_is_typed() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        text_area_shown(harness.document(), area.get()),
+        harness.document().api::<TextAreaApi>(area.get()).shown(),
         "Write something"
     );
 
     harness.click(pos2(300.0, 16.0));
     harness.type_text("a");
 
-    assert_eq!(text_area_shown(harness.document(), area.get()), "a");
+    assert_eq!(
+        harness.document().api::<TextAreaApi>(area.get()).shown(),
+        "a"
+    );
 }

@@ -16,7 +16,10 @@ fn a_key_pressed_in_a_held_select_search_shows_the_keyboard() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     let at = harness.center(trigger);
     harness.touch(TouchPhase::Start, at);
     harness.touch(TouchPhase::End, at);

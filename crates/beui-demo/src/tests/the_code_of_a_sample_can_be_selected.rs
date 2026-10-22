@@ -20,7 +20,10 @@ fn the_code_of_a_sample_can_be_selected() {
         .document()
         .find_test_id("demo.code")
         .expect("the code is shown");
-    let selected = beui::unstyled::selectable_text(test.document(), region);
+    let selected = test
+        .document()
+        .api::<beui::unstyled::SelectableState>(region)
+        .selected_text();
     assert_eq!(
         selected,
         DemoShell::SOURCE

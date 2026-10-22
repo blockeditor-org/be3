@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_tab_split_out_of_a_window_keeps_its_panel_on_screen() {
@@ -15,7 +15,7 @@ fn a_tab_split_out_of_a_window_keeps_its_panel_on_screen() {
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     let rect = state.window_rect(window).expect("the window has a rect");
     let origin = harness.rect(dock).min + rect.min.to_vec2();
@@ -24,7 +24,11 @@ fn a_tab_split_out_of_a_window_keeps_its_panel_on_screen() {
     harness.drag(tab, pos2(floated.right() + 20.0, origin.y + 10.0));
     harness.frame(Vec::new());
     assert_eq!(
-        dock_state(harness.document(), dock).surface_tabs(window),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .surface_tabs(window),
         vec![TabId::new(2), TabId::new(3)],
         "the window holds both tabs before the split"
     );
@@ -33,7 +37,7 @@ fn a_tab_split_out_of_a_window_keeps_its_panel_on_screen() {
     harness.drag(tab, pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y - 40.0));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.leaves(state.main()).len(),
         2,

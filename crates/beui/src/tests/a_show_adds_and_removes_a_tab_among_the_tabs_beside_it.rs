@@ -45,7 +45,11 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
     harness.click(harness.center(third));
     harness.frame(Vec::new());
     assert_eq!(
-        tabs_selected(harness.document(), tabs),
+        harness
+            .document()
+            .api::<ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
         2,
         "the tabs after a shown one report the index they now sit at"
     );

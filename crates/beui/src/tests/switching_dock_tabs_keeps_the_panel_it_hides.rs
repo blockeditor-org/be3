@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn switching_dock_tabs_keeps_the_panel_it_hides() {
@@ -20,7 +20,7 @@ fn switching_dock_tabs_keeps_the_panel_it_hides() {
     harness.click(harness.center(dock_tab(harness.document(), dock, "Tab 2")));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     assert_eq!(
         state.active_tab(leaf),

@@ -1,6 +1,6 @@
 use super::*;
 use crate::input::CursorIcon;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_press_just_outside_a_windows_border_resizes_it() {
@@ -9,7 +9,7 @@ fn a_press_just_outside_a_windows_border_resizes_it() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
     let rect = |harness: &Harness| {
-        let state = dock_state(harness.document(), dock);
+        let state = harness.document().api::<DockApi>(dock).state();
         let window = state.window_rect(window).expect("the window is open");
         window.translate(harness.rect(dock).min.to_vec2())
     };

@@ -400,7 +400,11 @@ fn enter(area: TextAreaState, field: NodeRef, entry: TextEntry) {
             return;
         }
         TextEntry::At(at) => {
-            let at = with_document(|document| unstyled::text_area_index_at(document, node, at));
+            let at = with_document(|document| {
+                document
+                    .api::<unstyled::TextAreaApi>(node)
+                    .index_at(document, at)
+            });
             at..at
         }
     };

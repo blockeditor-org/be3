@@ -1511,7 +1511,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn painted(&mut self) -> snapshot::Snapshot {
-        let behind = beui::styled::DocumentTheme::theme(self.document()).background;
+        let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
         let output = self
             .output
             .as_ref()

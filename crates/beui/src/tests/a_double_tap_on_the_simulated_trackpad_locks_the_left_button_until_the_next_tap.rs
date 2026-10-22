@@ -35,7 +35,11 @@ fn a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_t
         harness.simulated_left_held(),
         "lifting a moving finger keeps it"
     );
-    let value = styled::slider_value(harness.document(), slider);
+    let value = harness
+        .document()
+        .api::<styled::SliderApi>(slider)
+        .value()
+        .get();
     assert!(
         (value - 0.5).abs() < 0.02,
         "the drag went on across both touches, but the slider read {value}"

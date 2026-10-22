@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
+use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 
 #[component]
 fn TwoTabs(layout: DockingLayout<u64>) -> NodeId {
@@ -48,7 +48,7 @@ fn a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were() {
     second.restore(saved);
     let (reopened, dock) = docked(second);
 
-    let state = dock_state(reopened.document(), dock);
+    let state = reopened.document().api::<DockApi>(dock).state();
     let leaves = state.leaves(state.main());
     assert_eq!(leaves.len(), 2, "the restored dock is split as it was");
     assert_eq!(

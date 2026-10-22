@@ -4,19 +4,19 @@ use crate::Select;
 use crate::Tabs;
 use crate::theme::NARROW_WIDTH;
 use beui_components_unstyled::{ChoiceOption, narrower_than};
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 #[component]
 pub fn ResponsiveTabs(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ResponsiveTabsApi>,
     options: Children<ChoiceOption>,
     #[prop(default = 0)] selected: Binding<usize>,
     #[prop(default = NARROW_WIDTH)] breakpoint: f32,
 ) -> NodeId {
     let options = options.into_run();
-    set_component_state(selected);
+    api.fill(ResponsiveTabsApi(selected));
 
     let narrow = narrower_than(breakpoint);
     let wide = create_memo(move || !narrow.get());
@@ -49,6 +49,11 @@ pub fn ResponsiveTabs(
     }
 }
 
-pub fn responsive_tabs_selected(document: &Document, tabs: NodeId) -> usize {
-    document.component_state::<Binding<usize>>(tabs).get()
+#[derive(Clone, Copy)]
+pub struct ResponsiveTabsApi(Binding<usize>);
+
+impl ResponsiveTabsApi {
+    pub fn selected(&self) -> usize {
+        self.0.get()
+    }
 }

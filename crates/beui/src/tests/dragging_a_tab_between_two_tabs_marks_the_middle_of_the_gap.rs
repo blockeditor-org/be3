@@ -9,7 +9,7 @@ fn dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap() {
     harness.frame(Vec::new());
     let first_close = harness.rect(harness.find("dock.tab.1.close"));
     let second = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
-    let accent = harness.document().theme().accent;
+    let accent = Theme::of(harness.document().preferences().theme).accent;
 
     let from = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
     let over = pos2(second.left() - 2.0, second.center().y);

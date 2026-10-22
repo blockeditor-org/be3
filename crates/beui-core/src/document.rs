@@ -92,6 +92,8 @@ pub struct Document {
     offered_screens: Option<Vec<Screen>>,
     rescreened: RefCell<Option<Vec<Screen>>>,
     reattached: Cell<bool>,
+    pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
+    pub(crate) pointer_locked: Cell<bool>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
@@ -313,6 +315,8 @@ impl Document {
             offered_screens: None,
             rescreened: RefCell::new(None),
             reattached: Cell::new(false),
+            pointer_lockers: RefCell::default(),
+            pointer_locked: Cell::new(false),
             finger_taps: RefCell::new(Vec::new()),
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
@@ -643,9 +647,11 @@ impl Document {
         if let Some(screens) = rescreened {
             self.screens.set(screens);
         }
-        if self.reattached.replace(false) {
+        let reattached = self.reattached.replace(false);
+        if reattached {
             self.attached.update(|attached| *attached += 1);
         }
+        self.publish_pointer_lock(reattached);
         let now = self.now;
         let mut timers = self.timers.borrow_mut();
         timers.retain(|timer| {
@@ -1675,6 +1681,10 @@ impl Document {
 
     pub fn set_component_state_dyn(&mut self, id: NodeId, state: Box<dyn Any>) {
         self.component_states.entry(id).or_default().push(state);
+    }
+
+    pub fn api<A: Clone + 'static>(&self, id: NodeId) -> A {
+        self.component_state::<A>(id).clone()
     }
 
     pub fn component_state<T: 'static>(&self, id: NodeId) -> &T {

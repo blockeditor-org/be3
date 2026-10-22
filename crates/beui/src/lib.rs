@@ -96,6 +96,8 @@ pub use web::{WebRenderer, run_web, web_adapter};
 
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
+
+mod keyboard;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_adapter};
 
@@ -118,7 +120,7 @@ pub mod reactive {
     pub fn build(f: impl FnOnce() -> beui_view::primitives::Root) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
-        beui_components_styled::install_keyboard(&mut document);
+        crate::keyboard::install_keyboard(&mut document);
         document
     }
 }

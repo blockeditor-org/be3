@@ -14,5 +14,11 @@ fn backspace_deletes_the_character_before_the_caret() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Backspace, Modifiers::NONE);
 
-    assert_eq!(styled::text_input_value(harness.document(), input), "beu");
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
+        "beu"
+    );
 }
