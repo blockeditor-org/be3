@@ -9,6 +9,7 @@ fn a_duplicated_block_carries_what_its_source_held() {
     add(source, 5);
     wait_for_count(source, 5);
 
+    ask_for(vec![Query::Block(source)]);
     wait_until("heard the source join the graph", |shared| {
         shared.graph.get(source).is_some()
     });

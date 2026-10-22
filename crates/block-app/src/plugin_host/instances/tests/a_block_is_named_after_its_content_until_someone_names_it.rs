@@ -6,7 +6,7 @@ use be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
 
 fn titled(block: Uuid, title: &str) {
     let shown = crate::be::content(block)
-        .and_then(|content| BrowserTabContent::decode(&content.bytes).ok())
+        .and_then(|content| BrowserTabContent::decode(content.bytes()).ok())
         .expect("the new stack holds the tab");
     let edit = shown
         .root()
@@ -14,7 +14,7 @@ fn titled(block: Uuid, title: &str) {
     crate::be::operate_from(block, 0, BrowserTabContent::encode_operation(&edit));
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
-        let tab = BrowserTabContent::decode(&held.bytes).ok()?;
+        let tab = BrowserTabContent::decode(held.bytes()).ok()?;
         (tab.root().current().title == title).then_some(())
     })
     .expect("the new stack never took the title");

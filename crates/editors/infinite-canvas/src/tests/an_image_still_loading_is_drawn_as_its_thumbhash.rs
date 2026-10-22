@@ -6,10 +6,8 @@ use block_editor_beui::beui::Image;
 fn an_image_still_loading_is_drawn_as_its_thumbhash() {
     let picture = Uuid::new_v4();
     let mut placed = entity(Uuid::from_u128(1));
-    placed.kind = CanvasEntityKind::DirectEditor {
-        block_id: picture,
-        scale: 1.0,
-    };
+    placed.shape = CanvasShape::Editor;
+    placed.block = Some(picture);
     placed.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(240.0, 180.0), 0.0);
     let pixels: Vec<u8> = (0..32 * 24)

@@ -13,6 +13,8 @@ fn a_scroll_group_clips_to_its_viewport_and_shifts_what_it_holds() {
         space: SpaceId::inside(host, 1),
         viewport,
         offset: vec2(0.0, -50.0),
+        scale: 1.0,
+        raster: 1.0,
     };
     let (outer, inner) = style::group(scroll, 1.0);
     assert_eq!(

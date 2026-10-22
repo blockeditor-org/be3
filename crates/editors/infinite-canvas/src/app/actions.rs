@@ -1,26 +1,39 @@
-use block_editor_beui::be_block::canvas::{CanvasEntityKind, CanvasLayerMove};
+use block_editor_beui::be_block::canvas::{CanvasLayerMove, CanvasProfile};
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CONTENT_COPY, ICON_CONTENT_CUT,
-    ICON_CONTENT_PASTE, ICON_CROP_FREE, ICON_DATA_OBJECT, ICON_DELETE, ICON_DESELECT,
-    ICON_DIAGONAL_LINE, ICON_DRAW, ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN,
-    ICON_FLIP_TO_BACK, ICON_FLIP_TO_FRONT, ICON_GROUP_WORK, ICON_IMAGE, ICON_LIBRARY_ADD,
-    ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_RECTANGLE, ICON_SELECT, ICON_SELECT_ALL,
-    ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_CONTENT_PASTE, ICON_DATA_OBJECT, ICON_DELETE, ICON_DESELECT, ICON_DIAGONAL_LINE,
+    ICON_DOWNLOAD, ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN, ICON_FLIP_TO_BACK,
+    ICON_FLIP_TO_FRONT, ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_KEEP, ICON_LIBRARY_ADD,
+    ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE,
+    ICON_SELECT_ALL, ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN,
+    ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::use_theme;
 use uuid::Uuid;
 
+use super::export::{ExportFormat, ExportTo, Exporter};
+use super::grid::{GridActions, grid_actions};
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
+use super::touch::TouchChoice;
 
 #[derive(Clone)]
 pub(crate) struct CanvasActions {
     pub(crate) select: Action,
-    pub(crate) artboard: Action,
+    pub(crate) lasso: Action,
+    pub(crate) select_mode: Action,
+    pub(crate) frame: Action,
     pub(crate) line: Action,
+    pub(crate) arrow: Action,
     pub(crate) rectangle: Action,
+    pub(crate) ellipse: Action,
+    pub(crate) diamond: Action,
     pub(crate) text: Action,
     pub(crate) pen: Action,
+    pub(crate) eraser: Action,
+    pub(crate) tool_lock: Action,
+    pub(crate) bind_lines: Action,
     pub(crate) add_rectangle: Action,
     pub(crate) add_line: Action,
     pub(crate) add_text: Action,
@@ -30,9 +43,15 @@ pub(crate) struct CanvasActions {
     pub(crate) open: Action,
     pub(crate) toggle_mode: Action,
     pub(crate) fit_selection: Action,
+    pub(crate) fit_frame: Action,
     pub(crate) cut: Action,
     pub(crate) copy: Action,
     pub(crate) paste: Action,
+    pub(crate) copy_png: Action,
+    pub(crate) copy_svg: Action,
+    pub(crate) export_png: Action,
+    pub(crate) export_svg: Action,
+    pub(crate) exporter: Exporter,
     pub(crate) duplicate: Action,
     pub(crate) delete: Action,
     pub(crate) group: Action,
@@ -49,18 +68,44 @@ pub(crate) struct CanvasActions {
     pub(crate) zoom_out: Action,
     pub(crate) zoom_reset: Action,
     pub(crate) fit_all: Action,
+    pub(crate) ignore_touch: Action,
+    pub(crate) touch: TouchChoice,
+    pub(crate) grid: GridActions,
+    pub(crate) prototyping: Action,
+    pub(crate) vector: Action,
 }
 
 impl CanvasActions {
     pub(crate) fn tool(&self, tool: Tool) -> Action {
         match tool {
             Tool::Select => self.select.clone(),
-            Tool::Artboard => self.artboard.clone(),
+            Tool::Lasso => self.lasso.clone(),
+            Tool::Frame => self.frame.clone(),
             Tool::Line => self.line.clone(),
+            Tool::Arrow => self.arrow.clone(),
             Tool::Rectangle => self.rectangle.clone(),
+            Tool::Ellipse => self.ellipse.clone(),
+            Tool::Diamond => self.diamond.clone(),
             Tool::Text => self.text.clone(),
             Tool::Pen => self.pen.clone(),
+            Tool::Eraser => self.eraser.clone(),
         }
+    }
+
+    pub(crate) fn tools(&self) -> [&Action; 11] {
+        [
+            &self.select,
+            &self.lasso,
+            &self.rectangle,
+            &self.diamond,
+            &self.ellipse,
+            &self.arrow,
+            &self.line,
+            &self.pen,
+            &self.text,
+            &self.eraser,
+            &self.frame,
+        ]
     }
 }
 
@@ -85,14 +130,13 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     });
     let groupable = when(CanvasState::selection_can_group);
     let block = when(|state| embedded_block(state).is_some());
-    let artboard = when(|state| state.first_artboard().is_some());
+    let framed = when(|state| state.first_frame().is_some());
     let reorder =
         |movement: CanvasLayerMove| create_memo(move || free.get() && state.can_reorder(movement));
-    let tool = |id: &str, label: &'static str, glyph: &str, tool: Tool, key: Key| {
+    let tool = |id: &str, label: &'static str, tool: Tool| {
         Action::new(id, label, move || state.set_tool(tool))
-            .glyph(glyph)
-            .shortcut(Chord::key(key))
-            .checked(create_memo(move || state.tool.get() == tool))
+            .glyph(tool.glyph())
+            .radio(create_memo(move || state.tool.get() == tool))
             .enabled(free)
     };
     let command = |id: &str, label: &'static str, glyph: &str, command: CanvasCommand| {
@@ -119,7 +163,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let cut = command("canvas.cut", "Cut", ICON_CONTENT_CUT, CanvasCommand::Cut)
         .shortcut(Chord::ctrl(Key::X))
         .enabled(selected)
-        .in_menu()
         .register();
     let copy = command(
         "canvas.copy",
@@ -129,7 +172,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::C))
     .enabled(selected)
-    .in_menu()
     .register();
     let paste = command(
         "canvas.paste",
@@ -139,8 +181,52 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::V))
     .enabled(free)
-    .in_menu()
     .register();
+    let theme = use_theme();
+    let exporter = Exporter::new(
+        state,
+        create_memo(move || super::canvas::palette(&theme)),
+        create_memo(move || theme.background.get()),
+    );
+    let drawn = when(|state| state.entities.ids().with(|ids| !ids.is_empty()));
+    let export =
+        |id: &str, label: &'static str, glyph: &str, format: ExportFormat, to: ExportTo| {
+            Action::new(id, label, move || match to {
+                ExportTo::Clipboard => exporter.run(format, to),
+                ExportTo::File => exporter.ask(format),
+            })
+            .glyph(glyph)
+            .enabled(drawn)
+            .register()
+        };
+    let copy_png = export(
+        "canvas.copy-png",
+        "Copy as PNG",
+        ICON_IMAGE,
+        ExportFormat::Png,
+        ExportTo::Clipboard,
+    );
+    let copy_svg = export(
+        "canvas.copy-svg",
+        "Copy as SVG",
+        ICON_POLYLINE,
+        ExportFormat::Svg,
+        ExportTo::Clipboard,
+    );
+    let export_png = export(
+        "canvas.export-png",
+        "Export as PNG…",
+        ICON_DOWNLOAD,
+        ExportFormat::Png,
+        ExportTo::File,
+    );
+    let export_svg = export(
+        "canvas.export-svg",
+        "Export as SVG…",
+        ICON_DOWNLOAD,
+        ExportFormat::Svg,
+        ExportTo::File,
+    );
     let duplicate = command(
         "canvas.duplicate",
         "Duplicate",
@@ -149,7 +235,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::D))
     .enabled(selected)
-    .in_menu()
     .register();
     let delete = command(
         "canvas.delete",
@@ -158,7 +243,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         CanvasCommand::Delete,
     )
     .enabled(unlocked)
-    .in_menu()
     .register();
     let group = command(
         "canvas.group",
@@ -168,7 +252,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::G))
     .enabled(groupable)
-    .in_menu()
     .register();
     let ungroup = command(
         "canvas.ungroup",
@@ -178,11 +261,9 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::G).shift())
     .enabled(grouped)
-    .in_menu()
     .register();
     let lock = command("canvas.lock", "Lock", ICON_LOCK, CanvasCommand::Lock)
         .enabled(unlocked)
-        .in_menu()
         .register();
     let unlock = command(
         "canvas.unlock",
@@ -191,7 +272,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         CanvasCommand::Unlock,
     )
     .enabled(locked)
-    .in_menu()
     .register();
     let select_all = command(
         "canvas.select-all",
@@ -201,7 +281,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::A))
     .enabled(free)
-    .in_menu()
     .register();
     let invert = command(
         "canvas.invert-selection",
@@ -211,71 +290,104 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::A).shift())
     .enabled(free)
-    .in_menu()
     .register();
     let fit_selection = Action::new("canvas.fit-selection", "Fit selection", move || {
         state.request_fit_selection()
     })
     .glyph(ICON_FILTER_CENTER_FOCUS)
     .enabled(selected)
-    .in_menu()
     .register();
-    Action::new("canvas.fit-artboard", "Fit the first artboard", move || {
-        state.request_fit_artboard()
+    let fit_frame = Action::new("canvas.fit-frame", "Fit the first frame", move || {
+        state.request_fit_frame()
     })
     .glyph(ICON_FIT_SCREEN)
-    .enabled(artboard)
-    .in_menu()
+    .enabled(framed)
     .register();
-    let select = tool(
-        "canvas.tool.select",
-        "Select",
-        ICON_SELECT,
-        Tool::Select,
-        Key::V,
+    let profile = |id: &str, label: &'static str, glyph: &str, profile: CanvasProfile| {
+        Action::new(id, label, move || state.switch_profile(profile))
+            .glyph(glyph)
+            .radio(create_memo(move || state.profile.get() == profile))
+            .enabled(live)
+            .register()
+    };
+    let prototyping = profile(
+        "canvas.profile.prototyping",
+        "Prototyping profile",
+        ICON_GESTURE,
+        CanvasProfile::Prototyping,
+    );
+    let vector = profile(
+        "canvas.profile.vector",
+        "Vector profile",
+        ICON_POLYLINE,
+        CanvasProfile::Vector,
+    );
+    let select = tool("canvas.tool.select", "Select", Tool::Select)
+        .shortcut(Chord::key(Key::V))
+        .shortcut(Chord::key(Key::One))
+        .register();
+    let rectangle = tool("canvas.tool.rectangle", "Draw a rectangle", Tool::Rectangle)
+        .shortcut(Chord::key(Key::R))
+        .shortcut(Chord::key(Key::Two))
+        .register();
+    let diamond = tool("canvas.tool.diamond", "Draw a diamond", Tool::Diamond)
+        .shortcut(Chord::key(Key::D))
+        .shortcut(Chord::key(Key::Three))
+        .register();
+    let ellipse = tool("canvas.tool.ellipse", "Draw an ellipse", Tool::Ellipse)
+        .shortcut(Chord::key(Key::O))
+        .shortcut(Chord::key(Key::Four))
+        .register();
+    let arrow = tool("canvas.tool.arrow", "Draw an arrow", Tool::Arrow)
+        .shortcut(Chord::key(Key::A))
+        .shortcut(Chord::key(Key::Five))
+        .register();
+    let line = tool("canvas.tool.line", "Draw a line", Tool::Line)
+        .shortcut(Chord::key(Key::L))
+        .shortcut(Chord::key(Key::Six))
+        .register();
+    let pen = tool("canvas.tool.pen", "Draw freehand", Tool::Pen)
+        .shortcut(Chord::key(Key::P))
+        .shortcut(Chord::key(Key::Seven))
+        .register();
+    let text = tool("canvas.tool.text", "Write text", Tool::Text)
+        .shortcut(Chord::key(Key::T))
+        .shortcut(Chord::key(Key::Eight))
+        .register();
+    let eraser = tool("canvas.tool.eraser", "Erase", Tool::Eraser)
+        .shortcut(Chord::key(Key::E))
+        .shortcut(Chord::key(Key::Zero))
+        .register();
+    let lasso = tool("canvas.tool.lasso", "Lasso select", Tool::Lasso)
+        .shortcut(Chord::key(Key::V).shift())
+        .register();
+    let select_mode = Action::new("canvas.tool.select-mode", "Select", move || {
+        state.switch_select_tool()
+    })
+    .checked(create_memo(move || state.tool.get().selects()))
+    .enabled(free)
+    .detached();
+    let frame = tool("canvas.tool.frame", "Draw a frame", Tool::Frame)
+        .shortcut(Chord::key(Key::F))
+        .register();
+    let tool_lock = Action::new(
+        "canvas.tool-lock",
+        "Keep the tool after drawing",
+        move || state.tool_locked.update(|locked| *locked = !*locked),
     )
+    .glyph(ICON_KEEP)
+    .shortcut(Chord::key(Key::Q))
+    .checked(state.tool_locked)
+    .enabled(free)
     .register();
-    let artboard = tool(
-        "canvas.tool.artboard",
-        "Draw an artboard",
-        ICON_CROP_FREE,
-        Tool::Artboard,
-        Key::F,
+    let bind_lines = Action::new(
+        "canvas.bind-lines",
+        "Bind lines and arrows to shapes",
+        move || state.binds.update(|binds| *binds = !*binds),
     )
-    .in_menu()
-    .register();
-    let line = tool(
-        "canvas.tool.line",
-        "Draw a line",
-        ICON_DIAGONAL_LINE,
-        Tool::Line,
-        Key::L,
-    )
-    .in_menu()
-    .register();
-    let rectangle = tool(
-        "canvas.tool.rectangle",
-        "Draw a rectangle",
-        ICON_RECTANGLE,
-        Tool::Rectangle,
-        Key::R,
-    )
-    .register();
-    let text = tool(
-        "canvas.tool.text",
-        "Write text",
-        ICON_TEXT_FIELDS,
-        Tool::Text,
-        Key::T,
-    )
-    .register();
-    let pen = tool(
-        "canvas.tool.pen",
-        "Draw freehand",
-        ICON_DRAW,
-        Tool::Pen,
-        Key::P,
-    )
+    .glyph(ICON_LINK)
+    .checked(state.binds)
+    .enabled(free)
     .register();
     let add_rectangle = add(
         "canvas.add.rectangle",
@@ -300,6 +412,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         ))
     })
     .glyph(ICON_IMAGE)
+    .shortcut(Chord::key(Key::Nine))
     .enabled(free)
     .register();
     let add_block = Action::new("canvas.add.block", "Add a block…", move || {
@@ -379,17 +492,28 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     })
     .enabled(live)
     .register();
-    let fit_all = Action::new("canvas.fit-all", "Fit all", move || state.editor().fit())
+    let fit_all = Action::new("canvas.fit-all", "Fit all", move || state.request_fit_all())
         .glyph(ICON_FIT_SCREEN)
         .enabled(live)
         .register();
+    let touch = TouchChoice::new();
+    let ignore_touch = touch.action();
+    let grid = grid_actions(state);
     CanvasActions {
         select,
-        artboard,
+        lasso,
+        select_mode,
+        frame,
         line,
+        arrow,
         rectangle,
+        ellipse,
+        diamond,
         text,
         pen,
+        eraser,
+        tool_lock,
+        bind_lines,
         add_rectangle,
         add_line,
         add_text,
@@ -399,9 +523,15 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         open,
         toggle_mode,
         fit_selection,
+        fit_frame,
         cut,
         copy,
         paste,
+        copy_png,
+        copy_svg,
+        export_png,
+        export_svg,
+        exporter,
         duplicate,
         delete,
         group,
@@ -418,6 +548,11 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         zoom_out,
         zoom_reset,
         fit_all,
+        ignore_touch,
+        touch,
+        grid,
+        prototyping,
+        vector,
     }
 }
 
@@ -426,10 +561,5 @@ pub(crate) fn embedded_block(state: &CanvasState) -> Option<Uuid> {
     let [entity] = selected.as_slice() else {
         return None;
     };
-    match entity.kind {
-        CanvasEntityKind::Block { block_id } | CanvasEntityKind::DirectEditor { block_id, .. } => {
-            Some(block_id)
-        }
-        _ => None,
-    }
+    entity.block.filter(|_| entity.shape.embeds_block())
 }

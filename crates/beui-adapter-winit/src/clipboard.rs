@@ -39,6 +39,32 @@ impl Clipboard {
         let _ = text;
     }
 
+    pub fn set_image(&mut self, png: &[u8]) {
+        #[cfg(not(target_os = "ios"))]
+        {
+            let Some(clipboard) = &mut self.inner else {
+                return;
+            };
+            let image = match image::load_from_memory_with_format(png, image::ImageFormat::Png) {
+                Ok(image) => image.into_rgba8(),
+                Err(error) => {
+                    eprintln!("beui: could not decode an image to copy: {error}");
+                    return;
+                }
+            };
+            let (width, height) = image.dimensions();
+            if let Err(error) = clipboard.set_image(arboard::ImageData {
+                width: width as usize,
+                height: height as usize,
+                bytes: image.into_raw().into(),
+            }) {
+                eprintln!("beui: could not copy an image: {error}");
+            }
+        }
+        #[cfg(target_os = "ios")]
+        let _ = png;
+    }
+
     pub fn image(&mut self) -> Option<PickedFile> {
         #[cfg(not(target_os = "ios"))]
         {

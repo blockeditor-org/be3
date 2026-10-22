@@ -3,6 +3,9 @@ use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
+use be_block::Landed;
+use beui::reactive::now;
+use block_plugin_api::{ByteBuf, ContentOperation};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
@@ -48,14 +51,24 @@ impl Config {
 
 const LOG_LIMIT: usize = 512;
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Split {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) session: Vec<u8>,
+    pub(crate) unsettled: Vec<Vec<u8>>,
+}
+
 #[derive(Clone)]
 pub(crate) struct Content {
     pub(crate) content_type: Uuid,
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) session: Vec<u8>,
+    snapshot: Split,
+    unfolded: usize,
+    folded: std::sync::OnceLock<Split>,
+    visible: std::sync::OnceLock<Split>,
+    held: u64,
     pub(crate) derived: Option<be_block::Entries>,
     pub(crate) revision: u64,
-    log: std::collections::VecDeque<(Vec<u8>, Option<u64>)>,
+    log: std::collections::VecDeque<(Landed<Vec<u8>>, Option<u64>)>,
     taken: std::collections::HashMap<u64, u64>,
 }
 
@@ -68,8 +81,15 @@ impl Content {
     ) -> Self {
         Self {
             content_type,
-            bytes,
-            session,
+            snapshot: Split {
+                bytes,
+                session,
+                unsettled: Vec::new(),
+            },
+            unfolded: 0,
+            folded: std::sync::OnceLock::new(),
+            visible: std::sync::OnceLock::new(),
+            held: 0,
             derived,
             revision: 1,
             log: std::collections::VecDeque::new(),
@@ -77,14 +97,93 @@ impl Content {
         }
     }
 
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.current().bytes
+    }
+
+    #[cfg(test)]
+    pub(crate) fn session(&self) -> &[u8] {
+        &self.current().session
+    }
+
+    fn current(&self) -> &Split {
+        let split = self.split();
+        if split.unsettled.is_empty() {
+            return split;
+        }
+        self.visible.get_or_init(|| {
+            kind_of(self.content_type)
+                .and_then(|kind| (kind.fold)(split, &[], true))
+                .unwrap_or_else(|| split.clone())
+        })
+    }
+
+    fn split(&self) -> &Split {
+        if self.unfolded == 0 {
+            return &self.snapshot;
+        }
+        self.folded.get_or_init(|| {
+            let landed: Vec<&Landed<Vec<u8>>> = self
+                .log
+                .iter()
+                .skip(self.log.len().saturating_sub(self.unfolded))
+                .map(|(landed, _)| landed)
+                .collect();
+            kind_of(self.content_type)
+                .and_then(|kind| (kind.fold)(&self.snapshot, &landed, false))
+                .unwrap_or_else(|| self.snapshot.clone())
+        })
+    }
+
+    pub(crate) fn unfolded(&self) -> usize {
+        self.unfolded
+    }
+
+    pub(crate) fn settle(&mut self, bytes: Vec<u8>, session: Vec<u8>) {
+        self.snapshot = Split {
+            bytes,
+            session,
+            unsettled: Vec::new(),
+        };
+        self.held = 0;
+        self.unfolded = 0;
+        self.folded = std::sync::OnceLock::new();
+        self.visible = std::sync::OnceLock::new();
+    }
+
+    pub(crate) fn compact(&mut self) {
+        self.snapshot = self.split().clone();
+        self.unfolded = 0;
+        self.folded = std::sync::OnceLock::new();
+    }
+
+    pub(crate) fn lands(&self, log: &[worker::Logged]) -> bool {
+        let mut held = self.held;
+        for entry in log {
+            match entry {
+                worker::Logged::Operation { landed, .. } => {
+                    if !held_after(&mut held, landed) {
+                        return false;
+                    }
+                }
+                worker::Logged::Replaced { .. } => held = 0,
+            }
+        }
+        true
+    }
+
     pub(crate) fn record(&mut self, entry: worker::Logged) {
         self.revision += 1;
         match entry {
-            worker::Logged::Operation { bytes, origin } => {
+            worker::Logged::Operation { landed, origin } => {
                 if let Some(origin) = origin {
                     *self.taken.entry(origin).or_default() += 1;
                 }
-                self.log.push_back((bytes, origin));
+                held_after(&mut self.held, &landed);
+                self.log.push_back((landed, origin));
+                self.unfolded += 1;
+                self.folded = std::sync::OnceLock::new();
+                self.visible = std::sync::OnceLock::new();
                 if self.log.len() > LOG_LIMIT {
                     self.log.pop_front();
                 }
@@ -105,15 +204,57 @@ impl Content {
                 self.log
                     .iter()
                     .skip(self.log.len() - behind as usize)
-                    .map(|(bytes, from)| (bytes.clone(), *from == Some(origin)))
+                    .map(|(landed, from)| {
+                        let (operation, unsettled, beneath) = match landed {
+                            Landed::On {
+                                operation,
+                                unsettled,
+                            } => (operation, unsettled, None),
+                            Landed::Beneath {
+                                operation,
+                                unsettled,
+                                local,
+                            } => (
+                                operation,
+                                unsettled,
+                                Some(local.iter().cloned().map(ByteBuf::from).collect()),
+                            ),
+                        };
+                        ContentOperation {
+                            operation: operation.clone(),
+                            mine: *from == Some(origin),
+                            unsettled: *unsettled,
+                            beneath,
+                        }
+                    })
                     .collect(),
             ),
-            _ => Update::Snapshot {
-                content_type: self.content_type,
-                bytes: self.bytes.clone(),
-                session: self.session.clone(),
-                applied: self.taken.get(&origin).copied().unwrap_or_default(),
-            },
+            _ => {
+                let split = self.split();
+                Update::Snapshot {
+                    content_type: self.content_type,
+                    bytes: split.bytes.clone(),
+                    session: split.session.clone(),
+                    unsettled: split.unsettled.clone(),
+                    applied: self.taken.get(&origin).copied().unwrap_or_default(),
+                }
+            }
+        }
+    }
+}
+
+fn held_after(held: &mut u64, landed: &Landed<Vec<u8>>) -> bool {
+    match landed {
+        Landed::On { unsettled, .. } => {
+            *held = (*held + 1).min(*unsettled);
+            true
+        }
+        Landed::Beneath {
+            unsettled, local, ..
+        } => {
+            let enough = *held >= *unsettled;
+            *held = local.len() as u64;
+            enough
         }
     }
 }
@@ -124,9 +265,10 @@ pub(crate) enum Update {
         content_type: Uuid,
         bytes: Vec<u8>,
         session: Vec<u8>,
+        unsettled: Vec<Vec<u8>>,
         applied: u64,
     },
-    Operations(Vec<(Vec<u8>, bool)>),
+    Operations(Vec<ContentOperation>),
 }
 
 pub(crate) fn next_origin() -> u64 {
@@ -151,6 +293,8 @@ type MergeContent = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Option<(V
 
 type ContentReferences = fn(&[u8], Uuid) -> Vec<Uuid>;
 
+type FoldContent = fn(&Split, &[&Landed<Vec<u8>>], bool) -> Option<Split>;
+
 struct Kind {
     content_type: Uuid,
     frozen: bool,
@@ -165,6 +309,7 @@ struct Kind {
     child: ChildOperations,
     merge: MergeContent,
     references: ContentReferences,
+    fold: FoldContent,
 }
 
 const fn kind<C>() -> Kind
@@ -185,6 +330,7 @@ where
         child: child_operations::<C>,
         merge: merge_content::<C>,
         references: content_references::<C>,
+        fold: fold_content::<C>,
     }
 }
 
@@ -206,6 +352,7 @@ where
         child: child_operations::<C>,
         merge: merge_content::<C>,
         references: content_references::<C>,
+        fold: fold_content::<C>,
     }
 }
 
@@ -246,6 +393,39 @@ fn content_references<C: be_block::BlockContent>(bytes: &[u8], organization: Uui
     C::decode(bytes)
         .map(|content| content.references_in(organization))
         .unwrap_or_default()
+}
+
+fn fold_content<C: be_block::LiveEdit>(
+    split: &Split,
+    landed: &[&Landed<Vec<u8>>],
+    settle: bool,
+) -> Option<Split> {
+    let mut settled = C::decode(&split.bytes).ok()?;
+    settled.adopt_session_state(&split.session).ok()?;
+    let unsettled = split
+        .unsettled
+        .iter()
+        .map(|operation| C::decode_operation(operation))
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    let mut settling = be_block::Settling::new(settled, unsettled);
+    for entry in landed {
+        let entry = entry
+            .try_map(|operation| C::decode_operation(operation))
+            .ok()?;
+        if !settling.land(entry) {
+            return None;
+        }
+    }
+    if settle {
+        settling.settle_to(0);
+    }
+    let (settled, unsettled) = settling.into_parts();
+    Some(Split {
+        bytes: settled.encode(),
+        session: settled.session_state(),
+        unsettled: unsettled.iter().map(C::encode_operation).collect(),
+    })
 }
 
 fn child_operations<C: be_block::LiveEdit>(
@@ -304,7 +484,7 @@ fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
 pub(crate) fn describe_of(content: &Content) -> Option<be_block::Entries> {
     match &content.derived {
         Some(derived) => Some(derived.clone()),
-        None => (kind_of(content.content_type)?.describe)(&content.bytes),
+        None => (kind_of(content.content_type)?.describe)(content.bytes()),
     }
 }
 
@@ -527,8 +707,8 @@ pub(crate) fn change_child(
         hold(block, content_type);
         return None;
     };
-    for operation in (kind.child)(&held.bytes, change)? {
-        send(Command::Operate(block, None, operation));
+    for operation in (kind.child)(held.bytes(), change)? {
+        send(Command::Operate(block, None, operation, now()));
     }
     Some(true)
 }
@@ -563,11 +743,19 @@ pub(crate) fn is_versioned(content_type: Uuid) -> bool {
 }
 
 pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
-    send(Command::Operate(block, None, operation));
+    send(Command::Operate(block, None, operation, now()));
 }
 
 pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
-    send(Command::Operate(block, Some(origin), operation));
+    send(Command::Operate(block, Some(origin), operation, now()));
+}
+
+pub(crate) fn gesture(block: Uuid, origin: u64, phase: block_plugin_api::GesturePhase) {
+    send(Command::Gesture {
+        block,
+        origin: Some(origin),
+        phase,
+    });
 }
 
 pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Option<(u64, Update)> {

@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use beui_core::geometry::{pos2, vec2};
 use beui_core::input::{Event, KeyPress, Modifiers, Pen, TouchId};
 use beui_core::runner::{Input, Keystroke, ScrollDelta};
@@ -8,13 +10,15 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Input {
     let scale = region.scale_factor;
     let at = |x: f32, y: f32| pos2((x + origin.x) * scale, (y + origin.y) * scale);
     match event {
-        InputEvent::PointerMoved { x, y } => Event::PointerMoved(at(*x, *y)).into(),
+        InputEvent::PointerMoved { x, y, .. } => Event::PointerMoved(at(*x, *y)).into(),
+        InputEvent::Predicted { x, y } => Event::Predicted(at(*x, *y)).into(),
         InputEvent::PointerLeft => Event::PointerGone.into(),
         InputEvent::PointerButton {
             button,
             pressed,
             x,
             y,
+            ..
         } => Event::PointerButton {
             pos: at(*x, *y),
             button: *button,
@@ -38,6 +42,7 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Input {
             x,
             y,
             force,
+            ..
         } => Event::Touch {
             id: TouchId {
                 device: *device,
@@ -90,6 +95,7 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Input {
             tilt_x,
             tilt_y,
             eraser,
+            ..
         } => Event::Pen {
             phase: *phase,
             pos: at(*x, *y),
@@ -100,5 +106,15 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Input {
             },
         }
         .into(),
+    }
+}
+
+pub(crate) fn time(event: &InputEvent) -> Option<Instant> {
+    match event {
+        InputEvent::PointerMoved { time_micros, .. }
+        | InputEvent::PointerButton { time_micros, .. }
+        | InputEvent::Touch { time_micros, .. }
+        | InputEvent::Pen { time_micros, .. } => block_editor_plugin::instant_at(*time_micros),
+        _ => None,
     }
 }

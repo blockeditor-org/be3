@@ -5,6 +5,7 @@ use crate::text::{Text, TextColor, TextStyle};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TOOLTIP_DELAY, TooltipHandle};
 use beui_core::node::NodeId;
+use beui_view::primitives::*;
 use beui_view::reactive::*;
 use std::time::Duration;
 
@@ -38,15 +39,19 @@ pub fn Tooltip(
 fn TooltipBubble(handle: TooltipHandle) -> NodeId {
     let TooltipHandle { label, .. } = handle;
     view! {
-        <Frame padding={Sides::vertical(GAP)} width={Extent::at_most(MAX_WIDTH)}>
-            <Frame
-                fill=ColorRole::SurfaceRaised
-                border={Border::DEFAULT}
-                radius=Radius::Md
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-            >
-                <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
-            </Frame>
+        <Frame padding={Sides::vertical(GAP)}>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Frame
+                    @sizing={ItemSize::Intrinsic.max(MAX_WIDTH)}
+                    @test_id={"tooltip"}
+                    fill=ColorRole::SurfaceRaised
+                    border={Border::DEFAULT}
+                    radius=Radius::Md
+                    padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                >
+                    <Text style=TextStyle::CAPTION color=TextColor::Default wrap=true>{label}</Text>
+                </Frame>
+            </List>
         </Frame>
     }
 }

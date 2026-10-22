@@ -21,25 +21,37 @@ mod an_active_child_pans_in_the_frame_its_canvas_pans;
 mod an_invitation_shows_the_link_to_send_the_invited_person;
 mod choosing_a_scale_draws_the_app_larger;
 mod closing_a_tab_shuts_its_editor_down;
-mod fit_on_an_active_child_fits_its_card_in_the_frame;
+mod fit_on_an_active_child_fits_its_content_in_its_view;
 mod leaving_a_workspace_someone_shared_asks_first;
 mod presenting_a_deck_fills_the_screen_until_escape;
 mod pressing_the_files_after_a_text_block_moves_the_focus_to_them;
+mod reopening_a_block_keeps_the_view_the_person_moved;
 mod revision_history_previews_and_restores_a_text_file;
 mod the_add_menu_fits_a_short_window_and_scrolls_inside_itself;
 mod the_add_menu_opens_at_the_files_button_that_asked;
 mod the_app_menu_opens_under_its_button;
 mod the_app_opens_its_files_and_closes_cleanly;
+mod the_canvas_dock_opens_the_add_menu_at_its_block_button;
+mod the_canvas_menu_ticks_its_grid_and_profile_in_submenus;
 mod the_desktop_shell_opens_and_closes_cleanly;
 mod the_members_dialog_lists_an_organizations_members_and_their_roles;
 mod the_more_card_from_the_files_reaches_over_the_block_beside_them;
 mod the_more_card_hangs_on_its_tab_and_leaves_the_files_usable;
 mod the_organizations_screen_takes_an_invite_link;
+mod typing_after_a_pause_undoes_as_its_own_step;
 
 fn add_to_my_files(app: &mut AppTest, label: &str) {
+    start_adding_to_my_files(app, label);
+    app.key("Enter");
+    app.gone(&format!("TextInput \"Name\" value=\"{label}\""));
+    app.wait(&format!("TreeItem \"{label}\""));
+}
+
+fn start_adding_to_my_files(app: &mut AppTest, label: &str) {
     app.click(ADD_TO_MY_FILES);
     choose_type(app, label);
     app.wait(&format!("Pane \"{label}\""));
+    app.wait(&format!("TextInput \"Name\" value=\"{label}\" focused"));
 }
 
 fn add_to_canvas(app: &mut AppTest, label: &str) {

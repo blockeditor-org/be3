@@ -1,21 +1,23 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
+use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntity, CanvasShape};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
+use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Pos2, Rect, Vec2, pos2};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget};
 use uuid::Uuid;
 
 use crate::geometry::*;
 
+use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
-use super::overlay::{Artboard, Backdrop, Overlay};
-use super::paint::{Camera, EntityPaint, Palette, resolve_color};
-use super::state::CanvasState;
-use super::text::{EntityText, shown_live, text_box};
+use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
+use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
+use super::sketch::{Sketch, SketchKey, rough_reach};
+use super::state::{CanvasState, Gesture};
+use super::text::{EntityText, path_label_reach, text_region, writes};
 
 const ITEM_MARGIN: f32 = 2.0;
 
@@ -35,13 +37,8 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let camera = create_memo(move || {
                 super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
             });
-            let ids = create_memo(move || {
-                state
-                    .displayed()
-                    .iter()
-                    .map(|entity| entity.id)
-                    .collect::<Vec<Uuid>>()
-            });
+            let ids = state.entities.ids();
+            let embedding = create_memo(move || state.entities.embedding());
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
                 Sides::new(
@@ -52,26 +49,67 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 )
             });
             let previewing = state.previewing();
+            let (grid, tiles) = grid_of(state, camera, shown);
+            let frames = create_memo(move || {
+                state
+                    .entities
+                    .frames()
+                    .iter()
+                    .filter(|frame| !frame.hidden)
+                    .map(|frame| entity_bounds(frame).rect())
+                    .collect::<Vec<_>>()
+            });
+            let frame_ids = create_memo(move || {
+                state
+                    .entities
+                    .frames()
+                    .iter()
+                    .filter(|frame| !frame.hidden)
+                    .map(|frame| frame.id)
+                    .collect::<Vec<_>>()
+            });
+            let theme = use_theme();
+            let outside_frames = create_memo(move || {
+                match !previewing && frames.with(|frames| !frames.is_empty()) {
+                    true => ColorRole::Custom(theme.shadow.get()),
+                    false => ColorRole::None,
+                }
+            });
             view! {
                 <CanvasMenu disabled={previewing}>
-                    <Frame padding={inset}>
+                    <Frame padding={inset} fill={outside_frames}>
                         <CanvasSurface state={state}>
                             <Canvas
                                 view={create_memo(move || Some(camera.get()))}
+                                on_reveal={reveal_by(state.editor())}
                                 @test_id={"infinite-canvas.canvas"}
                             >
-                                <CanvasBackdrop state={state} camera={camera} stage={shown} />
+                                <ForEach keys={frame_ids}>|id: Uuid| {
+                                    let camera = camera;
+                                    view! {
+                                        <FrameBackdropItem state id camera />
+                                    }
+                                }</ForEach>
+                                <ForEach keys={tiles}>|tile: GridTile|
+                                    <GridTileItem tile look={grid} frames />
+                                </ForEach>
                                 <ForEach keys={ids}>|id: Uuid| {
                                     let camera = camera;
                                     view! {
                                         <EntityShape state id camera />
                                     }
                                 }</ForEach>
-                                <ForEach keys={ids}>|id: Uuid|
+                                <ForEach keys={embedding}>|id: Uuid|
                                     <EntityEmbed state id />
                                 </ForEach>
                                 <Show condition={!previewing}>
-                                    <CanvasOverlay state={state} camera={camera} stage={shown} />
+                                    <CanvasHint state={state} camera={camera} stage={shown} />
+                                </Show>
+                                <Show condition={!previewing}>
+                                    <CanvasOverlay state={state} camera={camera} />
+                                </Show>
+                                <Show condition={!previewing}>
+                                    <LiveOverlay state={state} camera={camera} stage={shown} />
                                 </Show>
                             </Canvas>
                         </CanvasSurface>
@@ -82,11 +120,47 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     }
 }
 
+const REVEAL_STEP: f32 = 0.35;
+
+fn reveal_by(editor: block_editor_beui::Editor) -> Callback<Vec2> {
+    Callback::new(move |delta: Vec2| {
+        let step = match motion().animates() && delta.length() > 1.0 {
+            true => delta * REVEAL_STEP,
+            false => delta,
+        };
+        editor.pan(step);
+    })
+}
+
+fn grid_of(
+    state: CanvasState,
+    camera: Memo<CanvasView>,
+    stage: Memo<Rect>,
+) -> (Memo<Option<GridLook>>, Memo<Vec<GridTile>>) {
+    let grid = state.grid();
+    let live = !state.previewing();
+    let theme = use_theme();
+    let look = create_memo(move || {
+        let spacing = grid.get().shown().filter(|_| live)?;
+        GridLook::new(spacing, camera.get().scale, theme.border.get())
+    });
+    let tiles = create_memo(move || match look.get() {
+        Some(look) => look.tiles(camera.get().rect_to_canvas(stage.get())),
+        None => Vec::new(),
+    });
+    (look, tiles)
+}
+
 #[component]
 fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
     let cursor = create_memo(move || state.cursor());
     let interactive = !state.previewing();
     let surface = state.surface();
+    let inking = create_memo(move || {
+        state
+            .gesture
+            .with(|gesture| matches!(gesture, Some(Gesture::Pen { .. })))
+    });
     view! {
         <Interactive
             @node_ref=&surface
@@ -97,6 +171,8 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             on_paste={move |pasted: Pasted| state.take_paste(pasted)}
             cursor={cursor}
             touch_drags={interactive}
+            drawing={interactive}
+            every_sample={inking}
             on_cancel={move || state.cancel()}
             on_press={move |press: PointerPress| state.press(press)}
             on_secondary_press={move |press: PointerPress| state.secondary_press(press)}
@@ -121,96 +197,219 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 }
 
 #[component]
-fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
-    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
+fn CanvasHint(
+    state: CanvasState,
+    camera: Memo<CanvasView>,
+    stage: Memo<Rect>,
+) -> DynamicSegment<CanvasItem> {
     let theme = use_theme();
-    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
-    let shown = RefCell::new(None::<Overlay>);
-    create_effect(move || {
-        let overlay = Overlay {
-            camera: Camera::of(Some(camera.get()), stage.get().min),
-            palette: palette(&theme),
-            stage: stage.get(),
-            empty: state.entities.get().is_empty(),
-            gesture: state.gesture.get(),
-            outlines: super::state::selected_outlines(&state.displayed(), &state.selection.get()),
-            frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
-            line: state.selected_line().and_then(|line| {
-                let shown = state
-                    .displayed()
-                    .into_iter()
-                    .find(|entity| entity.id == line.id)?;
-                Some(line_ends(&shown))
-            }),
-            resize: state.selection_handles().0,
-            rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
-            presence: state.presence.get(),
-            tool: state.tool.get(),
-            pointer: state.pointer.get(),
-        };
-        if shown.borrow().as_ref() == Some(&overlay) {
-            return;
-        }
-        *shown.borrow_mut() = Some(overlay.clone());
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
-            overlay.draw(&painter.in_document())
-        }));
+    let hint = create_memo(move || {
+        let empty = state.entities.ids().with(Vec::is_empty);
+        let busy = state.gesture.with(Option::is_some);
+        (empty && !busy).then(|| Hint {
+            color: theme.text_muted.get(),
+        })
     });
-    let x = create_memo(move || visible.get().left());
-    let y = create_memo(move || visible.get().top());
-    let width = create_memo(move || visible.get().width().max(1.0));
-    let height = create_memo(move || visible.get().height().max(1.0));
+    let shown = create_memo(move || hint.with(Option::is_some));
+    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
+    let draw = move || {
+        Prop::dynamic(move || -> Draw {
+            let hint = hint.get();
+            Rc::new(move |painter: &Painter, rect: Rect| {
+                if let Some(hint) = hint.as_ref() {
+                    hint.draw(painter, rect);
+                }
+            })
+        })
+    };
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Drawing draw={draw} />
-        </CanvasItem>
+        <Show condition={shown}>
+            <CanvasItem
+                x={create_memo(move || visible.get().left())}
+                y={create_memo(move || visible.get().top())}
+                width={create_memo(move || visible.get().width().max(1.0))}
+                height={create_memo(move || visible.get().height().max(1.0))}
+            >
+                <Drawing draw={draw()} />
+            </CanvasItem>
+        </Show>
     }
 }
 
 #[component]
-fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
+fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment<CanvasItem> {
+    let theme = use_theme();
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let bounds = create_signal(None::<Rect>);
+    let shown = RefCell::new(None::<Overlay>);
+    let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
+    let drawn_line = create_memo(move || {
+        state.gesture.with(|gesture| match gesture {
+            Some(Gesture::Create { id, tool, .. }) if tool.draws_a_line() => Some(*id),
+            _ => None,
+        })
+    });
+    create_effect(move || {
+        let selection = state.selection.get();
+        let selected = state.entities.among(&selection);
+        let scale = scale.get();
+        let selected_path = state.selected_path();
+        let mut overlay = Overlay {
+            camera: Camera::item(Pos2::ZERO, scale),
+            palette: palette(&theme),
+            outlines: super::state::selected_outlines(&selected, &selection),
+            frame: super::state::selection_frame(&selected, &selection),
+            path: selected_path.as_ref().map(|path| path_grips(path, scale)),
+            anchors: drawn_line
+                .get()
+                .and_then(|id| state.entities.get(id))
+                .or_else(|| selected_path.clone())
+                .map(|path| state.anchors(&path))
+                .unwrap_or_default(),
+            group: entered_group_bounds(state),
+            resize: state.selection_handles().0,
+            rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
+            selections: state.presence.with(|presence| presence.selections.clone()),
+        };
+        let reach = overlay.reach().map(|reach| {
+            let margin = Overlay::margin(scale);
+            let whole = |at: f32| (at * scale).floor() / scale;
+            Rect::from_min_max(
+                pos2(whole(reach.min.x - margin), whole(reach.min.y - margin)),
+                pos2(reach.max.x + margin, reach.max.y + margin),
+            )
+        });
+        if bounds.get_untracked() != reach {
+            bounds.set(reach);
+        }
+        overlay.camera = Camera::item(reach.map_or(Pos2::ZERO, |reach| reach.min), scale);
+        if shown.borrow().as_ref() == Some(&overlay) {
+            return;
+        }
+        *shown.borrow_mut() = Some(overlay.clone());
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
+            overlay.draw(&painter.transformed(rect.min.to_vec2(), 1.0))
+        }));
+    });
+    let present = create_memo(move || bounds.with(Option::is_some));
+    let rect = create_memo(move || bounds.get().unwrap_or(Rect::ZERO));
+    view! {
+        <Show condition={present}>
+            <CanvasItem
+                x={create_memo(move || rect.get().left())}
+                y={create_memo(move || rect.get().top())}
+                width={create_memo(move || rect.get().width().max(f32::EPSILON))}
+                height={create_memo(move || rect.get().height().max(f32::EPSILON))}
+            >
+                <Drawing draw={draw} />
+            </CanvasItem>
+        </Show>
+    }
+}
+
+#[component]
+fn LiveOverlay(
+    state: CanvasState,
+    camera: Memo<CanvasView>,
+    stage: Memo<Rect>,
+) -> DynamicSegment<CanvasItem> {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
-    let shown = RefCell::new(None::<Backdrop>);
+    let present = create_signal(false);
+    let shown = RefCell::new(None::<Live>);
     create_effect(move || {
-        let artboards = state
-            .displayed()
-            .into_iter()
-            .filter(|entity| !entity.style.hidden)
-            .filter_map(|entity| match &entity.kind {
-                CanvasEntityKind::Artboard { name } => Some(Artboard {
-                    bounds: entity_bounds(&entity),
-                    name: name.clone(),
-                    fill: resolve_color(
-                        entity.style.fill.unwrap_or_default(),
-                        theme.background.get(),
-                    ),
+        let presence = state.presence.get();
+        let tool = state.tool.get();
+        let live = Live {
+            camera: Camera::item(visible.get().min, camera.get().scale.max(f32::EPSILON)),
+            palette: palette(&theme),
+            gesture: state.gesture.get(),
+            cursors: presence.cursors,
+            pen: state.default_style(),
+            badge: state
+                .pointer
+                .get()
+                .filter(|_| !tool.selects())
+                .map(|at| Badge {
+                    glyph: tool.glyph(),
+                    at,
                 }),
-                _ => None,
-            })
-            .collect();
-        let backdrop = Backdrop {
-            camera: Camera::of(Some(camera.get()), stage.get().min),
-            stage: stage.get(),
-            label: theme.text_muted.get(),
-            chrome: !state.previewing(),
-            artboards,
         };
-        if shown.borrow().as_ref() == Some(&backdrop) {
+        if present.get_untracked() == live.is_empty() {
+            present.set(!live.is_empty());
+        }
+        if shown.borrow().as_ref() == Some(&live) {
             return;
         }
-        *shown.borrow_mut() = Some(backdrop.clone());
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
-            backdrop.draw(&painter.in_document())
+        *shown.borrow_mut() = Some(live.clone());
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
+            live.draw(
+                &painter.transformed(rect.min.to_vec2(), 1.0),
+                Rect::from_min_size(Pos2::ZERO, rect.size()),
+            )
         }));
     });
-    let x = create_memo(move || visible.get().left());
-    let y = create_memo(move || visible.get().top());
-    let width = create_memo(move || visible.get().width().max(1.0));
-    let height = create_memo(move || visible.get().height().max(1.0));
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height} @test_id={"infinite-canvas.backdrop"}>
+        <Show condition={present}>
+            <CanvasItem
+                x={create_memo(move || visible.get().left())}
+                y={create_memo(move || visible.get().top())}
+                width={create_memo(move || visible.get().width().max(1.0))}
+                height={create_memo(move || visible.get().height().max(1.0))}
+            >
+                <Drawing draw={draw} />
+            </CanvasItem>
+        </Show>
+    }
+}
+
+#[component]
+fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
+    let entity = entity_of(state, id);
+    let label = create_memo(move || FRAME_LABEL_HEIGHT / camera.get().scale.max(f32::EPSILON));
+    let bounds = create_memo(move || {
+        let Some(entity) = entity.get() else {
+            return Rect::ZERO;
+        };
+        let frame = entity_bounds(&entity).rect();
+        Rect::from_min_max(pos2(frame.left(), frame.top() - label.get()), frame.max)
+    });
+    let theme = use_theme();
+    let chrome = !state.previewing();
+    let backdrop = create_memo(move || {
+        let entity = entity.get()?;
+        Some(FrameBackdrop {
+            name: entity.text.to_str_lossy().into_owned(),
+            fill: match entity.style.filled().unwrap_or_default() {
+                CanvasColor::Auto => theme.background.get(),
+                color => resolve_color(color, theme.text.get()),
+            },
+            label: theme.text_muted.get(),
+            outline: theme.border.get(),
+            chrome,
+        })
+    });
+    let draw = Prop::dynamic(move || -> Draw {
+        let backdrop = backdrop.get();
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            if let Some(backdrop) = backdrop.as_ref() {
+                let frame = Rect::from_min_max(
+                    pos2(rect.left(), rect.top() + FRAME_LABEL_HEIGHT),
+                    rect.max,
+                );
+                backdrop.draw(painter, frame);
+            }
+        })
+    });
+    view! {
+        <CanvasItem
+            x={create_memo(move || bounds.get().left())}
+            y={create_memo(move || bounds.get().top())}
+            width={create_memo(move || bounds.get().width().max(1.0))}
+            height={create_memo(move || bounds.get().height().max(1.0))}
+            @test_id={format!("infinite-canvas.backdrop.{id}")}
+        >
             <Drawing draw={draw} />
         </CanvasItem>
     }
@@ -220,25 +419,63 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
 fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
     let entity = entity_of(state, id);
     let editing = create_memo(move || state.editing_text.get() == Some(id));
-    let live = create_memo(move || entity.get().is_some_and(|entity| shown_live(&entity)));
+    let live = create_memo(move || {
+        entity.get().is_some_and(|entity| {
+            writes(&entity)
+                && (entity.shape == CanvasShape::Text || !entity.text.is_empty() || editing.get())
+        })
+    });
     let bounds = create_memo(move || {
         let Some(entity) = entity.get() else {
             return Rect::ZERO;
         };
         match live.get() {
-            true => item_bounds(&entity).union(text_box(&entity)),
+            true => item_bounds(&entity).union(text_region(&entity)),
             false => item_bounds(&entity),
         }
+    });
+    let scales = create_memo(move || !editing.get());
+    let drawing = create_memo(move || {
+        let freehand = entity.with(|entity| {
+            entity
+                .as_ref()
+                .is_some_and(|entity| entity.shape == CanvasShape::Freehand)
+        });
+        freehand && state.being_drawn(id)
+    });
+    let unit = create_memo(move || match editing.get() {
+        true => camera.get().scale.max(f32::EPSILON),
+        false => 1.0,
     });
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
+    let sketched = RefCell::new(None::<(SketchKey, Sketch, Option<(Pos2, Rc<Sketch>)>)>);
     create_effect(move || {
         let Some(entity) = entity.get() else {
             return;
         };
+        let corner = bounds.get().min;
+        let drawing = drawing.get();
+        let key = SketchKey::of(&entity, drawing);
+        let mut held = sketched.borrow_mut();
+        if held.as_ref().is_none_or(|(held_key, ..)| *held_key != key) {
+            *held = Some((key, Sketch::of(&entity, drawing), None));
+        }
+        let Some((_, world, placed)) = held.as_mut() else {
+            return;
+        };
+        let sketch = match placed {
+            Some((at, sketch)) if *at == corner => Rc::clone(sketch),
+            _ => {
+                let sketch = Rc::new(world.translated(Vec2::new(-corner.x, -corner.y)));
+                *placed = Some((corner, Rc::clone(&sketch)));
+                sketch
+            }
+        };
+        drop(held);
         let reference = reference_of(&entity);
         let label = reference.and_then(|reference| state.label_of(reference));
         let missing = match reference {
@@ -246,8 +483,9 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             None => "Broken link".to_owned(),
         };
         let paint = EntityPaint {
+            sketch,
             covered: state.child_state(entity.id).available,
-            camera: Camera::of(Some(camera.get()), block_editor_beui::beui::Pos2::ZERO),
+            camera: Camera::item(corner, unit.get()),
             palette: palette(&theme),
             title: label
                 .as_ref()
@@ -265,9 +503,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             return;
         }
         *shown.borrow_mut() = Some(paint.clone());
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
-            paint.draw(&painter.in_document())
-        }));
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| paint.draw(painter)));
     });
     view! {
         <CanvasItem
@@ -275,6 +511,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             y={create_memo(move || bounds.get().top())}
             width={create_memo(move || bounds.get().width().max(1.0))}
             height={create_memo(move || bounds.get().height().max(1.0))}
+            scales={scales}
             pointer={editing}
             @test_id={format!("infinite-canvas.entity.{id}")}
         >
@@ -293,7 +530,7 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
     let entity = entity_of(state, id);
     let bounds = create_memo(move || entity.get().map(content_bounds).unwrap_or(Rect::ZERO));
     let target = create_memo(move || {
-        let entity = entity.get().filter(|entity| !entity.style.hidden)?;
+        let entity = entity.get().filter(|entity| !entity.hidden)?;
         let id = reference_of(&entity)?;
         let block_type = state.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
@@ -306,8 +543,8 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
             .map_or(1.0, |entity| entity.style.opacity.clamp(0.0, 1.0))
     });
     let mode = create_memo(move || match entity.get() {
-        Some(entity) => match entity.kind {
-            CanvasEntityKind::DirectEditor { .. } => match state.focused_editor.get() == Some(id) {
+        Some(entity) => match entity.shape {
+            CanvasShape::Editor => match state.focused_editor.get() == Some(id) {
                 true => ChildMode::Active,
                 false => match (state.shows_preview(id), state.works_in_place(id)) {
                     (true, _) => ChildMode::Preview,
@@ -326,32 +563,74 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
     });
     let punch = create_memo(move || state.child_state(id).available);
     let editor = state.editor();
+    let linked = create_memo(move || entity.get().as_ref().and_then(reference_of).is_some());
+    let shown = create_memo(move || match linked.get() {
+        true => bounds.get(),
+        false => Rect::ZERO,
+    });
+    let least = create_memo(move || match linked.get() {
+        true => 1.0,
+        false => 0.0,
+    });
     view! {
         <CanvasItem
-            x={create_memo(move || bounds.get().left())}
-            y={create_memo(move || bounds.get().top())}
-            width={create_memo(move || bounds.get().width().max(1.0))}
-            height={create_memo(move || bounds.get().height().max(1.0))}
+            x={create_memo(move || shown.get().left())}
+            y={create_memo(move || shown.get().top())}
+            width={create_memo(move || shown.get().width().max(least.get()))}
+            height={create_memo(move || shown.get().height().max(least.get()))}
         >
-            <ChildBlock
-                editor={editor}
-                block={target}
-                mode={mode}
-                punch={punch}
-                rotation={rotation}
-                opacity={opacity}
-                intrinsic={intrinsic}
-                on_state={move |child: ChildState| state.report_child(id, child)}
-            />
+            <Layers>
+                <Show condition={linked}>
+                    <ChildBlock
+                        editor={editor}
+                        block={target}
+                        mode={mode}
+                        punch={punch}
+                        rotation={rotation}
+                        opacity={opacity}
+                        intrinsic={intrinsic}
+                        on_state={move |child: ChildState| state.report_child(id, child)}
+                    />
+                </Show>
+            </Layers>
         </CanvasItem>
     }
 }
 
-fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
-    create_memo(move || state.displayed().into_iter().find(|entity| entity.id == id))
+fn path_grips(path: &CanvasEntity, scale: f32) -> PathGrips {
+    let world = path.world_points();
+    PathGrips {
+        outline: flattened(&world),
+        points: world.iter().map(|point| point.at()).collect(),
+        middles: path_middles(path, scale)
+            .into_iter()
+            .map(|(_, at)| at)
+            .collect(),
+    }
 }
 
-fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
+fn entered_group_bounds(state: CanvasState) -> Option<WorldRect> {
+    let group = state.entered_group.get()?;
+    let members = state
+        .entities
+        .all_untracked()
+        .into_iter()
+        .filter(|entity| entity.group_id == Some(group))
+        .map(|entity| entity.id)
+        .collect();
+    state
+        .entities
+        .among(&members)
+        .iter()
+        .map(entity_bounds)
+        .reduce(WorldRect::union)
+}
+
+fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
+    state.entities.watch(id).stored()
+}
+
+pub(crate) fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
     Palette {
         auto: theme.text.get(),
         surface: theme.surface_raised.get(),
@@ -361,8 +640,8 @@ fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
 }
 
 fn content_bounds(entity: CanvasEntity) -> Rect {
-    match entity.kind {
-        CanvasEntityKind::Block { .. } => {
+    match entity.shape {
+        CanvasShape::Block | CanvasShape::Image => {
             let size = Vec2::new(
                 entity.transform.size.x.max(MIN_SIZE),
                 entity.transform.size.y.max(MIN_SIZE),
@@ -378,7 +657,7 @@ fn content_bounds(entity: CanvasEntity) -> Rect {
                 ),
             )
         }
-        CanvasEntityKind::DirectEditor { .. } => direct_editor_layout(&entity)
+        CanvasShape::Editor => direct_editor_layout(&entity)
             .map(|layout| layout.content.rect())
             .unwrap_or(Rect::ZERO),
         _ => Rect::ZERO,
@@ -386,21 +665,23 @@ fn content_bounds(entity: CanvasEntity) -> Rect {
 }
 
 fn reference_of(entity: &CanvasEntity) -> Option<Uuid> {
-    match entity.kind {
-        CanvasEntityKind::Block { block_id } | CanvasEntityKind::DirectEditor { block_id, .. } => {
-            Some(block_id)
-        }
-        _ => None,
-    }
+    entity.block.filter(|_| entity.shape.embeds_block())
 }
 
-fn item_bounds(entity: &CanvasEntity) -> Rect {
+pub(crate) fn item_bounds(entity: &CanvasEntity) -> Rect {
     let bounds = entity_bounds(entity);
-    let widest = match entity.kind {
-        CanvasEntityKind::Pen { .. } => MOST_PRESSED_WIDTH,
-        _ => 1.0,
+    let stroke = entity.style.stroke_width.max(0.0);
+    let margin = ITEM_MARGIN
+        + match entity.shape {
+            CanvasShape::Freehand => stroke * MOST_PRESSED_WIDTH,
+            CanvasShape::Path => stroke.max(arrowhead_size(stroke) * 0.5),
+            _ => stroke,
+        }
+        + rough_reach(entity);
+    let bounds = match entity.text.is_empty() || !entity.shape.has_points() {
+        true => bounds,
+        false => bounds.union(path_label_reach(entity)),
     };
-    let margin = entity.style.line_width.max(0.0) * widest + ITEM_MARGIN;
     Rect::from_min_max(
         pos2(bounds.min.x - margin, bounds.min.y - margin),
         pos2(bounds.max.x + margin, bounds.max.y + margin),

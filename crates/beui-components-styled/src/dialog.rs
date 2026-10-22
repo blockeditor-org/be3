@@ -9,7 +9,6 @@ use crate::text::{Text, TextStyle};
 use beui_components_unstyled::BackSlide;
 use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::input::Key;
 use beui_core::keys::{KeyAt, KeyPhase};
@@ -22,7 +21,6 @@ pub(crate) const PADDING_HORIZONTAL: f32 = 20.0;
 pub(crate) const PADDING_VERTICAL: f32 = 18.0;
 pub(crate) const SPACING: f32 = 12.0;
 pub(crate) const MARGIN: f32 = 12.0;
-pub(crate) const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
 const ACTION_SPACING: f32 = 8.0;
 
 #[component]
@@ -41,7 +39,8 @@ pub fn Dialog(
     #[prop(children)] content: Render<(), Children<ListChild>>,
 ) -> NodeId {
     let presence = create_signal(1.0_f32);
-    let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
+    let theme = crate::theme::use_theme();
+    let scrim = create_memo(move || theme.scrim.get().scale_alpha(presence.get()));
     let actions = DialogActions {
         id: create_memo(move || id.get()),
         confirm: create_memo(move || confirm.get()),
@@ -52,26 +51,31 @@ pub fn Dialog(
         on_confirm,
         on_cancel: on_dismiss,
     };
+    let body = Render::new(move |()| {
+        view! {
+            <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
+                <DialogSurface
+                    width={width}
+                    title={title}
+                    role=Role::Dialog
+                    actions={actions}
+                    extra={ExtraActions(extra_actions)}
+                >
+                    {content.call(())}
+                </DialogSurface>
+            </BackSlide>
+        }
+    })
+    .once();
     view! {
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
             open={open}
+            keep_alive=true
             placement=Placement::Center
             scrim={scrim}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
-            content={move || view! {
-                <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
-                    <DialogSurface
-                        width={width}
-                        title={title}
-                        role=Role::Dialog
-                        actions={actions}
-                        extra={ExtraActions(extra_actions)}
-                    >
-                        {content.call(())}
-                    </DialogSurface>
-                </BackSlide>
-            }}
+            content={move || body.call(())}
         />
     }
 }
@@ -166,12 +170,7 @@ pub(crate) fn DialogSurface(
                 @test_id=surface_id
             >
                 <List spacing=0.0>
-                    <Scroll
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        fit=true
-                        tab_stop=false
-                        bleed={bleed}
-                    >
+                    <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} fit=true bleed={bleed}>
                         <List spacing=SPACING>
                             <Show condition={titled}>
                                 <Text style=TextStyle::TITLE>{label}</Text>

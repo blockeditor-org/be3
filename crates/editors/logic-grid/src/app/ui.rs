@@ -70,7 +70,7 @@ fn shortcut(session: Session, press: KeyPress) -> bool {
 }
 
 #[component]
-fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
+fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<ListChild> {
     let editor = session.editor();
     let read_only = editor.read_only();
     let compile = move || {
@@ -98,7 +98,14 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
     let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
     let zoom_in = move || editor.zoom(ZOOM_STEP);
-    let recenter = move || editor.fit();
+    let world = editor.world();
+    let recenter = move || {
+        if let Some(world) = world.get_untracked() {
+            let origin =
+                Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO);
+            editor.fit(origin, editor.content_rect(), 1.0);
+        }
+    };
     let problem_color = TextColor::Danger;
     let error_color = TextColor::Danger;
     view! {

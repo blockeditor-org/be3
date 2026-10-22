@@ -1,7 +1,7 @@
 use super::*;
 
 fn offers_close(test: &BeuiTest<ChildApp>) -> bool {
-    test.menu().iter().any(|entry| entry.id == "editor.close")
+    test.menu_ids().iter().any(|id| id == "editor.close")
 }
 
 #[test]

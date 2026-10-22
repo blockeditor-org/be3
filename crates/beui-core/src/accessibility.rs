@@ -1,4 +1,6 @@
 use std::cell::Ref;
+
+use foldhash::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use accesskit::{
@@ -7,13 +9,16 @@ use accesskit::{
 };
 
 use crate::base::focus::focus_of;
-use crate::base::frame::FrameNode;
+use crate::base::list::Direction;
+use crate::base::offset::OffsetNode;
 use crate::base::overlay::OverlayNode;
+
+pub const LAYER_CLASS: &str = "beui-layer";
 use crate::base::text::TextNode;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
+use crate::geometry::{Pos2, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
-use crate::node::{Arena, NodeId, NodeMap};
+use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId};
 
 mod embedded;
 
@@ -22,6 +27,9 @@ pub use embedded::Embedded;
 pub const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
 pub(crate) const DOCUMENT_SHIFT: u32 = 40;
 const GENERATION_SHIFT: u32 = 32;
+const SLOT_SHIFT: u32 = 30;
+const SLOT_MASK: u32 = 0b11;
+const INDEX_MASK: u32 = (1 << SLOT_SHIFT) - 1;
 const FALLBACK_NUMERIC_STEP: f64 = 0.05;
 static NEXT_DOCUMENT_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -95,22 +103,57 @@ pub fn tree_update(
 pub struct AccessibilityTree {
     root: Option<NodeId>,
     entries: NodeMap<Entry>,
+    spaces: HashMap<SpaceId, (Entry, u64)>,
     parents: NodeMap<NodeId>,
     marks: NodeMap<u64>,
     reached: NodeMap<u64>,
     gathered: NodeMap<Gathering>,
+    detached: NodeMap<Spot>,
+    moved: Vec<SpaceId>,
     pass: u64,
     focus: Option<AccessNodeId>,
-    changed: Vec<NodeId>,
+    changed: Vec<SpaceId>,
     inspected: bool,
     scale: Option<f32>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Spot {
+    frame: Option<SpaceId>,
+    at: Pos2,
+    scale: f32,
+}
+
+#[derive(Clone, Copy)]
+struct Frame {
+    space: Option<SpaceId>,
+    shift: Vec2,
+    scale: f32,
+    walk: Option<SpaceId>,
+}
+
+impl Frame {
+    const SCREEN: Self = Self {
+        space: None,
+        shift: Vec2::ZERO,
+        scale: 1.0,
+        walk: None,
+    };
+
+    fn within(space: SpaceId) -> Self {
+        Self {
+            space: Some(space),
+            shift: Vec2::ZERO,
+            scale: 1.0,
+            walk: Some(space),
+        }
+    }
 }
 
 struct Entry {
     node: Node,
     focus: Option<AccessNodeId>,
-    origin: Pos2,
-    at: Pos2,
+    key: Spot,
 }
 
 #[derive(Default)]
@@ -122,8 +165,7 @@ struct Gathered {
 struct Gathering {
     children: Vec<AccessNodeId>,
     focus: Option<AccessNodeId>,
-    origin: Pos2,
-    at: Pos2,
+    key: Spot,
 }
 
 impl AccessibilityTree {
@@ -154,6 +196,12 @@ impl AccessibilityTree {
         self.mark(id, arena);
     }
 
+    pub fn move_space(&mut self, space: SpaceId) {
+        if self.root.is_some() {
+            self.moved.push(space);
+        }
+    }
+
     pub fn forget(&mut self, id: NodeId, arena: &Arena) {
         self.mark(id, arena);
         self.entries.remove(&id);
@@ -161,10 +209,16 @@ impl AccessibilityTree {
         self.marks.remove(&id);
         self.reached.remove(&id);
         self.gathered.remove(&id);
+        self.detached.remove(&id);
+        if !self.spaces.is_empty() {
+            for slot in 1..SPACE_SLOTS {
+                self.spaces.remove(&SpaceId::inside(id, slot as u8));
+            }
+        }
     }
 
     pub fn reset(&mut self) {
-        if self.root.is_some() || !self.changed.is_empty() {
+        if self.root.is_some() || !self.changed.is_empty() || !self.moved.is_empty() {
             let pass = self.pass;
             *self = Self {
                 pass,
@@ -185,20 +239,60 @@ impl AccessibilityTree {
         self.marks.get(&id) == Some(&self.pass)
     }
 
-    fn purge(&mut self, document: &Document, dropped: Vec<NodeId>) {
+    fn entry(&self, key: SpaceId) -> Option<&Entry> {
+        match key.slot() {
+            0 => self.entries.get(&key.node()),
+            _ => self.spaces.get(&key).map(|(entry, _)| entry),
+        }
+    }
+
+    fn reached(&self, key: SpaceId) -> bool {
+        match key.slot() {
+            0 => self.reached.get(&key.node()) == Some(&self.pass),
+            _ => self
+                .spaces
+                .get(&key)
+                .is_some_and(|(_, reached)| *reached == self.pass),
+        }
+    }
+
+    fn remove_entry(&mut self, key: SpaceId) -> Option<Entry> {
+        match key.slot() {
+            0 => self.entries.remove(&key.node()),
+            _ => self.spaces.remove(&key).map(|(entry, _)| entry),
+        }
+    }
+
+    fn purge(&mut self, document: &Document, dropped: Vec<SpaceId>) {
         let mut pending = dropped;
-        while let Some(id) = pending.pop() {
-            if self.reached.get(&id) == Some(&self.pass) {
+        while let Some(key) = pending.pop() {
+            if self.reached(key) {
                 continue;
             }
-            if let Some(entry) = self.entries.remove(&id) {
+            if let Some(entry) = self.remove_entry(key) {
                 pending.extend(
                     entry
                         .node
                         .children()
                         .iter()
-                        .filter_map(|child| document.local_node_id(*child)),
+                        .filter_map(|child| document.local_key(*child)),
                 );
+            }
+        }
+    }
+
+    fn follow_moved_spaces(&mut self, document: &Document) {
+        for space in std::mem::take(&mut self.moved) {
+            let Some((entry, _)) = self.spaces.get_mut(&space) else {
+                continue;
+            };
+            let mut node = entry.node.clone();
+            if !document.place_space(&mut node, space, entry.key) {
+                continue;
+            }
+            if node != entry.node {
+                entry.node = node;
+                self.changed.push(space);
             }
         }
     }
@@ -216,8 +310,8 @@ impl AccessibilityView<'_> {
     }
 
     pub fn get(&self, id: &AccessNodeId) -> Option<&Node> {
-        let local = self.document.local_node_id(*id)?;
-        self.tree.entries.get(&local).map(|entry| &entry.node)
+        let local = self.document.local_key(*id)?;
+        self.tree.entry(local).map(|entry| &entry.node)
     }
 
     pub fn focus(&self) -> Option<AccessNodeId> {
@@ -225,7 +319,7 @@ impl AccessibilityView<'_> {
     }
 
     pub fn len(&self) -> usize {
-        self.tree.entries.iter().count()
+        self.tree.entries.iter().count() + self.tree.spaces.len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -233,24 +327,44 @@ impl AccessibilityView<'_> {
     }
 
     pub fn nodes(&self) -> impl Iterator<Item = &Node> {
-        self.tree.entries.iter().map(|(_, entry)| &entry.node)
+        self.tree
+            .entries
+            .iter()
+            .map(|(_, entry)| &entry.node)
+            .chain(self.tree.spaces.values().map(|(entry, _)| &entry.node))
     }
 }
 
 struct Pass<'a> {
     document: &'a Document,
     tree: &'a mut AccessibilityTree,
-    dropped: Vec<NodeId>,
+    dropped: Vec<SpaceId>,
     described: usize,
     walked: usize,
 }
 
 impl Pass<'_> {
+    fn locate(&mut self, id: NodeId, placed: Placed, frame: Frame) -> Option<(Spot, Vec2)> {
+        let rects = &self.document.rects;
+        if placed.space == frame.walk {
+            self.tree.detached.remove(&id);
+            let key = Spot {
+                frame: frame.space,
+                at: Pos2::ZERO + frame.shift + placed.rect.min.to_vec2() * frame.scale,
+                scale: frame.scale,
+            };
+            return Some((key, placed.rect.size()));
+        }
+        let key = detached_spot(rects, id, frame.space)?;
+        self.tree.detached.insert(id, key);
+        Some((key, placed.rect.size()))
+    }
+
     fn visit(
         &mut self,
         id: NodeId,
         parent: Option<NodeId>,
-        origin: Pos2,
+        frame: Frame,
         force: bool,
         out: &mut Gathered,
     ) {
@@ -262,21 +376,18 @@ impl Pass<'_> {
         if let Some(parent) = parent {
             self.tree.parents.insert(id, parent);
         }
-        let Some(rect) = document.rects.get(&id) else {
+        let Some(placed) = document.rects.placed(&id) else {
+            return;
+        };
+        let Some((key, size)) = self.locate(id, placed, frame) else {
             return;
         };
         let element = document.arena.get(id);
-        if element
-            .as_any()
-            .downcast_ref::<FrameNode>()
-            .is_some_and(|node| !node.visible)
-            || element
-                .as_any()
-                .downcast_ref::<OverlayNode>()
-                .is_some_and(|node| !node.is_open())
-        {
+        let overlay = element.as_any().downcast_ref::<OverlayNode>();
+        if overlay.is_some_and(|node| !node.is_open()) {
             return;
         }
+        let layered = overlay.is_some();
 
         let explicit = document.accessibility.get(&id);
         let text = element
@@ -284,15 +395,23 @@ impl Pass<'_> {
             .downcast_ref::<TextNode>()
             .and_then(TextNode::accessible_text);
         let named = !document.node_test_ids(id).is_empty();
-        if explicit.is_none() && text.is_none() && !named && !force {
+        if explicit.is_none() && text.is_none() && !named && !force && !layered {
             if !self.tree.stale(id)
                 && let Some(held) = self.tree.gathered.get(&id)
-                && held.origin == origin
-                && held.at == rect.min
+                && held.key == key
             {
+                let pass = self.tree.pass;
                 for child in &held.children {
-                    if let Some(local) = document.local_node_id(*child) {
-                        self.tree.reached.insert(local, self.tree.pass);
+                    match document.local_key(*child) {
+                        Some(local) if local.slot() == 0 => {
+                            self.tree.reached.insert(local.node(), pass);
+                        }
+                        Some(local) => {
+                            if let Some((_, reached)) = self.tree.spaces.get_mut(&local) {
+                                *reached = pass;
+                            }
+                        }
+                        None => {}
                     }
                 }
                 out.children.extend_from_slice(&held.children);
@@ -302,9 +421,13 @@ impl Pass<'_> {
                 return;
             }
             let mut inner = Gathered::default();
-            element.for_each_child(&mut |child| {
-                self.visit(child, Some(id), origin, false, &mut inner);
-            });
+            let within = Frame {
+                space: key.frame,
+                shift: key.at.to_vec2(),
+                scale: key.scale,
+                walk: Some(SpaceId::of(id)),
+            };
+            self.visit_children(id, within, &mut inner);
             out.children.extend_from_slice(&inner.children);
             if inner.focus.is_some() {
                 out.focus = inner.focus;
@@ -314,8 +437,7 @@ impl Pass<'_> {
                 Gathering {
                     children: inner.children,
                     focus: inner.focus,
-                    origin,
-                    at: rect.min,
+                    key,
                 },
             );
             return;
@@ -326,8 +448,7 @@ impl Pass<'_> {
         out.children.push(access);
         if !self.tree.stale(id)
             && let Some(entry) = self.tree.entries.get(&id)
-            && entry.origin == origin
-            && entry.at == rect.min
+            && entry.key == key
         {
             if entry.focus.is_some() {
                 out.focus = entry.focus;
@@ -336,15 +457,89 @@ impl Pass<'_> {
         }
 
         let mut inner = Gathered::default();
-        element.for_each_child(&mut |child| {
-            self.visit(child, Some(id), rect.min, false, &mut inner);
-        });
+        self.visit_children(id, Frame::within(SpaceId::of(id)), &mut inner);
         self.described += 1;
-        let (node, focus) = document.describe(id, rect, origin, explicit, text, inner);
+        let (mut node, focus) = document.describe(id, key, size, explicit, text, inner);
+        if layered {
+            node.set_class_name(LAYER_CLASS);
+        }
         if focus.is_some() {
             out.focus = focus;
         }
-        match self.tree.entries.get(&id) {
+        self.settle(SpaceId::of(id), node, focus, key);
+    }
+
+    fn visit_children(&mut self, id: NodeId, frame: Frame, out: &mut Gathered) {
+        let document = self.document;
+        let mut children = Vec::new();
+        document
+            .arena
+            .get(id)
+            .for_each_shown_child(&mut |child| children.push(child));
+        let inside = |child: NodeId| {
+            document
+                .rects
+                .placed(&child)
+                .and_then(|placed| placed.space)
+                .filter(|space| space.node() == id && space.slot() > 0)
+        };
+        let mut entered = [false; SPACE_SLOTS];
+        for (index, child) in children.iter().enumerate() {
+            let Some(space) = inside(*child) else {
+                self.visit(*child, Some(id), frame, false, out);
+                continue;
+            };
+            if std::mem::replace(&mut entered[space.slot() as usize], true) {
+                continue;
+            }
+            let members: Vec<NodeId> = children[index..]
+                .iter()
+                .copied()
+                .filter(|child| inside(*child) == Some(space))
+                .collect();
+            self.visit_space(space, &members, frame, out);
+        }
+    }
+
+    fn visit_space(
+        &mut self,
+        space: SpaceId,
+        members: &[NodeId],
+        frame: Frame,
+        out: &mut Gathered,
+    ) {
+        let document = self.document;
+        let key = Spot {
+            frame: frame.space,
+            at: Pos2::ZERO + frame.shift,
+            scale: frame.scale,
+        };
+        let mut inner = Gathered::default();
+        for member in members {
+            self.visit(
+                *member,
+                Some(space.node()),
+                Frame::within(space),
+                false,
+                &mut inner,
+            );
+        }
+        let mut node = Node::new(Role::GenericContainer);
+        if !document.place_space(&mut node, space, key) {
+            out.children.extend(inner.children);
+            return;
+        }
+        node.set_children(inner.children);
+        out.children.push(document.access_space_id(space));
+        if inner.focus.is_some() {
+            out.focus = inner.focus;
+        }
+        self.settle(space, node, inner.focus, key);
+    }
+
+    fn settle(&mut self, local: SpaceId, node: Node, focus: Option<AccessNodeId>, key: Spot) {
+        let document = self.document;
+        match self.tree.entry(local) {
             Some(old) if old.node == node => {}
             Some(old) => {
                 if old.node.children() != node.children() {
@@ -352,23 +547,33 @@ impl Pass<'_> {
                         old.node
                             .children()
                             .iter()
-                            .filter_map(|child| document.local_node_id(*child)),
+                            .filter_map(|child| document.local_key(*child)),
                     );
                 }
-                self.tree.changed.push(id);
+                self.tree.changed.push(local);
             }
-            None => self.tree.changed.push(id),
+            None => self.tree.changed.push(local),
         }
-        self.tree.entries.insert(
-            id,
-            Entry {
-                node,
-                focus,
-                origin,
-                at: rect.min,
-            },
-        );
+        let entry = Entry { node, focus, key };
+        match local.slot() {
+            0 => {
+                self.tree.entries.insert(local.node(), entry);
+            }
+            _ => {
+                self.tree.spaces.insert(local, (entry, self.tree.pass));
+            }
+        }
     }
+}
+
+fn detached_spot(rects: &Rects, id: NodeId, frame: Option<SpaceId>) -> Option<Spot> {
+    let shown = rects.get(&id)?;
+    let around = rects.transform(frame);
+    Some(Spot {
+        frame,
+        at: around.local_pos(shown.min),
+        scale: rects.scale_of(&id) / around.scale,
+    })
 }
 
 impl Document {
@@ -385,6 +590,15 @@ impl Document {
         for id in self.arena.changed() {
             tree.mark(*id, &self.arena);
         }
+        let moved: Vec<NodeId> = tree
+            .detached
+            .iter()
+            .filter(|(id, spot)| detached_spot(&self.rects, *id, spot.frame) != Some(**spot))
+            .map(|(id, _)| id)
+            .collect();
+        for id in moved {
+            tree.mark(id, &self.arena);
+        }
         let scale = self.pixels_per_point();
         let rescaled = tree.scale.replace(scale) != Some(scale);
 
@@ -396,10 +610,11 @@ impl Document {
             walked: 0,
         };
         let mut top = Gathered::default();
-        pass.visit(root, None, Pos2::ZERO, true, &mut top);
+        pass.visit(root, None, Frame::SCREEN, true, &mut top);
         let (dropped, described, walked) = (pass.dropped, pass.described, pass.walked);
         self.work.note_described(described, walked);
         tree.purge(self, dropped);
+        tree.follow_moved_spaces(self);
         tree.pass = tree.pass.wrapping_add(1);
         tree.focus = top.focus;
         let Some(access) = top.children.first().copied() else {
@@ -407,7 +622,7 @@ impl Document {
             return None;
         };
         if rescaled {
-            tree.changed.push(root);
+            tree.changed.push(SpaceId::of(root));
         }
         Some(access)
     }
@@ -416,22 +631,28 @@ impl Document {
         let root = self.refresh_accessibility()?;
         let mut tree = self.accessibility_tree.borrow_mut();
         let mut changed = std::mem::take(&mut tree.changed);
-        let nodes = if full {
-            tree.entries
-                .iter()
-                .map(|(id, entry)| (self.access_node_id(id), entry.node.clone()))
-                .collect()
-        } else {
-            changed.sort_unstable_by_key(|id| (id.index(), id.generation()));
-            changed.dedup();
-            changed
-                .into_iter()
-                .filter_map(|id| {
-                    let entry = tree.entries.get(&id)?;
-                    Some((self.access_node_id(id), entry.node.clone()))
-                })
-                .collect()
-        };
+        let nodes =
+            if full {
+                tree.entries
+                    .iter()
+                    .map(|(id, entry)| (self.access_node_id(id), entry.node.clone()))
+                    .chain(tree.spaces.iter().map(|(space, (entry, _))| {
+                        (self.access_space_id(*space), entry.node.clone())
+                    }))
+                    .collect()
+            } else {
+                changed.sort_unstable_by_key(|key| {
+                    (key.node().index(), key.node().generation(), key.slot())
+                });
+                changed.dedup();
+                changed
+                    .into_iter()
+                    .filter_map(|key| {
+                        let entry = tree.entry(key)?;
+                        Some((self.access_space_id(key), entry.node.clone()))
+                    })
+                    .collect()
+            };
         Some(Fragment {
             nodes,
             root,
@@ -449,11 +670,33 @@ impl Document {
         })
     }
 
+    fn place_space(&self, node: &mut Node, space: SpaceId, key: Spot) -> bool {
+        let (Some((translation, scale)), Some(host)) =
+            (self.rects.space_of(space), self.rects.placed(&space.node()))
+        else {
+            return false;
+        };
+        let offset = key.at.to_vec2() + translation * key.scale;
+        node.set_transform(
+            Affine::translate((offset.x as f64, offset.y as f64))
+                * Affine::scale((scale * key.scale) as f64),
+        );
+        let size = host.rect.size();
+        let seen = |at: f32, shift: f32| ((at - shift) / scale) as f64;
+        node.set_bounds(AccessRect::new(
+            seen(0.0, translation.x),
+            seen(0.0, translation.y),
+            seen(size.x, translation.x),
+            seen(size.y, translation.y),
+        ));
+        true
+    }
+
     fn describe(
         &self,
         id: NodeId,
-        rect: Rect,
-        origin: Pos2,
+        key: Spot,
+        size: Vec2,
         explicit: Option<&Node>,
         text: Option<&str>,
         inner: Gathered,
@@ -468,16 +711,16 @@ impl Document {
         } else {
             Node::new(Role::GenericContainer)
         };
-        let offset = rect.min - origin;
-        if offset != Vec2::ZERO {
+        let offset = key.at.to_vec2();
+        if key.scale != 1.0 {
+            node.set_transform(
+                Affine::translate((offset.x as f64, offset.y as f64))
+                    * Affine::scale(key.scale as f64),
+            );
+        } else if offset != Vec2::ZERO {
             node.set_transform(Affine::translate((offset.x as f64, offset.y as f64)));
         }
-        node.set_bounds(AccessRect::new(
-            0.0,
-            0.0,
-            rect.width().into(),
-            rect.height().into(),
-        ));
+        node.set_bounds(AccessRect::new(0.0, 0.0, size.x.into(), size.y.into()));
         node.set_children(inner.children);
         let test_ids = self.node_test_ids(id);
         if !test_ids.is_empty() {
@@ -589,16 +832,34 @@ impl Document {
                 }
                 _ => {}
             },
-            Action::ScrollUp | Action::ScrollDown | Action::SetScrollOffset => {
+            Action::ScrollUp
+            | Action::ScrollDown
+            | Action::ScrollLeft
+            | Action::ScrollRight
+            | Action::SetScrollOffset => {
                 if let Some(scroll) = self.first_offset_within(target)
                     && let Some(position) = self.offset_position(scroll)
                 {
-                    let offset = match (request.action, request.data) {
-                        (Action::ScrollUp, _) => position.offset - position.viewport,
-                        (Action::ScrollDown, _) => position.offset + position.viewport,
-                        (Action::SetScrollOffset, Some(ActionData::SetScrollOffset(point))) => {
-                            point.y as f32
+                    let direction = self.arena.get_as::<OffsetNode>(scroll).direction;
+                    let offset = match (request.action, request.data, direction) {
+                        (Action::ScrollUp, _, Direction::Vertical)
+                        | (Action::ScrollLeft, _, Direction::Horizontal) => {
+                            position.offset - position.viewport
                         }
+                        (Action::ScrollDown, _, Direction::Vertical)
+                        | (Action::ScrollRight, _, Direction::Horizontal) => {
+                            position.offset + position.viewport
+                        }
+                        (
+                            Action::SetScrollOffset,
+                            Some(ActionData::SetScrollOffset(point)),
+                            Direction::Vertical,
+                        ) => point.y as f32,
+                        (
+                            Action::SetScrollOffset,
+                            Some(ActionData::SetScrollOffset(point)),
+                            Direction::Horizontal,
+                        ) => point.x as f32,
                         _ => position.offset,
                     };
                     self.set_offset_value(scroll, offset.clamp(0.0, position.max_offset()));
@@ -610,20 +871,35 @@ impl Document {
     }
 
     fn access_node_id(&self, id: NodeId) -> AccessNodeId {
+        self.access_space_id(SpaceId::of(id))
+    }
+
+    fn access_space_id(&self, key: SpaceId) -> AccessNodeId {
+        let id = key.node();
         AccessNodeId(
             ((self.accessibility_id as u64) << DOCUMENT_SHIFT)
                 | (u64::from(id.generation() as u8) << GENERATION_SHIFT)
+                | (u64::from(key.slot()) << SLOT_SHIFT)
                 | u64::from(id.index()),
         )
     }
 
-    pub fn local_node_id(&self, id: AccessNodeId) -> Option<NodeId> {
+    fn local_key(&self, id: AccessNodeId) -> Option<SpaceId> {
         if document_of(id) != self.accessibility_id as u64 {
             return None;
         }
-        self.arena
-            .id_at(id.0 as u32)
-            .filter(|local| (id.0 >> GENERATION_SHIFT) as u8 == local.generation() as u8)
+        let local = self
+            .arena
+            .id_at(id.0 as u32 & INDEX_MASK)
+            .filter(|local| (id.0 >> GENERATION_SHIFT) as u8 == local.generation() as u8)?;
+        Some(match (id.0 >> SLOT_SHIFT) as u32 & SLOT_MASK {
+            0 => SpaceId::of(local),
+            slot => SpaceId::inside(local, slot as u8),
+        })
+    }
+
+    pub fn local_node_id(&self, id: AccessNodeId) -> Option<NodeId> {
+        self.local_key(id).map(SpaceId::node)
     }
 
     fn first_focusable_within(&self, id: NodeId) -> Option<NodeId> {

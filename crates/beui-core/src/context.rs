@@ -50,6 +50,7 @@ struct Inner {
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
     copied_text: RefCell<Option<String>>,
+    copied_image: RefCell<Option<Vec<u8>>>,
     paste: Cell<Option<PasteRequest>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
@@ -67,6 +68,7 @@ struct Inner {
     mouse_viewport: Cell<Option<Rect>>,
     shown: Cell<Option<Rect>>,
     pixels_per_point: Cell<f32>,
+    raster: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
     screen_simulation: Cell<Option<ScreenSimulation>>,
@@ -184,11 +186,12 @@ pub struct ActionGroup {
 
 pub struct FrameOutput {
     pub layers: Rc<Vec<Layer>>,
-    test_ids: Rc<TestIds>,
+    dump: Option<AccessibilityDump>,
     pub window: WindowState,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
     pub copied_text: Option<String>,
+    pub copied_image: Option<Vec<u8>>,
     pub paste: Option<PasteRequest>,
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
@@ -241,12 +244,15 @@ impl FrameOutput {
         bounds.is_positive().then_some(bounds)
     }
 
-    pub fn test_ids(&self) -> &TestIds {
-        &self.test_ids
+    pub fn test_ids(&self) -> Rc<TestIds> {
+        self.dump
+            .as_ref()
+            .map(|dump| Rc::clone(dump.rendered().test_ids()))
+            .unwrap_or_default()
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
-        self.test_ids.rect(test_id)
+        self.test_ids().rect(test_id)
     }
 
     pub fn accessibility_tree(&self, title: &str, viewport: crate::geometry::Vec2) -> TreeUpdate {
@@ -277,6 +283,7 @@ impl Context {
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
                 copied_text: RefCell::new(None),
+                copied_image: RefCell::new(None),
                 paste: Cell::new(None),
                 copy_watchers: RefCell::new(Vec::new()),
                 file_pick_requests: RefCell::new(Vec::new()),
@@ -294,6 +301,7 @@ impl Context {
                 mouse_viewport: Cell::new(None),
                 shown: Cell::new(None),
                 pixels_per_point: Cell::new(1.0),
+                raster: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
                 screen_simulation: Cell::new(None),
@@ -505,6 +513,10 @@ impl Context {
         self.inner.clock.set(None);
     }
 
+    pub fn clock_stopped(&self) -> bool {
+        self.inner.clock.get().is_some()
+    }
+
     pub fn set_clock(&self, now: Instant) {
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);
@@ -559,6 +571,7 @@ impl Context {
         self.inner.damage.borrow_mut().clear();
         self.inner.moves.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
+        self.inner.copied_image.borrow_mut().take();
         self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
@@ -614,7 +627,7 @@ impl Context {
             }
         }
         let accessibility = std::mem::take(&mut *self.inner.accessibility.borrow_mut());
-        let test_ids = match &mut *self.inner.kept.borrow_mut() {
+        let dump = match &mut *self.inner.kept.borrow_mut() {
             Some(kept) => {
                 let window = self.inner.window.borrow();
                 kept.dump.update(accessibility::tree_update(
@@ -623,16 +636,17 @@ impl Context {
                     scale,
                     accessibility.clone(),
                 ));
-                Rc::clone(kept.dump.test_ids())
+                Some(kept.dump.clone())
             }
-            None => Rc::default(),
+            None => None,
         };
         FrameOutput {
             layers,
             damage,
             moved,
-            test_ids,
+            dump,
             copied_text,
+            copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
@@ -719,7 +733,13 @@ impl Context {
     }
 
     pub fn copy_text(&self, text: String) {
+        *self.inner.copied_image.borrow_mut() = None;
         *self.inner.copied_text.borrow_mut() = Some(text);
+    }
+
+    pub fn copy_image(&self, png: Vec<u8>) {
+        *self.inner.copied_text.borrow_mut() = None;
+        *self.inner.copied_image.borrow_mut() = Some(png);
     }
 
     pub fn request_paste(&self) {
@@ -1162,7 +1182,17 @@ impl Context {
     }
 
     pub fn pixels_per_point(&self) -> f32 {
-        self.inner.pixels_per_point.get()
+        self.inner.pixels_per_point.get() * self.inner.raster.get()
+    }
+
+    pub fn rastered<R>(&self, raster: f32, content: impl FnOnce() -> R) -> R {
+        if self.inner.raster.get() == raster {
+            return content();
+        }
+        let held = self.inner.raster.replace(raster);
+        let result = content();
+        self.inner.raster.set(held);
+        result
     }
 
     pub fn set_long_press_delay(&self, delay: Duration) {
@@ -1260,7 +1290,7 @@ impl Context {
         if scale == 1.0 {
             return content();
         }
-        let pixels_per_point = self.pixels_per_point();
+        let pixels_per_point = self.inner.pixels_per_point.get();
         self.inner.pixels_per_point.set(pixels_per_point * scale);
         let input = self
             .inner
@@ -1375,8 +1405,14 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
                 Group::Transform { .. } => return true,
                 Group::Clip(clip) => area.intersect(clip),
                 Group::Scroll {
-                    viewport, offset, ..
-                } => area.intersect(viewport).translate(-offset),
+                    viewport,
+                    offset,
+                    scale,
+                    ..
+                } => area
+                    .intersect(viewport)
+                    .translate(-offset)
+                    .scaled(scale.recip()),
                 Group::Mask { .. } | Group::Filter(_) => area,
             };
             within.is_positive() && overlaps_besides(inner, roots, within)
@@ -1404,7 +1440,8 @@ pub fn shape_clip(shape: &mut Shape) -> &mut Rect {
         | Shape::Line { clip, .. }
         | Shape::Image { clip, .. }
         | Shape::Punch { clip, .. }
-        | Shape::Drawing { clip, .. } => clip,
+        | Shape::Drawing { clip, .. }
+        | Shape::Path { clip, .. } => clip,
     }
 }
 
@@ -1426,11 +1463,13 @@ pub fn scale_shape(shape: &mut Shape, scale: f32) {
         }
         Shape::Text {
             origin,
+            scale: held,
             rotation,
             clip,
             ..
         } => {
             *origin = pos2(origin.x * scale, origin.y * scale);
+            *held *= scale;
             *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
@@ -1466,6 +1505,18 @@ pub fn scale_shape(shape: &mut Shape, scale: f32) {
         }
         Shape::Drawing { rect, clip, .. } => {
             *rect = rect.scaled(scale);
+            *clip = clip.scaled(scale);
+        }
+        Shape::Path {
+            scale: held,
+            offset,
+            rotation,
+            clip,
+            ..
+        } => {
+            *held *= scale;
+            *offset *= scale;
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
     }

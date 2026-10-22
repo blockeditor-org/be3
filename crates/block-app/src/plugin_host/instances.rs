@@ -9,7 +9,7 @@ use block_plugin_api::{
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
 };
-use block_plugin_api::{DescribedAction, WindowRequests};
+use block_plugin_api::{ByteBuf, DescribedAction, WindowRequests};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -211,6 +211,7 @@ impl ContentLink {
                 content_type,
                 bytes,
                 session,
+                unsettled,
                 applied,
             } => EditorMessage::Content {
                 instance,
@@ -218,15 +219,13 @@ impl ContentLink {
                 content_type: content_type.into_bytes(),
                 bytes,
                 session,
+                unsettled: unsettled.into_iter().map(ByteBuf::from).collect(),
                 applied,
             },
             crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
                 instance,
                 block_id,
-                operations: operations
-                    .into_iter()
-                    .map(|(operation, mine)| block_plugin_api::ContentOperation { operation, mine })
-                    .collect(),
+                operations,
             },
         }))
     }
@@ -269,6 +268,7 @@ pub(super) struct Held {
 pub(crate) struct EditorView {
     pub(crate) rect: Rect,
     pub(crate) scale: f32,
+    pub(crate) moved: bool,
 }
 
 enum Replacement {
@@ -718,6 +718,14 @@ impl Instances {
             return false;
         };
         crate::be::want(crate::be::Owner::Editor(instance.0), Vec::new());
+        let own = entry.role.block().zip(entry.content.as_ref());
+        let links = own
+            .map(|(block, link)| (block.id, link))
+            .into_iter()
+            .chain(entry.watched.iter().map(|(block, link)| (*block, link)));
+        for (block, link) in links {
+            crate::be::gesture(block, link.origin, block_plugin_api::GesturePhase::Cancel);
+        }
         for preview in &entry.revision_previews {
             crate::be::revisions::release(*preview);
         }
@@ -988,6 +996,7 @@ impl Instances {
         };
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events: vec![screen.input.back(gesture)],
         })]
     }
@@ -1014,6 +1023,7 @@ impl Instances {
         }
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events,
         })]
     }
@@ -1039,6 +1049,7 @@ impl Instances {
         }
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
         })]
     }
@@ -1090,7 +1101,11 @@ impl Instances {
             true => input.rect.width() / screen.request.metrics.logical_width,
             false => 1.0,
         };
-        let mut messages = screen.input.forward(input, id, zoom);
+        let every_sample = screen
+            .report
+            .as_ref()
+            .is_some_and(|report| report.every_sample);
+        let mut messages = screen.input.forward(input, id, zoom, every_sample);
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));
         let revoked =
@@ -1511,6 +1526,7 @@ impl Instances {
                         width: view.rect.width(),
                         height: view.rect.height(),
                         scale: view.scale,
+                        moved: view.moved,
                     }));
                 }
             }
@@ -1805,13 +1821,14 @@ impl Instances {
                 }
             };
             let child_rect = host_rect(child.rect, origin, stretch);
-            let view_rect = match (child.follows_camera, table.camera, view) {
-                (true, Some(camera), Some(view)) => {
-                    host_rect(through(child.rect, camera, view), origin, stretch)
-                }
-                _ => child_rect,
+            let (view_rect, child_clip) = match (child.follows_camera, table.camera, view) {
+                (true, Some(camera), Some(view)) => (
+                    host_rect(through(child.rect, camera, view), origin, stretch),
+                    host_rect(followed_clip(child, camera, view), origin, stretch),
+                ),
+                _ => (child_rect, host_rect(child.clip, origin, stretch)),
             };
-            let child_clip = host_rect(child.clip, origin, stretch).intersect(clip);
+            let child_clip = child_clip.intersect(clip);
             let occluders: Vec<Rect> = table
                 .occluders
                 .iter()
@@ -2586,6 +2603,7 @@ impl Instances {
                     | EditorMessage::ChangeView { .. }
                     | EditorMessage::Stopped { .. }
                     | EditorMessage::CopyText { .. }
+                    | EditorMessage::CopyImage { .. }
                     | EditorMessage::WebViewCommand { .. }
                     | EditorMessage::Request {
                         request: HostRequest::Fetch(_)
@@ -2750,6 +2768,25 @@ impl Instances {
                     return false;
                 };
                 crate::be::operate_from(block, link.origin, operation);
+                true
+            }
+            EditorMessage::Gesture {
+                instance,
+                block_id,
+                phase,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                if !self.editable(block) {
+                    return false;
+                }
+                let Some(link) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.link_mut(block))
+                else {
+                    return false;
+                };
+                crate::be::gesture(block, link.origin, phase);
                 true
             }
             EditorMessage::WatchContent { instance, blocks } => {
@@ -2936,7 +2973,7 @@ impl Instances {
                     AudioCommand::Reset => player.reset(),
                     AudioCommand::Toggle => {
                         let audio = crate::be::content(Uuid::from_bytes(block_id))
-                            .and_then(|held| be_block::AudioContent::decode(&held.bytes).ok());
+                            .and_then(|held| be_block::AudioContent::decode(held.bytes()).ok());
                         if let Some(audio) = audio {
                             player.toggle(&audio);
                         }
@@ -2996,6 +3033,13 @@ impl Instances {
                     return false;
                 }
                 host::copy_text(text);
+                false
+            }
+            EditorMessage::CopyImage { instance, png } => {
+                if !self.entries.contains_key(&instance) {
+                    return false;
+                }
+                host::copy_image(png);
                 false
             }
             EditorMessage::Paste { instance } => {
@@ -3314,6 +3358,21 @@ fn through(rect: ChildRect, camera: Camera, view: EditorView) -> ChildRect {
         width: rect.width * scale,
         height: rect.height * scale,
     }
+}
+
+fn followed_clip(child: &ChildPlacement, camera: Camera, view: EditorView) -> ChildRect {
+    let (clip, swept) = (child.clip, child.rect.swept(child.rotation));
+    let held = |clipped: f32, own: f32, open: f32| match (clipped - own).abs() > 0.01 {
+        true => clipped,
+        false => open,
+    };
+    let held = ChildRect::from_edges(
+        held(clip.x, swept.x, f32::MIN),
+        held(clip.y, swept.y, f32::MIN),
+        held(clip.right(), swept.right(), f32::MAX),
+        held(clip.bottom(), swept.bottom(), f32::MAX),
+    );
+    through(swept, camera, view).intersect(held)
 }
 
 fn host_rect(rect: block_plugin_api::ChildRect, origin: Vec2, stretch: Vec2) -> Rect {

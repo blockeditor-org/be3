@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::Root;
 use crate::setting::Setting;
 use crate::settings::Layered;
-pub use ui_types::{DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
+pub use ui_types::{CanvasTouch, DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ScreenOff {
@@ -69,6 +69,7 @@ pub struct DisplaySettings {
     pub screen_off: Option<ScreenOff>,
     pub lock_after: Option<LockAfter>,
     pub motion: Option<Motion>,
+    pub canvas_touch: Option<CanvasTouch>,
 }
 
 impl DisplaySettings {
@@ -83,6 +84,7 @@ impl DisplaySettings {
         PreferenceLayer {
             theme: self.theme,
             motion: self.motion,
+            canvas_touch: self.canvas_touch,
         }
     }
 
@@ -92,6 +94,10 @@ impl DisplaySettings {
 
     pub fn set_motion(motion: Option<Motion>) -> Edit {
         Self::MOTION.set(ObjectId::ROOT, &motion).into()
+    }
+
+    pub fn set_canvas_touch(canvas_touch: Option<CanvasTouch>) -> Edit {
+        Self::CANVAS_TOUCH.set(ObjectId::ROOT, &canvas_touch).into()
     }
 
     pub fn scale_percent(&self) -> u32 {
@@ -201,6 +207,17 @@ impl DisplaySettings {
         .with_default(Some(Motion::default()))
     }
 
+    pub fn canvas_touch_setting() -> Setting<Self, CanvasTouch> {
+        Setting::new(
+            "canvas-touch",
+            "Touch on canvases",
+            |settings: &Self| settings.canvas_touch,
+            |_, canvas_touch| Self::set_canvas_touch(canvas_touch),
+        )
+        .with_default(Some(CanvasTouch::default()))
+        .only_on_this_device(true)
+    }
+
     pub fn scale_setting() -> Setting<Self, u32> {
         Setting::new(
             "scale",
@@ -281,6 +298,7 @@ impl Layered for DisplaySettings {
             screen_off: self.screen_off.or(lower.screen_off),
             lock_after: self.lock_after.or(lower.lock_after),
             motion: self.motion.or(lower.motion),
+            canvas_touch: self.canvas_touch.or(lower.canvas_touch),
         }
     }
 }

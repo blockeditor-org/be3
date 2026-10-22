@@ -9,6 +9,7 @@ use crate::reactive::{
 
 mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
 mod a_callback_given_a_signal_sets_it;
+mod a_child_list_refilled_keeps_the_items_it_held_wherever_they_move;
 mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives;

@@ -476,7 +476,7 @@ pub fn TreeReveal<K>(
     tree: NodeRef,
     viewport: NodeRef,
     on_reveal: Callback<K>,
-    button: Render<TreeRevealHandle>,
+    button: RenderFn<TreeRevealHandle>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -545,13 +545,15 @@ where
         on_reveal.call(key.clone());
         pending.set(Some(key));
     });
-    let content = button.call(TreeRevealHandle {
-        edge,
-        label,
-        reveal,
+    let content = RenderFn::new(move |()| {
+        button.call(TreeRevealHandle {
+            edge,
+            label,
+            reveal,
+        })
     });
     view! {
-        <Floating anchor={viewport} edge={edge} open={open}>{content}</Floating>
+        <Floating anchor={viewport} edge={edge} open={open} content={move || content.call(())} />
     }
 }
 

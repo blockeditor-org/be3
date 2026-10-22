@@ -30,6 +30,8 @@ pub struct PointerPress {
     pub touch: bool,
     pub pressure: Option<f32>,
     pub pen: Option<Pen>,
+    pub predicted: Option<Pos2>,
+    pub time: Instant,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -128,6 +130,8 @@ pub enum Event {
         pressure: f32,
         pen: Pen,
     },
+    Predicted(Pos2),
+    Time(Instant),
     Zoom(f32),
     Ime(ImeEvent),
     FileHovered,
@@ -165,6 +169,8 @@ impl Event {
                 | Self::ScrollEnded
                 | Self::Touch { .. }
                 | Self::Pen { .. }
+                | Self::Predicted(_)
+                | Self::Time(_)
                 | Self::Zoom(_)
         )
     }
@@ -248,6 +254,8 @@ pub struct PointerEvent {
     pub clicks: u32,
     pub force: Option<f32>,
     pub pen: Option<Pen>,
+    pub predicted: Option<Pos2>,
+    pub time: Instant,
     pub source: usize,
 }
 
@@ -261,6 +269,7 @@ pub struct InputState {
     touches: Vec<(TouchId, Pos2)>,
     touched: Vec<Pos2>,
     source: usize,
+    time: Option<Instant>,
     force: Option<f32>,
     pen: Option<Pen>,
     pen_at: Option<Pos2>,
@@ -278,6 +287,7 @@ impl Default for InputState {
             touches: Vec::new(),
             touched: Vec::new(),
             source: 0,
+            time: None,
             force: None,
             pen: None,
             pen_at: None,
@@ -295,13 +305,15 @@ impl InputState {
                 Event::PointerMoved(pos)
                 | Event::PointerButton { pos, .. }
                 | Event::Touch { pos, .. }
-                | Event::Pen { pos, .. } => *pos = scale(*pos),
+                | Event::Pen { pos, .. }
+                | Event::Predicted(pos) => *pos = scale(*pos),
                 Event::Scroll(delta) => *delta *= factor,
                 _ => {}
             }
         }
         for event in &mut input.pointer_events {
             event.pos = scale(event.pos);
+            event.predicted = event.predicted.map(scale);
             match &mut event.phase {
                 PointerPhase::Scroll(delta) | PointerPhase::ScrollEnded { fling: delta } => {
                     *delta *= factor;
@@ -401,6 +413,10 @@ impl InputState {
             }));
         for (source, event) in raw.events.iter().enumerate() {
             self.source = source;
+            self.time = match raw.events.get(source + 1) {
+                Some(Event::Time(at)) => Some(*at),
+                _ => Some(now),
+            };
             self.force = None;
             self.pen = None;
             if let Some(modifiers) = event.modifiers() {
@@ -470,6 +486,14 @@ impl InputState {
                     self.pen = Some(*pen);
                     self.pen_event(*phase, *pos, now);
                 }
+                Event::Predicted(pos) => {
+                    let stamped = raw.events[..source]
+                        .iter()
+                        .rev()
+                        .take_while(|event| matches!(event, Event::Time(_)))
+                        .count();
+                    self.predict(source - stamped, *pos);
+                }
                 _ => {}
             }
         }
@@ -504,8 +528,20 @@ impl InputState {
             clicks: self.pointer.clicks,
             force: self.force,
             pen: self.pen,
+            predicted: None,
+            time: self.time.unwrap_or_else(crate::timer::now),
             source: self.source,
         });
+    }
+
+    fn predict(&mut self, source: usize, pos: Pos2) {
+        if let Some(moved) = self
+            .pointer_events
+            .last_mut()
+            .filter(|moved| moved.phase == PointerPhase::Move && moved.source + 1 == source)
+        {
+            moved.predicted = Some(pos);
+        }
     }
 
     fn pen_event(&mut self, phase: PenPhase, pos: Pos2, now: Instant) {

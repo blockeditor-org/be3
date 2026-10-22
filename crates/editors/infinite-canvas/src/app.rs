@@ -2,15 +2,18 @@ use block_editor_beui::be_block::CanvasContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::{Pos2, Rect, Vec2};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 pub(crate) mod actions;
 pub(crate) mod canvas;
 pub(crate) mod components;
+pub(crate) mod entities;
+pub(crate) mod export;
+pub(crate) mod grid;
 pub(crate) mod input;
 pub(crate) mod layers;
 pub(crate) mod menu;
@@ -18,17 +21,22 @@ pub(crate) mod overlay;
 pub(crate) mod paint;
 pub(crate) mod selection_bar;
 pub(crate) mod sidebar;
+pub(crate) mod sketch;
 pub(crate) mod state;
+pub(crate) mod style;
 pub(crate) mod text;
 pub(crate) mod toolbar;
+pub(crate) mod touch;
 
 use actions::canvas_actions;
 use canvas::CanvasStage;
+use export::ExportDialog;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
 use toolbar::{ImportError, ToolDock, ZoomPill};
+use touch::TouchSetting;
 
-use crate::geometry::{MIN_SIZE, embedded_region};
+use crate::geometry::MIN_SIZE;
 
 pub struct CanvasApp;
 
@@ -67,16 +75,32 @@ fn CanvasEditor(editor: Editor) -> NodeId {
 
     let content = NodeRef::new();
     editor.content(&content);
+    let world = editor.world();
+    editor.keep_fitted(move || {
+        world.get().map(|world| {
+            Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO)
+        })
+    });
     let chrome = editor.chrome_shown();
+    let inspected = create_memo(move || {
+        chrome.get()
+            && state.profile.get() == block_editor_beui::be_block::canvas::CanvasProfile::Vector
+    });
     let scope = NodeRef::new();
     action_scope(&scope);
-    provide_context(canvas_actions(state));
+    let actions = canvas_actions(state);
+    add_to_menu(menu::frame_menu(&actions));
+    let touch = actions.touch;
+    let exporter = actions.exporter;
+    provide_context(actions);
     view! {
         <List @node_ref=&scope spacing=0.0>
+            <TouchSetting editor choice={touch} />
             <ImportError state={state} />
+            <ExportDialog exporter />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
-                <CanvasSidebar state={state} shown={chrome} />
+                <CanvasSidebar state={state} shown={inspected} />
             </List>
             <ToolDock state={state} anchor={content} shown={chrome} />
             <ZoomPill state={state} anchor={content} shown={chrome} />
@@ -97,7 +121,7 @@ fn CanvasPreview(editor: Editor) -> NodeId {
 
 fn report_intrinsic_size(editor: Editor, state: CanvasState) {
     create_effect(move || {
-        let region = embedded_region(&state.entities.get()).size();
+        let region = state.entities.region().size();
         editor.set_intrinsic_size(Some(Vec2::new(
             region.x.max(MIN_SIZE),
             region.y.max(MIN_SIZE),

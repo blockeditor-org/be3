@@ -182,12 +182,11 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
                     border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get())).width(2.0)))}
                     align=Align::Center
                 >
-                    <Frame
-                        width=MARK_SIZE
-                        height=MARK_SIZE
-                        fill=ColorRole::Accent
-                        visible={checked}
-                    />
+                    <Layers>
+                        <Show condition={checked}>
+                            <Frame width=MARK_SIZE height=MARK_SIZE fill=ColorRole::Accent />
+                        </Show>
+                    </Layers>
                 </Frame>
                 <Text>{label.to_owned()}</Text>
             </List>
@@ -511,13 +510,16 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                     border={Border::new(ColorRole::TextMuted).width(2.0)}
                     align=Align::Center
                 >
-                    <Frame
-                        width=MARK_SIZE
-                        height=MARK_SIZE
-                        radius={Radius::custom(5.0)}
-                        fill=ColorRole::Accent
-                        visible={selected}
-                    />
+                    <Layers>
+                        <Show condition={selected}>
+                            <Frame
+                                width=MARK_SIZE
+                                height=MARK_SIZE
+                                radius={Radius::custom(5.0)}
+                                fill=ColorRole::Accent
+                            />
+                        </Show>
+                    </Layers>
                 </Frame>
                 <Text>{label}</Text>
             </List>

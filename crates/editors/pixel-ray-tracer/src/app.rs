@@ -5,8 +5,8 @@ use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
-use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
-use block_editor_beui::{Creation, Editor, Side, Sidebar, Toolbar};
+use block_editor_beui::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::{Creation, Editor, Fitting, Side, Sidebar, Toolbar};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
@@ -55,16 +55,24 @@ impl block_editor_beui::BeuiApp for PixelRayTracerApp {
 fn PixelRayTracerEditor(editor: Editor) -> NodeId {
     let state = RayState::new(editor);
     state.watch();
+    let content = NodeRef::new();
+    editor.content(&content);
+    let world = editor.world();
+    let fitting = editor.keep_fitted(move || {
+        world
+            .get()
+            .map(|world| Rect::from_min_size(Pos2::ZERO, world))
+    });
 
     let chrome = editor.chrome_shown();
     view! {
         <List spacing=0.0>
-            <RayToolbar state={state} shown={chrome} />
+            <RayToolbar state={state} fitting={fitting} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel state={state} />
                 </Sidebar>
-                <Artwork @sizing=ItemSize::Percent(100.0) state={state} />
+                <Artwork @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
                 <Sidebar shown={chrome}>
                     <PropertiesPanel state={state} />
                 </Sidebar>
@@ -84,8 +92,11 @@ fn PixelRayTracerPreview(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn RayToolbar(state: RayState, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
-    let fit = state.editor();
+fn RayToolbar(
+    state: RayState,
+    fitting: Fitting,
+    shown: block_editor_beui::beui::reactive::Prop<bool>,
+) -> DynamicSegment<ListChild> {
     let size = format!("{PIXEL_RAY_TRACER_SIZE} × {PIXEL_RAY_TRACER_SIZE}");
     view! {
         <Toolbar shown={shown}>
@@ -95,7 +106,7 @@ fn RayToolbar(state: RayState, shown: block_editor_beui::beui::reactive::Prop<bo
                 label="Fit view"
                 variant=ButtonVariant::Secondary
                 @test_id={"pixel_ray_tracer.fit"}
-                on_click={move || fit.fit()}
+                on_click={move || fitting.fit()}
             />
             <Button
                 label="Reset artwork"

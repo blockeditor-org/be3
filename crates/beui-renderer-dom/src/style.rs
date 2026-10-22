@@ -3,10 +3,11 @@ use std::fmt::Write as _;
 use beui_core::color::Color32;
 use beui_core::display::Group;
 use beui_core::fade::Fade;
-use beui_core::font::Galley;
+use beui_core::font::{FontId, Galley};
 use beui_core::geometry::Vec2;
 use beui_core::geometry::{Pos2, Rect, Rotation, vec2};
 use beui_core::painter::Shape;
+use beui_core::path::{FillRule, LineCap, LineJoin, PathElement, PathPaint, PathStyle};
 use beui_font_browser::css_font;
 
 const REACH: f64 = 1_000_000.0;
@@ -65,10 +66,11 @@ pub fn look(shape: &Shape, factor: f32, image: Option<&str>) -> Option<Look> {
         Shape::Text {
             origin,
             galley,
+            scale,
             color,
             rotation,
             clip,
-        } => text(*origin, galley, *color, *rotation, *clip, factor)?,
+        } => text(*origin, galley, *scale, *color, *rotation, *clip, factor)?,
         Shape::Image {
             rect,
             source,
@@ -133,29 +135,141 @@ pub fn look(shape: &Shape, factor: f32, image: Option<&str>) -> Option<Look> {
             let _ = write!(css, "background:{};", rgba(UNDRAWABLE));
             Look::Box(css)
         }
+        Shape::Path {
+            path,
+            scale,
+            offset,
+            color,
+            rotation,
+            clip,
+        } => {
+            let bounds = path.bounds().scaled(*scale).translate(*offset).expand(1.0);
+            if !bounds.is_positive() {
+                return None;
+            }
+            let mut css = placed(bounds, *clip, *rotation)?;
+            let image = svg(
+                path,
+                *scale,
+                *offset - bounds.min.to_vec2(),
+                bounds.size(),
+                *color,
+            );
+            let _ = write!(
+                css,
+                "background-image:url(\"data:image/svg+xml,{}\");background-size:100% 100%;",
+                escaped(&image)
+            );
+            Look::Box(css)
+        }
         Shape::Punch { .. } => return None,
     };
     Some(look)
 }
 
+fn svg(path: &PathPaint, scale: f32, offset: Vec2, size: Vec2, color: Color32) -> String {
+    let at = |point: Pos2| {
+        let point = Pos2::new(point.x * scale, point.y * scale) + offset;
+        format!("{} {}", point.x, point.y)
+    };
+    let mut data = String::new();
+    for element in path.path().elements() {
+        let _ = match *element {
+            PathElement::MoveTo(to) => write!(data, "M{}", at(to)),
+            PathElement::LineTo(to) => write!(data, "L{}", at(to)),
+            PathElement::QuadTo(control, to) => write!(data, "Q{} {}", at(control), at(to)),
+            PathElement::CubicTo(first, second, to) => {
+                write!(data, "C{} {} {}", at(first), at(second), at(to))
+            }
+            PathElement::Close => write!(data, "Z"),
+        };
+    }
+    let [red, green, blue, alpha] = color.to_array();
+    let paint = format!("rgb({red},{green},{blue})");
+    let opacity = f32::from(alpha) / 255.0;
+    let painted = match path.style() {
+        PathStyle::Fill(rule) => format!(
+            "fill='{paint}' fill-opacity='{opacity}' fill-rule='{}'",
+            match rule {
+                FillRule::NonZero => "nonzero",
+                FillRule::EvenOdd => "evenodd",
+            }
+        ),
+        PathStyle::Stroke(stroke) => {
+            let mut painted = format!(
+                "fill='none' stroke='{paint}' stroke-opacity='{opacity}' stroke-width='{}' \
+                 stroke-linejoin='{}' stroke-linecap='{}' stroke-miterlimit='{}'",
+                stroke.width * scale,
+                match stroke.join {
+                    LineJoin::Miter => "miter",
+                    LineJoin::Round => "round",
+                    LineJoin::Bevel => "bevel",
+                },
+                match stroke.cap {
+                    LineCap::Butt => "butt",
+                    LineCap::Round => "round",
+                    LineCap::Square => "square",
+                },
+                stroke.miter_limit.max(1.0),
+            );
+            if stroke.is_dashed() {
+                let dashes: Vec<String> = stroke
+                    .dashes
+                    .iter()
+                    .map(|dash| (dash * scale).to_string())
+                    .collect();
+                let _ = write!(
+                    painted,
+                    " stroke-dasharray='{}' stroke-dashoffset='{}'",
+                    dashes.join(" "),
+                    stroke.dash_offset * scale
+                );
+            }
+            painted
+        }
+    };
+    format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}' \
+         viewBox='0 0 {width} {height}' overflow='visible'><path d='{data}' {painted}/></svg>",
+        width = size.x,
+        height = size.y,
+    )
+}
+
+fn escaped(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        match character {
+            '%' => escaped.push_str("%25"),
+            '#' => escaped.push_str("%23"),
+            '<' => escaped.push_str("%3C"),
+            '>' => escaped.push_str("%3E"),
+            '"' => escaped.push_str("%22"),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
+}
+
 fn text(
     origin: Pos2,
     galley: &Galley,
+    scale: f32,
     color: Color32,
     rotation: Rotation,
     clip: Rect,
     factor: f32,
 ) -> Option<Look> {
     let origin = Pos2::new(snap(origin.x, factor), snap(origin.y, factor));
-    let rect = Rect::from_min_size(origin, galley.size());
+    let rect = Rect::from_min_size(origin, galley.size() * scale);
     let mut css = placed(rect, clip, rotation)?;
-    let _ = write!(
-        css,
-        "font:{};color:{};",
-        css_font(galley.font()),
-        rgba(color)
-    );
-    let height = galley.line_height();
+    let font = galley.font();
+    let font = FontId {
+        size: font.size * scale,
+        ..font
+    };
+    let _ = write!(css, "font:{};color:{};", css_font(font), rgba(color));
+    let height = galley.line_height() * scale;
     let lines = galley
         .lines()
         .iter()
@@ -164,12 +278,12 @@ fn text(
             if text.trim().is_empty() {
                 return None;
             }
-            let left = line.cursors.first().map_or(0.0, |(_, x)| *x);
+            let left = line.cursors.first().map_or(0.0, |(_, x)| *x) * scale;
             Some(Line {
                 text: text.trim_end_matches(['\n', '\r']).replace('\t', " "),
                 css: format!(
                     "left:{left}px;top:{}px;height:{height}px;line-height:{height}px;",
-                    line.top
+                    line.top * scale
                 ),
             })
         })
@@ -242,10 +356,17 @@ pub fn group(group: Group, factor: f32) -> (String, String) {
             (clipped(x, y), within(x, y, Vec2::ZERO))
         }
         Group::Scroll {
-            viewport, offset, ..
+            viewport,
+            offset,
+            scale,
+            ..
         } => {
             let (x, y) = shown(viewport);
-            (clipped(x, y), within(x, y, offset))
+            let mut inner = within(x, y, offset);
+            if scale != 1.0 {
+                let _ = write!(inner, "transform:scale({scale});");
+            }
+            (clipped(x, y), inner)
         }
         Group::Mask { fade, .. } => {
             let (x, y) = shown(fade.rect);

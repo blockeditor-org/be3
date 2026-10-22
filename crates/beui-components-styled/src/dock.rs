@@ -16,7 +16,7 @@ use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
     DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry, MenuItem, Picture,
+    DockingLayout, Entry, MenuNodes, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -82,6 +82,7 @@ where
     });
     let theme = use_theme();
     let backdrop = theme.background;
+    let dialog_scrim = create_memo(move || theme.scrim.get());
     let fill = create_memo(move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
@@ -120,7 +121,7 @@ where
             dialog_sheet={move |handle: DockSheetHandle| view! {
                 <DockDialogSheet handle />
             }}
-            dialog_scrim={crate::dialog::SCRIM}
+            dialog_scrim={dialog_scrim}
             dialog_margin=CARD_MARGIN
             dialog_gap=CARD_GAP
             tab={move |handle: DockTabHandle| view! {
@@ -495,7 +496,7 @@ fn DockTitleBar(
     tabs: Option<NodeId>,
     title: Prop<String>,
     vacant: Memo<bool>,
-    menu: Memo<Vec<Action>>,
+    menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
@@ -530,7 +531,7 @@ fn DockSideBar(
     tabs: Option<NodeId>,
     title: Prop<String>,
     vacant: Memo<bool>,
-    menu: Memo<Vec<Action>>,
+    menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
@@ -576,12 +577,10 @@ fn DockSideBar(
 
 #[component]
 pub(crate) fn DockMenu(
-    menu: Memo<Vec<Action>>,
+    menu: Memo<Vec<MenuNode>>,
     #[prop(default = IconButtonSize::Compact)] size: IconButtonSize,
 ) -> DynamicSegment<ListChild> {
     let offered = create_memo(move || menu.with(|items| !items.is_empty()));
-    let keys =
-        create_memo(move || menu.with(|items| items.iter().map(Action::key).collect::<Vec<u64>>()));
     view! {
         <Show condition={offered}>
             <IconMenuButton
@@ -590,19 +589,7 @@ pub(crate) fn DockMenu(
                 glyph=ICON_MORE_VERT
                 size
                 items={view! {
-                    <ForEach keys={keys}>|key: u64| {
-                        let item = menu.with_untracked(|items| {
-                            items.iter().find(|action| action.key() == key).cloned()
-                        });
-                        match item {
-                            Some(action) => view! {
-                                <MenuItem action />
-                            },
-                            None => view! {
-                                <MenuItem label="" disabled=true />
-                            },
-                        }
-                    }</ForEach>
+                    <MenuNodes nodes={menu} test_prefix={"dock.menu".to_owned()} />
                 }}
             />
         </Show>
@@ -610,18 +597,20 @@ pub(crate) fn DockMenu(
 }
 
 #[component]
-fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
+fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListChild> {
     view! {
-        <Frame padding={Sides::horizontal(CONTROL_PADDING)} visible={closable}>
-            <IconButton
-                glyph=ICON_CLOSE
-                label="Close pane"
-                size=IconButtonSize::Compact
-                variant=ButtonVariant::Ghost
-                capture_presses=true
-                on_click={close}
-            />
-        </Frame>
+        <Show condition={closable}>
+            <Frame padding={Sides::horizontal(CONTROL_PADDING)}>
+                <IconButton
+                    glyph=ICON_CLOSE
+                    label="Close pane"
+                    size=IconButtonSize::Compact
+                    variant=ButtonVariant::Ghost
+                    capture_presses=true
+                    on_click={close}
+                />
+            </Frame>
+        </Show>
     }
 }
 

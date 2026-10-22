@@ -41,6 +41,9 @@ pub struct Theme {
     pub control_outline: Option<Color32>,
     pub knob_outline: Option<Color32>,
     pub shadow: Color32,
+    pub scrim: Color32,
+    pub scrim_soft: Color32,
+    pub scrim_strong: Color32,
 }
 
 impl Theme {
@@ -84,6 +87,9 @@ impl Theme {
         control_outline: None,
         knob_outline: None,
         shadow: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
     };
 
     pub const OLED: Theme = Theme {
@@ -117,6 +123,9 @@ impl Theme {
         control_outline: None,
         knob_outline: None,
         shadow: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
     };
 
     pub const LIGHT: Theme = Theme {
@@ -150,6 +159,9 @@ impl Theme {
         control_outline: None,
         knob_outline: Some(Color32::from_rgb(190, 197, 210)),
         shadow: Color32::from_rgba_unmultiplied(16, 24, 40, 40),
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
     };
 
     pub const EPAPER: Theme = Theme {
@@ -183,6 +195,9 @@ impl Theme {
         control_outline: Some(Color32::BLACK),
         knob_outline: Some(Color32::BLACK),
         shadow: Color32::TRANSPARENT,
+        scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
+        scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+        scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
     };
 }
 

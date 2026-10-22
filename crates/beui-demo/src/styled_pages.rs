@@ -3,8 +3,8 @@ use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::{
     ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_CLOSE, ICON_FOLDER, ICON_FORMAT_QUOTE,
-    ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT, ICON_TABLE_CHART,
-    ICON_UPLOAD_FILE, ICON_WARNING,
+    ICON_FORMAT_SIZE, ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT,
+    ICON_TABLE_CHART, ICON_UPLOAD_FILE, ICON_WARNING,
 };
 use beui::unstyled::MenuThen;
 
@@ -784,7 +784,10 @@ fn HoverTooltip() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Tooltip label="Tooltips wrap anything that can be hovered or focused">
-                <Chip label="Hover me" />
+                <Chip label="Hover me" @test_id="demo.tooltip.long" />
+            </Tooltip>
+            <Tooltip label="Short">
+                <Chip label="Or me" @test_id="demo.tooltip.short" />
             </Tooltip>
         </List>
     }
@@ -1415,6 +1418,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Context menu" code={vec![CardMenu::SOURCE]}>
                 <CardMenu />
             </Sample>
+            <Sample title="Menus built from actions" code={vec![ActionMenu::SOURCE]}>
+                <ActionMenu />
+            </Sample>
             <Sample title="Menu buttons" code={vec![SortMenus::SOURCE]}>
                 <SortMenus />
             </Sample>
@@ -1481,10 +1487,91 @@ fn GlobalActions() -> NodeId {
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
                 <Button action={lock} variant=ButtonVariant::Primary />
-                <Button action={palette} variant=ButtonVariant::Secondary />
+                <Button
+                    @test_id="demo.palette.open"
+                    action={palette}
+                    variant=ButtonVariant::Secondary
+                />
             </List>
             <Text style=TextStyle::CAPTION>{locked}</Text>
             <CommandPalette open />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ActionMenu() -> NodeId {
+    let wrapped = create_signal(true);
+    let size = create_signal(14u32);
+    let copies = create_signal(0);
+    let copy = Action::new("demo.menu.copy", "Copy", move || {
+        copies.update(|copies| *copies += 1)
+    })
+    .glyph(ICON_CONTENT_COPY)
+    .shortcut(Chord::ctrl(Key::C))
+    .register();
+    let wrap = Action::new("demo.menu.wrap", "Wrap lines", move || {
+        wrapped.update(|wrapped| *wrapped = !*wrapped)
+    })
+    .checked(wrapped)
+    .register();
+    let link = Action::new(
+        "demo.menu.link",
+        "Copy a link to this paragraph",
+        move || copies.update(|copies| *copies += 1),
+    )
+    .shortcut(Chord::ctrl(Key::C).alt().shift())
+    .register();
+    let sized = |id: &str, label: &'static str, points: u32| {
+        Action::new(id, label, move || size.set(points))
+            .radio(create_memo(move || size.get() == points))
+            .register()
+    };
+    let nodes = vec![
+        MenuNode::action(&copy),
+        MenuNode::action(&link),
+        MenuNode::Separator,
+        MenuNode::action(&wrap),
+        MenuNode::submenu(
+            "demo.menu.size",
+            "Text size",
+            ICON_FORMAT_SIZE,
+            [
+                sized("demo.menu.small", "Small", 12),
+                sized("demo.menu.medium", "Medium", 14),
+                sized("demo.menu.large", "Large", 18),
+            ]
+            .iter()
+            .map(MenuNode::action)
+            .collect(),
+        ),
+    ];
+    let state = create_memo(move || {
+        format!(
+            "Copied {} times, wrapping {}, {} pt",
+            copies.get(),
+            if wrapped.get() { "on" } else { "off" },
+            size.get()
+        )
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <ContextMenu
+                items={view! {
+                    <unstyled::MenuNodes nodes test_prefix="demo.actions" />
+                }}
+            >
+                <Card @test_id="demo.actions">
+                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                        "One description of actions, separators and submenus fills this menu, a \
+                         plugin's frame menu and the command palette. Each row shows its action's \
+                         shortcut, a checkbox ticks while its action is checked, and a radio group \
+                         ticks the chosen one."
+                    </Text>
+                </Card>
+            </ContextMenu>
+            <Text style=TextStyle::CAPTION>{state}</Text>
         </List>
     }
 }
@@ -1855,7 +1942,7 @@ fn HeldMenu() -> NodeId {
             <MenuPopup
                 anchor=button
                 open
-                width=240.0
+                min_width=240.0
                 on_dismiss={move || open.set(false)}
                 on_select={move |path: Vec<usize>| {
                     let colour = ["Red", "Green", "Blue"][path.first().copied().unwrap_or_default()];
@@ -2806,11 +2893,11 @@ fn ScrollRowFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
-                <Frame visible={timings}>
+                <Show condition={timings}>
                     <Text style=TextStyle::CAPTION align=TextAlign::End color={value_color}>
                         {timing}
                     </Text>
-                </Frame>
+                </Show>
             </List>
         </Frame>
     }
@@ -3439,9 +3526,9 @@ fn scale_in(view: &mut PanZoomView) {
 fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>) -> NodeId {
     view! {
         <PanZoom view>|handle: PanZoomHandle| {
-            let PanZoomHandle { view, scale, focused, .. } = handle;
+            let PanZoomHandle { view, focused, .. } = handle;
             view! {
-                <CanvasBoard view scale focused />
+                <CanvasBoard view focused />
             }
         }</PanZoom>
     }
@@ -3449,11 +3536,7 @@ fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomVie
 
 #[sample]
 #[component]
-fn CanvasBoard(
-    view: Memo<Option<CanvasView>>,
-    scale: Memo<f32>,
-    focused: ReadSignal<bool>,
-) -> NodeId {
+fn CanvasBoard(view: Memo<Option<CanvasView>>, focused: ReadSignal<bool>) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
     view! {
         <Frame
@@ -3461,10 +3544,10 @@ fn CanvasBoard(
             radius=Radius::Md
         >
             <Canvas view>
-                <StageCard card=first scale={scale} />
-                <StageCard card=second scale={scale} />
-                <StageCard card=third scale={scale} />
-                <StageCard card=fourth scale />
+                <StageCard card=first />
+                <StageCard card=second />
+                <StageCard card=third />
+                <StageCard card=fourth />
             </Canvas>
         </Frame>
     }
@@ -3472,19 +3555,17 @@ fn CanvasBoard(
 
 #[sample]
 #[component]
-fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> CanvasItem {
+fn StageCard(card: (f32, f32, f32, f32, &'static str)) -> CanvasItem {
     let (x, y, width, height, label) = card;
-    let size = create_memo(move || TextSize::Custom(STAGE_LABEL_SIZE * scale.get()));
-    let padding = create_memo(move || STAGE_PADDING * scale.get());
     view! {
-        <CanvasItem x y width height>
+        <CanvasItem x y width height scales=true>
             <Frame
                 fill=ColorRole::SurfaceRaised
                 border={Border::new(ColorRole::Border).width(1.0)}
                 radius=Radius::Lg
-                padding=padding
+                padding=STAGE_PADDING
             >
-                <Text size>{label.to_string()}</Text>
+                <Text size=TextSize::Custom(STAGE_LABEL_SIZE)>{label.to_string()}</Text>
             </Frame>
         </CanvasItem>
     }

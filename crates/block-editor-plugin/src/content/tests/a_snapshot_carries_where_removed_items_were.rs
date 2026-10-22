@@ -28,7 +28,7 @@ fn a_snapshot_carries_where_removed_items_were() {
         },
     );
 
-    host.push_content_operations(vec![(
+    host.push_content_operations(vec![arrived(
         ChecklistContent::encode_operation(&insert.into()),
         false,
     )]);

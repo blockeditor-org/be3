@@ -38,6 +38,10 @@ impl Platform for HostPlatform {
         self.host.copy_text(text);
     }
 
+    fn copy_image(&mut self, png: Vec<u8>) {
+        self.host.copy_image(png);
+    }
+
     fn paste(&mut self, _kinds: &[PasteKind], answer: PasteAnswer) {
         self.host.request_paste();
         drop(answer);

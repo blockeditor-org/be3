@@ -111,9 +111,9 @@ pub fn LevelOsd(
                         level=LayerLevel::Top
                         traps_focus=false
                         open={open}
-                        content={move || view! {
+                        content={move || { let id = id.clone(); view! {
                             <OsdCard level opacity={opacity.read_only()} id />
-                        }}
+                        } }}
                     />
                 }
             }</ForEach>

@@ -362,6 +362,7 @@ impl OwnedEditor {
         defer_graph_changes(&host);
         let owner = RootScope::new();
         let canvas = create_signal(None::<CanvasView>);
+        let moved = create_signal(false);
         let world = create_signal(None::<Vec2>);
         let scale = create_signal(1.0_f32);
         let chrome = create_signal(true);
@@ -383,6 +384,7 @@ impl OwnedEditor {
             block,
             roots: RefCell::new(None),
             canvas,
+            moved,
             world,
             scale,
             chrome,
@@ -444,6 +446,7 @@ struct EditorState {
     block: Uuid,
     roots: RefCell<Option<BlockList>>,
     canvas: Signal<Option<CanvasView>>,
+    moved: Signal<bool>,
     world: Signal<Option<Vec2>>,
     scale: Signal<f32>,
     chrome: Signal<bool>,
@@ -835,6 +838,10 @@ impl Editor {
         self.state().canvas.read_only()
     }
 
+    pub(crate) fn moved(&self) -> ReadSignal<bool> {
+        self.state().moved.read_only()
+    }
+
     pub fn world(&self) -> ReadSignal<Option<Vec2>> {
         self.state().world.read_only()
     }
@@ -1100,12 +1107,14 @@ impl Editor {
             .zoom_view(factor, Some(Pos2::new(anchor.x / ratio, anchor.y / ratio)));
     }
 
-    pub fn resume_auto_fit(&self) {
-        self.state().host.resume_auto_fit_view();
-    }
-
-    pub fn fit(&self) {
-        self.state().host.fit_view();
+    pub(crate) fn follow(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
+        let ratio = self.ratio();
+        self.state().host.follow_view(
+            factor,
+            Pos2::new(anchor.x / ratio, anchor.y / ratio),
+            delta / ratio,
+            resume,
+        );
     }
 
     pub fn pan_drag(&self) {
@@ -1173,6 +1182,7 @@ impl Editor {
             let scale = self.view_scale();
             let divisor = scale.max(f32::EPSILON);
             state.canvas.set(self.view_canvas());
+            state.moved.set(state.host.view_moved());
             state.world.set(
                 self.view_rect()
                     .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),

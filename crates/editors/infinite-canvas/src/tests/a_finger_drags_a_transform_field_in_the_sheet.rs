@@ -4,7 +4,7 @@ use block_editor_beui::beui::{TouchPhase, Vec2};
 #[test]
 fn a_finger_drags_a_transform_field_in_the_sheet() {
     let rectangle = card();
-    let mut editor = phone(std::slice::from_ref(&rectangle));
+    let mut editor = vector_phone(std::slice::from_ref(&rectangle));
     let shape = format!("infinite-canvas.entity.{}", rectangle.id);
     let at = editor.rect_of(&shape).center();
     editor.finger(1, TouchPhase::Start, at);

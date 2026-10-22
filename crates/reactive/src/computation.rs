@@ -43,6 +43,7 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     refreshing: Cell<bool>,
     execution_owner: RefCell<Option<Rc<Owner>>>,
     pub(crate) dependencies: RefCell<Vec<Dependency>>,
+    pub(crate) tracking: Cell<u64>,
     pub(crate) source: Option<Rc<dyn Tracked>>,
     pub(crate) queued: Cell<bool>,
     pub(crate) queued_at: Cell<u64>,
@@ -54,6 +55,18 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
 }
 
 pub(crate) type Dependency = (Rc<dyn Tracked>, u64, usize);
+
+thread_local! {
+    static TRACKINGS: Cell<u64> = const { Cell::new(0) };
+}
+
+fn next_tracking() -> u64 {
+    TRACKINGS.with(|trackings| {
+        let next = trackings.get() + 1;
+        trackings.set(next);
+        next
+    })
+}
 
 pub(crate) fn no_computation() -> Weak<Computation> {
     Weak::<Computation<fn() -> bool>>::new()
@@ -72,6 +85,7 @@ impl Computation {
             refreshing: Cell::new(false),
             execution_owner: RefCell::new(None),
             dependencies: RefCell::new(Vec::new()),
+            tracking: Cell::new(next_tracking()),
             source,
             queued: Cell::new(false),
             queued_at: Cell::new(0),
@@ -100,9 +114,12 @@ impl Computation {
         let stale = read
             .iter()
             .any(|(source, version)| source.source().version.get() != *version);
+        let tracking = next_tracking();
+        self.tracking.set(tracking);
         let dependencies = read
             .into_iter()
             .map(|(source, version)| {
+                source.source().tracked_by.set(tracking);
                 let slot = source
                     .source()
                     .subscribers
@@ -243,6 +260,12 @@ impl Computation {
         self.owner.upgrade().is_some_and(|owner| owner.within(root))
     }
 
+    pub(crate) fn rerun_whatever_it_reads(&self) {
+        if self.state.get() == State::Check {
+            self.state.set(State::Dirty);
+        }
+    }
+
     pub(crate) fn closed_gate(&self) -> Option<Rc<Gate>> {
         if self.source.is_some() {
             return None;
@@ -289,6 +312,7 @@ impl Computation {
     }
 
     fn detach(&self) {
+        self.tracking.set(next_tracking());
         for (source, _, slot) in self.dependencies.take() {
             source.source().subscribers.borrow_mut().remove(slot, self);
         }

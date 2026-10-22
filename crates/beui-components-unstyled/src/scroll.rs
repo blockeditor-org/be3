@@ -392,28 +392,33 @@ impl Motion {
         if press.modifiers.ctrl || press.modifiers.alt {
             return false;
         }
-        let Some(position) = self.placed() else {
+        let Some(position) = self.placed().filter(|position| position.max_offset() > 0.0) else {
             return false;
         };
-        let (forwards, backwards) = match self.axis() {
-            Direction::Horizontal => (Key::ArrowRight, Key::ArrowLeft),
-            Direction::Vertical => (Key::ArrowDown, Key::ArrowUp),
+        let vertical = self.axis() == Direction::Vertical;
+        let (forwards, backwards) = match vertical {
+            false => (Key::ArrowRight, Key::ArrowLeft),
+            true => (Key::ArrowDown, Key::ArrowUp),
         };
         let offset = match press.key {
             key if key == forwards => position.offset + STEP,
             key if key == backwards => position.offset - STEP,
-            Key::PageDown | Key::Space if !press.modifiers.shift => {
+            Key::PageDown | Key::Space if vertical && !press.modifiers.shift => {
                 position.offset + position.viewport
             }
-            Key::PageUp | Key::Space => position.offset - position.viewport,
+            Key::PageUp | Key::Space if vertical => position.offset - position.viewport,
             Key::Home => 0.0,
             Key::End => position.max_offset(),
             _ => return false,
-        };
+        }
+        .clamp(0.0, position.max_offset());
+        if offset == position.offset {
+            return false;
+        }
         if press.pressed {
             let mut momentum = self.momentum.borrow_mut();
             momentum.rest();
-            self.publish(&momentum, offset.clamp(0.0, position.max_offset()));
+            self.publish(&momentum, offset);
         }
         true
     }
@@ -468,7 +473,6 @@ fn Scrolling(
     direction: Prop<Direction>,
     fit: bool,
     bleed: Prop<Sides>,
-    tab_stop: bool,
     focus_color: Prop<Color32>,
     scrollbar: ScrollbarStyle,
     marker: Render<Memo<Direction>>,
@@ -517,7 +521,10 @@ fn Scrolling(
     set_component_state(motion);
 
     let position = create_memo(move || reported.get().unwrap_or_default());
-    component_accessibility(create_memo(move || scroll_view(reported.get())));
+    let overflows = create_memo(move || position.get().max_offset() > 0.0);
+    component_accessibility(create_memo(move || {
+        scroll_view(reported.get(), direction.get())
+    }));
 
     let near = create_signal(false);
     let engaged = create_signal(false);
@@ -593,6 +600,7 @@ fn Scrolling(
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
+    let marker = marker.once();
     on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
         event
             .press()
@@ -604,7 +612,8 @@ fn Scrolling(
             <Layers>
                 <Interactive
                     focusable=true
-                    tab_stop
+                    tab_stop={overflows}
+                    yields_tab_stop=true
                     on_focus_change={focused}
                     on_key={move |press: KeyPress| motion.value().key(press)}
                     scroll_axis={axis}
@@ -641,17 +650,16 @@ fn Scrolling(
                     >
                         <List direction={marker_axis} spacing=0.0>
                             {node} @sizing={content_sizing(fit)}
-                            <ShowKeepAlive condition={marked}>
-                                <Overlay
-                                    anchor
-                                    placement=Placement::Around
-                                    policy=LayerPolicy::Inert
-                                    traps_focus=false
-                                    open={marked}
-                                >
-                                    {marker.call(marker_axis)}
-                                </Overlay>
-                            </ShowKeepAlive>
+                            <Overlay
+                                anchor
+                                placement=Placement::Around
+                                policy=LayerPolicy::Inert
+                                traps_focus=false
+                                open={marked}
+                                keep_alive=true
+                            >
+                                {marker.call(marker_axis)}
+                            </Overlay>
                         </List>
                     </Frame>
                 </Interactive>
@@ -670,7 +678,6 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
-    #[prop(default = true)] tab_stop: bool,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     marker: Option<Render<Memo<Direction>>>,
@@ -693,7 +700,6 @@ pub fn Scroll(
             direction
             fit
             bleed
-            tab_stop
             focus_color
             scrollbar
             marker
@@ -771,15 +777,27 @@ pub fn scroll_animating(document: &Document, scroll: NodeId) -> bool {
         .with(|motion| motion.momentum.borrow().moving())
 }
 
-fn scroll_view(position: Option<ScrollPosition>) -> Node {
+fn scroll_view(position: Option<ScrollPosition>, direction: Direction) -> Node {
     let mut node = Node::new(Role::ScrollView);
     if let Some(position) = position {
-        node.set_scroll_y(position.offset.into());
-        node.set_scroll_y_min(0.0);
-        node.set_scroll_y_max(position.max_offset().into());
+        let (offset, max) = (position.offset.into(), position.max_offset().into());
+        match direction {
+            Direction::Horizontal => {
+                node.set_scroll_x(offset);
+                node.set_scroll_x_min(0.0);
+                node.set_scroll_x_max(max);
+                node.add_action(Action::ScrollLeft);
+                node.add_action(Action::ScrollRight);
+            }
+            Direction::Vertical => {
+                node.set_scroll_y(offset);
+                node.set_scroll_y_min(0.0);
+                node.set_scroll_y_max(max);
+                node.add_action(Action::ScrollUp);
+                node.add_action(Action::ScrollDown);
+            }
+        }
         node.add_action(Action::Focus);
-        node.add_action(Action::ScrollUp);
-        node.add_action(Action::ScrollDown);
         node.add_action(Action::SetScrollOffset);
     }
     node

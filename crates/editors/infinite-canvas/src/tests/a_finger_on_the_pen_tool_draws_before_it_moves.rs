@@ -16,12 +16,10 @@ fn a_finger_on_the_pen_tool_draws_before_it_moves() {
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the tap adds one stroke");
+    assert_eq!(entities[0].shape, CanvasShape::Freehand);
     assert_eq!(
-        entities[0].kind,
-        CanvasEntityKind::Pen {
-            points: vec![CanvasPoint::default()],
-            pressures: Vec::new(),
-        },
+        (entities[0].points.len(), entities[0].pressures.len()),
+        (1, 1),
         "a tap is kept as a dot"
     );
 }

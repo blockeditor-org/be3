@@ -11,14 +11,17 @@ pub mod database;
 mod dock;
 mod editor;
 mod file_chooser;
+mod fitting;
 pub mod fonts;
 pub mod headless;
 mod instance;
 mod layered_settings;
+pub mod live_text;
 mod loading;
 mod related_content;
 mod rotation;
 pub mod sections;
+mod shared_caret;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -35,6 +38,7 @@ pub use editor::{
     SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
+pub use fitting::Fitting;
 pub use instance::BeuiPlugin;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
@@ -42,6 +46,7 @@ pub use layered_settings::{
 pub use loading::{FailedPane, Loaded, LoadingPane};
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
+pub use shared_caret::{SharedCaret, remote_carets};
 pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {

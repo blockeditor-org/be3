@@ -3,9 +3,12 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use block_editor_beui::be_block::{BlockContent, LiveEdit};
+use block_editor_beui::be_block::history::History;
+use block_editor_beui::be_block::{BlockContent, LiveEdit, Undo};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
-use block_plugin_api::{ContentOperation, EditorInstanceId, EditorMessage, Message};
+use block_plugin_api::{
+    BlockCommand, ContentOperation, EditorInstanceId, EditorMessage, GesturePhase, Message,
+};
 use uuid::Uuid;
 
 trait Held: Any {
@@ -47,6 +50,57 @@ impl<C: LiveEdit> Held for C {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+trait Recorder {
+    fn record(&mut self, content: &dyn Any, operation: &[u8]);
+
+    fn begin(&mut self);
+
+    fn commit(&mut self);
+
+    fn cancel(&mut self, content: &dyn Any) -> Vec<Vec<u8>>;
+
+    fn step(&mut self, content: &dyn Any, redo: bool) -> Vec<Vec<u8>>;
+}
+
+impl<C: Undo> Recorder for History<C> {
+    fn record(&mut self, content: &dyn Any, operation: &[u8]) {
+        if let (Some(content), Ok(operation)) =
+            (content.downcast_ref::<C>(), C::decode_operation(operation))
+        {
+            History::record(self, content, &operation, None, None);
+        }
+    }
+
+    fn begin(&mut self) {
+        History::begin(self, None);
+    }
+
+    fn commit(&mut self) {
+        History::commit(self, None);
+    }
+
+    fn cancel(&mut self, content: &dyn Any) -> Vec<Vec<u8>> {
+        let Some(content) = content.downcast_ref::<C>() else {
+            return Vec::new();
+        };
+        History::cancel(self, content, None)
+            .iter()
+            .map(C::encode_operation)
+            .collect()
+    }
+
+    fn step(&mut self, content: &dyn Any, redo: bool) -> Vec<Vec<u8>> {
+        let Some(content) = content.downcast_ref::<C>() else {
+            return Vec::new();
+        };
+        let operations = match redo {
+            false => self.undo(content),
+            true => self.redo(content),
+        };
+        operations.iter().map(C::encode_operation).collect()
     }
 }
 
@@ -96,6 +150,13 @@ impl Stored {
         }
     }
 
+    fn as_any(&self) -> Option<&dyn Any> {
+        match self {
+            Self::Typed(held) => Some(held.as_any()),
+            Self::Written { .. } => None,
+        }
+    }
+
     fn typed<C: LiveEdit>(&mut self) -> &C {
         if let Self::Written {
             bytes, unapplied, ..
@@ -118,6 +179,9 @@ impl Stored {
 
 struct Block {
     content: Stored,
+    history: Option<Box<dyn Recorder>>,
+    written: Vec<Vec<u8>>,
+    references: RefCell<Option<(u64, Vec<Uuid>)>>,
     revision: u64,
     base: u64,
     log: Vec<(Vec<u8>, bool)>,
@@ -129,6 +193,9 @@ impl Block {
     fn new(content: Stored) -> Self {
         Self {
             content,
+            history: None,
+            written: Vec::new(),
+            references: RefCell::new(None),
             revision: 1,
             base: 1,
             log: Vec::new(),
@@ -145,12 +212,66 @@ impl Block {
     }
 
     fn operate(&mut self, operation: Vec<u8>, mine: bool) {
+        if let (true, Some(history), Some(content)) =
+            (mine, &mut self.history, self.content.as_any())
+        {
+            history.record(content, &operation);
+        }
         self.content.apply(&operation);
         self.revision += 1;
         self.log.push((operation, mine));
         if mine {
             self.taken += 1;
         }
+    }
+
+    fn gesture(&mut self, phase: GesturePhase) {
+        let Some(history) = &mut self.history else {
+            return;
+        };
+        let reverted = match phase {
+            GesturePhase::Begin => {
+                history.begin();
+                Vec::new()
+            }
+            GesturePhase::Commit => {
+                history.commit();
+                Vec::new()
+            }
+            GesturePhase::Cancel => match self.content.as_any() {
+                Some(content) => history.cancel(content),
+                None => Vec::new(),
+            },
+        };
+        for operation in reverted {
+            self.written.push(operation.clone());
+            self.operate(operation, false);
+        }
+    }
+
+    fn step_history(&mut self, redo: bool) {
+        let (Some(history), Some(content)) = (&mut self.history, self.content.as_any()) else {
+            return;
+        };
+        for operation in history.step(content, redo) {
+            self.written.push(operation.clone());
+            self.operate(operation, false);
+        }
+    }
+
+    fn references(&self, organization: Uuid) -> Option<Vec<Uuid>> {
+        let Stored::Typed(content) = &self.content else {
+            return None;
+        };
+        let mut cached = self.references.borrow_mut();
+        if let Some((revision, references)) = &*cached
+            && *revision == self.revision
+        {
+            return Some(references.clone());
+        }
+        let references = content.references(organization);
+        *cached = Some((self.revision, references.clone()));
+        Some(references)
     }
 
     fn update(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
@@ -166,6 +287,8 @@ impl Block {
                     .map(|(operation, mine)| ContentOperation {
                         operation: operation.clone(),
                         mine: *mine,
+                        unsettled: 0,
+                        beneath: None,
                     })
                     .collect(),
             },
@@ -175,6 +298,7 @@ impl Block {
                 content_type: self.content.content_type().into_bytes(),
                 bytes: self.content.bytes(),
                 session: self.content.session_state(),
+                unsettled: Vec::new(),
                 applied: self.taken,
             },
         };
@@ -250,6 +374,17 @@ impl ContentStore {
         }
     }
 
+    pub fn keep_history<C: Undo + 'static>(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let held = inner
+            .blocks
+            .get_mut(&key)
+            .expect("the store holds that block");
+        held.content.typed::<C>();
+        held.history = Some(Box::new(History::<C>::default()));
+    }
+
     pub fn content<C: LiveEdit + Clone>(&self, block: Option<Uuid>) -> C {
         let key = self.key(block);
         let mut inner = self.0.borrow_mut();
@@ -283,6 +418,23 @@ impl ContentStore {
             .expect("the store holds that block");
         held.content.typed::<C>();
         held.operate(C::encode_operation(operation), false);
+    }
+
+    pub fn take_written(&self, block: Option<Uuid>) -> Vec<Vec<u8>> {
+        let key = self.key(block);
+        self.0
+            .borrow_mut()
+            .blocks
+            .get_mut(&key)
+            .map(|held| std::mem::take(&mut held.written))
+            .unwrap_or_default()
+    }
+
+    pub fn apply_elsewhere(&self, block: Option<Uuid>, operation: Vec<u8>) {
+        let key = self.key(block);
+        if let Some(held) = self.0.borrow_mut().blocks.get_mut(&key) {
+            held.operate(operation, false);
+        }
     }
 
     pub fn defer(&self, defer: bool) {
@@ -342,7 +494,34 @@ impl ContentStore {
                 }
                 let linked = inner.own == Some(block) || inner.watched_content.contains(&block);
                 if let (true, Some(held)) = (linked, inner.blocks.get_mut(&block)) {
+                    held.written.push(operation.clone());
                     held.operate(operation.clone(), true);
+                }
+            }
+            EditorMessage::Gesture {
+                block_id, phase, ..
+            } => {
+                if let Some(held) = self
+                    .0
+                    .borrow_mut()
+                    .blocks
+                    .get_mut(&Uuid::from_bytes(*block_id))
+                {
+                    held.gesture(*phase);
+                }
+            }
+            EditorMessage::BlockCommand {
+                block_id,
+                command: command @ (BlockCommand::Undo | BlockCommand::Redo),
+                ..
+            } => {
+                if let Some(held) = self
+                    .0
+                    .borrow_mut()
+                    .blocks
+                    .get_mut(&Uuid::from_bytes(*block_id))
+                {
+                    held.step_history(*command == BlockCommand::Redo);
                 }
             }
             EditorMessage::ResendContent { block_id, .. } => {
@@ -503,14 +682,12 @@ impl ContentStore {
 
     fn references_of(&self, id: Uuid) -> Vec<Uuid> {
         let inner = self.0.borrow();
-        match inner.blocks.get(&id).map(|held| &held.content) {
-            Some(Stored::Typed(content)) => content.references(inner.organization),
-            _ => inner
-                .graph
-                .get(&id)
-                .map(|info| info.references.clone())
-                .unwrap_or_default(),
-        }
+        inner
+            .blocks
+            .get(&id)
+            .and_then(|held| held.references(inner.organization))
+            .or_else(|| inner.graph.get(&id).map(|info| info.references.clone()))
+            .unwrap_or_default()
     }
 
     fn query(&self, query: BlockQuery) -> Vec<BlockInfo> {

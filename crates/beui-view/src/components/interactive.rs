@@ -23,6 +23,7 @@ use beui_macros::component;
 pub fn Interactive(
     #[prop(default = false)] focusable: bool,
     #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = false)] yields_tab_stop: bool,
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
@@ -49,6 +50,8 @@ pub fn Interactive(
     #[prop(default = false)] touch_drags: Prop<bool>,
     #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
     #[prop(default = true)] claims_touch: Prop<bool>,
+    #[prop(default = false)] drawing: Prop<bool>,
+    #[prop(default = false)] every_sample: Prop<bool>,
     #[prop(default = None)] scroll_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
@@ -70,6 +73,7 @@ pub fn Interactive(
     capture_at: Callback<Pos2, bool>,
     gestures_at: Callback<Pos2, bool>,
     hit_at: Callback<Pos2, bool>,
+    drawing_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
     #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
@@ -112,6 +116,7 @@ pub fn Interactive(
         let node = document.arena.touch_mut_as::<InteractiveNode>(interactive);
         if let Some(focus) = node.focus.as_mut() {
             focus.keyboard_on_focus = keyboard_on_focus;
+            focus.yields_tab_stop = yields_tab_stop;
             focus.on_focus_change = on_focus_change;
             focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;
@@ -144,6 +149,7 @@ pub fn Interactive(
         node.capture_at = capture_at;
         node.gestures_at = gestures_at;
         node.hit_at = hit_at;
+        node.drawing_at = drawing_at;
         node.on_forward = on_forward;
         document.set_interactive_claim_at(interactive, claim_at);
         document.set_interactive_on_press_outside(interactive, on_press_outside);
@@ -199,6 +205,7 @@ pub fn Interactive(
             (capture_presses.get(), repeat_drag.get(), touch_drags.get());
         let pressing = press_focus.get();
         let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
+        let (draws, every) = (drawing.get(), every_sample.get());
         let (active, inhibits, claimed) = (
             key_active.get(),
             inhibits_shortcuts.get(),
@@ -211,6 +218,8 @@ pub fn Interactive(
             document.set_interactive_touch_drags(interactive, touch);
             document.set_interactive_touch_drag_axis(interactive, axis);
             document.set_interactive_claims_touch(interactive, claims);
+            document.set_interactive_drawing(interactive, draws);
+            document.set_interactive_every_sample(interactive, every);
             document.set_interactive_scroll_axis(interactive, scroll);
             document.set_interactive_key_active(interactive, active);
             document.set_interactive_inhibits_shortcuts(interactive, inhibits);

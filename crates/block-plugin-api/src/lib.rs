@@ -8,6 +8,7 @@ mod block_ids;
 mod host_value;
 mod linux;
 mod manifest;
+mod nesting;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
@@ -33,12 +34,13 @@ pub use ui_types::{
     Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
 };
 pub use ui_types::{
-    DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer, Preferences,
-    Rotation, ThemeKind,
+    CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
+    Preferences, Rotation, ThemeKind,
 };
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
+pub const MAX_MENU_DEPTH: usize = 8;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
@@ -100,12 +102,48 @@ pub enum BarAction {
     Details,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MenuEntry {
+    Command(MenuCommand),
+    Submenu(MenuSubmenu),
+    Separator,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MenuEntry {
+pub struct MenuCommand {
     pub id: String,
     pub label: String,
     pub glyph: String,
     pub enabled: bool,
+    pub check: MenuCheck,
+    pub shortcut: Option<KeyChord>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MenuCheck {
+    #[default]
+    None,
+    Checkbox(bool),
+    Radio(bool),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MenuSubmenu {
+    pub id: String,
+    pub label: String,
+    pub glyph: String,
+    #[serde(deserialize_with = "nesting::submenu")]
+    pub entries: Vec<MenuEntry>,
+}
+
+impl MenuEntry {
+    pub fn command(entries: &[MenuEntry], id: &str) -> Option<MenuCommand> {
+        entries.iter().find_map(|entry| match entry {
+            MenuEntry::Command(command) => (command.id == id).then(|| command.clone()),
+            MenuEntry::Submenu(submenu) => MenuEntry::command(&submenu.entries, id),
+            MenuEntry::Separator => None,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -114,6 +152,8 @@ pub struct FrameReport {
     pub content: ChildRect,
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
+    pub drawing: Vec<ChildRect>,
+    pub every_sample: bool,
     pub claims: Vec<PressClaim>,
     pub description: Option<Description>,
 }
@@ -373,6 +413,49 @@ impl ChildRect {
 
     pub fn is_empty(&self) -> bool {
         self.width <= 0.0 || self.height <= 0.0
+    }
+
+    pub fn right(&self) -> f32 {
+        self.x + self.width
+    }
+
+    pub fn bottom(&self) -> f32 {
+        self.y + self.height
+    }
+
+    pub fn from_edges(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self {
+            x: left,
+            y: top,
+            width: (right - left).max(0.0),
+            height: (bottom - top).max(0.0),
+        }
+    }
+
+    pub fn intersect(&self, other: ChildRect) -> ChildRect {
+        Self::from_edges(
+            self.x.max(other.x),
+            self.y.max(other.y),
+            self.right().min(other.right()),
+            self.bottom().min(other.bottom()),
+        )
+    }
+
+    pub fn swept(&self, rotation: f32) -> ChildRect {
+        if rotation == 0.0 {
+            return *self;
+        }
+        let (center_x, center_y) = (self.x + self.width / 2.0, self.y + self.height / 2.0);
+        let (sin, cos) = rotation.sin_cos();
+        let (half_width, half_height) = (self.width / 2.0, self.height / 2.0);
+        let reach_x = half_width * cos.abs() + half_height * sin.abs();
+        let reach_y = half_width * sin.abs() + half_height * cos.abs();
+        Self::from_edges(
+            center_x - reach_x,
+            center_y - reach_y,
+            center_x + reach_x,
+            center_y + reach_y,
+        )
     }
 }
 
@@ -783,6 +866,7 @@ pub enum EditorMessage {
         bytes: Vec<u8>,
         #[serde(with = "serde_bytes")]
         session: Vec<u8>,
+        unsettled: Vec<serde_bytes::ByteBuf>,
         applied: u64,
     },
     ContentOperations {
@@ -795,6 +879,11 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         #[serde(with = "serde_bytes")]
         operation: Vec<u8>,
+    },
+    Gesture {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        phase: GesturePhase,
     },
     WatchContent {
         instance: EditorInstanceId,
@@ -836,6 +925,7 @@ pub enum EditorMessage {
         width: f32,
         height: f32,
         scale: f32,
+        moved: bool,
     },
     ChangeView {
         instance: EditorInstanceId,
@@ -1145,6 +1235,10 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         text: String,
     },
+    CopyImage {
+        instance: EditorInstanceId,
+        png: Vec<u8>,
+    },
     Paste {
         instance: EditorInstanceId,
     },
@@ -1215,6 +1309,7 @@ impl EditorMessage {
             | Self::Content { instance, .. }
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
+            | Self::Gesture { instance, .. }
             | Self::WatchContent { instance, .. }
             | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
@@ -1280,6 +1375,7 @@ impl EditorMessage {
             | Self::ChildBar { instance, .. }
             | Self::ChildFocused { instance, .. }
             | Self::CopyText { instance, .. }
+            | Self::CopyImage { instance, .. }
             | Self::Paste { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
@@ -1427,6 +1523,15 @@ pub struct ContentOperation {
     #[serde(with = "serde_bytes")]
     pub operation: Vec<u8>,
     pub mine: bool,
+    pub unsettled: u64,
+    pub beneath: Option<Vec<serde_bytes::ByteBuf>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GesturePhase {
+    Begin,
+    Commit,
+    Cancel,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1871,10 +1976,12 @@ impl EditorMessage {
             | Self::Window { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
+            | Self::CopyImage { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
+            | Self::Gesture { .. }
             | Self::WatchContent { .. }
             | Self::ResendContent { .. }
             | Self::SeedContent { .. }
@@ -1974,8 +2081,13 @@ pub enum ViewChange {
         factor: f32,
         anchor: Option<(f32, f32)>,
     },
-    Fit,
-    ResumeAutoFit,
+    Follow {
+        factor: f32,
+        anchor: (f32, f32),
+        x: f32,
+        y: f32,
+        resume: bool,
+    },
     PanDrag,
 }
 
@@ -2002,6 +2114,7 @@ pub struct Monitor {
 pub struct InputBatch {
     pub screen: ScreenId,
     pub events: Vec<InputEvent>,
+    pub every_sample: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2009,6 +2122,7 @@ pub enum InputEvent {
     PointerMoved {
         x: f32,
         y: f32,
+        time_micros: u64,
     },
     PointerLeft,
     PointerMotion {
@@ -2020,6 +2134,7 @@ pub enum InputEvent {
         pressed: bool,
         x: f32,
         y: f32,
+        time_micros: u64,
     },
     Wheel {
         x: f32,
@@ -2037,6 +2152,7 @@ pub enum InputEvent {
         x: f32,
         y: f32,
         force: Option<f32>,
+        time_micros: u64,
     },
     Key {
         key: Key,
@@ -2066,6 +2182,11 @@ pub enum InputEvent {
         tilt_x: f32,
         tilt_y: f32,
         eraser: bool,
+        time_micros: u64,
+    },
+    Predicted {
+        x: f32,
+        y: f32,
     },
 }
 
@@ -2174,7 +2295,12 @@ pub fn decode_frame(frame: &[u8]) -> Result<Message, DecodeError> {
     }
     let message = codec()
         .deserialize(&frame[4..])
-        .map_err(|_| DecodeError::MalformedPayload)?;
+        .map_err(|error| match *error {
+            bincode::ErrorKind::Custom(message) if message == nesting::TOO_DEEP => {
+                DecodeError::LimitExceeded("menu depth")
+            }
+            _ => DecodeError::MalformedPayload,
+        })?;
     validate(&message)?;
     Ok(message)
 }
@@ -2212,6 +2338,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             for report in value {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
+                collection(report.drawing.len())?;
                 collection(report.claims.len())?;
                 if let Some(tree) = report
                     .description
@@ -2389,7 +2516,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
-        EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
+        EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
+        EditorMessage::ContentOperations { operations, .. } => {
+            collection(operations.len())?;
+            for operation in operations {
+                collection(operation.beneath.as_ref().map_or(0, Vec::len))?;
+            }
+            Ok(())
+        }
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
         EditorMessage::BlocksFailed { error, .. } => string(error),
@@ -2468,6 +2602,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
+        EditorMessage::CopyImage { png, .. } => blob(png),
         EditorMessage::WatchHostValue { key, .. } => string(key),
         EditorMessage::HostValue {
             key, value: bytes, ..
@@ -2585,11 +2720,27 @@ fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
 }
 
 fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {
-    collection(entries.len())?;
+    let mut count = 0;
+    menu_level(entries, 0, &mut count)
+}
+
+fn menu_level(entries: &[MenuEntry], depth: usize, count: &mut usize) -> Result<(), DecodeError> {
+    if depth > MAX_MENU_DEPTH {
+        return Err(DecodeError::LimitExceeded("menu depth"));
+    }
+    *count += entries.len();
+    collection(*count)?;
     for entry in entries {
-        string(&entry.id)?;
-        string(&entry.label)?;
-        string(&entry.glyph)?;
+        match entry {
+            MenuEntry::Command(command) => {
+                strings([&command.id, &command.label, &command.glyph])?;
+            }
+            MenuEntry::Submenu(submenu) => {
+                strings([&submenu.id, &submenu.label, &submenu.glyph])?;
+                menu_level(&submenu.entries, depth + 1, count)?;
+            }
+            MenuEntry::Separator => {}
+        }
     }
     Ok(())
 }

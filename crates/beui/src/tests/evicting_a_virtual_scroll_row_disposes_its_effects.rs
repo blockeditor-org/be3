@@ -16,9 +16,11 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                         keys={indices(100)}
                         item_size=20.0
                     >|index: ReadSignal<usize>|
-                        <Frame visible={shown}>
-                            <Text>{create_memo(move || format!("Row {}", index.get()))}</Text>
-                        </Frame>
+                        <List spacing=0.0>
+                            <Show condition={shown}>
+                                <Text>{create_memo(move || format!("Row {}", index.get()))}</Text>
+                            </Show>
+                        </List>
                     </VirtualList>
                 </Offset>
             </List>

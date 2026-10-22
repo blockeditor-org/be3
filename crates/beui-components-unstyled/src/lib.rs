@@ -102,9 +102,9 @@ pub use drag::{
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{
-    MenuCaption, MenuGrid, MenuItem, MenuRowHandle, MenuRowKind, MenuThen, menu_list_back_button,
-    menu_list_len, menu_list_page, menu_list_root_focusable, menu_list_row_button,
-    menu_list_row_submenu_content, menu_list_tile_button,
+    MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,
+    menu_list_back_button, menu_list_len, menu_list_page, menu_list_root_focusable,
+    menu_list_row_button, menu_list_row_submenu_content, menu_list_tile_button,
 };
 pub use menu_button::{MenuButton, MenuButtonHandle};
 pub use menu_popup::{MenuPopup, MenuSheetHandle, MenuStyle};
@@ -140,7 +140,7 @@ pub use text_area::{
     BlockView, Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
     SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox,
     TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji, text_area_index_at,
-    text_area_shown, text_area_state,
+    text_area_remote_cursors, text_area_shown, text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{

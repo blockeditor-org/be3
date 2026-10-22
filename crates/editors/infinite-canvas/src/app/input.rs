@@ -1,10 +1,11 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasEntityKind, CanvasPoint, CanvasTextStyle, CanvasTransform,
+    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
 };
-use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
-use block_editor_beui::reactive::Get;
+use block_editor_beui::beui::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
+use block_editor_beui::reactive::{Get, untrack};
 use uuid::Uuid;
 
+use crate::freehand::Ink;
 use crate::geometry::*;
 
 use super::state::{CanvasCommand, CanvasState, Gesture, TextEntry, Tool};
@@ -12,9 +13,9 @@ use super::state::{CanvasCommand, CanvasState, Gesture, TextEntry, Tool};
 impl CanvasState {
     pub(crate) fn cursor(&self) -> CursorIcon {
         match self.tool.get() {
-            Tool::Line | Tool::Rectangle | Tool::Pen | Tool::Artboard => CursorIcon::Crosshair,
             Tool::Text => CursorIcon::Text,
-            Tool::Select => self.select_cursor(),
+            Tool::Select | Tool::Lasso => self.select_cursor(),
+            _ => CursorIcon::Crosshair,
         }
     }
 
@@ -22,8 +23,8 @@ impl CanvasState {
         let Some(world) = self.pointer.get() else {
             return CursorIcon::Default;
         };
-        if let Some(line) = self.selected_line() {
-            return match line_end_at(line_ends(&line), world, self.scale(), HANDLE_REACH) {
+        if let Some(path) = self.selected_path() {
+            return match path_grip_at(&path, world, self.scale(), HANDLE_REACH) {
                 Some(_) => CursorIcon::Crosshair,
                 None => CursorIcon::Default,
             };
@@ -58,14 +59,15 @@ impl CanvasState {
 
     pub(crate) fn live_child_at(&self, world: CanvasPoint) -> Option<Uuid> {
         self.entities
-            .get_untracked()
-            .iter()
+            .embedding_untracked()
+            .into_iter()
             .rev()
+            .filter_map(|id| self.entities.get_untracked(id))
             .find_map(|entity| {
-                (matches!(entity.kind, CanvasEntityKind::DirectEditor { .. })
-                    && !entity.style.hidden
+                (entity.shape == CanvasShape::Editor
+                    && !entity.hidden
                     && !self.shows_preview(entity.id)
-                    && direct_editor_layout(entity)
+                    && direct_editor_layout(&entity)
                         .is_some_and(|layout| layout.content.contains(world)))
                 .then_some(entity.id)
             })
@@ -76,6 +78,9 @@ impl CanvasState {
             return;
         }
         self.note_touch(press.touch);
+        if press.pen.is_some() {
+            self.note_pen();
+        }
         let world = self.world_at(press.pos);
         self.hover(Some(world));
         if let Some(child) = self.live_child_at(world) {
@@ -88,68 +93,103 @@ impl CanvasState {
         if let Some(focused) = self.focused_editor.get_untracked() {
             let inside = self
                 .entities
-                .get_untracked()
-                .iter()
-                .find(|entity| entity.id == focused)
-                .is_some_and(|entity| entity_bounds(entity).contains(world));
+                .get_untracked(focused)
+                .is_some_and(|entity| entity_bounds(&entity).contains(world));
             if !inside {
                 self.focus_editor(None);
             }
         }
-        if press.clicks >= 2
-            && self.tool.get_untracked() == Tool::Select
-            && let Some(id) = self.entity_at(world)
-        {
-            let entities = self.entities.get_untracked();
-            let entity = entities.iter().find(|entity| entity.id == id);
-            if let Some(entity) = entity
-                && matches!(entity.kind, CanvasEntityKind::Text { .. })
-                && !entity.locked
-            {
-                self.select(id, false);
-                self.edit_text_at(id, TextEntry::At(press.pos));
-                self.begin_gesture(None);
-                return;
-            }
+        let tool = match press.pen.is_some_and(|pen| pen.eraser) {
+            true => Tool::Eraser,
+            false => self.tool_for(press),
+        };
+        if press.clicks >= 2 && tool.selects() && self.double_press(press, world) {
+            self.begin_gesture(None);
+            return;
         }
-        match self.tool.get_untracked() {
-            Tool::Select => self.press_select(press, world),
-            Tool::Line | Tool::Rectangle | Tool::Text | Tool::Artboard => {
+        match tool {
+            Tool::Select | Tool::Lasso => self.press_select(press, world, tool == Tool::Lasso),
+            Tool::Line
+            | Tool::Arrow
+            | Tool::Rectangle
+            | Tool::Ellipse
+            | Tool::Diamond
+            | Tool::Text
+            | Tool::Frame => {
                 self.begin_gesture(Some(Gesture::Create {
-                    tool: self.tool.get_untracked(),
+                    id: Uuid::new_v4(),
+                    tool,
                     start: world,
                     current: world,
                     pointer: world,
                     from_center: press.modifiers.alt,
+                    detached: press.modifiers.ctrl,
                 }));
             }
-            Tool::Pen => self.begin_gesture(Some(Gesture::Pen {
-                points: vec![world],
-                pressures: pen_pressure(press).into_iter().collect(),
-            })),
+            Tool::Pen => {
+                let ink = press.pen.is_none().then(|| Ink::new(press.pos, press.time));
+                self.begin_gesture(Some(Gesture::Pen {
+                    id: Uuid::new_v4(),
+                    points: vec![world],
+                    pressures: vec![ink.map_or_else(|| pen_pressure(press), |ink| ink.pressure())],
+                    predicted: None,
+                    ink,
+                }));
+            }
+            Tool::Eraser => self.begin_erasing(world),
         }
     }
 
-    fn press_select(&self, press: PointerPress, world: CanvasPoint) {
-        if let Some(line) = self.selected_line() {
-            let ends = line_ends(&line);
+    fn double_press(&self, press: PointerPress, world: CanvasPoint) -> bool {
+        let hit = self
+            .entity_at(world)
+            .and_then(|id| self.entities.get_untracked(id));
+        if let Some(entity) = &hit
+            && entity.group_id.is_some()
+            && entity.group_id != self.entered_group.get_untracked()
+        {
+            self.enter_group(entity.id);
+            return true;
+        }
+        match self.written_at(world) {
+            Some(entity)
+                if entity.locked || (entity.shape != CanvasShape::Text && press.clicks != 2) =>
+            {
+                false
+            }
+            Some(entity) => {
+                self.select(entity.id, false);
+                self.edit_text_at(entity.id, TextEntry::At(press.pos));
+                true
+            }
+            None if press.clicks == 2 && hit.is_none() => {
+                self.write_at(world);
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn tool_for(&self, press: PointerPress) -> Tool {
+        match self.tool.get_untracked() {
+            Tool::Pen if press.touch && self.pen_seen() => Tool::Select,
+            tool => tool,
+        }
+    }
+
+    fn press_select(&self, press: PointerPress, world: CanvasPoint, lasso: bool) {
+        if let Some(path) = self.selected_path() {
             let reach = match press.touch {
                 true => TOUCH_HANDLE_REACH,
                 false => HANDLE_REACH,
             };
-            if let Some(end) = line_end_at(ends, world, self.scale(), reach) {
-                self.begin_gesture(Some(Gesture::Endpoint {
-                    original: line,
-                    end,
-                    current: ends[end],
-                    grab: CanvasPoint::new(ends[end].x - world.x, ends[end].y - world.y),
-                    snap: press.modifiers.shift,
-                }));
+            if let Some(grip) = path_grip_at(&path, world, self.scale(), reach) {
+                self.grip_path(path, grip, world, press.modifiers);
                 return;
             }
         }
         let frame = selection_frame_of(self);
-        let has_unlocked = self.selection_has_unlocked() && self.selected_line().is_none();
+        let has_unlocked = self.selection_has_unlocked() && self.selected_path().is_none();
         let (resize, scale_editors) = self.selection_handles();
         let scale = self.scale();
         let reach = frame.map_or(HANDLE_REACH, |frame| {
@@ -201,13 +241,12 @@ impl CanvasState {
             return;
         }
         if let Some(id) = self.entity_at(world) {
-            let entities = self.entities.get_untracked();
-            let entity = entities
-                .iter()
-                .find(|entity| entity.id == id)
+            let entity = self
+                .entities
+                .get_untracked(id)
                 .expect("the hit entity is one of the canvas entities");
-            if let CanvasEntityKind::DirectEditor { .. } = entity.kind {
-                let content = direct_editor_layout(entity)
+            if entity.shape == CanvasShape::Editor {
+                let content = direct_editor_layout(&entity)
                     .is_some_and(|layout| layout.content.contains(world));
                 if content && self.takes_frame(entity.id) {
                     self.focus_editor(Some(id));
@@ -217,10 +256,13 @@ impl CanvasState {
             }
             let retap = press.touch
                 && !entity.locked
-                && matches!(entity.kind, CanvasEntityKind::Text { .. })
+                && entity.shape == CanvasShape::Text
                 && self.selection.get_untracked().len() == 1
                 && self.selection.get_untracked().contains(&id);
             self.note_retap(retap.then_some((id, press.pos)));
+            if entity.group_id != self.entered_group.get_untracked() {
+                self.leave_group();
+            }
             if press.modifiers.shift {
                 self.select(id, true);
                 self.begin_gesture(None);
@@ -237,12 +279,55 @@ impl CanvasState {
             self.begin_move(world, press.modifiers.alt);
             return;
         }
-        self.begin_gesture(Some(Gesture::SelectBox {
-            start: world,
-            current: world,
-            pointer: world,
-            from_center: press.modifiers.alt,
-            additive: press.modifiers.shift,
+        self.leave_group();
+        self.begin_gesture(Some(match lasso {
+            true => Gesture::Lasso {
+                points: vec![world],
+                additive: press.modifiers.shift,
+            },
+            false => Gesture::SelectBox {
+                start: world,
+                current: world,
+                pointer: world,
+                from_center: press.modifiers.alt,
+                additive: press.modifiers.shift,
+            },
+        }));
+    }
+
+    fn grip_path(
+        &self,
+        path: CanvasEntity,
+        grip: PathGrip,
+        world: CanvasPoint,
+        modifiers: Modifiers,
+    ) {
+        let last = path.points.len().saturating_sub(1);
+        let (path, index) = match grip {
+            PathGrip::Point(index) => (path, index),
+            PathGrip::Middle(index) => (split_segment(path, index), index + 1),
+        };
+        let at = path
+            .world_points()
+            .get(index)
+            .map_or(world, |point| point.at());
+        let grab = CanvasPoint::new(at.x - world.x, at.y - world.y);
+        let original = Box::new(path);
+        self.begin_gesture(Some(match grip {
+            PathGrip::Point(index) if index == 0 || index == last => Gesture::Endpoint {
+                original,
+                end: usize::from(index != 0),
+                current: at,
+                grab,
+                snap: modifiers.shift,
+                detached: modifiers.ctrl,
+            },
+            _ => Gesture::Bend {
+                original,
+                index,
+                current: at,
+                grab,
+            },
         }));
     }
 
@@ -270,7 +355,13 @@ impl CanvasState {
         let world = self.world_at(press.pos);
         self.hover(Some(world));
         let modifiers = press.modifiers;
-        let pen_step = 1.0 / self.scale();
+        if matches!(self.gesture.get_untracked(), Some(Gesture::Erase { .. })) {
+            self.erase_toward(world, modifiers.alt);
+            return;
+        }
+        let scale = self.scale();
+        let pen_step = 1.0 / scale;
+        let predicted = press.predicted.map(|at| self.world_at(at));
         self.update_gesture(|gesture| match gesture {
             Gesture::Create {
                 tool,
@@ -278,8 +369,11 @@ impl CanvasState {
                 current,
                 pointer,
                 from_center,
+                detached,
+                ..
             } => {
-                if matches!(*tool, Tool::Rectangle | Tool::Artboard) {
+                *detached = modifiers.ctrl;
+                if tool.draws_a_box() {
                     let delta = CanvasPoint::new(world.x - pointer.x, world.y - pointer.y);
                     if modifiers.ctrl {
                         start.x += delta.x;
@@ -291,7 +385,7 @@ impl CanvasState {
                     *pointer = world;
                     *from_center = modifiers.alt;
                 } else {
-                    *current = match *tool == Tool::Line && modifiers.shift {
+                    *current = match tool.draws_a_line() && modifiers.shift {
                         true => constrain_point_angle(*start, world, std::f32::consts::FRAC_PI_4),
                         false => world,
                     };
@@ -315,15 +409,28 @@ impl CanvasState {
                 *pointer = world;
                 *from_center = modifiers.alt;
             }
+            Gesture::Lasso { points, .. } => {
+                if points
+                    .last()
+                    .is_none_or(|last| distance(*last, world) * scale >= LASSO_STEP)
+                {
+                    points.push(world);
+                }
+            }
             Gesture::Move { current, .. } => *current = world,
+            Gesture::Bend { current, grab, .. } => {
+                *current = CanvasPoint::new(world.x + grab.x, world.y + grab.y);
+            }
             Gesture::Endpoint {
                 current,
                 grab,
                 snap,
+                detached,
                 ..
             } => {
                 *current = CanvasPoint::new(world.x + grab.x, world.y + grab.y);
                 *snap = modifiers.shift;
+                *detached = modifiers.ctrl;
             }
             Gesture::Rotate {
                 current,
@@ -348,15 +455,25 @@ impl CanvasState {
                     || *force_preserve_aspect_ratio
                     || *default_preserve_aspect_ratio != modifiers.shift;
             }
-            Gesture::Pen { points, pressures } => {
+            Gesture::Erase { .. } => {}
+            Gesture::Pen {
+                points,
+                pressures,
+                predicted: tail,
+                ink,
+                ..
+            } => {
+                *tail = predicted;
+                let pressure = match ink {
+                    Some(ink) => ink.sample(press.pos, press.time),
+                    None => pen_pressure(press),
+                };
                 if points
                     .last()
                     .is_none_or(|last| distance(*last, world) > pen_step)
                 {
                     points.push(world);
-                    if !pressures.is_empty() {
-                        pressures.push(pen_pressure(press).unwrap_or(PEN_PRESSURE));
-                    }
+                    pressures.push(pressure);
                 }
             }
         });
@@ -367,19 +484,19 @@ impl CanvasState {
             self.hover(None);
         }
         self.hold_pointer(false);
-        self.finish_grouped_edit();
-        let gesture = self.gesture.get_untracked();
+        let gesture = self.take_gesture();
         let retapped = self.take_retap();
-        self.begin_gesture(None);
         if let (Some((id, at)), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
             && start == current
         {
+            self.commit_writes();
             self.edit_text_at(id, TextEntry::At(at));
             return;
         }
         if let Some(gesture) = gesture {
             self.finish_gesture(gesture);
         }
+        self.commit_writes();
     }
 
     pub(crate) fn cancel(&self) {
@@ -391,11 +508,15 @@ impl CanvasState {
             return false;
         }
         if press.key == Key::Escape {
-            if self.focused_editor.get_untracked().is_some() {
+            if matches!(self.gesture.get_untracked(), Some(Gesture::Erase { .. })) {
+                self.begin_gesture(None);
+            } else if self.focused_editor.get_untracked().is_some() {
                 self.focus_editor(None);
+            } else if let Some(group) = self.leave_group() {
+                self.select_group(group);
             } else {
                 self.begin_gesture(None);
-                self.set_tool(Tool::Select);
+                self.put_down_tool();
             }
             return true;
         }
@@ -425,7 +546,7 @@ impl CanvasState {
                     entity
                 })
                 .collect();
-            self.record_update(before, after, true);
+            self.record_update(before, after);
             return true;
         }
         if press.key == Key::Enter && self.selection.get_untracked().len() == 1 {
@@ -433,7 +554,7 @@ impl CanvasState {
             return true;
         }
         if matches!(press.key, Key::Delete | Key::Backspace)
-            && self.tool.get_untracked() == Tool::Select
+            && self.tool.get_untracked().selects()
             && !self.selection.get_untracked().is_empty()
         {
             self.run(CanvasCommand::Delete);
@@ -443,45 +564,48 @@ impl CanvasState {
     }
 
     pub(crate) fn add_at(&self, tool: Tool, center: CanvasPoint) {
-        let style = self.default_style();
+        let boxed = |shape: CanvasShape, size: CanvasPoint| {
+            CanvasEntity::new(shape, CanvasTransform::new(center, size, 0.0))
+        };
+        let line = || {
+            CanvasEntity::path(&[
+                CanvasPoint::new(center.x - 90.0, center.y),
+                CanvasPoint::new(center.x + 90.0, center.y),
+            ])
+        };
         let entity = match tool {
-            Tool::Rectangle => Some((CanvasPoint::new(180.0, 100.0), CanvasEntityKind::Rectangle)),
-            Tool::Line => Some((CanvasPoint::new(180.0, MIN_SIZE), CanvasEntityKind::Line)),
-            Tool::Text => Some((
-                CanvasPoint::new(180.0, 36.0),
-                CanvasEntityKind::Text {
-                    text: String::new(),
-                    text_style: CanvasTextStyle::default(),
-                    placeholder: "Text".into(),
-                },
-            )),
-            Tool::Select | Tool::Pen | Tool::Artboard => None,
+            Tool::Rectangle => boxed(CanvasShape::Rectangle, CanvasPoint::new(180.0, 100.0)),
+            Tool::Ellipse => boxed(CanvasShape::Ellipse, CanvasPoint::new(180.0, 100.0)),
+            Tool::Diamond => boxed(CanvasShape::Diamond, CanvasPoint::new(180.0, 100.0)),
+            Tool::Line | Tool::Arrow => line(),
+            Tool::Text => {
+                let mut text = boxed(CanvasShape::Text, CanvasPoint::new(180.0, 36.0));
+                text.placeholder = "Text".into();
+                text
+            }
+            Tool::Select | Tool::Lasso | Tool::Pen | Tool::Eraser | Tool::Frame => {
+                self.set_tool(tool);
+                return;
+            }
         };
-        let Some((size, kind)) = entity else {
-            self.set_tool(tool);
-            return;
-        };
-        self.add_entity(block_editor_beui::be_block::canvas::CanvasEntity {
-            id: Uuid::new_v4(),
-            transform: CanvasTransform::new(center, size, 0.0),
-            kind,
-            style,
-            group_id: None,
-            locked: false,
-            components: Vec::new(),
-        });
+        let mut entity = self.styled(entity);
+        if tool == Tool::Arrow {
+            entity.style.end_arrowhead = CanvasArrowhead::Arrow;
+        }
+        self.add_entity(entity);
         self.put_down_tool();
     }
 }
 
+const LASSO_STEP: f32 = 4.0;
+
 fn selection_frame_of(state: &CanvasState) -> Option<SelectionFrame> {
     super::state::selection_frame(
-        &state.entities.get_untracked(),
+        &untrack(|| state.selected_entities()),
         &state.selection.get_untracked(),
     )
 }
 
-fn pen_pressure(press: PointerPress) -> Option<f32> {
-    press.pen?;
-    Some(press.pressure.unwrap_or(PEN_PRESSURE).clamp(0.0, 1.0))
+fn pen_pressure(press: PointerPress) -> f32 {
+    press.pressure.unwrap_or(PEN_PRESSURE).clamp(0.0, 1.0)
 }

@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption};
+use block_editor_beui::beui::{NodeId, Pos2, Rect};
 use block_editor_beui::{Editor, LoadingPane};
 use game_api::{Board, Control, GameActionOption, GameScreen, Gesture};
 
@@ -303,6 +303,11 @@ fn GamePlay(
         editor.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
     });
     let world = editor.world();
+    editor.keep_fitted(move || {
+        world
+            .get()
+            .map(|world| Rect::from_min_size(Pos2::ZERO, world))
+    });
     let layout = create_memo(move || drawn.with(|layout| layout.centered_in(world.get())));
     let steps = Steps { game, count, shown };
     let panel = Panel {

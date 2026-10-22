@@ -1,6 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
+use crate::context_menu::MenuCheck;
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
@@ -22,15 +23,16 @@ const PADDING_HORIZONTAL: f32 = 10.0;
 const ROW_PADDING_VERTICAL: f32 = 7.0;
 const ROW_SPACING: f32 = 10.0;
 const ICON_WIDTH: f32 = 20.0;
-const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 90);
 
 #[component]
 pub fn CommandPalette(open: Binding<bool>) -> NodeId {
+    let theme = use_theme();
+    let scrim = create_memo(move || theme.scrim_soft.get());
     view! {
         <unstyled::CommandPalette
             open
             list_height=LIST_HEIGHT
-            scrim=SCRIM
+            scrim={scrim}
             search_placeholder="Run a command"
             search_content={|handle| view! {
                 <PaletteSearch handle />
@@ -84,6 +86,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         label,
         glyph,
         shortcut,
+        checked,
         disabled,
         highlighted,
         hovered,
@@ -119,6 +122,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
                 <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                     {shortcut}
                 </Text>
+                <MenuCheck checked />
             </List>
         </Frame>
     }

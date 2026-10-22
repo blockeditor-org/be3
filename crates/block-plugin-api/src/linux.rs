@@ -303,6 +303,7 @@ pub struct TrayMenuEntry {
     pub separator: bool,
     pub enabled: bool,
     pub toggle: TrayToggle,
+    #[serde(deserialize_with = "crate::nesting::submenu")]
     pub children: Vec<TrayMenuEntry>,
 }
 

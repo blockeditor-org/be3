@@ -49,10 +49,12 @@ excluded=""
 package_name() {
     sed -n 's/^name[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$1" | head -n 1
 }
+# An editor with examples is built for the host as well, where they run
+# (editor() in buck/wasm/defs.bzl).
 for manifest in crates/editors/*/Cargo.toml; do
     name="$(package_name "$manifest")"
     plugins="$plugins -p $name"
-    excluded="$excluded --exclude $name"
+    [ -d "$(dirname "$manifest")/examples" ] || excluded="$excluded --exclude $name"
 done
 games=""
 for manifest in crates/tabletop-games/rules/*/Cargo.toml; do

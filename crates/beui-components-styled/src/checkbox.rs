@@ -69,13 +69,16 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                     radius=Radius::Sm
                     align=Align::Center
                 >
-                    <Frame
-                        visible={checked}
-                        width=MARK_SIZE
-                        height=MARK_SIZE
-                        fill={ColorRole::custom(mark_color)}
-                        radius={Radius::custom(MARK_RADIUS)}
-                    />
+                    <Layers>
+                        <Show condition={checked}>
+                            <Frame
+                                width=MARK_SIZE
+                                height=MARK_SIZE
+                                fill={ColorRole::custom(mark_color)}
+                                radius={Radius::custom(MARK_RADIUS)}
+                            />
+                        </Show>
+                    </Layers>
                 </Frame>
                 <Show condition={labeled}>
                     <Text

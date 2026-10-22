@@ -93,16 +93,18 @@ so dialogs, the file tree and every editor read like the host's own controls.
   Like `hit`, this sees the host document, not plugin documents.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
-  method's composition, a back gesture under way, files being dragged in, and any open file
+  method's composition or where the app asks for one and whether it shows the on-screen
+  keyboard or holds it back, a back gesture under way, files being dragged in, and any open file
   dialog.
 - `drive actions` lists the actions the command palette would offer where the focus is
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
-- `drive shot FILE [TARGET]` writes a PNG of the window, or of one target.
-- `drive paint FILE [TARGET]` writes what the window paints as a paint snapshot
+- `drive shot FILE.png [TARGET]` writes a PNG of the window, or of one target, where that target is in the frame it captures.
+- `drive paint FILE.paint [TARGET]` writes what the window paints as a paint snapshot
   (guides/testing_a_gui.md, 4), every plugin's painting included where the host composites it,
   so it compares exactly where a PNG would not; `./scripts/buck run //crates/local-tools:bin -- rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns it into a PNG and
-  `example-dump` lists its shapes. It waits until the app settles, then asks every running
+  `example-dump` lists its shapes. It waits until the app settles and crops to where TARGET is
+  in the frame it paints, then asks every running
   plugin for what it last painted, through an extension message (`PAINTING_EXTENSION` in
   crates/paint-format) rather than the plugin protocol proper. What a plugin draws through a
   `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
@@ -175,7 +177,7 @@ own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 `drive clock stop` stops the app's clock: time then passes only with `drive pause`, a frame at
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
 every run, and an app that animates forever still settles. `drive clock run` starts it again.
-Anything else waiting on time, such as a plugin's frame timeout, waits for `pause` too.
+Anything else waiting on time, such as a plugin's frame timeout, waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
 
 A driven app may take shortcuts a person never sees so that it settles sooner: block-app seals
 edits at once rather than after the pause a person's edits wait for. An app asks

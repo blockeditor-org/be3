@@ -1,10 +1,10 @@
-use block_editor_beui::Editor;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
 use block_editor_beui::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::{Editor, Fitting};
 
 const SIDEBAR_WIDTH: f32 = 220.0;
 const RAIL_WIDTH: f32 = 44.0;
@@ -96,18 +96,19 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let selected = create_signal(None::<usize>);
     let stage = NodeRef::new();
     editor.content(&stage);
+    let fitting = editor.keep_fitted(|| Some(Rect::from_min_size(pos2(0.0, 0.0), WORLD)));
 
     let chrome = editor.chrome_shown();
     let panel_shown = create_memo(move || chrome.get() && open.get());
     let rail_shown = create_memo(move || chrome.get() && !open.get());
-    let panel = (editor, selected, open);
+    let panel = (editor, fitting, selected, open);
 
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={panel_shown}>|| {
-                let (editor, selected, open) = panel;
+                let (editor, fitting, selected, open) = panel;
                 view! {
-                    <Sidebar @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) editor selected open />
+                    <Sidebar @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) editor fitting selected open />
                 }
             }</Show>
             <Show condition={rail_shown}>
@@ -124,7 +125,12 @@ pub fn PanZoom(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Sidebar(editor: Editor, selected: Signal<Option<usize>>, open: Signal<bool>) -> NodeId {
+fn Sidebar(
+    editor: Editor,
+    fitting: Fitting,
+    selected: Signal<Option<usize>>,
+    open: Signal<bool>,
+) -> NodeId {
     let scale = editor.scale();
     let readout = create_memo(move || format!("Zoom {:.0}%", scale.get() * 100.0));
     let chosen = create_memo(move || match selected.get() {
@@ -133,7 +139,7 @@ fn Sidebar(editor: Editor, selected: Signal<Option<usize>>, open: Signal<bool>) 
     });
     let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
     let zoom_in = move || editor.zoom(ZOOM_STEP);
-    let fit = move || editor.fit();
+    let fit = move || fitting.fit();
     let hide = move || open.set(false);
     view! {
         <Frame fill=ColorRole::Surface padding=PANEL_PADDING>

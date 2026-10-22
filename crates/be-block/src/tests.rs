@@ -1,6 +1,6 @@
 use super::*;
 use crate::canvas::{
-    CanvasContent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTransform,
+    Canvas, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
     InfiniteCanvasOperation,
 };
 use crate::{
@@ -33,7 +33,9 @@ mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;
 mod a_calendar_undo_keeps_what_someone_else_changed_since;
 mod a_calendar_update_writes_only_the_fields_that_changed;
+mod a_cancelled_gesture_is_reverted_and_leaves_no_step;
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
+mod a_canvas_profile_is_kept_but_never_undone;
 mod a_cell_set_while_someone_clears_the_last_one_in_its_row_is_kept;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
 mod a_component_added_to_one_entity_on_both_sides_is_kept_once;
@@ -48,6 +50,7 @@ mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
 mod a_folder_lists_each_block_once_and_follows_its_children;
+mod a_gesture_is_one_undo_step_however_long_it_takes;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
 mod a_map_keeps_its_points_in_bounds_and_follows_its_children;
@@ -66,6 +69,7 @@ mod a_view_shows_only_the_rows_every_filter_matches;
 mod a_wire_cut_on_one_side_stays_cut_when_the_other_extends_it;
 mod a_wire_cut_stays_cut_when_someone_extends_it_at_once;
 mod a_wire_removed_on_one_side_stays_removed_when_the_other_branches_off_it;
+mod an_arrow_end_bound_to_a_shape_follows_it_and_stays_when_it_is_removed;
 mod an_event_rescheduled_on_both_sides_conflicts_and_keeps_ours;
 mod an_image_merges_only_when_one_side_changed_it;
 mod an_update_for_an_event_someone_removed_does_not_bring_it_back;
@@ -121,6 +125,7 @@ mod streamed_content_separates_its_header_from_its_payload;
 mod text_and_folders_saved_before_they_were_frozen_still_load;
 mod text_edited_in_different_paragraphs_merges_cleanly;
 mod text_merges_line_by_line_and_marks_real_conflicts;
+mod text_retyped_in_one_canvas_entity_by_two_peers_keeps_both;
 mod text_typed_inside_a_range_someone_deletes_at_once_survives;
 mod the_frozen_blocks_read_every_register_without_any_one_field;
 mod the_same_range_deleted_by_two_peers_at_once_is_deleted_once;
@@ -128,6 +133,7 @@ mod the_same_solution_inserted_by_two_peers_at_once_is_listed_once;
 mod the_same_wire_drawn_on_both_sides_merges_to_one;
 mod two_checklists_merge_every_item_either_side_added;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
+mod two_peers_restyling_different_fields_of_one_shape_keep_both;
 mod undoing_a_clear_keeps_a_pixel_painted_since;
 mod undoing_a_clear_puts_the_items_back_in_order;
 mod undoing_a_component_removal_brings_it_back_with_its_wires_untouched;
@@ -216,17 +222,12 @@ fn not_gate(id: ComponentId, x: i64, y: i64) -> Component {
 }
 
 fn rectangle() -> CanvasEntity {
-    CanvasEntity {
-        id: Uuid::new_v4(),
-        transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(10.0, 10.0), 0.0),
-        kind: CanvasEntityKind::Rectangle,
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
-    }
+    CanvasEntity::new(
+        CanvasShape::Rectangle,
+        CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(10.0, 10.0), 0.0),
+    )
 }
 
 fn canvas_run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {
-    edited(content, [content.root().edit_for(&operation)])
+    edited(content, [Canvas::edit_in(content, &operation)])
 }

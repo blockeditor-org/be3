@@ -233,7 +233,7 @@ fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) ->
         }
         Shortcut::ZoomIn => editor.zoom(ZOOM_STEP),
         Shortcut::ZoomOut => editor.zoom(1.0 / ZOOM_STEP),
-        Shortcut::Fit => editor.fit(),
+        Shortcut::Fit => tools.fitting.fit(),
         Shortcut::None => return false,
     }
     true
@@ -364,11 +364,16 @@ fn Artwork(
                     border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(thin.get())))}
                 />
             </CanvasItem>
-            <CanvasItem x={preview_x} y={preview_y} width={preview_width} height={preview_height}>
-                <Frame visible={has_preview}>
+            <Show condition={has_preview}>
+                <CanvasItem
+                    x={preview_x}
+                    y={preview_y}
+                    width={preview_width}
+                    height={preview_height}
+                >
                     <Picture image={preview_image} fit=ImageFit::Fill smooth=false />
-                </Frame>
-            </CanvasItem>
+                </CanvasItem>
+            </Show>
             <ForEach keys={lines}>|line: Line| {
                 let (x, y, line_width, line_height) = match line {
                     Line::Vertical(at) => (
@@ -396,12 +401,11 @@ fn Artwork(
                     </CanvasItem>
                 }
             }</ForEach>
-            <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
-                <Frame
-                    visible={over}
-                    border={Border::new(ColorRole::Custom(Color32::WHITE)).width(1.0)}
-                />
-            </CanvasItem>
+            <Show condition={over}>
+                <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
+                    <Frame border={Border::new(ColorRole::Custom(Color32::WHITE)).width(1.0)} />
+                </CanvasItem>
+            </Show>
         </Canvas>
     }
 }

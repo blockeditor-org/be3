@@ -33,22 +33,22 @@ pub use block_plugin_api::{
     HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
     HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
     IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, LinkBase,
-    Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NotificationCloseReason,
-    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
-    NotificationUrgency, Notifications, Occluder, PenPhase, PlayerCommand, PointerButton, Power,
-    PowerAction, PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ResizeMode,
-    Revision, Rotation, ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog, Size,
-    Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, Tray,
-    TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, WheelUnit, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity,
-    WifiStatus, WindowAction, WindowOrigin,
+    Media, MediaLevel, MediaLevels, MediaRequest, MenuCheck, MenuCommand, MenuEntry, MenuSubmenu,
+    Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
+    NotificationSignal, NotificationUrgency, Notifications, Occluder, PenPhase, PlayerCommand,
+    PointerButton, Power, PowerAction, PowerAvailability, ProgramAction, Programs, RemapState,
+    Remaps, ResizeMode, Revision, Rotation, ScreenLocked, ScreenPlacement, SettingsProgress,
+    ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar,
+    TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
+    WebViewCommand, WebViewEvent, WebViewId, WheelUnit, Wifi, WifiLink, WifiNetwork, WifiRequest,
+    WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
 };
 pub use block_ui;
-pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
+pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
 pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};

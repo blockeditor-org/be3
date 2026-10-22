@@ -8,7 +8,18 @@ use reactive::Scope;
 use super::{ContentProjection, OwnedContentProjection};
 use crate::{EditorHost, HostContent};
 
+fn arrived(operation: Vec<u8>, mine: bool) -> block_plugin_api::ContentOperation {
+    block_plugin_api::ContentOperation {
+        operation,
+        mine,
+        unsettled: 0,
+        beneath: None,
+    }
+}
+
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
+mod a_foreign_edit_during_an_edit_in_flight_runs_only_what_either_touched;
+mod a_peer_edit_beneath_the_hosts_unsettled_edits_runs_only_what_either_touched;
 mod a_snapshot_carries_where_removed_items_were;
 mod an_edit_before_the_content_arrives_is_dropped;
 mod an_edit_coming_back_as_mine_runs_nothing_again;
@@ -82,7 +93,7 @@ impl Fixture {
         self.host.push_content_operations(
             edits
                 .iter()
-                .map(|(edit, mine)| (ChecklistContent::encode_operation(edit), *mine))
+                .map(|(edit, mine)| arrived(ChecklistContent::encode_operation(edit), *mine))
                 .collect(),
         );
         self.projection.pump();

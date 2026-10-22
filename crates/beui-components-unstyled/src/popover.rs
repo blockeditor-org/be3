@@ -74,12 +74,7 @@ pub fn Popover(
         node
     });
 
-    let built = create_signal(false);
-    create_effect(move || {
-        if open.get() {
-            built.set(true);
-        }
-    });
+    let content = content.once();
 
     let refocus_trigger = create_memo(move || refocus_trigger.get());
     let close = Callback::new(move |()| {
@@ -128,6 +123,7 @@ pub fn Popover(
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref}
                 open={open}
+                keep_alive=true
                 on_dismiss={move |_: Dismiss| {
                     open.set(false);
                     if refocus_trigger.get_untracked() {
@@ -135,11 +131,7 @@ pub fn Popover(
                     }
                 }}
             >
-                <PopoverSurface label>
-                    <List spacing=0.0>
-                        <ShowKeepAlive condition={built}>|| { content.call(handle) }</ShowKeepAlive>
-                    </List>
-                </PopoverSurface>
+                <PopoverSurface label>{content.call(handle)}</PopoverSurface>
             </Overlay>
         </List>
     }

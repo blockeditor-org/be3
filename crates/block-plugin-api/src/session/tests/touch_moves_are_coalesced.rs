@@ -11,6 +11,7 @@ fn touch_moves_are_coalesced() {
             x: 10.0,
             y: 20.0,
             force: Some(0.4),
+            time_micros: 1,
         }))
         .unwrap();
     session
@@ -21,6 +22,7 @@ fn touch_moves_are_coalesced() {
             x: 30.0,
             y: 40.0,
             force: Some(0.8),
+            time_micros: 2,
         }))
         .unwrap();
 
@@ -34,6 +36,7 @@ fn touch_moves_are_coalesced() {
             x: 30.0,
             y: 40.0,
             force: Some(0.8),
+            time_micros: 2,
         }))
     );
 }

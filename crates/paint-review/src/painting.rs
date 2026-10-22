@@ -149,7 +149,7 @@ fn Controls(review: Review) -> NodeId {
                 <Show condition={counted}>
                     <Text style=TextStyle::CAPTION @test_id={"paint_review.pixels"}>{pixels}</Text>
                 </Show>
-                <Frame visible={many}>
+                <Show condition={many}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <IconButton
                             glyph={ICON_CHEVRON_LEFT.to_owned()}
@@ -169,7 +169,7 @@ fn Controls(review: Review) -> NodeId {
                             on_click={move || review.step_frame(1)}
                         />
                     </List>
-                </Frame>
+                </Show>
             </List>
         </Frame>
     }

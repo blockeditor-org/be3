@@ -3,7 +3,7 @@ use block_editor_beui::be_block::MapContent;
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::beui::{NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::{Creation, Editor, Sidebar};
 use uuid::Uuid;
 
@@ -58,10 +58,17 @@ fn MapEditor(editor: Editor) -> NodeId {
         }));
     });
 
+    let world = editor.world();
+    let fitting = editor.keep_fitted(move || {
+        world
+            .get()
+            .map(|world| Rect::from_min_size(Pos2::ZERO, world))
+    });
+
     let chrome = editor.chrome_shown();
     view! {
         <List spacing=0.0>
-            <MapToolbar state={state} shown={chrome} />
+            <MapToolbar state={state} fitting={fitting} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <MapCanvas @sizing=ItemSize::Percent(100.0) state={state} />
                 <Sidebar shown={chrome}>

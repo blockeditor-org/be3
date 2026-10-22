@@ -498,9 +498,11 @@ fn LinkedRow(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Frame width=MARK_SIZE height=MARK_SIZE>
-                        <Frame visible={marked}>
-                            <ChoiceMark option={option} size=MARK />
-                        </Frame>
+                        <Layers>
+                            <Show condition={marked}>
+                                <ChoiceMark option={option} size=MARK />
+                            </Show>
+                        </Layers>
                     </Frame>
                     <Text style=TextStyle::CAPTION>{code}</Text>
                     <Text @sizing={ItemSize::Percent(100.0).shrink(1.0)} ellipsis=true>

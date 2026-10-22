@@ -88,8 +88,109 @@ fn faded(point: vec2<f32>) -> f32 {
     return near.x * near.y * far.x * far.y;
 }
 
+fn cross2(left: vec2<f32>, right: vec2<f32>) -> f32 {
+    return left.x * right.y - left.y * right.x;
+}
+
+fn outward(start: vec2<f32>, end: vec2<f32>, winding: f32) -> vec2<f32> {
+    let span = end - start;
+    let length = max(length(span), 1.0e-6);
+    return vec2<f32>(span.y, -span.x) / length * winding;
+}
+
+fn dilated(corner: vec2<f32>, before: vec2<f32>, after: vec2<f32>, winding: f32) -> vec2<f32> {
+    let incoming = outward(before, corner, winding);
+    let outgoing = outward(corner, after, winding);
+    var shift = (incoming + outgoing) / max(1.0 + dot(incoming, outgoing), 1.0e-3);
+    let reach = length(shift);
+    if reach > 3.0 {
+        shift = shift * (3.0 / reach);
+    }
+    return corner + shift;
+}
+
+fn edge_coverage(point: vec2<f32>, start: vec2<f32>, end: vec2<f32>, winding: f32) -> f32 {
+    let span = end - start;
+    let inside = winding * cross2(span, point - start) / max(length(span), 1.0e-6);
+    return clamp(inside + 0.5, 0.0, 1.0);
+}
+
+fn owns(pixel: vec2<f32>, start: vec2<f32>, end: vec2<f32>, winding: f32) -> bool {
+    let swap = start.x > end.x || (start.x == end.x && start.y > end.y);
+    let low = select(start, end, swap);
+    let high = select(end, start, swap);
+    let side = cross2(high - low, pixel - low);
+    let facing = select(winding, -winding, swap);
+    return side * facing > 0.0 || (side == 0.0 && facing > 0.0);
+}
+
+fn triangle_vertex(index: u32, instance: Instance) -> Fragment {
+    let a = instance.rect.xy + space.translation;
+    let b = instance.rect.zw + space.translation;
+    let c = instance.uv.xy + space.translation;
+    let winding = sign(cross2(b - a, c - a));
+    var point = dilated(c, b, a, winding);
+    if index == 0u {
+        point = dilated(a, c, b, winding);
+    } else if index == 1u {
+        point = dilated(b, a, c, winding);
+    }
+    let clip = instance.clip + vec4<f32>(space.translation, space.translation);
+
+    var fragment: Fragment;
+    fragment.position = vec4<f32>(
+        (point - uniforms.origin) / uniforms.screen * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0),
+        0.0,
+        1.0,
+    );
+    fragment.point = point;
+    fragment.uv = vec2<f32>(0.0);
+    fragment.color = instance.color;
+    fragment.rect = vec4<f32>(0.0);
+    fragment.clip = vec4<f32>(max(clip.xy, space.clip.xy), min(clip.zw, space.clip.zw));
+    fragment.params = instance.params;
+    fragment.segment = vec4<f32>(c, winding, round(instance.params.x));
+    fragment.turn = vec4<f32>(a, b);
+    return fragment;
+}
+
+fn triangle_coverage(input: Fragment) -> f32 {
+    let a = input.turn.xy;
+    let b = input.turn.zw;
+    let c = input.segment.xy;
+    let winding = input.segment.z;
+    let edges = u32(input.segment.w);
+    let pixel = input.position.xy;
+    var corners = array<vec2<f32>, 3>(a - uniforms.origin, b - uniforms.origin, c - uniforms.origin);
+    var ends = array<vec2<f32>, 3>(a, b, c);
+    let point = input.point;
+    var coverage = 1.0;
+    for (var side = 0u; side < 3u; side = side + 1u) {
+        let next = (side + 1u) % 3u;
+        if (edges & (1u << side)) != 0u {
+            coverage = coverage * edge_coverage(point, ends[side], ends[next], winding);
+        } else if !owns(pixel, corners[side], corners[next], winding) {
+            return 0.0;
+        }
+    }
+    let inside = winding * cross2(b - a, point - a) >= 0.0
+        && winding * cross2(c - b, point - b) >= 0.0
+        && winding * cross2(a - c, point - c) >= 0.0;
+    if inside {
+        return coverage;
+    }
+    let gap = min(
+        segment_distance(point, a, b),
+        min(segment_distance(point, b, c), segment_distance(point, c, a)),
+    );
+    return min(coverage, clamp(0.5 - gap, 0.0, 1.0));
+}
+
 @vertex
 fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
+    if instance.params.z > 3.5 {
+        return triangle_vertex(index, instance);
+    }
     let shift = vec4<f32>(space.translation, space.translation);
     let rect = instance.rect + shift;
     let clip = instance.clip + shift;
@@ -128,8 +229,11 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         discard;
     }
 
-    let local = turned(input.point, input.turn, -1.0);
     let fade = faded(input.point);
+    if input.params.z > 3.5 {
+        return vec4<f32>(input.color.rgb, input.color.a * triangle_coverage(input) * fade);
+    }
+    let local = turned(input.point, input.turn, -1.0);
     var coverage = 1.0;
     if input.params.z > 2.5 {
         let reach = segment_distance(input.point, input.segment.xy, input.segment.zw);

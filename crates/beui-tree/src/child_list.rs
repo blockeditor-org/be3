@@ -155,25 +155,48 @@ impl<T> ChildList<T> {
         });
     }
 
-    pub fn fill_keeping(&mut self, slot: SlotId, items: Vec<T>, same: impl Fn(&T, &T) -> bool) {
+    pub fn fill_keeping(&mut self, slot: SlotId, items: Vec<T>, key: impl Fn(&T) -> Option<u64>) {
         let Some(index) = self.slots.iter().position(|held| held.id == slot) else {
             return;
         };
         let taken = std::mem::replace(&mut self.slots[index].items, SlotItems::Many(Vec::new()));
-        let mut held = match taken {
-            SlotItems::One(item) => vec![item],
-            SlotItems::Many(items) => items,
+        let mut held: Vec<Option<T>> = match taken {
+            SlotItems::One(item) => vec![Some(item)],
+            SlotItems::Many(items) => items.into_iter().map(Some).collect(),
         };
-        let items = items
-            .into_iter()
-            .map(
-                |item| match held.iter().position(|kept| same(kept, &item)) {
-                    Some(found) => held.swap_remove(found),
-                    None => item,
-                },
-            )
-            .collect();
-        self.slots[index].items = SlotItems::Many(items);
+        let mut positions: Option<HashMap<u64, usize>> = None;
+        let mut kept = Vec::with_capacity(items.len());
+        for (at, item) in items.into_iter().enumerate() {
+            let Some(wanted) = key(&item) else {
+                kept.push(item);
+                continue;
+            };
+            if held
+                .get(at)
+                .and_then(Option::as_ref)
+                .is_some_and(|old| key(old) == Some(wanted))
+            {
+                kept.extend(held[at].take());
+                continue;
+            }
+            let positions = positions.get_or_insert_with(|| {
+                let mut positions = HashMap::new();
+                for (position, old) in held.iter().enumerate() {
+                    if let Some(old) = old.as_ref().and_then(&key) {
+                        positions.entry(old).or_insert(position);
+                    }
+                }
+                positions
+            });
+            match positions
+                .remove(&wanted)
+                .and_then(|found| held[found].take())
+            {
+                Some(old) => kept.push(old),
+                None => kept.push(item),
+            }
+        }
+        self.slots[index].items = SlotItems::Many(kept);
         self.revision += 1;
     }
 }

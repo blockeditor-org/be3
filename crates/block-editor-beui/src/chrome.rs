@@ -136,12 +136,12 @@ pub(crate) fn ChromeRoot(
 
 #[component]
 fn PanelItem(open: Signal<bool>) -> NodeId {
-    Action::new("chrome.open-panel", "Open the side panel", move || {
+    let opener = Action::new("chrome.open-panel", "Open the side panel", move || {
         open.set(true)
     })
     .glyph(ICON_TUNE)
-    .in_menu()
     .register();
+    add_to_menu(vec![MenuNode::action(&opener)]);
     view! {
         <List spacing=0.0 />
     }
@@ -169,40 +169,50 @@ pub fn Sidebar(
     #[prop(default = Side::Right)] side: Side,
     #[prop(default = true)] shown: Prop<bool>,
     #[prop(default = SIDEBAR_WIDTH)] width: Prop<f32>,
-    #[prop(children)] children: Children<ListChild>,
-) -> NodeId {
+    #[prop(children)] children: Render<(), Children<ListChild>>,
+) -> DynamicSegment<ListChild> {
+    let shown = create_memo(move || shown.get());
     view! {
-        <SidebarFrame side shown width>
+        <SidebarFrame side shown={shown} width>
             <Frame padding=PADDING>
-                <List spacing=SPACING children={children} />
+                <List spacing=SPACING>
+                    <ShowKeepAlive condition={shown}>{children.call(())}</ShowKeepAlive>
+                </List>
             </Frame>
         </SidebarFrame>
     }
 }
 
 #[component]
-fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child) -> NodeId {
+fn SidebarFrame(
+    side: Side,
+    shown: Prop<bool>,
+    width: Prop<f32>,
+    children: Child,
+) -> DynamicSegment<ListChild> {
     let layout = use_context::<ChromeLayout>();
     let narrow = narrow_chrome();
     let shown = create_memo(move || shown.get());
     let docked = create_memo(move || shown.get() && !narrow.get());
     let folded = create_memo(move || shown.get() && narrow.get());
-    let leading = create_memo(move || docked.get() && side == Side::Right);
-    let trailing = create_memo(move || docked.get() && side == Side::Left);
     if let Some(layout) = layout {
         fold_into_sheet(layout, children, folded);
     }
     let held = create_memo(move || docked.get().then_some(children));
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Frame visible={leading} width=BORDER_WIDTH fill=ColorRole::Border />
-            <Frame visible={docked} width=width fill=ColorRole::Surface>
+        <ShowKeepAlive condition={docked}>
+            <Show condition={side == Side::Right}>
+                <Frame width=BORDER_WIDTH fill=ColorRole::Border />
+            </Show>
+            <Frame width=width fill=ColorRole::Surface>
                 <Scroll>
                     <Portal node={held} />
                 </Scroll>
             </Frame>
-            <Frame visible={trailing} width=BORDER_WIDTH fill=ColorRole::Border />
-        </List>
+            <Show condition={side == Side::Left}>
+                <Frame width=BORDER_WIDTH fill=ColorRole::Border />
+            </Show>
+        </ShowKeepAlive>
     }
 }
 
@@ -229,10 +239,13 @@ pub fn Toolbar(
     #[prop(default = BAND_SPACING)] spacing: Prop<f32>,
     #[prop(default = false)] fit: Prop<bool>,
     #[prop(children)] children: Children<ListChild>,
-) -> NodeId {
+) -> DynamicSegment<ListChild> {
+    let row = NodeRef::new();
+    arrow_focus(row, Direction::Horizontal);
     view! {
         <ToolbarFrame shown fit>
             <List
+                @node_ref=&row
                 direction=Direction::Horizontal
                 align=Align::Center
                 spacing={spacing}
@@ -243,7 +256,7 @@ pub fn Toolbar(
 }
 
 #[component]
-fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
+fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicSegment<ListChild> {
     let shown = create_memo(move || shown.get());
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
@@ -261,44 +274,48 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
     let spread = create_memo(move || roomy.get().then_some(children));
     let scrolled = create_memo(move || narrow.get().then_some(children));
     view! {
-        <Frame visible={shown} fill=ColorRole::Surface>
-            <List spacing=0.0>
-                <Show condition={roomy}>
-                    <Frame
-                        padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
-                    >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
-                            <Show condition={fitted_toggle}>
-                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
-                                    <SheetToggle />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </Frame>
-                </Show>
-                <Show condition={narrow}>
-                    <Frame padding={Sides::vertical(BAND_PADDING_VERTICAL)}>
+        <ShowKeepAlive condition={shown}>
+            <Frame fill=ColorRole::Surface>
+                <List spacing=0.0>
+                    <Show condition={roomy}>
+                        <Frame
+                            padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
+                        >
+                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
+                                <Show condition={fitted_toggle}>
+                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
+                                        <SheetToggle />
+                                    </Frame>
+                                </Show>
+                            </List>
+                        </Frame>
+                    </Show>
+                    <Show condition={narrow}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                             <Scroll
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
                             >
-                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
+                                <Frame
+                                    padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
+                                >
                                     <Portal node={scrolled} />
                                 </Frame>
                             </Scroll>
                             <Show condition={offers}>
-                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
+                                <Frame
+                                    padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
+                                >
                                     <SheetToggle />
                                 </Frame>
                             </Show>
                         </List>
-                    </Frame>
-                </Show>
-                <Separator />
-            </List>
-        </Frame>
+                    </Show>
+                    <Separator />
+                </List>
+            </Frame>
+        </ShowKeepAlive>
     }
 }
 

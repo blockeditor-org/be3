@@ -1,4 +1,4 @@
-use crate::{Change, Edit, SeqOp, Tree};
+use crate::{Change, Edit, Kind, ObjectId, SeqOp, Tree};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Step {
@@ -63,6 +63,75 @@ impl Step {
             }
         }
         Ok(())
+    }
+
+    pub fn then(&mut self, next: Self) {
+        let Err(next) = self.absorb(next) else {
+            return;
+        };
+        for (undo, redo) in next.undo.into_iter().zip(next.redo) {
+            match self.overwritten_by(&redo) {
+                Some(index) => {
+                    replace_value(&mut self.redo[index], redo);
+                    replace_expected(&mut self.undo[index], undo);
+                }
+                None => {
+                    self.undo.push(undo);
+                    self.redo.push(redo);
+                }
+            }
+        }
+    }
+
+    fn overwritten_by(&self, next: &Change) -> Option<usize> {
+        let written = register(next)?;
+        for (index, done) in self.redo.iter().enumerate().rev() {
+            if register(done)? == written {
+                return follows(done, next).then_some(index);
+            }
+        }
+        None
+    }
+}
+
+fn register(change: &Change) -> Option<(ObjectId, u16, Option<&[u8]>)> {
+    match change {
+        Change::Set { object, field, .. } | Change::SetIf { object, field, .. } => {
+            Some((*object, *field, None))
+        }
+        Change::Put {
+            object, field, key, ..
+        }
+        | Change::PutIf {
+            object, field, key, ..
+        } => Some((*object, *field, Some(key))),
+        _ => None,
+    }
+}
+
+fn replace_value(done: &mut Change, latest: Change) {
+    match (done, latest) {
+        (Change::SetIf { value, .. }, Change::SetIf { value: after, .. }) => *value = after,
+        (Change::PutIf { value, .. }, Change::PutIf { value: after, .. }) => *value = after,
+        _ => {}
+    }
+}
+
+fn replace_expected(undo: &mut Change, latest: Change) {
+    match (undo, latest) {
+        (
+            Change::SetIf { expected, .. },
+            Change::SetIf {
+                expected: after, ..
+            },
+        ) => *expected = after,
+        (
+            Change::PutIf { expected, .. },
+            Change::PutIf {
+                expected: after, ..
+            },
+        ) => *expected = after,
+        _ => {}
     }
 }
 
@@ -139,24 +208,39 @@ fn follows(done: &Change, following: &Change) -> bool {
     }
 }
 
-pub(crate) fn step(tree: &Tree, edit: &Edit) -> Option<Step> {
+fn independent(changes: &[Change]) -> bool {
+    let mut registers = std::collections::HashSet::new();
+    changes
+        .iter()
+        .all(|change| register(change).is_some_and(|register| registers.insert(register)))
+}
+
+pub(crate) fn step(tree: &Tree, root: fn() -> Kind, edit: &Edit) -> Option<Step> {
     let mut undo = Vec::new();
     let mut redo = Vec::new();
     match edit.0.as_slice() {
         [] => return None,
         [change] => {
-            let (back, forward) = tree.inverse(change)?;
+            let (back, forward) = tree.inverse(root, change)?;
             undo.push(back);
             redo.push(forward);
+        }
+        changes if independent(changes) => {
+            for change in changes {
+                if let Some((back, forward)) = tree.inverse(root, change) {
+                    undo.push(back);
+                    redo.push(forward);
+                }
+            }
         }
         changes => {
             let mut scratch = tree.clone();
             for change in changes {
-                if let Some((back, forward)) = scratch.inverse(change) {
+                if let Some((back, forward)) = scratch.inverse(root, change) {
                     undo.push(back);
                     redo.push(forward);
                 }
-                scratch.apply(change);
+                scratch.apply(root, change);
             }
         }
     }

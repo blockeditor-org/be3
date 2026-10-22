@@ -9,12 +9,10 @@ fn selecting_a_node_lists_its_properties_in_the_inspector() {
     harness.toggle_inspector();
     let shows = |harness: &Harness, text: &str| {
         let inspector = harness.inspector();
-        text_within(
-            &inspector.document,
-            inspector.find("inspector.properties"),
-            text,
-        )
-        .is_some()
+        inspector
+            .document
+            .find_test_id("inspector.properties")
+            .is_some_and(|properties| text_within(&inspector.document, properties, text).is_some())
     };
     assert!(!shows(&harness, "Properties"));
 

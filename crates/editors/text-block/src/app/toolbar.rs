@@ -44,24 +44,24 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
 fn menu_actions(state: State, settings: Signal<bool>) {
     let hex = state.hex_view;
     let in_text = create_memo(move || !hex.get());
-    Action::new("text.hex", "Toggle hex view", move || {
-        state.toggle_hex_view()
-    })
-    .glyph(ICON_DATA_ARRAY)
-    .checked(create_memo(move || hex.get()))
-    .in_menu()
-    .register();
-    Action::new("text.insert-block", "Insert a block", move || {
+    let hex_view = Action::new("text.hex", "Hex view", move || state.toggle_hex_view())
+        .glyph(ICON_DATA_ARRAY)
+        .checked(create_memo(move || hex.get()))
+        .register();
+    let insert = Action::new("text.insert-block", "Insert a block", move || {
         pick_block(state)
     })
     .glyph(ICON_ADD_BOX)
     .enabled(in_text)
-    .in_menu()
     .register();
-    Action::new("text.settings", "Text settings", move || settings.set(true))
+    let settings = Action::new("text.settings", "Text settings", move || settings.set(true))
         .glyph(ICON_SETTINGS)
-        .in_menu()
         .register();
+    add_to_menu(vec![
+        MenuNode::action(&hex_view),
+        MenuNode::action(&insert),
+        MenuNode::action(&settings),
+    ]);
 }
 
 const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
@@ -165,7 +165,10 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
 pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
     let typing = state.typing;
     let hex = state.hex_view;
-    let shown = create_memo(move || typing.get() && !hex.get());
+    let row = NodeRef::new();
+    let held = holds_focus(row);
+    arrow_focus(row, Direction::Horizontal);
+    let shown = create_memo(move || (typing.get() || held.get()) && !hex.get());
     let touch = state.text.touch_mode();
     let keyboard = create_memo(move || touch.get());
     let content = state.text.content();
@@ -182,34 +185,32 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
     let bar = move || {
         let controls = controls.clone();
         view! {
-            <Interactive press_focus=false @test_id={"text.format"}>
+            <Interactive press_focus=false @node_ref=&row @test_id={"text.format"}>
                 <Frame fill=ColorRole::Surface>
                     <List spacing=0.0>
                         <Separator />
-                        <Frame padding={Sides::vertical(FORMAT_PADDING)}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Scroll
-                                    @sizing=ItemSize::Percent(100.0)
-                                    direction=Direction::Horizontal
-                                >
-                                    <Frame padding={Sides::horizontal(FORMAT_PADDING)}>
-                                        <List spacing=0.0>
-                                            <Show condition={markdown} then={controls} />
-                                        </List>
-                                    </Frame>
-                                </Scroll>
-                                <Show condition={keyboard}>
-                                    <Frame padding={Sides::horizontal(FORMAT_PADDING)}>
-                                        <IconButton
-                                            glyph=ICON_KEYBOARD_HIDE
-                                            label="Done"
-                                            @test_id={"text.format.done"}
-                                            on_click={|| with_document(|document| document.update_focus(None))}
-                                        />
-                                    </Frame>
-                                </Show>
-                            </List>
-                        </Frame>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Scroll
+                                @sizing=ItemSize::Percent(100.0)
+                                direction=Direction::Horizontal
+                            >
+                                <Frame padding=FORMAT_PADDING>
+                                    <List spacing=0.0>
+                                        <Show condition={markdown} then={controls} />
+                                    </List>
+                                </Frame>
+                            </Scroll>
+                            <Show condition={keyboard}>
+                                <Frame padding=FORMAT_PADDING>
+                                    <IconButton
+                                        glyph=ICON_KEYBOARD_HIDE
+                                        label="Done"
+                                        @test_id={"text.format.done"}
+                                        on_click={|| with_document(|document| document.update_focus(None))}
+                                    />
+                                </Frame>
+                            </Show>
+                        </List>
                     </List>
                 </Frame>
             </Interactive>

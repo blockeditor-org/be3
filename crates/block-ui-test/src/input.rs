@@ -5,14 +5,19 @@ use block_plugin_api::{InputEvent, WheelUnit};
 #[derive(Default)]
 pub(crate) struct Input {
     held: Modifiers,
+    time_micros: u64,
 }
 
 impl Input {
-    pub(crate) fn held(&self) -> Modifiers {
-        self.held
+    pub(crate) fn held_after<'a>(
+        &self,
+        queued: impl DoubleEndedIterator<Item = &'a Event>,
+    ) -> Modifiers {
+        queued.rev().find_map(holds).unwrap_or(self.held)
     }
 
-    pub(crate) fn normalize(&mut self, events: Vec<Event>) -> Vec<InputEvent> {
+    pub(crate) fn normalize(&mut self, events: Vec<Event>, time_micros: u64) -> Vec<InputEvent> {
+        self.time_micros = time_micros;
         let mut output = Vec::new();
         for event in events {
             self.event(event, &mut output);
@@ -28,10 +33,12 @@ impl Input {
     }
 
     fn event(&mut self, event: Event, output: &mut Vec<InputEvent>) {
+        let time_micros = self.time_micros;
         match event {
             Event::PointerMoved(position) => output.push(InputEvent::PointerMoved {
                 x: position.x,
                 y: position.y,
+                time_micros,
             }),
             Event::PointerGone => output.push(InputEvent::PointerLeft),
             Event::PointerMotion(delta) => output.push(InputEvent::PointerMotion {
@@ -50,6 +57,7 @@ impl Input {
                     pressed,
                     x: pos.x,
                     y: pos.y,
+                    time_micros,
                 });
             }
             Event::Scroll(delta) => {
@@ -73,6 +81,7 @@ impl Input {
                 x: pos.x,
                 y: pos.y,
                 force,
+                time_micros,
             }),
             Event::Pen {
                 phase,
@@ -87,7 +96,9 @@ impl Input {
                 tilt_x: pen.tilt.x,
                 tilt_y: pen.tilt.y,
                 eraser: pen.eraser,
+                time_micros,
             }),
+            Event::Predicted(pos) => output.push(InputEvent::Predicted { x: pos.x, y: pos.y }),
             Event::Key { press, text, .. } => {
                 self.modifiers(press.modifiers, output);
                 match press.key {
@@ -121,5 +132,13 @@ impl Input {
             }
             _ => {}
         }
+    }
+}
+
+fn holds(event: &Event) -> Option<Modifiers> {
+    match event {
+        Event::Modifiers(modifiers) | Event::PointerButton { modifiers, .. } => Some(*modifiers),
+        Event::Key { press, .. } | Event::InterceptedKey(press) => Some(press.modifiers),
+        _ => None,
     }
 }

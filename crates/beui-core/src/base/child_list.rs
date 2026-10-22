@@ -4,10 +4,6 @@ use crate::node::NodeId;
 
 pub trait ChildItem {
     fn node(&self) -> Option<NodeId>;
-
-    fn same(&self, other: &Self) -> bool {
-        self.node().is_some() && self.node() == other.node()
-    }
 }
 
 impl ChildItem for NodeId {
@@ -63,7 +59,7 @@ impl<T: ChildItem> NodeChildren<T> for ChildList<T> {
     }
 
     fn fill_children(&mut self, slot: SlotId, items: Vec<T>) {
-        self.fill_keeping(slot, items, ChildItem::same);
+        self.fill_keeping(slot, items, item_key);
     }
 }
 

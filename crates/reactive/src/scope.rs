@@ -226,6 +226,7 @@ impl Scope {
             let mut queue = runtime.queue.borrow_mut();
             for computation in parked {
                 if let Some(live) = computation.upgrade() {
+                    live.rerun_whatever_it_reads();
                     live.queued_at.set(next_sequence());
                     queue.push_back(computation);
                 }

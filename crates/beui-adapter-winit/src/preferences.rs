@@ -25,6 +25,7 @@ impl SystemPreferences {
         desktop.over(PreferenceLayer {
             theme: self.window,
             motion: None,
+            canvas_touch: None,
         })
     }
 
@@ -69,6 +70,7 @@ mod portal {
         let mut layer = PreferenceLayer {
             theme: theme(settings.read::<u32>(APPEARANCE, COLOR_SCHEME).await.ok()),
             motion: motion(settings.read::<u32>(APPEARANCE, REDUCED_MOTION).await.ok()),
+            canvas_touch: None,
         };
         publish(desktop, layer, wake);
         futures_util::pin_mut!(changes);

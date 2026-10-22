@@ -4,7 +4,7 @@ use block_editor_beui::beui::Vec2;
 #[test]
 fn a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer() {
     let mut rectangle = card();
-    rectangle.style.line_width = 0.0;
+    rectangle.style.stroke_width = 0.0;
     let mut editor = editor(std::slice::from_ref(&rectangle));
     let shape = format!("infinite-canvas.entity.{}", rectangle.id);
     let before = editor.rect_of(&shape);

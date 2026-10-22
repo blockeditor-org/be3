@@ -2,7 +2,8 @@ use std::collections::{BTreeSet, VecDeque};
 
 use uuid::Uuid;
 
-use crate::{Anchor, Change, Document, Edit, List, Model, ObjectId, Place, Step, Value};
+use crate::marks::{Expand, Name, Scope, Seed, Value as MarkValue};
+use crate::{Anchor, Change, Document, Edit, List, Model, ObjectId, Place, RichText, Step, Value};
 
 const CLIENTS: usize = 3;
 
@@ -21,7 +22,14 @@ struct Column {
 struct Card {
     text: String,
     under: List<Card>,
+    note: RichText,
 }
+
+const FORMATS: [(&str, Scope); 3] = [
+    ("bold", Scope::Inline),
+    ("italic", Scope::Inline),
+    ("heading", Scope::Block),
+];
 
 pub fn lists(data: &[u8]) {
     let mut input = Input(data);
@@ -34,9 +42,21 @@ pub fn lists(data: &[u8]) {
         };
         let mut edit = vec![Board::COLUMNS.insert_as(id, ObjectId::ROOT, Anchor::End, &made)];
         for card in 0..input.below(4) {
+            let note = format!("note {column}.{card}\nsecond line");
+            let seeds = match input.byte() % 2 {
+                0 => Vec::new(),
+                _ => vec![Seed {
+                    range: 0..4,
+                    scope: Scope::Inline,
+                    expand: Expand::After,
+                    key: Name::new("bold"),
+                    value: MarkValue::Bool(true),
+                }],
+            };
             let made = Card {
                 text: format!("card {column}.{card}"),
                 under: List::default(),
+                note: RichText::new(note, seeds),
             };
             edit.push(Column::CARDS.insert_as(fresh(&mut input), id, Anchor::End, &made));
         }
@@ -113,11 +133,17 @@ impl Client {
 
     fn edit(&mut self, input: &mut Input) {
         crate::set_local_client(self.id as u64 + 1);
-        let edit = match input.byte() % 6 {
+        let edit = match input.byte() % 10 {
             5 => match self.undo.pop() {
                 Some(step) => step.undo(),
                 None => return,
             },
+            kind @ 6..=9 => {
+                let Some(change) = self.write(kind, input) else {
+                    return;
+                };
+                change.into()
+            }
             kind => {
                 let Some(change) = self.change(kind, input) else {
                     return;
@@ -152,6 +178,7 @@ impl Client {
                 let card = Card {
                     text: format!("{:02x}", input.byte()),
                     under: List::default(),
+                    note: RichText::default(),
                 };
                 (place.field == Column::CARDS.index())
                     .then(|| Column::CARDS.insert_as(id, place.object, anchor, &card))
@@ -166,34 +193,75 @@ impl Client {
         }
     }
 
+    fn write(&self, kind: u8, input: &mut Input) -> Option<Change> {
+        let cards: Vec<ObjectId> = objects(&self.visible)
+            .into_iter()
+            .filter(|id| self.visible.rich(*id, Card::NOTE).is_some())
+            .collect();
+        let card = *pick(input, &cards)?;
+        let rich = self.visible.rich(card, Card::NOTE)?;
+        let len = rich.text.len();
+        let client = crate::local_client();
+        let start = input.below(len + 1);
+        let end = start + input.below(len - start + 1);
+        match kind {
+            6 => {
+                let typed = match input.byte() % 4 {
+                    0 => b"\n".to_vec(),
+                    _ => format!("{:02x}", input.byte()).into_bytes(),
+                };
+                let op = rich.text.insert(client, start, typed)?;
+                Some(Card::NOTE.edit(card, op))
+            }
+            7 => Some(Card::NOTE.edit(card, rich.text.delete(start..end)?)),
+            8 => {
+                let (key, scope) = FORMATS[input.below(FORMATS.len())];
+                let value = (!input.byte().is_multiple_of(3)).then_some(MarkValue::Bool(true));
+                let expand = match input.byte() % 2 {
+                    0 => Expand::After,
+                    _ => Expand::Never,
+                };
+                let mark =
+                    rich.format(client, start..end, scope, expand, &Name::new(key), value)?;
+                Some(Card::NOTE.mark(card, mark))
+            }
+            _ => {
+                let marks = rich.marks.marks();
+                let mark = pick(input, marks)?;
+                Some(Card::NOTE.unmark(card, mark.id))
+            }
+        }
+    }
+
     fn send(&mut self) -> Option<Edit> {
         let edit = self.pending.get(self.sent)?;
-        let bytes = postcard::to_stdvec(edit).expect("an edit encodes");
         self.sent += 1;
-        Some(postcard::from_bytes(&bytes).expect("an edit decodes"))
+        Some(postcard::from_bytes(&wire(edit)).expect("an edit decodes"))
     }
 
     fn catch_up(&mut self, log: &[(usize, Edit)]) {
-        let mut rebuild = false;
         for (author, edit) in &log[self.seen..] {
-            self.confirmed.apply(edit);
             if *author == self.id {
-                let mine = self.pending.pop_front();
-                assert_eq!(mine.as_ref(), Some(edit));
+                self.confirmed.apply(edit);
+                let mine = self.pending.pop_front().map(|mine| wire(&mine));
+                assert_eq!(mine, Some(wire(edit)));
                 self.sent -= 1;
-            } else if self.pending.is_empty() && !rebuild {
+            } else if self.pending.is_empty() {
+                self.confirmed.apply(edit);
                 self.visible.apply(edit);
             } else {
-                rebuild = true;
+                let local: Vec<Edit> = self.pending.iter().cloned().collect();
+                self.visible
+                    .rebase(&mut self.confirmed, edit, &local, &mut Vec::new());
+                let mut rebuilt = self.confirmed.clone();
+                for edit in &local {
+                    rebuilt.apply(edit);
+                }
+                assert_eq!(self.visible, rebuilt);
+                assert_eq!(self.visible.session_state(), rebuilt.session_state());
             }
         }
         self.seen = log.len();
-        if rebuild {
-            self.visible = self.confirmed.clone();
-            for edit in &self.pending {
-                self.visible.apply(edit);
-            }
-        }
         check(&self.confirmed);
         check(&self.visible);
         if self.pending.is_empty() {
@@ -201,6 +269,10 @@ impl Client {
             assert_eq!(self.visible.session_state(), self.confirmed.session_state());
         }
     }
+}
+
+fn wire(edit: &Edit) -> Vec<u8> {
+    postcard::to_stdvec(edit).expect("an edit encodes")
 }
 
 fn places(document: &Document<Board>) -> Vec<Place> {

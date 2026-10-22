@@ -1,4 +1,4 @@
-pub use ui_types::{Motion, PreferenceLayer, Preferences, ThemeKind};
+pub use ui_types::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PreferenceSource {

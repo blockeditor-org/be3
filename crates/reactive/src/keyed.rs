@@ -199,6 +199,7 @@ pub fn numbered<K: Clone + Hash + Eq>(keys: Vec<K>) -> Vec<(K, usize)> {
 pub struct KeyedItems<K, V> {
     build: Box<dyn Fn(K) -> V>,
     entries: RefCell<HashMap<(K, usize), (V, Scope)>>,
+    mapped: RefCell<(Vec<K>, Vec<V>)>,
 }
 
 impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
@@ -206,6 +207,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         Self {
             build: Box::new(build),
             entries: RefCell::new(HashMap::default()),
+            mapped: RefCell::new((Vec::new(), Vec::new())),
         }
     }
 
@@ -223,6 +225,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         let built = self.build_scoped(key.clone());
         let value = built.0.clone();
         self.entries.borrow_mut().insert((key, 0), built);
+        self.forget_mapped();
         value
     }
 
@@ -234,6 +237,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         let value = built.0.clone();
         let scope = built.1.context();
         self.entries.borrow_mut().insert((key, 0), built);
+        self.forget_mapped();
         scope.flush_owned();
         value
     }
@@ -244,7 +248,12 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         (built, scope)
     }
 
+    fn forget_mapped(&self) {
+        *self.mapped.borrow_mut() = (Vec::new(), Vec::new());
+    }
+
     pub fn retain(&self, keys: &[K]) -> Vec<V> {
+        self.forget_mapped();
         let kept: HashSet<&K> = keys.iter().collect();
         let dropped: Vec<(K, usize)> = self
             .entries
@@ -270,10 +279,13 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
     }
 
     pub fn map(&self, keys: Vec<K>) -> Mapping<K, V> {
+        if let Some(mapping) = self.append(&keys) {
+            return mapping;
+        }
         let mut entries = self.entries.borrow_mut();
         let mut next = HashMap::with_capacity_and_hasher(keys.len(), Default::default());
         let mut mapped = Vec::with_capacity(keys.len());
-        for numbered in numbered(keys) {
+        for numbered in numbered(keys.clone()) {
             let entry = match entries.remove(&numbered) {
                 Some(entry) => entry,
                 None => self.build_scoped(numbered.0.clone()),
@@ -282,10 +294,35 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
             next.insert(numbered, entry);
         }
         let gone = std::mem::replace(&mut *entries, next);
+        *self.mapped.borrow_mut() = (keys, mapped.clone());
         Mapping {
             items: mapped,
             gone,
         }
+    }
+
+    fn append(&self, keys: &[K]) -> Option<Mapping<K, V>> {
+        let mut held = self.mapped.borrow_mut();
+        let (before, values) = &mut *held;
+        let added = keys.strip_prefix(before.as_slice())?;
+        let mut entries = self.entries.borrow_mut();
+        let mut fresh: HashSet<&K> = HashSet::default();
+        if !added
+            .iter()
+            .all(|key| fresh.insert(key) && !entries.contains_key(&(key.clone(), 0)))
+        {
+            return None;
+        }
+        for key in added {
+            let entry = self.build_scoped(key.clone());
+            values.push(entry.0.clone());
+            entries.insert((key.clone(), 0), entry);
+        }
+        before.extend_from_slice(added);
+        Some(Mapping {
+            items: values.clone(),
+            gone: HashMap::default(),
+        })
     }
 }
 

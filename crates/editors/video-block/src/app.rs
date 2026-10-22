@@ -116,7 +116,7 @@ fn EffectsColumn(state: VideoState) -> NodeId {
 }
 
 #[component]
-fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> NodeId {
+fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> DynamicSegment<ListChild> {
     let rate = state.frame_rate;
     let chosen = create_memo(move || {
         FRAME_RATES

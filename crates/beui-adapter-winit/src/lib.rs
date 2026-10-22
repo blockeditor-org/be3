@@ -160,6 +160,10 @@ impl Platform for WinitPlatform<'_> {
         self.clipboard.set(text);
     }
 
+    fn copy_image(&mut self, png: Vec<u8>) {
+        self.clipboard.set_image(&png);
+    }
+
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
         answer.send(kinds.iter().find_map(|kind| {
             match kind {
@@ -619,7 +623,10 @@ impl ApplicationHandler for Runner {
             WindowEvent::PointerEntered { .. }
             | WindowEvent::PointerMoved { .. }
             | WindowEvent::PointerLeft { .. }
-            | WindowEvent::PointerButton { .. } => self.pointer_event(event),
+            | WindowEvent::PointerButton { .. } => {
+                self.pointer_event(event);
+                self.push(Event::Time(Instant::now()));
+            }
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 self.push(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),

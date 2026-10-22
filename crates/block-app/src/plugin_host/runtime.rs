@@ -32,6 +32,7 @@ const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
 const FRAME_BUDGET: Duration = Duration::from_millis(8);
+const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 pub(crate) const PACING: &str = "Frame pacing";
 const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
@@ -1129,7 +1130,10 @@ pub(crate) fn settle() {
         let mut host = host.borrow_mut();
         let deadline = match host.deadline {
             Some((at, deadline)) if at == pass => deadline,
-            _ => Deadline::after(FRAME_BUDGET),
+            _ => Deadline::after(match host::clock_stopped() {
+                true => STOPPED_CLOCK_FRAME_BUDGET,
+                false => FRAME_BUDGET,
+            }),
         };
         host.deadline = Some((pass, deadline));
         let asked: Vec<String> = host
@@ -1937,6 +1941,7 @@ pub(crate) struct RegionView {
     pub(crate) base: Vec<Piece>,
     pub(crate) floating: Vec<Piece>,
     pub(crate) floating_rects: Vec<Rect>,
+    pub(crate) drawing: Vec<Rect>,
     pub(crate) claims: Vec<(beui::Modifiers, Rect)>,
     pub(crate) held: Option<Rect>,
     pub(crate) drawn: Option<(u32, u32)>,
@@ -1961,6 +1966,7 @@ impl RegionView {
             base: Vec::new(),
             floating: Vec::new(),
             floating_rects: Vec::new(),
+            drawing: Vec::new(),
             claims: Vec::new(),
             held: None,
             drawn: None,
@@ -1988,6 +1994,16 @@ impl RegionView {
         self.claims.iter().any(|(claimed, rect)| {
             claimed.any() && held.holds(*claimed) && rect.contains_half_open(position)
         })
+    }
+
+    pub(crate) fn draws(&self, position: Pos2) -> bool {
+        self.drawing
+            .iter()
+            .any(|rect| rect.contains_half_open(position))
+            && !self
+                .floating_rects
+                .iter()
+                .any(|rect| rect.contains_half_open(position))
     }
 
     pub(crate) fn takes(&self, local: Pos2) -> bool {
@@ -2128,6 +2144,21 @@ fn placed_view(
                     .collect()
             })
             .unwrap_or_default();
+        let drawing = report
+            .map(|report| {
+                report
+                    .drawing
+                    .iter()
+                    .map(|drawing| {
+                        Rect::from_min_size(
+                            pos2(drawing.x, drawing.y) + rect.min.to_vec2(),
+                            vec2(drawing.width, drawing.height),
+                        )
+                        .intersect(visible)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let intercepted_keys = window
             .iter()
             .flat_map(|window| window.intercepted_keys.iter().copied())
@@ -2158,6 +2189,7 @@ fn placed_view(
             base,
             floating,
             floating_rects,
+            drawing,
             claims,
             held: held.map(|held| held.rect),
             drawn: held.map(|held| held.drawn),
@@ -2314,15 +2346,23 @@ pub(crate) fn region_damage(
     view: &RegionView,
     pieces: &[Piece],
     rotation: f32,
+    seen: u64,
 ) -> Option<Vec<Rect>> {
     if view.held.is_some() || rotation != 0.0 {
         return None;
     }
     with(plugin_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
-        runtime.template(screen, view.drawn).damage(pieces)
+        runtime.template(screen, view.drawn).damage(pieces, seen)
     })
     .flatten()
+}
+
+pub(crate) fn region_published(plugin_id: &str) -> u64 {
+    with(plugin_id, |runtime| {
+        runtime.shared.borrow().published.count()
+    })
+    .unwrap_or_default()
 }
 
 pub(super) fn each(mut act: impl FnMut(&mut Runtime)) {

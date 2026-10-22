@@ -68,6 +68,7 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
     harness.key(Key::ArrowLeft, Modifiers::NONE);
     harness.frame(Vec::new());
     assert!(unstyled::menu_list_page(harness.document(), content).is_none());
+    let move_to = unstyled::menu_list_row_button(harness.document(), content, 0);
     assert!(
         unstyled::button_focused(harness.document(), move_to).get(),
         "going back lands on the item that opened the page"

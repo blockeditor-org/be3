@@ -96,6 +96,7 @@ enum Message {
         x: f32,
         y: f32,
         force: f32,
+        at: Instant,
     },
     Pen {
         phase: PenPhase,
@@ -103,6 +104,7 @@ enum Message {
         y: f32,
         pressure: f32,
         pen: Pen,
+        at: Instant,
     },
     Scroll(Vec2),
     Key {
@@ -553,6 +555,7 @@ impl Runner {
                 x,
                 y,
                 force,
+                at,
             } => {
                 let pos = pos2(x, y);
                 self.runner.push(Event::Touch {
@@ -564,6 +567,7 @@ impl Runner {
                     pos,
                     force: Some(force),
                 });
+                self.runner.push(Event::Time(at));
             }
             Message::Pen {
                 phase,
@@ -571,12 +575,16 @@ impl Runner {
                 y,
                 pressure,
                 pen,
-            } => self.runner.push(Event::Pen {
-                phase,
-                pos: pos2(x, y),
-                pressure,
-                pen,
-            }),
+                at,
+            } => {
+                self.runner.push(Event::Pen {
+                    phase,
+                    pos: pos2(x, y),
+                    pressure,
+                    pen,
+                });
+                self.runner.push(Event::Time(at));
+            }
             Message::Scroll(delta) => self.runner.push(ScrollDelta::Lines(delta)),
             Message::Key {
                 key,
@@ -1032,6 +1040,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePreferences<'local>(
             (false, false) => None,
         },
         motion: reduce_motion.then_some(Motion::Instant),
+        canvas_touch: None,
     }));
 }
 
@@ -1046,6 +1055,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
     x: jfloat,
     y: jfloat,
     pressure: jfloat,
+    ago_nanos: jlong,
 ) {
     if let Some(phase) = touch_phase(phase) {
         send(Message::Touch {
@@ -1055,8 +1065,15 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
             x,
             y,
             force: pressure,
+            at: monotonic(ago_nanos),
         });
     }
+}
+
+fn monotonic(ago_nanos: jlong) -> Instant {
+    let now = Instant::now();
+    let ago = Duration::from_nanos(u64::try_from(ago_nanos).unwrap_or(0));
+    now.checked_sub(ago).unwrap_or(now)
 }
 
 // unsafe(ffi)
@@ -1065,17 +1082,23 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
     _env: EnvUnowned<'local>,
     _: JClass<'local>,
     phase: jint,
+    button: jint,
     x: jfloat,
     y: jfloat,
     pressure: jfloat,
     tilt_x: jfloat,
     tilt_y: jfloat,
     eraser: jboolean,
+    ago_nanos: jlong,
 ) {
+    let button = match button {
+        1 => PointerButton::Secondary,
+        _ => PointerButton::Primary,
+    };
     let phase = match phase {
         0 => PenPhase::Move,
-        1 => PenPhase::Down(PointerButton::Primary),
-        2 => PenPhase::Up(PointerButton::Primary),
+        1 => PenPhase::Down(button),
+        2 => PenPhase::Up(button),
         3 => PenPhase::Gone,
         _ => return,
     };
@@ -1088,6 +1111,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
             tilt: vec2(tilt_x, tilt_y),
             eraser,
         },
+        at: monotonic(ago_nanos),
     });
 }
 

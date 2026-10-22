@@ -1127,7 +1127,11 @@ pub fn TextArea(
                 let remote_cursors = create_memo(move || remote_cursors.get());
                 let drop_caret = create_memo(move || drop_caret.get());
                 let text_extent = create_signal(Vec2::ZERO);
-                let view_width = create_memo(move || placed.get().width());
+                let view_size = create_memo(move || match single_line {
+                    true => placed.get().size(),
+                    false => size.get(),
+                });
+                let view_width = create_memo(move || view_size.get().x);
                 let client_colors = create_memo(move || client_colors.get());
                 create_effect(move || {
                     let shown = show_runs.get();
@@ -1299,7 +1303,7 @@ pub fn TextArea(
                     offset,
                     shift,
                     view_width,
-                    view_height: create_memo(move || placed.get().height()),
+                    view_height: create_memo(move || view_size.get().y),
                     focused,
                     keyboard: use_keyboard(),
                     autoscroll,
@@ -1553,6 +1557,7 @@ fn Editing(field: Field) -> NodeId {
             }}
             cursor
             repeat_drag={autoscroll}
+            capture_presses={create_memo(move || !disabled.get())}
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
                 !cx.disabled.get_untracked() && cx.handle_at(pos).is_some()
             }}
@@ -1617,6 +1622,14 @@ fn area_hit(document: &Document, cx: &Context, pos: Pos2) -> Option<usize> {
         .or(placed.last())?;
     let display = entry.text()?.index_at(pos)?;
     Some(entry.row().to_source(display))
+}
+
+pub fn text_area_remote_cursors(document: &Document, area: NodeId) -> Vec<RemoteTextCursor> {
+    document
+        .component_state::<Parts>(area)
+        .cx
+        .remote_cursors
+        .get_untracked()
 }
 
 pub fn text_area_state(document: &Document, area: NodeId) -> TextAreaState {

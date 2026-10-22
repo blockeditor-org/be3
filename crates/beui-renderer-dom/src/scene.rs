@@ -229,7 +229,7 @@ impl DomRenderer {
             let (outer, inner) = style::group(group, factor);
             grouped.outer.element.style().set_css_text(&outer);
             grouped.inner.style().set_css_text(&inner);
-            let scaled = matches!(group, Group::Transform { scale, .. } if scale != 1.0);
+            let scaled = inner_factor(group, 1.0) != 1.0;
             grouped.inner.set_class_name(match scaled {
                 true => "beui-scaled",
                 false => "",
@@ -484,7 +484,7 @@ impl DomRenderer {
 
 fn inner_factor(group: Group, factor: f32) -> f32 {
     match group {
-        Group::Transform { scale, .. } => factor * scale,
+        Group::Transform { scale, .. } | Group::Scroll { scale, .. } => factor * scale,
         _ => factor,
     }
 }

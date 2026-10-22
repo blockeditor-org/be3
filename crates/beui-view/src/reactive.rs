@@ -12,6 +12,7 @@ pub use beui_tree::reactive::*;
 
 use beui_core::document::Document;
 use beui_core::geometry::Rect;
+use beui_core::input::Key;
 use beui_core::node::NodeId;
 
 pub use beui_core::animation::{
@@ -76,6 +77,10 @@ pub fn copy_text(text: impl Into<String>) {
     with_document(|document| document.copy_text(text));
 }
 
+pub fn copy_image(png: Vec<u8>) {
+    with_document(|document| document.copy_image(png));
+}
+
 pub use beui_core::clipboard::{PasteKind, Pasted};
 
 pub fn request_paste() {
@@ -133,7 +138,19 @@ pub fn use_keyboard() -> ReadSignal<bool> {
 pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     let focused = focused.into_prop();
     let visible = with_document(|document| document.watch_focus_visible());
-    create_memo(move || focused.get() && visible.get())
+    let keyboard = with_document(|document| document.watch_keyboard());
+    create_memo(move || focused.get() && visible.get() && keyboard.get())
+}
+
+pub fn holds_focus(node: NodeRef) -> Memo<bool> {
+    let focused = with_document(|document| document.watch_focused());
+    create_memo(move || {
+        focused.get().is_some()
+            && with_document(|document| {
+                node.try_get()
+                    .is_some_and(|node| document.focus_is_within(node))
+            })
+    })
 }
 
 pub fn focus_outline(
@@ -175,6 +192,51 @@ fn listen(
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
     with_document(|document| document.listen_keys(at, phase, reveal, Rc::downgrade(&handler)));
     on_cleanup(move || drop(handler));
+}
+
+pub fn arrow_focus(row: NodeRef, direction: Direction) {
+    let (back, forth) = match direction {
+        Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
+        Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
+    };
+    on_key(
+        beui_core::keys::KeyAt::Node(row),
+        beui_core::keys::KeyPhase::Bubble,
+        move |event| {
+            let Some(press) = event.press() else {
+                return false;
+            };
+            if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
+                return false;
+            }
+            with_document(|document| {
+                let Some(row) = row.try_get() else {
+                    return false;
+                };
+                let stops = document.tab_stops_within(row);
+                let Some(at) = document
+                    .focused_node()
+                    .and_then(|focused| stops.iter().position(|stop| *stop == focused))
+                else {
+                    return false;
+                };
+                let to = match press.key {
+                    key if key == back => at.checked_sub(1),
+                    key if key == forth => Some(at + 1).filter(|to| *to < stops.len()),
+                    Key::Home => Some(0),
+                    Key::End => Some(stops.len() - 1),
+                    _ => None,
+                };
+                let Some(to) = to else {
+                    return false;
+                };
+                if press.pressed {
+                    document.focus_focusable(stops[to]);
+                }
+                true
+            })
+        },
+    );
 }
 
 pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'static) {
@@ -250,8 +312,9 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 }
 
 pub use crate::actions::{
-    Action, ActionBuilder, ActionScope, Chord, action_disabled, action_glyph, action_label,
-    action_scope, action_tooltip, active_actions, active_actions_from, menu_actions,
+    Action, ActionBuilder, ActionScope, Chord, MenuNode, Submenu, action_checked, action_disabled,
+    action_glyph, action_label, action_scope, action_tooltip, active_actions, active_actions_from,
+    add_to_menu, document_menu, menu_action, tidy_menu,
 };
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,

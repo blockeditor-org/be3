@@ -515,7 +515,10 @@ impl Walk {
                 ..*self
             },
             Group::Scroll {
-                viewport, offset, ..
+                viewport,
+                offset,
+                scale,
+                ..
             } => {
                 let clip = self.clip.intersect(viewport.translate(self.offset));
                 let at = self.offset + offset;
@@ -524,8 +527,12 @@ impl Walk {
                     self.origin[1] + (at.y * self.factor).round(),
                 ];
                 let bound = overlap(pixels(clip, self.factor, self.origin), self.bound);
+                let scale = match scale > 0.0 && scale.is_finite() {
+                    true => scale,
+                    false => 1.0,
+                };
                 Self {
-                    factor: self.factor,
+                    factor: self.factor * scale,
                     space: space(origin, bound, self.fade),
                     origin,
                     bound,
@@ -663,7 +670,7 @@ impl Renderer {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -1638,6 +1645,19 @@ impl Renderer {
                 rect,
                 clip,
             },
+            Quad::Triangle {
+                corners: [a, b, c],
+                edges,
+                clip,
+                color,
+            } => plain(Instance {
+                rect: [a[0], a[1], b[0], b[1]],
+                clip,
+                uv: [c[0], c[1], 0.0, 0.0],
+                color: self.encode(color),
+                params: [f32::from(edges), 0.0, 4.0, 0.0],
+                turn: turn(Turn::NONE),
+            }),
         })
     }
 

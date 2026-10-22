@@ -4,6 +4,7 @@ use super::*;
 fn an_intercepted_key_round_trips() {
     let message = Message::Input(InputBatch {
         screen: ScreenId(1),
+        every_sample: false,
         events: vec![
             InputEvent::Modifiers(Modifiers {
                 alt: true,

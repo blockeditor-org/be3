@@ -5,8 +5,8 @@ fn an_undecodable_operation_asks_for_a_fresh_snapshot() {
     let fixture = Fixture::new();
     let rename = Checklist::set_text(fixture.second, "free range eggs");
     fixture.host.push_content_operations(vec![
-        (vec![0xff; 3], false),
-        (ChecklistContent::encode_operation(&rename), false),
+        arrived(vec![0xff; 3], false),
+        arrived(ChecklistContent::encode_operation(&rename), false),
     ]);
     fixture.projection.pump();
 

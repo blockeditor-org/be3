@@ -87,6 +87,8 @@ pub trait Adapter {
 pub trait Platform {
     fn copy(&mut self, _text: String) {}
 
+    fn copy_image(&mut self, _png: Vec<u8>) {}
+
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
         let _ = kinds;
         answer.send(None);
@@ -320,7 +322,8 @@ impl Runner {
     }
 
     pub fn accessibility_text(&self) -> Option<String> {
-        self.accessibility().map(|dump| dump.text().to_owned())
+        self.accessibility()
+            .map(|dump| dump.rendered().text().to_owned())
     }
 
     pub fn os_close(&mut self) -> bool {
@@ -414,9 +417,10 @@ impl Runner {
         if let Some(automation) = &mut self.automation
             && let Some(dump) = self.context.kept_accessibility()
         {
+            let rendered = dump.rendered();
             let view = View {
-                lines: dump.lines(),
-                tree: dump.text(),
+                lines: rendered.lines(),
+                tree: rendered.text(),
                 pixels_per_point: self.context.pixels_per_point(),
                 now: self.context.now(),
                 size: renderers.physical().map_or(Vec2::ZERO, |physical| {
@@ -520,6 +524,9 @@ impl Runner {
         if let Some(text) = &output.copied_text {
             platform.copy(text.clone());
         }
+        if let Some(png) = output.copied_image.take() {
+            platform.copy_image(png);
+        }
         for request in std::mem::take(&mut output.file_picks) {
             let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
             match &mut self.automation {
@@ -585,9 +592,10 @@ impl Runner {
             && let Some(dump) = self.context.kept_accessibility()
         {
             self.actions = std::mem::take(&mut output.actions);
+            let rendered = dump.rendered();
             let view = View {
-                lines: dump.lines(),
-                tree: dump.text(),
+                lines: rendered.lines(),
+                tree: rendered.text(),
                 pixels_per_point: scale,
                 now: self.context.now(),
                 size: screen,

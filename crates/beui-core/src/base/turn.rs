@@ -9,11 +9,16 @@ use crate::painter::Painter;
 pub struct TurnNode {
     child: Option<NodeId>,
     quarters: u8,
+    angle: f32,
 }
 
 impl TurnNode {
     pub fn quarter_turns(&self) -> u8 {
         self.quarters
+    }
+
+    pub fn angle(&self) -> f32 {
+        self.angle
     }
 
     fn sideways(&self) -> bool {
@@ -60,7 +65,7 @@ impl Element for TurnNode {
         let Some(child) = self.child else {
             return;
         };
-        let turned = painter.rotated(rect.center(), turn_angle(self.quarters));
+        let turned = painter.rotated(rect.center(), turn_angle(self.quarters) + self.angle);
         crate::paint::paint(doc, &turned, rects, child);
     }
 
@@ -79,7 +84,14 @@ impl Element for TurnNode {
     }
 
     fn detail(&self) -> Option<String> {
-        (self.quarters != 0).then(|| format!("{} quarter turns", self.quarters))
+        let quarters = self.quarters;
+        match self.angle == 0.0 {
+            true => (quarters != 0).then(|| format!("{quarters} quarter turns")),
+            false => Some(format!(
+                "{quarters} quarter turns and {} radians",
+                self.angle
+            )),
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -96,6 +108,7 @@ impl Document {
         self.arena.insert(TurnNode {
             child: Some(child),
             quarters: 0,
+            angle: 0.0,
         })
     }
 
@@ -103,6 +116,12 @@ impl Document {
         let quarters = quarters % 4;
         if self.arena.get_as::<TurnNode>(turn).quarters != quarters {
             self.arena.get_mut_as::<TurnNode>(turn).quarters = quarters;
+        }
+    }
+
+    pub fn set_turn_angle(&mut self, turn: NodeOf<TurnNode>, angle: f32) {
+        if self.arena.get_as::<TurnNode>(turn).angle != angle {
+            self.arena.paint_mut_as::<TurnNode>(turn).angle = angle;
         }
     }
 }

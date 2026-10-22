@@ -4838,7 +4838,9 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4846,7 +4848,9 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4854,7 +4858,9 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4862,7 +4868,9 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4870,7 +4878,9 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4892,7 +4902,9 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4900,7 +4912,9 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -5462,6 +5476,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5481,6 +5497,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5500,6 +5518,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5519,6 +5539,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5538,6 +5560,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5557,6 +5581,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5576,6 +5602,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5595,6 +5623,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -5614,6 +5644,8 @@ crates = {
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
                     "//third-party/rust:unicode-segmentation-1.13.3",
@@ -7790,6 +7822,8 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -7807,6 +7841,8 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -7824,6 +7860,8 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -7841,6 +7879,8 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -7858,6 +7898,8 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -7875,13 +7917,15 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//third-party/rust:serde-1.0.228",
+                    "//crates/be-model:be-model",
                 ],
                 "test_features": [],
             },
@@ -7894,6 +7938,8 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -7911,6 +7957,8 @@ crates = {
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-ui:block-ui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -10385,7 +10433,12 @@ crates = {
     "crates/editors/infinite-canvas": {
         "binaries": [],
         "edition": "2024",
-        "examples": [],
+        "examples": [
+            {
+                "crate_root": "examples/canvas-bench.rs",
+                "name": "canvas-bench",
+            },
+        ],
         "library": {
             "crate": "infinite_canvas",
             "crate_root": "src/lib.rs",
@@ -10393,16 +10446,256 @@ crates = {
         },
         "name": "infinite_canvas",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:image-0.25.10",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
@@ -10736,7 +11029,6 @@ crates = {
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:similar-3.1.1",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -13405,6 +13697,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13417,6 +13710,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13429,6 +13723,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13441,6 +13736,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13453,6 +13749,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13465,6 +13762,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13475,6 +13773,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13485,6 +13784,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13497,6 +13797,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -17209,8 +17510,16 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {},
-            "wasi-guest": {},
+            "wasi": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "std",
+                ],
+            },
             "wasm32": {},
             "windows-arm64": {
                 "features": [
@@ -28462,6 +28771,113 @@ third_party = {
         "size_bytes": 8516,
         "version": "3.3.2",
     },
+    "euclid-0.22.14": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Geometry primitives",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/servo/euclid",
+            "CARGO_PKG_RUST_VERSION": "1.63.0",
+        },
+        "library": {
+            "crate": "euclid",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "euclid",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06",
+        "size_bytes": 88222,
+        "version": "0.22.14",
+    },
     "event-listener-5.4.2": {
         "build_script": None,
         "env": {
@@ -29249,6 +29665,41 @@ third_party = {
         "sha256": "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4",
         "size_bytes": 10102,
         "version": "0.9.0",
+    },
+    "float_next_after-1.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Bronson Brown-deVost <bronsonbdevost@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A trait for native rust f64/f32 nextafter",
+            "CARGO_PKG_HOMEPAGE": "https://gitlab.com/bronsonbdevost/next_afterf",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://gitlab.com/bronsonbdevost/next_afterf",
+        },
+        "library": {
+            "crate": "float_next_after",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "float_next_after",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8",
+        "size_bytes": 6965,
+        "version": "1.0.0",
     },
     "fnv-1.0.7": {
         "build_script": None,
@@ -37227,6 +37678,28 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":arrayvec-0.7.6",
@@ -37714,7 +38187,12 @@ third_party = {
                     "default",
                 ],
             },
-            "wasi-guest": {},
+            "wasi-guest": {
+                "features": [
+                    "arch",
+                    "default",
+                ],
+            },
             "wasm32": {
                 "features": [
                     "arch",
@@ -38429,6 +38907,351 @@ third_party = {
         "sha256": "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f",
         "size_bytes": 52646,
         "version": "0.4.31",
+    },
+    "lyon_geom-1.0.20": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
+            "CARGO_PKG_DESCRIPTION": "2D quadratic and cubic bézier arcs and line segment math on top of euclid.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
+        },
+        "library": {
+            "crate": "lyon_geom",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "lyon_geom",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "d82dd26aa4dc0b5b70b9115de59824842bcb43cf4a28e1b1e6d0ad148c93f93e",
+        "size_bytes": 56493,
+        "version": "1.0.20",
+    },
+    "lyon_path-1.0.19": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Types and utilities to store, build and iterate over 2D paths.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
+        },
+        "library": {
+            "crate": "lyon_path",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "lyon_path",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "5c463f9c428b7fc5ec885dcd39ce4aa61e29111d0e33483f6f98c74e89d8621e",
+        "size_bytes": 37028,
+        "version": "1.0.19",
+    },
+    "lyon_tessellation-1.0.22": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A low level path tessellation library.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
+        },
+        "library": {
+            "crate": "lyon_tessellation",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "lyon_tessellation",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "43b8dcf906637ecef61b3c0740c7a4e7f27caeb31257cfac0cc579ce15be6005",
+        "size_bytes": 188138,
+        "version": "1.0.22",
     },
     "mach2-0.4.3": {
         "build_script": None,
@@ -40708,8 +41531,12 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
                 "features": [
                     "default",
+                    "libm",
                     "std",
                 ],
             },
@@ -44833,6 +45660,22 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":arrayvec-0.7.6",
                 ],
@@ -53804,7 +54647,18 @@ third_party = {
                     "union",
                 ],
             },
-            "wasi": {},
+            "wasi": {
+                "features": [
+                    "const_generics",
+                    "const_new",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "const_generics",
+                    "const_new",
+                ],
+            },
             "wasm32": {},
             "windows-arm64": {
                 "deps": [

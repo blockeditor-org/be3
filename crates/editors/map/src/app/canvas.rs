@@ -130,18 +130,17 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
 }
 
 #[component]
-fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> CanvasItem {
+fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasItem> {
     let x = create_memo(move || rect.get().left());
     let y = create_memo(move || rect.get().top());
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame
-                visible={shown}
-                border={Border::new(ColorRole::Custom(REGION_COLOR)).width(1.5)}
-            />
-        </CanvasItem>
+        <Show condition={shown}>
+            <CanvasItem x={x} y={y} width={width} height={height}>
+                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR)).width(1.5)} />
+            </CanvasItem>
+        </Show>
     }
 }
 

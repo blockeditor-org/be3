@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::VecDeque,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -203,7 +204,7 @@ pub(super) struct Shared {
     pub(super) frames: Vec<Frame>,
     pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
     pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
-    damage: Option<Vec<ScreenDamage>>,
+    pub(super) published: Published,
 }
 
 impl Shared {
@@ -212,14 +213,7 @@ impl Shared {
         let Some(frame) = frame else {
             return;
         };
-        self.damage = match (self.frames.is_empty(), self.damage.take(), frame.damage()) {
-            (true, _, damage) => damage.map(<[ScreenDamage]>::to_vec),
-            (false, Some(mut held), Some(damage)) => {
-                held.extend_from_slice(damage);
-                Some(held)
-            }
-            _ => None,
-        };
+        self.published.record(frame.damage());
         if self.frames.len() >= MAX_PENDING_FRAMES {
             self.frames.remove(0);
         }
@@ -227,8 +221,39 @@ impl Shared {
     }
 
     fn take_frames(&mut self) -> Vec<Frame> {
-        self.damage = None;
         std::mem::take(&mut self.frames)
+    }
+}
+
+const REMEMBERED_FRAMES: usize = 16;
+
+#[derive(Default)]
+pub(super) struct Published {
+    count: u64,
+    recent: VecDeque<Option<Vec<ScreenDamage>>>,
+}
+
+impl Published {
+    pub(super) fn record(&mut self, damage: Option<&[ScreenDamage]>) {
+        self.count += 1;
+        if self.recent.len() == REMEMBERED_FRAMES {
+            self.recent.pop_front();
+        }
+        self.recent.push_back(damage.map(<[ScreenDamage]>::to_vec));
+    }
+
+    pub(super) fn count(&self) -> u64 {
+        self.count
+    }
+
+    pub(super) fn since(&self, seen: u64) -> Option<Vec<ScreenDamage>> {
+        let missed = usize::try_from(self.count.checked_sub(seen)?).ok()?;
+        let skipped = self.recent.len().checked_sub(missed)?;
+        let mut damage = Vec::new();
+        for frame in self.recent.iter().skip(skipped) {
+            damage.extend_from_slice(frame.as_deref()?);
+        }
+        Some(damage)
     }
 }
 
@@ -259,12 +284,12 @@ impl PartialEq for Blit {
 }
 
 impl Blit {
-    pub(super) fn damage(&self, pieces: &[Piece]) -> Option<Vec<Rect>> {
+    pub(super) fn damage(&self, pieces: &[Piece], seen: u64) -> Option<Vec<Rect>> {
         let shared = self.shared.borrow();
-        if shared.frames.is_empty() {
+        let damage = shared.published.since(seen)?;
+        if damage.is_empty() {
             return Some(Vec::new());
         }
-        let damage = shared.damage.as_ref()?;
         let placement = shared.layout.placement(self.screen)?;
         if placement.width == 0
             || placement.height == 0

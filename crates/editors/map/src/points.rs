@@ -58,21 +58,25 @@ pub(crate) fn Marker(
                         <Icon glyph={ICON_LOCATION_ON.to_owned()} />
                     </Text>
                 </Frame>
-                <Frame
-                    visible={named}
-                    fill={ColorRole::Custom(LABEL_BACKGROUND)}
-                    radius={Radius::custom(3.0)}
-                    padding={Sides::horizontal(3.0)}
-                    height=LABEL_HEIGHT
-                >
-                    <Text
-                        style=TextStyle::CAPTION
-                        align=TextAlign::Center
-                        color={TextColor::Custom(LABEL_COLOR)}
-                    >
-                        {label}
-                    </Text>
-                </Frame>
+                <Show condition={named}>|| {
+                    let label = label.clone();
+                    view! {
+                        <Frame
+                            fill={ColorRole::Custom(LABEL_BACKGROUND)}
+                            radius={Radius::custom(3.0)}
+                            padding={Sides::horizontal(3.0)}
+                            height=LABEL_HEIGHT
+                        >
+                            <Text
+                                style=TextStyle::CAPTION
+                                align=TextAlign::Center
+                                color={TextColor::Custom(LABEL_COLOR)}
+                            >
+                                {label}
+                            </Text>
+                        </Frame>
+                    }
+                }</Show>
             </List>
         </CanvasItem>
     }

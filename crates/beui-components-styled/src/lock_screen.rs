@@ -70,7 +70,7 @@ pub fn LockScreen(
             placement=Placement::At
             scrim={theme.background}
             level=LayerLevel::Lock
-            content={move || view! {
+            content={move || { let id = id.clone(); let submit = submit.clone(); view! {
                 <Frame width=width height=height>
                     <Layers>
                         <ForEach keys={places}>|index: usize| {
@@ -107,7 +107,7 @@ pub fn LockScreen(
                         }</ForEach>
                     </Layers>
                 </Frame>
-            }}
+            } }}
         />
     }
 }

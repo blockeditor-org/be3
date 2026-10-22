@@ -173,7 +173,7 @@ fn PickerMenu(
             placement
             open
             sheet
-            width=MENU_WIDTH
+            min_width=MENU_WIDTH
             on_dismiss={move || act.call(PickAction::Close)}
         />
     }
@@ -931,14 +931,16 @@ fn CreationChild(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> N
     });
     let editor = workspace.editor();
     view! {
-        <Frame width=1.0 height=1.0>
-            <Subregion
-                editor={editor}
-                placed={placed}
-                mode=ChildMode::Live
-                punch=false
-                on_state={move |state: ChildState| workspace.creation_state(pick, &state)}
-            />
+        <Frame width=0.0 height=0.0>
+            <Frame width=1.0 height=1.0>
+                <Subregion
+                    editor={editor}
+                    placed={placed}
+                    mode=ChildMode::Live
+                    punch=false
+                    on_state={move |state: ChildState| workspace.creation_state(pick, &state)}
+                />
+            </Frame>
         </Frame>
     }
 }

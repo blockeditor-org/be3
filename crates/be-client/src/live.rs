@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use be_block::{BlockMetadata, Entries, LiveEdit, Merge};
+use be_block::{BlockMetadata, Entries, Landed, LiveEdit, Merge};
 use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, ServerMessage, SessionState};
 use be_session::{Follower, Resume, Sequencer, SessionMessage, SessionOp, resume};
@@ -21,9 +21,47 @@ const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Journaled<Op> {
-    Edited(Op),
+    Edited {
+        operation: Op,
+        unsettled: u64,
+    },
     Applied(Op),
-    Replaced { edits: u64 },
+    Beneath {
+        operation: Op,
+        unsettled: u64,
+        local: Vec<Op>,
+    },
+    Replaced {
+        edits: u64,
+    },
+}
+
+impl<Op> Journaled<Op> {
+    pub fn landed(self) -> Option<Landed<Op>> {
+        match self {
+            Self::Edited {
+                operation,
+                unsettled,
+            } => Some(Landed::On {
+                operation,
+                unsettled,
+            }),
+            Self::Applied(operation) => Some(Landed::On {
+                operation,
+                unsettled: 0,
+            }),
+            Self::Beneath {
+                operation,
+                unsettled,
+                local,
+            } => Some(Landed::Beneath {
+                operation,
+                unsettled,
+                local,
+            }),
+            Self::Replaced { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,7 +84,9 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     role: Role,
     confirmed: C,
     visible: C,
-    unsent: VecDeque<(C::Op, usize)>,
+    unsent: VecDeque<(C::Op, usize, u64)>,
+    in_flight: u64,
+    covered: bool,
     base: Option<CommitId>,
     sealed: u64,
     sealed_state: Vec<u8>,
@@ -87,6 +127,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             sealed_state: confirmed.session_state(),
             visible: confirmed.clone(),
             unsent: VecDeque::new(),
+            in_flight: 0,
+            covered: true,
             confirmed,
             base: head,
             sealed: 0,
@@ -148,6 +190,21 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         }
     }
 
+    fn unsettled(&self) -> u64 {
+        match &self.role {
+            Role::Owner(_) => 0,
+            Role::Follower(_) => {
+                self.in_flight + self.unsent.iter().map(|(.., weight)| weight).sum::<u64>()
+            }
+        }
+    }
+
+    fn cover_if_settled(&mut self) {
+        if self.unsettled() == 0 {
+            self.covered = true;
+        }
+    }
+
     pub fn take_journal(&mut self) -> Vec<Journaled<C::Op>> {
         std::mem::take(&mut self.journal)
     }
@@ -198,12 +255,14 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 .journal
                 .drain(..)
                 .map(|entry| match entry {
-                    Journaled::Edited(_) => 1,
-                    Journaled::Applied(_) => 0,
+                    Journaled::Edited { .. } => 1,
+                    Journaled::Applied(_) | Journaled::Beneath { .. } => 0,
                     Journaled::Replaced { edits } => edits,
                 })
                 .sum();
             self.journal.push(Journaled::Replaced { edits });
+            let adds = matches!(entry, Journaled::Edited { unsettled, .. } if unsettled > 0);
+            self.covered = self.unsettled() == 0 && !adds;
         }
         if !replaced {
             self.journal.push(entry);
@@ -242,7 +301,14 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     pub async fn edit(&mut self, operation: C::Op) -> Result<(), ClientError> {
         self.refuse_if_diverged()?;
         self.visible.apply(&operation);
-        self.journal(Journaled::Edited(operation.clone()));
+        let unsettled = match self.role {
+            Role::Owner(_) => 0,
+            Role::Follower(_) => self.unsettled() + 1,
+        };
+        self.journal(Journaled::Edited {
+            operation: operation.clone(),
+            unsettled,
+        });
         let payload = C::encode_operation(&operation);
         if payload.len() > LARGEST_RELAYED_OPERATION {
             return match self.replace(self.visible.clone()).await? {
@@ -269,21 +335,23 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             Role::Follower(follower) if follower.pending() > 0 || !self.unsent.is_empty() => {
                 let size = payload.len();
                 let leftover = match self.unsent.back_mut() {
-                    Some((last, bound)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
+                    Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
                         let leftover = C::absorb_operation(last, operation);
                         if leftover.is_none() {
                             *bound += size;
+                            *weight += 1;
                         }
                         leftover
                     }
                     _ => Some(operation),
                 };
                 self.unsent
-                    .extend(leftover.map(|operation| (operation, size)));
+                    .extend(leftover.map(|operation| (operation, size, 1)));
                 Ok(())
             }
             Role::Follower(follower) => {
                 let message = follower.submit(payload);
+                self.in_flight = 1;
                 let owner = self.state.owner;
                 self.send(owner, &message).await
             }
@@ -513,7 +581,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
             }
         }
-        for (operation, _) in &self.unsent {
+        for (operation, ..) in &self.unsent {
             visible.apply(operation);
         }
         self.replace_visible(visible);
@@ -526,10 +594,11 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         if follower.pending() > 0 {
             return Ok(());
         }
-        let Some((operation, _)) = self.unsent.pop_front() else {
+        let Some((operation, _, weight)) = self.unsent.pop_front() else {
             return Ok(());
         };
         let message = follower.submit(C::encode_operation(&operation));
+        self.in_flight = weight;
         let owner = self.state.owner;
         self.send(owner, &message).await
     }
@@ -544,8 +613,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             self.unreadable_message();
             return;
         };
-        self.confirmed.apply(&operation);
         let Role::Follower(follower) = &mut self.role else {
+            self.confirmed.apply(&operation);
             self.visible.apply(&operation);
             self.journal(Journaled::Applied(operation));
             return;
@@ -558,25 +627,58 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 .is_some_and(|payload| *payload == op.payload);
         if unchanged {
             follower.accepted(op);
+            self.confirmed.apply(&operation);
+            self.in_flight = 0;
+            self.cover_if_settled();
             return;
         }
         if !follower.is_mine(op.id) && follower.pending() == 0 && self.unsent.is_empty() {
             follower.accepted(op);
+            self.confirmed.apply(&operation);
             self.visible.apply(&operation);
             self.journal(Journaled::Applied(operation));
             return;
         }
         if follower.is_mine(op.id) {
             follower.accepted(op);
-        } else {
-            follower.accepted(op);
-            follower.rewrite_pending(|payload| {
-                let pending = C::decode_operation(payload).ok()?;
-                C::rebase(pending, std::slice::from_ref(&operation))
-                    .map(|rebased| C::encode_operation(&rebased))
-            });
+            self.confirmed.apply(&operation);
+            self.in_flight = 0;
+            self.rebuild_visible();
+            self.cover_if_settled();
+            return;
         }
-        self.rebuild_visible();
+        let unsettled = self.unsettled();
+        let Role::Follower(follower) = &mut self.role else {
+            return;
+        };
+        follower.accepted(op);
+        follower.rewrite_pending(|payload| {
+            let pending = C::decode_operation(payload).ok()?;
+            C::rebase(pending, std::slice::from_ref(&operation))
+                .map(|rebased| C::encode_operation(&rebased))
+        });
+        if !self.covered {
+            self.confirmed.apply(&operation);
+            self.rebuild_visible();
+            return;
+        }
+        let mut local: Vec<C::Op> = follower
+            .payloads()
+            .iter()
+            .filter_map(|payload| C::decode_operation(payload).ok())
+            .collect();
+        self.in_flight = local.len() as u64;
+        for (pending, _, weight) in &mut self.unsent {
+            local.push(pending.clone());
+            *weight = 1;
+        }
+        self.visible
+            .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
+        self.journal(Journaled::Beneath {
+            operation,
+            unsettled,
+            local,
+        });
     }
 
     async fn adopt(&mut self, state: SessionState) -> Result<(), ClientError> {
@@ -628,7 +730,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 accepted.push(op);
             }
         }
-        for (operation, _) in std::mem::take(&mut self.unsent) {
+        self.in_flight = 0;
+        for (operation, ..) in std::mem::take(&mut self.unsent) {
             let id = be_session::OpId {
                 client: self.client,
                 counter: sequencer.sequence() + 1,

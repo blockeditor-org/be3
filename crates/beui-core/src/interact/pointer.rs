@@ -24,6 +24,7 @@ pub struct Pointers {
     wheel_latch: Option<(NodeId, Instant, Pos2)>,
     fingers: Fingers,
     pinch_target: Option<NodeId>,
+    kept_off: Vec<TouchId>,
     hits: Vec<(Pos2, bool, Hit)>,
     current: usize,
     pub(crate) routed: Vec<Routed>,
@@ -156,6 +157,8 @@ struct Session {
     clicks: u32,
     pressure: Option<f32>,
     pen: Option<Pen>,
+    predicted: Option<Pos2>,
+    time: Instant,
     dragged: bool,
     axis: Option<Direction>,
     drag_target: Option<NodeId>,
@@ -174,7 +177,15 @@ impl Session {
         PointerPress {
             pressure: self.pressure,
             pen: self.pen,
-            ..press_at(rect, pos, self.clicks, self.modifiers, self.kind.finger)
+            predicted: self.predicted,
+            ..press_at(
+                rect,
+                pos,
+                self.clicks,
+                self.modifiers,
+                self.kind.finger,
+                self.time,
+            )
         }
     }
 
@@ -307,6 +318,10 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
     if autoscroll::pointer(doc, &event) {
         return None;
     }
+    if kept_off(doc, frame, &event) {
+        doc.pointers.route(None);
+        return None;
+    }
     match event.phase {
         PointerPhase::Down(button) => return down(doc, frame, event, button),
         PointerPhase::Move => moved(doc, frame, event),
@@ -342,6 +357,39 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
         }
     }
     None
+}
+
+fn kept_off(doc: &mut Document, frame: &Frame, event: &PointerEvent) -> bool {
+    let PointerId::Touch(id) = event.pointer else {
+        return false;
+    };
+    let held = doc.pointers.kept_off.contains(&id);
+    match event.phase {
+        PointerPhase::Down(_) => {
+            let off = !frame.ctx.preferences().canvas_touch.reaches()
+                && find(doc, event.pointer, None).is_none()
+                && on_drawing(doc, frame, event.pos);
+            if off && !held {
+                doc.pointers.kept_off.push(id);
+            }
+            off
+        }
+        PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone => {
+            doc.pointers.kept_off.retain(|kept| *kept != id);
+            held
+        }
+        _ => held,
+    }
+}
+
+fn on_drawing(doc: &mut Document, frame: &Frame, pos: Pos2) -> bool {
+    let hit = hit(doc, frame.rects, frame.root, pos, true);
+    let at = pos + hit.shift;
+    hit.path.iter().any(|id| {
+        interactive(doc, *id)
+            .zip(frame.rects.visible(id))
+            .is_some_and(|(node, rect)| node.draws_at(at, rect))
+    })
 }
 
 fn node_mut(doc: &mut Document, id: NodeId) -> Option<&mut InteractiveNode> {
@@ -493,6 +541,8 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         clicks: event.clicks,
         pressure: event.force,
         pen: event.pen,
+        predicted: None,
+        time: event.time,
         dragged: false,
         axis: None,
         drag_target: None,
@@ -501,7 +551,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         long_press: None,
         last_drag: None,
         dragged_this_frame: false,
-        samples: VecDeque::from([(frame.now, pos)]),
+        samples: VecDeque::from([(event.time, pos)]),
         velocity: Vec2::ZERO,
         outside: match kind.settles && role == Role::Press {
             true => Some(hit.outside.clone()),
@@ -559,9 +609,10 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
         .copied()
         .filter(|id| interactive(doc, *id).is_some_and(InteractiveNode::holds_presses))
         .collect();
+    let target = focus_target(doc, frame.rects, &reached, pos);
     session.focus = match captured {
-        true => doc.focused_node(),
-        false => focus_target(doc, frame.rects, &reached, pos),
+        true => target.or_else(|| doc.focused_node()),
+        false => target,
     };
     let focused = doc.focused_node();
     doc.set_focus_visible(false);
@@ -702,8 +753,11 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
         }
         with_session(doc, index, |doc, session| {
             let pos = event.pos + session.shift;
+            session.modifiers = event.modifiers;
             session.pressure = event.force;
             session.pen = event.pen;
+            session.predicted = event.predicted.map(|predicted| predicted + session.shift);
+            session.time = event.time;
             follow(doc, frame, session, pos, false);
         });
     }
@@ -726,7 +780,7 @@ fn follow(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2, r
     match session.role {
         Role::Press => {
             if session.kind.settles {
-                settle(doc, frame, session, pos);
+                settle(doc, session, pos);
             }
             session.pos = pos;
             let last = match releasing {
@@ -758,8 +812,8 @@ fn follow(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2, r
     }
 }
 
-fn settle(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2) {
-    sample(session, frame.now, pos);
+fn settle(doc: &mut Document, session: &mut Session, pos: Pos2) {
+    sample(session, session.time, pos);
     if session.cancelled {
         return;
     }
@@ -888,6 +942,8 @@ fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerBut
     let sink = kind.held_sink(doc, event.pointer).or(session.sink);
     doc.pointers.route(sink);
     let pos = event.pos + session.shift;
+    session.predicted = None;
+    session.time = event.time;
     follow(doc, frame, &mut session, pos, true);
     end(doc, frame, session, false);
     if let PointerId::Touch(id) = event.pointer {
@@ -1054,7 +1110,7 @@ pub(crate) fn long_pressed(doc: &mut Document, frame: &Frame, pressed: Vec<LongP
             };
             node.on_secondary_press
                 .clone()
-                .call(press_at(rect, pos, clicks, modifiers, true));
+                .call(press_at(rect, pos, clicks, modifiers, true, frame.now));
         }
     }
 }
@@ -1464,6 +1520,7 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<Pos2>) {
                     0,
                     frame.ctx.input(|input| input.modifiers),
                     false,
+                    frame.now,
                 );
                 node.on_hover_move.clone().call(press);
             }

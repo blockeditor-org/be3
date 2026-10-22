@@ -132,7 +132,7 @@ pub struct DockBarHandle {
     pub title: Memo<String>,
     pub vacant: Memo<bool>,
     pub closable: Memo<bool>,
-    pub menu: Memo<Vec<Action>>,
+    pub menu: Memo<Vec<MenuNode>>,
     pub close: ClickCallback,
 }
 
@@ -154,7 +154,7 @@ pub struct DockStackHandle {
     pub icon: Memo<String>,
     pub backward: Memo<bool>,
     pub actions: Memo<Option<NodeId>>,
-    pub menu: Memo<Vec<Action>>,
+    pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
     pub others: Memo<usize>,
     pub switchable: Memo<bool>,
@@ -301,7 +301,7 @@ struct DockTabActions {
     actions: Signal<HashMap<TabId, NodeId>>,
 }
 
-pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<Action>>)>;
+pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<MenuNode>>)>;
 
 #[derive(Clone, Copy)]
 pub struct DockTabMenu {
@@ -313,7 +313,7 @@ thread_local! {
     static NEXT_MENU: Cell<u64> = const { Cell::new(1) };
 }
 
-pub fn dock_menu(items: Memo<Vec<Action>>) {
+pub fn dock_menu(items: Memo<Vec<MenuNode>>) {
     let Some(DockTabMenu { tab, menu }) = use_context::<DockTabMenu>() else {
         return;
     };
@@ -330,7 +330,7 @@ pub fn dock_menu(items: Memo<Vec<Action>>) {
     });
 }
 
-pub fn dock_menu_items(menus: ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<Action> {
+pub fn dock_menu_items(menus: ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<MenuNode> {
     let Some(tab) = tab else {
         return Vec::new();
     };
@@ -417,7 +417,7 @@ struct State {
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Color32,
+    dialog_scrim: Memo<Color32>,
     dialog_margin: u16,
     dialog_gap: u16,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
@@ -493,7 +493,7 @@ impl State {
         }
     }
 
-    fn leaf_menu(&self, leaf: Option<LeafId>) -> Memo<Vec<Action>> {
+    fn leaf_menu(&self, leaf: Option<LeafId>) -> Memo<Vec<MenuNode>> {
         let dock = *self;
         create_memo(move || {
             let tab = leaf.and_then(|leaf| {
@@ -1200,7 +1200,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    pub(crate) dialog_scrim: Color32,
+    pub(crate) dialog_scrim: Memo<Color32>,
     pub(crate) dialog_margin: u16,
     pub(crate) dialog_gap: u16,
 }
@@ -1414,9 +1414,11 @@ fn DockFullscreenView(dock: State) -> NodeId {
             untrack(|| with_document(|document| document.raise_overlay(layer)));
         }
     });
-    let body = dock.fullscreen.call(view! {
-        <Portal node={panel} />
-    });
+    let body = move || {
+        dock.fullscreen.call(view! {
+            <Portal node={panel} />
+        })
+    };
     view! {
         <Overlay
             @node_ref={&dock.fullscreen_layer}
@@ -1434,7 +1436,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                     }
                 }}
             >
-                <Frame @test_id="dock.fullscreen" width=width height=height>{body}</Frame>
+                <Frame @test_id="dock.fullscreen" width=width height=height>{body()}</Frame>
             </Interactive>
         </Overlay>
     }
@@ -1833,7 +1835,11 @@ fn DockTreeView(
 }
 
 #[component]
-fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> CanvasItem {
+fn DockDropMarker(
+    dock: State,
+    surface: SurfaceId,
+    origin: Memo<Pos2>,
+) -> DynamicSegment<CanvasItem> {
     let marker = create_memo(move || {
         let state = dock.state.get_untracked();
         let drag = dock.drag.get()?;
@@ -1854,9 +1860,11 @@ fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> Canvas
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame visible={shown}>{dock.highlight.call(())}</Frame>
-        </CanvasItem>
+        <Show condition={shown}>
+            <CanvasItem x={x} y={y} width={width} height={height}>
+                {dock.highlight.call(())}
+            </CanvasItem>
+        </Show>
     }
 }
 
@@ -2646,7 +2654,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
     let claimed = dock.drag_modifier;
-    let resized = modifier_resize(dock, Resized::Window(surface));
+    let resized = Callback::new(modifier_resize(dock, Resized::Window(surface)));
     let view = view! {
         <Overlay
             @node_ref=&overlay
@@ -2881,7 +2889,6 @@ fn DockDragLayer(dock: State) -> NodeId {
         .map(OverlayAnchor::Point);
     let marker_width = create_memo(move || highlight.get().width());
     let marker_height = create_memo(move || highlight.get().height());
-    let face = dock.highlight.call(());
     view! {
         <List spacing=0.0>
             <Overlay
@@ -2891,7 +2898,7 @@ fn DockDragLayer(dock: State) -> NodeId {
                 traps_focus=false
                 open={marking}
             >
-                <Frame width=marker_width height=marker_height>{face}</Frame>
+                <Frame width=marker_width height=marker_height>{dock.highlight.call(())}</Frame>
             </Overlay>
         </List>
     }

@@ -33,6 +33,7 @@ fn ime_messages_round_trip() {
         }),
         Message::Input(InputBatch {
             screen: ScreenId(2),
+            every_sample: false,
             events: vec![
                 InputEvent::Ime(ImeEvent::Enabled),
                 InputEvent::Ime(ImeEvent::SetComposingText("か".into())),

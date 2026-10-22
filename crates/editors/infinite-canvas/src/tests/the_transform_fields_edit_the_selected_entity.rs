@@ -12,16 +12,17 @@ fn the_transform_fields_edit_the_selected_entity() {
                 CanvasPoint::new(100.0, 80.0),
                 0.0,
             );
-            rectangle.style.fill = Some(CanvasColor::Rgba {
+            rectangle.style.fill = CanvasFill::Solid;
+            rectangle.style.fill_color = CanvasColor::Rgba {
                 red: 60,
                 green: 110,
                 blue: 90,
                 alpha: 255,
-            });
+            };
             rectangle
         })
         .collect();
-    let mut editor = editor(&rectangles);
+    let mut editor = vector_editor(&rectangles);
 
     editor.click(&format!("infinite-canvas.entity.{}", rectangles[0].id));
     editor.run();

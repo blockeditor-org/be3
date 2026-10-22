@@ -12,14 +12,12 @@ fn label(
 ) -> CanvasEntity {
     let mut label = entity(Uuid::from_u128(id));
     label.transform = CanvasTransform::new(center, CanvasPoint::new(60.0, 60.0), 0.0);
-    label.kind = CanvasEntityKind::Text {
-        text: "Hi".to_owned(),
-        text_style: CanvasTextStyle {
-            alignment,
-            vertical_alignment,
-            ..CanvasTextStyle::default()
-        },
-        placeholder: String::new(),
+    label.shape = CanvasShape::Text;
+    label.text = "Hi".into();
+    label.text_style = CanvasTextStyle {
+        alignment,
+        vertical_alignment,
+        ..CanvasTextStyle::default()
     };
     label
 }
@@ -78,9 +76,7 @@ fn typed_text_grows_away_from_the_edges_it_is_aligned_to() {
         assert_ne!(after.transform.size.y, 60.0, "the box fits the text");
         let (left, right, top, bottom) = edges(before);
         let (new_left, new_right, new_top, new_bottom) = edges(after);
-        let CanvasEntityKind::Text { text_style, .. } = &after.kind else {
-            panic!("still text");
-        };
+        let text_style = after.text_style;
         match text_style.alignment {
             CanvasTextAlign::Left => assert!((new_left - left).abs() < 0.01),
             CanvasTextAlign::Center => {

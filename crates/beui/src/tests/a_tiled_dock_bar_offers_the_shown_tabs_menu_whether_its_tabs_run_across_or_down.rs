@@ -42,7 +42,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
                                 ran.update(|ran| *ran += 1)
                             })
                             .detached();
-                            dock_menu(create_memo(move || vec![tidy.clone()]));
+                            dock_menu(create_memo(move || vec![MenuNode::action(&tidy)]));
                             view! {
                                 <Frame @test_id="content.2" />
                             }

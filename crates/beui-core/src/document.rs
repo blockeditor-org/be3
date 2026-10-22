@@ -26,7 +26,7 @@ use crate::node::{
     ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
 };
 use crate::paint::{self, PaintCache, verify};
-use crate::painter::{Painter, PainterState};
+use crate::painter::{Painter, PainterState, Zoom};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -82,10 +82,11 @@ pub struct Document {
     pub(crate) focus_into: Option<(NodeId, u64)>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
-    timers: RefCell<crate::timer::Timers>,
+    timers: Rc<RefCell<crate::timer::Timers>>,
     scale: ::reactive::OwnedSignal<f32>,
     attached: ::reactive::OwnedSignal<u64>,
     focus_visible: ::reactive::OwnedSignal<bool>,
+    focus_watched: ::reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::reactive::OwnedSignal<bool>,
     screens: ::reactive::OwnedSignal<Vec<Screen>>,
     offered_screens: Option<Vec<Screen>>,
@@ -101,6 +102,8 @@ pub struct Document {
     intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub(crate) press_claimants: HashSet<NodeId>,
+    pub(crate) drawing_surfaces: HashSet<NodeId>,
+    pub(crate) every_sample_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
@@ -136,7 +139,10 @@ pub struct Document {
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
+    pub(crate) canvas_moves: Vec<NodeId>,
+    pub(crate) canvas_moves_from: u64,
     pub copied_text: Option<String>,
+    pub copied_image: Option<Vec<u8>>,
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::reactive::Scope,
@@ -158,6 +164,7 @@ pub struct Document {
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
     theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
+    canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<String>>,
     animations: Rc<Cell<usize>>,
@@ -296,10 +303,11 @@ impl Document {
             focus_into: None,
             back_handlers: Vec::new(),
             back_gesture: None,
-            timers: RefCell::new(Vec::new()),
+            timers: Rc::default(),
             scale: ::reactive::OwnedSignal::new(1.0),
             attached: ::reactive::OwnedSignal::new(0),
             focus_visible: ::reactive::OwnedSignal::new(false),
+            focus_watched: ::reactive::OwnedSignal::new(None),
             fullscreen: ::reactive::OwnedSignal::new(false),
             screens: ::reactive::OwnedSignal::new(Vec::new()),
             offered_screens: None,
@@ -315,6 +323,8 @@ impl Document {
             intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
             autoscroll: None,
             press_claimants: HashSet::default(),
+            drawing_surfaces: HashSet::default(),
+            every_sample_surfaces: HashSet::default(),
             outside_watchers: HashSet::default(),
             forward: Default::default(),
             pointers: Default::default(),
@@ -349,7 +359,10 @@ impl Document {
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
+            canvas_moves: Vec::new(),
+            canvas_moves_from: 0,
             copied_text: None,
+            copied_image: None,
             next_paint: None,
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
@@ -371,6 +384,7 @@ impl Document {
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
             theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
@@ -461,8 +475,8 @@ impl Document {
         }
     }
 
-    pub fn register_timer(&self, timer: Weak<crate::timer::TimerState>) {
-        self.timers.borrow_mut().push(timer);
+    pub fn timers(&self) -> Rc<RefCell<crate::timer::Timers>> {
+        Rc::clone(&self.timers)
     }
 
     pub fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
@@ -501,6 +515,21 @@ impl Document {
         self.screens
             .read_only()
             .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
+    }
+
+    pub fn watch_focused(&self) -> ::reactive::ReadSignal<Option<NodeId>> {
+        self.focus_watched.read_only()
+    }
+
+    pub(crate) fn set_focused(&mut self, focused: Option<NodeId>) {
+        let entered = focused.filter(|node| self.focused != Some(*node));
+        self.focused = focused;
+        self.focus_watched.set(focused);
+        if let Some(node) = entered
+            && self.focus_takes_text()
+        {
+            self.reveal_in_canvases(node);
+        }
     }
 
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
@@ -619,7 +648,11 @@ impl Document {
         }
         let now = self.now;
         let mut timers = self.timers.borrow_mut();
-        timers.retain(|timer| timer.strong_count() > 0);
+        timers.retain(|timer| {
+            timer
+                .upgrade()
+                .is_some_and(|timer| timer.due().is_some() || timer.unlist())
+        });
         let due: Vec<_> = timers
             .iter()
             .filter_map(Weak::upgrade)
@@ -803,7 +836,12 @@ impl Document {
         crate::preferences::Preferences {
             theme: self.theme.get_untracked(),
             motion: self.motion.get_untracked(),
+            canvas_touch: self.canvas_touch.get_untracked(),
         }
+    }
+
+    pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<crate::preferences::CanvasTouch> {
+        self.canvas_touch.read_only()
     }
 
     pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
@@ -829,6 +867,9 @@ impl Document {
             }
             if document.theme.get_untracked() != preferences.theme {
                 document.theme.set(preferences.theme);
+            }
+            if document.canvas_touch.get_untracked() != preferences.canvas_touch {
+                document.canvas_touch.set(preferences.canvas_touch);
             }
         });
     }
@@ -857,7 +898,13 @@ impl Document {
     }
 
     pub fn copy_text(&mut self, text: impl Into<String>) {
+        self.copied_image = None;
         self.copied_text = Some(text.into());
+    }
+
+    pub fn copy_image(&mut self, png: Vec<u8>) {
+        self.copied_text = None;
+        self.copied_image = Some(png);
     }
 
     pub fn request_paste(&mut self) {
@@ -979,7 +1026,7 @@ impl Document {
             .focused
             .is_some_and(|focused| self.is_within(focused, id))
         {
-            self.focused = None;
+            self.set_focused(None);
         }
         let mut removed = Vec::new();
         self.detach_subtree(id, &mut removed);
@@ -1032,6 +1079,8 @@ impl Document {
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.press_claimants.remove(&id);
+        self.drawing_surfaces.remove(&id);
+        self.every_sample_surfaces.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
         self.reveals.remove(&id);
@@ -1051,7 +1100,7 @@ impl Document {
             self.root = None;
         }
         if self.focused == Some(id) {
-            self.focused = None;
+            self.set_focused(None);
         }
         if self.focus_before == Some(id) {
             self.focus_before = None;
@@ -1302,6 +1351,9 @@ impl Document {
 
         if let Some(text) = self.copied_text.take() {
             ctx.copy_text(text);
+        }
+        if let Some(png) = self.copied_image.take() {
+            ctx.copy_image(png);
         }
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
@@ -1909,8 +1961,8 @@ impl Document {
             space: given.space,
         };
         let moved = out.insert(id, placed) != Some(placed);
-        let space = out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
-        if moved || space {
+        out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
+        if moved {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
         if moved {
@@ -1958,7 +2010,7 @@ impl Document {
             .painters
             .insert(id, held)
             .map(|held| (held.given.clip, held.culled));
-        if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
+        if previous != Some(placed) || previous_held.map(|(_, was)| was) != Some(culled) {
             let parent = self.layout_parent;
             self.accessibility_tree
                 .get_mut()
@@ -1968,6 +2020,9 @@ impl Document {
             || previous_held.map(|(_, was)| was) != Some(culled)
         {
             self.repaint_painter_of(id);
+        }
+        if previous.is_some_and(|previous| previous.rect.size() != rect.size()) {
+            self.arena.note_relaid(id);
         }
         if culled {
             let mut dropped = Vec::new();
@@ -2075,12 +2130,25 @@ impl Document {
         clip: Rect,
         out: &Rects,
     ) -> Painter {
+        self.enter_zoomed_space(host, slot, painter, translation, Zoom::NONE, clip, out)
+    }
+
+    pub fn enter_zoomed_space(
+        &mut self,
+        host: NodeId,
+        slot: u8,
+        painter: &Painter,
+        translation: Vec2,
+        zoom: Zoom,
+        clip: Rect,
+        out: &Rects,
+    ) -> Painter {
         let space = SpaceId::inside(host, slot);
-        let entered = painter.shifted(space, translation, clip);
+        let entered = painter.zoomed(space, translation, zoom, clip);
         let state = painter.state();
         let kept = state.clip.intersect(clip);
-        if out.set_space(space, state.space, translation, kept) {
-            self.accessibility_tree.get_mut().mark(host, &self.arena);
+        if out.set_scaled_space(space, state.space, translation, zoom.scale, kept) {
+            self.accessibility_tree.get_mut().move_space(space);
         }
         entered
     }
@@ -2241,6 +2309,8 @@ impl Document {
             });
         }
         self.placing.clear();
+        self.canvas_moves_from += self.canvas_moves.len() as u64;
+        self.canvas_moves.clear();
         self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
         self.layout_pass = self.layout_pass.wrapping_add(1);
@@ -2300,8 +2370,10 @@ impl Document {
             else {
                 continue;
             };
+            let transform = rects.transform(held.given.space);
             let state = PainterState {
-                origin: rects.offset(held.given.space),
+                origin: transform.offset,
+                scale: transform.scale,
                 space_clip: rects.space_clip(held.given.space),
                 ..held.given
             };

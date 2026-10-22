@@ -1,5 +1,4 @@
 use crate::base::back::BackNode;
-use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
@@ -417,8 +416,9 @@ impl Document {
             .filter(|other| *other != overlay && self.is_within(other.id(), overlay.id()))
             .collect();
         for id in std::iter::once(overlay).chain(nested.iter().copied()) {
-            self.arena.get_mut_as::<OverlayNode>(id).open = false;
-            self.arena.invalidate_node(id);
+            let node = self.arena.get_mut_as::<OverlayNode>(id);
+            node.open = false;
+            node.content = None;
         }
         self.layer_state
             .open
@@ -460,27 +460,30 @@ impl Document {
     }
 
     pub(crate) fn live(&self, node: NodeId) -> bool {
-        let mut current = Some(node);
+        let mut id = node;
         for _ in 0..ANCESTOR_LIMIT {
-            let Some(id) = current else {
-                return false;
-            };
             if Some(id) == self.root {
                 return true;
             }
             let element = self.arena.get(id);
             if element
                 .as_any()
-                .downcast_ref::<FrameNode>()
-                .is_some_and(|frame| !frame.visible)
-                || element
-                    .as_any()
-                    .downcast_ref::<OverlayNode>()
-                    .is_some_and(|overlay| !overlay.open)
+                .downcast_ref::<OverlayNode>()
+                .is_some_and(|overlay| !overlay.open)
             {
                 return false;
             }
-            current = self.arena.parent(id);
+            let Some(parent) = self.arena.parent(id) else {
+                return false;
+            };
+            let mut listed = false;
+            self.arena
+                .get(parent)
+                .for_each_child(&mut |child| listed |= child == id);
+            if !listed {
+                return false;
+            }
+            id = parent;
         }
         false
     }

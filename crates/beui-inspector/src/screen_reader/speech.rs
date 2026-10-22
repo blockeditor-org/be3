@@ -29,8 +29,13 @@ pub(super) fn control(node: &AccessNode) -> bool {
             || node.supports_action(Action::SetValue))
 }
 
-pub(super) fn scrollable(node: &AccessNode) -> bool {
-    node.supports_action(Action::ScrollUp) || node.supports_action(Action::ScrollDown)
+pub(super) fn scrolls(node: &AccessNode) -> Option<(Action, Action)> {
+    [
+        (Action::ScrollUp, Action::ScrollDown),
+        (Action::ScrollLeft, Action::ScrollRight),
+    ]
+    .into_iter()
+    .find(|(back, forth)| node.supports_action(*back) || node.supports_action(*forth))
 }
 
 pub(super) fn adjustable(node: &AccessNode) -> bool {

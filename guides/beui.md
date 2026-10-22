@@ -63,7 +63,8 @@ or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
-`checked` state (`Some` makes it a check box item, ticked when true), a
+`checked` state (`Some` makes it a check box item, or a radio item with
+`radio`, ticked when true; an `action`'s own tick by default), a
 disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu or page items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
@@ -107,8 +108,13 @@ When part of the tree depends on something, express it in the view rather than
 in Rust control flow around it. `Show` takes a condition, builds its children each
 time it becomes true and disposes of them when it turns false, as SolidJS's does.
 Both it and `ShowKeepAlive` accept sibling children and components returning
-`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once, keeps
-their identities while hidden, and pauses their effects until shown again.
+`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once and,
+while hidden, takes them out of the tree but keeps their identities and pauses
+their effects until shown again. A memo is worked out when it is read, so what
+reads one from outside is never stale. Showing it again runs each effect whose
+sources changed while it was hidden once, with their current values, even when
+a memo it reads came back to what it was, so a controlled prop such as
+`focused` that went false and true again takes the focus back.
 Use it for a tab panel whose scroll position and state should survive switching away.
 `Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
@@ -337,8 +343,12 @@ hooks the higher crates fill in:
   did, whether the app asked or not, which the app reads as
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
   adapter is always fullscreen; Android and plugins say nothing.
-  The clipboard is the platform's: `Context::copy_text` writes it,
-  `Context::watch_copies` hears every copy (which is how be-wayland hands the
+  The clipboard is the platform's: `Context::copy_text` writes it, and
+  `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
+  (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,
+  a plugin through its host's `EditorMessage::CopyImage`, the headless
+  `Simulation`, which pastes it back as `Pasted::Image`; Android and DRM drop
+  it). `Context::watch_copies` hears every text copy (which is how be-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.
   The focus says what it takes: an `Interactive`'s `pastes` lists the
   `PasteKind`s (text, image) in the order it prefers them, and one with only
@@ -361,7 +371,39 @@ hooks the higher crates fill in:
   `Keystroke` (the key, its text and scancode, with no modifiers), a
   `ScrollDelta` in pixels, lines (`SCROLL_LINE` points) or pages
   (`SCROLL_PAGE`), or a `Pinch` (a Ctrl-wheel, as a `ScrollDelta`, which
-  becomes `Event::Zoom` at `PINCH_SPEED` per point). `Input::logical` wraps
+  becomes `Event::Zoom` at `PINCH_SPEED` per point). A trackpad's two-finger
+  scroll is a scroll and its pinch an `Event::Zoom` on every platform: winit's
+  `PinchGesture`, and in the browser a Ctrl-wheel (how Chrome and Firefox
+  report a pinch) or Safari's `gesturechange`, whose scale over the last one's
+  is the factor; the web adapter ignores a gesture while fingers are down,
+  since those touches pinch already, and prevents the default of all of them
+  so the browser never zooms the page. Every pointer sample is an event of its
+  own: the web adapter pushes each of a `pointermove`'s
+  `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
+  per sample, so a stroke keeps every point the device reported between two
+  frames. After a pressed move it pushes `Event::Predicted` with the last of
+  `getPredictedEvents()`, where the pointer is expected to be by the next
+  frame; the runner attaches it to the move just before it as
+  `PointerEvent::predicted`, and the drag it makes carries it as
+  `PointerPress::predicted`. A prediction is only good until the next sample
+  replaces it, so a component draws it as a transient tail (the canvas's pen
+  tool does) and never keeps it; the other platforms report none, and a
+  plugin's host forwards it as `InputEvent::Predicted`. Each sample also has
+  the time it happened: an adapter pushes `Event::Time(Instant)` just after
+  the event it stamps, and the runner gives it to that event's
+  `PointerEvent::time`, the session it moves and the `PointerPress::time` its
+  catchers hear (touch fling velocity is measured with it too). The web
+  adapter reads `timeStamp` from each coalesced `PointerEvent`, Android sends
+  every historical sample of a `MotionEvent` with its own event time, the DRM
+  adapter reads libinput's, and winit, which reports none, stamps an event
+  when it arrives. An event pushed without one, as tests and drive push
+  them, happens at the frame clock's `now`, so a test steps time by stepping
+  frames. An `Interactive` with `every_sample` (a `Prop<bool>`, set while it
+  needs them, as the canvas's pen does for a stroke) asks for every sample
+  where a host would otherwise coalesce them: `Document::wants_every_sample`
+  is true while one is in the document, and a plugin reports it to its host
+  (`FrameReport::every_sample`). Within beui itself every sample always reaches
+  `on_drag`. `Input::logical` wraps
   any of them whose pixels are the window's logical ones (physical pixels
   over the scale it last reported: the browser's CSS pixels), so the runner
   converts them with the same scale the frame lays out at and no adapter
@@ -382,7 +424,11 @@ hooks the higher crates fill in:
   embeds to describe itself only while something is listening. A document
   describes again only the nodes a change or a move reached, and passes over a
   subtree nothing in it changed (`FrameWork::walked_nodes` counts what it
-  visited).
+  visited). Each node is placed relative to its accessible parent in the
+  coordinates of the space it was laid out in, and each space a node lays
+  children into (`Document::enter_space`, a scroll's content, a canvas's
+  spaces) is a `GenericContainer` whose transform is the space's translation
+  and scale, so a scroll or pan changes only that node.
   `Frame::wait` is how long the adapter may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.
@@ -486,7 +532,10 @@ arrangement of nodes that says the same thing: a row of labels is a `List` of
 `Text`, not a `Drawing`. It measures to nothing, so it takes its size from
 whatever places it - a `Frame` with a width and a height, or a `CanvasItem` -
 unless it is given a `size`, which it measures to, scaled down to the width it
-is offered and keeping its shape, as an image does.
+is offered and keeping its shape, as an image does. A sized `Drawing` clips its
+callback to the rectangle it gets, so a callback that draws in the units of its
+`size` scales itself into that rectangle (`painter.transformed(offset, scale)`,
+as the demo's Paths page does) rather than spilling past it.
 
 Text is never one of those. A base `Text` takes concrete values and knows
 nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
@@ -581,12 +630,22 @@ button), `.align(..)` overrides the list's `align` for that child, and
 `@sizing={ItemSize::Percent(100.0).max(320.0)}`.
 
 `Frame` combines optional sizing, an aspect ratio it centres
-its box within, padding, fill, outline, and visibility on one retained node,
+its box within, padding, fill and outline on one retained node,
 each concern one prop. `width` and `height` take an `Extent`: an exact length
 (`Extent::px`, or a plain `f32`), a share of the space offered when it is
-bounded (`Extent::fraction`), and `.min(..)` and `.max(..)` bounds, so
-`Extent::at_most(320.0)` fills its room up to 320; a memo of `Option<f32>`
-hands an axis back to intrinsic measuring when it is `None`. `padding` takes
+bounded (`Extent::fraction`), and `.min(..)` and `.max(..)` bounds. A `max`
+caps the room the frame takes, not its content: like CSS `max-width` on a
+block, `Extent::at_most(320.0)` is as wide as the space it is offered, up to
+320, however little its content needs (a dialog, a settings column). A box as
+wide as its content up to a cap (a menu, a tooltip) is a list child sized
+`@sizing={ItemSize::Intrinsic.max(320.0)}`, in a horizontal `List` if it has
+no list around it; `ItemSize::Intrinsic.min(..)` gives it a floor. A memo of
+`Option<f32>` hands an axis back to intrinsic measuring when it is `None`.
+Nothing is hidden while it stays in the tree: what shows only some of the
+time goes in a `Show`, or a `ShowKeepAlive` when it should keep its state
+while it is gone, so it takes no room, no spacing, no focus and no place in
+the accessibility tree. In a single-child slot like a `Frame`'s, put the
+`Show` in a `Layers`, which fills the slot as the child would. `padding` takes
 `Sides` (`Sides::all`, `symmetric`, `horizontal`, `vertical`, then `.left(..)`
 and its siblings to override one side). `align` takes an `Align2` (a plain
 `Align` sets both axes) and places a child smaller than the frame inside it
@@ -646,9 +705,11 @@ its one child faded out toward each edge over the widths its `edges` name. `Shif
 lays its child out moved `by` a vector without moving the space it takes, and
 paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
 paints its child turned clockwise by `quarter_turns` about the middle of its box, which
-takes the child's size with width and height swapped for an odd number of turns; pointer
+takes the child's size with width and height swapped for an odd number of turns, and
+further by `angle` radians, which leaves the box as it is; clips inside it grow to the
+upright bounds of what they clip, so nothing turned is cut off. Pointer
 input and the accessibility tree still see the child unturned, so it is for pictures, such
-as a preview of a turned screen, not for controls. `VirtualList` is an ordinary box that stands for
+as a preview of a turned screen or a canvas's turned text, not for controls. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -695,8 +756,12 @@ rather than a document: no whitespace markers and no document padding, with
 the weight, horizontal alignment, padding around each line, wrapping, and where
 the lines sit when they are shorter than the area that it names.
 `measure_prose` measures text exactly as such an area lays it out, so a caller
-can size a box to it; the infinite canvas draws its text entities this way, as
-the same field whether or not they are being edited. A document whose language is
+can size a box to it. The infinite canvas sizes its text entities this way and
+draws each text and label as a read-only rich `TextArea` over a `LiveText`, the
+same area whether or not it is being edited. A `TextArea` takes its view size
+from its own layout, not from where it lands on screen, so one inside a scaled
+`CanvasItem` is not laid out again when the view pans or zooms; a
+`VirtualList` reads the clip only while some of its rows lie outside it. A document whose language is
 `TextLanguage::RichText` is rich text, structured the way Slate structures one: the document
 knows nothing of bold or headings, a `Schema` (text-editor-core `schema.rs`) gives keys their
 meaning, and the page renders the result. The bytes are the text alone, and every line is a
@@ -735,7 +800,7 @@ or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
 unstyled one without a sheet stays a dropdown. An item's children cascade as a
-submenu, or with `page` open in place of the menu as a page led by a back row
+submenu in a dropdown; in a sheet, or with `page`, they open in place of the menu as a page led by a back row
 titled by the item (`<id>.back` for an item with a `row_test_id`); Left, Escape
 and the back row return to the item, and the dropdown or sheet resizes to each
 page. `then` says what choosing an item does: `MenuThen::Close` (the default),
@@ -745,14 +810,22 @@ tiles in `columns`, which the arrow keys walk in two dimensions and leave for
 the rows above and below. A page of rows with a `depth` is a tree: `expanded`,
 a `Binding<Option<bool>>` (`None` for a leaf), draws the chevron, Right and Left
 and the chevron write `Some(open)` to it, and the caller shows the rows of open
-branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
-a page opens with the keyboard on that row. `lead` is a few muted words before
+branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check (with
+`radio` it is read as one choice of a group), and
+a page opens with the keyboard on that row. A row with an `action` takes its
+label, glyph, enabled state, tick and first shortcut (drawn muted at the row's
+end, or `shortcut` given) from it. `MenuNodes` builds the rows from a
+description of actions, submenus and separators (`MenuNode`, see
+guides/beui_keyboard.md, Actions and the command palette), each row's test id
+`<test_prefix>.<id>`, so one description fills a context menu, the dock's More
+menu and a plugin's frame menu. `lead` is a few muted words before
 an item's icon on the same line, read with its label (`New in` before a folder's
-name). The dropdown is never taller than a fixed height
-and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
+name). The dropdown is as wide as its widest row, between a least width and a
+greatest one past which labels end in an ellipsis, is never taller than a fixed
+height, and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
 shows while `open` holds, under `anchor` at `placement`, as the sheet while
-`sheet` holds, `width` wide, and reports `on_dismiss` for Escape or a press
+`sheet` holds, at least `min_width` wide, and reports `on_dismiss` for Escape or a press
 outside. A host that opens one for a plugin's button (block-app's app menu)
 anchors it to the button's rect, which the plugin sends from `node_anchor`, and
 sets `sheet` from `last_pointer` (`Document::last_pointer`): the host routed that
@@ -884,7 +957,11 @@ parent's painter: it keeps its rect, so `node_rect`, `reveal_node` and
 placement signals still find it, but nothing inside it is laid out, painted or
 interacted with (`Document::is_culled` says which). This holds for the children
 of any container, and the node holding the focus and its ancestors and
-descendants are never culled. Each placement records its `Sight`, the range of
+descendants are never culled. A `Canvas`, which lays out only the items its
+view reaches, likewise always lays out the item holding the focus, so a field
+panned out of sight or under an on-screen keyboard keeps the focus and keeps
+asking for its input method instead of the keyboard closing and reopening as
+the field leaves and returns. Each placement records its `Sight`, the range of
 visible regions it stays right for (a node that reads its space through the
 painter is right only exactly where it was), and a parent's sight takes in its
 children's, so a scroll lays a subtree out again only once a node in it crosses
@@ -1237,7 +1314,7 @@ motion are independent preferences, even for the e-paper theme.
 
 ### Preferences
 
-`Preferences` (a `ThemeKind` and a `Motion`) is what every document follows. Their types live
+`Preferences` (a `ThemeKind`, a `Motion` and a `CanvasTouch`) is what every document follows. Their types live
 in `crates/ui-types`, which the plugin protocol shares, so a plugin's preferences are the
 host's without conversion. A `Context` holds three `PreferenceLayer`s, each an `Option` per
 preference, and resolves them top down, falling back to `Preferences::default()`:
@@ -1255,7 +1332,8 @@ preference, and resolves them top down, falling back to `Preferences::default()`
   `BeuiTest::set_preferences`.
 
 Set a layer with `Context::set_preference_layer(source, layer)` and read them with
-`preference_layers()`. Each document mirrors them at the start of a frame;
+`preference_layers()`. Each document mirrors them at the start of a frame (`preferences()`, and
+`watch_theme()`, `watch_motion()` and `watch_canvas_touch()` for one each);
 `Document::watch_preference_layers()` is that, reactively, for settings that show where a value
 comes from. `styled::PreferencesSection` is a settings section over the app layer, with a
 `styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
@@ -1302,13 +1380,23 @@ frame in its content, the overlay moves the content so that frame, not the
 content's padded edge, stands `gap` off the anchor, and points the frame's beak
 at the anchor's middle on whichever side it opened.
 
-Hand an `Overlay` what it shows as `content={move || ...}` rather than as
-children: it calls that the first time it opens, so a closed tooltip, select,
-menu or prompt costs its overlay node and nothing else. Children are built with
-the overlay, whether or not it ever opens; use them only for content that must
-exist while closed. State the rest of the component reads, such as which rows
-a select's search hides, belongs outside the content, derived from data rather
-than from nodes that may not have been built.
+An `Overlay`'s children (or `content={move || ...}`) are built when it opens
+and taken out of the tree when it closes, like a `Show`: a closed tooltip,
+select, menu or prompt costs its overlay node and nothing else, and nothing in
+it is focusable, hit or in the accessibility tree. `keep_alive=true` makes it a
+`ShowKeepAlive` instead: built the first time it opens, then kept with its
+state while closed (a dialog, a popover, a dock's window). Its children are
+built more than once, so they are an `Fn`; a component holding a `Render` it
+can call only once hands it over as `render.once()` to a `keep_alive` overlay,
+which never calls it twice. State the rest of the component reads, such as
+which rows a select's search hides, belongs outside the content, derived from
+data rather than from nodes that may not have been built.
+
+A close that animates is the overlay's business, not its owner's: the content
+calls `use_overlay_presence()` and hands `linger_while` a memo that stays true
+until its exit has finished, and the overlay stays open and keeps the content
+until then, so its owner writes `open` false and sees nothing hidden in
+between. `ModalSheet` slides away this way.
 
 Each layer has one `policy` (`LayerPolicy`):
 
@@ -1356,8 +1444,9 @@ dismissed. There is one request for each reason, sent to one layer:
   on the tap, so a scroll that starts outside a layer leaves it open.
 
 Inside the layer it is sent to, a request goes to the most recently made
-enabled `BackHandler` in that layer first, and to `on_dismiss` only when there
-is none, so Escape, back and a press outside all play the same slide-away.
+enabled `BackHandler` in that layer that is in the tree (not in hidden
+`ShowKeepAlive` content or a closed overlay) first, and to `on_dismiss` only
+when there is none, so Escape, back and a press outside all play the same slide-away.
 An overlay closed because the one it is nested in closed is told so after the
 fact, as `Dismiss::WithParent`. Its owner writing `open` false
 (`Document::close_overlay`) runs nothing, so a prompt whose dismiss means
@@ -1484,6 +1573,16 @@ not these), which is how the host hands an embedded editor's active
 child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
+
+A canvas a pen draws on is an `Interactive` with `drawing` (or `drawing_at` per
+point). While the `canvas_touch` preference is `CanvasTouch::Off`, a finger that
+lands on one reaches nothing at all: no press, drag, long press, scroll or pinch,
+for that node or any around it, until it lifts. A pen, a mouse and a touchpad
+are untouched, and so is a finger on anything the drawing surface does not
+hold, its floating chrome among them. It is a switch the person turns rather
+than palm rejection, which guesses. `Document::drawing_rects` lists the
+`drawing` rectangles, which a plugin reports to its host (`FrameReport::drawing`)
+so the host keeps the finger from the plugin, and from its own pan and zoom, too.
 
 `unstyled::Tree` makes the same split the other way round. A row is a tab stop
 with the tree's keyboard and its `TreeItem` accessibility, and nothing more:
@@ -2021,8 +2120,9 @@ with two fingers pans, and Ctrl+scroll, a trackpad pinch or a two-finger pinch
 zooms around the pointer or the point between the fingers. It is a tab stop as
 well: the arrows pan it, `+` and `-` zoom around the middle of the viewport,
 and `0` returns the scale to one. The handle carries the camera as a
-`CanvasView` ready for a `<Canvas>`, the `scale` for content that should grow
-with the zoom, whether a pan is in progress, and whether it has focus, which is
+`CanvasView` ready for a `<Canvas>`, the `scale` for interactive content that should grow
+with the zoom (content that only draws is a `CanvasItem scales=true` instead,
+guides/pan_and_zoom.md), whether a pan is in progress, and whether it has focus, which is
 what a caller paints a focus ring from. Because the view is the caller's, a toolbar button, a fit command or
 a host that syncs several editors writes the same signal the gestures do; the
 camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
@@ -2625,7 +2725,7 @@ namespace so a component can name its props whatever it likes:
   text of its own still gets one, a `GenericContainer`. So test ids reach
   `FrameOutput::test_id_rect`, `drive` and a plugin's description by the same
   incremental path as the rest of the tree, and only where the tree shows the
-  node: not under a hidden frame or a closed overlay. `Document::find_test_id`
+  node: not under a closed overlay. `Document::find_test_id`
   finds the node itself.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.
@@ -2770,9 +2870,22 @@ by that input under way while the document lays out.
 Revealing something in a scroll is resolved inside the scroll's own layout:
 `reveal_node` and `reveal_focus` leave a request on each enclosing `Offset`,
 which lays its content out, finds the target (or its nearest placed ancestor)
-and moves itself until the target is in view. A node's parent is the node whose
-`children` lists it; the arena learns it when that node changes, not from the
-layout walk.
+and moves itself until the target is in view. A `Canvas` cannot move itself,
+since its view belongs to whoever hands it one, so it takes the same request
+and answers through its `on_reveal` callback: after each layout at a new view
+it measures the target (or, when that does not fit, the focused text's caret)
+against its own rect less the floating layers over it (a dock, a zoom pill),
+and calls `on_reveal(delta)` with the least pan that brings it into view. It
+keeps measuring at each new view the owner pans to, for up to a second and
+only while the distance shrinks, so the owner can ease there a step at a time
+(the infinite canvas pans 35% of each delta, or all of it under reduced motion)
+and a view that also moved for another reason (an editor following its
+content after a resize) is measured as it is, never panned twice. Besides
+`reveal_node` and a resize while text has the focus, a canvas reveals text as
+the focus enters it, so text placed at a canvas's edge is moved into view; a
+scroll does not, as a long text area clicked partway down would jump to its
+top. A node's parent is the node whose `children` lists it; the arena learns it
+when that node changes, not from the layout walk.
 
 ### Update a document from outside its events
 
@@ -2921,8 +3034,9 @@ callback accepts). Every catcher it reached that
 handles presses arms: it hears `on_press`, `on_drag` wherever the pointer goes
 (once in the frame of the press too), and `on_click` when it is let go over the
 catcher, or for a finger, let go without having been dragged. The press then
-focuses the innermost focusable catcher it reached, or clears the focus,
-unless it was claimed or captured: those leave the focus to their catcher. A
+focuses the innermost focusable catcher it reached, or clears the focus;
+a claimed or captured press that reached no focusable catcher leaves the focus
+where it was. A
 secondary press reaches every catcher on the path that takes one, and a middle
 press the innermost that pans, autoscrolls or forwards.
 
@@ -3054,7 +3168,9 @@ rather than designed: labels on a zoomable canvas, a terminal, a game board.
 `Theme::OLED` (dark on pure black, so OLED screens leave most pixels off),
 `Theme::LIGHT`, and `Theme::EPAPER`, one for each `ThemeKind`; `Theme::of(kind)` picks one,
 and a theme's `kind` says which it is, for code that must tell them apart without comparing
-colors. Styled components that no provider covers use the document's theme, the one its
+colors. What dims the app under an overlay is a theme colour too: `scrim` under a dialog,
+sheet or dock dialog, `scrim_soft` under the command palette and launcher, which leave
+the app readable, and `scrim_strong` under `Fullscreen`. Styled components that no provider covers use the document's theme, the one its
 preferences choose (Preferences, above); `theme()` from the `styled::DocumentTheme` trait reads
 it, for example to pick an app's clear color.
 

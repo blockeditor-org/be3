@@ -634,8 +634,11 @@ impl Document {
             .insert(OverlayNode::new(scrim, anchor, placement))
     }
 
-    pub fn set_overlay_content(&mut self, overlay: NodeOf<OverlayNode>, content: NodeId) {
-        self.arena.get_mut_as::<OverlayNode>(overlay).content = Some(content);
+    pub fn set_overlay_content(&mut self, overlay: NodeOf<OverlayNode>, content: Option<NodeId>) {
+        if self.arena.get_as::<OverlayNode>(overlay).content != content {
+            self.arena.get_mut_as::<OverlayNode>(overlay).content = content;
+            self.layers_changed();
+        }
     }
 
     pub fn set_overlay_anchor(&mut self, overlay: NodeOf<OverlayNode>, anchor: OverlayAnchor) {

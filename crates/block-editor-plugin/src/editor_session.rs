@@ -181,7 +181,11 @@ impl EditorSession {
         self.host.set_peers(block, peers);
     }
 
-    pub(crate) fn push_content_operations(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
+    pub(crate) fn push_content_operations(
+        &self,
+        block: Uuid,
+        operations: Vec<block_plugin_api::ContentOperation>,
+    ) {
         match self.own_block == Some(block) {
             true => self.host.push_content_operations(operations),
             false => self.host.push_content_operations_of(block, operations),
@@ -252,8 +256,8 @@ impl EditorSession {
         }));
     }
 
-    pub(crate) fn set_view(&self, view: Rect, scale: f32) {
-        self.host.set_view(view, scale);
+    pub(crate) fn set_view(&self, view: Rect, scale: f32, moved: bool) {
+        self.host.set_view(view, scale, moved);
     }
 
     pub(crate) fn resized(&mut self, size: Vec2) {
@@ -416,14 +420,22 @@ impl EditorSession {
                 queries: queries.into_iter().map(crate::BlockQuery::encode).collect(),
             }));
         }
-        for (block, operation) in self.host.take_all_content_operations() {
+        for (block, outgoing) in self.host.take_all_content_operations() {
             let Some(block) = block.or(self.own_block) else {
                 continue;
             };
-            messages.push(Message::Editor(EditorMessage::Operate {
-                instance,
-                block_id: block.into_bytes(),
-                operation,
+            let block_id = block.into_bytes();
+            messages.push(Message::Editor(match outgoing {
+                crate::host::Outgoing::Operation(operation) => EditorMessage::Operate {
+                    instance,
+                    block_id,
+                    operation,
+                },
+                crate::host::Outgoing::Gesture(phase) => EditorMessage::Gesture {
+                    instance,
+                    block_id,
+                    phase,
+                },
             }));
         }
         for block in self.host.take_content_resend_requests() {
@@ -577,6 +589,9 @@ impl EditorSession {
         }
         for text in self.host.take_copied_text() {
             messages.push(Message::Editor(EditorMessage::CopyText { instance, text }));
+        }
+        for png in self.host.take_copied_images() {
+            messages.push(Message::Editor(EditorMessage::CopyImage { instance, png }));
         }
         if self.host.take_paste_request() {
             messages.push(Message::Editor(EditorMessage::Paste { instance }));
@@ -1022,6 +1037,8 @@ impl EditorSession {
                 content: reported(reported_content),
                 painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: frame.floating.iter().map(|rect| reported(*rect)).collect(),
+                drawing: frame.drawing.iter().map(|rect| reported(*rect)).collect(),
+                every_sample: frame.every_sample,
                 claims: frame
                     .claims
                     .iter()

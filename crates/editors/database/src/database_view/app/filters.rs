@@ -639,9 +639,9 @@ fn ValueChoices(
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Frame visible={marked}>
+                                <Show condition={marked}>
                                     <ChoiceMark option={option} size=MARK />
-                                </Frame>
+                                </Show>
                                 <Checkbox
                                     @sizing={block_editor_beui::beui::reactive::ItemSize::Percent(100.0).shrink(1.0)}
                                     label={label}

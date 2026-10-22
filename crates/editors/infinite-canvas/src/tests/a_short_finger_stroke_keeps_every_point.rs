@@ -17,17 +17,11 @@ fn a_short_finger_stroke_keeps_every_point() {
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the stroke adds one entity");
-    let CanvasEntityKind::Pen { points, .. } = &entities[0].kind else {
-        panic!("the stroke is a pen entity");
-    };
-    let drawn: Vec<CanvasPoint> = points
+    assert_eq!(entities[0].shape, CanvasShape::Freehand);
+    let drawn: Vec<CanvasPoint> = entities[0]
+        .world_points()
         .iter()
-        .map(|point| {
-            CanvasPoint::new(
-                entities[0].transform.center.x + point.x * entities[0].transform.size.x,
-                entities[0].transform.center.y + point.y * entities[0].transform.size.y,
-            )
-        })
+        .map(|point| point.at())
         .collect();
     let start = drawn[0];
     let end = drawn[drawn.len() - 1];

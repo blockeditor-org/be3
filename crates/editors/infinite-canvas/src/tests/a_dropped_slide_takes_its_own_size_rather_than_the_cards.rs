@@ -55,9 +55,12 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
     let [card] = entities(&editor)
         .try_into()
         .expect("the drop added one card");
-    let CanvasEntityKind::DirectEditor { scale, .. } = card.kind else {
-        panic!("the dropped block is not a direct editor");
-    };
+    assert_eq!(
+        card.shape,
+        CanvasShape::Editor,
+        "the dropped block is a direct editor"
+    );
+    let scale = card.scale;
     let content = crate::geometry::direct_editor_layout(&card)
         .expect("a direct editor has a layout")
         .content

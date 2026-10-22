@@ -103,11 +103,11 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                                 >
                                     <Picture image={lighting} fit=ImageFit::Fill smooth=false />
                                 </CanvasItem>
-                                <CanvasItem x={left} y={top} width={side} height={side}>
-                                    <Frame visible={tracing}>
+                                <Show condition={tracing}>
+                                    <CanvasItem x={left} y={top} width={side} height={side}>
                                         <Picture image={rays} fit=ImageFit::Fill smooth=false />
-                                    </Frame>
-                                </CanvasItem>
+                                    </CanvasItem>
+                                </Show>
                                 <CanvasItem x={left} y={top} width={side} height={side}>
                                     <Drawing draw={overlay} />
                                 </CanvasItem>

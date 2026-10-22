@@ -33,7 +33,6 @@ pub fn Frame(
     #[prop(default = None)] outline: Prop<Option<Outline>>,
     #[prop(default = None)] shadow: Prop<Option<Shadow>>,
     #[prop(default = 0.0)] pointer: Prop<f32>,
-    #[prop(default = true)] visible: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = with_document(|document| {
@@ -58,6 +57,5 @@ pub fn Frame(
         };
         with_document(|document| document.set_frame_style(frame, style));
     });
-    bind(frame, visible, Document::set_visible);
     frame.id()
 }

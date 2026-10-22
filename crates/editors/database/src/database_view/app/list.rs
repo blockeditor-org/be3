@@ -117,7 +117,7 @@ pub fn RowBeside(
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Layers @sizing=ItemSize::Percent(100.0)>
-                <Frame visible={main_shown}>{children}</Frame>
+                <ShowKeepAlive condition={main_shown}>{children}</ShowKeepAlive>
                 <Show condition={instead}>
                     <OpenRow data={data} row={selected} />
                 </Show>
@@ -223,9 +223,9 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                     @test_id={format!("database-view.group.{test_key}.toggle")}
                     on_click={toggle}
                 />
-                <Frame visible={marked}>
+                <Show condition={marked}>
                     <ChoiceMark option={option} size=MARK />
-                </Frame>
+                </Show>
                 <Text>{label}</Text>
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
@@ -421,9 +421,11 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
                 let set = create_memo(move || option.with(Option::is_some));
                 view! {
                     <Frame width=MARK_SIZE height=MARK_SIZE>
-                        <Frame visible={set}>
-                            <ChoiceMark option={option} size=MARK />
-                        </Frame>
+                        <Layers>
+                            <Show condition={set}>
+                                <ChoiceMark option={option} size=MARK />
+                            </Show>
+                        </Layers>
                     </Frame>
                 }
             }</ForEach>

@@ -1,6 +1,6 @@
 use block_editor_beui::{
     BarAction, ChildStatus, EditorCapabilities, EditorInstanceId, EditorRegion, InteractionMode,
-    MenuEntry, ResizeMode, TopBar,
+    MenuCommand, MenuEntry, ResizeMode, TopBar,
 };
 
 use super::*;
@@ -114,12 +114,12 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         resize: ResizeMode::None,
         error: None,
         menu: match placement.child == child {
-            true => vec![MenuEntry {
+            true => vec![MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
-                glyph: String::new(),
                 enabled: true,
-            }],
+                ..MenuCommand::default()
+            })],
             false => Vec::new(),
         },
         creation: None,

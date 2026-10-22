@@ -29,9 +29,6 @@ pub fn WindowView(
                 if let Some(node) = catcher.try_get() {
                     windows.caught_by(id, node);
                 }
-                if let Some(node) = popup_catcher.try_get() {
-                    windows.popups_caught_by(id, node);
-                }
             });
             let list = windows.list();
             let inhibits = create_memo(move || {
@@ -115,26 +112,36 @@ pub fn WindowView(
                         traps_focus=false
                         open={open}
                     >
-                        <Frame width=width height=height>
-                            <Interactive
-                                @node_ref={&popup_catcher}
-                                focusable=true
-                                press_focus=false
-                                tab_stop=false
-                                @test_id={format!("wayland.popups.{}", id.0)}
-                                cursor={popup_cursor}
-                                on_forward={into_window}
-                                hit_at={on_popup}
-                            >
-                                <Drawing
-                                    draw={Prop::dynamic(move || {
-                                        draw_gpu(popups.with(|popups| {
-                                            popups.as_ref().map(|popups| popups.drawing.clone())
-                                        }))
-                                    })}
-                                />
-                            </Interactive>
-                        </Frame>
+                        {{
+                            create_effect(move || {
+                                rect.get();
+                                if let Some(node) = popup_catcher.try_get() {
+                                    windows.popups_caught_by(id, node);
+                                }
+                            });
+                            view! {
+                                <Frame width=width height=height>
+                                    <Interactive
+                                        @node_ref={&popup_catcher}
+                                        focusable=true
+                                        press_focus=false
+                                        tab_stop=false
+                                        @test_id={format!("wayland.popups.{}", id.0)}
+                                        cursor={popup_cursor}
+                                        on_forward={into_window}
+                                        hit_at={on_popup}
+                                    >
+                                        <Drawing
+                                            draw={Prop::dynamic(move || {
+                                                draw_gpu(popups.with(|popups| {
+                                                    popups.as_ref().map(|popups| popups.drawing.clone())
+                                                }))
+                                            })}
+                                        />
+                                    </Interactive>
+                                </Frame>
+                            }
+                        }}
                     </Overlay>
                 </Layers>
             };

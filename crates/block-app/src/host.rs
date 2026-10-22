@@ -56,6 +56,7 @@ pub(crate) enum HostCommand {
 struct Output {
     fullscreen: Option<bool>,
     copied: Option<String>,
+    copied_image: Option<Vec<u8>>,
     file_picks: Vec<(FileFilter, PickSlot)>,
     paste: bool,
     grab: Option<bool>,
@@ -69,6 +70,7 @@ struct Host {
     now: Duration,
     pass: u64,
     seen: bool,
+    clock_stopped: bool,
     pixels_per_point: f32,
     screen_scale: f32,
     preferences: block_plugin_api::Preferences,
@@ -84,6 +86,7 @@ impl Default for Host {
             now: Duration::ZERO,
             pass: 0,
             seen: true,
+            clock_stopped: false,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             preferences: block_plugin_api::Preferences::default(),
@@ -101,6 +104,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 struct Frame {
     now: Option<Instant>,
     seen: bool,
+    clock_stopped: bool,
     preferences: block_plugin_api::Preferences,
     pixels_per_point: f32,
     screen_scale: f32,
@@ -111,6 +115,7 @@ impl Default for Frame {
         Self {
             now: None,
             seen: true,
+            clock_stopped: false,
             preferences: block_plugin_api::Preferences::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -136,6 +141,7 @@ pub(crate) fn begin(context: &beui::Context) {
     let mut frame = Frame {
         now: Some(context.now()),
         seen: context.seen(),
+        clock_stopped: context.clock_stopped(),
         ..Frame::default()
     };
     frame.preferences = context.preferences();
@@ -156,6 +162,7 @@ fn start(frame: Frame) {
         host.preferences = frame.preferences;
         host.pass += 1;
         host.seen = frame.seen;
+        host.clock_stopped = frame.clock_stopped;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
             host.now = now.saturating_duration_since(started);
@@ -177,6 +184,9 @@ pub(crate) fn end(context: &beui::Context) {
     }
     if let Some(text) = output.copied {
         context.copy_text(text);
+    }
+    if let Some(png) = output.copied_image {
+        context.copy_image(png);
     }
     for (filter, slot) in output.file_picks {
         let id = context.pick_file(filter);
@@ -207,8 +217,20 @@ pub(crate) fn seen() -> bool {
     with(|host| host.seen)
 }
 
+pub(crate) fn clock_stopped() -> bool {
+    with(|host| host.clock_stopped)
+}
+
 pub(crate) fn now() -> Duration {
     with(|host| host.now)
+}
+
+pub(crate) fn micros_at(at: Instant) -> u64 {
+    with(|host| match host.started {
+        Some(started) => at.saturating_duration_since(started),
+        None => host.now,
+    })
+    .as_micros() as u64
 }
 
 pub(crate) fn milliseconds() -> u64 {
@@ -232,7 +254,17 @@ pub(crate) fn set_grab(grab: bool) {
 }
 
 pub(crate) fn copy_text(text: String) {
-    with(|host| host.output.copied = Some(text));
+    with(|host| {
+        host.output.copied_image = None;
+        host.output.copied = Some(text);
+    });
+}
+
+pub(crate) fn copy_image(png: Vec<u8>) {
+    with(|host| {
+        host.output.copied = None;
+        host.output.copied_image = Some(png);
+    });
 }
 
 type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;

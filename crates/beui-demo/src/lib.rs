@@ -1,5 +1,5 @@
 use base_pages::{
-    ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, TextNodesPage,
+    ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
 use beui::KeyAt;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
@@ -7,8 +7,8 @@ use beui::icons::{
     ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
     ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
     ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_FORMAT_BOLD,
-    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU,
-    ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW,
+    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LINE_CURVE, ICON_LINK, ICON_LIST, ICON_LOCK,
+    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW,
     ICON_POWER_SETTINGS_NEW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
     ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
     ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP,
@@ -101,6 +101,7 @@ enum Page {
     Interaction,
     Layering,
     Colors,
+    Paths,
 }
 
 const STYLED_PAGES: [Page; 17] = [
@@ -132,8 +133,9 @@ const UNSTYLED_PAGES: [Page; 6] = [
     Page::Scrolling,
 ];
 
-const BASE_PAGES: [Page; 6] = [
+const BASE_PAGES: [Page; 7] = [
     Page::Frames,
+    Page::Paths,
     Page::TextNodes,
     Page::Lists,
     Page::ControlFlow,
@@ -141,7 +143,7 @@ const BASE_PAGES: [Page; 6] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 29] = [
+const PAGES: [Page; 30] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -166,6 +168,7 @@ const PAGES: [Page; 29] = [
     Page::Dragging,
     Page::Scrolling,
     Page::Frames,
+    Page::Paths,
     Page::TextNodes,
     Page::Lists,
     Page::ControlFlow,
@@ -208,6 +211,7 @@ impl Page {
             Page::Dragging => "Dragging",
             Page::Scrolling => "Scrolling",
             Page::Frames => "Frames",
+            Page::Paths => "Paths",
             Page::TextNodes => "Text nodes",
             Page::Lists => "Lists and grids",
             Page::ControlFlow => "Control flow",
@@ -242,6 +246,7 @@ impl Page {
             Page::Dragging => ICON_DRAG_INDICATOR,
             Page::Scrolling => ICON_SWAP_VERT,
             Page::Frames => ICON_CROP_SQUARE,
+            Page::Paths => ICON_LINE_CURVE,
             Page::TextNodes => ICON_TITLE,
             Page::Lists => ICON_VIEW_COLUMN,
             Page::ControlFlow => ICON_ALT_ROUTE,
@@ -276,6 +281,7 @@ impl Page {
             Page::Dragging => "Draggables and drop targets",
             Page::Scrolling => "Scroll areas and scrollbars",
             Page::Frames => "Fills, outlines, padding, sizes",
+            Page::Paths => "Curves, joins, caps, dashes",
             Page::TextNodes => "Styles, wrapping and spans",
             Page::Lists => "Direction, spacing, tracks",
             Page::ControlFlow => "Show, ForEach and Dynamic",
@@ -767,6 +773,9 @@ fn PageView(page: Page) -> NodeId {
         },
         Page::Frames => view! {
             <FramesPage />
+        },
+        Page::Paths => view! {
+            <PathsPage />
         },
         Page::TextNodes => view! {
             <TextNodesPage />

@@ -22,6 +22,7 @@ pub mod editor_settings;
 pub mod editor_view;
 pub mod folder;
 pub mod game;
+pub mod history;
 pub mod hotbar;
 pub mod image;
 pub mod input_remapper;
@@ -40,6 +41,7 @@ pub mod presentation;
 pub mod profile;
 pub mod setting;
 pub mod settings;
+pub mod settling;
 pub mod streamed;
 pub mod text;
 pub mod version_control;
@@ -88,6 +90,7 @@ pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
 };
+pub use settling::{Landed, Settling};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
@@ -178,6 +181,23 @@ pub trait LiveEdit: BlockContent {
         touched.push(Touched::Everything);
     }
 
+    fn apply_beneath(
+        &mut self,
+        confirmed: &mut Self,
+        operation: &Self::Op,
+        local: &[Self::Op],
+        touched: &mut Vec<Touched>,
+    ) where
+        Self: Clone,
+    {
+        confirmed.apply(operation);
+        *self = confirmed.clone();
+        for pending in local {
+            self.apply(pending);
+        }
+        touched.push(Touched::Everything);
+    }
+
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         let _ = change;
         None
@@ -220,6 +240,8 @@ pub trait Undo: LiveEdit {
         let _ = previous;
         Err(next)
     }
+
+    fn then(previous: &mut Self::Step, next: Self::Step);
 
     fn revert(&self, step: &Self::Step) -> Vec<Self::Op>;
 

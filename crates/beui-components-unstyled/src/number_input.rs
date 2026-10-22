@@ -67,6 +67,7 @@ pub fn NumberInput(
     face: Render<NumberFaceHandle>,
     field: Render<NumberFieldHandle>,
     on_preview: Callback<Option<f64>>,
+    on_scrub: Callback<bool>,
 ) -> NodeId {
     let text = create_signal(format_number(
         value.get_untracked(),
@@ -123,6 +124,9 @@ pub fn NumberInput(
             return;
         };
         held.set(Some((origin, start, true)));
+        if !moved {
+            on_scrub.call(true);
+        }
         let next = next.clamp(min, max);
         text.set(format_number(next, decimals.get_untracked()));
         value.set(next);
@@ -132,11 +136,14 @@ pub fn NumberInput(
             editing.set(true);
         }
     };
-    let clicked = move || {
-        if let Some((_, _, moved)) = held.take()
-            && !moved
-        {
-            open();
+    let clicked = move || match held.take() {
+        Some((_, _, false)) => open(),
+        Some((_, _, true)) => on_scrub.call(false),
+        None => {}
+    };
+    let cancelled = move || {
+        if let Some((_, _, true)) = held.take() {
+            on_scrub.call(false);
         }
     };
 
@@ -155,13 +162,15 @@ pub fn NumberInput(
         let typed = parse(&text.get_untracked())
             .filter(|_| keep)
             .map(|typed| typed.clamp(min, max));
-        let shown = value.get_untracked();
         match typed {
-            Some(typed) if typed != shown => {
+            Some(typed) => {
                 text.set(format_number(typed, decimals.get_untracked()));
-                value.set(typed);
+                value.update(|held| *held = typed);
             }
-            _ => text.set(format_number(shown, decimals.get_untracked())),
+            None => text.set(format_number(
+                value.get_untracked(),
+                decimals.get_untracked(),
+            )),
         }
         on_preview.call(None);
     };
@@ -229,6 +238,7 @@ pub fn NumberInput(
                     on_press={pressed}
                     on_drag={dragged}
                     on_click={clicked}
+                    on_cancel={cancelled}
                     on_hover_change={hovered}
                     on_active_change={active}
                     children={Some(face)}

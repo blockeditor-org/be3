@@ -47,15 +47,15 @@ pub fn PresentationView(editor: Editor) -> NodeId {
         <Interactive focusable=true focused={presenting} on_key={keys}>
             <Frame fill={ColorRole::custom(background)}>
                 <List direction=Direction::Horizontal spacing=0.0>
-                    <Filmstrip editor={editor} slides={slides} shown={editing} />
-                    <Frame visible={editing} width=theme::BORDER_WIDTH fill=ColorRole::Border />
+                    <ShowKeepAlive condition={editing}>
+                        <Filmstrip editor={editor} slides={slides} />
+                        <Frame width=theme::BORDER_WIDTH fill=ColorRole::Border />
+                    </ShowKeepAlive>
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Toolbar editor={editor} slides={slides} shown={editing} />
-                        <Frame
-                            visible={editing}
-                            height=theme::BORDER_WIDTH
-                            fill=ColorRole::Border
-                        />
+                        <ShowKeepAlive condition={editing}>
+                            <Toolbar editor={editor} slides={slides} />
+                            <Frame height=theme::BORDER_WIDTH fill=ColorRole::Border />
+                        </ShowKeepAlive>
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
                             @node_ref={&stage}
@@ -67,7 +67,9 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             fit={presenting}
                             report_size=true
                         />
-                        <Playback editor={editor} slides={slides} shown={presenting} />
+                        <Show condition={presenting}>
+                            <Playback editor={editor} slides={slides} />
+                        </Show>
                     </List>
                 </List>
             </Frame>
@@ -157,14 +159,16 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
         })
     });
     view! {
-        <Frame visible={hidden}>
-            <Text size=TextSize::Sm color=TextColor::Muted wrap=true>{message}</Text>
-        </Frame>
+        <Layers>
+            <Show condition={hidden}>
+                <Text size=TextSize::Sm color=TextColor::Muted wrap=true>{message}</Text>
+            </Show>
+        </Layers>
     }
 }
 
 #[component]
-fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
+fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
     let read_only = editor.read_only();
     let empty = create_memo(move || slides.count() == 0);
     let position = create_memo(move || {
@@ -181,7 +185,7 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     };
     let present = move || editor.present(true);
     view! {
-        <Frame visible={shown} fill=ColorRole::Surface padding=PANEL_PADDING>
+        <Frame fill=ColorRole::Surface padding=PANEL_PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Text style=TextStyle::CAPTION @test_id={"presentation.position"}>{position}</Text>
                 <Button
@@ -206,7 +210,7 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
 }
 
 #[component]
-fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
+fn Playback(editor: Editor, slides: Slides) -> NodeId {
     let over = create_signal(false);
     let position = create_memo(move || {
         let count = slides.count();
@@ -228,49 +232,52 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     let stop = move || editor.present(false);
 
     view! {
-        <Frame visible={shown} height=PLAYBACK_HEIGHT>
+        <Frame height=PLAYBACK_HEIGHT>
             <Interactive on_hover_change={over} @test_id={"presentation.playback"}>
-                <Frame
-                    visible={over}
-                    fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, 180))}
-                    padding={Sides::horizontal(12.0)}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <IconButton
-                            glyph={ICON_ARROW_BACK.to_owned()}
-                            label="Previous slide"
-                            disabled={at_start}
-                            on_click={previous}
-                            @test_id={"presentation.previous"}
-                        />
-                        <Text
-                            color={TextColor::Custom(Color32::WHITE)}
-                            @test_id={"presentation.playback.position"}
+                <Layers>
+                    <Show condition={over}>
+                        <Frame
+                            fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, 180))}
+                            padding={Sides::horizontal(12.0)}
                         >
-                            {position}
-                        </Text>
-                        <IconButton
-                            glyph={ICON_ARROW_FORWARD.to_owned()}
-                            label="Next slide"
-                            disabled={at_end}
-                            on_click={next}
-                            @test_id={"presentation.next"}
-                        />
-                        <IconButton
-                            glyph={ICON_CLOSE.to_owned()}
-                            label="Stop presenting"
-                            on_click={stop}
-                            @test_id={"presentation.stop"}
-                        />
-                    </List>
-                </Frame>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                                <IconButton
+                                    glyph={ICON_ARROW_BACK.to_owned()}
+                                    label="Previous slide"
+                                    disabled={at_start}
+                                    on_click={previous}
+                                    @test_id={"presentation.previous"}
+                                />
+                                <Text
+                                    color={TextColor::Custom(Color32::WHITE)}
+                                    @test_id={"presentation.playback.position"}
+                                >
+                                    {position}
+                                </Text>
+                                <IconButton
+                                    glyph={ICON_ARROW_FORWARD.to_owned()}
+                                    label="Next slide"
+                                    disabled={at_end}
+                                    on_click={next}
+                                    @test_id={"presentation.next"}
+                                />
+                                <IconButton
+                                    glyph={ICON_CLOSE.to_owned()}
+                                    label="Stop presenting"
+                                    on_click={stop}
+                                    @test_id={"presentation.stop"}
+                                />
+                            </List>
+                        </Frame>
+                    </Show>
+                </Layers>
             </Interactive>
         </Frame>
     }
 }
 
 #[component]
-fn Filmstrip(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
+fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
     let keys = slides.keys();
     let selection = create_selector(move || slides.selected().get());
     let empty = create_memo(move || slides.count() == 0);
@@ -286,12 +293,7 @@ fn Filmstrip(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     };
 
     view! {
-        <Frame
-            visible={shown}
-            width=FILMSTRIP_WIDTH
-            fill=ColorRole::Surface
-            padding=FILMSTRIP_PADDING
-        >
+        <Frame width=FILMSTRIP_WIDTH fill=ColorRole::Surface padding=FILMSTRIP_PADDING>
             <List spacing=TILE_SPACING>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>

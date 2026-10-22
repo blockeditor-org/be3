@@ -203,6 +203,7 @@ struct GalleyData {
     line_height: f32,
     baseline: f32,
     pixel_bounds: [f32; 4],
+    pixels_per_point: f32,
     glyphs: Vec<Glyph>,
     lines: Vec<GalleyLine>,
     wraps: Wraps,
@@ -279,6 +280,7 @@ impl Galley {
         baseline: f32,
         glyphs: Vec<Glyph>,
         lines: Vec<GalleyLine>,
+        pixels_per_point: f32,
     ) -> Self {
         let lines = lines
             .into_iter()
@@ -293,6 +295,7 @@ impl Galley {
             glyphs,
             lines,
             Wraps::ANY,
+            pixels_per_point,
         )
     }
 
@@ -339,6 +342,7 @@ impl Galley {
             glyphs,
             lines,
             rich.wraps(),
+            pixels_per_point,
         )
     }
 
@@ -351,6 +355,7 @@ impl Galley {
         glyphs: Vec<Glyph>,
         lines: Vec<GalleyLine>,
         wraps: Wraps,
+        pixels_per_point: f32,
     ) -> Self {
         Self {
             inner: Rc::new(GalleyData {
@@ -360,6 +365,7 @@ impl Galley {
                 line_height,
                 baseline,
                 pixel_bounds: pixel_bounds(&glyphs),
+                pixels_per_point,
                 glyphs,
                 lines,
                 wraps,
@@ -383,6 +389,7 @@ impl Galley {
                 && left.size == right.size
                 && left.line_height == right.line_height
                 && left.baseline == right.baseline
+                && left.pixels_per_point == right.pixels_per_point
                 && left.glyphs.len() == right.glyphs.len()
                 && left
                     .glyphs
@@ -541,6 +548,7 @@ impl Galley {
                 cursors,
             }],
             Wraps::ANY,
+            self.inner.pixels_per_point,
         )
     }
 
@@ -554,6 +562,10 @@ impl Galley {
 
     pub fn pixel_bounds(&self) -> [f32; 4] {
         self.inner.pixel_bounds
+    }
+
+    pub fn pixels_per_point(&self) -> f32 {
+        self.inner.pixels_per_point
     }
 
     fn line_of(&self, index: usize) -> Option<&GalleyLine> {

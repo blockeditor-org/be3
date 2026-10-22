@@ -80,6 +80,7 @@ impl InputAdapter {
         input: &beui::ForwardedInput,
         screen: ScreenId,
         zoom: f32,
+        every_sample: bool,
     ) -> Vec<Message> {
         let zoom = match zoom.is_finite() && zoom > 0.0 {
             true => zoom,
@@ -89,12 +90,13 @@ impl InputAdapter {
         for event in &input.events {
             self.forward_event(event, input.rect, zoom, &mut output);
         }
-        match output.is_empty() {
+        let mut batch = InputBatch::new(screen, every_sample);
+        for event in output {
+            batch.push(event);
+        }
+        match batch.events.is_empty() {
             true => Vec::new(),
-            false => vec![Message::Input(InputBatch {
-                screen,
-                events: output,
-            })],
+            false => vec![Message::Input(batch)],
         }
     }
 
@@ -125,8 +127,28 @@ impl InputAdapter {
         zoom: f32,
         output: &mut Vec<InputEvent>,
     ) {
-        let position = (event.pos - rect.min) / zoom;
+        let at = |pos: Pos2| (pos - rect.min) / zoom;
+        let position = at(event.pos);
         let (x, y) = (position.x, position.y);
+        self.pointer_event(event, x, y, zoom, output);
+        if let (PointerPhase::Move, Some(predicted)) = (event.phase, event.predicted) {
+            let predicted = at(predicted);
+            output.push(InputEvent::Predicted {
+                x: predicted.x,
+                y: predicted.y,
+            });
+        }
+    }
+
+    fn pointer_event(
+        &mut self,
+        event: &PointerEvent,
+        x: f32,
+        y: f32,
+        zoom: f32,
+        output: &mut Vec<InputEvent>,
+    ) {
+        let time_micros = crate::host::micros_at(event.time);
         if let PointerId::Touch(id) = event.pointer {
             let phase = match event.phase {
                 PointerPhase::Down(_) => TouchPhase::Start,
@@ -142,6 +164,7 @@ impl InputAdapter {
                 x,
                 y,
                 force: event.force,
+                time_micros,
             });
             return;
         }
@@ -165,11 +188,12 @@ impl InputAdapter {
                 tilt_x: pen.tilt.x,
                 tilt_y: pen.tilt.y,
                 eraser: pen.eraser,
+                time_micros,
             });
             return;
         }
         match event.phase {
-            PointerPhase::Move => output.push(InputEvent::PointerMoved { x, y }),
+            PointerPhase::Move => output.push(InputEvent::PointerMoved { x, y, time_micros }),
             PointerPhase::Down(button) | PointerPhase::Up(button) => {
                 push_modifiers(&mut self.modifiers, event.modifiers, output);
                 output.push(InputEvent::PointerButton {
@@ -177,6 +201,7 @@ impl InputAdapter {
                     pressed: matches!(event.phase, PointerPhase::Down(_)),
                     x,
                     y,
+                    time_micros,
                 });
             }
             PointerPhase::Scroll(delta) => {

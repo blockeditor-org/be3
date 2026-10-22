@@ -46,16 +46,17 @@ fn a_plugin_tree_reads_as_a_pane_under_the_window() {
     let pane = fragment.root;
     let mut dump = AccessibilityDump::new();
     dump.update(tree_update("Test", VIEWPORT, 2.0, vec![fragment]));
+    let rendered = dump.rendered();
 
     assert_eq!(
-        dump.text(),
+        rendered.text(),
         "Window \"Test\" at 0,0 size 800x600\n\
          \x20 Pane \"Checklist\" at 200,100 size 400x200\n\
          \x20   List \"Tasks\" at 200,100 size 400x160\n\
          \x20     CheckBox \"Buy milk\" toggled=True focused at 220,120 size 240x40\n\
          \x20   Button \"Hidden\" at 220,800 size 120x40 offscreen\n"
     );
-    let checkbox = dump
+    let checkbox = rendered
         .lines()
         .iter()
         .find(|line| line.role == Role::CheckBox)

@@ -1499,11 +1499,11 @@ pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
 }
 
 #[component]
-pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
+pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> DynamicSegment<ListChild> {
     view! {
-        <Frame visible={failed}>
+        <Show condition={failed}>
             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-        </Frame>
+        </Show>
     }
 }
 
@@ -1517,11 +1517,15 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
         })
     });
     view! {
-        <Frame visible={shown} padding=PANEL_PADDING>
-            <List spacing=PANEL_SPACING>
-                <Text style=TextStyle::CAPTION>{message}</Text>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-            </List>
-        </Frame>
+        <Layers>
+            <Show condition={shown}>
+                <Frame padding=PANEL_PADDING>
+                    <List spacing=PANEL_SPACING>
+                        <Text style=TextStyle::CAPTION>{message}</Text>
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                    </List>
+                </Frame>
+            </Show>
+        </Layers>
     }
 }

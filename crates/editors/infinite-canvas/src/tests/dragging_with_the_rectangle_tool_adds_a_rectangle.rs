@@ -14,7 +14,7 @@ fn dragging_with_the_rectangle_tool_adds_a_rectangle() {
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the drag adds one entity");
-    assert_eq!(entities[0].kind, CanvasEntityKind::Rectangle);
+    assert_eq!(entities[0].shape, CanvasShape::Rectangle);
     assert!(entities[0].transform.size.x > 4.0);
     assert!(entities[0].transform.size.y > 4.0);
 }

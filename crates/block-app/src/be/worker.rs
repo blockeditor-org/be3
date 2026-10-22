@@ -4,11 +4,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
+use be_block::history::History as UndoHistory;
+use be_block::{BlockContent, BlockMetadata, Landed, LiveEdit, Merge, Undo};
 use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
+use block_plugin_api::GesturePhase;
 use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
@@ -23,8 +25,6 @@ use uploads::Uploads;
 
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
-const EDIT_BURST: Duration = Duration::from_millis(750);
-const HISTORY_STEPS: usize = 200;
 
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
@@ -47,7 +47,7 @@ pub(super) enum Command {
         owned: bool,
     },
     Close(Uuid),
-    Operate(Uuid, Option<u64>, Vec<u8>),
+    Operate(Uuid, Option<u64>, Vec<u8>, Instant),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -68,6 +68,11 @@ pub(super) enum Command {
     History {
         block: Uuid,
         redo: bool,
+    },
+    Gesture {
+        block: Uuid,
+        origin: Option<u64>,
+        phase: GesturePhase,
     },
     Presence {
         block: Uuid,
@@ -144,6 +149,7 @@ impl Command {
             | Command::Seed { block, .. }
             | Command::Replace { block, .. }
             | Command::History { block, .. }
+            | Command::Gesture { block, .. }
             | Command::Presence { block, .. }
             | Command::Create { block, .. }
             | Command::SetParent { block, .. }
@@ -372,6 +378,7 @@ pub(super) trait Session {
         &'a mut self,
         operation: &'a [u8],
         origin: Option<u64>,
+        at: Instant,
     ) -> LocalBoxFuture<'a, Result<(), ClientError>>;
 
     fn take_log(&mut self) -> Vec<Logged>;
@@ -405,6 +412,15 @@ pub(super) trait Session {
 
     fn step_history(&mut self, redo: bool) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         let _ = redo;
+        Box::pin(async { Ok(()) })
+    }
+
+    fn gesture(
+        &mut self,
+        origin: Option<u64>,
+        phase: GesturePhase,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        let _ = (origin, phase);
         Box::pin(async { Ok(()) })
     }
 }
@@ -452,8 +468,7 @@ where
         Ok(Box::new(WithHistory {
             live,
             log: Vec::new(),
-            undo: Vec::new(),
-            redo: Vec::new(),
+            history: UndoHistory::default(),
         }) as Box<dyn Session>)
     })
 }
@@ -461,8 +476,7 @@ where
 struct WithHistory<C: Undo> {
     live: Live<Store, C>,
     log: Vec<Logged>,
-    undo: Vec<(C::Step, Instant)>,
-    redo: Vec<C::Step>,
+    history: UndoHistory<C>,
 }
 
 impl<C> Session for WithHistory<C>
@@ -505,14 +519,14 @@ where
         &'a mut self,
         operation: &'a [u8],
         origin: Option<u64>,
+        at: Instant,
     ) -> LocalBoxFuture<'a, Result<(), ClientError>> {
         Box::pin(async move {
             let Ok(operation) = C::decode_operation(operation) else {
                 return Ok(());
             };
-            if let Some(step) = self.live.content().step(&operation) {
-                self.record(step);
-            }
+            self.history
+                .record(self.live.content(), &operation, origin, Some(at));
             drain(&mut self.live, &mut self.log, None);
             let edited = self.live.edit(operation).await;
             drain(&mut self.live, &mut self.log, origin);
@@ -545,8 +559,7 @@ where
             let Ok(content) = C::decode(&bytes) else {
                 return Ok(());
             };
-            self.undo.clear();
-            self.redo.clear();
+            self.history.clear();
             drain(&mut self.live, &mut self.log, None);
             let replaced = self.live.replace(content).await;
             drain(&mut self.live, &mut self.log, None);
@@ -582,61 +595,48 @@ where
 
     fn history(&self) -> History {
         History {
-            can_undo: !self.undo.is_empty(),
-            can_redo: !self.redo.is_empty(),
+            can_undo: self.history.can_undo(),
+            can_redo: self.history.can_redo(),
         }
     }
 
     fn step_history(&mut self, redo: bool) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move {
-            let (step, operations) = match redo {
-                false => {
-                    let Some((step, _)) = self.undo.pop() else {
-                        return Ok(());
-                    };
-                    let operations = self.live.content().revert(&step);
-                    (step, operations)
-                }
-                true => {
-                    let Some(step) = self.redo.pop() else {
-                        return Ok(());
-                    };
-                    let operations = self.live.content().reapply(&step);
-                    (step, operations)
-                }
+            let operations = match redo {
+                false => self.history.undo(self.live.content()),
+                true => self.history.redo(self.live.content()),
             };
-            match redo {
-                false => self.redo.push(step),
-                true => self.undo.push((step, Instant::now())),
-            }
             for operation in operations {
                 self.live.edit(operation).await?;
             }
             Ok(())
         })
     }
-}
 
-impl<C: Undo> WithHistory<C> {
-    fn record(&mut self, step: C::Step) {
-        self.redo.clear();
-        let now = Instant::now();
-        let step = match self.undo.last_mut() {
-            Some((previous, at)) if now.duration_since(*at) <= EDIT_BURST => {
-                match C::absorb(previous, step) {
-                    Ok(()) => {
-                        *at = now;
-                        return;
-                    }
-                    Err(step) => step,
+    fn gesture(
+        &mut self,
+        origin: Option<u64>,
+        phase: GesturePhase,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move {
+            let operations = match phase {
+                GesturePhase::Begin => {
+                    self.history.begin(origin);
+                    Vec::new()
                 }
+                GesturePhase::Commit => {
+                    self.history.commit(origin);
+                    Vec::new()
+                }
+                GesturePhase::Cancel => self.history.cancel(self.live.content(), origin),
+            };
+            for operation in operations {
+                drain(&mut self.live, &mut self.log, None);
+                self.live.edit(operation).await?;
             }
-            _ => step,
-        };
-        self.undo.push((step, now));
-        if self.undo.len() > HISTORY_STEPS {
-            self.undo.remove(0);
-        }
+            drain(&mut self.live, &mut self.log, None);
+            Ok(())
+        })
     }
 }
 
@@ -703,6 +703,7 @@ where
         &'a mut self,
         operation: &'a [u8],
         origin: Option<u64>,
+        _at: Instant,
     ) -> LocalBoxFuture<'a, Result<(), ClientError>> {
         Box::pin(async move {
             let Ok(operation) = C::decode_operation(operation) else {
@@ -803,8 +804,13 @@ where
 }
 
 pub(crate) enum Logged {
-    Operation { bytes: Vec<u8>, origin: Option<u64> },
-    Replaced { acknowledged: HashMap<u64, u64> },
+    Operation {
+        landed: Landed<Vec<u8>>,
+        origin: Option<u64>,
+    },
+    Replaced {
+        acknowledged: HashMap<u64, u64>,
+    },
 }
 
 fn drain<C>(live: &mut Live<Store, C>, log: &mut Vec<Logged>, origin: Option<u64>)
@@ -812,40 +818,41 @@ where
     C: LiveEdit + Clone + Default,
 {
     for entry in live.take_journal() {
-        match entry {
-            Journaled::Edited(operation) => log.push(Logged::Operation {
-                bytes: C::encode_operation(&operation),
-                origin,
-            }),
-            Journaled::Applied(operation) => log.push(Logged::Operation {
-                bytes: C::encode_operation(&operation),
-                origin: None,
-            }),
-            Journaled::Replaced { edits } => {
-                let mut acknowledged = HashMap::new();
-                for logged in log.drain(..) {
-                    match logged {
-                        Logged::Operation {
-                            origin: Some(origin),
-                            ..
-                        } => *acknowledged.entry(origin).or_default() += 1,
-                        Logged::Operation { origin: None, .. } => {}
-                        Logged::Replaced {
-                            acknowledged: earlier,
-                        } => {
-                            for (origin, count) in earlier {
-                                *acknowledged.entry(origin).or_default() += count;
-                            }
+        let from = match entry {
+            Journaled::Edited { .. } => origin,
+            _ => None,
+        };
+        if let Journaled::Replaced { edits } = entry {
+            let mut acknowledged = HashMap::new();
+            for logged in log.drain(..) {
+                match logged {
+                    Logged::Operation {
+                        origin: Some(origin),
+                        ..
+                    } => *acknowledged.entry(origin).or_default() += 1,
+                    Logged::Operation { origin: None, .. } => {}
+                    Logged::Replaced {
+                        acknowledged: earlier,
+                    } => {
+                        for (origin, count) in earlier {
+                            *acknowledged.entry(origin).or_default() += count;
                         }
                     }
                 }
-                if let Some(origin) = origin
-                    && edits > 0
-                {
-                    *acknowledged.entry(origin).or_default() += edits;
-                }
-                log.push(Logged::Replaced { acknowledged });
             }
+            if let Some(origin) = origin
+                && edits > 0
+            {
+                *acknowledged.entry(origin).or_default() += edits;
+            }
+            log.push(Logged::Replaced { acknowledged });
+            continue;
+        }
+        if let Some(landed) = entry.landed() {
+            log.push(Logged::Operation {
+                landed: landed.map(C::encode_operation),
+                origin: from,
+            });
         }
     }
 }
@@ -1009,10 +1016,28 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 ran.done();
                 false
             }
-            Woken::Command(command) => match uploads.defer(command) {
-                Some(command) => ran.run(command).await,
-                None => false,
-            },
+            Woken::Command(command) => {
+                let mut next = Some(command);
+                let mut applied = false;
+                while let Some(command) = next.take() {
+                    let edits = matches!(command, Command::Operate(..) | Command::Gesture { .. });
+                    match command {
+                        Command::Import(blocks) => {
+                            uploads.add(blocks);
+                            ran.done();
+                        }
+                        command => {
+                            if let Some(command) = uploads.defer(command) {
+                                applied |= ran.run(command).await;
+                            }
+                        }
+                    }
+                    if edits {
+                        next = commands.try_recv().ok();
+                    }
+                }
+                applied
+            }
             Woken::Uploaded => {
                 let mut applied = false;
                 for command in uploads.runnable() {
@@ -1617,11 +1642,11 @@ async fn apply(
             held.touch(block);
             true
         }
-        Command::Operate(block, origin, operation) => {
+        Command::Operate(block, origin, operation, at) => {
             let Some(session) = sessions.get_mut(&block) else {
                 return false;
             };
-            if let Err(error) = session.edit(&operation, origin).await {
+            if let Err(error) = session.edit(&operation, origin, at).await {
                 record(shared, error);
             }
             false
@@ -1707,6 +1732,19 @@ async fn apply(
                 return false;
             };
             if let Err(error) = session.step_history(redo).await {
+                record(shared, error);
+            }
+            false
+        }
+        Command::Gesture {
+            block,
+            origin,
+            phase,
+        } => {
+            let Some(session) = sessions.get_mut(&block) else {
+                return false;
+            };
+            if let Err(error) = session.gesture(origin, phase).await {
                 record(shared, error);
             }
             false
@@ -2123,12 +2161,19 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<M
 }
 
 fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
-    let known: std::collections::HashSet<Uuid> = {
+    let logs: HashMap<Uuid, Vec<Logged>> = sessions
+        .iter_mut()
+        .map(|(block, session)| (*block, session.take_log()))
+        .collect();
+    let known: HashMap<Uuid, (usize, bool)> = {
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         sessions
             .keys()
-            .filter(|block| held.blocks.contains_key(*block) && !held.previewed.contains(*block))
-            .copied()
+            .filter(|block| !held.previewed.contains(*block))
+            .filter_map(|block| {
+                let content = held.blocks.get(block)?;
+                Some((*block, (content.unfolded(), content.lands(&logs[block]))))
+            })
             .collect()
     };
     let unsealed = sessions
@@ -2139,15 +2184,25 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         .values()
         .filter(|session| session.owes_seal())
         .count();
+    let mut logs = logs;
     let published: Vec<Published> = sessions
         .iter_mut()
         .map(|(block, session)| {
-            let log = session.take_log();
-            let content = (!known.contains(block) || !log.is_empty()).then(|| {
+            let log = logs.remove(block).unwrap_or_default();
+            let (snapshot, compact) = match known.get(block) {
+                None => (true, false),
+                Some((unfolded, lands)) => (
+                    !lands
+                        || log
+                            .iter()
+                            .any(|entry| matches!(entry, Logged::Replaced { .. })),
+                    unfolded + log.len() > super::LOG_LIMIT / 2,
+                ),
+            };
+            let content = (snapshot || compact || !log.is_empty()).then(|| {
                 (
                     session.content_type(),
-                    session.bytes(),
-                    session.session_state(),
+                    snapshot.then(|| (session.bytes(), session.session_state())),
                     session.derived(),
                     session.references(),
                 )
@@ -2201,7 +2256,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             changed = true;
         }
         held.graph.set_head(block, published.head);
-        let Some((content_type, bytes, session, derived, references)) = published.content else {
+        let Some((content_type, snapshot, derived, references)) = published.content else {
             continue;
         };
         held.graph.refer(block, references);
@@ -2211,11 +2266,15 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 for entry in published.log {
                     content.record(entry);
                 }
-                content.bytes = bytes;
-                content.session = session;
+                match snapshot {
+                    Some((bytes, session)) => content.settle(bytes, session),
+                    None if content.unfolded() > super::LOG_LIMIT / 2 => content.compact(),
+                    None => {}
+                }
                 content.derived = derived;
             }
             None => {
+                let (bytes, session) = snapshot.unwrap_or_default();
                 held.blocks
                     .insert(block, Content::new(content_type, bytes, session, derived));
             }
@@ -2226,7 +2285,12 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
     changed
 }
 
-type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>, Vec<Uuid>);
+type PublishedContent = (
+    Uuid,
+    Option<(Vec<u8>, Vec<u8>)>,
+    Option<be_block::Entries>,
+    Vec<Uuid>,
+);
 
 struct Published {
     block: Uuid,
