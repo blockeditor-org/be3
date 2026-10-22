@@ -43,5 +43,10 @@ fn instant_scrolling_follows_the_finger_without_flinging() {
     harness.advance(Duration::from_secs(2));
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(scroll), released);
-    assert!(!unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
 }

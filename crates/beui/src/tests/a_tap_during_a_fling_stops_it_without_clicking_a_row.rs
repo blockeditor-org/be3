@@ -33,7 +33,12 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
         pos2(x, 160.0),
     ]);
     harness.frame(Vec::new());
-    assert!(unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
 
     let tap = pos2(x, 150.0);
     harness.touch(TouchPhase::Start, tap);
@@ -41,7 +46,12 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
     harness.touch(TouchPhase::End, tap);
     harness.frame(Vec::new());
 
-    assert!(!unstyled::scroll_animating(harness.document(), scroll));
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating()
+    );
     assert_eq!(harness.document().scroll_offset(scroll), stopped);
     assert_eq!(
         clicks.get_untracked(),

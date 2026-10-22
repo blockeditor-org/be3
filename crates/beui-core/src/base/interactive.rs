@@ -18,6 +18,7 @@ pub struct InteractiveNode {
     pub child: Option<NodeId>,
     pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
+    pub locks_pointer: bool,
     pub scroll_axis: Option<Direction>,
     pub capture_presses: bool,
     pub press_focus: bool,
@@ -73,6 +74,7 @@ impl InteractiveNode {
             child: None,
             focus: None,
             cursor: None,
+            locks_pointer: false,
             scroll_axis: None,
             capture_presses: false,
             press_focus: true,
@@ -423,6 +425,33 @@ impl Document {
     ) {
         if self.arena.get_as::<InteractiveNode>(id).cursor != cursor {
             self.arena.touch_mut_as::<InteractiveNode>(id).cursor = cursor;
+        }
+    }
+
+    pub fn set_interactive_locks_pointer(&mut self, id: NodeOf<InteractiveNode>, locks: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).locks_pointer == locks {
+            return;
+        }
+        self.arena.touch_mut_as::<InteractiveNode>(id).locks_pointer = locks;
+        if locks {
+            self.pointer_lockers.borrow_mut().push(id);
+        }
+        self.publish_pointer_lock(false);
+    }
+
+    pub(crate) fn publish_pointer_lock(&self, reattached: bool) {
+        let mut lockers = self.pointer_lockers.borrow_mut();
+        lockers.retain(|locker| {
+            self.arena
+                .kind_of::<InteractiveNode>(locker.id())
+                .is_some_and(|locker| self.arena.get_as(locker).locks_pointer)
+        });
+        let locked = !lockers.is_empty();
+        let changed = self.pointer_locked.replace(locked) != locked;
+        if (changed || (reattached && locked))
+            && let Some(context) = self.context()
+        {
+            context.set_pointer_locked(locked);
         }
     }
 

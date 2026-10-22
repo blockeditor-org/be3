@@ -6,9 +6,11 @@ fn drawn(editor: &BeuiTest<TextApp>) -> Vec<(std::ops::Range<usize>, usize)> {
         .find_test_id("text.surface")
         .expect("the text is drawn");
     let surface = document
-        .component_state::<beui::reactive::NodeRef>(area)
-        .get();
-    beui::unstyled::text_area_remote_cursors(document, surface)
+        .api::<beui::styled::TextAreaSurfaceApi>(area)
+        .surface();
+    document
+        .api::<beui::unstyled::TextAreaApi>(surface)
+        .remote_cursors()
         .into_iter()
         .map(|cursor| (cursor.selection, cursor.caret))
         .collect()

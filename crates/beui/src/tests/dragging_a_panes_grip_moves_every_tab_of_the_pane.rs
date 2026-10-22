@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
 
 #[test]
 fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
@@ -37,7 +37,7 @@ fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
     harness.drag(grip, onto);
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaves = state.leaves(state.main());
     assert_eq!(
         leaves.len(),

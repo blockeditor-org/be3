@@ -6,7 +6,6 @@ use crate::ButtonHandle;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
 use crate::scroll::ScrollbarStyle;
 use beui_core::base::Direction;
-use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -37,6 +36,7 @@ struct State {
 
 #[component]
 pub fn TimeList(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<TimeListApi>,
     #[prop(default = None)] value: Binding<Option<Time>>,
     #[prop(default = 15)] step_minutes: u32,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
@@ -91,7 +91,7 @@ pub fn TimeList(
         anchor,
         columns,
     };
-    set_component_state(state);
+    api.fill(TimeListApi(state));
     create_effect(move || {
         if focused.get() {
             state.focus.set(Some(state.anchor.get_untracked()));
@@ -210,13 +210,6 @@ fn TimeOption(
     }
 }
 
-pub fn time_list_selected(document: &Document, list: NodeId) -> Option<Time> {
-    document
-        .component_state::<State>(list)
-        .selected
-        .get_untracked()
-}
-
 fn choose(state: State, time: Time) {
     state.selected.update(|selected| *selected = Some(time));
 }
@@ -263,4 +256,13 @@ pub fn grid_columns(step_minutes: u32, max_columns: usize) -> usize {
         _ => 1,
     }
     .max(1)
+}
+
+#[derive(Clone, Copy)]
+pub struct TimeListApi(State);
+
+impl TimeListApi {
+    pub fn selected(&self) -> Option<Time> {
+        self.0.selected.get_untracked()
+    }
 }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
@@ -12,7 +12,15 @@ fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
         .expect("the menu offers to pop the tab out");
     harness.click(harness.center(row));
     harness.frame(Vec::new());
-    assert_eq!(dock_state(harness.document(), dock).windows().len(), 1);
+    assert_eq!(
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .windows()
+            .len(),
+        1
+    );
 
     right_click(&mut harness, dock, "Tab 2");
     let row = text_within(harness.document(), dock, "Close tab")
@@ -20,7 +28,7 @@ fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
     harness.click(harness.center(row));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert!(
         !state.contains(TabId::new(2)),
         "the menu row over the window is the one the click reaches"

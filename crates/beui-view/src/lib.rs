@@ -1,8 +1,10 @@
 extern crate self as beui;
 
 pub mod actions;
+pub mod component_ref;
 pub mod components;
 pub mod file_picker;
+pub mod nodes;
 pub mod primitives;
 pub mod reactive;
 

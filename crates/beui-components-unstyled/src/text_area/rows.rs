@@ -1042,7 +1042,7 @@ pub struct TableInputs<'a> {
     pub options: RowOptions,
     pub starts: &'a [usize],
     pub scale: f32,
-    pub attached: u64,
+    pub fonts: u64,
     pub cache: &'a std::cell::RefCell<TableCache>,
 }
 
@@ -1054,7 +1054,7 @@ struct TableEnv {
     options: RowOptions,
     wrap_width: f32,
     scale: f32,
-    attached: u64,
+    fonts: u64,
 }
 
 type TableRowKey = (RowKey, Vec<Range<usize>>);
@@ -1156,7 +1156,7 @@ pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
         options: inputs.options,
         wrap_width: inputs.wrap_width,
         scale: inputs.scale,
-        attached: inputs.attached,
+        fonts: inputs.fonts,
     });
     let spacers = lay_out_tables(inputs);
     inputs.cache.borrow_mut().finish();

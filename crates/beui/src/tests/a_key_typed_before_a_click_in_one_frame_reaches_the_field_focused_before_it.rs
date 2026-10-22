@@ -35,6 +35,18 @@ fn a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it()
         },
         Event::Text("b".to_owned()),
     ]);
-    assert_eq!(styled::text_input_value(harness.document(), first), "a");
-    assert_eq!(styled::text_input_value(harness.document(), second), "b");
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(first)
+            .value(),
+        "a"
+    );
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(second)
+            .value(),
+        "b"
+    );
 }

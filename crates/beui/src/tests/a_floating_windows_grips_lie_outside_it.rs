@@ -1,6 +1,6 @@
 use super::*;
 use crate::input::CursorIcon;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_floating_windows_grips_lie_outside_it() {
@@ -10,7 +10,10 @@ fn a_floating_windows_grips_lie_outside_it() {
     let window = floated_window(&mut harness, dock);
     let bounds = harness.rect(dock);
     let placed = |harness: &Harness| {
-        dock_state(harness.document(), dock)
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
             .window_rect(window)
             .expect("the window is open")
     };

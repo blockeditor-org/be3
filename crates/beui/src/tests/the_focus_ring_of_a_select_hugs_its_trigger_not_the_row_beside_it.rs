@@ -19,7 +19,10 @@ fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     assert!(harness.document().focus_is_within(trigger));
     let output = harness.frame(Vec::new());
 

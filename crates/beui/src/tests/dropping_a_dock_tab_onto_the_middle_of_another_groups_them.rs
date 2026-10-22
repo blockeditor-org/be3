@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn dropping_a_dock_tab_onto_the_middle_of_another_groups_them() {
@@ -13,7 +13,7 @@ fn dropping_a_dock_tab_onto_the_middle_of_another_groups_them() {
     harness.drag(dragged, onto.center());
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaf = state.leaves(state.main())[0];
     let entries = state.entries(leaf);
     let Some(Entry::Group(group)) = entries.get(1).copied() else {

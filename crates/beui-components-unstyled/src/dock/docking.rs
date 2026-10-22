@@ -22,8 +22,8 @@ use super::state::{
     DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
 };
 use super::{
-    Dock, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode,
-    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
+    Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
+    DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
     DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };
 use crate::menu_popup::MenuStyle;
@@ -678,6 +678,7 @@ impl<K: 'static> Found<K> {
 
 #[component]
 pub fn Docking<K>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<DockApi>,
     layout: DockingLayout<K>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] focus: Prop<Option<K>>,
@@ -785,6 +786,7 @@ where
     view! {
         <Dock
             config={DockConfig {
+                api,
                 state: Binding::from(layout.state),
                 on_close: Callback::new(on_close),
                 title,

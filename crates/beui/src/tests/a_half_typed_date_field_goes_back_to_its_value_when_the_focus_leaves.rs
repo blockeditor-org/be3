@@ -2,7 +2,7 @@ use super::*;
 use crate::datetime::{Date, DateTime, Time};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DateSegmentHandle, DateTimeField, date_time_field_text};
+use crate::unstyled::{DateSegmentHandle, DateTimeField, DateTimeFieldApi};
 
 #[test]
 fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
@@ -31,7 +31,7 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
     harness.key(Key::Backspace, Modifiers::NONE);
     harness.type_text("20");
     assert_eq!(
-        date_time_field_text(harness.document(), field),
+        harness.document().api::<DateTimeFieldApi>(field).text(),
         "20-09-27 10:30"
     );
 
@@ -40,7 +40,7 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        date_time_field_text(harness.document(), field),
+        harness.document().api::<DateTimeFieldApi>(field).text(),
         "2026-09-27 10:30"
     );
     assert!(reported.with_untracked(|reported| reported.is_empty()));

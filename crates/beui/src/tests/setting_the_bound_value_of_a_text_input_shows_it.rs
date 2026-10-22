@@ -20,7 +20,10 @@ fn setting_the_bound_value_of_a_text_input_shows_it() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "typed for you"
     );
 }

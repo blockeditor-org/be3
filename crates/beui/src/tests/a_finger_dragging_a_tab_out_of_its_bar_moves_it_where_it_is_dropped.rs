@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped() {
@@ -9,7 +9,10 @@ fn a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped() {
     let window = floated_window(&mut harness, dock);
     harness.frame(vec![Event::Modifiers(Modifiers::NONE)]);
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
-    let placed = dock_state(harness.document(), dock)
+    let placed = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let over = harness.rect(dock).min + placed.center().to_vec2();
@@ -22,7 +25,7 @@ fn a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped() {
     harness.finger_drag(&[tab, tab + vec2(0.0, 20.0), over, bottom]);
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaves = state.leaves(state.main());
     assert_eq!(
         leaves.len(),

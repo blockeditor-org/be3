@@ -27,10 +27,22 @@ fn a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_ru
         output.repaint_after <= DOUBLE_TAP_TIME,
         "the simulation asks to be woken when the timer runs out"
     );
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 
     harness.wait_out_double_tap();
 
     assert!(!harness.simulated_left_held(), "the timer lets it go");
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

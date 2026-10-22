@@ -17,36 +17,66 @@ fn arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
-    let search = unstyled::select_search(harness.document(), select);
+    let search = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .search();
 
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .highlighted(),
         None
     );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .highlighted(),
         Some(0)
     );
-    assert_eq!(unstyled::text_input_value(harness.document(), search), "");
+    assert_eq!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(search)
+            .value(),
+        ""
+    );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .highlighted(),
         Some(1)
     );
-    assert_eq!(unstyled::text_input_value(harness.document(), search), "");
+    assert_eq!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(search)
+            .value(),
+        ""
+    );
 
     harness.key(Key::ArrowUp, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), select),
+        harness
+            .document()
+            .api::<unstyled::SelectApi>(select)
+            .highlighted(),
         Some(0)
     );
 }

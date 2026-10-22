@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {
@@ -7,7 +7,10 @@ fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
-    let stored = dock_state(harness.document(), dock)
+    let stored = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let content = |harness: &Harness| harness.rect(harness.find("content.2"));
@@ -24,7 +27,11 @@ fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {
         "the window fits inside the smaller dock: {drawn:?} in {shrunk:?}"
     );
     assert_eq!(
-        dock_state(harness.document(), dock).window_rect(window),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .window_rect(window),
         Some(stored),
         "the window keeps the size it was given for when the dock grows again"
     );

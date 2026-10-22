@@ -2,7 +2,6 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::base::canvas::CanvasView;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
 use beui_core::node::NodeId;
@@ -137,6 +136,7 @@ impl Camera {
 
 #[component]
 pub fn PanZoom(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<PanZoomApi>,
     #[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>,
     #[prop(default = MIN_SCALE)] min_scale: Prop<f32>,
     #[prop(default = MAX_SCALE)] max_scale: Prop<f32>,
@@ -171,7 +171,7 @@ pub fn PanZoom(
                 focused: focused.read_only(),
             });
 
-            set_component_state(current);
+            api.fill(PanZoomApi(current));
 
             view! {
                 <Interactive
@@ -197,6 +197,11 @@ pub fn PanZoom(
     }
 }
 
-pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> Binding<PanZoomView> {
-    *document.component_state::<Binding<PanZoomView>>(pan_zoom)
+#[derive(Clone, Copy)]
+pub struct PanZoomApi(Binding<PanZoomView>);
+
+impl PanZoomApi {
+    pub fn view(&self) -> Binding<PanZoomView> {
+        self.0
+    }
 }

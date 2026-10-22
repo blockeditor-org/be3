@@ -8,7 +8,6 @@ use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
-use beui_core::document::Document;
 use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -19,10 +18,16 @@ const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 6.0;
 
 #[component]
-pub fn Accordion(title: Prop<String>, open: Binding<bool>, children: Child) -> NodeId {
+pub fn Accordion(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::DisclosureApi>,
+    title: Prop<String>,
+    open: Binding<bool>,
+    children: Child,
+) -> NodeId {
     let title_text = create_memo(move || title.get());
     view! {
         <unstyled::Disclosure
+            api
             spacing=SPACING
             header={move |handle| view! {
                 <AccordionHeader handle title={title_text} />
@@ -69,10 +74,6 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             </List>
         </Frame>
     }
-}
-
-pub fn accordion_open(document: &Document, accordion: NodeId) -> bool {
-    unstyled::disclosure_open(document, accordion)
 }
 
 fn glyph(open: bool) -> &'static str {

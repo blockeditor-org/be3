@@ -17,5 +17,11 @@ fn the_screen_reader_keeps_clicks_away_from_the_document() {
     harness.click(at);
     harness.frame(Vec::new());
 
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

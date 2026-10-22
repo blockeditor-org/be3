@@ -26,9 +26,15 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
             },
         ]
     });
-    assert_eq!(styled::tabs_selected(&document, tabs), 1);
-    assert_eq!(styled::listbox_selected(&document, empty), None);
-    let after_focus = unstyled::button_focused(&document, after);
+    assert_eq!(
+        document
+            .api::<styled::ChoiceApi>(tabs)
+            .selected()
+            .unwrap_or(0),
+        1
+    );
+    assert_eq!(document.api::<styled::ChoiceApi>(empty).selected(), None);
+    let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);

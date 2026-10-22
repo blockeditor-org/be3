@@ -8,7 +8,7 @@ use crate::unstyled::TreeItem;
 fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal::<Vec<usize>>(Vec::new());
-    let tree = NodeRef::new();
+    let tree = ComponentRef::new();
     let document = build_node(move || {
         let expanded = create_signal(true);
         let keys = create_memo(move || match expanded.get() {
@@ -23,7 +23,7 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
         };
         view! {
             <Tree
-                @node_ref=&tree
+                api=tree
                 keys
                 item
                 selected=None
@@ -53,7 +53,7 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        tree_focused::<usize>(harness.document(), tree.get()),
+        tree.get().focused(),
         Some(0),
         "clicking a chevron puts the keyboard on its row"
     );
@@ -63,7 +63,7 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        tree_focused::<usize>(harness.document(), tree.get()),
+        tree.get().focused(),
         Some(2),
         "the arrow keys walk the rows"
     );

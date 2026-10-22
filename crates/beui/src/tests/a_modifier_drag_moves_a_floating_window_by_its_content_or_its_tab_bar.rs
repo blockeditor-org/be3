@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
@@ -35,7 +35,7 @@ fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
     let dock = dock.get();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     let before = state.window_rect(window).expect("the window is open");
     let shown = harness.find("content");
@@ -43,7 +43,7 @@ fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
     let held = harness.center(shown);
     drag_with(&mut harness, held, held + vec2(80.0, 50.0), Modifiers::LOGO);
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(state.windows(), vec![window], "the window is the same one");
     assert_eq!(
         state.window_rect(window),
@@ -54,7 +54,7 @@ fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
     let tab = harness.center(dock_tab(harness.document(), dock, "Other"));
     drag_with(&mut harness, tab, tab + vec2(-40.0, 30.0), Modifiers::LOGO);
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.window_rect(window),
         Some(before.translate(vec2(40.0, 80.0))),

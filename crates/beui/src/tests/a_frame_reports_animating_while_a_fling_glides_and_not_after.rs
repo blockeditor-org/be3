@@ -32,11 +32,19 @@ fn a_frame_reports_animating_while_a_fling_glides_and_not_after() {
     harness.touch(TouchPhase::End, pos2(x, 160.0));
 
     let mut frames = 0;
-    while unstyled::scroll_animating(harness.document(), scroll) {
+    while harness
+        .document()
+        .api::<unstyled::ScrollApi>(scroll)
+        .animating()
+    {
         assert!(frames < 600, "the fling never stopped");
         let output = harness.frame(Vec::new());
         assert!(
-            output.animating || !unstyled::scroll_animating(harness.document(), scroll),
+            output.animating
+                || !harness
+                    .document()
+                    .api::<unstyled::ScrollApi>(scroll)
+                    .animating(),
             "each frame of the fling reports animating"
         );
         frames += 1;

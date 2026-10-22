@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{MAX_SCALE, MIN_SCALE, pan_zoom_view};
+use crate::unstyled::{MAX_SCALE, MIN_SCALE, PanZoomApi};
 
 #[test]
 fn zooming_a_pan_zoom_stops_at_its_scale_limits() {
@@ -16,14 +16,24 @@ fn zooming_a_pan_zoom_stops_at_its_scale_limits() {
     harness.pinch(pos2(200.0, 150.0), 1_000.0);
     harness.frame(Vec::new());
     assert_eq!(
-        pan_zoom_view(harness.document(), stage).get().scale,
+        harness
+            .document()
+            .api::<PanZoomApi>(stage)
+            .view()
+            .get()
+            .scale,
         MAX_SCALE
     );
 
     harness.pinch(pos2(200.0, 150.0), 0.000_001);
     harness.frame(Vec::new());
     assert_eq!(
-        pan_zoom_view(harness.document(), stage).get().scale,
+        harness
+            .document()
+            .api::<PanZoomApi>(stage)
+            .view()
+            .get()
+            .scale,
         MIN_SCALE
     );
 }

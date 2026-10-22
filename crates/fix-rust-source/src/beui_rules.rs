@@ -20,6 +20,21 @@ const PRIMITIVE_USERS: [&str; 14] = [
     "crates\\beui-demo\\src\\base_pages.rs",
 ];
 
+const COMPONENT_CRATES: [&str; 4] = [
+    "crates/beui-components-styled/",
+    "crates/beui-components-unstyled/",
+    "crates\\beui-components-styled\\",
+    "crates\\beui-components-unstyled\\",
+];
+
+const DOCUMENT_ACCESS: [&str; 5] = [
+    "with_document",
+    "try_with_document",
+    "NodeOf",
+    "set_component_state",
+    "component_state",
+];
+
 pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
     let at = |node: &SyntaxNode| {
         let offset = u32::from(node.text_range().start()) as usize;
@@ -62,6 +77,13 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
     }
     if !test_source {
         violations.extend(component_uses(tree, source, relative));
+    }
+    if !test_source
+        && COMPONENT_CRATES
+            .iter()
+            .any(|component| relative.starts_with(component))
+    {
+        violations.extend(document_uses(tree, source, relative));
     }
     violations
 }
@@ -175,6 +197,33 @@ fn primitive_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
             let line = source[..offset].matches('\n').count() + 1;
             format!(
                 "primitive outside beui: {relative}:{line} only beui's own crates use beui::primitives; import beui::styled::* instead"
+            )
+        })
+        .collect()
+}
+
+fn document_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    let tokens: Vec<_> = tree
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia() && !matches!(token.text(), ":" | "::"))
+        .collect();
+    tokens
+        .iter()
+        .enumerate()
+        .filter(|(index, token)| {
+            DOCUMENT_ACCESS.contains(&token.text())
+                || (token.text() == "Document"
+                    && index
+                        .checked_sub(1)
+                        .is_some_and(|before| tokens[before].text() == "document"))
+        })
+        .map(|(_, token)| {
+            let offset = u32::from(token.text_range().start()) as usize;
+            let line = source[..offset].matches('\n').count() + 1;
+            format!(
+                "document in a component: {relative}:{line} components reach the tree through beui::reactive's node functions and test helpers through Inspect, never through Document"
             )
         })
         .collect()

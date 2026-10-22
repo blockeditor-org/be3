@@ -7,7 +7,6 @@ use crate::context_menu::menu_style;
 use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
-use beui_core::document::Document;
 use beui_core::icons::{ICON_CLOSE, ICON_CONTENT_COPY};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -26,6 +25,8 @@ const CLEAR_PADDING: f32 = 6.0;
 
 #[component]
 pub fn TextInput(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::TextInputApi>,
+
     value: Binding<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -57,6 +58,7 @@ pub fn TextInput(
     });
     view! {
         <unstyled::TextInput
+            api
             value
             placeholder
             disabled
@@ -184,8 +186,4 @@ pub fn text_input_style() -> TextInputStyle {
         prose: Prop::Static(None),
         menu: menu_style(),
     }
-}
-
-pub fn text_input_value(document: &Document, input: NodeId) -> String {
-    unstyled::text_input_value(document, input)
 }

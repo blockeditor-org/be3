@@ -11,7 +11,6 @@ use beui_components_unstyled::{
 };
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -28,6 +27,8 @@ const ARROW_SPACING: f32 = 4.0;
 
 #[component]
 pub fn Select(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SelectApi>,
+
     options: Children<ChoiceOption>,
     #[prop(default = None)] selected: Binding<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -39,6 +40,7 @@ pub fn Select(
     let placeholder = create_memo(move || placeholder.get());
     view! {
         <unstyled::Select
+            api
             options
             selected
             disabled
@@ -184,14 +186,6 @@ fn SelectPopup(children: Child) -> NodeId {
             {children}
         </Frame>
     }
-}
-
-pub fn select_selected(document: &Document, select: NodeId) -> Option<usize> {
-    unstyled::select_selected(document, select)
-}
-
-pub fn select_open(document: &Document, select: NodeId) -> bool {
-    unstyled::select_open(document, select)
 }
 
 fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {

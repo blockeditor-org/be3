@@ -14,5 +14,11 @@ fn enter_toggles_the_focused_checkbox() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

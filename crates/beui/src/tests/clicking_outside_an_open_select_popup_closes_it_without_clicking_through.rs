@@ -28,15 +28,24 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
-    assert!(styled::select_open(harness.document(), select));
+    assert!(harness.document().api::<styled::SelectApi>(select).open());
 
     harness.click(harness.center(other));
     harness.frame(Vec::new());
 
-    assert!(!styled::select_open(harness.document(), select));
-    assert_eq!(styled::select_selected(harness.document(), select), Some(0));
+    assert!(!harness.document().api::<styled::SelectApi>(select).open());
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::SelectApi>(select)
+            .selected(),
+        Some(0)
+    );
     assert_eq!(other_clicks.get_untracked(), 0);
 }

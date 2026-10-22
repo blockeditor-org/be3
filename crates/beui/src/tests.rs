@@ -1257,11 +1257,18 @@ impl Harness {
         let select = self
             .inspector()
             .find(&format!("inspector.simulation.{control}"));
-        let trigger = crate::unstyled::select_trigger(&self.inspector().document, select);
+        let trigger = self
+            .inspector()
+            .document
+            .api::<crate::unstyled::SelectApi>(select)
+            .trigger();
         self.click_in_inspector(trigger);
         self.frame(Vec::new());
-        let option =
-            crate::unstyled::select_option_button(&self.inspector().document, select, index);
+        let option = self
+            .inspector()
+            .document
+            .api::<crate::unstyled::SelectApi>(select)
+            .option_button(index);
         self.click(self.node_center(option));
         self.frame(Vec::new());
     }
@@ -1943,7 +1950,11 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    unstyled::dock_state(harness.document(), dock).windows()[0]
+    harness
+        .document()
+        .api::<unstyled::DockApi>(dock)
+        .state()
+        .windows()[0]
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {

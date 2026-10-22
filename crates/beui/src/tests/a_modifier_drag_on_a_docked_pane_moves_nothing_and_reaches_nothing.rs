@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing() {
@@ -12,7 +12,7 @@ fn a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing() {
     } = split_dock(Some(Modifiers::LOGO));
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let before = dock_state(harness.document(), dock);
+    let before = harness.document().api::<DockApi>(dock).state();
     let content = harness.center(harness.find("content.1"));
     let right = harness.center(harness.find("content.2"));
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
@@ -22,7 +22,7 @@ fn a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        dock_state(harness.document(), dock),
+        harness.document().api::<DockApi>(dock).state(),
         before,
         "neither the content nor the tab carried anything anywhere"
     );

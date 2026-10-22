@@ -1,7 +1,6 @@
 use beui_macros::component;
 
 use beui_core::color::Color32;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -245,26 +244,17 @@ pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: 
 }
 
 pub fn use_theme() -> ThemeStore {
-    use_context::<ThemeStore>().unwrap_or_else(|| with_document(document_theme_store))
+    use_context::<ThemeStore>().unwrap_or_else(tree_theme_store)
 }
 
-fn document_theme_store(document: &mut Document) -> ThemeStore {
-    let kind = document.watch_theme();
-    document.extension_or_insert_with(|| {
+fn tree_theme_store() -> ThemeStore {
+    let preferences = use_preferences();
+    let kind = create_memo(move || preferences.get().theme);
+    tree_local(|| {
         let store = ThemeStore::new(Theme::of(kind.get_untracked()));
         create_effect(move || store.set(Theme::of(kind.get())));
         store
     })
-}
-
-pub trait DocumentTheme {
-    fn theme(&self) -> Theme;
-}
-
-impl DocumentTheme for Document {
-    fn theme(&self) -> Theme {
-        Theme::of(self.preferences().theme)
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]

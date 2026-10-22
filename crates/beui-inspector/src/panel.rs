@@ -179,7 +179,7 @@ pub struct Panel {
     pub renderers: Signal<RendererChoices>,
     pub selection: Signal<Vec<Key>>,
     pub compact: Signal<bool>,
-    pub tree: NodeRef,
+    pub tree: ComponentRef<beui_components_styled::TreeApi<Key>>,
 }
 
 pub fn build(state: Stored<State>) -> Panel {
@@ -194,7 +194,7 @@ pub fn build(state: Stored<State>) -> Panel {
     let tab_index = create_signal(0usize);
     let selection = create_signal(Vec::<Key>::new());
     let compact = create_signal(false);
-    let tree = NodeRef::new();
+    let tree = ComponentRef::new();
 
     let mut document = Document::new();
     let root = enter(&mut document, || {
@@ -279,7 +279,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                                         <Tree
                                             @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
-                                            @node_ref=&tree
+                                            api=tree
                                             keys
                                             item={move |key: Key| item(&entries, key)}
                                             selected={selected}

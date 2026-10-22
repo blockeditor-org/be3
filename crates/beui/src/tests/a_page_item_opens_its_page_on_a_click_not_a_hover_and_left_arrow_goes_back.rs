@@ -38,39 +38,83 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
-    let move_to = unstyled::menu_list_row_button(harness.document(), content, 0);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
+    let move_to = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(0);
     let at = harness.center(move_to);
     harness.frame(vec![Event::PointerMoved(at)]);
     harness.frame(Vec::new());
     assert!(
-        unstyled::menu_list_page(harness.document(), content).is_none(),
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .page()
+            .is_none(),
         "hovering a page item does not open its page"
     );
 
     harness.click(at);
     harness.frame(vec![Event::PointerGone]);
-    let page = unstyled::menu_list_page(harness.document(), content)
+    let page = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .page()
         .expect("clicking a page item opens its page");
     assert!(harness.document().node_rect(move_to).is_none());
-    let count = unstyled::menu_list_row_button(harness.document(), page, 0);
-    assert!(unstyled::button_focused(harness.document(), count).get());
+    let count = harness
+        .document()
+        .api::<unstyled::MenuListApi>(page)
+        .row_button(0);
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(count)
+            .focused()
+            .get()
+    );
 
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(stayed.get_untracked(), 1);
     assert!(
-        unstyled::context_menu_open(harness.document(), menu),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(menu)
+            .open(harness.document()),
         "an item that stays leaves the menu open on its page"
     );
-    assert!(unstyled::menu_list_page(harness.document(), content).is_some());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .page()
+            .is_some()
+    );
 
     harness.key(Key::ArrowLeft, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert!(unstyled::menu_list_page(harness.document(), content).is_none());
-    let move_to = unstyled::menu_list_row_button(harness.document(), content, 0);
     assert!(
-        unstyled::button_focused(harness.document(), move_to).get(),
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .page()
+            .is_none()
+    );
+    let move_to = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(0);
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(move_to)
+            .focused()
+            .get(),
         "going back lands on the item that opened the page"
     );
 }

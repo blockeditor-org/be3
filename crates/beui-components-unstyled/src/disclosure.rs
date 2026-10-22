@@ -3,7 +3,6 @@ use beui_macros::{component, view};
 
 use crate as unstyled;
 use crate::button::ButtonHandle;
-use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -15,18 +14,20 @@ pub struct DisclosureHandle {
     pub open: Binding<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct State {
     open: Binding<bool>,
 }
 
 #[component]
 pub fn Disclosure(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<DisclosureApi>,
     spacing: Prop<f32>,
     header: Render<DisclosureHandle>,
     children: Child,
     open: Binding<bool>,
 ) -> NodeId {
-    set_component_state(State { open });
+    api.fill(DisclosureApi(State { open }));
 
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::DisclosureTriangle);
@@ -59,6 +60,11 @@ pub fn Disclosure(
     }
 }
 
-pub fn disclosure_open(document: &Document, disclosure: NodeId) -> bool {
-    document.component_state::<State>(disclosure).open.get()
+#[derive(Clone, Copy)]
+pub struct DisclosureApi(State);
+
+impl DisclosureApi {
+    pub fn open(&self) -> bool {
+        self.0.open.get()
+    }
 }

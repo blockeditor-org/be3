@@ -38,8 +38,14 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
-    let row = unstyled::menu_list_row_button(harness.document(), content, 0);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
+    let row = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .row_button(0);
     assert_eq!(
         label_within(harness.document(), row).as_deref(),
         Some("Paste")

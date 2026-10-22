@@ -11,13 +11,21 @@ fn tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let text = harness.rect(unstyled::text_input_text(harness.document(), input));
+    let text = harness.rect(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(input)
+            .text(),
+    );
     let start = pos2(text.left() + 1.0, text.center().y);
     harness.touch(TouchPhase::Start, start);
     harness.touch(TouchPhase::End, start);
     harness.frame(Vec::new());
 
-    let handles = unstyled::text_input_handles(harness.document(), input);
+    let handles = harness
+        .document()
+        .api::<unstyled::TextInputApi>(input)
+        .handles(harness.document());
     let [handle] = handles[..] else {
         panic!("a caret placed by touch shows one handle, not {handles:?}");
     };
@@ -25,7 +33,10 @@ fn tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste() {
     harness.touch(TouchPhase::End, handle);
     harness.frame(Vec::new());
 
-    let toolbar = unstyled::text_input_toolbar(harness.document(), input)
+    let toolbar = harness
+        .document()
+        .api::<unstyled::TextInputApi>(input)
+        .toolbar(harness.document())
         .expect("tapping the caret handle shows its toolbar");
     assert!(
         text_within(harness.document(), toolbar, "Copy").is_none(),
@@ -48,7 +59,10 @@ fn tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste() {
 
     harness.frame(vec![Event::Paste(crate::Pasted::Text("Say ".to_owned()))]);
     assert_eq!(
-        styled::text_input_value(harness.document(), input),
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
         "Say Hello"
     );
 }

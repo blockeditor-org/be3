@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout, dock_state};
+use crate::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 #[test]
 fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
@@ -54,7 +54,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
         None,
         "the closed tab is no longer fullscreen"
     );
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     let before = state.window_rect(window).expect("the window is open");
     let shown = harness.rect(harness.find("content.2"));
@@ -66,7 +66,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let held = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     drag_with(&mut harness, held, held + vec2(80.0, 50.0), Modifiers::LOGO);
     harness.settle();
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.window_rect(window),
         Some(before.translate(vec2(80.0, 50.0))),

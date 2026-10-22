@@ -1223,14 +1223,14 @@ fn FolderTree() -> NodeId {
             expanded: expanded.get().contains(&key),
         }
     });
-    let tree = NodeRef::new();
+    let tree = ComponentRef::new();
     let viewport = NodeRef::new();
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=0.0>
                 <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                     <unstyled::Tree
-                        @node_ref={&tree}
+                        api=tree
                         keys
                         item
                         selected={selected}

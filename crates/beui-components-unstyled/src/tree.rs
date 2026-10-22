@@ -10,7 +10,6 @@ use crate::button::{Button, ButtonHandle};
 use crate::floating::{Edge, Floating};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
-use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::keys::{KeyAt, KeyPhase};
@@ -72,6 +71,7 @@ pub struct TreeRevealHandle {
 }
 
 struct State<K> {
+    list: NodeRef,
     nodes: Nodes<K>,
     keys: Memo<Vec<K>>,
     item: Func<K, TreeItem>,
@@ -100,6 +100,7 @@ type Nodes<K> = Stored<RefCell<HashMap<K, NodeRef>>>;
 
 #[component]
 pub fn Tree<K>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<TreeApi<K>>,
     keys: Prop<Vec<K>>,
     item: Func<K, TreeItem>,
     selected: Prop<Option<K>>,
@@ -154,7 +155,9 @@ where
     component_accessibility(Node::new(Role::Tree));
 
     let nodes: Nodes<K> = store(RefCell::default());
+    let list = NodeRef::new();
     let state = State {
+        list,
         nodes,
         keys,
         item,
@@ -170,7 +173,7 @@ where
         on_cancel_edit,
         typeahead: store(RefCell::default()),
     };
-    set_component_state(state);
+    api.fill(TreeApi(state));
 
     create_effect(move || {
         if state.focus.get().is_none() {
@@ -179,7 +182,7 @@ where
     });
 
     view! {
-        <List spacing>
+        <List spacing @node_ref=&list>
             <ForEach keys>|key: K| {
                 let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                 let selected = selection.memo(Some(key.clone()));
@@ -438,7 +441,7 @@ pub fn TreeRowEditor(
     let placed = create_memo(move || field.try_get().is_some_and(|node| node_placed(node).get()));
     create_effect(move || {
         if placed.get() {
-            with_document(|document| document.reveal_node(field.get()));
+            field.get().reveal();
         }
     });
     let keyboard = use_keyboard();
@@ -473,7 +476,7 @@ pub fn TreeRowEditor(
 
 #[component]
 pub fn TreeReveal<K>(
-    tree: NodeRef,
+    tree: ComponentRef<TreeApi<K>>,
     viewport: NodeRef,
     on_reveal: Callback<K>,
     button: RenderFn<TreeRevealHandle>,
@@ -481,8 +484,8 @@ pub fn TreeReveal<K>(
 where
     K: Clone + Eq + Hash + 'static,
 {
-    let (list, scroll) = (tree.get(), viewport.get());
-    let state = with_document(|document| *document.component_state::<State<K>>(list));
+    let state = tree.get().0;
+    let (list, scroll) = (state.list.get(), viewport.get());
     let (keys, shown, buried, selected) = (state.keys, state.shown, state.buried, state.selected);
     let astray = create_memo(move || {
         let key = shown.get()?;
@@ -522,7 +525,7 @@ where
         if !node_placed(row).get() {
             return;
         }
-        with_document(|document| document.reveal_node(row));
+        row.reveal();
         pending.set(None);
     });
     let open = create_memo(move || astray.get().is_some());
@@ -565,23 +568,6 @@ fn stray_edge(row: Rect, viewport: Rect, buried: bool) -> Option<Edge> {
         return Some(Edge::Bottom);
     }
     None
-}
-
-pub fn tree_row_node<K>(document: &Document, tree: NodeId, key: &K) -> Option<NodeId>
-where
-    K: Clone + Eq + Hash + 'static,
-{
-    document
-        .component_state::<State<K>>(tree)
-        .nodes
-        .with(|nodes| nodes.borrow().get(key).and_then(NodeRef::try_get))
-}
-
-pub fn tree_focused<K>(document: &Document, tree: NodeId) -> Option<K>
-where
-    K: Clone + Eq + Hash + 'static,
-{
-    document.component_state::<State<K>>(tree).focus.get()
 }
 
 fn track_focus<K>(state: State<K>, key: &K, has_focus: bool)
@@ -719,4 +705,30 @@ where
 {
     state.focus.set(Some(key.clone()));
     state.on_select.call(key.clone());
+}
+
+pub struct TreeApi<K: 'static>(State<K>);
+
+impl<K> Clone for TreeApi<K> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K> Copy for TreeApi<K> {}
+
+impl<K: Clone + Eq + Hash + 'static> TreeApi<K> {
+    pub fn row_node(&self, key: &K) -> Option<NodeId> {
+        self.0
+            .nodes
+            .with(|nodes| nodes.borrow().get(key).and_then(NodeRef::try_get))
+    }
+
+    pub fn focused(&self) -> Option<K> {
+        self.0.focus.get()
+    }
+
+    pub fn node(&self) -> NodeId {
+        self.0.list.get()
+    }
 }

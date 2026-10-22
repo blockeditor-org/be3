@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn without_a_drag_modifier_a_modified_drag_reaches_the_dock_content() {
@@ -15,7 +15,7 @@ fn without_a_drag_modifier_a_modified_drag_reaches_the_dock_content() {
     harness.click(content.center());
     harness.frame(Vec::new());
     presses.set(0);
-    let before = dock_state(harness.document(), dock);
+    let before = harness.document().api::<DockApi>(dock).state();
     let right = harness.center(harness.find("content.2"));
 
     drag_with(&mut harness, content.center(), right, Modifiers::LOGO);
@@ -28,7 +28,7 @@ fn without_a_drag_modifier_a_modified_drag_reaches_the_dock_content() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        dock_state(harness.document(), dock),
+        harness.document().api::<DockApi>(dock).state(),
         before,
         "a dock with no drag modifier moves nothing"
     );
