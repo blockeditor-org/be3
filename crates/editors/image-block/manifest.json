@@ -2,11 +2,11 @@
   "id": "be3.image",
   "name": "Image",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "696d6167-652d-626c-6f63-6b2d74797001",
+  "editors": {
+    "image": {
+      "id": "c99ab462-6ed0-4ec1-bbf6-494ecfbc93b3",
+      "edits": "696d6167-652d-626c-6f63-6b2d74797001",
       "display_name": "Image",
-      "color": [64, 155, 173],
       "icon": "\ue3f4",
       "templates": {
         "main": {
@@ -25,6 +25,6 @@
         "Preview"
       ]
     }
-  ],
+  },
   "entry_point": "image_block.wasm"
 }

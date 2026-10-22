@@ -69,14 +69,27 @@ pub struct TemplateEntry {
 #[derive(Clone, Debug, PartialEq)]
 pub struct EditorEntry {
     pub editor: Uuid,
-    pub block_type: Option<Uuid>,
+    pub edits: Edits,
     pub name: String,
     pub icon: Option<&'static str>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Edits {
+    Type(Uuid),
+    Any,
+    Nothing,
+}
+
 impl EditorEntry {
     pub fn edits(&self, block_type: Uuid) -> bool {
-        self.block_type.is_none_or(|edited| edited == block_type)
+        match self.edits {
+            Edits::Type(edited) => edited == block_type,
+            Edits::Any => true,
+            Edits::Nothing => {
+                block_type == <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+            }
+        }
     }
 }
 
@@ -105,11 +118,11 @@ impl BlockCatalog {
         let specific = self
             .editors
             .iter()
-            .filter(|editor| editor.block_type == Some(block_type));
+            .filter(|editor| editor.edits == Edits::Type(block_type));
         let any = self
             .editors
             .iter()
-            .filter(|editor| editor.block_type.is_none());
+            .filter(|editor| editor.edits == Edits::Any);
         specific.chain(any).collect()
     }
 
@@ -120,7 +133,7 @@ impl BlockCatalog {
     pub fn built_in_editor(&self, block_type: Uuid) -> Option<Uuid> {
         self.editors
             .iter()
-            .find(|editor| editor.block_type == Some(block_type))
+            .find(|editor| editor.edits == Edits::Type(block_type))
             .map(|editor| editor.editor)
     }
 

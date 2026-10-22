@@ -24,8 +24,8 @@ fn block_types_round_trip() {
             dialog: false,
         }],
         editors: vec![EditorDescriptor {
-            editor: editor_id("be3.folder"),
-            block_type: ANY_BLOCK_TYPE,
+            editor: [8; 16],
+            edits: Edits::Any,
             name: "Debug view".into(),
             icon_codepoint: "\u{e86f}".into(),
         }],

@@ -16,11 +16,14 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
     let block_types = Arc::new(block_plugin_api::Catalog::default());
-    let role = InstanceRole::Editor(EditorBlock {
-        id: block,
-        block_type,
-        view_block: None,
-    });
+    let role = InstanceRole::Editor(
+        Uuid::nil(),
+        EditorBlock {
+            id: block,
+            block_type,
+            view_block: None,
+        },
+    );
     instances.report(
         INSTANCE,
         REGION,

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub mod audio;
 pub mod blob;
+pub mod block_types;
 pub mod block_url;
 pub mod browser_tab;
 pub mod calendar;
@@ -52,6 +53,7 @@ pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
+pub use block_types::{BLOCK_TYPES, BlockType, ChildEdits, block_type};
 pub use browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};
 pub use calendar::{Calendar, CalendarContent, CalendarEvent};
 pub use canvas::CanvasContent;

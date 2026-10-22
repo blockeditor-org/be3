@@ -2,11 +2,11 @@
   "id": "be3.audio",
   "name": "Audio",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "61756469-6f2d-626c-6f63-6b2d74797001",
+  "editors": {
+    "audio": {
+      "id": "4fd7804f-27cd-4bd5-96ee-8155e15ae87f",
+      "edits": "61756469-6f2d-626c-6f63-6b2d74797001",
       "display_name": "Audio",
-      "color": [65, 145, 210],
       "icon": "\ueb82",
       "templates": {
         "main": {
@@ -17,6 +17,6 @@
         "Frame"
       ]
     }
-  ],
+  },
   "entry_point": "audio_block.wasm"
 }

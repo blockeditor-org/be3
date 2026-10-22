@@ -1,10 +1,10 @@
 pub(crate) mod plugin;
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
+use be_block::BlockContent;
 use be_graph::Access;
-use block_plugin_api::{EditorManifest, PluginManifest, TemplateCategory};
+use block_plugin_api::{EditorManifest, Edits, PluginManifest, TemplateCategory};
 use uuid::Uuid;
 
 pub(crate) use crate::block_label::BlockLabel;
@@ -84,10 +84,7 @@ pub enum Chrome {
     None,
 }
 
-type OpenEditor = Box<dyn Fn(Uuid) -> PluginEditor>;
 type CreateOptions = Box<dyn Fn() -> Box<dyn PendingCreation>>;
-
-struct ArtifactProvider(Arc<PluginManifest>);
 
 pub(super) trait ArtifactSession {
     fn poll(&mut self, registry: &EditorRegistry, data: &[u8]) -> ArtifactStatus;
@@ -121,18 +118,6 @@ pub(crate) enum CreationStep {
     Working,
 }
 
-struct EditorRegistration {
-    block_type: Uuid,
-    display_name: &'static str,
-    icon: &'static str,
-    color: Option<[u8; 3]>,
-    open: OpenEditor,
-    can_add_child: bool,
-    can_delete_child: bool,
-    can_replace_child: bool,
-    dynamic_artifact: Option<ArtifactProvider>,
-}
-
 pub(crate) struct TemplateEntry {
     pub(crate) target: plugin::CreationTarget,
     pub(crate) icon: &'static str,
@@ -140,26 +125,30 @@ pub(crate) struct TemplateEntry {
     create: CreateOptions,
 }
 
-pub(crate) struct BlockTypeEntry {
-    pub(crate) display_name: String,
-    pub(crate) icon: &'static str,
-    pub(crate) color: Option<[u8; 3]>,
-    pub(crate) add: bool,
-    pub(crate) delete: bool,
-    pub(crate) replace: bool,
-}
-
-struct EditorChoice {
-    editor: Uuid,
-    block_type: Option<Uuid>,
+struct RegisteredEditor {
+    id: Uuid,
+    edits: Edits,
     manifest: Arc<PluginManifest>,
     name: String,
     icon: String,
 }
 
+impl RegisteredEditor {
+    fn edits(&self, block_type: Uuid) -> bool {
+        match self.edits {
+            Edits::Type(edited) => Uuid::from_bytes(edited) == block_type,
+            Edits::Any => true,
+            Edits::Nothing => block_type == be_block::EditorViewContent::CONTENT_TYPE,
+        }
+    }
+
+    fn open(&self, id: Uuid, block_type: Uuid) -> PluginEditor {
+        PluginEditor::new(Arc::clone(&self.manifest), self.id, id, block_type)
+    }
+}
+
 pub struct EditorRegistry {
-    registrations: HashMap<Uuid, EditorRegistration>,
-    editors: Vec<EditorChoice>,
+    editors: Vec<RegisteredEditor>,
     templates: Vec<TemplateEntry>,
     plugin_block_types: Arc<block_plugin_api::Catalog>,
 }
@@ -171,16 +160,17 @@ impl EditorRegistry {
 
     pub(crate) fn from_manifests(manifests: Vec<Arc<PluginManifest>>) -> Self {
         let mut registry = Self {
-            registrations: HashMap::new(),
             editors: Vec::new(),
             templates: Vec::new(),
             plugin_block_types: Arc::default(),
         };
         for manifest in manifests {
-            registry.register_plugin(manifest);
+            for editor in &manifest.editors {
+                registry.register_editor(&manifest, editor);
+            }
         }
         registry.plugin_block_types = Arc::new(block_plugin_api::Catalog {
-            types: plugin::block_type_descriptors(registry.block_types()),
+            types: registry.block_types(),
             templates: registry
                 .templates
                 .iter()
@@ -197,69 +187,55 @@ impl EditorRegistry {
             editors: registry
                 .editors
                 .iter()
-                .map(|choice| block_plugin_api::EditorDescriptor {
-                    editor: choice.editor.into_bytes(),
-                    block_type: choice
-                        .block_type
-                        .map_or(block_plugin_api::ANY_BLOCK_TYPE, Uuid::into_bytes),
-                    name: choice.name.clone(),
-                    icon_codepoint: choice.icon.clone(),
+                .map(|editor| block_plugin_api::EditorDescriptor {
+                    editor: editor.id.into_bytes(),
+                    edits: editor.edits,
+                    name: editor.name.clone(),
+                    icon_codepoint: editor.icon.clone(),
                 })
                 .collect(),
         });
         registry
     }
 
-    fn block_types(&self) -> Vec<(Uuid, BlockTypeEntry)> {
-        let mut types: Vec<_> = self
-            .registrations
-            .values()
-            .map(|registration| {
-                (
-                    registration.block_type,
-                    BlockTypeEntry {
-                        display_name: registration.display_name.to_owned(),
-                        color: registration.color,
-                        icon: registration.icon,
-                        add: registration.can_add_child,
-                        delete: registration.can_delete_child,
-                        replace: registration.can_replace_child,
-                    },
-                )
+    fn block_types(&self) -> Vec<block_plugin_api::BlockTypeDescriptor> {
+        be_block::BLOCK_TYPES
+            .iter()
+            .filter(|block_type| {
+                self.editors
+                    .iter()
+                    .any(|editor| editor.edits == Edits::Type(block_type.content_type.into_bytes()))
             })
-            .collect();
-        types.sort_by_key(|(block_type, _)| *block_type);
-        types
+            .map(|block_type| block_plugin_api::BlockTypeDescriptor {
+                block_type: block_type.content_type.into_bytes(),
+                display_name: block_type.name.to_owned(),
+                color: Some(block_type.color),
+                icon_codepoint: block_type.icon.to_owned(),
+                children: block_plugin_api::ChildOperations {
+                    add: block_type.children.add,
+                    delete: block_type.children.delete,
+                    replace: block_type.children.replace,
+                },
+            })
+            .collect()
     }
 
     pub(super) fn plugin_block_types(&self) -> &Arc<block_plugin_api::Catalog> {
         &self.plugin_block_types
     }
 
-    fn register_plugin(&mut self, manifest: Arc<PluginManifest>) {
-        for editor in &manifest.editors {
-            self.register_editor(&manifest, editor);
-        }
-    }
-
     fn register_editor(&mut self, manifest: &Arc<PluginManifest>, editor: &EditorManifest) {
-        let any = editor.block_type == block_plugin_api::ANY_BLOCK_TYPE;
-        let block_type = Uuid::from_bytes(editor.block_type);
-        self.editors.push(EditorChoice {
-            editor: Uuid::from_bytes(manifest.editor_id()),
-            block_type: (!any).then_some(block_type),
+        let id = Uuid::from_bytes(editor.id);
+        self.editors.push(RegisteredEditor {
+            id,
+            edits: editor.edits,
             manifest: Arc::clone(manifest),
             name: editor.display_name.clone(),
             icon: editor.icon.clone(),
         });
-        if any || self.registrations.contains_key(&block_type) {
-            return;
-        }
-        let display_name: &'static str = Box::leak(editor.display_name.clone().into_boxed_str());
-        let icon: &'static str = Box::leak(editor.icon.clone().into_boxed_str());
         for template in &editor.templates {
             let target = plugin::CreationTarget {
-                editor: block_type,
+                editor: id,
                 template: Box::leak(template.id.clone().into_boxed_str()),
                 block_type: Uuid::from_bytes(template.block_type),
                 dialog: template.dialog,
@@ -275,38 +251,20 @@ impl EditorRegistry {
                 }),
             });
         }
-        self.registrations.insert(
-            block_type,
-            EditorRegistration {
-                block_type,
-                display_name,
-                icon,
-                color: editor.color,
-                open: {
-                    let manifest = Arc::clone(manifest);
-                    Box::new(move |id| PluginEditor::new(Arc::clone(&manifest), id, block_type))
-                },
-                can_add_child: editor.children.add,
-                can_delete_child: editor.children.delete,
-                can_replace_child: editor.children.replace,
-                dynamic_artifact: editor
-                    .regions
-                    .contains(&block_plugin_api::EditorRegion::ArtifactSettings)
-                    .then(|| ArtifactProvider(Arc::clone(manifest))),
-            },
-        );
     }
 
     pub fn display_name(&self, block_type: Uuid) -> Option<&'static str> {
-        self.registrations
-            .get(&block_type)
-            .map(|registration| registration.display_name)
+        be_block::block_type(block_type).map(|block_type| block_type.name)
     }
 
     pub fn icon(&self, block_type: Uuid) -> Option<&'static str> {
-        self.registrations
-            .get(&block_type)
-            .map(|registration| registration.icon)
+        be_block::block_type(block_type).map(|block_type| block_type.icon)
+    }
+
+    fn default_editor(&self, block_type: Uuid) -> Option<&RegisteredEditor> {
+        self.editors
+            .iter()
+            .find(|editor| editor.edits == Edits::Type(block_type.into_bytes()))
     }
 
     pub(super) fn artifact_session(
@@ -316,21 +274,28 @@ impl EditorRegistry {
         target_type: Uuid,
         client_id: Uuid,
     ) -> Result<Box<dyn ArtifactSession>, String> {
-        let registration = self
-            .registrations
-            .get(&source_type)
+        let editor = self
+            .default_editor(source_type)
             .ok_or_else(|| format!("unsupported dynamic artifact source type {source_type}"))?;
-        match &registration.dynamic_artifact {
-            Some(ArtifactProvider(manifest)) => Ok(Box::new(plugin::PluginArtifact::new(
-                Arc::clone(manifest),
-                source_type,
+        let generates = editor
+            .manifest
+            .editor(editor.id.into_bytes())
+            .is_some_and(|manifest| {
+                manifest
+                    .regions
+                    .contains(&block_plugin_api::EditorRegion::ArtifactSettings)
+            });
+        match generates {
+            true => Ok(Box::new(plugin::PluginArtifact::new(
+                Arc::clone(&editor.manifest),
+                editor.id,
                 target_id,
                 target_type,
                 client_id,
             ))),
-            None => Err(format!(
+            false => Err(format!(
                 "{} blocks do not generate dynamic artifacts",
-                registration.display_name
+                self.display_name(source_type).unwrap_or("These")
             )),
         }
     }
@@ -348,16 +313,16 @@ impl EditorRegistry {
     }
 
     pub fn open(&self, id: Uuid, block_type: Uuid) -> PluginEditor {
-        self.registrations.get(&block_type).map_or_else(
+        self.default_editor(block_type).map_or_else(
             || PluginEditor::unsupported(id, block_type),
-            |registration| (registration.open)(id),
+            |editor| editor.open(id, block_type),
         )
     }
 
-    fn choice(&self, editor: Uuid, block_type: Uuid) -> Option<&EditorChoice> {
-        self.editors.iter().find(|choice| {
-            choice.editor == editor && choice.block_type.is_none_or(|edits| edits == block_type)
-        })
+    fn choice(&self, editor: Uuid, block_type: Uuid) -> Option<&RegisteredEditor> {
+        self.editors
+            .iter()
+            .find(|registered| registered.id == editor && registered.edits(block_type))
     }
 
     pub(crate) fn edits(&self, editor: Uuid, block_type: Uuid) -> bool {
@@ -371,7 +336,7 @@ impl EditorRegistry {
         editor: Option<Uuid>,
     ) -> PluginEditor {
         match editor.and_then(|editor| self.choice(editor, block_type)) {
-            Some(choice) => PluginEditor::new(Arc::clone(&choice.manifest), id, block_type),
+            Some(choice) => choice.open(id, block_type),
             None => self.open(id, block_type),
         }
     }

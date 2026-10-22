@@ -2,11 +2,11 @@
   "id": "be3.scene-3d",
   "name": "3D scene",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "33642d73-6365-6e65-2d62-6c6f636b3031",
+  "editors": {
+    "scene": {
+      "id": "7e35a12b-dea8-4aa5-94ed-ef97c98ff6be",
+      "edits": "33642d73-6365-6e65-2d62-6c6f636b3031",
       "display_name": "3D scene",
-      "color": [203, 91, 125],
       "icon": "\uefc9",
       "templates": {
         "main": {}
@@ -15,6 +15,6 @@
         "Frame"
       ]
     }
-  ],
+  },
   "entry_point": "scene_3d.wasm"
 }

@@ -2,15 +2,16 @@
   "id": "be3.block-debug",
   "name": "Debug view",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "any",
+  "editors": {
+    "debug": {
+      "id": "777b1dfa-5369-402e-b22d-7eb56877ad4d",
+      "edits": "any",
       "display_name": "Debug view",
-      "icon": "",
+      "icon": "\uead3",
       "regions": [
         "Frame"
       ]
     }
-  ],
+  },
   "entry_point": "block_debug.wasm"
 }

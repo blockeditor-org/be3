@@ -2,11 +2,11 @@
   "id": "be3.pdf",
   "name": "PDF",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "7064662d-626c-6f63-6b2d-747970652d01",
+  "editors": {
+    "pdf": {
+      "id": "1bee9876-5add-44fd-9be2-fac20c0b2411",
+      "edits": "7064662d-626c-6f63-6b2d-747970652d01",
       "display_name": "PDF",
-      "color": [65, 145, 210],
       "icon": "\ue415",
       "templates": {
         "main": {
@@ -26,6 +26,6 @@
         "Preview"
       ]
     }
-  ],
+  },
   "entry_point": "pdf.wasm"
 }

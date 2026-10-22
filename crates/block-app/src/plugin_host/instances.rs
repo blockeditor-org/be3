@@ -335,11 +335,11 @@ impl Instance {
             version_sent: None,
             stale: true,
             prefetched: match role {
-                InstanceRole::Editor(block) => prefetched_references(block),
+                InstanceRole::Editor(_, block) => prefetched_references(block),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => Vec::new(),
             },
             content: match role {
-                InstanceRole::Editor(block) => own_content_type(block)
+                InstanceRole::Editor(_, block) => own_content_type(block)
                     .map(|content_type| ContentLink::opening(block.id, content_type)),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
@@ -449,7 +449,7 @@ impl Instance {
         for (block, link) in &mut self.watched {
             link.messages(instance, *block, &mut messages);
         }
-        if let InstanceRole::Editor(block) = self.role
+        if let InstanceRole::Editor(_, block) = self.role
             && crate::be::is_versioned(block.block_type)
             && let Some((revision, status)) =
                 crate::be::version_since(block.id, block.block_type, self.version_sent)
@@ -1262,7 +1262,7 @@ impl Instances {
         instance: EditorInstanceId,
         client_id: Uuid,
         block_types: &Arc<block_plugin_api::Catalog>,
-        source_type: Uuid,
+        editor: Uuid,
         block: EditorBlock,
         data: &[u8],
         resync: bool,
@@ -1272,7 +1272,7 @@ impl Instances {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
-            let mut entry = Instance::new(InstanceRole::Artifact(source_type, block));
+            let mut entry = Instance::new(InstanceRole::Artifact(editor, block));
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -1394,7 +1394,7 @@ impl Instances {
                 })
                 .map(|screen| screen.request.clone())
                 .collect();
-            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(_)) {
+            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) {
                 continue;
             }
             regions.sort_by_key(|request| request.screen.0);
@@ -1407,8 +1407,9 @@ impl Instances {
                 let account_id = account.into_bytes();
                 let organization_id = organization.into_bytes();
                 opened.push(match entry.role {
-                    InstanceRole::Editor(block) => Message::Editor(EditorMessage::Open {
+                    InstanceRole::Editor(editor, block) => Message::Editor(EditorMessage::Open {
                         instance,
+                        editor: editor.into_bytes(),
                         block_id: block.id.into_bytes(),
                         block_type: block.block_type.into_bytes(),
                         view_block: block.view_block.map(Uuid::into_bytes),
@@ -1424,17 +1425,17 @@ impl Instances {
                     InstanceRole::Creation(editor, template) => {
                         Message::Editor(EditorMessage::OpenCreation {
                             instance,
-                            block_type: editor.into_bytes(),
+                            editor: editor.into_bytes(),
                             template: template.to_owned(),
                             account_id,
                             organization_id,
                             client_id,
                         })
                     }
-                    InstanceRole::Artifact(source_type, block) => {
+                    InstanceRole::Artifact(editor, block) => {
                         Message::Editor(EditorMessage::OpenArtifact {
                             instance,
-                            source_type: source_type.into_bytes(),
+                            editor: editor.into_bytes(),
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
                             account_id,
@@ -1464,7 +1465,7 @@ impl Instances {
             }
             opened.append(&mut entry.deferred);
             let stale = std::mem::take(&mut entry.stale);
-            if let InstanceRole::Editor(block) = entry.role
+            if let InstanceRole::Editor(_, block) = entry.role
                 && (stale || graph_moved)
             {
                 let editable = crate::be::access(block.id).can_edit();
@@ -2081,7 +2082,7 @@ impl Instances {
                     instance: *instance,
                     block: entry.role.block().map(|block| block.id),
                     role: match entry.role {
-                        InstanceRole::Editor(_) => "editor",
+                        InstanceRole::Editor(..) => "editor",
                         InstanceRole::Creation(..) => "creation",
                         InstanceRole::Artifact(..) => "artifact",
                     },

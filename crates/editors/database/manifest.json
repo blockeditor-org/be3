@@ -2,11 +2,11 @@
   "id": "be3.database",
   "name": "Database",
   "version": "0.1.0",
-  "editors": [
-    {
-      "block_type": "00646174-6162-6173-652d-626c6f636b01",
+  "editors": {
+    "database": {
+      "id": "20040639-ad85-4eb3-81f7-122acdc9b9fe",
+      "edits": "00646174-6162-6173-652d-626c6f636b01",
       "display_name": "Database",
-      "color": [172, 145, 47],
       "icon": "\uf20e",
       "templates": {
         "main": {}
@@ -15,10 +15,10 @@
         "Frame"
       ]
     },
-    {
-      "block_type": "64617461-6261-7365-2d73-6368656d6101",
+    "schema": {
+      "id": "7a9fa755-2272-4e38-9341-c12005a1969b",
+      "edits": "64617461-6261-7365-2d73-6368656d6101",
       "display_name": "Database Schema",
-      "color": [65, 145, 210],
       "icon": "\ue4fd",
       "templates": {
         "main": {}
@@ -27,10 +27,10 @@
         "Frame"
       ]
     },
-    {
-      "block_type": "00006461-7461-6261-7365-2d7669657701",
+    "view": {
+      "id": "130bcf57-f532-41e1-9fa9-e6ca391d6ef4",
+      "edits": "00006461-7461-6261-7365-2d7669657701",
       "display_name": "Database View",
-      "color": [44, 158, 128],
       "icon": "\uf1be",
       "templates": {
         "main": {}
@@ -47,6 +47,6 @@
         "Preview"
       ]
     }
-  ],
+  },
   "entry_point": "database.wasm"
 }
