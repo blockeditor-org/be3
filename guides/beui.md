@@ -377,7 +377,15 @@ hooks the higher crates fill in:
   report a pinch) or Safari's `gesturechange`, whose scale over the last one's
   is the factor; the web adapter ignores a gesture while fingers are down,
   since those touches pinch already, and prevents the default of all of them
-  so the browser never zooms the page. Every pointer sample is an event of its
+  so the browser never zooms the page. Lifting the fingers off a trackpad
+  scroll pushes `Event::ScrollEnded`, which flings the scroll at the speed of
+  its last samples and bands it if that carries it past an end; a plugin's
+  host forwards it as `InputEvent::WheelEnded`. winit pushes it on a
+  `MouseWheel` phase of `Ended`, and on macOS drops the momentum events the
+  system sends after a lift (from a `Started` within 100 ms of it to their
+  `Ended`, in `beui-adapter-winit/src/wheel.rs`): beui's fling replaces them,
+  and they would scroll clamped at an end instead of banding. The browser
+  reports no lift, so a web wheel scroll never flings. Every pointer sample is an event of its
   own: the web adapter pushes each of a `pointermove`'s
   `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
   per sample, so a stroke keeps every point the device reported between two

@@ -4,6 +4,7 @@ mod accessibility;
 mod clipboard;
 mod file_picker;
 mod preferences;
+mod wheel;
 #[cfg(test)]
 mod tests;
 
@@ -50,6 +51,7 @@ use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, Sc
 use beui_core::window::WindowState;
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
+use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
 #[cfg(target_os = "linux")]
@@ -100,6 +102,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         surface: None,
         pointer: Pos2::ZERO,
         fingers: Vec::new(),
+        wheel: Wheel::new(cfg!(target_os = "macos")),
         dropping: None,
         error: None,
         next_update: None,
@@ -130,6 +133,7 @@ struct Runner {
     surface: Option<Surface>,
     pointer: Pos2,
     fingers: Vec<TouchId>,
+    wheel: Wheel,
     dropping: Option<AsyncRequestSerial>,
     error: Option<String>,
     next_update: Option<Instant>,
@@ -628,6 +632,10 @@ impl ApplicationHandler for Runner {
                 self.push(Event::Time(Instant::now()));
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
+                let wheeled = self.wheel.event(phase, Instant::now());
+                if wheeled == Wheeled::Ignore {
+                    return;
+                }
                 self.push(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),
                     MouseScrollDelta::PixelDelta(position) => {
@@ -635,7 +643,7 @@ impl ApplicationHandler for Runner {
                     }
                     _ => return,
                 });
-                if cfg!(target_os = "linux") && phase == winit::event::TouchPhase::Ended {
+                if wheeled == Wheeled::ScrollAndEnd {
                     self.push(Event::ScrollEnded);
                 }
             }
