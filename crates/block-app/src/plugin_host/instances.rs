@@ -718,6 +718,14 @@ impl Instances {
             return false;
         };
         crate::be::want(crate::be::Owner::Editor(instance.0), Vec::new());
+        let own = entry.role.block().zip(entry.content.as_ref());
+        let links = own
+            .map(|(block, link)| (block.id, link))
+            .into_iter()
+            .chain(entry.watched.iter().map(|(block, link)| (*block, link)));
+        for (block, link) in links {
+            crate::be::gesture(block, link.origin, block_plugin_api::GesturePhase::Cancel);
+        }
         for preview in &entry.revision_previews {
             crate::be::revisions::release(*preview);
         }

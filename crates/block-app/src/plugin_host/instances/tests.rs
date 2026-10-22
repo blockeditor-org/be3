@@ -156,6 +156,7 @@ mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 #[cfg(target_os = "linux")]
 #[cfg(target_os = "linux")]
 mod clearing_a_name_names_the_block_after_its_content_at_once;
+mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod host_actions_reach_the_host_only_from_the_shell;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
 mod revision_history_editors_cannot_mutate_any_block;
