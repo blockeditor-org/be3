@@ -793,14 +793,14 @@ enum Command {
         anchor: Option<Pos2>,
     },
     Follow {
-        factor: f32,
-        anchor: Pos2,
-        delta: Vec2,
+        scale: f32,
+        world: Vec2,
+        at: Pos2,
         resume: bool,
     },
 }
 
-fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) {
+fn settle(viewport: &mut Viewport, command: Command, rect: Rect, content: Vec2, max_zoom: f32) {
     match command {
         Command::Pan(delta) => {
             viewport.pan += delta;
@@ -817,16 +817,17 @@ fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) 
             viewport.moved = true;
         }
         Command::Follow {
-            factor,
-            anchor,
-            delta,
+            scale,
+            world,
+            at,
             resume,
         } => {
             if viewport.moved && !resume {
                 return;
             }
-            zoom(viewport, factor, anchor, rect, max_zoom);
-            viewport.pan += delta;
+            viewport.zoom = scale.clamp(MIN_ZOOM, max_zoom);
+            viewport.pan =
+                at - world * viewport.zoom + content * viewport.zoom * 0.5 - rect.center();
             viewport.moved = false;
         }
     }
@@ -842,21 +843,28 @@ fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom
     }
 }
 
-fn by_hand(command: Command) -> Vec<Command> {
-    match command {
-        Command::Follow {
-            factor,
-            anchor,
-            delta,
-            ..
-        } => vec![
-            Command::Zoom {
-                factor,
-                anchor: Some(anchor),
+fn by_hand(command: Command, view: Option<Rect>, scale: f32) -> Vec<Command> {
+    match (command, view) {
+        (
+            Command::Follow {
+                scale: target,
+                world,
+                at,
+                ..
             },
-            Command::Pan(delta),
-        ],
-        command => vec![command],
+            Some(view),
+        ) => {
+            let anchor = view.min + world * scale;
+            vec![
+                Command::Zoom {
+                    factor: target / scale.max(f32::EPSILON),
+                    anchor: Some(anchor),
+                },
+                Command::Pan(at - anchor),
+            ]
+        }
+        (Command::Follow { .. }, None) => Vec::new(),
+        (command, _) => vec![command],
     }
 }
 
@@ -1123,84 +1131,6 @@ fn BlockFrameView(
                     .unwrap_or(vec2(420.0, 240.0));
                 vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
             });
-            let owner = use_context::<CameraOwner>();
-            let command = move |command: Command| {
-                    if !pan_and_zoom {
-                        if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
-                            for command in by_hand(command) {
-                                owner.0.call(command);
-                            }
-                        }
-                        return;
-                    }
-                    let mut state = viewport.get_untracked();
-                    settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
-                    if state != viewport.get_untracked() {
-                        viewport.set(state);
-                    }
-            };
-            if pan_and_zoom {
-                provide_context(CameraOwner(Callback::new(command)));
-            }
-            create_effect(
-                move || {
-                    if !pan_and_zoom {
-                        return;
-                    }
-                    let rect = viewport_rect.get();
-                    let mut state = viewport.get_untracked();
-                    if let Some(previous) = state.center.replace(rect.center()) {
-                        state.pan += previous - rect.center();
-                    }
-                    if state != viewport.get_untracked() {
-                        viewport.set(state);
-                    }
-                },
-            );
-            let pan_drags = create_signal(0u64);
-            create_effect(
-                move || {
-                    revision.get();
-                    let rect = rect.get_untracked();
-                    for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
-                        command(match change {
-                            ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
-                            ViewChange::Zoom { factor, anchor } => Command::Zoom {
-                                factor,
-                                anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
-                            },
-                            ViewChange::Follow {
-                                factor,
-                                anchor: (ax, ay),
-                                x,
-                                y,
-                                resume,
-                            } => Command::Follow {
-                                factor,
-                                anchor: rect.min + vec2(ax, ay),
-                                delta: vec2(x, y),
-                                resume,
-                            },
-                            ViewChange::PanDrag => {
-                                pan_drags.update(|asked| *asked += 1);
-                                continue;
-                            }
-                        });
-                    }
-                    let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
-                    for action in actions {
-                        on_bar_action.call(action);
-                    }
-                },
-            );
-            if let Some(tab) = use_context::<TabContext>() {
-                create_effect(move || {
-                    revision.get();
-                    if plugin_host::take_leaving(&plugin_id.value(), instance) {
-                        tab.exit.call();
-                    }
-                });
-            }
             let content_rect = create_memo(move || {
                 let state = viewport.get();
                 Rect::from_center_size(
@@ -1236,6 +1166,92 @@ fn BlockFrameView(
                     })
                 },
             );
+            let owner = use_context::<CameraOwner>();
+            let command = move |command: Command| {
+                    if !pan_and_zoom {
+                        if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
+                            let view = editor_view.get_untracked();
+                            let shown = view.map(|view| view.rect.translate(rect.get_untracked().min.to_vec2()));
+                            let scale = view.map_or(1.0, |view| view.scale);
+                            for command in by_hand(command, shown, scale) {
+                                owner.0.call(command);
+                            }
+                        }
+                        return;
+                    }
+                    let mut state = viewport.get_untracked();
+                    settle(
+                        &mut state,
+                        command,
+                        viewport_rect.get_untracked(),
+                        content_size.get_untracked(),
+                        max_zoom,
+                    );
+                    if state != viewport.get_untracked() {
+                        viewport.set(state);
+                    }
+            };
+            if pan_and_zoom {
+                provide_context(CameraOwner(Callback::new(command)));
+            }
+            create_effect(
+                move || {
+                    if !pan_and_zoom {
+                        return;
+                    }
+                    let rect = viewport_rect.get();
+                    let mut state = viewport.get_untracked();
+                    if let Some(previous) = state.center.replace(rect.center()) {
+                        state.pan += previous - rect.center();
+                    }
+                    if state != viewport.get_untracked() {
+                        viewport.set(state);
+                    }
+                },
+            );
+            let pan_drags = create_signal(0u64);
+            create_effect(
+                move || {
+                    revision.get();
+                    let rect = rect.get_untracked();
+                    for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
+                        command(match change {
+                            ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
+                            ViewChange::Zoom { factor, anchor } => Command::Zoom {
+                                factor,
+                                anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
+                            },
+                            ViewChange::Follow {
+                                scale,
+                                world: (wx, wy),
+                                at: (ax, ay),
+                                resume,
+                            } => Command::Follow {
+                                scale,
+                                world: vec2(wx, wy),
+                                at: rect.min + vec2(ax, ay),
+                                resume,
+                            },
+                            ViewChange::PanDrag => {
+                                pan_drags.update(|asked| *asked += 1);
+                                continue;
+                            }
+                        });
+                    }
+                    let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
+                    for action in actions {
+                        on_bar_action.call(action);
+                    }
+                },
+            );
+            if let Some(tab) = use_context::<TabContext>() {
+                create_effect(move || {
+                    revision.get();
+                    if plugin_host::take_leaving(&plugin_id.value(), instance) {
+                        tab.exit.call();
+                    }
+                });
+            }
             let frame = create_memo(move || {
                 let origin = rect.get().min;
                 Some(FrameSpec {

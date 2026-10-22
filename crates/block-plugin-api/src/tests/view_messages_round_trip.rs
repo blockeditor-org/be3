@@ -33,10 +33,9 @@ fn view_messages_round_trip() {
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
             change: ViewChange::Follow {
-                factor: 0.5,
-                anchor: (40.0, 30.0),
-                x: -6.0,
-                y: 2.5,
+                scale: 0.5,
+                world: (40.0, 30.0),
+                at: (-6.0, 2.5),
                 resume: true,
             },
         }),

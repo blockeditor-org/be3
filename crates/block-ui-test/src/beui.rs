@@ -850,7 +850,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let intrinsic = self.intrinsic;
         let band = self.band(rect);
         if let Some(viewport) = &mut self.viewport {
-            viewport.settle(&mut self.sent, band, rect.min);
+            viewport.settle(&mut self.sent, band, rect.min, intrinsic);
             self.inbox.extend(viewport.place(band, rect.min, intrinsic));
         }
     }
@@ -1573,14 +1573,17 @@ impl Viewport {
         self.sent = Some((view, scale, true));
     }
 
-    fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
-        let content = self.world.unwrap_or_else(|| {
+    fn content(&self, region: Rect, intrinsic: Option<Vec2>) -> Vec2 {
+        self.world.unwrap_or_else(|| {
             intrinsic
                 .unwrap_or(Vec2::ZERO)
                 .max(region.size())
                 .max(Vec2::new(1.0, 1.0))
-        });
-        let size = content * self.zoom;
+        })
+    }
+
+    fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
+        let size = self.content(region, intrinsic) * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
         let sent = (view, self.zoom, self.moved);
@@ -1599,7 +1602,13 @@ impl Viewport {
         }))
     }
 
-    fn settle(&mut self, sent: &mut Vec<EditorMessage>, region: Rect, origin: Pos2) {
+    fn settle(
+        &mut self,
+        sent: &mut Vec<EditorMessage>,
+        region: Rect,
+        origin: Pos2,
+        intrinsic: Option<Vec2>,
+    ) {
         let mut changes = Vec::new();
         sent.retain(|message| match message {
             EditorMessage::ChangeView { change, .. } => {
@@ -1612,17 +1621,19 @@ impl Viewport {
             let anchored = |(x, y): (f32, f32)| Pos2::new(x, y) + origin.to_vec2();
             match change {
                 ViewChange::Follow {
-                    factor,
-                    anchor,
-                    x,
-                    y,
+                    scale,
+                    world: (x, y),
+                    at,
                     resume,
                 } => {
                     if self.moved && !resume {
                         continue;
                     }
-                    self.zoom_at(factor, anchored(anchor), region);
-                    self.pan += Vec2::new(x, y);
+                    let content = self.content(region, intrinsic);
+                    self.zoom = scale.clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+                    self.pan = anchored(at) - Vec2::new(x, y) * self.zoom
+                        + content * self.zoom * 0.5
+                        - region.center();
                     self.moved = false;
                 }
                 ViewChange::Zoom { factor, anchor } => self.apply(

@@ -2082,10 +2082,9 @@ pub enum ViewChange {
         anchor: Option<(f32, f32)>,
     },
     Follow {
-        factor: f32,
-        anchor: (f32, f32),
-        x: f32,
-        y: f32,
+        scale: f32,
+        world: (f32, f32),
+        at: (f32, f32),
         resume: bool,
     },
     PanDrag,

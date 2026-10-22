@@ -1107,12 +1107,12 @@ impl Editor {
             .zoom_view(factor, Some(Pos2::new(anchor.x / ratio, anchor.y / ratio)));
     }
 
-    pub(crate) fn follow(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
+    pub(crate) fn follow(&self, scale: f32, world: Pos2, at: Pos2, resume: bool) {
         let ratio = self.ratio();
         self.state().host.follow_view(
-            factor,
-            Pos2::new(anchor.x / ratio, anchor.y / ratio),
-            delta / ratio,
+            scale,
+            Pos2::new(world.x / ratio, world.y / ratio),
+            Pos2::new(at.x / ratio, at.y / ratio),
             resume,
         );
     }

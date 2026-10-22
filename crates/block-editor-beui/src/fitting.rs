@@ -16,6 +16,9 @@ struct Fit {
     factor: f32,
     anchor: Pos2,
     delta: Vec2,
+    scale: f32,
+    centre: Pos2,
+    at: Pos2,
 }
 
 impl Fit {
@@ -53,6 +56,9 @@ impl Editor {
             factor: target / view.scale.max(f32::EPSILON),
             anchor,
             delta: room.center() - anchor,
+            scale: target,
+            centre: world.center(),
+            at: room.center(),
         })
     }
 
@@ -103,8 +109,7 @@ impl Fitting {
             return;
         };
         if resume || fit.zooms() || fit.pans() {
-            self.editor
-                .follow(fit.factor, fit.anchor, fit.delta, resume);
+            self.editor.follow(fit.scale, fit.centre, fit.at, resume);
         }
     }
 }

@@ -1159,13 +1159,12 @@ impl EditorHost {
         });
     }
 
-    pub fn follow_view(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
+    pub fn follow_view(&self, scale: f32, world: Pos2, at: Pos2, resume: bool) {
         let origin = self.region.get().origin;
         self.view_changes.borrow_mut().push(ViewChange::Follow {
-            factor,
-            anchor: (anchor.x - origin.x, anchor.y - origin.y),
-            x: delta.x,
-            y: delta.y,
+            scale,
+            world: (world.x, world.y),
+            at: (at.x - origin.x, at.y - origin.y),
             resume,
         });
     }
