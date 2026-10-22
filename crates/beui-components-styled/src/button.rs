@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::focus_ring::FocusRing;
-use crate::text::{Icon, Text, TextColor, TextSize, TextStyle, TextStyleProvider};
+use crate::text::{Icon, Text, TextColor};
 use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_core::base::{ItemSize, TextAlign};
@@ -15,8 +15,9 @@ use beui_view::reactive::*;
 const GLYPH_SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 16.0;
 const PADDING_VERTICAL: f32 = 9.0;
-const COMPACT_PADDING_HORIZONTAL: f32 = 10.0;
-const COMPACT_PADDING_VERTICAL: f32 = 5.0;
+const COMPACT_PADDING_HORIZONTAL: f32 = 11.0;
+const COMPACT_PADDING_VERTICAL: f32 = 7.0;
+const COMPACT_RADIUS: f32 = 8.0;
 const FOCUS_RING_OFFSET: f32 = 6.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -34,10 +35,10 @@ impl ButtonSize {
         }
     }
 
-    fn text(self) -> TextStyle {
+    fn radius(self) -> f32 {
         match self {
-            ButtonSize::Regular => TextStyle::new(),
-            ButtonSize::Compact => TextStyle::new().size(TextSize::Sm),
+            ButtonSize::Regular => Radius::Md.px(),
+            ButtonSize::Compact => COMPACT_RADIUS,
         }
     }
 }
@@ -141,39 +142,36 @@ pub fn ButtonFace(
         true => Sides::symmetric(vertical, vertical),
         false => Sides::symmetric(horizontal, vertical),
     });
-    let text = size.text();
     view! {
-        <FocusRing focused radius={Radius::custom(Radius::Md.px() + 4.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={Radius::custom(size.radius() + 4.0)} offset=FOCUS_RING_OFFSET>
             <Frame
                 fill={ColorRole::custom(fill_color)}
                 border={border}
-                radius=Radius::Md
+                radius={Radius::custom(size.radius())}
                 padding={padding}
             >
-                <TextStyleProvider style={text}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
-                        <Show condition={has_glyph}>
-                            <Text color={label_color} align=TextAlign::Center>
-                                <Icon glyph={glyph} />
-                            </Text>
-                        </Show>
-                        <Show condition={labelled}>
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                color={label_color}
-                                align=TextAlign::Center
-                                ellipsis=true
-                            >
-                                {label}
-                            </Text>
-                        </Show>
-                        <Show condition={has_trailing}>
-                            <Text color={label_color} align=TextAlign::Center>
-                                <Icon glyph={trailing} />
-                            </Text>
-                        </Show>
-                    </List>
-                </TextStyleProvider>
+                <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
+                    <Show condition={has_glyph}>
+                        <Text color={label_color} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
+                    </Show>
+                    <Show condition={labelled}>
+                        <Text
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            color={label_color}
+                            align=TextAlign::Center
+                            ellipsis=true
+                        >
+                            {label}
+                        </Text>
+                    </Show>
+                    <Show condition={has_trailing}>
+                        <Text color={label_color} align=TextAlign::Center>
+                            <Icon glyph={trailing} />
+                        </Text>
+                    </Show>
+                </List>
             </Frame>
         </FocusRing>
     }

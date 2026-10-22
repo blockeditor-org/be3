@@ -4,8 +4,8 @@ use beui_macros::{component, view};
 use crate::action_row::ActionRow;
 use crate::border::Separator;
 use crate::button::ButtonVariant;
-use crate::dock::DockMenu;
-use crate::icon_button::{IconButton, IconButtonSize};
+use crate::dock::{BarRoom, DockMenu};
+use crate::icon_button::IconButton;
 use crate::list_row::ListRow;
 use crate::menu_button::IconMenuButton;
 use crate::sheet::ModalSheet;
@@ -46,8 +46,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         backward,
         menu,
         back,
-        others,
-        switchable,
+        closable_tabs,
         switch_label,
         open_switcher,
     } = handle;
@@ -88,14 +87,12 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             </Text>
                         </List>
                     </Frame>
-                    <DockMenu menu size=IconButtonSize::Regular />
-                    <Show condition={switchable}>
-                        <DockTabCount
-                            count={others}
-                            label={switch_label}
-                            on_click={open_switcher}
-                        />
-                    </Show>
+                    <DockMenu menu room=BarRoom::Phone />
+                    <DockTabCount
+                        count={closable_tabs}
+                        label={switch_label}
+                        on_click={open_switcher}
+                    />
                 </List>
             </Frame>
             <Separator />

@@ -97,7 +97,7 @@ mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
 mod a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane;
 mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
-mod a_docked_pane_lays_its_content_inside_its_border;
+mod a_docked_pane_lays_its_content_edge_to_edge;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
 mod a_drag_in_a_text_area_selects_and_reaches_nothing_around_it;
 mod a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled;
@@ -1988,6 +1988,35 @@ pub(crate) fn icon_within(document: &Document, root: NodeId, glyph: &str) -> Opt
         .children(root)
         .into_iter()
         .find_map(|child| icon_within(document, child, glyph))
+}
+
+pub(crate) fn grip_nearest(harness: &Harness, dock: NodeId, near: Pos2) -> Pos2 {
+    fn collect(document: &Document, node: NodeId, found: &mut Vec<NodeId>) {
+        if document
+            .text_icons(node)
+            .iter()
+            .any(|shown| shown == crate::icons::ICON_DRAG_INDICATOR)
+            && document.node_rect(node).is_some()
+        {
+            found.push(node);
+        }
+        for child in document.children(node) {
+            collect(document, child, found);
+        }
+    }
+    let mut grips = Vec::new();
+    collect(harness.document(), dock, &mut grips);
+    grips
+        .into_iter()
+        .map(|grip| harness.center(grip))
+        .min_by(|a, b| a.distance(near).total_cmp(&b.distance(near)))
+        .expect("the dock draws a grip")
+}
+
+pub(crate) fn dock_tab_extent(harness: &Harness, dock: NodeId, title: &str, tab: u64) -> Rect {
+    let label = harness.rect(dock_tab(harness.document(), dock, title));
+    let close = harness.rect(harness.find(&format!("dock.tab.{tab}.close")));
+    label.union(close)
 }
 
 pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId {

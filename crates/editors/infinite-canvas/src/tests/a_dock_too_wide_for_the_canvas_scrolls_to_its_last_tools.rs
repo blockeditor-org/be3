@@ -10,14 +10,14 @@ fn a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools() {
         Some(Vec2::new(300.0, 640.0)),
     );
     let dock = editor.rect_of("infinite-canvas.dock");
-    let redo = editor.rect_of("infinite-canvas.dock.redo");
+    let last = editor.rect_of("infinite-canvas.dock.ignore-touch");
     assert!(
         dock.right() <= 300.0,
         "the dock keeps inside the canvas, got {dock:?}"
     );
     assert!(
-        redo.left() > dock.right(),
-        "redo starts scrolled out of view, at {redo:?}"
+        last.left() > dock.right(),
+        "the last tool starts scrolled out of view, at {last:?}"
     );
     editor.record();
 
@@ -32,10 +32,10 @@ fn a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools() {
     editor.touch_end(to);
     editor.settle();
 
-    let redo = editor.rect_of("infinite-canvas.dock.redo");
+    let last = editor.rect_of("infinite-canvas.dock.ignore-touch");
     assert!(
-        redo.right() <= dock.right(),
-        "swiping the dock brings redo into view, at {redo:?}"
+        last.right() <= dock.right(),
+        "swiping the dock brings the last tool into view, at {last:?}"
     );
     editor.snapshot("a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools");
 }

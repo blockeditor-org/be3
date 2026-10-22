@@ -32,12 +32,12 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
     );
 
     let right = harness.rect(harness.find("content.2"));
-    let inside = pos2(right.left() + 2.0, right.center().y);
+    let inside = pos2(right.left() + 4.0, right.center().y);
     let output = harness.frame(vec![Event::PointerMoved(inside)]);
     assert_ne!(
         output.window.cursor,
         CursorIcon::ResizeHorizontal,
-        "the pane's content is the pane's right up to its edge"
+        "past the few points either side of the line that grab it, the pane's content is the pane's"
     );
     harness.drag(inside, inside + vec2(50.0, 0.0));
     harness.frame(Vec::new());
@@ -49,6 +49,6 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
     assert_eq!(
         presses.get(),
         1,
-        "the pane hears a press right beside the gap"
+        "the pane hears a press just past the divider's reach"
     );
 }

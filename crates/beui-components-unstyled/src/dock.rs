@@ -158,8 +158,7 @@ pub struct DockStackHandle {
     pub backward: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
-    pub others: Memo<usize>,
-    pub switchable: Memo<bool>,
+    pub closable_tabs: Memo<usize>,
     pub switch_label: Memo<String>,
     pub open_switcher: ClickCallback,
 }
@@ -365,6 +364,7 @@ struct State {
     menus: Signal<DockMenus>,
     offers: Signal<HashMap<TabId, u64>>,
     thickness: f32,
+    reach: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
@@ -1141,6 +1141,7 @@ pub(crate) struct DockConfig {
     pub(crate) mode: Signal<DockMode>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
     pub(crate) splitter_thickness: f32,
+    pub(crate) splitter_reach: f32,
     pub(crate) group_inset: f32,
     pub(crate) inset: Prop<f32>,
     pub(crate) tab: RenderFn<DockTabHandle>,
@@ -1182,6 +1183,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         mode: published,
         drag_modifier,
         splitter_thickness,
+        splitter_reach,
         group_inset,
         inset,
         tab,
@@ -1258,6 +1260,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 given,
                 remembered: store(RefCell::default()),
                 thickness: splitter_thickness,
+                reach: splitter_reach,
                 group_inset,
                 rect: dock_rect,
                 panes: store(RefCell::default()),
@@ -1521,21 +1524,12 @@ fn stack_handle(
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
     let closable = dock.closable;
-    let others = create_memo(move || {
-        let shown = shown.get();
-        tabs.with(|tabs| {
-            tabs.iter()
-                .filter(|tab| Some(**tab) != shown && closable.call(**tab))
-                .count()
-        })
+    let closable_tabs = create_memo(move || {
+        tabs.with(|tabs| tabs.iter().filter(|tab| closable.call(**tab)).count())
     });
-    let switchable = create_memo(move || {
-        let shown = shown.get();
-        tabs.with(|tabs| tabs.iter().any(|tab| Some(*tab) != shown))
-    });
-    let switch_label = create_memo(move || match others.get() {
-        1 => "1 other open tab".to_owned(),
-        count => format!("{count} other open tabs"),
+    let switch_label = create_memo(move || match closable_tabs.get() {
+        1 => "1 open tab".to_owned(),
+        count => format!("{count} open tabs"),
     });
     DockStackHandle {
         title,
@@ -1543,8 +1537,7 @@ fn stack_handle(
         backward,
         menu,
         back: ClickCallback::new(move || dock.go_back()),
-        others,
-        switchable,
+        closable_tabs,
         switch_label,
         open_switcher: ClickCallback::new(move || switching.set(true)),
     }
@@ -1731,7 +1724,7 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
     let content = view! {
         <List direction spacing=0.0>
             {bar} @sizing={sidebar_size(vertical, sidebar_width)}
-            {sidebar_splitter} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
+            {sidebar_splitter} @sizing=ItemSize::Fixed(dock.thickness + 2.0 * dock.reach)
             {body} @sizing=ItemSize::Percent(100.0)
         </List>
     };
@@ -1807,9 +1800,14 @@ fn DockTreeView(
                         <ForEach keys={splits}>|split: SplitId| {
                             let dock = dock;
                             let layout = layout;
+                            let reach = dock.reach;
                             let rect = create_memo(move || {
                                 layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
-                                    splitter.handle
+                                    let outset = match splitter.direction {
+                                        Direction::Horizontal => vec2(reach, 0.0),
+                                        Direction::Vertical => vec2(0.0, reach),
+                                    };
+                                    splitter.handle.expand2(outset)
                                 })
                             });
                             let x = create_memo(move || rect.get().min.x);

@@ -1,6 +1,5 @@
 use block_editor_beui::be_block::canvas::CanvasProfile;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_REDO, ICON_UNDO};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
@@ -54,21 +53,10 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
             </List>
         }
     };
-    let history = state.editor().history(state.editor().block_id());
-    let stuck = create_memo(move || !history.get().can_undo);
-    let redo_stuck = create_memo(move || !history.get().can_redo);
-    let undo = move || {
-        let editor = state.editor();
-        editor.host().undo(editor.block_id());
-    };
     let block_button = NodeRef::new();
     let add_block = move || match node_anchor(&block_button) {
         Some(button) => state.open_block_picker_at(button),
         None => state.open_block_picker(None),
-    };
-    let redo = move || {
-        let editor = state.editor();
-        editor.host().redo(editor.block_id());
     };
     view! {
         <BottomDock
@@ -97,21 +85,6 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 disabled={actions.add_block.disabled()}
                 @test_id={"infinite-canvas.dock.block"}
                 on_click={add_block}
-            />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
-            <IconButton
-                glyph={ICON_UNDO.to_owned()}
-                label="Undo"
-                disabled={stuck}
-                @test_id={"infinite-canvas.dock.undo"}
-                on_click={undo}
-            />
-            <IconButton
-                glyph={ICON_REDO.to_owned()}
-                label="Redo"
-                disabled={redo_stuck}
-                @test_id={"infinite-canvas.dock.redo"}
-                on_click={redo}
             />
             <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
             <ToggleButton

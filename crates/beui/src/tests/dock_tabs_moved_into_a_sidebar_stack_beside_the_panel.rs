@@ -23,7 +23,7 @@ fn grip_beside(harness: &Harness, dock: NodeId, first_tab: &str) -> Pos2 {
 
 fn grip_above(harness: &Harness, dock: NodeId, first_tab: &str) -> Pos2 {
     let label = harness.rect(dock_tab(harness.document(), dock, first_tab));
-    pos2(label.left() + 1.0, label.top() - 20.0)
+    grip_nearest(harness, dock, pos2(label.left(), label.top()))
 }
 
 #[test]

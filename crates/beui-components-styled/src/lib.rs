@@ -83,7 +83,7 @@ pub use crash_notice::CrashNotice;
 pub use date_time_field::DateTimeField;
 pub use dialog::Dialog;
 pub use dock::Docking;
-pub use dock::{CHROME_BORDER, DOCK_INSET, WINDOW_CHROME};
+pub use dock::{CHROME_BORDER, WINDOW_CHROME};
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;

@@ -1788,15 +1788,17 @@ The `DockState` the layout holds is a plain value underneath:
 `state()` reads it, and `find`, `all_tabs`, `focused_tab` and `surface_tabs`
 answer from it.
 
-Tiled, `Docking` keeps its panes inset from its own edges.
+Tiled, the styled `Docking` lays its panes edge to edge, divided by a one-point line
+(`splitter_thickness`) that takes presses a few points either side of it (`splitter_reach`);
+only floating windows and cards keep a border, rounded corners and a focus outline.
 A dock narrower than `NARROW_WIDTH` stacks: it draws the same state as one screen, the focused tab
 filling the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so widening it tiles the layout again. The dock picks the mode
 from its own width (the unstyled `Docking` stacks below its `stack_below`), and
 `DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
-square counting the other tabs that can be closed, shown while any other tab
-exists (so it can read 0), which opens a sheet to show or close them
+square counting the open tabs that can be closed, the one on show included, always shown
+(so it reads 0 while only tabs like Files are open), which opens a sheet to show or close them
 (a card for each tab with a close button, from the one shown last, and below
 them a row for each tab without one, such as the workspace's Files and
 Settings, in layout order), and a back button while `DockState::back` has somewhere to go, which
@@ -1809,9 +1811,13 @@ The menu is not tied to the stacked bar: a tiled pane offers the menu of the tab
 it shows behind a More button just before its close button, at the end of its
 tab bar or at the top of its sidebar, and so does a window. An action built with
 `.pin(Pin::Icon)` or `.pin(Pin::Label)` leaves the More menu and sits in the bar
-beside it, in every mode: `Pin::Label` shows its label in a tiled tab bar
-(the workspace's Share) and an icon where there is less room, the stacked bar and
-a sidebar. Pinning is how a tab puts its few most used controls in reach without
+beside it. A tiled tab bar shows the icon pins, a divider, then the label pins as
+labelled buttons (the workspace's undo and redo, then Share); a sidebar shows every
+pin as an icon; the stacked bar shows only the icon pins and leaves the label pins
+in its menu. A tiled bar is 40 points with its rule, its tabs 30; its controls are
+`IconButtonSize::Toolbar` buttons (30 square) and the labelled pins compact
+`Button`s of the same height, while a tab's own close button stays compact. The
+stacked bar keeps regular-sized buttons. Pinning is how a tab puts its few most used controls in reach without
 giving the dock a node; everything else stays in the menu, and the tab keeps the
 rest of its page for its own toolbar. A menu is a list of
 actions rather than a node, so a dock that lays out tabs built somewhere else

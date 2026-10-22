@@ -18,6 +18,7 @@ use beui_components_unstyled::{
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
     DockingLayout, Entry, MenuNodes, Picture,
 };
+use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
@@ -34,22 +35,26 @@ use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
-const TAB_HEIGHT: f32 = 33.0;
-const TAB_SPACING: f32 = 6.0;
+const TAB_HEIGHT: f32 = 30.0;
+const TAB_RADIUS: Radius = Radius::custom(7.0);
+const TAB_SPACING: f32 = 8.0;
+const BAR_HEIGHT: f32 = 39.0;
 const BAR_PADDING: f32 = 4.0;
-const BAR_SPACING: f32 = 4.0;
+const BAR_SPACING: f32 = 2.0;
+const DIVIDER_HEIGHT: f32 = 18.0;
+const DIVIDER_MARGIN: f32 = 4.0;
+const SHARE_MARGIN: f32 = 2.0;
 const CONTROL_PADDING: f32 = 5.0;
-const GRIP_WIDTH: f32 = 22.0;
-const GRIP_PADDING: f32 = 3.0;
+const GRIP_WIDTH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
+const RULE: f32 = 1.0;
+const SPLITTER_LINE: f32 = 1.0;
+const SPLITTER_REACH: f32 = 3.0;
+const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: f32 = 16.0;
-const GROUP_INSET: f32 = 6.0;
-pub const DOCK_INSET: f32 = 8.0;
-pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::new(
-    2.0 * CHROME_BORDER,
-    TAB_HEIGHT + 2.0 * BAR_PADDING + 3.0 * CHROME_BORDER,
-);
+pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
+    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
 const DROP_ALPHA: u8 = 64;
 const AWAY_SPACING: f32 = 12.0;
 const AWAY_PADDING: f32 = 24.0;
@@ -70,10 +75,6 @@ where
     K: DockKey,
 {
     let mode = layout.mode();
-    let padding = create_memo(move || match mode.get() {
-        DockMode::Tiled => DOCK_INSET,
-        DockMode::Stacked => 0.0,
-    });
     let theme = use_theme();
     let backdrop = theme.background;
     let dialog_scrim = create_memo(move || theme.scrim.get());
@@ -87,8 +88,8 @@ where
             stack_below=NARROW_WIDTH
             focus
             drag_modifier
-            inset={padding}
-            group_inset=GROUP_INSET
+            splitter_thickness=SPLITTER_LINE
+            splitter_reach=SPLITTER_REACH
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
@@ -237,7 +238,7 @@ fn DockTabChrome(
         create_memo(
             move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
                 (_, _, true) => theme.accent_soft.get(),
-                (true, _, false) => theme.background.get(),
+                (true, _, false) => theme.surface_raised.get(),
                 (false, true, false) => theme.hover.get(),
                 (false, false, false) => theme.surface.get(),
             },
@@ -255,19 +256,19 @@ fn DockTabChrome(
     view! {
         <Frame
             fill={ColorRole::custom(fill)}
-            radius=Radius::Md
+            radius=TAB_RADIUS
             height=TAB_HEIGHT
             padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
             border={focus_border(focused, Border::FOCUS)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <Text size=TextSize::Sm color={label} align=TextAlign::Center>
+                    <Text color={label} align=TextAlign::Center>
                         <Icon glyph=ICON_TAB_GROUP />
                     </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <Text size=TextSize::Sm color={label} align=TextAlign::Center>
+                    <Text color={label} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
                 </Show>
@@ -312,13 +313,14 @@ fn TabPicture(picture: Memo<Option<Image>>) -> NodeId {
 #[component]
 fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     let DockChromeHandle {
+        floating,
         barred,
         focused,
         content,
-        ..
     } = handle;
+    let framed = barred && floating;
     let outline = create_memo(move || {
-        barred.then(|| {
+        framed.then(|| {
             let color = match focused.get() {
                 true => ColorRole::Accent,
                 false => ColorRole::Border,
@@ -326,7 +328,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
             Border::new(color).width(CHROME_BORDER)
         })
     });
-    let border = match barred {
+    let border = match framed {
         true => CHROME_BORDER,
         false => 0.0,
     };
@@ -334,7 +336,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         <Frame
             fill=ColorRole::Background
             border=outline
-            radius={if barred { Radius::Lg } else { Radius::None }}
+            radius={if framed { Radius::Lg } else { Radius::None }}
             padding=border
         >
             {content}
@@ -498,8 +500,13 @@ fn DockTitleBar(
     let rule = bar_rule(vacant);
     view! {
         <List spacing=0.0>
-            <Frame fill={ColorRole::custom(fill)} padding=BAR_PADDING>
-                <Frame height={Extent::at_least(TAB_HEIGHT)}>
+            <Frame
+                fill={ColorRole::custom(fill)}
+                height=BAR_HEIGHT
+                padding={Sides::horizontal(BAR_PADDING)}
+                align={Align2::new(Align::Stretch, Align::Center)}
+            >
+                <Frame>
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         {grip}
                         {tabs} @sizing=ItemSize::Percent(100.0)
@@ -508,12 +515,12 @@ fn DockTitleBar(
                                 <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
                             }
                         }</Show>
-                        <DockMenu menu labels=true />
+                        <DockMenu menu room=BarRoom::Wide />
                         <DockClose closable close={close} />
                     </List>
                 </Frame>
             </Frame>
-            <Frame fill={ColorRole::custom(rule)} height=CHROME_BORDER />
+            <Frame fill={ColorRole::custom(rule)} height=RULE />
         </List>
     }
 }
@@ -530,7 +537,6 @@ fn DockSideBar(
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
-    let rule = bar_rule(vacant);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
@@ -551,7 +557,7 @@ fn DockSideBar(
                             align=Align::Center
                             spacing=BAR_SPACING
                         >
-                            <DockMenu menu />
+                            <DockMenu menu room=BarRoom::Narrow />
                             <DockClose closable close={close} />
                         </List>
                     </List>
@@ -563,41 +569,85 @@ fn DockSideBar(
                     }</Show>
                 </List>
             </Frame>
-            <Frame fill={ColorRole::custom(rule)} width=CHROME_BORDER />
         </List>
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BarRoom {
+    Wide,
+    Narrow,
+    Phone,
+}
+
+impl BarRoom {
+    fn button(self) -> IconButtonSize {
+        match self {
+            BarRoom::Wide | BarRoom::Narrow => IconButtonSize::Toolbar,
+            BarRoom::Phone => IconButtonSize::Regular,
+        }
+    }
+
+    fn shows(self, pin: Pin) -> bool {
+        self != BarRoom::Phone || pin == Pin::Icon
+    }
+}
+
 #[component]
-pub(crate) fn DockMenu(
-    menu: Memo<Vec<MenuNode>>,
-    #[prop(default = IconButtonSize::Compact)] size: IconButtonSize,
-    #[prop(default = false)] labels: bool,
-) -> NodeId {
-    let pins = create_memo(move || menu.with(|nodes| pinned(nodes)));
-    let keys =
-        create_memo(move || pins.with(|pins| pins.iter().map(Action::key).collect::<Vec<_>>()));
-    let rest = create_memo(move || unpinned(menu.get()));
+pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
+    let pins = create_memo(move || {
+        menu.with(|nodes| {
+            pinned(nodes)
+                .into_iter()
+                .filter(|action| action.pinned().is_some_and(|pin| room.shows(pin)))
+                .collect::<Vec<_>>()
+        })
+    });
+    let keys_of = move |labelled: bool| {
+        create_memo(move || {
+            pins.with(|pins| {
+                pins.iter()
+                    .filter(|pin| (pin.pinned() == Some(Pin::Label)) == labelled)
+                    .map(Action::key)
+                    .collect::<Vec<_>>()
+            })
+        })
+    };
+    let icons = keys_of(false);
+    let labels = keys_of(true);
+    let divided = create_memo(move || {
+        room == BarRoom::Wide
+            && icons.with(|icons| !icons.is_empty())
+            && labels.with(|labels| !labels.is_empty())
+    });
+    let rest = create_memo(move || unpinned(menu.get(), room));
     let offered = create_memo(move || rest.with(|items| !items.is_empty()));
+    let pin = move |key: u64| {
+        let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
+        match action {
+            Some(action) => view! {
+                <DockPin action room />
+            },
+            None => view! {
+                <Frame />
+            },
+        }
+    };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-            <ForEach keys={keys}>|key: u64| {
-                let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
-                match action {
-                    Some(action) => view! {
-                        <DockPin action size labels />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</ForEach>
+            <ForEach keys={icons}>|key: u64| { pin(key) }</ForEach>
+            <Show condition={divided}>
+                <Frame padding={Sides::horizontal(DIVIDER_MARGIN)}>
+                    <Frame width=RULE height=DIVIDER_HEIGHT fill=ColorRole::Border />
+                </Frame>
+            </Show>
+            <ForEach keys={labels}>|key: u64| { pin(key) }</ForEach>
             <Show condition={offered}>
                 <IconMenuButton
                     @test_id={"dock.menu"}
                     label="More"
                     glyph=ICON_MORE_VERT
-                    size
+                    size={room.button()}
                     items={view! {
                         <MenuNodes nodes={rest} test_prefix={"dock.menu".to_owned()} />
                     }}
@@ -608,19 +658,26 @@ pub(crate) fn DockMenu(
 }
 
 #[component]
-fn DockPin(action: Action, size: IconButtonSize, labels: bool) -> NodeId {
+fn DockPin(action: Action, room: BarRoom) -> NodeId {
     let id = format!("dock.pin.{}", action.id());
-    match labels && action.pinned() == Some(Pin::Label) {
+    match room == BarRoom::Wide && action.pinned() == Some(Pin::Label) {
         true => view! {
-            <Button
-                @test_id={id}
-                action={action}
-                variant=ButtonVariant::Primary
-                size=ButtonSize::Compact
-            />
+            <Frame padding={Sides::horizontal(SHARE_MARGIN)}>
+                <Button
+                    @test_id={id}
+                    action={action}
+                    variant=ButtonVariant::Primary
+                    size=ButtonSize::Compact
+                />
+            </Frame>
         },
         false => view! {
-            <IconButton @test_id={id} action={action} variant=ButtonVariant::Ghost size />
+            <IconButton
+                @test_id={id}
+                action={action}
+                variant=ButtonVariant::Ghost
+                size={room.button()}
+            />
         },
     }
 }
@@ -636,13 +693,17 @@ fn pinned(nodes: &[MenuNode]) -> Vec<Action> {
         .collect()
 }
 
-fn unpinned(nodes: Vec<MenuNode>) -> Vec<MenuNode> {
+fn unpinned(nodes: Vec<MenuNode>, room: BarRoom) -> Vec<MenuNode> {
     let kept = nodes
         .into_iter()
         .filter_map(|node| match node {
-            MenuNode::Action { action, .. } if action.pinned().is_some() => None,
+            MenuNode::Action { action, .. }
+                if action.pinned().is_some_and(|pin| room.shows(pin)) =>
+            {
+                None
+            }
             MenuNode::Submenu(mut submenu) => {
-                submenu.items = unpinned(std::mem::take(&mut submenu.items));
+                submenu.items = unpinned(std::mem::take(&mut submenu.items), room);
                 Some(MenuNode::Submenu(submenu))
             }
             node => Some(node),
@@ -655,16 +716,14 @@ fn unpinned(nodes: Vec<MenuNode>) -> Vec<MenuNode> {
 fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={closable}>
-            <Frame padding={Sides::horizontal(CONTROL_PADDING)}>
-                <IconButton
-                    glyph=ICON_CLOSE
-                    label="Close pane"
-                    size=IconButtonSize::Compact
-                    variant=ButtonVariant::Ghost
-                    capture_presses=true
-                    on_click={close}
-                />
-            </Frame>
+            <IconButton
+                glyph=ICON_CLOSE
+                label="Close pane"
+                size=IconButtonSize::Toolbar
+                variant=ButtonVariant::Ghost
+                capture_presses=true
+                on_click={close}
+            />
         </Show>
     }
 }
@@ -677,7 +736,7 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
         false => TextColor::Faint,
     });
     view! {
-        <Frame width=GRIP_WIDTH padding={Sides::symmetric(GRIP_PADDING, CONTROL_PADDING)}>
+        <Frame width=GRIP_WIDTH padding={Sides::vertical(CONTROL_PADDING)}>
             <Text size=TextSize::Sm color={color} align=TextAlign::Center>
                 <Icon glyph=ICON_DRAG_INDICATOR />
             </Text>
@@ -688,19 +747,32 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
 #[component]
 fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
     let DockSplitterHandle {
+        direction,
         hovered,
         active,
         focused,
-        ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match (active.get(), hovered.get()) {
+    let lit = create_memo(move || active.get() || hovered.get());
+    let line = create_memo(move || match (active.get(), hovered.get()) {
         (true, _) => theme.accent.get(),
-        (false, true) => theme.border.get(),
-        (false, false) => theme.background.get(),
+        (false, true) => theme.text_muted.get(),
+        (false, false) => theme.border.get(),
+    });
+    let padding = create_memo(move || {
+        let side = match lit.get() {
+            true => (SPLITTER_REACH - SPLITTER_HELD / 2.0 + SPLITTER_LINE / 2.0).max(0.0),
+            false => SPLITTER_REACH,
+        };
+        match direction {
+            Direction::Horizontal => Sides::horizontal(side),
+            Direction::Vertical => Sides::vertical(side),
+        }
     });
     view! {
-        <Frame fill={ColorRole::custom(fill)} border={focus_border(focused, Border::FOCUS)} />
+        <Frame padding={padding} border={focus_border(focused, Border::FOCUS)}>
+            <Frame fill={ColorRole::custom(line)} />
+        </Frame>
     }
 }
 
@@ -728,7 +800,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
         <Frame
             fill={ColorRole::custom(fill)}
             border={Border::FOCUS}
-            radius=Radius::Md
+            radius=TAB_RADIUS
             height=TAB_HEIGHT
             padding={Sides::horizontal(PREVIEW_PADDING)}
         >
