@@ -52,7 +52,12 @@ async fn load(
             }
             beui_font_browser::watch(icons_font.as_deref(), beui_adapter_web::request_frame)?;
             Ok(Loaded {
-                renderer: Box::new(beui_renderer_dom::DomRenderer::new(element.clone())?),
+                renderer: Box::new(
+                    beui_renderer_dom::DomRenderer::new(beui_renderer_dom::WebDom::new(
+                        element.clone(),
+                    )?)
+                    .ok_or("the DOM renderer could not create its stage")?,
+                ),
                 fonts: Some(Box::new(beui_font_browser::BrowserFonts::default())),
             })
         }

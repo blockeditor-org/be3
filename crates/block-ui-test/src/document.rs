@@ -6,6 +6,7 @@ use beui::{
 };
 
 use crate::beui::capture;
+use crate::dom::DomPainting;
 use crate::overflow;
 use crate::snapshot;
 
@@ -18,6 +19,7 @@ pub struct DocumentTest {
     fonts: FontLibrary,
     size: Vec2,
     output: Option<FrameOutput>,
+    dom: Option<DomPainting>,
     typed: Vec<beui::Event>,
 }
 
@@ -33,6 +35,7 @@ impl DocumentTest {
             fonts,
             size,
             output: None,
+            dom: None,
             typed: Vec::new(),
         };
         test.frame(Vec::new());
@@ -70,7 +73,25 @@ impl DocumentTest {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *size));
         });
         *typed = std::mem::take(&mut output.typed);
+        let background = self.background();
+        if let Some(dom) = &mut self.dom {
+            dom.show(&output, background);
+        }
         self.output = Some(output);
+    }
+
+    pub fn render_dom(&mut self) {
+        let mut dom = DomPainting::new(self.size);
+        if let Some(output) = &self.output {
+            dom.show(output, self.background());
+        }
+        self.dom = Some(dom);
+    }
+
+    fn background(&self) -> Color32 {
+        self.document
+            .appearance()
+            .map_or(Color32::BLACK, |appearance| appearance.clear_color)
     }
 
     pub fn settle(&mut self) {
@@ -186,13 +207,22 @@ impl DocumentTest {
             .output
             .as_ref()
             .expect("the document has not drawn a frame yet");
-        let background = self
-            .document
-            .appearance()
-            .map_or(Color32::BLACK, |appearance| appearance.clear_color);
+        let background = self.background();
         let painting = capture::capture(output, self.size, output.pixels_per_point(), background)
             .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
         overflow::assert_fits(name, overflow::overflows(&self.document));
+    }
+
+    pub fn snapshot_dom(&mut self, name: &str) {
+        let output = self
+            .output
+            .as_ref()
+            .expect("the document has not drawn a frame yet");
+        let dom = self
+            .dom
+            .as_ref()
+            .expect("call render_dom before the frames a DOM snapshot shows");
+        dom.snapshot(name, output, self.size, self.background());
     }
 }

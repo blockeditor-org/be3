@@ -6068,6 +6068,19 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -6690,6 +6703,19 @@ crates = {
                     "//third-party/rust:js-sys-0.3.99",
                     "//third-party/rust:wasm-bindgen-0.2.122",
                     "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [
+                    "web",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-font-browser:beui-font-browser",
                 ],
                 "examples": {},
                 "features": [],
@@ -9018,10 +9044,13 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -9032,10 +9061,13 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -9046,10 +9078,13 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -9060,10 +9095,13 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -9074,10 +9112,13 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -9088,10 +9129,13 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -9102,10 +9146,13 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -9116,10 +9163,13 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-dom:beui-renderer-dom",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -37359,7 +37409,9 @@ third_party = {
                     ":wasm-bindgen-0.2.122",
                 ],
                 "features": [
+                    "default",
                     "std",
+                    "unsafe-eval",
                 ],
             },
             "wasm32": {
@@ -62726,6 +62778,7 @@ third_party = {
                     ":wasm-bindgen-shared-0.2.122",
                 ],
                 "features": [
+                    "default",
                     "std",
                 ],
             },
@@ -67165,10 +67218,15 @@ third_party = {
                     ":wasm-bindgen-0.2.122",
                 ],
                 "features": [
+                    "CanvasRenderingContext2d",
+                    "Document",
                     "Element",
+                    "Event",
                     "EventTarget",
+                    "FontFaceSet",
                     "HtmlCanvasElement",
                     "HtmlElement",
+                    "HtmlHeadElement",
                     "HtmlImageElement",
                     "HtmlMediaElement",
                     "HtmlVideoElement",
@@ -67176,7 +67234,10 @@ third_party = {
                     "ImageData",
                     "Node",
                     "OffscreenCanvas",
+                    "TextMetrics",
                     "VideoFrame",
+                    "Window",
+                    "default",
                     "std",
                 ],
             },

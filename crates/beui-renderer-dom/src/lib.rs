@@ -1,13 +1,16 @@
-#[cfg(any(test, target_arch = "wasm32"))]
+mod dom;
+mod memory;
 mod order;
-#[cfg(any(test, target_arch = "wasm32"))]
-mod style;
-
-#[cfg(target_arch = "wasm32")]
 mod scene;
+mod style;
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+mod web;
 
-#[cfg(target_arch = "wasm32")]
+pub use dom::Dom;
+pub use memory::MemoryDom;
 pub use scene::DomRenderer;
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+pub use web::WebDom;
 
 #[cfg(test)]
 mod tests;

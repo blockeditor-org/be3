@@ -1,8 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
 use std::rc::Rc;
-
-use wasm_bindgen::JsCast;
 
 use beui_core::color::Color32;
 use beui_core::context::{FrameOutput, RendererInfo};
@@ -13,6 +10,7 @@ use beui_core::node::NodeId;
 use beui_core::painter::Shape;
 use beui_core::renderer::Renderer;
 
+use crate::dom::Dom;
 use crate::style::{self, Look};
 
 const STYLE: &str = "\
@@ -25,48 +23,56 @@ const IMAGE_LIMIT: usize = 512;
 
 type Key = (u64, NodeId);
 
-#[derive(Clone)]
-struct Child {
+struct Child<E> {
     id: u64,
-    element: web_sys::HtmlElement,
+    element: E,
 }
 
-struct Grouped {
+impl<E: Clone> Clone for Child<E> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            element: self.element.clone(),
+        }
+    }
+}
+
+struct Grouped<E> {
     group: Group,
     factor: f32,
-    outer: Child,
-    inner: web_sys::HtmlElement,
-    children: Vec<Child>,
+    outer: Child<E>,
+    inner: E,
+    children: Vec<Child<E>>,
 }
 
-struct Node {
-    frame: Child,
-    content: web_sys::HtmlElement,
+struct Node<E> {
+    frame: Child<E>,
+    content: E,
     display: Option<Rc<Display>>,
     factor: f32,
     parent: Option<Key>,
     placed: Option<(Vec2, f32)>,
-    painted: Vec<Option<Child>>,
-    groups: Vec<Option<Grouped>>,
-    children: Vec<Child>,
+    painted: Vec<Option<Child<E>>>,
+    groups: Vec<Option<Grouped<E>>>,
+    children: Vec<Child<E>>,
     kids: Vec<Key>,
 }
 
-struct Root {
-    wrap: Child,
+struct Root<E> {
+    wrap: Child<E>,
     holds: Option<u64>,
 }
 
-pub struct DomRenderer {
-    document: web_sys::Document,
-    root: web_sys::HtmlElement,
-    stage: web_sys::HtmlElement,
+pub struct DomRenderer<D: Dom> {
+    dom: D,
+    root: D::Element,
+    stage: D::Element,
     next: u64,
-    layers: Vec<Child>,
-    roots: HashMap<Key, Root>,
-    groups: Vec<Option<Grouped>>,
-    loose: Vec<Option<Child>>,
-    nodes: HashMap<Key, Node>,
+    layers: Vec<Child<D::Element>>,
+    roots: HashMap<Key, Root<D::Element>>,
+    groups: Vec<Option<Grouped<D::Element>>>,
+    loose: Vec<Option<Child<D::Element>>>,
+    nodes: HashMap<Key, Node<D::Element>>,
     images: HashMap<ImageId, Rc<str>>,
     prepared: Option<(f32, f32, Color32)>,
     size: Option<(u32, u32)>,
@@ -78,29 +84,15 @@ struct Shown {
     roots: HashSet<Key>,
 }
 
-impl DomRenderer {
-    pub fn new(root: web_sys::HtmlElement) -> Result<Self, Box<dyn Error>> {
-        let document = root
-            .owner_document()
-            .ok_or("the element is not in a document")?;
-        let style = document
-            .create_element("style")
-            .map_err(|_| "could not create a stylesheet")?;
-        style.set_text_content(Some(STYLE));
-        document
-            .head()
-            .ok_or("the page has no head")?
-            .append_child(&style)
-            .map_err(|_| "could not add the stylesheet to the page")?;
-        root.class_list()
-            .add_1("beui-root")
-            .map_err(|_| "could not style the root element")?;
-        let stage = div(&document)?;
-        stage.set_class_name("beui-stage");
-        root.append_child(&stage)
-            .map_err(|_| "could not add the stage to the root element")?;
-        Ok(Self {
-            document,
+impl<D: Dom> DomRenderer<D> {
+    pub fn new(mut dom: D) -> Option<Self> {
+        dom.add_stylesheet(STYLE);
+        let root = dom.root();
+        let stage = dom.div()?;
+        dom.set_class(&stage, "beui-stage");
+        dom.insert_before(&root, &stage, None);
+        Some(Self {
+            dom,
             root,
             stage,
             next: 0,
@@ -115,8 +107,12 @@ impl DomRenderer {
         })
     }
 
+    pub fn dom(&self) -> &D {
+        &self.dom
+    }
+
     fn show(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
-        let ratio = web_sys::window().map_or(1.0, |window| window.device_pixel_ratio() as f32);
+        let ratio = self.dom.device_pixel_ratio();
         let zoom = scale / ratio;
         let prepared = Some((scale, zoom, background));
         if !output.changed && self.prepared == prepared {
@@ -124,13 +120,12 @@ impl DomRenderer {
         }
         let held = self.prepared.replace((scale, zoom, background));
         if held.is_none_or(|(_, _, old)| old != background) {
-            let _ = self
-                .root
-                .style()
-                .set_property("background", &style::rgba(background));
+            self.dom
+                .set_style(&self.root, "background", &style::rgba(background));
         }
         if held.is_none_or(|(_, old, _)| old != zoom) {
-            let _ = self.stage.style().set_property(
+            self.dom.set_style(
+                &self.stage,
                 "transform",
                 &match zoom == 1.0 {
                     true => String::new(),
@@ -151,7 +146,7 @@ impl DomRenderer {
         groups.truncate(shown.groups);
         self.groups = groups;
         self.loose.truncate(shown.loose);
-        reconcile(&self.stage, &mut self.layers, desired);
+        reconcile(&mut self.dom, &self.stage, &mut self.layers, desired);
         let gone: Vec<Key> = self
             .roots
             .keys()
@@ -168,9 +163,9 @@ impl DomRenderer {
         &mut self,
         layers: &[Layer],
         factor: f32,
-        groups: &mut Vec<Option<Grouped>>,
+        groups: &mut Vec<Option<Grouped<D::Element>>>,
         shown: &mut Shown,
-    ) -> Vec<Child> {
+    ) -> Vec<Child<D::Element>> {
         let mut desired = Vec::new();
         for layer in layers {
             match layer {
@@ -194,7 +189,7 @@ impl DomRenderer {
                     };
                     let within = inner_factor(*group, factor);
                     let wanted = self.frame_layers(inner, within, groups, shown);
-                    reconcile(&grouped.inner, &mut grouped.children, wanted);
+                    reconcile(&mut self.dom, &grouped.inner, &mut grouped.children, wanted);
                     desired.push(grouped.outer.clone());
                     put(groups, index, grouped);
                 }
@@ -205,19 +200,19 @@ impl DomRenderer {
 
     fn grouped(
         &mut self,
-        groups: &mut [Option<Grouped>],
+        groups: &mut [Option<Grouped<D::Element>>],
         index: usize,
         group: Group,
         factor: f32,
-    ) -> Option<Grouped> {
+    ) -> Option<Grouped<D::Element>> {
         let held = groups.get_mut(index).and_then(Option::take);
         let mut grouped = match held {
             Some(grouped) => grouped,
             None => {
                 let outer = self.child()?;
-                outer.element.set_class_name("beui-group");
-                let inner = div(&self.document).ok()?;
-                let _ = outer.element.append_child(&inner);
+                self.dom.set_class(&outer.element, "beui-group");
+                let inner = self.dom.div()?;
+                self.dom.insert_before(&outer.element, &inner, None);
                 Grouped {
                     group,
                     factor: 0.0,
@@ -229,13 +224,16 @@ impl DomRenderer {
         };
         if grouped.factor != factor || grouped.group != group {
             let (outer, inner) = style::group(group, factor);
-            grouped.outer.element.style().set_css_text(&outer);
-            grouped.inner.style().set_css_text(&inner);
+            self.dom.set_css(&grouped.outer.element, &outer);
+            self.dom.set_css(&grouped.inner, &inner);
             let scaled = inner_factor(group, 1.0) != 1.0;
-            grouped.inner.set_class_name(match scaled {
-                true => "beui-scaled",
-                false => "",
-            });
+            self.dom.set_class(
+                &grouped.inner,
+                match scaled {
+                    true => "beui-scaled",
+                    false => "",
+                },
+            );
             grouped.group = group;
             grouped.factor = factor;
         }
@@ -243,7 +241,7 @@ impl DomRenderer {
     }
 
     fn clear(&mut self) {
-        self.stage.set_text_content(None);
+        self.dom.set_text(&self.stage, None);
         self.layers.clear();
         self.roots.clear();
         self.groups.clear();
@@ -251,8 +249,8 @@ impl DomRenderer {
         self.nodes.clear();
     }
 
-    fn child(&mut self) -> Option<Child> {
-        let element = div(&self.document).ok()?;
+    fn child(&mut self) -> Option<Child<D::Element>> {
+        let element = self.dom.div()?;
         self.next += 1;
         Some(Child {
             id: self.next,
@@ -260,7 +258,7 @@ impl DomRenderer {
         })
     }
 
-    fn loose(&mut self, index: usize, shape: &Shape, factor: f32) -> Option<Child> {
+    fn loose(&mut self, index: usize, shape: &Shape, factor: f32) -> Option<Child<D::Element>> {
         let reused = self.loose.get_mut(index).and_then(Option::take);
         let child = self.paint(reused, shape, factor);
         match index < self.loose.len() {
@@ -270,33 +268,39 @@ impl DomRenderer {
         child
     }
 
-    fn layer(&mut self, display: &Rc<Display>, at: Vec2, factor: f32) -> Option<Child> {
+    fn layer(&mut self, display: &Rc<Display>, at: Vec2, factor: f32) -> Option<Child<D::Element>> {
         let frame = self.visit(display, factor, None)?;
         let key = key(display);
         self.place(key, at, factor);
         if !self.roots.contains_key(&key) {
             let wrap = self.child()?;
-            wrap.element.set_class_name("beui-layer");
+            self.dom.set_class(&wrap.element, "beui-layer");
             self.roots.insert(key, Root { wrap, holds: None });
         }
         let root = self.roots.get_mut(&key)?;
         if root.holds != Some(frame.id) {
-            root.wrap.element.set_text_content(None);
-            let _ = root.wrap.element.append_child(&frame.element);
+            self.dom.set_text(&root.wrap.element, None);
+            self.dom
+                .insert_before(&root.wrap.element, &frame.element, None);
             root.holds = Some(frame.id);
         }
         Some(root.wrap.clone())
     }
 
-    fn visit(&mut self, display: &Rc<Display>, factor: f32, parent: Option<Key>) -> Option<Child> {
+    fn visit(
+        &mut self,
+        display: &Rc<Display>,
+        factor: f32,
+        parent: Option<Key>,
+    ) -> Option<Child<D::Element>> {
         let key = key(display);
         let mut node = match self.nodes.remove(&key) {
             Some(node) => node,
             None => {
                 let frame = self.child()?;
-                frame.element.set_class_name("beui-frame");
-                let content = div(&self.document).ok()?;
-                let _ = frame.element.append_child(&content);
+                self.dom.set_class(&frame.element, "beui-frame");
+                let content = self.dom.div()?;
+                self.dom.insert_before(&frame.element, &content, None);
                 Node {
                     frame,
                     content,
@@ -325,7 +329,7 @@ impl DomRenderer {
         Some(frame)
     }
 
-    fn update(&mut self, node: &mut Node, display: &Rc<Display>, factor: f32) {
+    fn update(&mut self, node: &mut Node<D::Element>, display: &Rc<Display>, factor: f32) {
         let kept = node
             .display
             .as_ref()
@@ -353,7 +357,7 @@ impl DomRenderer {
         );
         groups.truncate(index);
         node.groups = groups;
-        reconcile(&node.content, &mut node.children, desired);
+        reconcile(&mut self.dom, &node.content, &mut node.children, desired);
         let shown: HashSet<Key> = kids.iter().copied().collect();
         for kid in std::mem::replace(&mut node.kids, kids) {
             if !shown.contains(&kid) {
@@ -371,11 +375,11 @@ impl DomRenderer {
         parts: &[Part],
         parent: Key,
         factor: f32,
-        painted: &[Option<Child>],
-        groups: &mut Vec<Option<Grouped>>,
+        painted: &[Option<Child<D::Element>>],
+        groups: &mut Vec<Option<Grouped<D::Element>>>,
         index: &mut usize,
         kids: &mut Vec<Key>,
-    ) -> Vec<Child> {
+    ) -> Vec<Child<D::Element>> {
         let mut desired = Vec::new();
         for part in parts {
             match part {
@@ -400,7 +404,7 @@ impl DomRenderer {
                     };
                     let within = inner_factor(*group, factor);
                     let wanted = self.fill(inner, parent, within, painted, groups, index, kids);
-                    reconcile(&grouped.inner, &mut grouped.children, wanted);
+                    reconcile(&mut self.dom, &grouped.inner, &mut grouped.children, wanted);
                     desired.push(grouped.outer.clone());
                     put(groups, at, grouped);
                 }
@@ -417,10 +421,8 @@ impl DomRenderer {
             return;
         }
         node.placed = Some((at, factor));
-        node.frame
-            .element
-            .style()
-            .set_css_text(&style::placement(at, factor));
+        self.dom
+            .set_css(&node.frame.element, &style::placement(at, factor));
     }
 
     fn release(&mut self, key: Key, parent: Option<Key>) {
@@ -439,7 +441,12 @@ impl DomRenderer {
         }
     }
 
-    fn paint(&mut self, reused: Option<Child>, shape: &Shape, factor: f32) -> Option<Child> {
+    fn paint(
+        &mut self,
+        reused: Option<Child<D::Element>>,
+        shape: &Shape,
+        factor: f32,
+    ) -> Option<Child<D::Element>> {
         let image = match shape {
             Shape::Image { image, .. } => self.image(image),
             _ => None,
@@ -449,18 +456,18 @@ impl DomRenderer {
             Some(child) => child,
             None => self.child()?,
         };
-        child.element.set_text_content(None);
+        self.dom.set_text(&child.element, None);
         match look {
-            Look::Box(css) => child.element.style().set_css_text(&css),
+            Look::Box(css) => self.dom.set_css(&child.element, &css),
             Look::Text { css, lines } => {
-                child.element.style().set_css_text(&css);
+                self.dom.set_css(&child.element, &css);
                 for line in lines {
-                    let Ok(row) = div(&self.document) else {
+                    let Some(row) = self.dom.div() else {
                         continue;
                     };
-                    row.style().set_css_text(&line.css);
-                    row.set_text_content(Some(&line.text));
-                    let _ = child.element.append_child(&row);
+                    self.dom.set_css(&row, &line.css);
+                    self.dom.set_text(&row, Some(&line.text));
+                    self.dom.insert_before(&child.element, &row, None);
                 }
             }
         }
@@ -474,7 +481,7 @@ impl DomRenderer {
         if self.images.len() >= IMAGE_LIMIT {
             self.images.clear();
         }
-        let url: Rc<str> = data_url(&self.document, image)?.into();
+        let url: Rc<str> = self.dom.image_url(image)?.into();
         self.images.insert(image.id(), Rc::clone(&url));
         Some(url)
     }
@@ -491,14 +498,14 @@ fn inner_factor(group: Group, factor: f32) -> f32 {
     }
 }
 
-fn put(groups: &mut Vec<Option<Grouped>>, index: usize, grouped: Grouped) {
+fn put<E>(groups: &mut Vec<Option<Grouped<E>>>, index: usize, grouped: Grouped<E>) {
     if groups.len() <= index {
         groups.resize_with(index + 1, || None);
     }
     groups[index] = Some(grouped);
 }
 
-impl Renderer for DomRenderer {
+impl<D: Dom> Renderer for DomRenderer<D> {
     fn name(&self) -> &'static str {
         "DOM"
     }
@@ -514,7 +521,7 @@ impl Renderer for DomRenderer {
             true => "",
             false => "none",
         };
-        let _ = self.stage.style().set_property("display", display);
+        self.dom.set_style(&self.stage, "display", display);
         if !active {
             self.prepared = None;
             self.clear();
@@ -540,15 +547,12 @@ impl Renderer for DomRenderer {
     }
 }
 
-fn div(document: &web_sys::Document) -> Result<web_sys::HtmlElement, Box<dyn Error>> {
-    Ok(document
-        .create_element("div")
-        .map_err(|_| "could not create an element")?
-        .dyn_into::<web_sys::HtmlElement>()
-        .map_err(|_| "could not create an element")?)
-}
-
-fn reconcile(parent: &web_sys::HtmlElement, current: &mut Vec<Child>, desired: Vec<Child>) {
+fn reconcile<D: Dom>(
+    dom: &mut D,
+    parent: &D::Element,
+    current: &mut Vec<Child<D::Element>>,
+    desired: Vec<Child<D::Element>>,
+) {
     if current.len() == desired.len()
         && current
             .iter()
@@ -564,16 +568,7 @@ fn reconcile(parent: &web_sys::HtmlElement, current: &mut Vec<Child>, desired: V
             true => {
                 positions.insert(held.id, positions.len());
             }
-            false => {
-                let owner: &web_sys::Node = parent.as_ref();
-                if held
-                    .element
-                    .parent_node()
-                    .is_some_and(|node| node.is_same_node(Some(owner)))
-                {
-                    held.element.remove();
-                }
-            }
+            false => dom.remove_from(parent, &held.element),
         }
     }
     let assigned: Vec<Option<usize>> = desired
@@ -581,37 +576,12 @@ fn reconcile(parent: &web_sys::HtmlElement, current: &mut Vec<Child>, desired: V
         .map(|child| positions.get(&child.id).copied())
         .collect();
     let kept = crate::order::longest_increasing(&assigned);
-    let mut next: Option<web_sys::Node> = None;
+    let mut next: Option<&D::Element> = None;
     for (index, child) in desired.iter().enumerate().rev() {
         if !kept[index] {
-            let _ = parent.insert_before(&child.element, next.as_ref());
+            dom.insert_before(parent, &child.element, next);
         }
-        next = Some(child.element.clone().into());
+        next = Some(&child.element);
     }
     *current = desired;
-}
-
-fn data_url(document: &web_sys::Document, image: &Image) -> Option<String> {
-    let canvas = document
-        .create_element("canvas")
-        .ok()?
-        .dyn_into::<web_sys::HtmlCanvasElement>()
-        .ok()?;
-    canvas.set_width(image.width());
-    canvas.set_height(image.height());
-    let context = canvas
-        .get_context("2d")
-        .ok()??
-        .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        .ok()?;
-    let pixels = js_sys::Uint8ClampedArray::new_with_length(image.pixels().len() as u32);
-    pixels.copy_from(image.pixels());
-    let data = web_sys::ImageData::new_with_js_u8_clamped_array_and_sh(
-        &pixels,
-        image.width(),
-        image.height(),
-    )
-    .ok()?;
-    context.put_image_data(&data, 0.0, 0.0).ok()?;
-    canvas.to_data_url().ok()
 }

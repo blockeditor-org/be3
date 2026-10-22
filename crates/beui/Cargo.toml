@@ -26,6 +26,7 @@ dom = [
     "dep:beui-adapter-web",
     "dep:beui-font-browser",
     "dep:beui-renderer-dom",
+    "beui-renderer-dom/web",
     "dep:web-sys",
 ]
 

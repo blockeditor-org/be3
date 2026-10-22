@@ -1578,8 +1578,11 @@ name = "block-ui-test"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-core",
+ "beui-renderer-dom",
  "block-editor-beui",
  "block-plugin-api",
+ "image",
  "paint-snapshot",
  "uuid",
 ]
