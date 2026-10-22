@@ -19,7 +19,7 @@ fn a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag() {
             </Interactive>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.touch(TouchPhase::Start, pos2(100.0, 50.0));

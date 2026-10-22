@@ -19,7 +19,7 @@ fn right_click_opens_a_context_menu_at_the_cursor_position() {
         }]
     });
     let region = region.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let pos = harness.rect(region).min + Vec2::new(10.0, 10.0);

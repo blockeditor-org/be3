@@ -23,7 +23,7 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     assert!(
         content.try_get().is_none(),

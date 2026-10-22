@@ -30,7 +30,7 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let placed = inside.placement().expect("the first embed was laid out");

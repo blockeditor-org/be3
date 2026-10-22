@@ -10,7 +10,7 @@ fn hovering_a_text_input_shows_the_text_cursor() {
             <TextInput value="Hello" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let text = harness.rect(
         harness

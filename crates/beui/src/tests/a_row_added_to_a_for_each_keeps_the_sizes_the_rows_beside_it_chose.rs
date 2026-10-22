@@ -21,7 +21,7 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.rect(harness.find("row.0")).height(),

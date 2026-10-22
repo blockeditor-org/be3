@@ -21,17 +21,17 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (inner, outer) = (harness.find("inner"), harness.find("outer"));
 
-    harness.scroll(pos2(200.0, 75.0), vec2(0.0, -20.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 75.0), vec2(0.0, -20.0), Modifiers::NONE);
     harness.frame(Vec::new());
 
     assert_eq!(harness.document().scroll_offset(inner), 20.0);
     assert_eq!(harness.document().scroll_offset(outer), 0.0);
 
-    harness.scroll(pos2(200.0, 250.0), vec2(0.0, -20.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 250.0), vec2(0.0, -20.0), Modifiers::NONE);
     harness.frame(Vec::new());
 
     assert_eq!(harness.document().scroll_offset(inner), 20.0);

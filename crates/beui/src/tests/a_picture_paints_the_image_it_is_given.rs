@@ -18,7 +18,7 @@ fn a_picture_paints_the_image_it_is_given() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let output = harness.frame(Vec::new());
 
     let rect = harness.rect(picture.get());

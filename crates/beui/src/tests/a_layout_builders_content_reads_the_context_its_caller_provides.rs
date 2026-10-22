@@ -27,7 +27,7 @@ fn a_layout_builders_content_reads_the_context_its_caller_provides() {
             <Provider seen={seen} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(seen.get_untracked(), Some(Color32::WHITE));
 }

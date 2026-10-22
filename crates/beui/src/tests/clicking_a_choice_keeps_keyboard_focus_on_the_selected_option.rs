@@ -17,7 +17,7 @@ fn clicking_a_choice_keeps_keyboard_focus_on_the_selected_option() {
         }]
     });
     let options = document.children(group);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(vec![]);
     harness.click(harness.center(options[1]));
     assert_eq!(

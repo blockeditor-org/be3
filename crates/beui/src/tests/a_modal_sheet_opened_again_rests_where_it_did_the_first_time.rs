@@ -18,7 +18,7 @@ fn a_modal_sheet_opened_again_rests_where_it_did_the_first_time() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let top = |harness: &Harness| {
         harness

@@ -17,7 +17,7 @@ fn arrows_pick_which_emoji_the_menu_inserts() {
             <TextArea state={state} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let offered = search_emoji("smile");

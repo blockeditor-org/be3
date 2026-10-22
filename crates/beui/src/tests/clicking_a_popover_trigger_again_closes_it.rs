@@ -15,7 +15,7 @@ fn clicking_a_popover_trigger_again_closes_it() {
             </Popover>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let trigger = harness
         .document()

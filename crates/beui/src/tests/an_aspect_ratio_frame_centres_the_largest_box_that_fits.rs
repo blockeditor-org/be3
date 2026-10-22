@@ -17,7 +17,7 @@ fn an_aspect_ratio_frame_centres_the_largest_box_that_fits() {
         }
     });
 
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 300.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 300.0));
     harness.frame(Vec::new());
 
     let stage = harness.document().node_rect(stage.get()).unwrap();

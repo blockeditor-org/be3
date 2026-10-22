@@ -21,7 +21,7 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let pos = harness.rect(scroll).center();
 
@@ -53,7 +53,7 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
     );
 
     let rested = harness.document().scroll_offset(scroll);
-    harness.scroll(pos, vec2(0.0, -40.0), Modifiers::NONE);
+    harness.scroll_at(pos, vec2(0.0, -40.0), Modifiers::NONE);
     harness.advance(Duration::from_millis(300));
     harness.frame(vec![Event::ScrollEnded]);
     assert_eq!(

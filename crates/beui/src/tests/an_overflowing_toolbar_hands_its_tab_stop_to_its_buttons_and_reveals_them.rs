@@ -35,7 +35,7 @@ fn an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them() {
     });
     let scroll = scroll.get();
     let buttons: Vec<NodeId> = buttons.iter().map(NodeRef::get).collect();
-    let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
+    let mut harness = harness_sized(document, Vec2::new(300.0, 100.0));
     harness.frame(Vec::new());
     let visible = |harness: &Harness, button: NodeId| {
         let rect = harness.rect(button);

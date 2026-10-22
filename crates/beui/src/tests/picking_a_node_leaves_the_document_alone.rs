@@ -13,7 +13,7 @@ fn picking_a_node_leaves_the_document_alone() {
             />
         }]
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
 
     harness.toggle_inspector();
     harness.toggle_picking();

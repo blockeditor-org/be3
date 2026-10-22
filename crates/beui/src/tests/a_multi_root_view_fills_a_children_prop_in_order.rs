@@ -20,7 +20,7 @@ fn a_multi_root_view_fills_a_children_prop_in_order() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(

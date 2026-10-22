@@ -17,7 +17,7 @@ fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_wo
             </SelectableText>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let region = region.get();
     let (first, bottom) = (

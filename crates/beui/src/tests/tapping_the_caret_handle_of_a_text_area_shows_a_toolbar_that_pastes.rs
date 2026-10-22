@@ -18,7 +18,7 @@ fn tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes() {
             <TextArea @node_ref=&area state={state} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let root = area.get();

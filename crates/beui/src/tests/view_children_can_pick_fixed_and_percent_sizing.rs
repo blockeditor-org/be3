@@ -24,7 +24,7 @@ fn view_children_can_pick_fixed_and_percent_sizing() {
     let left = left.get_untracked().expect("fixed child was created");
     let right = right.get_untracked().expect("percent child was created");
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(left).width(), 30.0);

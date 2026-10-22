@@ -33,7 +33,7 @@ fn an_action_shortcut_runs_in_the_scope_that_holds_the_focus() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(harness.find("second.button")));

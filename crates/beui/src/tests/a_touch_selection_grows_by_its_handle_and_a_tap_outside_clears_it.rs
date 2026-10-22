@@ -18,7 +18,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
             </SelectableText>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (first, second, region) = (
         kind_of::<TextNode>(harness.document(), first.get()),

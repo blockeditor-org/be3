@@ -20,7 +20,7 @@ fn a_sheet_is_never_taller_than_what_it_holds() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();
     let rows = harness.rect(rows.get());

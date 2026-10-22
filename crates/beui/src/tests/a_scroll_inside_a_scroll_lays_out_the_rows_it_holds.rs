@@ -21,7 +21,7 @@ fn a_scroll_inside_a_scroll_lays_out_the_rows_it_holds() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let laid_out = harness.rect(row.get());

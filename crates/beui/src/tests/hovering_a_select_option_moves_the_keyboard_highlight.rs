@@ -14,7 +14,7 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
             <Select options selected=None />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let trigger = harness

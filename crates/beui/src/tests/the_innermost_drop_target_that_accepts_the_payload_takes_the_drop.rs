@@ -39,7 +39,7 @@ fn the_innermost_drop_target_that_accepts_the_payload_takes_the_drop() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let middle = harness.center(target);

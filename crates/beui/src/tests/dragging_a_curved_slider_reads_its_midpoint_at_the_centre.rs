@@ -15,7 +15,7 @@ fn dragging_a_curved_slider_reads_its_midpoint_at_the_centre() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     for slider in [curved, linear] {

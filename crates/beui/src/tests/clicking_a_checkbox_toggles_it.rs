@@ -11,7 +11,7 @@ fn clicking_a_checkbox_toggles_it() {
             <Checkbox label="Show timings" checked={checked} />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(checkbox));

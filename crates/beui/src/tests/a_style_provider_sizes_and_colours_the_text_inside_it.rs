@@ -23,7 +23,7 @@ fn a_style_provider_sizes_and_colours_the_text_inside_it() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let property = |node: NodeRef, name: &str| {
         harness

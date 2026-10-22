@@ -17,7 +17,7 @@ fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
             <TextArea @node_ref=&area state={state} password=true />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let surface = harness
         .document()

@@ -46,7 +46,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let rows = ROWS as f32 * VIRTUAL_ITEM_HEIGHT;
@@ -63,7 +63,10 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     harness.frame(Vec::new());
 
     let content = HEADER + rows + FOOTER;
-    assert_eq!(harness.document().scroll_offset(scroll), content - VIEWPORT.y);
+    assert_eq!(
+        harness.document().scroll_offset(scroll),
+        content - VIEWPORT.y
+    );
     let last = *harness.document().children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y - FOOTER);
     assert_eq!(built.get_untracked().last(), Some(&(ROWS - 1)));

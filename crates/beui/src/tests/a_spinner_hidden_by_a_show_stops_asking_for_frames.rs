@@ -15,7 +15,7 @@ fn a_spinner_hidden_by_a_show_stops_asking_for_frames() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert!(harness.frame(Vec::new()).repaint_after <= Duration::from_millis(16));
 

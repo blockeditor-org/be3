@@ -42,7 +42,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
             </styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, VIEWPORT);
+    let mut harness = harness_sized(document, VIEWPORT);
     harness.settle();
 
     assert!(

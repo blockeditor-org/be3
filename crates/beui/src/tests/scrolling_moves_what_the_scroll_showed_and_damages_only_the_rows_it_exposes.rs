@@ -23,7 +23,7 @@ fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes()
             </Frame>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let scroll = harness.find("scroll");
     let viewport = harness.rect(scroll);

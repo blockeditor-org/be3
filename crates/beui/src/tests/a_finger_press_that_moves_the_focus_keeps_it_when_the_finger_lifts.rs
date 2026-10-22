@@ -24,7 +24,7 @@ fn a_finger_press_that_moves_the_focus_keeps_it_when_the_finger_lifts() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let at = harness.rect(pressed.get()).center();

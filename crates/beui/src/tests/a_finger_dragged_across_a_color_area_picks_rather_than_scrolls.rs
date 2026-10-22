@@ -21,7 +21,7 @@ fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let area = harness.rect(picker.get());
     let start = pos2(area.left() + 10.0, area.top() + 10.0);

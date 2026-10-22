@@ -24,7 +24,7 @@ fn docked(layout: DockingLayout<u64>) -> (Harness, NodeId) {
             <TwoTabs @node_ref=&dock layout={layout} />
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     (harness, dock.get())
 }

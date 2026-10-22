@@ -18,7 +18,7 @@ fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     open.set(true);
     harness.settle();

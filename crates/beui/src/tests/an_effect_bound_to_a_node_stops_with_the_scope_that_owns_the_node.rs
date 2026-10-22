@@ -25,7 +25,7 @@ fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
     });
     let list = kind_of::<ListNode>(&document, document.root().expect("the toolbar is the root"));
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(runs.get_untracked(), 1);
 

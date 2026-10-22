@@ -21,7 +21,7 @@ fn an_unchanged_container_is_not_walked_again_for_accessibility_but_a_moved_one_
         })
         .collect();
     document.set_root(list.id());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

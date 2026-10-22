@@ -21,7 +21,7 @@ fn a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not() {
         }]
     });
     let region = region.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

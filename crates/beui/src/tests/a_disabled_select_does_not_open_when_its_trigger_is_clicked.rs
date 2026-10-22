@@ -13,7 +13,7 @@ fn a_disabled_select_does_not_open_when_its_trigger_is_clicked() {
             <Select options selected=Some(0) disabled=true />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(select));

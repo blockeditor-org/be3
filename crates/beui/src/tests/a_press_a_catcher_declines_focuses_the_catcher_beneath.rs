@@ -39,7 +39,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
             </Canvas>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(pos2(50.0, 50.0));

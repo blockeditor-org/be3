@@ -4,7 +4,7 @@ use super::*;
 fn clicking_a_row_leaves_its_children_expanded() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     let padding_row = harness.row_center(1);

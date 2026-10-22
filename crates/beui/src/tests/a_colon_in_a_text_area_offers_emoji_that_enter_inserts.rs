@@ -17,7 +17,7 @@ fn a_colon_in_a_text_area_offers_emoji_that_enter_inserts() {
             <TextArea state={state} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let offered = |harness: &Harness| {

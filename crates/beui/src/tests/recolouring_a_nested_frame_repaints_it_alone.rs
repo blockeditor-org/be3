@@ -16,7 +16,7 @@ fn recolouring_a_nested_frame_repaints_it_alone() {
     let (outer, inner) = (outer.get(), kind_of::<FrameNode>(&document, inner.get()));
     let (outer_layouts, outer_paints) = counted(&mut document, outer);
     let (inner_layouts, inner_paints) = counted(&mut document, inner);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness

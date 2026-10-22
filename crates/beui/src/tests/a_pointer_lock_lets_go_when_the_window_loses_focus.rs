@@ -22,7 +22,7 @@ fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
     assert!(harness.frame(Vec::new()).window.pointer_locked);

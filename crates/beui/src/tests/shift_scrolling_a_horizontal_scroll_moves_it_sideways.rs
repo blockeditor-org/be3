@@ -24,19 +24,19 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let strip = harness.find("strip");
 
-    harness.scroll(pos2(200.0, 150.0), vec2(0.0, -40.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 150.0), vec2(0.0, -40.0), Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(strip), 0.0);
 
-    harness.scroll(pos2(200.0, 150.0), vec2(0.0, -40.0), Modifiers::SHIFT);
+    harness.scroll_at(pos2(200.0, 150.0), vec2(0.0, -40.0), Modifiers::SHIFT);
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(strip), 40.0);
 
-    harness.scroll(pos2(200.0, 150.0), vec2(-40.0, 0.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 150.0), vec2(-40.0, 0.0), Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(strip), 80.0);
 }

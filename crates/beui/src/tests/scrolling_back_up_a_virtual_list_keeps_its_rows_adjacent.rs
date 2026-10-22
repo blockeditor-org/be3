@@ -31,23 +31,30 @@ fn scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     for _ in 0..STEPS {
         let offset = harness.document().scroll_offset(scroll);
-        harness.document_mut().set_scroll_offset(scroll, offset + STEP);
+        harness
+            .document_mut()
+            .set_scroll_offset(scroll, offset + STEP);
         harness.frame(Vec::new());
         check_rows(&harness, list);
     }
     for _ in 0..STEPS {
         let offset = harness.document().scroll_offset(scroll);
-        harness.document_mut().set_scroll_offset(scroll, offset - STEP);
+        harness
+            .document_mut()
+            .set_scroll_offset(scroll, offset - STEP);
         harness.frame(Vec::new());
         check_rows(&harness, list);
     }
 
     assert_eq!(harness.document().scroll_offset(scroll), 0.0);
-    assert_eq!(harness.rect(harness.document().children(list)[0]).top(), 0.0);
+    assert_eq!(
+        harness.rect(harness.document().children(list)[0]).top(),
+        0.0
+    );
 }
 
 fn check_rows(harness: &Harness, list: NodeId) {

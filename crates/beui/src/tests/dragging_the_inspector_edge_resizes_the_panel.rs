@@ -12,7 +12,7 @@ fn dragging_the_inspector_edge_resizes_the_panel() {
         }
     });
     let text = text.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
 
     harness.toggle_inspector();
     let width = harness.inspector().width;

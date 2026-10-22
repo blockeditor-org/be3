@@ -21,7 +21,7 @@ fn a_reactive_test_id_follows_its_signal() {
     });
 
     let rename = rename.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let named = harness.document().find_test_id("cell.0");

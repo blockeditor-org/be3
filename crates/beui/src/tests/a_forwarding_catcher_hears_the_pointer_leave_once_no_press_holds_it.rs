@@ -31,7 +31,7 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
             </Canvas>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (inside, outside) = (pos2(50.0, 50.0), pos2(250.0, 50.0));
 

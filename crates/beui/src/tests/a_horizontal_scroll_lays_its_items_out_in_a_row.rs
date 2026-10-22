@@ -28,7 +28,7 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(

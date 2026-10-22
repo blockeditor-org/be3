@@ -30,7 +30,7 @@ fn a_canvas_reveals_its_focused_text_when_its_view_shrinks() {
         }
     });
 
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     harness.click(harness.center(input.get()));
     harness.frame(Vec::new());

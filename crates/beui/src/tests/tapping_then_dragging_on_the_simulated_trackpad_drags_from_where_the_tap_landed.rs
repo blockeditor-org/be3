@@ -9,7 +9,7 @@ fn tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_land
             <Slider value=0.0 />
         }]
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
 

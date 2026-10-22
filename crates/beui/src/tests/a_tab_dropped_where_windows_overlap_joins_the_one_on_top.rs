@@ -5,7 +5,7 @@ use crate::unstyled::{DockApi, TabId};
 fn a_tab_dropped_where_windows_overlap_joins_the_one_on_top() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(4);
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     for (title, to) in [("Tab 2", pos2(300.0, 150.0)), ("Tab 3", pos2(450.0, 200.0))] {
         let tab = harness.center(dock_tab(harness.document(), dock, title));

@@ -35,7 +35,7 @@ fn a_toast_with_actions_reports_them_and_stays_until_answered() {
             </Frame>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let output = harness.frame(Vec::new());
     let reply = output
         .test_id_rect("toast.7.action.reply")

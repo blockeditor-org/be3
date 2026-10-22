@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn ctrl_shift_m_toggles_responsive_design_mode() {
     let _root = crate::reactive::RootScope::new();
-    let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(hello_column().document, WIDE_VIEWPORT);
 
     harness.toggle_responsive();
     harness.frame(vec![]);

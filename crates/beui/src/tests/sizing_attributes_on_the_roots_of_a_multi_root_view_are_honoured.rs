@@ -16,7 +16,7 @@ fn sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured() {
         }
     });
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(left.get()).width(), 30.0);

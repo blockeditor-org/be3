@@ -21,7 +21,7 @@ fn a_catcher_beneath_an_overlapping_one_hears_no_press() {
             </Layers>
         }
     });
-    let mut harness = Harness::sized(document, vec2(100.0, 100.0));
+    let mut harness = harness_sized(document, vec2(100.0, 100.0));
     harness.frame(Vec::new());
 
     harness.click(pos2(80.0, 20.0));

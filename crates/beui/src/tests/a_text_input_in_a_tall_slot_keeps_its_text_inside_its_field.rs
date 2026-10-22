@@ -15,7 +15,7 @@ fn a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field() {
         }]
     });
     let input = input.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let output = harness.frame(Vec::new());
 

@@ -33,7 +33,7 @@ fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
     });
     let list = list.get();
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(

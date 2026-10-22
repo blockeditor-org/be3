@@ -29,7 +29,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
             </styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, PHONE);
+    let mut harness = harness_sized(document, PHONE);
     harness.frame(Vec::new());
 
     let third = harness

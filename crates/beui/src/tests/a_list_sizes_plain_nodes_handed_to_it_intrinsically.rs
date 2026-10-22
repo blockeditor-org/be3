@@ -15,7 +15,7 @@ fn a_list_sizes_plain_nodes_handed_to_it_intrinsically() {
         }
     });
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(

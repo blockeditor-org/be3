@@ -46,7 +46,7 @@ fn height(content: impl FnOnce() -> NodeId + 'static) -> f32 {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness
         .document()

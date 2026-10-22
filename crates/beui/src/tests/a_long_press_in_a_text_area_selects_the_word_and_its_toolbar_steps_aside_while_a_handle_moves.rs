@@ -19,7 +19,7 @@ fn a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whil
             <TextArea @node_ref=&area state={state} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let root = area.get();

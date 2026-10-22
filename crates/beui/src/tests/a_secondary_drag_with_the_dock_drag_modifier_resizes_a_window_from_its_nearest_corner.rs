@@ -10,7 +10,7 @@ fn a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_neares
         presses,
         ..
     } = split_dock(Some(Modifiers::LOGO));
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     drag_with(

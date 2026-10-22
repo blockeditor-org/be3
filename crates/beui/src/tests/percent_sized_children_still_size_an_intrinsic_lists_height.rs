@@ -21,7 +21,7 @@ fn percent_sized_children_still_size_an_intrinsic_lists_height() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(row.get()).height(), 40.0);

@@ -16,7 +16,7 @@ fn a_color_input_opens_its_picker_from_the_swatch() {
             />
         }]
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let open = |harness: &Harness| {
         harness

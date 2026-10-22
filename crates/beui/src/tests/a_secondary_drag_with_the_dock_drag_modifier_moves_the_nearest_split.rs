@@ -9,7 +9,7 @@ fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
         presses,
         ..
     } = split_dock(Some(Modifiers::LOGO));
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let before = harness.rect(harness.find("content.1"));
 

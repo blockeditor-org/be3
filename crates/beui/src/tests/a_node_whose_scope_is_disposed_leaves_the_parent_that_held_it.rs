@@ -28,7 +28,7 @@ fn a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (scope, listed, framed) = held.update(|held| held.take().expect("the scope was built"));
     assert!(harness.document().children(list.get()).contains(&listed));

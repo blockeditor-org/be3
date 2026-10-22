@@ -23,7 +23,7 @@ fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
             </Frame>
         }
     });
-    let mut harness = Harness::sized(document, vec2(400.0, 300.0));
+    let mut harness = harness_sized(document, vec2(400.0, 300.0));
     harness.frame(Vec::new());
 
     let overlay = kind_of::<OverlayNode>(harness.document(), overlay.get());

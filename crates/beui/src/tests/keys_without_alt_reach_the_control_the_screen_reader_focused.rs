@@ -15,7 +15,7 @@ fn keys_without_alt_reach_the_control_the_screen_reader_focused() {
             },
         ]
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
 

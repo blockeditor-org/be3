@@ -5,11 +5,13 @@ fn scrolling_a_virtual_scroll_replaces_the_items_in_view() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = virtual_list(built);
-    let mut harness = Harness::new(scroll.document);
+    let mut harness = harness(scroll.document);
     harness.frame(Vec::new());
 
     built.update(|built| built.clear());
-    harness.document_mut().set_scroll_offset(scroll.scroll, 1000.0);
+    harness
+        .document_mut()
+        .set_scroll_offset(scroll.scroll, 1000.0);
     harness.frame(Vec::new());
 
     let visible = (VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;

@@ -4,7 +4,7 @@ use super::*;
 fn typing_in_the_inspector_tree_jumps_to_a_matching_row() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     harness.frame(Vec::new());

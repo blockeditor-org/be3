@@ -44,7 +44,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.click(harness.center(toggle.get()));
     harness.frame(Vec::new());

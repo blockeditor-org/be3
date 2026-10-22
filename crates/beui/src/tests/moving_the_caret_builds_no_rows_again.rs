@@ -24,7 +24,7 @@ fn moving_the_caret_builds_no_rows_again() {
             </Frame>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.click(pos2(250.0, 20.0));
     harness.frame(Vec::new());

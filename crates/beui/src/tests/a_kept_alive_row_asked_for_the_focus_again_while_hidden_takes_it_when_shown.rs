@@ -24,7 +24,7 @@ fn a_kept_alive_row_asked_for_the_focus_again_while_hidden_takes_it_when_shown()
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let row = row.get();
     let holds = |harness: &Harness| harness.document().focus_is_within(row);

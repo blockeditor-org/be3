@@ -22,7 +22,7 @@ fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     open.set(true);
     harness.settle();

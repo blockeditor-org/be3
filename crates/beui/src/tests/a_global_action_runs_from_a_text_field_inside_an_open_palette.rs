@@ -35,7 +35,7 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

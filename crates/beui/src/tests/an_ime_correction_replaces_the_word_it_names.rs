@@ -18,7 +18,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
             <TextArea state={state} single_line=true />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     harness.key(Key::Tab, Modifiers::NONE);

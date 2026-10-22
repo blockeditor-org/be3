@@ -16,7 +16,7 @@ fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {
             />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let output = harness.frame(Vec::new());
 
     let tree = output.accessibility_tree("Test", VIEWPORT);

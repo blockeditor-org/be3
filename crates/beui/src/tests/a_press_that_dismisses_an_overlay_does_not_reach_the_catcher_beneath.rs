@@ -41,7 +41,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, WIDE);
+    let mut harness = harness_sized(document, WIDE);
     harness.frame(Vec::new());
 
     let outside = pos2(20.0, 20.0);

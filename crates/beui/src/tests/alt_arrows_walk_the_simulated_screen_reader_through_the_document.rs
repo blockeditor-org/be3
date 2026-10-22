@@ -15,7 +15,7 @@ fn alt_arrows_walk_the_simulated_screen_reader_through_the_document() {
             },
         ]
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
 

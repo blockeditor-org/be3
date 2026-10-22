@@ -20,7 +20,7 @@ fn a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.click(harness.center(input));
     assert!(harness.frame(Vec::new()).window.ime.is_some());

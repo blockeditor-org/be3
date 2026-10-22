@@ -9,7 +9,7 @@ fn double_clicking_a_word_selects_it_so_typing_replaces_it() {
             <TextInput value="hello world" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let rect = harness.rect(input);

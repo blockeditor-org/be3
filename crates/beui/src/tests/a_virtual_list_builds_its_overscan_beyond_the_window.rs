@@ -26,7 +26,7 @@ fn a_virtual_list_builds_its_overscan_beyond_the_window() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let shown = (VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;
     assert_eq!(harness.document().children(list).len(), shown + 2);

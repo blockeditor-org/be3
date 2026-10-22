@@ -38,13 +38,15 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let rows = harness.document().children(list);
     assert_eq!(rows.len(), ROWS);
 
     built.update(|built| built.clear());
-    harness.document_mut().set_scroll_offset(scroll, BELOW / 2.0);
+    harness
+        .document_mut()
+        .set_scroll_offset(scroll, BELOW / 2.0);
     harness.frame(Vec::new());
     assert!(harness.document().children(list).is_empty());
 

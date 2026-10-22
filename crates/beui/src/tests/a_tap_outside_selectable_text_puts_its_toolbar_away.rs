@@ -19,7 +19,7 @@ fn a_tap_outside_selectable_text_puts_its_toolbar_away() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (text, region) = (harness.rect(text.get()), region.get());
     let on_hello = pos2(text.left() + 4.0, text.center().y);

@@ -4,7 +4,7 @@ use super::*;
 fn clicking_a_row_selects_it_without_leaving_it_highlighted() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, text, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     harness.click(harness.row_center(2));

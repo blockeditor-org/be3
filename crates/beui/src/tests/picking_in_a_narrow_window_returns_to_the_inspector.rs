@@ -4,7 +4,7 @@ use super::*;
 fn picking_in_a_narrow_window_returns_to_the_inspector() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, text, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     harness.toggle_picking();

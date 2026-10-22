@@ -9,7 +9,7 @@ fn ctrl_a_selects_everything_so_typing_replaces_the_value() {
             <TextInput value="hello" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::A, Modifiers::CTRL);

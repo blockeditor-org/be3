@@ -25,7 +25,7 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     let (top, bottom) = (top.get(), bottom.get());
     let top_counts = counted_with_measures(&mut document, top);
     let bottom_counts = counted_with_measures(&mut document, bottom);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(vec![Event::PointerMoved(pos2(5.0, 50.0))]);
     top_counts.visits.set(0);

@@ -20,7 +20,7 @@ fn dragging_the_scrollbar_thumb_scrolls_the_content_beside_it() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let scroll = scroll.get();

@@ -8,7 +8,7 @@ fn arrow_keys_walk_the_rows_of_the_inspector_tree() {
         padding,
         text,
     } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     harness.frame(Vec::new());

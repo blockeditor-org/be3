@@ -26,7 +26,7 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
         }]
     });
     let region = region.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

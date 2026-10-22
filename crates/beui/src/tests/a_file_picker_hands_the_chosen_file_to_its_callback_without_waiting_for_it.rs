@@ -17,7 +17,7 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
             </Button>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let dialogs = |harness: &mut Harness| {
         harness
             .run(&["state"])

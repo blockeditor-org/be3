@@ -16,7 +16,7 @@ fn arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year() {
             />
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.key(Key::ArrowRight, Modifiers::NONE);

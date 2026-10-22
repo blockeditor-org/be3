@@ -26,13 +26,13 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
         }
     });
     let button = button.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(button);
     harness.press_at(pos);
     let opened = harness.frame(vec![Event::PointerButton {
-        pos: pos,
+        pos,
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Modifiers::NONE,

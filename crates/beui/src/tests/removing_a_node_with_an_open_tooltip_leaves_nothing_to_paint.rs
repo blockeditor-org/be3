@@ -32,7 +32,7 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let described = harness.document().find_test_id("row.1").expect("the row");
 

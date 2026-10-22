@@ -35,7 +35,7 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
             </Tree>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let chevron = |harness: &Harness| {
         let chevron = harness

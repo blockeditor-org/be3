@@ -43,7 +43,7 @@ fn zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles() {
         items.set(with_document(|document| document.children(canvas)));
         canvas
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let first = harness.frame(Vec::new());
     let shapes = first.shapes().len();

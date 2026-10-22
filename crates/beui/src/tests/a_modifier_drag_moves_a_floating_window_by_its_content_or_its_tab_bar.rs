@@ -33,7 +33,7 @@ fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
         }
     });
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];

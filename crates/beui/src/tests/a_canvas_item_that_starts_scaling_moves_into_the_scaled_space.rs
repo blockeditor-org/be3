@@ -18,7 +18,7 @@ fn a_canvas_item_that_starts_scaling_moves_into_the_scaled_space() {
         items.set(with_document(|document| document.children(canvas)));
         canvas
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let item = items.get_untracked()[0];
     let placed = Rect::from_min_size(pos2(20.0, 10.0), Vec2::new(40.0, 20.0));

@@ -24,7 +24,7 @@ fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
     });
 
     let (lead, trail, add) = (lead.get(), trail.get(), add.get());
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(lead).left(), 0.0);

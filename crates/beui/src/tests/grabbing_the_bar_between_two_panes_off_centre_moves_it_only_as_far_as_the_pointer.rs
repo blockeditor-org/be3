@@ -4,7 +4,7 @@ use super::*;
 fn grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_pointer() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     harness.drag(tab, pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y / 2.0));

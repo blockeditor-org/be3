@@ -25,7 +25,7 @@ fn a_fragment_sits_beside_the_children_written_around_it() {
         }
     });
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let lefts: Vec<f32> = [first, second, third, fourth]

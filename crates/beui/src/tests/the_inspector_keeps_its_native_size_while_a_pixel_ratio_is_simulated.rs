@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated() {
     let _root = crate::reactive::RootScope::new();
-    let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(hello_column().document, WIDE_VIEWPORT);
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(vec![]);

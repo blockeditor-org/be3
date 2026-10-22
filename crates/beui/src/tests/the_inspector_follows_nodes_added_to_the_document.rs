@@ -7,12 +7,14 @@ fn the_inspector_follows_nodes_added_to_the_document() {
     let column = document.create_list(Direction::Vertical, 0.0);
     document.append_child(column, first.id(), ItemSize::Intrinsic);
     document.set_root(column.id());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     assert_eq!(harness.tree(), ["list", "  text"]);
 
-    let second = harness.document_mut().create_text("Second", 14.0, Color32::WHITE);
+    let second = harness
+        .document_mut()
+        .create_text("Second", 14.0, Color32::WHITE);
     harness
         .document_mut()
         .append_child(column, second.id(), ItemSize::Intrinsic);

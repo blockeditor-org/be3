@@ -20,7 +20,7 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
     });
     let (panel, drawing) = (panel.get(), drawing.get());
     let (_, paints) = counted(&mut document, panel);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let settled = paints.get_untracked();
 

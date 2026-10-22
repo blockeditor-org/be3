@@ -19,7 +19,7 @@ fn a_tap_intercepted_for_a_document_runs_its_tap_action() {
             <List spacing=0.0 />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.frame(Vec::new()).window.intercepted_keys,

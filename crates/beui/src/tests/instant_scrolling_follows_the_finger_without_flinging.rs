@@ -21,7 +21,7 @@ fn instant_scrolling_follows_the_finger_without_flinging() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {

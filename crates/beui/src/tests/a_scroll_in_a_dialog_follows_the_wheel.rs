@@ -31,7 +31,7 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
         }
     });
     let first = first.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let top = harness.rect(first).top();

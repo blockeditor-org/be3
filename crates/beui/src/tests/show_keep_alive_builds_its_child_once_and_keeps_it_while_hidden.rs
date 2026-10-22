@@ -32,7 +32,7 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
     });
 
     let (column, toggle) = (column.get(), toggle.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(

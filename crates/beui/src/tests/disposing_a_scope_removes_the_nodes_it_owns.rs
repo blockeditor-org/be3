@@ -30,7 +30,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let built = text.get();
     let count = harness.document().arena.len();

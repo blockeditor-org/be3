@@ -9,7 +9,7 @@ fn pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it() {
             <PanZoomStage />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let item = harness.find("item");
     let corner = pos2(300.0, 200.0);

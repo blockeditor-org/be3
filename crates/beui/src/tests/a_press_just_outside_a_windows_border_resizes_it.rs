@@ -6,7 +6,7 @@ use crate::unstyled::DockApi;
 fn a_press_just_outside_a_windows_border_resizes_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
     let rect = |harness: &Harness| {
         let state = harness.document().api::<DockApi>(dock).state();

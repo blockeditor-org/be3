@@ -22,7 +22,7 @@ fn an_embed_reports_its_placement_when_it_moves() {
             </Canvas>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

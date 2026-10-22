@@ -19,7 +19,7 @@ fn a_focused_text_input_panned_out_of_a_canvas_keeps_the_keyboard() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.click(harness.center(input.get()));
     let asked = harness.frame(Vec::new()).window.ime;

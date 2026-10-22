@@ -32,7 +32,7 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
         }
     });
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let tab = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));

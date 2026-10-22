@@ -26,7 +26,7 @@ fn a_catcher_in_a_dialog_hears_a_press_on_it() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let rect = harness.rect(catcher.get());

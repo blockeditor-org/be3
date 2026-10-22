@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_release_that_moves_the_simulated_screens_edge_resizes_it_to_it() {
     let _root = crate::reactive::RootScope::new();
-    let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(hello_column().document, WIDE_VIEWPORT);
     harness.toggle_responsive();
     harness.frame(vec![]);
     let scale = harness.document().screen_scale();

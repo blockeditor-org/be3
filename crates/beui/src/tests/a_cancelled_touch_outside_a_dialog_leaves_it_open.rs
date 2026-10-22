@@ -22,7 +22,7 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     open.set(true);
     harness.frame(Vec::new());

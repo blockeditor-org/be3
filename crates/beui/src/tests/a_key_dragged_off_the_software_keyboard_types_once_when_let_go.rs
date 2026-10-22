@@ -13,7 +13,7 @@ fn a_key_dragged_off_the_software_keyboard_types_once_when_let_go() {
             <TextInput @test_id="field" value={typed} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.context().enable_keyboard();
     harness.frame(Vec::new());
     let field = harness.find("field");

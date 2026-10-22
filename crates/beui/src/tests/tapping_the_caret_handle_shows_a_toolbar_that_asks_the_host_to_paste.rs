@@ -9,7 +9,7 @@ fn tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste() {
             <TextInput value="Hello" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let text = harness.rect(
         harness

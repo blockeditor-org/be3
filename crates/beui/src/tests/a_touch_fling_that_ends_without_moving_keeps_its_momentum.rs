@@ -21,7 +21,7 @@ fn a_touch_fling_that_ends_without_moving_keeps_its_momentum() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
     let start = pos2(x, 299.0);

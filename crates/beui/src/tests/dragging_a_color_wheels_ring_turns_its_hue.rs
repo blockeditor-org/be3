@@ -18,7 +18,7 @@ fn dragging_a_color_wheels_ring_turns_its_hue() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let rect = harness.rect(wheel.get());
     let centre = pos2(

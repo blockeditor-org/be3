@@ -16,7 +16,7 @@ fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {
         }]
     });
     let input = input.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text(value);

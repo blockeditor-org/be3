@@ -49,7 +49,7 @@ fn a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs() {
             </styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, PHONE);
+    let mut harness = harness_sized(document, PHONE);
     harness.settle();
     tap(&mut harness, "dock.switch");
     tap(&mut harness, "dock.switcher.tab.1");

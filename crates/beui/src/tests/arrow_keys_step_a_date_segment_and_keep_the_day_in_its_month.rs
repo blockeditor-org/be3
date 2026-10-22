@@ -20,7 +20,7 @@ fn arrow_keys_step_a_date_segment_and_keep_the_day_in_its_month() {
             </Container>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);

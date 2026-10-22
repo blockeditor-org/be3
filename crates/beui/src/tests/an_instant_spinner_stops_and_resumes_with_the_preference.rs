@@ -10,7 +10,7 @@ fn an_instant_spinner_stops_and_resumes_with_the_preference() {
             <Spinner />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::ZERO);
     harness.context().set_preference_layer(

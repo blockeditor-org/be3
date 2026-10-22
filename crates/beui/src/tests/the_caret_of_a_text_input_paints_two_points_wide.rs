@@ -11,7 +11,7 @@ fn the_caret_of_a_text_input_paints_two_points_wide() {
             <TextInput value="Text" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     with_installed(harness.document_mut(), |_| {
         crate::focus_within(input);

@@ -7,11 +7,11 @@ fn a_taller_window_keeps_the_layout_and_paint_of_what_it_did_not_resize() {
     let middle = panels.middle;
     let mut document = panels.document;
     let (layouts, _) = counted(&mut document, middle);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let settled = layouts.get_untracked();
 
-    harness.resize(harness.viewport() + vec2(0.0, 100.0));
+    harness.resize(harness.size() + vec2(0.0, 100.0));
     harness.frame(Vec::new());
     assert_eq!(
         layouts.get_untracked(),
@@ -22,7 +22,7 @@ fn a_taller_window_keeps_the_layout_and_paint_of_what_it_did_not_resize() {
     assert!(work.reused_placements > 0, "got {work:?}");
     assert!(work.replayed_nodes > 0, "got {work:?}");
 
-    harness.resize(harness.viewport() + vec2(100.0, 0.0));
+    harness.resize(harness.size() + vec2(100.0, 0.0));
     harness.frame(Vec::new());
     assert!(
         layouts.get_untracked() > settled,

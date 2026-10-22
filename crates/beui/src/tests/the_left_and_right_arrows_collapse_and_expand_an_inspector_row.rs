@@ -4,7 +4,7 @@ use super::*;
 fn the_left_and_right_arrows_collapse_and_expand_an_inspector_row() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     harness.frame(Vec::new());

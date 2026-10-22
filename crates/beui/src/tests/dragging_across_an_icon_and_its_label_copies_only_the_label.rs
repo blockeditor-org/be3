@@ -19,7 +19,7 @@ fn dragging_across_an_icon_and_its_label_copies_only_the_label() {
             </SelectableText>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let rect = harness.rect(text.get());
     harness.drag(

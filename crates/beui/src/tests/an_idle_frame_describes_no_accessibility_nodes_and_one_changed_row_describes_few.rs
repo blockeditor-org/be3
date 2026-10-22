@@ -14,7 +14,7 @@ fn an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes_
     }
     let scroll = document.create_offset(list.id());
     document.set_root(scroll.id());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let first = harness.frame(Vec::new());
     assert!(first.accessibility_tree("Test", VIEWPORT).nodes.len() > 1);
 

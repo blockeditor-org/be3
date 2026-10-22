@@ -24,7 +24,7 @@ fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.key(Key::K, Modifiers::CTRL);

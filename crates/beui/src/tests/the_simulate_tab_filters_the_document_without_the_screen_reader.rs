@@ -4,7 +4,7 @@ use crate::filter::ColorVision;
 #[test]
 fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     let _root = crate::reactive::RootScope::new();
-    let mut harness = Harness::sized(hello_column().document, TALL_VIEWPORT);
+    let mut harness = harness_sized(hello_column().document, TALL_VIEWPORT);
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(Vec::new());

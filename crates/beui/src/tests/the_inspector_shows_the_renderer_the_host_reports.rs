@@ -5,7 +5,7 @@ use crate::renderer_info;
 fn the_inspector_shows_the_renderer_the_host_reports() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.context().set_renderer_info(renderer_info(
         &wgpu::AdapterInfo {
             name: "Test adapter".to_owned(),

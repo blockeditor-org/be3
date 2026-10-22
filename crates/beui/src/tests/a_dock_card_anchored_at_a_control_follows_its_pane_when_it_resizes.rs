@@ -4,7 +4,7 @@ use super::*;
 fn a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes() {
     let _root = crate::reactive::RootScope::new();
     let dock = anchored_card_dock(true);
-    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
     let anchor = open_anchored(&mut harness, (dock.anchor, dock.open), |panel| {
         Rect::from_min_size(
             pos2(panel.right() - 48.0, panel.top() + 16.0),

@@ -26,7 +26,7 @@ fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
     let tall = taken
         .get_untracked()
         .expect("the view published its signal");
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let was = harness.rect(bottom);
 

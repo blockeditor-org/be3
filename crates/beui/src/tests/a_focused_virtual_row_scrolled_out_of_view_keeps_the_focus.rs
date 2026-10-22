@@ -29,10 +29,13 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
         }
     });
     let (scroll, list) = (scroll.get(), list.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
-    let focused = harness.document().focused.expect("Tab focuses the first row");
+    let focused = harness
+        .document()
+        .focused
+        .expect("Tab focuses the first row");
     assert!(text_within(harness.document(), focused, "Row 0").is_some());
 
     let far = VIRTUAL_ITEM_COUNT as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
@@ -45,12 +48,18 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.settle();
-    let next = harness.document().focused.expect("Tab moves to the next row");
+    let next = harness
+        .document()
+        .focused
+        .expect("Tab moves to the next row");
     assert!(
         text_within(harness.document(), next, "Row 1").is_some(),
         "Tab goes to the row after the focused one, not to the rows in view"
     );
-    assert_eq!(harness.document().scroll_offset(scroll), VIRTUAL_ITEM_HEIGHT);
+    assert_eq!(
+        harness.document().scroll_offset(scroll),
+        VIRTUAL_ITEM_HEIGHT
+    );
     assert!(
         harness
             .document()

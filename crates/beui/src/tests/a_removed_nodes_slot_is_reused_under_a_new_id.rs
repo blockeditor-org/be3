@@ -5,7 +5,7 @@ fn a_removed_nodes_slot_is_reused_under_a_new_id() {
     let _root = crate::reactive::RootScope::new();
     let panels = three_panels();
     let (list, middle) = (panels.list, panels.middle);
-    let mut harness = Harness::new(panels.document);
+    let mut harness = harness(panels.document);
     harness.frame(Vec::new());
     let vacated = harness.rect(middle);
 

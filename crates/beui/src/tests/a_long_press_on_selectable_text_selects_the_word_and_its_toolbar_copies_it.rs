@@ -17,7 +17,7 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
             </SelectableText>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (text, region) = (text.get(), region.get());
     let rect = harness.rect(text);

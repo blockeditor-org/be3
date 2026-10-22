@@ -22,7 +22,7 @@ fn a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(harness.find("field")));

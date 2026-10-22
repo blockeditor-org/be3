@@ -9,7 +9,7 @@ fn touch_dragging_across_a_text_input_does_not_select_its_text() {
             <TextInput value="Hello world" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let text = harness.rect(
         harness

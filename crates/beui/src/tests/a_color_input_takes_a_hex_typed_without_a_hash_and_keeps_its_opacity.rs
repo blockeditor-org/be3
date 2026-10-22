@@ -13,7 +13,7 @@ fn a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity() {
             />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);

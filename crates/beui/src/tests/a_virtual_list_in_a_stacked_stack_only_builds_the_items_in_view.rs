@@ -52,7 +52,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
         }
     });
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let wide = (WIDE_VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;

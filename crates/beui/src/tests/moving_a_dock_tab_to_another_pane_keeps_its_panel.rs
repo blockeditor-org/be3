@@ -4,7 +4,7 @@ use super::*;
 fn moving_a_dock_tab_to_another_pane_keeps_its_panel() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.click(harness.center(dock_tab(harness.document(), dock, "Tab 2")));
     harness.frame(Vec::new());

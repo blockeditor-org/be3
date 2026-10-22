@@ -19,7 +19,7 @@ fn an_animation_catches_up_after_a_stalled_frame() {
             <Frame height=10.0 />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.advance(Duration::from_secs(2));
     harness.frame(Vec::new());

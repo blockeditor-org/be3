@@ -27,7 +27,7 @@ fn a_closure_child_receives_the_handle_its_slot_hands_over() {
         }
     });
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let size = measured

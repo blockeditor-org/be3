@@ -61,7 +61,7 @@ fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(
         text_of(harness.document(), legend.get()),

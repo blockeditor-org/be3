@@ -22,7 +22,7 @@ fn a_select_following_its_prop_does_not_report_a_change() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

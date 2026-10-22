@@ -14,7 +14,7 @@ fn a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(harness.find("column.spacer"), spacer.get());

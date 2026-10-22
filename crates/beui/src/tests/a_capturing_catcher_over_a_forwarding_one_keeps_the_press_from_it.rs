@@ -40,7 +40,7 @@ fn a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it() {
             </Canvas>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(pos2(55.0, 100.0));

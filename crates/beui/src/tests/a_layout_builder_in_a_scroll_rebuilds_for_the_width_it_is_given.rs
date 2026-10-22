@@ -29,7 +29,7 @@ fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
             </Scroll>
         }
     });
-    let mut harness = Harness::sized(document, vec2(320.0, 240.0));
+    let mut harness = harness_sized(document, vec2(320.0, 240.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     for _ in 0..4 {

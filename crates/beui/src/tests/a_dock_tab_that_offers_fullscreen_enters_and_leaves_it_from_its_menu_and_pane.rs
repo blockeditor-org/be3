@@ -55,7 +55,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
         })
     };
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.settle();
     let docked = harness.rect(harness.find("offered"));
 

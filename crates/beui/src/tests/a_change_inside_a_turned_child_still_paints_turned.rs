@@ -25,7 +25,7 @@ fn a_change_inside_a_turned_child_still_paints_turned() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     with_reactive_scope(harness.document_mut(), move || width.set(30.0));
     let output = harness.frame(Vec::new());

@@ -27,7 +27,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.document_mut().set_scroll_offset(scroll, f32::MAX);
     harness.frame(Vec::new());
 

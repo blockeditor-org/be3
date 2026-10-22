@@ -18,7 +18,7 @@ fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     crate::take_over_repaints();
 

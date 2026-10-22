@@ -30,7 +30,7 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
         })
     };
     let held = held.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.rect(held).top(),

@@ -9,7 +9,7 @@ fn ctrl_z_undoes_what_was_typed_into_a_text_input() {
             <TextInput value="note" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("s");

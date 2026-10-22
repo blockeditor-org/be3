@@ -18,7 +18,7 @@ fn a_modal_sheet_slides_in_and_out() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     let top = |harness: &Harness| {
         harness

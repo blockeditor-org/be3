@@ -5,7 +5,7 @@ fn the_frame_output_reports_the_region_whose_shapes_changed() {
     let _root = crate::reactive::RootScope::new();
     let panels = stacked_panels();
     let lower = panels.lower;
-    let mut harness = Harness::new(panels.document);
+    let mut harness = harness(panels.document);
     harness.frame(Vec::new());
     assert_eq!(harness.frame(Vec::new()).damage(), None);
 

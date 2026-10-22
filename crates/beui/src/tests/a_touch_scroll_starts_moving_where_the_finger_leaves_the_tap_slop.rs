@@ -20,7 +20,7 @@ fn a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let rect = harness.rect(scroll);
     let start = pos2(rect.center().x, rect.bottom() - 40.0);

@@ -16,7 +16,7 @@ fn text_that_does_not_fit_ends_in_an_ellipsis() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, vec2(300.0, 40.0));
+    let mut harness = harness_sized(document, vec2(300.0, 40.0));
     let output = harness.frame(Vec::new());
     let texts: Vec<_> = output
         .shapes()

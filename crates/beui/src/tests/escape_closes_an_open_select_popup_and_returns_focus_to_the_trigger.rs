@@ -13,7 +13,7 @@ fn escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger() {
             <Select options selected=Some(0) />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let trigger = harness

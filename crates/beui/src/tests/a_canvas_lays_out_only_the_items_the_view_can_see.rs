@@ -18,7 +18,7 @@ fn a_canvas_lays_out_only_the_items_the_view_can_see() {
         canvas
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let items = items.get_untracked();

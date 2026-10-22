@@ -9,7 +9,7 @@ fn tapping_a_checkbox_with_touch_toggles_it() {
             <Checkbox label="Touch option" checked=false />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let center = harness.center(checkbox);
 

@@ -19,7 +19,7 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let output = harness.frame(Vec::new());
     let turned = harness.rect(turn.get());
     assert_eq!(

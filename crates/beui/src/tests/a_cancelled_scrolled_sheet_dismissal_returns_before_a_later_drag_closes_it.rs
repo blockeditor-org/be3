@@ -15,7 +15,7 @@ fn a_cancelled_scrolled_sheet_dismissal_returns_before_a_later_drag_closes_it() 
                 </ModalSheet>
             }
         });
-        let mut harness = Harness::sized(document, vec2(400.0, 600.0));
+        let mut harness = harness_sized(document, vec2(400.0, 600.0));
         harness.settle();
         harness.finger_drag_and_hold(pos2(200.0, 500.0), pos2(200.0, 200.0));
         harness.settle();

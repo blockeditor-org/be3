@@ -13,7 +13,7 @@ fn a_pan_zoom_follows_the_view_its_caller_sets() {
             <PanZoomStage view />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let view = signal.get_untracked().expect("the view was not kept");

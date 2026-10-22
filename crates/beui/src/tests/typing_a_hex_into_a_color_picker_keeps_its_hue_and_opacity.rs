@@ -15,7 +15,7 @@ fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     for _ in 0..4 {

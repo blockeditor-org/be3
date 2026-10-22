@@ -5,7 +5,7 @@ use crate::unstyled::{DockApi, TabId};
 fn switching_dock_tabs_keeps_the_panel_it_hides() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let first = harness.find("content.1");
     assert!(

@@ -21,7 +21,7 @@ fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_a
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(seen.get_untracked().top(), 80.0);
     let scroll = harness.find("scroll");

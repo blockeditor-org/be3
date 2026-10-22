@@ -22,7 +22,7 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
             </Container>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let open = |harness: &Harness| {
         harness.accessible().iter().any(|node| {

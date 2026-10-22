@@ -61,7 +61,7 @@ fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let [below, above, inert, blocking] = [below, above, inert, blocking]
         .map(|node| kind_of::<OverlayNode>(harness.document(), node.get()));

@@ -13,7 +13,7 @@ fn a_color_input_reports_the_hex_it_was_typed() {
             />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);

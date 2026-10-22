@@ -18,7 +18,7 @@ fn every_sample_drags_at_the_time_it_happened() {
             </Interactive>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert!(harness.document().wants_every_sample());
     let pen = |phase, x| Event::Pen {

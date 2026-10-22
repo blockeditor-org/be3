@@ -26,7 +26,7 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
         ]
     });
     let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.key(Key::Tab, Modifiers::NONE);
     assert_eq!(
         harness

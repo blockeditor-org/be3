@@ -17,7 +17,7 @@ fn typing_into_a_focused_text_area_inserts_the_text() {
             <TextArea state={state} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
 

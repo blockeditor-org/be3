@@ -9,7 +9,7 @@ fn dragging_a_pan_zoom_with_the_middle_button_pans_it() {
             <PanZoomStage />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.middle_drag(pos2(200.0, 150.0), pos2(240.0, 180.0));

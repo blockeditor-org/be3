@@ -21,7 +21,7 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
             </Canvas>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let first = harness.frame(Vec::new()).shapes().len();
 

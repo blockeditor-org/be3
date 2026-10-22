@@ -21,7 +21,7 @@ fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert!(harness.document().motion().animates());
 

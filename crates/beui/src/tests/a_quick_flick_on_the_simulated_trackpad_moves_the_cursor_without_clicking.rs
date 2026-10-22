@@ -9,7 +9,7 @@ fn a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking() {
             <Checkbox label="Trackpad option" checked=false />
         }]
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
     let target = harness.center(checkbox);

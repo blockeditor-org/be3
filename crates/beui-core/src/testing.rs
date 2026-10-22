@@ -1,10 +1,11 @@
 use std::any::Any;
 use std::future::Future;
-use std::pin::pin;
 use std::marker::PhantomData;
+use std::pin::pin;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
+use crate::app::automation::keys;
 use crate::app::automation::{Inbox, Reply, Resize, Simulation, WindowSize, ask};
 use crate::app::{App, SafeArea, Setup, Waker};
 use crate::color::Color32;
@@ -12,7 +13,6 @@ use crate::context::RendererInfo;
 use crate::context::{Context, FrameOutput};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::app::automation::keys;
 use crate::input::{Event, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
 use crate::runner::{Launch, Platform, RunOptions, Runner};
@@ -133,7 +133,9 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn on(context: Context, app: A, size: Vec2, platform: impl Platform + 'static) -> Self {
-        Self::start(context, app, size, 1.0, |_| Window::Other(Box::new(platform)))
+        Self::start(context, app, size, 1.0, |_| {
+            Window::Other(Box::new(platform))
+        })
     }
 
     fn start(
@@ -178,14 +180,12 @@ impl<A: App + 'static> Stepped<A> {
 
     pub fn app(&self) -> &A {
         let app: &dyn Any = self.runner.app();
-        app.downcast_ref()
-            .expect("the app is there until it exits")
+        app.downcast_ref().expect("the app is there until it exits")
     }
 
     pub fn app_mut(&mut self) -> &mut A {
         let app: &mut dyn Any = self.runner.app_mut();
-        app.downcast_mut()
-            .expect("the app is there until it exits")
+        app.downcast_mut().expect("the app is there until it exits")
     }
 
     pub fn context(&self) -> &Context {
@@ -215,16 +215,16 @@ impl<A: App + 'static> Stepped<A> {
         &self.steps
     }
 
-    pub fn frame(&mut self) -> FrameOutput {
-        self.step(Vec::new())
-    }
-
-    pub fn step(&mut self, events: Vec<Event>) -> FrameOutput {
+    pub fn frame(&mut self, events: Vec<Event>) -> FrameOutput {
         self.runner.send(events);
         self.paint();
         self.runner
             .take_output()
             .expect("a started runner that has not exited draws every frame")
+    }
+
+    pub fn advance(&mut self, by: Duration) {
+        self.runner.context().advance_clock(by);
     }
 
     pub fn size(&self) -> Vec2 {
@@ -398,7 +398,11 @@ impl<A: App + 'static> Stepped<A> {
         self.gesture(&["swipe"], &[from.into(), to.into()], &[])
     }
 
-    pub fn touch(&mut self, phase: TouchPhase, fingers: &[(u64, Target)]) -> String {
+    pub fn fingers<T: Into<Target> + Clone>(
+        &mut self,
+        phase: TouchPhase,
+        fingers: &[(u64, T)],
+    ) -> String {
         let phase = match phase {
             TouchPhase::Start => "down",
             TouchPhase::Move => "move",
@@ -407,7 +411,7 @@ impl<A: App + 'static> Stepped<A> {
         };
         let fingers: Vec<String> = fingers
             .iter()
-            .map(|(finger, target)| format!("{finger}={}", self.word(target.clone())))
+            .map(|(finger, target)| format!("{finger}={}", self.word(target.clone().into())))
             .collect();
         let fingers: Vec<&str> = fingers.iter().map(String::as_str).collect();
         self.gesture(&["touch", phase], &[], &fingers)

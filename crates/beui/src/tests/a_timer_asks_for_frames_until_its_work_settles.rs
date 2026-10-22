@@ -17,7 +17,7 @@ fn a_timer_asks_for_frames_until_its_work_settles() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::ZERO);
     assert_eq!(runs.get_untracked(), 1);

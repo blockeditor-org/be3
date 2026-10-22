@@ -19,7 +19,7 @@ fn a_test_id_names_the_copy_that_is_shown() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let width = |harness: &Harness| {
         let id = harness

@@ -14,7 +14,7 @@ fn a_percent_child_stops_at_its_max_and_hands_the_rest_on() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, vec2(200.0, 50.0));
+    let mut harness = harness_sized(document, vec2(200.0, 50.0));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(capped.get()).width(), 40.0);
     assert_eq!(harness.rect(open.get()).width(), 160.0);

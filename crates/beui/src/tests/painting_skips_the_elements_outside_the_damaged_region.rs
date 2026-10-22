@@ -7,7 +7,7 @@ fn painting_skips_the_elements_outside_the_damaged_region() {
     let (upper, lower) = (panels.upper, panels.lower);
     let mut document = panels.document;
     let (_, paints) = counted(&mut document, upper);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let shapes = harness.frame(Vec::new()).shapes().len();
     let settled = paints.get_untracked();
 

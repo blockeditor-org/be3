@@ -20,7 +20,7 @@ fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let trigger = text_within(
         harness.document(),

@@ -26,7 +26,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
             </Frame>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let surface = harness

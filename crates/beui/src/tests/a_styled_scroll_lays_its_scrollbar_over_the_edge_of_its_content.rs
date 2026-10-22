@@ -20,7 +20,7 @@ fn a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let children = harness
@@ -41,7 +41,7 @@ fn a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content() {
     assert_eq!(painted.top(), whole.top() + SCROLLBAR_INSET);
     assert_eq!(painted.bottom(), whole.bottom() - SCROLLBAR_INSET);
 
-    harness.scroll(whole.center(), vec2(0.0, -40.0), Modifiers::NONE);
+    harness.scroll_at(whole.center(), vec2(0.0, -40.0), Modifiers::NONE);
     let output = harness.frame(Vec::new());
     let thumb = painted_thumb(&output, painted);
     let wanted = painted.height() * (whole.height() / CONTENT_HEIGHT);

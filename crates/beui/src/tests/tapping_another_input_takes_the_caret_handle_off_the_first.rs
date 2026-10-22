@@ -14,7 +14,7 @@ fn tapping_another_input_takes_the_caret_handle_off_the_first() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let tap = |harness: &mut Harness, input: NodeId| {
         let text = harness.rect(

@@ -41,7 +41,7 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
         }
     });
     let (scroll, list) = (scroll.get(), list.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     built.update(|built| built.clear());

@@ -39,7 +39,7 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
         }
     });
     let (surface, button) = (surface.get(), button.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let center = harness.rect(surface).center();
 
@@ -75,9 +75,18 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
     );
     assert_eq!(menus.get_untracked(), 0, "a held finger opens no menu");
 
-    harness.fingers(TouchPhase::Start, &[(1, center - vec2(50.0, 0.0)), (2, center + vec2(50.0, 0.0))]);
+    harness.fingers(
+        TouchPhase::Start,
+        &[(1, center - vec2(50.0, 0.0)), (2, center + vec2(50.0, 0.0))],
+    );
     harness.move_fingers(center - vec2(100.0, 0.0), center + vec2(100.0, 0.0));
-    harness.fingers(TouchPhase::End, &[(1, center - vec2(100.0, 0.0)), (2, center + vec2(100.0, 0.0))]);
+    harness.fingers(
+        TouchPhase::End,
+        &[
+            (1, center - vec2(100.0, 0.0)),
+            (2, center + vec2(100.0, 0.0)),
+        ],
+    );
     assert_eq!(zoom.get_untracked(), 1.0, "two fingers do not zoom it");
 
     let pen = |phase| Event::Pen {

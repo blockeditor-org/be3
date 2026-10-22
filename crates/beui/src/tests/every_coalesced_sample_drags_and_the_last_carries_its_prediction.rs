@@ -16,7 +16,7 @@ fn every_coalesced_sample_drags_and_the_last_carries_its_prediction() {
             </Interactive>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let pen = |phase, x| Event::Pen {
         phase,

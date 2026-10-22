@@ -36,7 +36,7 @@ fn a_drop_target_built_before_the_one_around_it_still_takes_the_drop() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.drag(harness.center(source), harness.center(target));

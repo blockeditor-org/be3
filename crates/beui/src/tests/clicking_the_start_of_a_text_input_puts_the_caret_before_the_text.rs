@@ -9,7 +9,7 @@ fn clicking_the_start_of_a_text_input_puts_the_caret_before_the_text() {
             <TextInput value="end" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let rect = harness.rect(input);

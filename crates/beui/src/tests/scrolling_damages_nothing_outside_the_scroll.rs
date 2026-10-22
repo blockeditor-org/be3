@@ -19,7 +19,7 @@ fn scrolling_damages_nothing_outside_the_scroll() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let scroll = harness.find("scroll");
     let bounds = harness.rect(scroll);

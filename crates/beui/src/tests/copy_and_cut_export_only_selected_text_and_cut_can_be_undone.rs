@@ -9,7 +9,7 @@ fn copy_and_cut_export_only_selected_text_and_cut_can_be_undone() {
             <TextInput value="Hello world" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.key(Key::Tab, Modifiers::NONE);
     let output = harness.frame(vec![key_event(Key::C, true, Modifiers::CTRL)]);
     assert_eq!(output.copied_text, None);

@@ -25,7 +25,7 @@ fn dragging_onto_a_drop_target_hands_it_the_payload() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(source));

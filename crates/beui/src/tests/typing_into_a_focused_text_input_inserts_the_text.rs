@@ -9,7 +9,7 @@ fn typing_into_a_focused_text_input_inserts_the_text() {
             <TextInput value=String::new() />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("beui");

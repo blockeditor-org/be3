@@ -6,7 +6,7 @@ fn clicking_a_row_selects_the_node_it_lists() {
     let HelloColumn {
         document, padding, ..
     } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     assert_eq!(harness.inspector().state().selected.get(), None);

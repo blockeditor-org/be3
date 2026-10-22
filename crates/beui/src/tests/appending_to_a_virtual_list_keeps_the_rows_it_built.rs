@@ -31,7 +31,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let rows = harness.document().children(list);
 

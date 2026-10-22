@@ -3477,21 +3477,26 @@ exist solely to support an unstyled control.
 
 Beui behavior is tested headlessly. For library behavior, add a test under the
 relevant `tests` directory and declare it in that directory's `tests.rs`; this
-repository keeps one test per file. The document tests use their `Harness` to
-build a `Document`, send `Event` values through a `Context`, and inspect
-component state, layout, accessibility, or painting output.
+repository keeps one test per file.
 
-`beui::testing::Stepped` runs an app the way an adapter does instead: through the
-real `Runner`, on the headless window's `Simulation` (`Stepped::new`) or on a
-`Platform` the test supplies (`Stepped::on`), with a gpu-free `testing::Screen`, the
-clock stopped, and one frame interval per frame. `testing::Showing(document)` is a
-`Document` as an app. Its gestures are `drive`'s commands, run by the same automation
-engine and settling the same way: `click(Target::id("wheel").at(offset))`, `drag`,
-`type_text`, `key`, `wait` and `settle` are typed forms of them, and `ask(&["pinch",
-"#map", "2"])` sends any other. A failure prints the steps so far as `drive` commands
-(guides/running/drive.md), which replay against a `:dev` app. New tests that drive
-a document prefer it to `Harness`, and tests of the `Runner` take `testing::Screen`
-rather than a renderer of their own.
+Every test that runs a document or an app runs it through `beui::testing::Stepped`, the way
+an adapter does: through the real `Runner`, on the headless window's `Simulation`
+(`Stepped::new`) or on a `Platform` the test supplies (`Stepped::on`), with a gpu-free
+`testing::Screen`, the clock stopped, and one frame interval per frame.
+`testing::Showing(document)` is a `Document` as an app. Its gestures are `drive`'s commands,
+run by the same automation engine: `click(Target::id("wheel").at(offset))`, `drag`, `down`,
+`up`, `hover`, `scroll`, `zoom`, `pinch`, `fingers`, `type_text`, `key`, `key_down`, `wait`
+and `settle` are typed forms of them, a `Pos2` is a target too, and `ask(&["back",
+"0.5"])` sends any other. Each settles as `drive` does, unless the test turned that off
+with `settle_after_gestures(false)`, when it answers after the frame that took the input.
+`frame(events)` paints one frame with exactly the events it is handed, for a test of what a
+single frame does, and hands back its output. A failure prints the steps so far as `drive`
+commands (guides/running/drive.md), which replay against a `:dev` app.
+
+beui's own tests build theirs with `harness(document)` or `harness_sized(document, size)`
+in `crates/beui/src/tests.rs`, which turn settling off, and its `Steps` trait adds what
+those tests share: finding and measuring nodes, and driving the inspector and the dock.
+Tests of the `Runner` itself take `testing::Screen` rather than a renderer of their own.
 
 For a beui block editor, use `block_ui_test::BeuiTest`, built from an `Editor`
 (or a `Creation`, for a dialog) so the test holds the same handle the component

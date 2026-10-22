@@ -21,7 +21,7 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let from = harness.center(source);

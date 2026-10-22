@@ -15,7 +15,7 @@ fn instant_back_slides_complete_without_waiting_for_frames() {
             </BackSlide>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {

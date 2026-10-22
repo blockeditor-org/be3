@@ -36,7 +36,7 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
     });
 
     let (list, edit) = (list.get(), edit.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let before = harness.document().children(list);

@@ -55,7 +55,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
         }
     });
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let sizes = sizes.get_untracked();

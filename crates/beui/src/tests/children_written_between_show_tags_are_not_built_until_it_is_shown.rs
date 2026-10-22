@@ -35,7 +35,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
     });
 
     let (toggle, column) = (toggle.get(), panel.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(

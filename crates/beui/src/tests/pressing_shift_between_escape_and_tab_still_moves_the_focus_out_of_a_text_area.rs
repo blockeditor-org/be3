@@ -19,7 +19,7 @@ fn pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_are
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.click(pos2(300.0, 60.0));
     let editing = harness.document().focused_node();

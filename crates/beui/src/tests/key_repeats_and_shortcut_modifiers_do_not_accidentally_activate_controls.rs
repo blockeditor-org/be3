@@ -10,7 +10,7 @@ fn key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls() {
             <LabelledButton label="Click" on_click={move || clicks.update(|clicks| *clicks += 1)} />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::CTRL);
     harness.key(Key::Space, Modifiers::ALT);

@@ -23,7 +23,7 @@ fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked()
             },
         ]
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let open = |harness: &Harness| {
         harness

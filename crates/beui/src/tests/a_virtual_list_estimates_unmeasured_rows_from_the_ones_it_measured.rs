@@ -27,7 +27,7 @@ fn a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured() {
     });
     let list = list.get();
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.rect(list).height(),

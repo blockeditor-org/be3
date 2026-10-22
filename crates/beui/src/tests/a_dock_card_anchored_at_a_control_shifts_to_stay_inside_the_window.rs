@@ -6,7 +6,7 @@ const NARROW: Vec2 = Vec2::new(760.0, 600.0);
 fn a_dock_card_anchored_at_a_control_shifts_to_stay_inside_the_window() {
     let _root = crate::reactive::RootScope::new();
     let dock = anchored_side_card_dock(true);
-    let mut harness = Harness::sized(dock.document, NARROW);
+    let mut harness = harness_sized(dock.document, NARROW);
     let anchor = open_anchored_in(
         &mut harness,
         (dock.anchor, dock.open),

@@ -17,7 +17,7 @@ fn a_selection_across_text_with_spans_is_painted() {
             </SelectableText>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let rect = harness.rect(text.get());
     harness.drag(

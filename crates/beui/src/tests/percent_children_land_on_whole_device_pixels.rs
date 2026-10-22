@@ -21,7 +21,7 @@ fn percent_children_land_on_whole_device_pixels() {
         tree
     });
 
-    let mut harness = Harness::sized(document, Vec2::new(301.0, 200.0));
+    let mut harness = harness_sized(document, Vec2::new(301.0, 200.0));
     harness.rescale(SCALE);
     harness.frame(Vec::new());
 

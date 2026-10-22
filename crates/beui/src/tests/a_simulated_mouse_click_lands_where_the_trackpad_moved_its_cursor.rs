@@ -9,7 +9,7 @@ fn a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor() {
             <Checkbox label="Trackpad option" checked=false />
         }]
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
     assert!(harness.mouse_simulation());

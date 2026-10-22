@@ -20,7 +20,7 @@ fn a_time_field_picks_from_a_grid_of_times() {
             </Container>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     for _ in 0..3 {

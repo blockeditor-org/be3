@@ -18,7 +18,7 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
         }]
     });
     let rename = rename.expect("the options were built");
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let trigger = harness

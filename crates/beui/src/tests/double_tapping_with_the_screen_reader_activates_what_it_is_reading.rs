@@ -9,7 +9,7 @@ fn double_tapping_with_the_screen_reader_activates_what_it_is_reading() {
             <Checkbox label="Show timings" checked=false />
         }]
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
 

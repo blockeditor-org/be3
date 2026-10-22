@@ -32,7 +32,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
         .iter()
         .map(|row| kind_of(&document, row.get()))
         .collect();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.document_mut().set_scroll_offset(scroll, 227.0);
     harness.frame(Vec::new());
     let anchor = rows[10];

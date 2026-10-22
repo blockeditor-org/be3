@@ -39,7 +39,7 @@ fn holding_a_finger_down_opens_a_context_menu() {
             </ContextMenu>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.touch(TouchPhase::Start, pos2(100.0, 100.0));

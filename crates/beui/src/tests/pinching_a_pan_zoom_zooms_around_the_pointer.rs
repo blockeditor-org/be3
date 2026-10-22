@@ -9,11 +9,11 @@ fn pinching_a_pan_zoom_zooms_around_the_pointer() {
             <PanZoomStage />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let corner = pos2(300.0, 200.0);
-    harness.pinch(corner, 1.5);
+    harness.zoom(corner, 1.5);
     harness.frame(Vec::new());
 
     let view = harness

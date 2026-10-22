@@ -43,7 +43,7 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
             </styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.settle();
     let root = harness.document().root().expect("the document has a root");
     let pin = harness.find("dock.pin.share");

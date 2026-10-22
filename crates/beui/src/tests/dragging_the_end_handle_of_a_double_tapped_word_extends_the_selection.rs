@@ -9,7 +9,7 @@ fn dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection() {
             <TextInput value="Hello world" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let text = harness.rect(
         harness

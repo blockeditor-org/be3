@@ -20,7 +20,7 @@ fn a_screen_reader_reads_and_scrolls_a_horizontal_scroll_sideways() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
+    let mut harness = harness_sized(document, Vec2::new(300.0, 100.0));
     let output = harness.frame(Vec::new());
     let strip = harness.find("strip");
     let tree = output.accessibility_tree("Test", VIEWPORT);

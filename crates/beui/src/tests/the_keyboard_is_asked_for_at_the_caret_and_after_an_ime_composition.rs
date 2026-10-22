@@ -15,7 +15,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
             <TextArea state={state} single_line=true />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Home, Modifiers::NONE);

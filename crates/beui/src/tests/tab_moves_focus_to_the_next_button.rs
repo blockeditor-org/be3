@@ -15,7 +15,7 @@ fn tab_moves_focus_to_the_next_button() {
     });
     let first_focused = document.api::<unstyled::ButtonApi>(first).focused();
     let second_focused = document.api::<unstyled::ButtonApi>(second).focused();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     assert_eq!((first_focused.get(), second_focused.get()), (true, false));

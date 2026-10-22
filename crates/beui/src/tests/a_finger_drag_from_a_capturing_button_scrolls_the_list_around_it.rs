@@ -28,7 +28,7 @@ fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let rect = harness.rect(scroll);
     let start = pos2(rect.center().x, rect.bottom() - 40.0);

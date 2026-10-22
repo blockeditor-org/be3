@@ -35,7 +35,7 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
     );
     assert_eq!(document.api::<styled::ChoiceApi>(empty).selected(), None);
     let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(after_focus.get());

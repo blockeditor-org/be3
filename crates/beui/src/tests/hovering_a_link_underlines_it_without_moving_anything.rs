@@ -9,7 +9,7 @@ fn hovering_a_link_underlines_it_without_moving_anything() {
             <Link label="Open the grid" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let idle = harness.frame(Vec::new());
     let before = harness.document().node_rect(link).expect("the link");
 

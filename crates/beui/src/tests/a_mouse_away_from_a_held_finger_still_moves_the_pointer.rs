@@ -18,7 +18,7 @@ fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
         }
     });
     let target = target.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let finger = pos2(100.0, 100.0);
     let id = TouchId {

@@ -9,7 +9,7 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
         let sheet = NodeRef::new();
         let closed = create_signal(0);
         let document = sheet_of_rows(0.9, sheet, closed);
-        let mut harness = Harness::sized(document, vec2(400.0, 600.0));
+        let mut harness = harness_sized(document, vec2(400.0, 600.0));
         harness.settle();
         let handle = harness.find("sheet.handle");
         let top = harness.rect(handle).top();
@@ -26,7 +26,7 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
         }
         assert!(bounced);
         match interruption {
-            0 => harness.scroll(pos2(200.0, 300.0), vec2(0.0, -20.0), Modifiers::NONE),
+            0 => harness.scroll_at(pos2(200.0, 300.0), vec2(0.0, -20.0), Modifiers::NONE),
             1 => {
                 harness.frame(vec![Event::Back(BackGesture::Started {
                     edge: crate::input::BackEdge::Left,

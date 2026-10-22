@@ -29,7 +29,7 @@ fn a_focusable_node_that_captures_a_press_takes_the_focus() {
         }
     });
     let (plain, capturing, surface) = (plain.get(), capturing.get(), surface.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(plain));

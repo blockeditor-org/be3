@@ -21,7 +21,7 @@ fn a_floating_overlay_follows_an_anchor_that_only_moves() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.rect(pill.get()).top(),

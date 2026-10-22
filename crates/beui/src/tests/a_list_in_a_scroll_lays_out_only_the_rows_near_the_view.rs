@@ -15,7 +15,7 @@ fn a_list_in_a_scroll_lays_out_only_the_rows_near_the_view() {
     }
     let scroll = document.create_offset(list.id());
     document.set_root(scroll.id());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let placed = |harness: &Harness| -> Vec<usize> {

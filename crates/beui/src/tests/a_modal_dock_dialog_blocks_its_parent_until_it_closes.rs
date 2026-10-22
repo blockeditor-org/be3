@@ -6,7 +6,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     let dock = dialog_dock(vec![1, 2], Vec::new());
     let (pressed, keyed, dialogs) = (dock.pressed, dock.keyed, dock.dialogs);
     let attended = dock.attended;
-    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let parent = harness.rect(harness.find("content.1"));
     let corner = parent.min + vec2(12.0, 12.0);

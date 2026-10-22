@@ -16,7 +16,7 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     });
     let fill = kind_of::<FrameNode>(&document, fill.get());
     let (layouts, paints) = counted(&mut document, fill);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(vec![]);
     let output = harness.frame(vec![Event::PointerMoved(pos2(10.0, 10.0))]);
     assert!(!output.changed);

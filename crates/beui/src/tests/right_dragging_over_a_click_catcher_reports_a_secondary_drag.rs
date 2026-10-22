@@ -14,7 +14,7 @@ fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {
             </Interactive>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let button = |pos, pressed| Event::PointerButton {
         pos,

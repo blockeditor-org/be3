@@ -6,7 +6,7 @@ fn a_dock_dialog_is_never_a_tab() {
     let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2, 10], vec![(10, 1, false)]);
     let node = dock.dock;
-    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

@@ -21,13 +21,13 @@ fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     let field = harness.rect(input.get());
     assert!(field.bottom() <= 600.0 && field.top() > 300.0);
 
     harness.click(field.center());
-    harness.resize(vec2(harness.viewport().x, 300.0));
+    harness.resize(vec2(harness.size().x, 300.0));
     harness.frame(Vec::new());
 
     let field = harness.rect(input.get());

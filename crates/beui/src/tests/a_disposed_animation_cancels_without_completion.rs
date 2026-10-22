@@ -23,7 +23,7 @@ fn a_disposed_animation_cancels_without_completion() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     shown.set(false);
     harness.frame(Vec::new());

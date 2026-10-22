@@ -17,7 +17,7 @@ fn a_driver_hovers_before_it_presses_so_a_scrollbar_shown_on_hover_takes_its_cli
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let scroll = scroll.get();
     let bar = harness.rect(harness.document().children(scrollbar_of(&harness, scroll))[0]);

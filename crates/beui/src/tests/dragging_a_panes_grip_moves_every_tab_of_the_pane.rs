@@ -28,7 +28,7 @@ fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
         }
     });
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let label = harness.rect(dock_tab(harness.document(), dock, "Tab 1"));

@@ -5,7 +5,7 @@ use crate::unstyled::DockApi;
 fn dragging_the_bar_between_two_panes_moves_the_boundary() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     harness.drag(tab, pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y / 2.0));

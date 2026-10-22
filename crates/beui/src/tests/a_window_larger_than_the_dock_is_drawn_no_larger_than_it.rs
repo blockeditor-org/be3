@@ -28,7 +28,7 @@ fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {
         }
     });
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let window = harness.document().api::<DockApi>(dock).state().windows()[0];
     let stored = harness

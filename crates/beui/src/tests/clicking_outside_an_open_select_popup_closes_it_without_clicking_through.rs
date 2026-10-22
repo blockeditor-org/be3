@@ -25,7 +25,7 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
         }
     });
     let (select, other) = (select.get(), other.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let trigger = harness

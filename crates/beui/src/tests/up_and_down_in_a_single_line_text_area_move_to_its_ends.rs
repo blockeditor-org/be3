@@ -16,7 +16,7 @@ fn up_and_down_in_a_single_line_text_area_move_to_its_ends() {
             <TextArea state={state} single_line=true />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
 

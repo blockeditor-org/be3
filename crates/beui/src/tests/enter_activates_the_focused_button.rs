@@ -14,7 +14,7 @@ fn enter_activates_the_focused_button() {
         }]
     });
     let active = document.api::<unstyled::ButtonApi>(button).active();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.frame(vec![key_event(Key::Enter, true, Modifiers::NONE)]);

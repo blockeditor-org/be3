@@ -29,7 +29,7 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (text, item) = (
         kind_of::<TextNode>(harness.document(), text.get()),

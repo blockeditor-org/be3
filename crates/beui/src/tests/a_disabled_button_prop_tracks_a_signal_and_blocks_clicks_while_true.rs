@@ -40,7 +40,7 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
         .get_untracked()
         .expect("toggle button was created");
     let go = go_id.get_untracked().expect("go button was created");
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(go));

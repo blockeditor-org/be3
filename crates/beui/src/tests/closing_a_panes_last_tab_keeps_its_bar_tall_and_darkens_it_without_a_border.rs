@@ -25,7 +25,7 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border()
             </styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     let tabbed = harness.frame(Vec::new());
     let top = harness.rect(harness.find("content.1")).min.y;
     assert!(

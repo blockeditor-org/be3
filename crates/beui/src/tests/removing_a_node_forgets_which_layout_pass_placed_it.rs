@@ -10,7 +10,7 @@ fn removing_a_node_forgets_which_layout_pass_placed_it() {
         }]
     });
     let list = kind_of::<ListNode>(&document, document.root().expect("the toolbar is the root"));
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert!(
         harness.document().placed_pass.contains_key(&label)

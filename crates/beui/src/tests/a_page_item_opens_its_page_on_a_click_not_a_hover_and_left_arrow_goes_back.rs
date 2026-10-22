@@ -26,7 +26,7 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
         }]
     });
     let region = region.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let pos = harness.center(region);
     harness.frame(vec![Event::PointerMoved(pos)]);

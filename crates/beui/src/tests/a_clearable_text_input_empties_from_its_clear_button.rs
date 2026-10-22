@@ -12,7 +12,7 @@ fn a_clearable_text_input_empties_from_its_clear_button() {
             <TextInput value={value} glyph={ICON_SEARCH.to_owned()} clearable=true />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let rect = harness.rect(input);

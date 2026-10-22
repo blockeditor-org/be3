@@ -20,7 +20,7 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(vec![Event::PointerMotion(Vec2::new(4.0, 0.0))]);
     assert_eq!(
         moved.get_untracked(),

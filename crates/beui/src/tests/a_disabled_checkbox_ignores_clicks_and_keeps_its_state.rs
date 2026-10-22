@@ -11,7 +11,7 @@ fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
             <Checkbox label="Minimum" checked={checked} disabled=true />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(checkbox));

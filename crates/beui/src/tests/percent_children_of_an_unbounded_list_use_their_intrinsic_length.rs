@@ -26,7 +26,7 @@ fn percent_children_of_an_unbounded_list_use_their_intrinsic_length() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(inner.get()).height(), ITEM_HEIGHT);

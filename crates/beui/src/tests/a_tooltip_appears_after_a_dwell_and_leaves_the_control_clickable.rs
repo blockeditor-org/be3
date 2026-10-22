@@ -35,7 +35,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     });
 
     let button = button.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().find_test_id("tip"),

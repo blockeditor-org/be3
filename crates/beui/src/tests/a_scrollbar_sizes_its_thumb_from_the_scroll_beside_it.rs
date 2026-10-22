@@ -34,7 +34,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let output = harness.frame(Vec::new());
 
     let content = ROWS as f32 * ROW_HEIGHT;

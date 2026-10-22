@@ -27,7 +27,7 @@ fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {
         }
     });
     let (left, right) = (left.get(), right.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let (left_top, right_top) = (harness.rect(left).top(), harness.rect(right).top());
 

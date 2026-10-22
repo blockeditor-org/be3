@@ -20,7 +20,7 @@ fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {
             />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.context().enable_keyboard();
     harness.context().set_keyboard_attached(false);
     harness.frame(Vec::new());

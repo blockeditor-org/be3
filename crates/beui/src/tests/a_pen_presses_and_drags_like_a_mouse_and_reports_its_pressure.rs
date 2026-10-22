@@ -19,7 +19,7 @@ fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {
             </Interactive>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let tilted = Pen {
         tilt: vec2(10.0, -5.0),

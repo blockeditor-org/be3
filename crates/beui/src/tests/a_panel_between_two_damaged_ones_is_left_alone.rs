@@ -9,7 +9,7 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
     document.set_frame_height(top, Extent::px(40.0));
     document.set_frame_height(bottom, Extent::px(40.0));
     let (_, paints) = counted(&mut document, middle);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let settled = paints.get_untracked();
 

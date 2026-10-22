@@ -15,7 +15,7 @@ fn a_text_area_shows_its_placeholder_until_something_is_typed() {
             <TextArea @node_ref=&area state={state} placeholder="Write something" />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(

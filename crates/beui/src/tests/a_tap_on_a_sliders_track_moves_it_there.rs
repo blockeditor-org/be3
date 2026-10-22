@@ -13,7 +13,7 @@ fn a_tap_on_a_sliders_track_moves_it_there() {
             />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let track = harness.rect(slider);
     let at = pos2(

@@ -27,7 +27,7 @@ fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {
             height.set(placement.rect.width() / 4.0);
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let width = measured.placement().map(|placement| placement.rect.width());

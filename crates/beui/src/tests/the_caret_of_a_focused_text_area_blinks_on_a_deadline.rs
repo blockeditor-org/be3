@@ -19,7 +19,7 @@ fn the_caret_of_a_focused_text_area_blinks_on_a_deadline() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
 
     harness.key(Key::Tab, Modifiers::NONE);

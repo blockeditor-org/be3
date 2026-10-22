@@ -29,7 +29,7 @@ fn a_grid_lines_its_cells_up_in_shared_columns() {
             }
         }
     });
-    let mut harness = Harness::sized(document, vec2(300.0, 200.0));
+    let mut harness = harness_sized(document, vec2(300.0, 200.0));
     harness.frame(Vec::new());
     let rect = |index: usize| harness.rect(cells[index].get());
 

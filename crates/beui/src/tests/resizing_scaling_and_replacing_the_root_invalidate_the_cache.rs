@@ -13,7 +13,7 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     });
     let text = text.get();
     let (layouts, paints) = counted(&mut document, text);
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(vec![]);
     harness.resize(WIDE_VIEWPORT);
     harness.frame(vec![]);

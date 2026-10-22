@@ -11,7 +11,7 @@ fn a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows() {
             <TextInput value={value} />
         }]
     });
-    let mut harness = Harness::sized(document, Vec2::new(200.0, 100.0));
+    let mut harness = harness_sized(document, Vec2::new(200.0, 100.0));
     harness.frame(Vec::new());
 
     let found: Vec<String> = harness

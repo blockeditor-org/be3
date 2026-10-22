@@ -42,7 +42,7 @@ fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
             />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let shown = |harness: &Harness| {

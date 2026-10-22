@@ -18,7 +18,7 @@ fn a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let output = harness.frame(Vec::new());
     let track = track_within(&harness, scrollbar_of(&harness, scroll.get()));
     assert!(
@@ -27,7 +27,7 @@ fn a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops() {
     );
 
     let over = harness.rect(scroll.get()).center();
-    harness.scroll(over, vec2(0.0, -40.0), Modifiers::NONE);
+    harness.scroll_at(over, vec2(0.0, -40.0), Modifiers::NONE);
     let output = harness.frame(Vec::new());
     assert!(thumb_painted(&output, track), "scrolling shows the bar");
 

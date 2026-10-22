@@ -18,7 +18,7 @@ fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
             <TextArea state={state} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let status = || state.find_status();

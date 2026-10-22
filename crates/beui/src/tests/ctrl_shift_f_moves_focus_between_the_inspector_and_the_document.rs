@@ -4,7 +4,7 @@ use super::*;
 fn ctrl_shift_f_moves_focus_between_the_inspector_and_the_document() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     harness.frame(Vec::new());

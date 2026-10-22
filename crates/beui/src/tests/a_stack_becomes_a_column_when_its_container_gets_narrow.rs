@@ -27,7 +27,7 @@ fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
     });
     let (left, right) = (left.get(), right.get());
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(left).width(), WIDE_VIEWPORT.x / 2.0);

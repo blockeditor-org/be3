@@ -9,7 +9,7 @@ fn a_secondary_drag_carried_over_a_floating_window_keeps_moving_the_split() {
         presses,
         ..
     } = split_dock(Some(Modifiers::LOGO));
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     floated_window(&mut harness, dock);
     harness.frame(Vec::new());
     let window = harness.rect(harness.find("content.2"));

@@ -38,7 +38,7 @@ fn view_attributes_can_be_written_without_braces() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(text_of(harness.document(), label.get()), LABEL);

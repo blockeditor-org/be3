@@ -21,7 +21,7 @@ fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {
         }
     });
     let button = button.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(vec![]);
     harness.click(harness.center(button));
     assert_ne!(harness.document().root(), Some(button));

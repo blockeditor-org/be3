@@ -12,7 +12,7 @@ fn tapping_the_focused_text_input_again_asks_for_the_keyboard_again() {
             <TextInput value="" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let at = harness.center(input);
 

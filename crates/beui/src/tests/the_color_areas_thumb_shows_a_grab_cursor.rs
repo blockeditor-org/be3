@@ -15,7 +15,7 @@ fn the_color_areas_thumb_shows_a_grab_cursor() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let area = harness.rect(picker.get());
     let thumb = pos2(area.left() + PICKER_WIDTH / 2.0, area.top() + 78.0);

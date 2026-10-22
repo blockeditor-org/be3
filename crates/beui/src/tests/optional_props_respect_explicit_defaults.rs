@@ -23,7 +23,7 @@ fn optional_props_respect_explicit_defaults() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     assert_eq!(text_of(harness.document(), default.get()), "Hosted");
     assert_eq!(text_of(harness.document(), none.get()), "None");

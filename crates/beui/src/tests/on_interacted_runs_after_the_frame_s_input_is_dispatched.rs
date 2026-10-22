@@ -20,7 +20,7 @@ fn on_interacted_runs_after_the_frame_s_input_is_dispatched() {
     let seen = create_signal(Vec::new());
     document.on_interacted(move || seen.update(|seen| seen.push(clicks.get_untracked())));
     let button = button.get_untracked().expect("the button was built");
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(button));

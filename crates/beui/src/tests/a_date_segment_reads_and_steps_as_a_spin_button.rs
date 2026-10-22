@@ -23,7 +23,7 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
             </Container>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let mut harness = harness_sized(document, TALL_VIEWPORT);
     let output = harness.frame(Vec::new());
     let tree = output.accessibility_tree("Test", TALL_VIEWPORT);
     let (month_id, month) = tree

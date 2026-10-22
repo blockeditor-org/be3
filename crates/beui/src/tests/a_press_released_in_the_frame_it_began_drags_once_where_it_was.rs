@@ -16,7 +16,7 @@ fn a_press_released_in_the_frame_it_began_drags_once_where_it_was() {
             </Interactive>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let at = pos2(40.0, 60.0);
     let button = |pressed| Event::PointerButton {

@@ -39,7 +39,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
         })
     };
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.settle();
 
     layout.enter_fullscreen(&1, Some(Rect::from_min_size(Pos2::ZERO, WIDE_VIEWPORT)));

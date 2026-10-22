@@ -25,7 +25,7 @@ fn a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again()
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     height.set(70.0);

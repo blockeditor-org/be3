@@ -17,7 +17,7 @@ fn a_click_on_the_inspector_grip_does_not_leave_it_grabbed() {
             <Frame />
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
     harness.frame(Vec::new());
     let panel = |harness: &Harness| {

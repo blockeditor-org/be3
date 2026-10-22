@@ -9,7 +9,7 @@ fn performance_measurements_report_work_and_cache_hits() {
             <Frame fill=Color32::WHITE radius=0.0 />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     assert_eq!(harness.document().performance().samples, 0);
     harness.frame(Vec::new());

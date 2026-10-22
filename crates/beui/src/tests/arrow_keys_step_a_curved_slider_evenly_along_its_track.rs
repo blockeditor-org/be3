@@ -10,7 +10,7 @@ fn arrow_keys_step_a_curved_slider_evenly_along_its_track() {
             <Slider value=0.0 min=0.0 max=120.0 scale={SliderScale::Midpoint(12.0)} />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     for _ in 0..10 {

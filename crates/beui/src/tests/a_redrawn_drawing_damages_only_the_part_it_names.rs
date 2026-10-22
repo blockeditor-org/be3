@@ -27,7 +27,7 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
         }
     });
     let viewport = kind_of::<DrawingNode>(&document, viewport.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let drawing = crate::renderer::drawing(Blank);
     let show = |drawing: Drawing, harness: &mut Harness| {
         harness

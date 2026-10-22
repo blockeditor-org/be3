@@ -4,7 +4,7 @@ use super::*;
 fn ctrl_shift_i_opens_and_closes_the_inspector() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.frame(Vec::new());
     assert!(!harness.inspector_open());

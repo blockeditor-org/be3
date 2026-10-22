@@ -18,7 +18,7 @@ fn a_focused_text_input_asks_for_the_keyboard() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     assert_eq!(harness.frame(Vec::new()).window.ime, None);
 
     harness.click(harness.center(input));

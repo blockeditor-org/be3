@@ -24,7 +24,7 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let fades = |output: &crate::FrameOutput| {
         let mut fades = Vec::new();
         for layer in output.layers.iter() {

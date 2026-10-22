@@ -40,7 +40,7 @@ fn a_wrapper_provides_a_container_to_every_child_written_between_its_tags() {
         }
     });
 
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let narrows = narrows.get_untracked();

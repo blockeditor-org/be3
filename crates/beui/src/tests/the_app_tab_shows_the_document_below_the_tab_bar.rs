@@ -6,7 +6,7 @@ fn the_app_tab_shows_the_document_below_the_tab_bar() {
     let HelloColumn {
         document, padding, ..
     } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.toggle_inspector();
     harness.click(harness.bar_option_center(0));

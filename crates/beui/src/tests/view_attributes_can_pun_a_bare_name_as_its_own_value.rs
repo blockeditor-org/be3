@@ -21,7 +21,7 @@ fn view_attributes_can_pun_a_bare_name_as_its_own_value() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert_eq!(text_of(harness.document(), label.get()), PUNNED);

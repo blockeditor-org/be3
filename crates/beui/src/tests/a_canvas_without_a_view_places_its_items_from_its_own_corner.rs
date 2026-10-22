@@ -21,7 +21,7 @@ fn a_canvas_without_a_view_places_its_items_from_its_own_corner() {
         canvas
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let item = item.get_untracked().expect("the canvas item was created");

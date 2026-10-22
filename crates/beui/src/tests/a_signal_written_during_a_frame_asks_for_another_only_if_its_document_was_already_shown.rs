@@ -12,7 +12,7 @@ fn a_signal_written_during_a_frame_asks_for_another_only_if_its_document_was_alr
             <Text>{create_memo(move || count.get().to_string())}</Text>
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let woken = Arc::new(AtomicUsize::new(0));
     harness.context().set_waker(Waker::new({
         let woken = Arc::clone(&woken);

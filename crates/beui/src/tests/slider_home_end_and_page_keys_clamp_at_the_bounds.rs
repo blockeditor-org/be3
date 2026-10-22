@@ -9,7 +9,7 @@ fn slider_home_end_and_page_keys_clamp_at_the_bounds() {
             <Slider value=0.5 />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::End, Modifiers::NONE);
     harness.key(Key::PageUp, Modifiers::NONE);

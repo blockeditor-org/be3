@@ -18,7 +18,7 @@ fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
             </Interactive>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.finger(1, TouchPhase::Start, pos2(20.0, 20.0));

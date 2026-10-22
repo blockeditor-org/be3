@@ -38,7 +38,7 @@ fn tab_skips_virtual_rows_without_a_control() {
         }
     });
     let (scroll, list) = (scroll.get(), list.get());
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     assert_eq!(harness.document().focused, Some(target.get()));

@@ -7,7 +7,7 @@ use beui_core::node::NodeId;
 #[test]
 fn the_app_and_the_inspector_paint_displays_a_renderer_can_tell_apart() {
     let _root = crate::reactive::RootScope::new();
-    let mut harness = Harness::sized(hello_column().document, TALL_VIEWPORT);
+    let mut harness = harness_sized(hello_column().document, TALL_VIEWPORT);
     harness.toggle_inspector();
     let output = harness.frame(Vec::new());
 

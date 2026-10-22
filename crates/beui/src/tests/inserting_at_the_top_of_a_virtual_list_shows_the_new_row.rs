@@ -5,7 +5,7 @@ fn inserting_at_the_top_of_a_virtual_list_shows_the_new_row() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = keyed_virtual_list(built);
-    let mut harness = Harness::new(scroll.document);
+    let mut harness = harness(scroll.document);
     harness.frame(Vec::new());
     let first = harness.document().children(scroll.list)[0];
 

@@ -20,7 +20,7 @@ fn accordion_headers_are_keyboard_operable_and_skip_collapsed_content() {
     });
     let child_focus = document.api::<unstyled::ButtonApi>(child.get()).focused();
     let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(after_focus.get());

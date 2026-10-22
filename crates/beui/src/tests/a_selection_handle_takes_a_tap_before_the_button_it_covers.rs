@@ -19,7 +19,7 @@ fn a_selection_handle_takes_a_tap_before_the_button_it_covers() {
             },
         ]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let text = harness.rect(
         harness

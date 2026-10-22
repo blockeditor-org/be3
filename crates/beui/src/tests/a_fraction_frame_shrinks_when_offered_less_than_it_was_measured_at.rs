@@ -18,7 +18,7 @@ fn a_fraction_frame_shrinks_when_offered_less_than_it_was_measured_at() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, vec2(500.0, 200.0));
+    let mut harness = harness_sized(document, vec2(500.0, 200.0));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(quarter.get()).width(), 100.0);
 

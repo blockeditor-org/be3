@@ -17,7 +17,7 @@ fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     with_installed(harness.document_mut(), |_| shown.set(true));

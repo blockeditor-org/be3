@@ -16,7 +16,7 @@ fn an_empty_view_builds_a_children_prop_with_nothing_in_it() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     assert!(

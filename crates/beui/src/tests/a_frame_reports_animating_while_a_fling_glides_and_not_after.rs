@@ -21,7 +21,7 @@ fn a_frame_reports_animating_while_a_fling_glides_and_not_after() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     assert!(!harness.frame(Vec::new()).animating, "nothing moves yet");
     let x = harness.rect(scroll).center().x;
 

@@ -15,7 +15,7 @@ fn tab_focus_stays_in_the_active_document_when_the_inspector_is_open() {
     });
     let first_focused = document.api::<unstyled::ButtonApi>(first).focused();
     let second_focused = document.api::<unstyled::ButtonApi>(second).focused();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
 
     harness.toggle_inspector();
     harness.key(Key::Tab, Modifiers::NONE);

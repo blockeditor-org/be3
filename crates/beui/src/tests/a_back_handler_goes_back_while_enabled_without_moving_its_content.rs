@@ -17,7 +17,7 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
         }
     });
 
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     assert!(!harness.frame(Vec::new()).window.handles_back);
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 0);

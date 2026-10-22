@@ -26,7 +26,7 @@ fn escape_back_and_a_press_outside_all_reach_a_layers_back_handler() {
             </Frame>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.key(Key::Escape, Modifiers::NONE);

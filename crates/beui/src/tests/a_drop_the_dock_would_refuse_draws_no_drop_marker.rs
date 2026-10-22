@@ -36,7 +36,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
         }
     });
     dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let root = harness.document().root().expect("the dock was dock");
     let pinned = harness.center(dock_tab(harness.document(), root, "Tab 10"));

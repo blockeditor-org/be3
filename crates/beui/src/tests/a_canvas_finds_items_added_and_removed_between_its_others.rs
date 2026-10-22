@@ -40,7 +40,7 @@ fn a_canvas_finds_items_added_and_removed_between_its_others() {
     });
 
     let (canvas, change, last) = (canvas.get(), change.get(), last.get());
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     assert_eq!(harness.document().children(canvas).len(), 41);
 

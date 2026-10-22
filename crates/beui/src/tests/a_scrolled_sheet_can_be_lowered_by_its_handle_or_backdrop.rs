@@ -19,7 +19,7 @@ fn a_scrolled_sheet_can_be_lowered_by_its_handle_or_backdrop() {
             </ModalSheet>
         }
     });
-    let mut harness = Harness::sized(document, vec2(400.0, 600.0));
+    let mut harness = harness_sized(document, vec2(400.0, 600.0));
     harness.settle();
     harness.finger_drag_and_hold(pos2(200.0, 500.0), pos2(200.0, 200.0));
     harness.settle();
@@ -43,7 +43,7 @@ fn a_scrolled_sheet_can_be_lowered_by_its_handle_or_backdrop() {
     harness.settle();
     assert_eq!(closed.get_untracked(), 0);
     assert_eq!(harness.rect(handle).top(), before);
-    harness.scroll(pos2(200.0, 400.0), vec2(0.0, -40.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 400.0), vec2(0.0, -40.0), Modifiers::NONE);
     harness.settle();
     assert_eq!(harness.document().scroll_offset(sheet.get()), offset + 40.0);
     let outside = harness.find("sheet.outside");

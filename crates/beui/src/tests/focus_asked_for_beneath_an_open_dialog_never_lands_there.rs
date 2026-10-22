@@ -24,7 +24,7 @@ fn focus_asked_for_beneath_an_open_dialog_never_lands_there() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert!(harness.document().focus_is_within(field.get()));

@@ -25,7 +25,7 @@ fn an_overlay_whose_opener_moves_keeps_its_content_where_it_is_shown() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let mut dump = AccessibilityDump::new();
     for height in [20.0, 60.0, 5.0] {
         above.set(height);

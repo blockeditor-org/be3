@@ -12,7 +12,7 @@ fn a_frame_rounds_each_corner_on_its_own() {
             <Frame width=100.0 height=40.0 fill=FILL radius={Corners::new(0.0, 8.0, 16.0, 8.0)} />
         }
     });
-    let mut harness = Harness::sized(document, vec2(200.0, 100.0));
+    let mut harness = harness_sized(document, vec2(200.0, 100.0));
     let output = harness.frame(Vec::new());
     let corners = output
         .shapes()

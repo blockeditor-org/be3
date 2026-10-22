@@ -22,7 +22,7 @@ fn the_scroll_position_is_reported_to_its_listener() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
 
     harness.frame(Vec::new());
 

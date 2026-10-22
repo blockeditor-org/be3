@@ -30,7 +30,7 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
             </Canvas>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
     let focused = harness.document().focused_node();

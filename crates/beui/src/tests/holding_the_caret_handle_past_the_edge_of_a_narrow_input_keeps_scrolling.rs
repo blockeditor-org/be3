@@ -15,7 +15,7 @@ fn holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling() {
         }]
     });
     let input = input.get();
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let text = harness.rect(
         harness

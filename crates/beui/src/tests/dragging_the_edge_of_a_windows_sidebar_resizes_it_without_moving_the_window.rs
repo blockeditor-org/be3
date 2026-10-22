@@ -31,7 +31,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
         }
     });
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let before = harness.document().api::<DockApi>(dock).state();
     let window = before.windows()[0];

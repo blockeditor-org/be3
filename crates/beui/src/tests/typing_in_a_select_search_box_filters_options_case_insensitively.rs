@@ -14,7 +14,7 @@ fn typing_in_a_select_search_box_filters_options_case_insensitively() {
             <Select options selected=None />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let trigger = harness

@@ -25,7 +25,7 @@ fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.frame(vec![key_event(Key::G, true, Modifiers::LOGO)]);

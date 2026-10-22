@@ -16,7 +16,7 @@ fn a_frame_keeps_its_size_between_its_min_and_max() {
             </List>
         }
     });
-    let mut harness = Harness::sized(document, vec2(300.0, 200.0));
+    let mut harness = harness_sized(document, vec2(300.0, 200.0));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(widened.get()).size(), vec2(80.0, 10.0));
     assert_eq!(harness.rect(capped.get()).size(), vec2(30.0, 25.0));

@@ -51,7 +51,7 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
     let setters = taken
         .get_untracked()
         .expect("the view published its setters");
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let mut mirror = Mirror::default();
 
     let output = harness.frame(Vec::new());

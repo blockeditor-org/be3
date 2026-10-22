@@ -9,7 +9,7 @@ fn plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale() {
             <PanZoomStage />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let stage = harness.find("stage");
 

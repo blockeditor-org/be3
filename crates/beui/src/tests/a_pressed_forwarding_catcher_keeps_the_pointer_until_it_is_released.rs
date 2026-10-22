@@ -22,7 +22,7 @@ fn a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released() {
             </Canvas>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     harness.press_at(pos2(50.0, 50.0));

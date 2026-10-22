@@ -66,7 +66,7 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
             </styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, VIEWPORT);
+    let mut harness = harness_sized(document, VIEWPORT);
     harness.settle();
     assert!(laid_out(&harness, "content.1"));
     assert!(

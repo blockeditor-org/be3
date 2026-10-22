@@ -23,7 +23,7 @@ fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
             </List>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
 
     let rect = harness.rect(target.get());

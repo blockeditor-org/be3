@@ -16,7 +16,7 @@ fn ctrl_f_opens_the_find_bar_over_a_text_area() {
             <TextArea state={state} />
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     let find_field = |harness: &Harness| {
         harness
             .accessible()

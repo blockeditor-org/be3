@@ -34,7 +34,7 @@ fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
             </Frame>
         }
     });
-    let mut harness = Harness::new(document);
+    let mut harness = harness(document);
     harness.frame(Vec::new());
     let overlay = kind_of::<OverlayNode>(harness.document(), overlay.get());
     assert!(harness.document().is_overlay_open(overlay.id()));

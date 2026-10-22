@@ -27,7 +27,7 @@ fn the_top_layer_takes_a_click_over_the_layer_below() {
             </Layers>
         }
     });
-    let mut harness = Harness::sized(document, vec2(100.0, 100.0));
+    let mut harness = harness_sized(document, vec2(100.0, 100.0));
     harness.frame(Vec::new());
 
     harness.click(pos2(90.0, 10.0));

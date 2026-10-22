@@ -33,7 +33,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
         }
     });
     let dock = dock.get();
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = harness_sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let input = harness.find("input.1");
     harness.click(harness.center(input));
