@@ -1148,18 +1148,8 @@ impl EditorHost {
         });
     }
 
-    pub fn fit_view(&self) {
-        self.view_changes.borrow_mut().push(ViewChange::Fit);
-    }
-
     pub fn pan_drag_view(&self) {
         self.view_changes.borrow_mut().push(ViewChange::PanDrag);
-    }
-
-    pub fn resume_auto_fit_view(&self) {
-        self.view_changes
-            .borrow_mut()
-            .push(ViewChange::ResumeAutoFit);
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {

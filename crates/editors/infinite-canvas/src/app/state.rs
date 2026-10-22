@@ -1249,7 +1249,12 @@ impl CanvasState {
             .reduce(WorldRect::union);
         match extents {
             Some(extents) => self.fit_into_view_within(extents, 1.0),
-            None => self.editor.fit(),
+            None => {
+                let centre = self
+                    .framed()
+                    .map_or_else(CanvasPoint::default, WorldRect::center);
+                self.fit_into_view_within(WorldRect::from_points(centre, centre), 1.0);
+            }
         }
     }
 

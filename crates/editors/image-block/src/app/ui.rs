@@ -42,6 +42,12 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
+    let world = editor.world();
+    editor.keep_fitted(move || {
+        world
+            .get()
+            .map(|world| Rect::from_min_size(Pos2::ZERO, world))
+    });
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>

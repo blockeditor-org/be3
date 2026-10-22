@@ -31,7 +31,7 @@ fn view_messages_round_trip() {
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
-            change: ViewChange::Fit,
+            change: ViewChange::PanDrag,
         }),
     ];
     for message in messages {

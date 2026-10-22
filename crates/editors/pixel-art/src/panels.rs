@@ -71,7 +71,7 @@ pub(crate) fn TopBar(
     let reset = move || {
         editor.zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
     };
-    let fit = move || editor.fit();
+    let fit = move || tools.fitting.fit();
     let grid = tools.show_grid;
     let toggle_grid = move |on: bool| grid.set(on);
 
@@ -388,7 +388,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
             height: height.get_untracked(),
             anchor: tools.resize_anchor.get_untracked(),
         });
-        tools.editor().fit();
+        tools.fitting.fit();
         tools.close_dialog();
     };
     let clear = move || {

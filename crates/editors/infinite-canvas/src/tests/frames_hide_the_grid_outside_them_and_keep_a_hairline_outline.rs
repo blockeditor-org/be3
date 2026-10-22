@@ -24,10 +24,18 @@ fn painted_by_a_pan(hidden: bool) -> usize {
 #[test]
 fn frames_hide_the_grid_outside_them_and_keep_a_hairline_outline() {
     let mut editor = framed(false);
-    let view = Rect::from_min_size(pos2(0.0, 0.0), editor.rect().size());
+    let band = editor.content_rect().expect("the canvas reports its stage");
     for scale in [1.0, 2.0] {
-        editor.set_view(view, scale);
+        editor.set_view(
+            Rect::from_center_size(band.center(), band.size() * scale),
+            scale,
+        );
         editor.settle();
+        let shown = editor.rect_of(&format!("infinite-canvas.entity.{}", Uuid::from_u128(2)));
+        assert!(
+            (shown.width() - 248.0 * scale).abs() < 0.5,
+            "the frame is drawn at {scale}x, {shown:?}"
+        );
         editor.snapshot(&format!(
             "frames_hide_the_grid_outside_them_and_keep_a_hairline_outline_at_{scale}x"
         ));

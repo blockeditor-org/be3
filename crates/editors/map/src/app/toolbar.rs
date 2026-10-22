@@ -3,13 +3,16 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::{Toolbar, node_anchor};
+use block_editor_beui::{Fitting, Toolbar, node_anchor};
 
 use super::state::{MapState, ZOOM_STEP};
 
 #[component]
-pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> DynamicSegment<ListChild> {
-    let whole = state.editor();
+pub(crate) fn MapToolbar(
+    state: MapState,
+    fitting: Fitting,
+    shown: Prop<bool>,
+) -> DynamicSegment<ListChild> {
     let regionless = create_memo(move || state.preview_region.get().is_none());
     let error = state.last_error;
     let failed = create_memo(move || error.get().is_some());
@@ -41,7 +44,7 @@ pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> DynamicSegment<L
                 label="Whole world"
                 variant=ButtonVariant::Secondary
                 @test_id={"map.fit"}
-                on_click={move || whole.fit()}
+                on_click={move || fitting.fit()}
             />
             <IconButton
                 glyph={ICON_CROP_FREE.to_owned()}

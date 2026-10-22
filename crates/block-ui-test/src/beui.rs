@@ -1495,7 +1495,6 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
 struct Viewport {
     zoom: f32,
     pan: Vec2,
-    fitting: bool,
     sent: Option<(Rect, f32)>,
 }
 
@@ -1504,7 +1503,6 @@ impl Viewport {
         Self {
             zoom: 1.0,
             pan: Vec2::ZERO,
-            fitting: true,
             sent: None,
         }
     }
@@ -1514,13 +1512,6 @@ impl Viewport {
             .unwrap_or(Vec2::ZERO)
             .max(region.size())
             .max(Vec2::new(1.0, 1.0));
-        if self.fitting {
-            self.zoom = (region.width() / content.x)
-                .min(region.height() / content.y)
-                .min(1.0)
-                .clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
-            self.pan = Vec2::ZERO;
-        }
         let size = content * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
@@ -1548,9 +1539,6 @@ impl Viewport {
             _ => true,
         });
         for change in changes {
-            if !matches!(change, ViewChange::ResumeAutoFit | ViewChange::PanDrag) {
-                self.fitting = false;
-            }
             match change {
                 ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
                 ViewChange::Zoom { factor, anchor } => {
@@ -1561,7 +1549,6 @@ impl Viewport {
                     self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
                     self.zoom = zoom;
                 }
-                ViewChange::Fit | ViewChange::ResumeAutoFit => self.fitting = true,
                 ViewChange::PanDrag => {}
             }
         }

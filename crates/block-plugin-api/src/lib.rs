@@ -2076,8 +2076,6 @@ pub enum ViewChange {
         factor: f32,
         anchor: Option<(f32, f32)>,
     },
-    Fit,
-    ResumeAutoFit,
     PanDrag,
 }
 

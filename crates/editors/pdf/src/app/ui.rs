@@ -64,7 +64,11 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     });
     let back = move || pages.go(pages.page().saturating_sub(1));
     let forward = move || pages.go(pages.page() + 1);
-    let fit = move || editor.fit();
+    let fitting = editor.keep_fitted(move || {
+        let size = shown.get().size();
+        (size.x > 0.0 && size.y > 0.0).then(|| Rect::from_min_size(Pos2::ZERO, size))
+    });
+    let fit = move || fitting.fit();
 
     let read_only = editor.read_only();
     let busy = chooser.busy();

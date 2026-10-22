@@ -233,7 +233,7 @@ fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) ->
         }
         Shortcut::ZoomIn => editor.zoom(ZOOM_STEP),
         Shortcut::ZoomOut => editor.zoom(1.0 / ZOOM_STEP),
-        Shortcut::Fit => editor.fit(),
+        Shortcut::Fit => tools.fitting.fit(),
         Shortcut::None => return false,
     }
     true

@@ -11,6 +11,7 @@ pub mod database;
 mod dock;
 mod editor;
 mod file_chooser;
+mod fitting;
 pub mod fonts;
 pub mod headless;
 mod instance;
@@ -37,6 +38,7 @@ pub use editor::{
     SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
+pub use fitting::Fitting;
 pub use instance::BeuiPlugin;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,

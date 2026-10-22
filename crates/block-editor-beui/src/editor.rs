@@ -1100,14 +1100,6 @@ impl Editor {
             .zoom_view(factor, Some(Pos2::new(anchor.x / ratio, anchor.y / ratio)));
     }
 
-    pub fn resume_auto_fit(&self) {
-        self.state().host.resume_auto_fit_view();
-    }
-
-    pub fn fit(&self) {
-        self.state().host.fit_view();
-    }
-
     pub fn pan_drag(&self) {
         self.state().host.pan_drag_view();
     }

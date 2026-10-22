@@ -2,9 +2,9 @@ use block_editor_beui::be_block::CanvasContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::{Pos2, Rect, Vec2};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -75,6 +75,12 @@ fn CanvasEditor(editor: Editor) -> NodeId {
 
     let content = NodeRef::new();
     editor.content(&content);
+    let world = editor.world();
+    editor.keep_fitted(move || {
+        world.get().map(|world| {
+            Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO)
+        })
+    });
     let chrome = editor.chrome_shown();
     let inspected = create_memo(move || {
         chrome.get()

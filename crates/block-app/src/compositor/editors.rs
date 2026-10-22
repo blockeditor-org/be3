@@ -764,7 +764,6 @@ struct Viewport {
     zoom: f32,
     pan: Vec2,
     center: Option<Pos2>,
-    auto_fit: Option<bool>,
 }
 
 impl Default for Viewport {
@@ -773,7 +772,6 @@ impl Default for Viewport {
             zoom: 1.0,
             pan: Vec2::ZERO,
             center: None,
-            auto_fit: None,
         }
     }
 }
@@ -782,16 +780,6 @@ thread_local! {
     static VIEWPORTS: RefCell<HashMap<Uuid, Viewport>> = RefCell::new(HashMap::new());
 }
 
-fn fit(viewport: &mut Viewport, size: Vec2, content: Vec2) {
-    viewport.zoom = (size.x / content.x.max(1.0))
-        .min(size.y / content.y.max(1.0))
-        .min(1.0)
-        .clamp(MIN_ZOOM, MAX_ZOOM);
-    viewport.pan = Vec2::ZERO;
-}
-
-const FIT_MARGIN: f32 = 20.0;
-
 #[derive(Clone, Copy)]
 struct CameraOwner(Callback<Command>);
 
@@ -799,17 +787,12 @@ struct CameraOwner(Callback<Command>);
 enum Command {
     Pan(Vec2),
     Zoom { factor: f32, anchor: Option<Pos2> },
-    Fit,
-    FitRect(Rect),
-    ResumeAutoFit,
 }
 
-fn settle(viewport: &mut Viewport, command: Command, rect: Rect, content: Vec2, max_zoom: f32) {
-    let size = rect.size().max(Vec2::splat(1.0));
+fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) {
     match command {
         Command::Pan(delta) => {
             viewport.pan += delta;
-            viewport.auto_fit = viewport.auto_fit.map(|_| false);
         }
         Command::Zoom { factor, anchor } => {
             let old = viewport.zoom;
@@ -819,39 +802,6 @@ fn settle(viewport: &mut Viewport, command: Command, rect: Rect, content: Vec2, 
                 let offset = anchor - rect.center();
                 viewport.pan = offset - (offset - viewport.pan) * (new / old);
                 viewport.zoom = new;
-            }
-            viewport.auto_fit = viewport.auto_fit.map(|_| false);
-        }
-        Command::Fit => {
-            fit(viewport, size, content);
-            viewport.auto_fit = viewport.auto_fit.map(|_| false);
-        }
-        Command::FitRect(target) => {
-            let room = (size - Vec2::splat(FIT_MARGIN * 2.0)).max(Vec2::splat(1.0));
-            let factor = (room.x / target.width().max(1.0)).min(room.y / target.height().max(1.0));
-            let anchor = target.center();
-            settle(
-                viewport,
-                Command::Zoom {
-                    factor,
-                    anchor: Some(anchor),
-                },
-                rect,
-                content,
-                max_zoom,
-            );
-            settle(
-                viewport,
-                Command::Pan(rect.center() - anchor),
-                rect,
-                content,
-                max_zoom,
-            );
-        }
-        Command::ResumeAutoFit => {
-            if viewport.auto_fit.is_some() {
-                viewport.auto_fit = Some(true);
-                fit(viewport, size, content);
             }
         }
     }
@@ -1124,17 +1074,12 @@ fn BlockFrameView(
             let command = move |command: Command| {
                     if !pan_and_zoom {
                         if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
-                            owner.0.call(match command {
-                                Command::Fit => Command::FitRect(
-                                    content.get_untracked().unwrap_or(rect.get_untracked()),
-                                ),
-                                command => command,
-                            });
+                            owner.0.call(command);
                         }
                         return;
                     }
                     let mut state = viewport.get_untracked();
-                    settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
+                    settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
                     if state != viewport.get_untracked() {
                         viewport.set(state);
                     }
@@ -1148,17 +1093,9 @@ fn BlockFrameView(
                         return;
                     }
                     let rect = viewport_rect.get();
-                    let content = content_size.get();
-                    let covered = chrome.get() == Chrome::None;
                     let mut state = viewport.get_untracked();
                     if let Some(previous) = state.center.replace(rect.center()) {
                         state.pan += previous - rect.center();
-                    }
-                    if state.auto_fit.is_none() {
-                        state.auto_fit = Some(true);
-                    }
-                    if state.auto_fit == Some(true) && !covered {
-                        fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
                     }
                     if state != viewport.get_untracked() {
                         viewport.set(state);
@@ -1177,8 +1114,6 @@ fn BlockFrameView(
                                 factor,
                                 anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
                             },
-                            ViewChange::Fit => Command::Fit,
-                            ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
                             ViewChange::PanDrag => {
                                 pan_drags.update(|asked| *asked += 1);
                                 continue;
