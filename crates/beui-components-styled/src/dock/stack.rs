@@ -7,6 +7,7 @@ use crate::button::ButtonVariant;
 use crate::dock::DockMenu;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::list_row::ListRow;
+use crate::menu_button::IconMenuButton;
 use crate::sheet::ModalSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use crate::theme::use_theme;
@@ -16,7 +17,7 @@ use beui_components_unstyled::{
 };
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE};
+use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_MORE_VERT};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -43,7 +44,6 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         title,
         icon,
         backward,
-        actions,
         menu,
         back,
         others,
@@ -88,7 +88,6 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             </Text>
                         </List>
                     </Frame>
-                    <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={switchable}>
                         <DockTabCount
@@ -216,9 +215,11 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         icon,
         current,
         closable,
+        menu,
         pick,
         close,
     } = handle;
+    let offered = create_memo(move || menu.with(|items| !items.is_empty()));
     let theme = use_theme();
     let outline = create_memo(move || match current.get() {
         true => theme.accent.get(),
@@ -250,15 +251,30 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                         </List>
                     </Frame>
                 </ListRow>
-                <Show condition={closable}>
-                    <IconButton
-                        @test_id={format!("dock.switcher.close.{id}")}
-                        glyph=ICON_CLOSE
-                        label="Close tab"
-                        variant=ButtonVariant::Ghost
-                        on_click={close}
-                    />
-                </Show>
+                <List spacing=0.0>
+                    <Show condition={closable}>
+                        <IconButton
+                            @test_id={format!("dock.switcher.close.{id}")}
+                            glyph=ICON_CLOSE
+                            label="Close tab"
+                            variant=ButtonVariant::Ghost
+                            on_click={close}
+                        />
+                    </Show>
+                    <Show condition={offered}>
+                        <IconMenuButton
+                            @test_id={format!("dock.switcher.menu.{id}")}
+                            label="More"
+                            glyph=ICON_MORE_VERT
+                            items={view! {
+                                <unstyled::MenuNodes
+                                    nodes={menu}
+                                    test_prefix={format!("dock.switcher.menu.{id}")}
+                                />
+                            }}
+                        />
+                    </Show>
+                </List>
             </List>
         </Frame>
     }

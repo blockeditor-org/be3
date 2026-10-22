@@ -156,7 +156,6 @@ pub struct DockStackHandle {
     pub title: Memo<String>,
     pub icon: Memo<String>,
     pub backward: Memo<bool>,
-    pub actions: Memo<Option<NodeId>>,
     pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
     pub others: Memo<usize>,
@@ -179,6 +178,7 @@ pub struct DockSwitcherCardHandle {
     pub icon: Memo<String>,
     pub current: Memo<bool>,
     pub closable: bool,
+    pub menu: Memo<Vec<MenuNode>>,
     pub pick: ClickCallback,
     pub close: ClickCallback,
 }
@@ -298,12 +298,6 @@ pub fn use_dock_tab() -> Option<DockTabControl> {
     use_context::<DockTabControl>()
 }
 
-#[derive(Clone, Copy)]
-struct DockTabActions {
-    tab: TabId,
-    actions: Signal<HashMap<TabId, NodeId>>,
-}
-
 pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<MenuNode>>)>;
 
 #[derive(Clone, Copy)]
@@ -343,27 +337,6 @@ pub fn dock_menu_items(menus: ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<
         .unwrap_or_default()
 }
 
-pub fn dock_actions(actions: impl FnOnce() -> NodeId) {
-    let Some(DockTabActions {
-        tab,
-        actions: slots,
-    }) = use_context::<DockTabActions>()
-    else {
-        return;
-    };
-    let actions = actions();
-    slots.update(|all| {
-        all.insert(tab, actions);
-    });
-    on_cleanup(move || {
-        slots.update(|all| {
-            if all.get(&tab) == Some(&actions) {
-                all.remove(&tab);
-            }
-        });
-    });
-}
-
 #[derive(Clone, Copy, Default)]
 struct TabBar {
     strip: NodeRef,
@@ -389,7 +362,6 @@ struct State {
     closable: Func<TabId, bool>,
     menu: MenuStyle,
     drag_modifier: Memo<Option<Modifiers>>,
-    actions: Signal<HashMap<TabId, NodeId>>,
     menus: Signal<DockMenus>,
     offers: Signal<HashMap<TabId, u64>>,
     thickness: f32,
@@ -513,7 +485,6 @@ impl State {
             return *panel;
         }
         let scope = self.open_scope();
-        let actions = self.actions;
         let menus = self.menus;
         let control = DockTabControl {
             tab,
@@ -521,7 +492,6 @@ impl State {
             dock: *self,
         };
         let panel = scope.context().run(|| {
-            provide_context(DockTabActions { tab, actions });
             provide_context(DockTabMenu { tab, menu: menus });
             provide_context(control);
             self.content.call(tab)
@@ -1167,7 +1137,8 @@ pub(crate) struct DockConfig {
     pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
-    pub(crate) mode: Prop<DockMode>,
+    pub(crate) stack_below: f32,
+    pub(crate) mode: Signal<DockMode>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
     pub(crate) splitter_thickness: f32,
     pub(crate) group_inset: f32,
@@ -1207,7 +1178,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         picture,
         closable,
         menu,
-        mode,
+        stack_below,
+        mode: published,
         drag_modifier,
         splitter_thickness,
         group_inset,
@@ -1236,11 +1208,17 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     } = config;
     view! {
         <PlacementBuilder>|dock_rect: ReadSignal<Rect>| {
-            let mode = create_memo(move || mode.get());
+            let mode = create_memo(move || {
+                let width = dock_rect.get().width();
+                match width > 0.0 && width < stack_below {
+                    true => DockMode::Stacked,
+                    false => DockMode::Tiled,
+                }
+            });
+            create_effect(move || published.set(mode.get()));
             let dialog_focus = create_signal(None);
             let attention = create_signal((0, None));
             let given = create_signal((0, None));
-            let actions = create_signal(HashMap::new());
             let menus = create_signal(DockMenus::new());
             let offers = create_signal(HashMap::new());
             let drag = create_signal(None);
@@ -1259,7 +1237,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 closable,
                 menu,
                 drag_modifier: create_memo(move || drag_modifier.get()),
-                actions,
                 menus,
                 offers,
                 stack,
@@ -1541,11 +1518,6 @@ fn stack_handle(
 ) -> DockStackHandle {
     let title = create_memo(move || shown.get().map(|tab| dock.title(tab)).unwrap_or_default());
     let icon = create_memo(move || shown.get().map(|tab| dock.icon(tab)).unwrap_or_default());
-    let actions = dock.actions;
-    let slot = create_memo(move || {
-        let shown = shown.get()?;
-        actions.with(|actions| actions.get(&shown).copied())
-    });
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
     let closable = dock.closable;
@@ -1569,7 +1541,6 @@ fn stack_handle(
         title,
         icon,
         backward,
-        actions: slot,
         menu,
         back: ClickCallback::new(move || dock.go_back()),
         others,
@@ -1615,6 +1586,12 @@ fn switcher_handle(
             icon: create_memo(move || dock.icon(tab)),
             current: create_memo(move || shown.get() == Some(tab)),
             closable: dock.closable.call(tab),
+            menu: create_memo(move || {
+                closing_switcher(
+                    dock_menu_items(dock.menus.read_only(), Some(tab)),
+                    switching,
+                )
+            }),
             pick: ClickCallback::new(move || {
                 switching.set(false);
                 dock.show(tab);
@@ -1622,6 +1599,40 @@ fn switcher_handle(
             close: ClickCallback::new(move || dock.close_tab(tab)),
         }),
     }
+}
+
+fn closing_switcher(nodes: Vec<MenuNode>, switching: Signal<bool>) -> Vec<MenuNode> {
+    nodes
+        .into_iter()
+        .map(|node| match node {
+            MenuNode::Action { action, label } => {
+                let run = action.clone();
+                let mut closing = Action::new(action.id().to_owned(), action.label(), move || {
+                    switching.set(false);
+                    run.run();
+                })
+                .glyph(action.glyph())
+                .enabled(action.enabled());
+                closing = match (action.checked(), action.is_radio()) {
+                    (None, _) => closing,
+                    (Some(checked), false) => closing.checked(checked),
+                    (Some(checked), true) => closing.radio(checked),
+                };
+                for chord in action.shortcuts() {
+                    closing = closing.shortcut(*chord);
+                }
+                MenuNode::Action {
+                    action: closing.detached(),
+                    label,
+                }
+            }
+            MenuNode::Submenu(mut submenu) => {
+                submenu.items = closing_switcher(std::mem::take(&mut submenu.items), switching);
+                MenuNode::Submenu(submenu)
+            }
+            MenuNode::Separator => MenuNode::Separator,
+        })
+        .collect()
 }
 
 #[component]

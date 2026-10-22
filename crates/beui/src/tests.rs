@@ -80,6 +80,7 @@ mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
+mod a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu;
 mod a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom;
 mod a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes;
 mod a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab;
@@ -91,7 +92,7 @@ mod a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab;
 mod a_dock_dialog_is_never_a_tab;
 mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
 mod a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_document;
-mod a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced;
+mod a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
 mod a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane;
@@ -333,6 +334,7 @@ mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
+mod a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
@@ -2634,20 +2636,37 @@ fn PressPanel(owner: u64, pressed: Signal<Vec<u64>>) -> NodeId {
 }
 
 fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
-    dock_with_card(dismiss_on_outside_press, true)
+    dock_with_card(dismiss_on_outside_press, true, 1)
 }
 
 fn anchored_card_dock(dismiss_on_outside_press: bool) -> CardDock {
-    dock_with_card(dismiss_on_outside_press, false)
+    dock_with_card(dismiss_on_outside_press, false, 1)
+}
+
+fn side_card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, true, 3)
+}
+
+fn anchored_side_card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, false, 3)
 }
 
 fn open_anchored(
     harness: &mut Harness,
+    signals: (Signal<Option<Rect>>, Signal<bool>),
+    place: impl Fn(Rect) -> Rect,
+) -> Rect {
+    open_anchored_in(harness, signals, "content.1", place)
+}
+
+fn open_anchored_in(
+    harness: &mut Harness,
     (anchor, open): (Signal<Option<Rect>>, Signal<bool>),
+    panel: &str,
     place: impl Fn(Rect) -> Rect,
 ) -> Rect {
     harness.frame(Vec::new());
-    let panel = harness.rect(harness.find("content.1"));
+    let panel = harness.rect(harness.find(panel));
     let rect = place(panel);
     anchor.set(Some(rect));
     open.set(true);
@@ -2677,7 +2696,7 @@ fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
     })
 }
 
-fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool) -> CardDock {
+fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool, parent: u64) -> CardDock {
     let pressed = create_signal(Vec::new());
     let built = create_signal(0);
     let attended = create_signal(Vec::new());
@@ -2715,7 +2734,7 @@ fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool) -> CardDock {
                 <ForEach keys={cards}>|id: u64|
                     <unstyled::DockDialog
                         id
-                        parent=1_u64
+                        parent
                         title="Card"
                         size=CARD_SIZE
                         presentation=unstyled::DockDialogPresentation::Card

@@ -1,5 +1,5 @@
-mod access;
 mod artifact;
+mod block_menu;
 mod deleted;
 mod dialogs;
 mod host_panel;
@@ -14,7 +14,6 @@ mod revisions;
 mod saved;
 pub use revisions::RevisionHistoryPanel;
 mod share;
-mod status;
 mod tab;
 mod window;
 mod workspace;

@@ -1789,9 +1789,11 @@ The `DockState` the layout holds is a plain value underneath:
 answer from it.
 
 Tiled, `Docking` keeps its panes inset from its own edges.
-`mode=DockMode::Stacked` draws the same state as one screen: the focused tab
-fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
-the state is kept, so switching back to `DockMode::Tiled` restores the layout.
+A dock narrower than `NARROW_WIDTH` stacks: it draws the same state as one screen, the focused tab
+filling the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
+the state is kept, so widening it tiles the layout again. The dock picks the mode
+from its own width (the unstyled `Docking` stacks below its `stack_below`), and
+`DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
 square counting the other tabs that can be closed, shown while any other tab
 exists (so it can read 0), which opens a sheet to show or close them
@@ -1801,12 +1803,17 @@ Settings, in layout order), and a back button while `DockState::back` has somewh
 the back gesture also follows. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a
-tab adds to it is only its own actions, which its panel hands over while it is
-built with `dock_actions(node)`, and which are shown while that tab is, and its
-menu, which the panel hands over with `dock_menu(actions)`, a `Memo<Vec<Action>>`.
+tab adds to it is only its menu, which the panel hands over with
+`dock_menu(items)`, a `Memo<Vec<MenuNode>>`.
 The menu is not tied to the stacked bar: a tiled pane offers the menu of the tab
 it shows behind a More button just before its close button, at the end of its
-tab bar or at the top of its sidebar, and so does a window. A menu is a list of
+tab bar or at the top of its sidebar, and so does a window. An action built with
+`.pin(Pin::Icon)` or `.pin(Pin::Label)` leaves the More menu and sits in the bar
+beside it, in every mode: `Pin::Label` shows its label in a tiled tab bar
+(the workspace's Share) and an icon where there is less room, the stacked bar and
+a sidebar. Pinning is how a tab puts its few most used controls in reach without
+giving the dock a node; everything else stays in the menu, and the tab keeps the
+rest of its page for its own toolbar. A menu is a list of
 actions rather than a node, so a dock that lays out tabs built somewhere else
 can draw it from rows it was sent, with actions made by
 `ActionBuilder::detached`, which runs without being registered for shortcuts or

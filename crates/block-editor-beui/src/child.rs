@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use block_plugin_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, KeyChord, MenuCheck, MenuEntry, TopBar,
+    BarAction, ChildId, ChildLayer, ChildMode, KeyChord, MenuCheck, MenuEntry, MenuPin, TopBar,
 };
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent};
@@ -169,6 +169,7 @@ enum Shape {
         glyph: String,
         check: Option<bool>,
         shortcut: Option<KeyChord>,
+        pin: MenuPin,
     },
     Submenu {
         id: String,
@@ -255,6 +256,7 @@ impl MenuMirror {
                         glyph: command.glyph.clone(),
                         check,
                         shortcut: command.shortcut,
+                        pin: command.pin,
                     }
                 }
                 MenuEntry::Submenu(submenu) => Shape::Submenu {
@@ -277,6 +279,7 @@ impl MenuMirror {
                     glyph,
                     check,
                     shortcut,
+                    pin,
                     ..
                 } => {
                     let mirrored = self.commands.get(id)?;
@@ -300,6 +303,11 @@ impl MenuMirror {
                     if let Some(shortcut) = shortcut {
                         action = action.shortcut(Chord::from(*shortcut));
                     }
+                    action = match pin {
+                        MenuPin::None => action,
+                        MenuPin::Icon => action.pin(Pin::Icon),
+                        MenuPin::Label => action.pin(Pin::Label),
+                    };
                     Some(MenuNode::action(&action.detached()))
                 }
                 Shape::Submenu {

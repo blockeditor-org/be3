@@ -10,7 +10,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::Container;
 use beui::{Document, Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
-use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuSubmenu};
+use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 
 use crate::chrome::ChromeRoot;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
@@ -165,6 +165,11 @@ pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
                     (Some(checked), true) => MenuCheck::Radio(checked.get()),
                 },
                 shortcut: action.shortcuts().first().map(|chord| chord.key_chord()),
+                pin: match action.pinned() {
+                    None => MenuPin::None,
+                    Some(Pin::Icon) => MenuPin::Icon,
+                    Some(Pin::Label) => MenuPin::Label,
+                },
             }),
             MenuNode::Submenu(submenu) => MenuEntry::Submenu(MenuSubmenu {
                 id: submenu.id.clone(),
@@ -289,6 +294,7 @@ fn frame_actions(
             watched.with(|watched| watched.try_step(false));
         })
         .glyph(ICON_UNDO)
+        .pin(Pin::Icon)
         .shortcut(Chord::ctrl(Key::Z))
         .enabled(can(|state| state.can_undo))
         .register(),
@@ -296,6 +302,7 @@ fn frame_actions(
             watched.with(|watched| watched.try_step(true));
         })
         .glyph(ICON_REDO)
+        .pin(Pin::Icon)
         .shortcut(Chord::ctrl(Key::Z).shift())
         .shortcut(Chord::ctrl(Key::Y))
         .enabled(can(|state| state.can_redo))
@@ -310,6 +317,7 @@ fn frame_actions(
             editor.host().share_block(id)
         })
         .glyph(ICON_SHARE)
+        .pin(Pin::Label)
         .enabled(can(|state| state.can_share))
         .register(),
         details: Action::new("editor.details", "File details", move || {

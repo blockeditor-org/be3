@@ -19,10 +19,10 @@ use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockDocument,
-    DockDocumentBody, DockDocumentTabs, DockDocuments, DockMode, DockOpened, DockPane, DockSlot,
-    DockSplit, DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom,
-    PanZoomHandle, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState,
-    TreeItem, dock_actions, narrower_than, use_dock_tab,
+    DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockPane, DockSlot, DockSplit,
+    DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
+    PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState, TreeItem,
+    dock_menu, narrower_than, use_dock_tab,
 };
 use beui::{
     Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId,
@@ -613,12 +613,6 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
 fn DemoShell() -> NodeId {
     let dialogs = DemoDialogs::new();
     let pages = Pages::new(dialogs);
-    let mobile = create_signal(false);
-    let narrow = narrower_than(NARROW_WIDTH);
-    let mode = create_memo(move || match mobile.get() || narrow.get() {
-        true => DockMode::Stacked,
-        false => DockMode::Tiled,
-    });
     let active = create_selector(move || pages.active());
     let layout = pages.layout;
     switch_tabs_with_alt_q(layout);
@@ -631,10 +625,10 @@ fn DemoShell() -> NodeId {
     view! {
         <List spacing=0.0>
             <Frame padding=SHELL_PADDING>
-                <DemoToolbar pages mobile />
+                <DemoToolbar pages />
             </Frame>
             <Separator />
-            <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
+            <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
                 <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                     <DockPane id="catalog">
                         <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
@@ -798,7 +792,7 @@ fn PageView(page: Page) -> NodeId {
 }
 
 #[component]
-fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
+fn DemoToolbar(pages: Pages) -> NodeId {
     let layers = with_document(|document| document.watch_preference_layers());
     let selected_theme = create_memo(move || {
         let theme = layers.get().layer(PreferenceSource::App).theme;
@@ -817,9 +811,6 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <Show condition={wide}>
-                <Checkbox label="Mobile" checked={mobile} />
-            </Show>
             <Select
                 label="Theme"
                 options={view! {

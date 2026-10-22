@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{DockMode, DockPane, DockTab, DockingLayout, dock_menu};
+use crate::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
 
 const PLAIN: u64 = 1;
 
@@ -19,7 +19,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout mode=DockMode::Stacked focus=2u64>
+            <styled::Docking layout focus=2u64>
                 <DockPane id="tabs">
                     <DockTab id=PLAIN title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -42,7 +42,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
             </styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, VIEWPORT);
     harness.settle();
 
     assert!(

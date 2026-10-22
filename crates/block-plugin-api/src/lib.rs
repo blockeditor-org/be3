@@ -117,6 +117,15 @@ pub struct MenuCommand {
     pub enabled: bool,
     pub check: MenuCheck,
     pub shortcut: Option<KeyChord>,
+    pub pin: MenuPin,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MenuPin {
+    #[default]
+    None,
+    Icon,
+    Label,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
