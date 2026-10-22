@@ -26,7 +26,7 @@ fn release(test: &mut DocumentTest, at: Pos2, modifiers: Modifiers) {
 #[test]
 fn holding_alt_moves_a_floating_demo_page_by_its_content() {
     let mut test = demo(WIDE);
-    let close = format!("dock.tab.{}.close", Page::Docking.tab().value());
+    let close = format!("dock.tab.{}.close", tab(Page::Docking));
     let tab = test.rect_of(&close).center() - Vec2::new(50.0, 0.0);
     let dropped = pos2(550.0, 300.0);
     drag(&mut test, tab, dropped, Modifiers::ALT);

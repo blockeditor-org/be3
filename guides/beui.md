@@ -1742,14 +1742,35 @@ one back; restore it before the effects of the write that declares its tabs run 
 writes made together do, with no `flush()` between), since a tab not
 declared when the dock reconciles is closed. `reset` goes back to the layout the
 children describe. The handle also shows a tab (`show`) and reads which is
-focused (`focused`, `shown` for a stacked dock). `replace(key, with)` puts a new
-tab in the place of an open one - the same pane or window, at the same index -
-and shows it; declare `with` instead of `key` along with it. A list that
-opens what it names into one tab, as the demo's catalog and be-launcher's pull
-requests do with a plain click, replaces the tab shown last; Ctrl (or Cmd) and
-a click opens another. A tab that stops being declared
+focused (`focused`, `shown` for a stacked dock). A tab that stops being declared
 for a moment - a `Show` around it that flips, a `ForEach` rebuilt from new keys -
 loses its place, so keep a tab's declaration in one stable place.
+
+A tab's key names the tab, not what it shows, so a tab that shows something
+else keeps its key, and with it its place, its focus and its history. Master
+and detail views, a list that opens what it names into tabs, as the demo's
+catalog and be-launcher's pull requests do, hold their tabs in a
+`DockDocuments<K, T, I>`: slots of content `T` that it keys with
+`new(layout, key, identity)`, `key` turning a `DockSlot` into the layout's key and
+`identity` telling one document from another. `open(content, beside)` shows the
+document if it is open; otherwise it puts it in the slot shown last, unless
+`beside` (Ctrl or Cmd held) asks for a slot of its own. It answers
+`DockOpened::Shown`, `Replaced` with what the slot held, or `Added`.
+`refresh(content)` updates an open document in place, `shown` and `find` name
+slots, and `close` empties one. `DockDocumentTabs` declares a tab for each slot,
+handing the caller a `DockDocument` to make the `DockTab` from, and
+`DockDocumentBody` inside it rebuilds its body only when the slot's document
+changes, so new content for the same document keeps the body's state:
+
+```rust
+<DockDocumentTabs documents>|document: DockDocument<Tab, PullRequest, u64>|
+    <DockTab id={document.key()} title={title_of(document.content())} on_close={move || document.close()}>
+        <DockDocumentBody document>|pull_request: ReadSignal<PullRequest>|
+            <Detail pull_request />
+        </DockDocumentBody>
+    </DockTab>
+</DockDocumentTabs>
+```
 
 The `DockState` the layout holds is a plain value underneath:
 `state()` reads it, and `find`, `all_tabs`, `focused_tab` and `surface_tabs`

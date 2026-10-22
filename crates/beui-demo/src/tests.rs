@@ -279,3 +279,9 @@ fn level_display() -> DocumentTest {
     });
     DocumentTest::new(document, Vec2::new(1100.0, 480.0))
 }
+
+fn tab(page: Page) -> u64 {
+    Pages::tab_of(page)
+        .expect("the page is open in a tab")
+        .value()
+}

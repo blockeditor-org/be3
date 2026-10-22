@@ -145,6 +145,22 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
         self.set_keys(keys);
     }
 
+    pub fn set(&self, key: K, value: V) {
+        self.write(&key, &value);
+        let inner = self.inner.value();
+        let mut keys = inner.keys.get_untracked();
+        if !keys.contains(&key) {
+            keys.push(key);
+            inner.keys.set_unconditionally(keys);
+        }
+    }
+
+    pub fn remove(&self, key: &K) {
+        let mut keys = self.inner.with(|inner| inner.keys.get_untracked());
+        keys.retain(|held| held != key);
+        self.set_keys(keys);
+    }
+
     fn write(&self, key: &K, value: &V) {
         let inner = self.inner.value();
         let target = {

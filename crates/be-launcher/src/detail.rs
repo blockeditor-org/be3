@@ -32,33 +32,19 @@ const EVENT_INDENT: f32 = 14.0;
 struct Shown(u64);
 
 #[component]
-pub(crate) fn Detail(model: Model, number: u64) -> NodeId {
-    let pull_request = create_memo(move || {
-        model.opened.with(|opened| {
-            opened
-                .iter()
-                .find(|pull_request| pull_request.number == number)
-                .cloned()
-        })
-    });
-    let shown = create_memo(move || pull_request.with(Option::is_some));
-    provide_context(Shown(number));
+pub(crate) fn Detail(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
+    provide_context(Shown(
+        pull_request.with_untracked(|pull_request| pull_request.number),
+    ));
     view! {
-        <List spacing=0.0>
-            <Show condition={shown}>
-                <PullRequestView
-                    @sizing=ItemSize::Percent(100.0)
-                    model={model}
-                    pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
-                />
-            </Show>
-        </List>
+        <PullRequestView model={model} pull_request={pull_request} />
     }
 }
 
-fn placeholder() -> PullRequest {
+#[cfg(target_os = "android")]
+pub(crate) fn placeholder(number: u64) -> PullRequest {
     PullRequest {
-        number: 0,
+        number,
         title: String::new(),
         state: State::Open,
         author: Person {
