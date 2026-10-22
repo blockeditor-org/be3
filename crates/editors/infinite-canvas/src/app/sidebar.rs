@@ -1174,7 +1174,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
     }
 }
 
-const SHORTCUTS: [(&str, &str); 8] = [
+const SHORTCUTS: [(&str, &str); 9] = [
     ("Pan", "Drag empty space, space-drag, or two fingers"),
     ("Zoom", "Ctrl-scroll or pinch"),
     ("Select all", "Ctrl+A"),
@@ -1182,6 +1182,7 @@ const SHORTCUTS: [(&str, &str); 8] = [
     ("Duplicate", "Ctrl+D or Alt-drag"),
     ("Edit selected block", "Enter"),
     ("Restore while erasing", "Alt"),
+    ("Keep a line's end off shapes", "Ctrl while drawing"),
     ("Exit tool or editor", "Escape"),
 ];
 

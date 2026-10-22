@@ -197,6 +197,7 @@ pub(crate) enum Gesture {
         current: CanvasPoint,
         pointer: CanvasPoint,
         from_center: bool,
+        detached: bool,
     },
     Pen {
         id: Uuid,
@@ -239,6 +240,7 @@ pub(crate) enum Gesture {
         current: CanvasPoint,
         grab: CanvasPoint,
         snap: bool,
+        detached: bool,
     },
     Bend {
         original: Box<CanvasEntity>,
@@ -431,6 +433,7 @@ pub(crate) struct CanvasState {
     pub(crate) entities: Entities,
     pub(crate) tool: Signal<Tool>,
     pub(crate) tool_locked: Signal<bool>,
+    pub(crate) binds: Signal<bool>,
     pub(crate) profile: Signal<CanvasProfile>,
     styles: Signal<HashMap<CanvasProfile, CanvasStyle>>,
     pub(crate) selection: Signal<HashSet<Uuid>>,
@@ -548,6 +551,7 @@ impl CanvasState {
             entities,
             tool,
             tool_locked: create_signal(false),
+            binds: create_signal(true),
             profile,
             styles,
             selection,
@@ -573,12 +577,13 @@ impl CanvasState {
             start,
             current,
             from_center,
+            detached,
             ..
         } = *gesture
         else {
             return None;
         };
-        let entity = self.created_entity(tool, start, current, from_center)?;
+        let entity = self.created_entity(tool, start, current, from_center, detached)?;
         Some(seeded(entity, id, start))
     }
 
@@ -1294,7 +1299,14 @@ impl CanvasState {
             .collect()
     }
 
-    pub(crate) fn binding_at(&self, point: CanvasPoint, path: Uuid) -> Option<CanvasBinding> {
+    fn binding_for(&self, point: CanvasPoint, path: Uuid, detached: bool) -> Option<CanvasBinding> {
+        match detached || !self.binds.get_untracked() {
+            true => None,
+            false => self.binding_at(point, path),
+        }
+    }
+
+    fn binding_at(&self, point: CanvasPoint, path: Uuid) -> Option<CanvasBinding> {
         let radius = HIT_RADIUS / self.scale();
         self.entities
             .all_untracked()
@@ -2456,13 +2468,13 @@ impl CanvasState {
     }
 
     fn endpoint_entities(&self, gesture: &Gesture) -> Vec<CanvasEntity> {
-        let Gesture::Endpoint { end, .. } = *gesture else {
+        let Gesture::Endpoint { end, detached, .. } = *gesture else {
             return Vec::new();
         };
         let mut moved = gesture_entities(gesture);
         for path in &mut moved {
             let at = path_ends(path)[end];
-            path.bindings[end] = self.binding_at(at, path.id);
+            path.bindings[end] = self.binding_for(at, path.id, detached);
         }
         moved
     }
@@ -2473,6 +2485,7 @@ impl CanvasState {
         start: CanvasPoint,
         current: CanvasPoint,
         from_center: bool,
+        detached: bool,
     ) -> Option<CanvasEntity> {
         let boxed = |shape: CanvasShape| {
             let bounds = gesture_rect(start, current, from_center);
@@ -2492,8 +2505,8 @@ impl CanvasState {
                     path.style.end_arrowhead = CanvasArrowhead::Arrow;
                 }
                 path.bindings = [
-                    self.binding_at(start, path.id),
-                    self.binding_at(current, path.id),
+                    self.binding_for(start, path.id, detached),
+                    self.binding_for(current, path.id, detached),
                 ];
                 Some(path)
             }

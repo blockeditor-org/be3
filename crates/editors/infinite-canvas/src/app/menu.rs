@@ -86,7 +86,11 @@ fn tools_menu(actions: &CanvasActions) -> MenuNode {
         TOOLS
             .into_iter()
             .map(|tool| act(&actions.tool(tool)))
-            .chain([MenuNode::Separator, act(&actions.tool_lock)])
+            .chain([
+                MenuNode::Separator,
+                act(&actions.tool_lock),
+                act(&actions.bind_lines),
+            ])
             .collect(),
     )
 }

@@ -35,8 +35,10 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let tools = actions.clone();
     let chosen = create_memo(move || {
+        let tool = state.tool.get();
         !state.selection.get().is_empty()
-            || (state.profile.get() == CanvasProfile::Prototyping && state.tool.get().styles())
+            || tool.draws_a_line()
+            || (state.profile.get() == CanvasProfile::Prototyping && tool.styles())
     });
     let tool_keys = create_memo(move || {
         let profile = state.profile.get();

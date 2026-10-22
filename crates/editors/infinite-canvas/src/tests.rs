@@ -134,6 +134,7 @@ mod turned_text_is_drawn_turned_as_it_is_exported;
 mod turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
+mod with_binding_off_or_ctrl_held_a_line_drawn_onto_a_shape_stays_free;
 
 fn colored(red: u8, green: u8, blue: u8) -> CanvasColor {
     CanvasColor::Rgba {

@@ -5,8 +5,9 @@ use block_editor_beui::beui::icons::{
     ICON_CONTENT_PASTE, ICON_DATA_OBJECT, ICON_DELETE, ICON_DESELECT, ICON_DIAGONAL_LINE,
     ICON_DOWNLOAD, ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN, ICON_FLIP_TO_BACK,
     ICON_FLIP_TO_FRONT, ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_KEEP, ICON_LIBRARY_ADD,
-    ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE, ICON_SELECT_ALL,
-    ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE,
+    ICON_SELECT_ALL, ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN,
+    ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::use_theme;
@@ -32,6 +33,7 @@ pub(crate) struct CanvasActions {
     pub(crate) pen: Action,
     pub(crate) eraser: Action,
     pub(crate) tool_lock: Action,
+    pub(crate) bind_lines: Action,
     pub(crate) add_rectangle: Action,
     pub(crate) add_line: Action,
     pub(crate) add_text: Action,
@@ -378,6 +380,15 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .checked(state.tool_locked)
     .enabled(free)
     .register();
+    let bind_lines = Action::new(
+        "canvas.bind-lines",
+        "Bind lines and arrows to shapes",
+        move || state.binds.update(|binds| *binds = !*binds),
+    )
+    .glyph(ICON_LINK)
+    .checked(state.binds)
+    .enabled(free)
+    .register();
     let add_rectangle = add(
         "canvas.add.rectangle",
         "Add a rectangle",
@@ -502,6 +513,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         pen,
         eraser,
         tool_lock,
+        bind_lines,
         add_rectangle,
         add_line,
         add_text,

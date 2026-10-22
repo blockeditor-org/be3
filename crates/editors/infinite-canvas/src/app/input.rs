@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::canvas::{
     CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
 };
-use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
+use block_editor_beui::beui::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use block_editor_beui::reactive::{Get, untrack};
 use uuid::Uuid;
 
@@ -122,6 +122,7 @@ impl CanvasState {
                     current: world,
                     pointer: world,
                     from_center: press.modifiers.alt,
+                    detached: press.modifiers.ctrl,
                 }));
             }
             Tool::Pen => self.begin_gesture(Some(Gesture::Pen {
@@ -178,7 +179,7 @@ impl CanvasState {
                 false => HANDLE_REACH,
             };
             if let Some(grip) = path_grip_at(&path, world, self.scale(), reach) {
-                self.grip_path(path, grip, world, press.modifiers.shift);
+                self.grip_path(path, grip, world, press.modifiers);
                 return;
             }
         }
@@ -289,7 +290,13 @@ impl CanvasState {
         }));
     }
 
-    fn grip_path(&self, path: CanvasEntity, grip: PathGrip, world: CanvasPoint, snap: bool) {
+    fn grip_path(
+        &self,
+        path: CanvasEntity,
+        grip: PathGrip,
+        world: CanvasPoint,
+        modifiers: Modifiers,
+    ) {
         let last = path.points.len().saturating_sub(1);
         let (path, index) = match grip {
             PathGrip::Point(index) => (path, index),
@@ -307,7 +314,8 @@ impl CanvasState {
                 end: usize::from(index != 0),
                 current: at,
                 grab,
-                snap,
+                snap: modifiers.shift,
+                detached: modifiers.ctrl,
             },
             _ => Gesture::Bend {
                 original,
@@ -356,8 +364,10 @@ impl CanvasState {
                 current,
                 pointer,
                 from_center,
+                detached,
                 ..
             } => {
+                *detached = modifiers.ctrl;
                 if tool.draws_a_box() {
                     let delta = CanvasPoint::new(world.x - pointer.x, world.y - pointer.y);
                     if modifiers.ctrl {
@@ -410,10 +420,12 @@ impl CanvasState {
                 current,
                 grab,
                 snap,
+                detached,
                 ..
             } => {
                 *current = CanvasPoint::new(world.x + grab.x, world.y + grab.y);
                 *snap = modifiers.shift;
+                *detached = modifiers.ctrl;
             }
             Gesture::Rotate {
                 current,

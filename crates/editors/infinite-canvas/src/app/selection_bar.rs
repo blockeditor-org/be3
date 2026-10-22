@@ -33,6 +33,8 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
     });
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let open = actions.open.clone();
+    let bind_lines = actions.bind_lines.clone();
+    let lining = create_memo(move || state.tool.get().draws_a_line());
     let embedded = create_memo(move || embedded_block(&state).is_some());
     let sheet = sheet_control();
     let tune = move || {
@@ -52,6 +54,15 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 <Show condition={prototyping}>
                     <StylePopover state={state} />
                 </Show>
+                <Show condition={lining}>|| {
+                    let bind_lines = bind_lines.clone(); view! {
+                        <ToggleButton
+                            icon_only=true
+                            action={bind_lines}
+                            @test_id={"infinite-canvas.bind-lines"}
+                        />
+                    }
+                }</Show>
                 <Show condition={colored}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                         <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
