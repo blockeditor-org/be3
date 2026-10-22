@@ -70,7 +70,14 @@ shape, and the label of a box shape, by its rotation as the canvas does
 (`text::text_turn`; the canvas draws it upright only while it is edited,
 since beui's `Turn` does not turn pointer input). A freehand stroke is filled as a perfect-freehand outline
 (`freehand.rs`) that follows its pressures, or simulates them from speed when
-it has none; the stroke being drawn uses the same outline.
+it has none; the stroke being drawn uses the same outline. Its streamlined
+points are joined by a centripetal Catmull-Rom spline and the outline is drawn
+as quadratic curves through the midpoints of its points, so sparse samples
+still draw a smooth curve. Every length in it is a multiple of the stroke
+width, which is in world units like every shape's, so a stroke scales with the
+zoom and one drawn at 400% is the same stroke drawn at 100% with a pen four
+times as wide; the pen tool keeps a sample only once it is a screen pixel from
+the last, so streamline lags by the same screen distance at any zoom.
 
 Every gesture writes the document as it goes - a shape as it is dragged out,
 a stroke point by point, a move, resize, rotation, bend, endpoint drag, the

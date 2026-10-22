@@ -13,7 +13,7 @@ const EXPECTED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="288" h
 <path d="M160 -20 L190 0 L160 20 L130 0 Z" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 6"/>
 <path d="M-30 60 L30 60" fill="none" stroke="#e6ebf3" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <path d="M30 60 L22 56.4 M30 60 L22 63.6" fill="none" stroke="#e6ebf3" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<path d="M60 59.99 L64.61 60.54 L70.77 62.54 L77.7 64.85 L90 69.99 L90 70 L90 70.01 L77.07 66.74 L70.14 64.43 L64.01 62.33 L60 60.01 Z" fill="#e6ebf3"/>
+<path d="M60 60 Q60 59.99 60.47 60.01 Q60.94 60.02 61.84 60.1 Q62.75 60.19 63.68 60.37 Q64.61 60.54 65.45 60.79 Q66.29 61.04 67.18 61.34 Q68.06 61.63 68.96 61.93 Q69.87 62.24 73.78 63.54 Q77.7 64.85 78.5 65.11 Q79.3 65.38 80.17 65.67 Q81.03 65.96 81.94 66.26 Q82.84 66.56 83.78 66.87 Q84.71 67.18 85.65 67.52 Q86.59 67.85 87.49 68.29 Q88.38 68.73 88.8 69.02 Q89.22 69.31 89.61 69.65 Q90 69.99 90 70 Q90 70 90 70 Q90 70.01 89.48 70.05 Q88.96 70.08 88.45 70.06 Q87.95 70.04 86.96 69.86 Q85.98 69.67 85.03 69.38 Q84.08 69.08 83.14 68.77 Q82.21 68.46 81.3 68.16 Q80.4 67.85 79.53 67.57 Q78.67 67.28 77.87 67.01 Q77.07 66.74 73.15 65.44 Q69.23 64.13 68.33 63.83 Q67.43 63.53 66.54 63.24 Q65.66 62.94 64.84 62.64 Q64.01 62.33 63.16 61.92 Q62.31 61.5 61.54 61.02 Q60.76 60.55 60.38 60.28 Q60 60.01 60 60 Z" fill="#e6ebf3"/>
 <text font-family="sans-serif" font-size="20" fill="#1e1e1e"><tspan x="104" y="65.3" font-weight="bold">Hi</tspan><tspan x="128" y="65.3" font-style="italic" text-decoration="underline">there</tspan></text>
 </svg>
 "##;

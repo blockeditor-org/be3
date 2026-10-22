@@ -391,12 +391,7 @@ fn live_stroke(
     width: f32,
     color: Color32,
 ) {
-    let points: Vec<Pos2> = points.iter().map(|point| pos2(point.x, point.y)).collect();
-    let outline = freehand::outline(&points, pressures, width, false);
-    if outline.len() > 2 {
-        let outline = outline
-            .into_iter()
-            .map(|at| camera.at(CanvasPoint::new(at.x, at.y)));
-        painter.fill_path(&Path::polygon(outline), FillRule::NonZero, color);
-    }
+    let points: Vec<Pos2> = points.iter().map(|point| camera.at(*point)).collect();
+    let outline = freehand::stroke(&points, pressures, width * camera.scale, false);
+    painter.fill_path(&outline, FillRule::NonZero, color);
 }

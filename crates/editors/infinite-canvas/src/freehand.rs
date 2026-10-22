@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use block_editor_beui::beui::{Pos2, Vec2, pos2};
+use block_editor_beui::beui::{Path, Pos2, Vec2, pos2};
 
 const PRESSURE_RATE: f32 = 0.275;
 const HALF_TURN: f32 = PI + 0.0001;
@@ -10,7 +10,11 @@ const SIMULATED_THINNING: f32 = 0.5;
 const SMOOTHING: f32 = 0.5;
 const STREAMLINE: f32 = 0.5;
 const TAPER: f32 = 3.0;
-const PACE: f32 = 16.0;
+const PACE: f32 = 4.0;
+const TAPER_STRIDE: f32 = 0.5;
+const FLATNESS: f32 = 0.02;
+const MOST_STEPS: usize = 64;
+const END_NOISE: f32 = 0.2;
 const DOT_STEPS: usize = 16;
 
 #[derive(Clone, Copy)]
@@ -18,11 +22,13 @@ struct StrokePoint {
     at: Pos2,
     pressure: f32,
     toward: Vec2,
-    distance: f32,
     run: f32,
 }
 
-pub(crate) fn outline(points: &[Pos2], pressures: &[f32], size: f32, last: bool) -> Vec<Pos2> {
+pub(crate) fn stroke(points: &[Pos2], pressures: &[f32], size: f32, last: bool) -> Path {
+    if size <= 0.0 || size.is_nan() {
+        return Path::new();
+    }
     let simulate = pressures.is_empty();
     let pressure_at = |at: usize| {
         pressures
@@ -37,8 +43,33 @@ pub(crate) fn outline(points: &[Pos2], pressures: &[f32], size: f32, last: bool)
         .enumerate()
         .map(|(at, point)| (*point, pressure_at(at)))
         .collect();
-    let points = stroke_points(raw, size, last);
-    outline_of(&points, size, simulate, last)
+    let points = splined(&streamlined(raw, size, last, simulate), size);
+    let thinning = match simulate {
+        true => SIMULATED_THINNING,
+        false => PRESSED_THINNING,
+    };
+    smooth_closed(&outline(&points, size, thinning, last))
+}
+
+fn smooth_closed(outline: &[Pos2]) -> Path {
+    let (Some(&first), Some(&end)) = (outline.first(), outline.last()) else {
+        return Path::new();
+    };
+    if outline.len() < 3 {
+        return Path::new();
+    }
+    let middle = |a: Pos2, b: Pos2| a + (b - a) * 0.5;
+    outline
+        .iter()
+        .enumerate()
+        .fold(
+            Path::new().move_to(middle(end, first)),
+            |path, (at, point)| {
+                let next = outline[(at + 1) % outline.len()];
+                path.quad_to(*point, middle(*point, next))
+            },
+        )
+        .close()
 }
 
 fn unit(vector: Vec2) -> Vec2 {
@@ -51,6 +82,10 @@ fn unit(vector: Vec2) -> Vec2 {
 
 fn dot(a: Vec2, b: Vec2) -> f32 {
     a.x * b.x + a.y * b.y
+}
+
+fn cross(a: Vec2, b: Vec2) -> f32 {
+    a.x * b.y - a.y * b.x
 }
 
 fn disc(center: Pos2, radius: f32) -> Vec<Pos2> {
@@ -82,7 +117,18 @@ fn around(point: Pos2, center: Pos2, angle: f32) -> Pos2 {
     )
 }
 
-fn stroke_points(mut raw: Vec<(Pos2, f32)>, size: f32, last: bool) -> Vec<StrokePoint> {
+fn simulated(before: f32, distance: f32, size: f32) -> f32 {
+    let speed = (distance / (size * PACE)).min(1.0);
+    let rest = 1.0 - speed;
+    (before + (rest - before) * (speed * PRESSURE_RATE)).min(1.0)
+}
+
+fn streamlined(
+    mut raw: Vec<(Pos2, f32)>,
+    size: f32,
+    last: bool,
+    simulate: bool,
+) -> Vec<StrokePoint> {
     let Some(&(first, first_pressure)) = raw.first() else {
         return Vec::new();
     };
@@ -97,29 +143,20 @@ fn stroke_points(mut raw: Vec<(Pos2, f32)>, size: f32, last: bool) -> Vec<Stroke
             ));
         }
     }
-    if raw.len() == 1 {
-        raw.push((first + Vec2::splat(1.0), first_pressure));
-    }
-    let mut out = vec![StrokePoint {
-        at: first,
-        pressure: first_pressure,
-        toward: Vec2::splat(1.0),
-        distance: 0.0,
-        run: 0.0,
-    }];
+    let mut out = vec![(first, first_pressure, 0.0)];
     let mut long_enough = false;
     let mut run = 0.0;
     let end = raw.len() - 1;
     for (index, (point, pressure)) in raw.into_iter().enumerate().skip(1) {
-        let before = out[out.len() - 1];
+        let before = out[out.len() - 1].0;
         let at = match last && index == end {
             true => point,
-            false => before.at + (point - before.at) * follow,
+            false => before + (point - before) * follow,
         };
-        if at == before.at {
+        if at == before {
             continue;
         }
-        let distance = (at - before.at).length();
+        let distance = (at - before).length();
         run += distance;
         if index < end && !long_enough {
             if run < size {
@@ -127,67 +164,115 @@ fn stroke_points(mut raw: Vec<(Pos2, f32)>, size: f32, last: bool) -> Vec<Stroke
             }
             long_enough = true;
         }
-        out.push(StrokePoint {
+        out.push((at, pressure, distance));
+    }
+    if simulate {
+        let mut pressure = out.iter().take(10).fold(first_pressure, |acc, point| {
+            (acc + simulated(acc, point.2, size)) / 2.0
+        });
+        for point in &mut out {
+            pressure = simulated(pressure, point.2, size);
+            point.1 = pressure;
+        }
+    }
+    out.into_iter()
+        .map(|(at, pressure, _)| StrokePoint {
             at,
             pressure,
-            toward: unit(before.at - at),
-            distance,
-            run,
-        });
+            toward: Vec2::ZERO,
+            run: 0.0,
+        })
+        .collect()
+}
+
+fn splined(points: &[StrokePoint], size: f32) -> Vec<StrokePoint> {
+    let Some(&first) = points.first() else {
+        return Vec::new();
+    };
+    let last = points.len() as isize - 1;
+    let at = |index: isize| -> Pos2 {
+        match index {
+            -1 if last > 0 => points[0].at + (points[0].at - points[1].at),
+            index if index > last && last > 0 => {
+                let end = points[last as usize].at;
+                end + (end - points[last as usize - 1].at)
+            }
+            index => points[index.clamp(0, last) as usize].at,
+        }
+    };
+    let knot = |a: Pos2, b: Pos2| (b - a).length().sqrt().max(f32::EPSILON);
+    let total: f32 = points
+        .windows(2)
+        .map(|pair| (pair[1].at - pair[0].at).length())
+        .sum();
+    let taper = size * TAPER;
+    let mut along = 0.0;
+    let mut out = vec![first];
+    for (index, pair) in points.windows(2).enumerate() {
+        let index = index as isize;
+        let (p0, p1, p2, p3) = (at(index - 1), at(index), at(index + 1), at(index + 2));
+        let (d0, d1, d2) = (knot(p0, p1), knot(p1, p2), knot(p2, p3));
+        let leave = ((p1 - p0) / d0 - (p2 - p0) / (d0 + d1) + (p2 - p1) / d1) * d1;
+        let arrive = ((p2 - p1) / d1 - (p3 - p1) / (d1 + d2) + (p3 - p2) / d2) * d1;
+        let (c1, c2) = (p1 + leave / 3.0, p2 - arrive / 3.0);
+        let chord = unit(p2 - p1);
+        let bend = cross(c1 - p1, chord).abs().max(cross(c2 - p1, chord).abs());
+        let gap = (p2 - p1).length();
+        let tapered = along < taper || along + gap > total - taper;
+        along += gap;
+        let stride = match tapered {
+            true => gap / (size * TAPER_STRIDE),
+            false => 1.0,
+        };
+        let steps = stride.max((bend / (size * FLATNESS)).sqrt()).ceil() as usize;
+        let steps = steps.clamp(1, MOST_STEPS);
+        for step in 1..=steps {
+            let t = step as f32 / steps as f32;
+            let u = 1.0 - t;
+            let curve = |a: f32, b: f32, c: f32, d: f32| {
+                u * u * u * a + 3.0 * u * u * t * b + 3.0 * u * t * t * c + t * t * t * d
+            };
+            out.push(StrokePoint {
+                at: pos2(curve(p1.x, c1.x, c2.x, p2.x), curve(p1.y, c1.y, c2.y, p2.y)),
+                pressure: pair[0].pressure + (pair[1].pressure - pair[0].pressure) * t,
+                toward: Vec2::ZERO,
+                run: 0.0,
+            });
+        }
+    }
+    let mut run = 0.0;
+    for index in 1..out.len() {
+        let step = out[index - 1].at - out[index].at;
+        run += step.length();
+        out[index].toward = unit(step);
+        out[index].run = run;
     }
     out[0].toward = out.get(1).map_or(Vec2::ZERO, |next| next.toward);
     out
 }
 
-fn simulated(before: f32, distance: f32, size: f32) -> f32 {
-    let speed = (distance / (size * 4.0).max(PACE)).min(1.0);
-    let rest = (1.0 - speed).min(1.0);
-    (before + (rest - before) * (speed * PRESSURE_RATE)).min(1.0)
-}
-
-fn outline_of(points: &[StrokePoint], size: f32, simulate: bool, last: bool) -> Vec<Pos2> {
+fn outline(points: &[StrokePoint], size: f32, thinning: f32, last: bool) -> Vec<Pos2> {
     let (Some(first), Some(end)) = (points.first(), points.last()) else {
         return Vec::new();
     };
-    if size <= 0.0 || size.is_nan() {
-        return Vec::new();
-    }
-    let thinning = match simulate {
-        true => SIMULATED_THINNING,
-        false => PRESSED_THINNING,
-    };
     let radius_of = |pressure: f32| size * (0.5 - thinning * (0.5 - pressure));
     let total = end.run;
-    if total < size {
+    if total < size || points.len() == 1 {
         return disc(first.at, radius_of(first.pressure).max(size * 0.25));
     }
     let taper = size * TAPER;
     let least = (size * SMOOTHING).powi(2);
     let mut left: Vec<Pos2> = Vec::new();
     let mut right: Vec<Pos2> = Vec::new();
-    let mut before_pressure = points.iter().take(10).fold(first.pressure, |acc, point| {
-        let pressure = match simulate {
-            true => simulated(acc, point.distance, size),
-            false => point.pressure,
-        };
-        (acc + pressure) / 2.0
-    });
     let mut radius = radius_of(end.pressure);
-    let mut first_radius = None;
     let mut before_toward = first.toward;
     let (mut held_left, mut held_right) = (first.at, first.at);
     let mut sharp_before = false;
     for (index, point) in points.iter().enumerate() {
         let is_last = index == points.len() - 1;
-        if !is_last && total - point.run < 3.0 {
+        if !is_last && total - point.run < size * END_NOISE {
             continue;
         }
-        let pressure = match simulate {
-            true => simulated(before_pressure, point.distance, size),
-            false => point.pressure,
-        };
-        radius = radius_of(pressure);
-        first_radius.get_or_insert(radius);
         let starting = match point.run < taper {
             true => {
                 let t = point.run / taper;
@@ -202,7 +287,7 @@ fn outline_of(points: &[StrokePoint], size: f32, simulate: bool, last: bool) -> 
             }
             false => 1.0,
         };
-        radius = (radius * starting.min(ending)).max(0.01);
+        radius = (radius_of(point.pressure) * starting.min(ending)).max(size * 0.005);
         let next_toward = points
             .get(index + 1)
             .map_or(point.toward, |next| next.toward);
@@ -243,25 +328,18 @@ fn outline_of(points: &[StrokePoint], size: f32, simulate: bool, last: bool) -> 
             right.push(at_right);
             held_right = at_right;
         }
-        before_pressure = pressure;
         before_toward = point.toward;
     }
-    let start = first.at;
-    let finish = match points.len() > 1 {
-        true => end.at,
-        false => first.at + Vec2::splat(1.0),
-    };
-    if points.len() == 1 || left.is_empty() || right.is_empty() {
-        return disc(start, first_radius.unwrap_or(radius).max(size * 0.25));
+    if left.is_empty() || right.is_empty() {
+        return disc(first.at, radius_of(first.pressure).max(size * 0.25));
     }
     let mut end_cap = Vec::new();
     match last {
-        true => end_cap.push(finish),
+        true => end_cap.push(end.at),
         false => {
-            let direction = across(-end.toward);
-            let from = finish + direction * radius;
+            let from = end.at + across(-end.toward) * radius;
             for step in 1..29 {
-                end_cap.push(around(from, finish, HALF_TURN * 3.0 * step as f32 / 29.0));
+                end_cap.push(around(from, end.at, HALF_TURN * 3.0 * step as f32 / 29.0));
             }
         }
     }

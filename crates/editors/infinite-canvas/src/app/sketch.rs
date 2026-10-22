@@ -96,10 +96,8 @@ impl Sketch {
     }
 
     fn freehand(&mut self, points: &[Pos2], pressures: &[f32], width: f32) {
-        let outline = freehand::outline(points, pressures, width.max(0.1), true);
-        if outline.len() > 2 {
-            self.push(Ink::Stroke, Mark::Fill(Path::polygon(outline)));
-        }
+        let outline = freehand::stroke(points, pressures, width.max(0.1), true);
+        self.push(Ink::Stroke, Mark::Fill(outline));
     }
 
     fn push(&mut self, ink: Ink, mark: Mark) {
