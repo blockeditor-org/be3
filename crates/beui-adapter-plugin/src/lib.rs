@@ -127,6 +127,9 @@ impl PluginSurface {
             _ => {}
         }
         self.runner.push(input::translate(region, event));
+        if let Some(at) = input::time(event) {
+            self.runner.push(beui_core::input::Event::Time(at));
+        }
         if self.pressed == 0 && std::mem::take(&mut self.blurred) {
             self.runner.push(beui_core::runner::Input::from(
                 beui_core::input::Event::Focus(false),
@@ -296,6 +299,7 @@ fn frame_for(
         painted: Vec::new(),
         floating: Vec::new(),
         drawing: Vec::new(),
+        every_sample: false,
         claims: Vec::new(),
         window: block_editor_plugin::WindowRequests {
             cursor: window.cursor,

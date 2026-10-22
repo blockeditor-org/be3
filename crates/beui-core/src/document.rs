@@ -103,6 +103,7 @@ pub struct Document {
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub(crate) press_claimants: HashSet<NodeId>,
     pub(crate) drawing_surfaces: HashSet<NodeId>,
+    pub(crate) every_sample_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
@@ -323,6 +324,7 @@ impl Document {
             autoscroll: None,
             press_claimants: HashSet::default(),
             drawing_surfaces: HashSet::default(),
+            every_sample_surfaces: HashSet::default(),
             outside_watchers: HashSet::default(),
             forward: Default::default(),
             pointers: Default::default(),
@@ -1072,6 +1074,7 @@ impl Document {
         self.placed_pass.remove(&id);
         self.press_claimants.remove(&id);
         self.drawing_surfaces.remove(&id);
+        self.every_sample_surfaces.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
         self.reveals.remove(&id);

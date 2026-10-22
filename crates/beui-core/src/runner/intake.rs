@@ -91,8 +91,14 @@ impl Intake {
         if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
             events.push(self.touch(TouchPhase::Cancel));
         }
+        let mut produced = false;
         for incoming in std::mem::take(&mut self.incoming) {
+            if is_time(&incoming) && !produced {
+                continue;
+            }
+            let before = events.len();
             self.input(incoming, drain.pixels_per_point, drain, events);
+            produced = events.len() > before;
         }
     }
 
@@ -269,6 +275,14 @@ impl Intake {
             pos: self.pointer,
             force: None,
         }
+    }
+}
+
+fn is_time(input: &Input) -> bool {
+    match input {
+        Input::Event(Event::Time(_)) => true,
+        Input::Logical(input) => is_time(input),
+        _ => false,
     }
 }
 

@@ -388,7 +388,22 @@ hooks the higher crates fill in:
   `PointerPress::predicted`. A prediction is only good until the next sample
   replaces it, so a component draws it as a transient tail (the canvas's pen
   tool does) and never keeps it; the other platforms report none, and a
-  plugin's host forwards it as `InputEvent::Predicted`. `Input::logical` wraps
+  plugin's host forwards it as `InputEvent::Predicted`. Each sample also has
+  the time it happened: an adapter pushes `Event::Time(Instant)` just after
+  the event it stamps, and the runner gives it to that event's
+  `PointerEvent::time`, the session it moves and the `PointerPress::time` its
+  catchers hear (touch fling velocity is measured with it too). The web
+  adapter reads `timeStamp` from each coalesced `PointerEvent`, Android sends
+  every historical sample of a `MotionEvent` with its own event time, the DRM
+  adapter reads libinput's, and winit, which reports none, stamps an event
+  when it arrives. An event pushed without one, as tests and drive push
+  them, happens at the frame clock's `now`, so a test steps time by stepping
+  frames. An `Interactive` with `every_sample` (a `Prop<bool>`, set while it
+  needs them, as the canvas's pen does for a stroke) asks for every sample
+  where a host would otherwise coalesce them: `Document::wants_every_sample`
+  is true while one is in the document, and a plugin reports it to its host
+  (`FrameReport::every_sample`). Within beui itself every sample always reaches
+  `on_drag`. `Input::logical` wraps
   any of them whose pixels are the window's logical ones (physical pixels
   over the scale it last reported: the browser's CSS pixels), so the runner
   converts them with the same scale the frame lays out at and no adapter

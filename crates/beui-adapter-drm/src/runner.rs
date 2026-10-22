@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use beui::{
     Event, Launch, Modifiers, Pen, PenPhase, Platform, PointerButton, Pos2, ScrollDelta, Setup,
@@ -99,6 +99,7 @@ struct Session {
     displays: Rc<RefCell<Displays>>,
     pacer: Pacer,
     clock: Clock<Monotonic>,
+    sampled: Option<Instant>,
     flips: Flips,
     keyboard: Keyboard,
     repeat: Option<(u32, RegistrationToken)>,
@@ -242,6 +243,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         displays,
         pacer: Pacer::default(),
         clock: Clock::new(),
+        sampled: None,
         flips,
         repeat: None,
         filter_timer: None,
@@ -817,6 +819,13 @@ impl Session {
         self.pacer.ask();
     }
 
+    fn push_sample(&mut self, event: Event) {
+        self.push(event);
+        if let Some(at) = self.sampled {
+            self.push(Event::Time(at));
+        }
+    }
+
     fn physical(&self, pos: Pos2) -> Pos2 {
         let scale = self.displays.borrow().scale;
         beui::pos2(pos.x * scale, pos.y * scale)
@@ -824,7 +833,7 @@ impl Session {
 
     fn point(&mut self, pointer: Pos2) {
         self.place_pointer(pointer);
-        self.push(Event::PointerMoved(self.physical(pointer)));
+        self.push_sample(Event::PointerMoved(self.physical(pointer)));
     }
 
     fn place_pointer(&mut self, pointer: Pos2) {
@@ -936,11 +945,22 @@ impl Session {
             return;
         }
         let now = self.now();
+        let gated = gate_input(&event);
         if let Some((panel, _)) = &mut self.epaper
-            && let Some((input, _)) = gate_input(&event)
+            && let Some((input, _)) = gated
         {
             panel.pace.input(input, now);
         }
+        self.sampled = gated.map(|(_, micros)| {
+            let ago = now.saturating_sub(Duration::from_micros(micros));
+            let instant = Instant::now();
+            instant.checked_sub(ago).unwrap_or(instant)
+        });
+        self.event(event);
+        self.sampled = None;
+    }
+
+    fn event(&mut self, event: InputEvent<LibinputInputBackend>) {
         match event {
             InputEvent::DeviceAdded { mut device } => {
                 configure_device(&mut device, &self.input);
@@ -1069,7 +1089,7 @@ impl Session {
         let (_, rotation) = self.absolute_area();
         let tilt =
             rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
-        self.push(Event::Pen {
+        self.push_sample(Event::Pen {
             phase,
             pos: self.physical(position),
             pressure: event.pressure() as f32,
@@ -1099,7 +1119,7 @@ impl Session {
     ) {
         let finger: i32 = slot.into();
         let pos = self.physical(position);
-        self.push(Event::Touch {
+        self.push_sample(Event::Touch {
             id: TouchId {
                 device: 0,
                 finger: u64::from(finger.max(0).unsigned_abs()),

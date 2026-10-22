@@ -12,6 +12,7 @@ fn clipboard_messages_round_trip() {
         }),
         Message::Input(InputBatch {
             screen: ScreenId(1),
+            every_sample: false,
             events: vec![
                 InputEvent::Paste(Pasted::Text("pasted".into())),
                 InputEvent::Paste(Pasted::Image(PickedFile {

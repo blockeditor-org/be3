@@ -18,6 +18,7 @@ fn accepts_ordered_lifecycle() {
         session
             .receive(Message::Input(InputBatch {
                 screen: ScreenId(3),
+                every_sample: false,
                 events: Vec::new(),
             }))
             .is_empty()

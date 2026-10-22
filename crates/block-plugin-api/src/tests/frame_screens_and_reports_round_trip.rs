@@ -68,6 +68,7 @@ fn frame_screens_and_reports_round_trip() {
             width: 640.0,
             height: 400.0,
         }],
+        every_sample: true,
         claims: vec![PressClaim {
             modifiers: Modifiers {
                 logo: true,

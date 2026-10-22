@@ -41,7 +41,14 @@ impl DragPoint {
     }
 
     pub fn within(self, rect: Rect) -> Self {
-        let press = crate::base::interactive::press_at(rect, self.pos, 0, self.modifiers, false);
+        let press = crate::base::interactive::press_at(
+            rect,
+            self.pos,
+            0,
+            self.modifiers,
+            false,
+            crate::timer::now(),
+        );
         Self {
             local: press.local,
             size: press.size,

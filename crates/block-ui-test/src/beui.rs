@@ -811,14 +811,15 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             inbox.push(message);
         }
-        let events = self.input.normalize(events);
+        self.clock += FRAME_INTERVAL;
+        let events = self.input.normalize(events, self.clock.as_micros() as u64);
         if !events.is_empty() {
             inbox.push(Message::Input(InputBatch {
                 screen: SCREEN,
+                every_sample: false,
                 events,
             }));
         }
-        self.clock += FRAME_INTERVAL;
         inbox.push(Message::DrawFrame {
             now_micros: self.clock.as_micros() as u64,
             seen: true,

@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
@@ -133,6 +133,24 @@ fn push(input: impl Into<Input>) {
 
 fn push_logical(input: impl Into<Input>) {
     push(Input::logical(input));
+}
+
+fn push_sample(input: Event, sample: &web_sys::Event) {
+    push_logical(input);
+    push(Event::Time(happened(sample)));
+}
+
+fn happened(event: &web_sys::Event) -> Instant {
+    let now = Instant::now();
+    let ago = web_sys::window()
+        .and_then(|window| window.performance())
+        .map_or(0.0, |performance| performance.now() - event.time_stamp());
+    match ago.is_finite() && ago > 0.0 {
+        true => now
+            .checked_sub(Duration::from_secs_f64(ago / 1000.0))
+            .unwrap_or(now),
+        false => now,
+    }
 }
 
 fn schedule() {
@@ -723,17 +741,17 @@ fn listen(
                 REFOCUSING.set(false);
             }
             if event.pointer_type() == "touch" {
-                push_logical(touch(&event, TouchPhase::Start, pos));
+                push_sample(touch(&event, TouchPhase::Start, pos), &event);
                 return;
             }
             if event.pointer_type() == "pen" {
                 if let Some(button) = pen_button(event.button()) {
-                    push_logical(pen(&event, PenPhase::Down(button), pos));
+                    push_sample(pen(&event, PenPhase::Down(button), pos), &event);
                 }
                 return;
             }
             if let Some(button) = pointer_button(event.button()) {
-                push_logical(button_event(pos, button, true));
+                push_sample(button_event(pos, button, true), &event);
             }
         }
     })?;
@@ -754,11 +772,12 @@ fn listen(
             }
             for sample in &samples {
                 let pos = within(&bounds, sample);
-                push_logical(match event.pointer_type().as_str() {
+                let moved = match event.pointer_type().as_str() {
                     "touch" => touch(sample, TouchPhase::Move, pos),
                     "pen" => pen(sample, PenPhase::Move, pos),
                     _ => Event::PointerMoved(pos),
-                });
+                };
+                push_sample(moved, sample);
             }
             if event.buttons() != 0
                 && let Some(predicted) = pointer_list(&event, "getPredictedEvents").last()
@@ -785,7 +804,7 @@ fn listen(
                         true => TouchPhase::Cancel,
                         false => TouchPhase::End,
                     };
-                    push_logical(touch(&event, phase, pos));
+                    push_sample(touch(&event, phase, pos), &event);
                     return;
                 }
                 if event.pointer_type() == "pen" {
@@ -794,11 +813,11 @@ fn listen(
                         (false, None) => return,
                         (true, _) => PenPhase::Gone,
                     };
-                    push_logical(pen(&event, phase, pos));
+                    push_sample(pen(&event, phase, pos), &event);
                     return;
                 }
                 if let Some(button) = pointer_button(event.button()) {
-                    push_logical(button_event(pos, button, false));
+                    push_sample(button_event(pos, button, false), &event);
                 }
             }
         })?;

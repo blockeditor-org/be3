@@ -1034,6 +1034,7 @@ impl EditorSession {
                 painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: frame.floating.iter().map(|rect| reported(*rect)).collect(),
                 drawing: frame.drawing.iter().map(|rect| reported(*rect)).collect(),
+                every_sample: frame.every_sample,
                 claims: frame
                     .claims
                     .iter()

@@ -264,23 +264,91 @@ fn coalesce(queue: &mut VecDeque<Message>, incoming: &Message) -> bool {
             true
         }
         (Message::Input(current), Message::Input(incoming))
-            if current.screen == incoming.screen
-                && current.events.len() == 1
-                && incoming.events.len() == 1 =>
+            if current.screen == incoming.screen =>
         {
-            coalesce_input(&mut current.events[0], &incoming.events[0])
+            current.merge(incoming);
+            true
         }
         _ => false,
     }
 }
 
+impl InputBatch {
+    pub fn new(screen: crate::ScreenId, every_sample: bool) -> Self {
+        Self {
+            screen,
+            events: Vec::new(),
+            every_sample,
+        }
+    }
+
+    pub fn merge(&mut self, incoming: &InputBatch) {
+        self.every_sample |= incoming.every_sample;
+        for event in &incoming.events {
+            self.push(event.clone());
+        }
+    }
+
+    pub fn push(&mut self, event: InputEvent) {
+        if let Some(last) = self.events.last_mut()
+            && coalesce_input(last, &event)
+        {
+            return;
+        }
+        if !self.every_sample
+            && let Some(mover) = mover(&event)
+        {
+            self.drop_move_of(mover);
+        }
+        self.events.push(event);
+    }
+
+    fn drop_move_of(&mut self, pointer: Mover) {
+        for index in (0..self.events.len()).rev() {
+            match &self.events[index] {
+                InputEvent::Predicted { .. } => {}
+                event => match mover(event) {
+                    Some(held) if held == pointer => {
+                        self.events.remove(index);
+                        if matches!(self.events.get(index), Some(InputEvent::Predicted { .. })) {
+                            self.events.remove(index);
+                        }
+                        return;
+                    }
+                    Some(_) => {}
+                    None => return,
+                },
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mover {
+    Mouse,
+    Finger(u64, u64),
+    Pen,
+}
+
+fn mover(event: &InputEvent) -> Option<Mover> {
+    match event {
+        InputEvent::PointerMoved { .. } => Some(Mover::Mouse),
+        InputEvent::Touch {
+            device,
+            finger,
+            phase: crate::TouchPhase::Move,
+            ..
+        } => Some(Mover::Finger(*device, *finger)),
+        InputEvent::Pen {
+            phase: crate::PenPhase::Move,
+            ..
+        } => Some(Mover::Pen),
+        _ => None,
+    }
+}
+
 fn coalesce_input(current: &mut InputEvent, incoming: &InputEvent) -> bool {
     match (current, incoming) {
-        (InputEvent::PointerMoved { x, y }, InputEvent::PointerMoved { x: new_x, y: new_y }) => {
-            *x = *new_x;
-            *y = *new_y;
-            true
-        }
         (
             InputEvent::Wheel { x, y, unit },
             InputEvent::Wheel {
@@ -295,42 +363,6 @@ fn coalesce_input(current: &mut InputEvent, incoming: &InputEvent) -> bool {
         }
         (InputEvent::Zoom { factor }, InputEvent::Zoom { factor: incoming }) => {
             *factor *= incoming;
-            true
-        }
-        (
-            InputEvent::Touch {
-                device,
-                finger,
-                phase: crate::TouchPhase::Move,
-                x,
-                y,
-                force,
-            },
-            InputEvent::Touch {
-                device: incoming_device,
-                finger: incoming_finger,
-                phase: crate::TouchPhase::Move,
-                x: incoming_x,
-                y: incoming_y,
-                force: incoming_force,
-            },
-        ) if device == incoming_device && finger == incoming_finger => {
-            *x = *incoming_x;
-            *y = *incoming_y;
-            *force = *incoming_force;
-            true
-        }
-        (
-            current @ InputEvent::Pen {
-                phase: crate::PenPhase::Move,
-                ..
-            },
-            InputEvent::Pen {
-                phase: crate::PenPhase::Move,
-                ..
-            },
-        ) => {
-            *current = incoming.clone();
             true
         }
         (InputEvent::Modifiers(current), InputEvent::Modifiers(incoming))

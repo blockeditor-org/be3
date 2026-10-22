@@ -64,6 +64,7 @@ fn moved(pos: Pos2) -> beui::Forwarded {
             force: None,
             pen: None,
             predicted: None,
+            time: std::time::Instant::now(),
             source: 0,
         },
         over: None,
@@ -136,6 +137,7 @@ mod a_host_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers;
 mod a_listing_the_host_could_not_load_reaches_the_plugin_as_failed;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
+mod a_plugin_hears_every_sample_only_while_it_asks;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;

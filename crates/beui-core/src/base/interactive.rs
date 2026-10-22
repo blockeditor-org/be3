@@ -26,6 +26,7 @@ pub struct InteractiveNode {
     pub touch_drag_axis: Option<Direction>,
     pub claims_touch: bool,
     pub drawing: bool,
+    pub every_sample: bool,
     pub key_active: bool,
     pub armed: bool,
     pub hovered: bool,
@@ -80,6 +81,7 @@ impl InteractiveNode {
             touch_drag_axis: None,
             claims_touch: true,
             drawing: false,
+            every_sample: false,
             key_active: false,
             armed: false,
             hovered: false,
@@ -231,6 +233,7 @@ pub fn press_at(
     clicks: u32,
     modifiers: Modifiers,
     touch: bool,
+    time: std::time::Instant,
 ) -> PointerPress {
     PointerPress {
         pos,
@@ -243,6 +246,7 @@ pub fn press_at(
         pressure: None,
         pen: None,
         predicted: None,
+        time,
     }
 }
 
@@ -487,6 +491,23 @@ impl Document {
             true => self.drawing_surfaces.insert(id.id()),
             false => self.drawing_surfaces.remove(&id.id()),
         };
+    }
+
+    pub fn set_interactive_every_sample(&mut self, id: NodeOf<InteractiveNode>, every: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).every_sample == every {
+            return;
+        }
+        self.arena.get_mut_as::<InteractiveNode>(id).every_sample = every;
+        match every {
+            true => self.every_sample_surfaces.insert(id.id()),
+            false => self.every_sample_surfaces.remove(&id.id()),
+        };
+    }
+
+    pub fn wants_every_sample(&self) -> bool {
+        self.every_sample_surfaces
+            .iter()
+            .any(|id| self.arena.contains(*id))
     }
 
     pub fn drawing_rects(&self) -> Vec<Rect> {

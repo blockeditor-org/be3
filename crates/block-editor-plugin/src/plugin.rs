@@ -109,6 +109,7 @@ pub struct Frame {
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
     pub drawing: Vec<Rect>,
+    pub every_sample: bool,
     pub claims: Vec<Claim>,
     pub window: WindowRequests,
     pub description: Option<block_plugin_api::Description>,

@@ -623,7 +623,10 @@ impl ApplicationHandler for Runner {
             WindowEvent::PointerEntered { .. }
             | WindowEvent::PointerMoved { .. }
             | WindowEvent::PointerLeft { .. }
-            | WindowEvent::PointerButton { .. } => self.pointer_event(event),
+            | WindowEvent::PointerButton { .. } => {
+                self.pointer_event(event);
+                self.push(Event::Time(Instant::now()));
+            }
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 self.push(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),

@@ -51,6 +51,7 @@ pub fn Interactive(
     #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
     #[prop(default = true)] claims_touch: Prop<bool>,
     #[prop(default = false)] drawing: Prop<bool>,
+    #[prop(default = false)] every_sample: Prop<bool>,
     #[prop(default = None)] scroll_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
@@ -204,7 +205,7 @@ pub fn Interactive(
             (capture_presses.get(), repeat_drag.get(), touch_drags.get());
         let pressing = press_focus.get();
         let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
-        let draws = drawing.get();
+        let (draws, every) = (drawing.get(), every_sample.get());
         let (active, inhibits, claimed) = (
             key_active.get(),
             inhibits_shortcuts.get(),
@@ -218,6 +219,7 @@ pub fn Interactive(
             document.set_interactive_touch_drag_axis(interactive, axis);
             document.set_interactive_claims_touch(interactive, claims);
             document.set_interactive_drawing(interactive, draws);
+            document.set_interactive_every_sample(interactive, every);
             document.set_interactive_scroll_axis(interactive, scroll);
             document.set_interactive_key_active(interactive, active);
             document.set_interactive_inhibits_shortcuts(interactive, inhibits);

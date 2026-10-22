@@ -989,6 +989,7 @@ impl Instances {
         };
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events: vec![screen.input.back(gesture)],
         })]
     }
@@ -1015,6 +1016,7 @@ impl Instances {
         }
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events,
         })]
     }
@@ -1040,6 +1042,7 @@ impl Instances {
         }
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
+            every_sample: false,
             events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
         })]
     }
@@ -1091,7 +1094,11 @@ impl Instances {
             true => input.rect.width() / screen.request.metrics.logical_width,
             false => 1.0,
         };
-        let mut messages = screen.input.forward(input, id, zoom);
+        let every_sample = screen
+            .report
+            .as_ref()
+            .is_some_and(|report| report.every_sample);
+        let mut messages = screen.input.forward(input, id, zoom, every_sample);
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));
         let revoked =

@@ -153,6 +153,7 @@ pub struct FrameReport {
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
     pub drawing: Vec<ChildRect>,
+    pub every_sample: bool,
     pub claims: Vec<PressClaim>,
     pub description: Option<Description>,
 }
@@ -2110,6 +2111,7 @@ pub struct Monitor {
 pub struct InputBatch {
     pub screen: ScreenId,
     pub events: Vec<InputEvent>,
+    pub every_sample: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2117,6 +2119,7 @@ pub enum InputEvent {
     PointerMoved {
         x: f32,
         y: f32,
+        time_micros: u64,
     },
     PointerLeft,
     PointerMotion {
@@ -2128,6 +2131,7 @@ pub enum InputEvent {
         pressed: bool,
         x: f32,
         y: f32,
+        time_micros: u64,
     },
     Wheel {
         x: f32,
@@ -2145,6 +2149,7 @@ pub enum InputEvent {
         x: f32,
         y: f32,
         force: Option<f32>,
+        time_micros: u64,
     },
     Key {
         key: Key,
@@ -2174,6 +2179,7 @@ pub enum InputEvent {
         tilt_x: f32,
         tilt_y: f32,
         eraser: bool,
+        time_micros: u64,
     },
     Predicted {
         x: f32,

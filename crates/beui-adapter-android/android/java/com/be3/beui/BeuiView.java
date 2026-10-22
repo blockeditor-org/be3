@@ -120,8 +120,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
                 touch(event, event.getActionIndex(), TOUCH_START);
                 return true;
             case MotionEvent.ACTION_MOVE:
-                for (int index = 0; index < event.getPointerCount(); index++) {
-                    touch(event, index, TOUCH_MOVE);
+                for (int sample = 0; sample <= event.getHistorySize(); sample++) {
+                    for (int index = 0; index < event.getPointerCount(); index++) {
+                        touch(event, index, TOUCH_MOVE, sample);
+                    }
                 }
                 return true;
             case MotionEvent.ACTION_UP:
@@ -139,12 +141,37 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     }
 
     private static void touch(MotionEvent event, int index, int phase) {
+        touch(event, index, phase, event.getHistorySize());
+    }
+
+    private static void touch(MotionEvent event, int index, int phase, int sample) {
         if (isPen(event, index)) {
-            pen(event, index, PEN_PHASES[phase]);
+            pen(event, index, PEN_PHASES[phase], sample);
             return;
         }
-        nativeTouch(event.getDeviceId(), event.getPointerId(index), phase, event.getX(index),
-                event.getY(index), event.getPressure(index));
+        nativeTouch(event.getDeviceId(), event.getPointerId(index), phase,
+                axis(event, MotionEvent.AXIS_X, index, sample),
+                axis(event, MotionEvent.AXIS_Y, index, sample),
+                axis(event, MotionEvent.AXIS_PRESSURE, index, sample), ago(event, sample));
+    }
+
+    private static float axis(MotionEvent event, int axis, int index, int sample) {
+        if (sample < event.getHistorySize()) {
+            return event.getHistoricalAxisValue(axis, index, sample);
+        }
+        return event.getAxisValue(axis, index);
+    }
+
+    private static long ago(MotionEvent event, int sample) {
+        boolean precise = Build.VERSION.SDK_INT >= 34;
+        long at;
+        if (sample < event.getHistorySize()) {
+            at = precise ? event.getHistoricalEventTimeNanos(sample)
+                    : event.getHistoricalEventTime(sample) * 1_000_000L;
+        } else {
+            at = precise ? event.getEventTimeNanos() : event.getEventTime() * 1_000_000L;
+        }
+        return Math.max(0L, System.nanoTime() - at);
     }
 
     private static final int[] PEN_PHASES = {PEN_DOWN, PEN_MOVE, PEN_UP, PEN_GONE};
@@ -155,17 +182,22 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     }
 
     private static void pen(MotionEvent event, int index, int phase) {
-        double tilt = event.getAxisValue(MotionEvent.AXIS_TILT, index);
-        double orientation = event.getAxisValue(MotionEvent.AXIS_ORIENTATION, index);
+        pen(event, index, phase, event.getHistorySize());
+    }
+
+    private static void pen(MotionEvent event, int index, int phase, int sample) {
+        double tilt = axis(event, MotionEvent.AXIS_TILT, index, sample);
+        double orientation = axis(event, MotionEvent.AXIS_ORIENTATION, index, sample);
         float tiltX = (float) Math.toDegrees(Math.atan(Math.sin(-orientation) * Math.tan(tilt)));
         float tiltY = (float) Math.toDegrees(Math.atan(Math.cos(-orientation) * Math.tan(tilt)));
         if (phase == PEN_DOWN) {
             boolean barrel = (event.getButtonState() & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0;
             penButton = barrel ? PEN_BARREL : PEN_TIP;
         }
-        nativePen(phase, penButton, event.getX(index), event.getY(index),
-                event.getPressure(index), tiltX, tiltY,
-                event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER);
+        nativePen(phase, penButton, axis(event, MotionEvent.AXIS_X, index, sample),
+                axis(event, MotionEvent.AXIS_Y, index, sample),
+                axis(event, MotionEvent.AXIS_PRESSURE, index, sample), tiltX, tiltY,
+                event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER, ago(event, sample));
     }
 
     @Override
@@ -174,7 +206,9 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_HOVER_ENTER:
                 case MotionEvent.ACTION_HOVER_MOVE:
-                    pen(event, 0, PEN_MOVE);
+                    for (int sample = 0; sample <= event.getHistorySize(); sample++) {
+                        pen(event, 0, PEN_MOVE, sample);
+                    }
                     return true;
                 case MotionEvent.ACTION_HOVER_EXIT:
                     pen(event, 0, PEN_GONE);
@@ -351,10 +385,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     private static native void nativePreferences(boolean dark, boolean light, boolean reduceMotion);
 
     private static native void nativeTouch(int device, int id, int phase, float x, float y,
-            float pressure);
+            float pressure, long agoNanos);
 
     private static native void nativePen(int phase, int button, float x, float y, float pressure,
-            float tiltX, float tiltY, boolean eraser);
+            float tiltX, float tiltY, boolean eraser, long agoNanos);
 
     private static native void nativeScroll(float x, float y);
 

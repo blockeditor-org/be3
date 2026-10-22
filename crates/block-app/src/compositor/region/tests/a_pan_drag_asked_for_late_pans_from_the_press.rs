@@ -12,6 +12,7 @@ fn mouse(phase: PointerPhase, x: f32, y: f32) -> Forwarded {
             force: None,
             pen: None,
             predicted: None,
+            time: std::time::Instant::now(),
             source: 0,
         },
         over: None,

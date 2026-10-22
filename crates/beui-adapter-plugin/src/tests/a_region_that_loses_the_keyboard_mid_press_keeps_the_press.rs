@@ -32,7 +32,14 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
     );
     surface.update(&shown);
     surface.input(&shown, &InputEvent::Focus(true));
-    surface.input(&shown, &InputEvent::PointerMoved { x: 10.0, y: 10.0 });
+    surface.input(
+        &shown,
+        &InputEvent::PointerMoved {
+            x: 10.0,
+            y: 10.0,
+            time_micros: 0,
+        },
+    );
     surface.input(
         &shown,
         &InputEvent::PointerButton {
@@ -40,11 +47,19 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
             pressed: true,
             x: 10.0,
             y: 10.0,
+            time_micros: 0,
         },
     );
     surface.update(&shown);
     surface.input(&shown, &InputEvent::Focus(false));
-    surface.input(&shown, &InputEvent::PointerMoved { x: 40.0, y: 30.0 });
+    surface.input(
+        &shown,
+        &InputEvent::PointerMoved {
+            x: 40.0,
+            y: 30.0,
+            time_micros: 0,
+        },
+    );
     surface.update(&shown);
     assert!(
         !phases
@@ -63,6 +78,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
             pressed: false,
             x: 40.0,
             y: 30.0,
+            time_micros: 0,
         },
     );
     surface.update(&shown);
@@ -85,6 +101,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
             pressed: true,
             x: 10.0,
             y: 10.0,
+            time_micros: 0,
         },
     );
     surface.input(&shown, &InputEvent::Focus(false));

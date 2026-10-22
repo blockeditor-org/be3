@@ -49,6 +49,7 @@ struct Shown {
     painted: Vec<beui::Rect>,
     floating: Vec<beui::Rect>,
     drawing: Vec<beui::Rect>,
+    every_sample: bool,
     claims: Vec<(beui::Modifiers, beui::Rect)>,
     exit: bool,
 }
@@ -217,6 +218,7 @@ impl<A: BeuiApp> Views<A> {
         shown.painted = vec![rect];
         shown.floating = chrome.document().overlay_rects();
         shown.drawing = chrome.document().drawing_rects();
+        shown.every_sample = chrome.document().wants_every_sample();
         shown.claims = chrome.document().press_claims();
     }
 
@@ -471,6 +473,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         frame.painted = shown.painted.into_iter().map(to_region).collect();
         frame.floating = shown.floating.into_iter().map(to_region).collect();
         frame.drawing = shown.drawing.into_iter().map(to_region).collect();
+        frame.every_sample = shown.every_sample;
         frame.claims = shown
             .claims
             .into_iter()

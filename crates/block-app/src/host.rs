@@ -225,6 +225,14 @@ pub(crate) fn now() -> Duration {
     with(|host| host.now)
 }
 
+pub(crate) fn micros_at(at: Instant) -> u64 {
+    with(|host| match host.started {
+        Some(started) => at.saturating_duration_since(started),
+        None => host.now,
+    })
+    .as_micros() as u64
+}
+
 pub(crate) fn milliseconds() -> u64 {
     now().as_millis() as u64
 }
