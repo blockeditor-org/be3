@@ -23,8 +23,9 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes. It
   pans and zooms by the host's view, drags a shape back and forth, and draws pen strokes, and
   prints each frame's wall time (the whole host round trip, including the test host applying
-  each edit, keeping its undo history and answering the canvas's references query), beui's layout, paint and interaction, and the most
-  nodes one frame measured, placed and painted. For ink it also counts the frames between
+  each edit, keeping its undo history and answering the canvas's references query), beui's
+  layout, paint, interaction and accessibility, and the most nodes one frame measured, placed,
+  painted, described for accessibility and walked for it. For ink it also counts the frames between
   a pen event's delivery and the first frame whose damage covers the pen, which should
   always be 0. `shape()` is the one place it names the canvas model. An editor with an
   `examples/` folder is built for the host as well (`editor()` in buck/wasm/defs.bzl), which
@@ -35,13 +36,13 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 
 | | 100 shapes | 10,000 shapes |
 |---|---|---|
-| open | 26 ms | 1.9 s |
-| pan at scale 1, p50 wall | 0.11 ms | 0.56 ms (layout 0.08 ms) |
-| pan at scale 0.1, p50 wall | 0.29 ms | 27 ms (layout 2.4 ms, paint 2.5 ms) |
-| zoom, p50 wall | 0.25 ms | 3.8 ms (layout 0.56 ms) |
-| drag, p50 wall | 0.27 ms (interaction 0.13 ms) | 0.70 ms (interaction 0.32 ms) |
-| pen move, p50 wall | 0.26 ms (interaction 0.13 ms) | 0.65 ms (interaction 0.25 ms) |
-| pen lift, p50 wall | 0.14 ms | 0.30 ms (interaction 0.17 ms) |
+| open | 22 ms | 2.0 s |
+| pan at scale 1, p50 wall | 0.06 ms | 0.17 ms (layout 0.05 ms) |
+| pan at scale 0.1, p50 wall | 0.10 ms | 4.1 ms (layout 1.4 ms, paint 1.9 ms, accessibility 0.5 ms) |
+| zoom, p50 wall | 0.11 ms | 1.5 ms (layout 0.55 ms, paint 0.53 ms) |
+| drag, p50 wall | 0.17 ms (interaction 0.09 ms) | 0.54 ms (interaction 0.31 ms) |
+| pen move, p50 wall | 0.21 ms (interaction 0.12 ms) | 0.42 ms (interaction 0.22 ms) |
+| pen lift, p50 wall | 0.13 ms | 0.24 ms (interaction 0.13 ms) |
 | frames from pen event to ink | 0 | 0 |
 
 `camera()` centres a world point in the canvas: a view is where the content sits on
@@ -56,11 +57,14 @@ snapshot only every few hundred of them (`Content` folds the operations since it
 when something reads it), and an editor holding edits the host has not acknowledged rebases
 them under a peer's edit by what either touched (`Document::rebase`) instead of rebuilding.
 
-A pan or zoom at scale 0.1 shows several thousand shapes, and what it costs beyond layout
-and paint is accessibility: `Document::refresh_accessibility` visits every shown canvas item
-on each frame the camera moves, and the test host renders its accessibility dump from
-that. Making accessibility follow the camera the way placement does is the next thing to do
-there.
+Accessibility follows the camera the way placement does. Each space a node lays children
+into (a canvas's clipped, unclipped and scaled spaces, a scroll's content) is one
+accessibility node whose transform is the space's translation and scale, and the nodes in it
+are placed in the space's own coordinates, so a pan or scroll changes that one node's
+transform and sends nothing else. A pan at scale 0.1 still walks the canvas's shown items
+(cheaply, from what each held) when items come into view, and describes only those. The test
+host's accessibility dump renders its text and test id rects only when something reads them,
+so the bench reads the canvas's rect once rather than every frame.
 
 A pan, zoom or pen move places and paints only what is in view. A canvas
 finds the items near its view through a grid of world cells, so only what is in view costs

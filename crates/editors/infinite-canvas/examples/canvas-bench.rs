@@ -116,21 +116,27 @@ fn report(name: &str, frames: &[Frame]) {
             .unwrap_or(0)
     };
     println!(
-        "{name:<22} wall p50 {:>8.2?} p90 {:>8.2?} max {:>8.2?}  [layout {:>7.2?} paint {:>7.2?} interact {:>7.2?}]  most measured {:>5} placed {:>5} painted {:>5}",
+        "{name:<22} wall p50 {:>8.2?} p90 {:>8.2?} max {:>8.2?}  [layout {:>7.2?} paint {:>7.2?} interact {:>7.2?} accessibility {:>7.2?}]  most measured {:>5} placed {:>5} painted {:>5} described {:>5} walked {:>5}",
         wall(0.5),
         wall(0.9),
         wall(1.0),
         median(|frame| frame.latest.timings.layout),
         median(|frame| frame.latest.timings.paint),
         median(|frame| frame.latest.timings.interaction),
+        median(|frame| frame.latest.timings.accessibility),
         most(|latest| latest.work.measured),
         most(|latest| latest.work.placed),
         most(|latest| latest.work.painted_nodes),
+        most(|latest| latest.work.described_nodes),
+        most(|latest| latest.work.walked_nodes),
     );
 }
 
-fn camera(test: &mut BeuiTest<CanvasApp>, center: Pos2, scale: f32) {
-    let shown = test.rect_of("infinite-canvas.canvas").center();
+fn shown(test: &BeuiTest<CanvasApp>) -> Pos2 {
+    test.rect_of("infinite-canvas.canvas").center()
+}
+
+fn camera(test: &mut BeuiTest<CanvasApp>, shown: Pos2, center: Pos2, scale: f32) {
     let content = test
         .intrinsic_size()
         .unwrap_or_default()
@@ -144,9 +150,10 @@ fn camera(test: &mut BeuiTest<CanvasApp>, center: Pos2, scale: f32) {
 
 fn pan(count: usize, scale: f32) -> Vec<Frame> {
     let mut test = open(count);
+    let shown = shown(&test);
     let world = world_size(count);
     let start = Pos2::new(world.x * 0.25, world.y * 0.25);
-    camera(&mut test, start, scale);
+    camera(&mut test, shown, start, scale);
     test.run();
     let reach = world * 0.5;
     (0..WARMUP + FRAMES)
@@ -155,6 +162,7 @@ fn pan(count: usize, scale: f32) -> Vec<Frame> {
             let angle = along * std::f32::consts::TAU;
             camera(
                 &mut test,
+                shown,
                 start + Vec2::new(reach.x * along, reach.y * 0.2 * angle.sin()),
                 scale,
             );
@@ -166,16 +174,17 @@ fn pan(count: usize, scale: f32) -> Vec<Frame> {
 
 fn zoom(count: usize) -> Vec<Frame> {
     let mut test = open(count);
+    let shown = shown(&test);
     let world = world_size(count);
     let center = Pos2::new(world.x * 0.5, world.y * 0.5);
     let fit = (test.rect().width() / world.x).min(test.rect().height() / world.y);
-    camera(&mut test, center, fit);
+    camera(&mut test, shown, center, fit);
     test.run();
     (0..WARMUP + FRAMES)
         .map(|index| {
             let along = index as f32 / (WARMUP + FRAMES) as f32;
             let scale = fit * 8.0f32.powf(0.5 - 0.5 * (along * std::f32::consts::TAU).cos());
-            camera(&mut test, center, scale);
+            camera(&mut test, shown, center, scale);
             frame(&mut test, Vec::new())
         })
         .skip(WARMUP)
@@ -218,8 +227,14 @@ struct Ink {
 
 fn ink(count: usize) -> Ink {
     let mut test = open(count);
+    let shown = shown(&test);
     let world = world_size(count);
-    camera(&mut test, Pos2::new(world.x * 0.5, world.y * 0.5), 1.0);
+    camera(
+        &mut test,
+        shown,
+        Pos2::new(world.x * 0.5, world.y * 0.5),
+        1.0,
+    );
     test.run();
     test.click("infinite-canvas.dock.tool.Pen");
     test.run();
@@ -231,7 +246,12 @@ fn ink(count: usize) -> Ink {
         lifts: Vec::new(),
     };
     for stroke in 0..STROKES {
-        camera(&mut test, Pos2::new(world.x * 0.5, world.y * 0.5), 1.0);
+        camera(
+            &mut test,
+            shown,
+            Pos2::new(world.x * 0.5, world.y * 0.5),
+            1.0,
+        );
         test.run();
         test.settle();
         let from = canvas.center() + Vec2::new(-150.0, (stroke as f32 - 4.0) * 25.0);
@@ -272,6 +292,7 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 
 fn drag(count: usize) -> Vec<Frame> {
     let mut test = open(count);
+    let shown = shown(&test);
     let rows = count.div_ceil(COLUMNS);
     let index = rows / 2 * COLUMNS + 48;
     let held = shape(index).transform.center;
@@ -280,7 +301,7 @@ fn drag(count: usize) -> Vec<Frame> {
     let at = |along: f32| from + Vec2::new(200.0 * along, 40.0 * (along * 6.0).sin());
     let mut moves = Vec::new();
     for _ in 0..STROKES {
-        camera(&mut test, Pos2::new(held.x, held.y), 1.0);
+        camera(&mut test, shown, Pos2::new(held.x, held.y), 1.0);
         test.run();
         test.settle();
         for (start, end) in [(0.0, 1.0), (1.0, 0.0)] {
