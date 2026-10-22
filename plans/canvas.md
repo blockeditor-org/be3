@@ -83,8 +83,11 @@ canvas's text area does (`TextAreaState::lay_out_prose`), and turn a text
 shape, and the label of a box shape, by its rotation as the canvas does
 (`text::text_turn`; the canvas draws it upright only while it is edited,
 since beui's `Turn` does not turn pointer input). A freehand stroke is filled as a perfect-freehand outline
-(`freehand.rs`) that follows its pressures, or simulates them from speed when
-it has none; the stroke being drawn uses the same outline. Its streamlined
+(`freehand.rs`) that follows its pressures; a mouse or finger stroke gets
+them when it is drawn, from `freehand::Ink`, which reads the pointer's speed in
+screen points per millisecond from each sample's timestamp, so they do not
+depend on the sample rate, the frame rate or the zoom, and are stored like a
+pen's. The stroke being drawn uses the same outline. Its streamlined
 points are joined by a centripetal Catmull-Rom spline and the outline is drawn
 as quadratic curves through the midpoints of its points, so sparse samples
 still draw a smooth curve. Every length in it is a multiple of the stroke

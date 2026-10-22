@@ -1,4 +1,7 @@
 use super::*;
+use crate::freehand::Ink;
+use block_editor_beui::beui::{Pos2, pos2};
+use std::time::{Duration, Instant};
 
 fn stroke(
     id: u128,
@@ -26,7 +29,20 @@ fn freehand_is_drawn_as_an_outline_that_follows_pressure() {
         |t| Some(0.1 + 0.9 * (t * std::f32::consts::PI).sin()),
         |t| t,
     );
-    let sped_up = stroke(2, 0.0, |_| None, |t| t * t);
+    let mut sped_up = stroke(2, 0.0, |_| None, |t| t * t);
+    let drawn: Vec<Pos2> = sped_up
+        .world_points()
+        .iter()
+        .map(|point| pos2(point.at().x, point.at().y))
+        .collect();
+    let origin = Instant::now();
+    let mut ink = Ink::new(drawn[0], origin);
+    sped_up.pressures =
+        std::iter::once(ink.pressure())
+            .chain(drawn.iter().enumerate().skip(1).map(|(frame, at)| {
+                ink.sample(*at, origin + Duration::from_millis(16 * frame as u64))
+            }))
+            .collect();
     let corners = [
         CanvasPoint::new(-200.0, 100.0),
         CanvasPoint::new(-100.0, 180.0),

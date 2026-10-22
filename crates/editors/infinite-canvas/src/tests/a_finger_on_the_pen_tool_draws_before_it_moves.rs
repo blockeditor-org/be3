@@ -19,7 +19,7 @@ fn a_finger_on_the_pen_tool_draws_before_it_moves() {
     assert_eq!(entities[0].shape, CanvasShape::Freehand);
     assert_eq!(
         (entities[0].points.len(), entities[0].pressures.len()),
-        (1, 0),
+        (1, 1),
         "a tap is kept as a dot"
     );
 }

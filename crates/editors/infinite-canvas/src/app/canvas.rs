@@ -143,6 +143,11 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
     let cursor = create_memo(move || state.cursor());
     let interactive = !state.previewing();
     let surface = state.surface();
+    let inking = create_memo(move || {
+        state
+            .gesture
+            .with(|gesture| matches!(gesture, Some(Gesture::Pen { .. })))
+    });
     view! {
         <Interactive
             @node_ref=&surface
@@ -154,6 +159,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             cursor={cursor}
             touch_drags={interactive}
             drawing={interactive}
+            every_sample={inking}
             on_cancel={move || state.cancel()}
             on_press={move |press: PointerPress| state.press(press)}
             on_secondary_press={move |press: PointerPress| state.secondary_press(press)}

@@ -204,6 +204,7 @@ pub(crate) enum Gesture {
         points: Vec<CanvasPoint>,
         pressures: Vec<f32>,
         predicted: Option<CanvasPoint>,
+        ink: Option<crate::freehand::Ink>,
     },
     SelectBox {
         start: CanvasPoint,

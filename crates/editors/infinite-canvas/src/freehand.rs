@@ -1,16 +1,18 @@
 use std::f32::consts::PI;
+use std::time::Instant;
 
 use block_editor_beui::beui::{Path, Pos2, Vec2, pos2};
 
-const PRESSURE_RATE: f32 = 0.275;
 const HALF_TURN: f32 = PI + 0.0001;
-const SIMULATED_PRESSURE: f32 = 0.5;
-const PRESSED_THINNING: f32 = 0.75;
+const RESTING_PRESSURE: f32 = 0.5;
+const THINNING: f32 = 0.75;
 const SIMULATED_THINNING: f32 = 0.5;
+const FAST: f32 = 1.0;
+const SPEED_LAG: f32 = 24.0;
+const PRESSURE_LAG: f32 = 52.0;
 const SMOOTHING: f32 = 0.5;
 const STREAMLINE: f32 = 0.5;
 const TAPER: f32 = 3.0;
-const PACE: f32 = 4.0;
 const TAPER_STRIDE: f32 = 0.5;
 const FLATNESS: f32 = 0.02;
 const MOST_STEPS: usize = 64;
@@ -25,17 +27,55 @@ struct StrokePoint {
     run: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Ink {
+    at: Pos2,
+    time: Instant,
+    speed: f32,
+    pressure: f32,
+}
+
+impl Ink {
+    pub(crate) fn new(at: Pos2, time: Instant) -> Self {
+        Self {
+            at,
+            time,
+            speed: 0.0,
+            pressure: RESTING_PRESSURE,
+        }
+    }
+
+    pub(crate) fn pressure(&self) -> f32 {
+        RESTING_PRESSURE + (self.pressure - RESTING_PRESSURE) * SIMULATED_THINNING / THINNING
+    }
+
+    pub(crate) fn sample(&mut self, at: Pos2, time: Instant) -> f32 {
+        let elapsed = time.saturating_duration_since(self.time).as_secs_f32() * 1000.0;
+        if elapsed <= 0.0 {
+            return self.pressure();
+        }
+        let measured = (at - self.at).length() / elapsed;
+        let before = self.speed;
+        self.speed += (measured - before) * (1.0 - (-elapsed / SPEED_LAG).exp());
+        let speed = ((before + self.speed) / 2.0 / FAST).min(1.0);
+        let rate = 1.0 - (-elapsed * speed / PRESSURE_LAG).exp();
+        self.pressure += (1.0 - speed - self.pressure) * rate;
+        self.at = at;
+        self.time = time;
+        self.pressure()
+    }
+}
+
 pub(crate) fn stroke(points: &[Pos2], pressures: &[f32], size: f32, last: bool) -> Path {
     if size <= 0.0 || size.is_nan() {
         return Path::new();
     }
-    let simulate = pressures.is_empty();
     let pressure_at = |at: usize| {
         pressures
             .get(at)
             .or(pressures.last())
             .copied()
-            .unwrap_or(SIMULATED_PRESSURE)
+            .unwrap_or(RESTING_PRESSURE)
             .clamp(0.0, 1.0)
     };
     let raw: Vec<(Pos2, f32)> = points
@@ -43,12 +83,8 @@ pub(crate) fn stroke(points: &[Pos2], pressures: &[f32], size: f32, last: bool) 
         .enumerate()
         .map(|(at, point)| (*point, pressure_at(at)))
         .collect();
-    let points = splined(&streamlined(raw, size, last, simulate), size);
-    let thinning = match simulate {
-        true => SIMULATED_THINNING,
-        false => PRESSED_THINNING,
-    };
-    smooth_closed(&outline(&points, size, thinning, last))
+    let points = splined(&streamlined(raw, size, last), size);
+    smooth_closed(&outline(&points, size, THINNING, last))
 }
 
 fn smooth_closed(outline: &[Pos2]) -> Path {
@@ -117,22 +153,11 @@ fn around(point: Pos2, center: Pos2, angle: f32) -> Pos2 {
     )
 }
 
-fn simulated(before: f32, distance: f32, size: f32) -> f32 {
-    let speed = (distance / (size * PACE)).min(1.0);
-    let rest = 1.0 - speed;
-    (before + (rest - before) * (speed * PRESSURE_RATE)).min(1.0)
-}
-
-fn streamlined(
-    mut raw: Vec<(Pos2, f32)>,
-    size: f32,
-    last: bool,
-    simulate: bool,
-) -> Vec<StrokePoint> {
+fn streamlined(mut raw: Vec<(Pos2, f32)>, size: f32, last: bool) -> Vec<StrokePoint> {
     let Some(&(first, first_pressure)) = raw.first() else {
         return Vec::new();
     };
-    let follow = 0.15 + (1.0 - STREAMLINE) * 0.85;
+    let lag = 1.0 - (0.15 + (1.0 - STREAMLINE) * 0.85);
     if let [_, (end, pressure)] = raw[..] {
         raw.truncate(1);
         for step in 1..5 {
@@ -143,7 +168,7 @@ fn streamlined(
             ));
         }
     }
-    let mut out = vec![(first, first_pressure, 0.0)];
+    let mut out = vec![(first, first_pressure)];
     let mut long_enough = false;
     let mut run = 0.0;
     let end = raw.len() - 1;
@@ -151,7 +176,7 @@ fn streamlined(
         let before = out[out.len() - 1].0;
         let at = match last && index == end {
             true => point,
-            false => before + (point - before) * follow,
+            false => before + (point - before) * (1.0 - lag.powf((point - before).length() / size)),
         };
         if at == before {
             continue;
@@ -164,19 +189,10 @@ fn streamlined(
             }
             long_enough = true;
         }
-        out.push((at, pressure, distance));
-    }
-    if simulate {
-        let mut pressure = out.iter().take(10).fold(first_pressure, |acc, point| {
-            (acc + simulated(acc, point.2, size)) / 2.0
-        });
-        for point in &mut out {
-            pressure = simulated(pressure, point.2, size);
-            point.1 = pressure;
-        }
+        out.push((at, pressure));
     }
     out.into_iter()
-        .map(|(at, pressure, _)| StrokePoint {
+        .map(|(at, pressure)| StrokePoint {
             at,
             pressure,
             toward: Vec2::ZERO,

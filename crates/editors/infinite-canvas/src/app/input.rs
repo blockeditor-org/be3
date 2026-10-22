@@ -5,6 +5,7 @@ use block_editor_beui::beui::{CursorIcon, Key, KeyPress, Modifiers, PointerPress
 use block_editor_beui::reactive::{Get, untrack};
 use uuid::Uuid;
 
+use crate::freehand::Ink;
 use crate::geometry::*;
 
 use super::state::{CanvasCommand, CanvasState, Gesture, TextEntry, Tool};
@@ -125,12 +126,16 @@ impl CanvasState {
                     detached: press.modifiers.ctrl,
                 }));
             }
-            Tool::Pen => self.begin_gesture(Some(Gesture::Pen {
-                id: Uuid::new_v4(),
-                points: vec![world],
-                pressures: pen_pressure(press).into_iter().collect(),
-                predicted: None,
-            })),
+            Tool::Pen => {
+                let ink = press.pen.is_none().then(|| Ink::new(press.pos, press.time));
+                self.begin_gesture(Some(Gesture::Pen {
+                    id: Uuid::new_v4(),
+                    points: vec![world],
+                    pressures: vec![ink.map_or_else(|| pen_pressure(press), |ink| ink.pressure())],
+                    predicted: None,
+                    ink,
+                }));
+            }
             Tool::Eraser => self.begin_erasing(world),
         }
     }
@@ -455,17 +460,20 @@ impl CanvasState {
                 points,
                 pressures,
                 predicted: tail,
+                ink,
                 ..
             } => {
                 *tail = predicted;
+                let pressure = match ink {
+                    Some(ink) => ink.sample(press.pos, press.time),
+                    None => pen_pressure(press),
+                };
                 if points
                     .last()
                     .is_none_or(|last| distance(*last, world) > pen_step)
                 {
                     points.push(world);
-                    if !pressures.is_empty() {
-                        pressures.push(pen_pressure(press).unwrap_or(PEN_PRESSURE));
-                    }
+                    pressures.push(pressure);
                 }
             }
         });
@@ -598,7 +606,6 @@ fn selection_frame_of(state: &CanvasState) -> Option<SelectionFrame> {
     )
 }
 
-fn pen_pressure(press: PointerPress) -> Option<f32> {
-    press.pen?;
-    Some(press.pressure.unwrap_or(PEN_PRESSURE).clamp(0.0, 1.0))
+fn pen_pressure(press: PointerPress) -> f32 {
+    press.pressure.unwrap_or(PEN_PRESSURE).clamp(0.0, 1.0)
 }
