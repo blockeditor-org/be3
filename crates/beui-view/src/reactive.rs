@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-pub use beui_core::base::frame::{Align2, Extent, Outline, Shadow, Sides};
+pub use beui_core::base::frame::{Align2, Extent, Outline, Sides};
 pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 pub use beui_core::painter::Corners;
 pub use beui_core::tree::{

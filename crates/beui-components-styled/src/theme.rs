@@ -40,7 +40,7 @@ pub struct Theme {
     pub knob: Color32,
     pub control_outline: Option<Color32>,
     pub knob_outline: Option<Color32>,
-    pub shadow: Color32,
+    pub dim: Color32,
     pub scrim: Color32,
     pub scrim_soft: Color32,
     pub scrim_strong: Color32,
@@ -87,7 +87,7 @@ impl Theme {
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
         knob_outline: None,
-        shadow: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
+        dim: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
@@ -124,7 +124,7 @@ impl Theme {
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
         knob_outline: None,
-        shadow: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
+        dim: Color32::from_rgba_unmultiplied(0, 0, 0, 96),
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
@@ -161,7 +161,7 @@ impl Theme {
         knob: Color32::WHITE,
         control_outline: None,
         knob_outline: Some(Color32::from_rgb(190, 197, 210)),
-        shadow: Color32::from_rgba_unmultiplied(16, 24, 40, 40),
+        dim: Color32::from_rgba_unmultiplied(16, 24, 40, 40),
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
@@ -198,7 +198,7 @@ impl Theme {
         knob: Color32::WHITE,
         control_outline: Some(Color32::BLACK),
         knob_outline: Some(Color32::BLACK),
-        shadow: Color32::TRANSPARENT,
+        dim: Color32::TRANSPARENT,
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
@@ -324,8 +324,6 @@ pub const NARROW_WIDTH: f32 = 700.0;
 pub const BORDER_WIDTH: f32 = 1.0;
 pub const FOCUS_RING_WIDTH: f32 = 2.0;
 pub const SEPARATOR_THICKNESS: f32 = 1.0;
-pub const FLOATING_SHADOW_SPREAD: f32 = 12.0;
-pub const FLOATING_SHADOW_DROP: f32 = 3.0;
 pub const POINTER_REACH: f32 = 10.0;
 pub const SCROLLBAR_TRACK_WIDTH: f32 = 6.0;
 pub const SCROLLBAR_INSET: f32 = 2.0;

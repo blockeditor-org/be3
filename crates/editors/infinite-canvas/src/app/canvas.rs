@@ -71,7 +71,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let theme = use_theme();
             let outside_frames = create_memo(move || {
                 match !previewing && frames.with(|frames| !frames.is_empty()) {
-                    true => ColorRole::Custom(theme.shadow.get()),
+                    true => ColorRole::Custom(theme.dim.get()),
                     false => ColorRole::None,
                 }
             });
