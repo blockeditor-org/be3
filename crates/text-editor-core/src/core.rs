@@ -1855,9 +1855,7 @@ impl Core {
                 return;
             }
         }
-        if drag.selection_mode
-            == DragSelectionMode::select(CursorLeftRightStop::Word)
-        {
+        if drag.selection_mode == DragSelectionMode::select(CursorLeftRightStop::Word) {
             let stops = self.cursor_stops();
             let (anchor_start, anchor_end) = word_around(document.bytes(), anchor, stops);
             let (focus_start, focus_end) = word_around(document.bytes(), focus, stops);

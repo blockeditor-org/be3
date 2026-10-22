@@ -4,9 +4,9 @@ mod accessibility;
 mod clipboard;
 mod file_picker;
 mod preferences;
-mod wheel;
 #[cfg(test)]
 mod tests;
+mod wheel;
 
 pub use winit;
 

@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::time::Duration;
 
-use beui::primitives::*;
 use beui::reactive::*;
 use beui::styled;
+use beui::styled::*;
 use beui::unstyled::Scroll;
 use beui_core::document::Document;
 use block_editor_plugin::WheelUnit;
@@ -88,12 +88,20 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
     for _ in 0..30 {
         frame(&mut surface, &[]);
     }
-    assert_eq!(overscroll(), stretched, "the list stays stretched while the fingers rest");
+    assert_eq!(
+        overscroll(),
+        stretched,
+        "the list stays stretched while the fingers rest"
+    );
 
     frame(&mut surface, &[InputEvent::WheelEnded]);
     for _ in 0..120 {
         frame(&mut surface, &[]);
     }
-    assert_eq!(overscroll(), 0.0, "lifting the fingers springs the band back");
+    assert_eq!(
+        overscroll(),
+        0.0,
+        "lifting the fingers springs the band back"
+    );
     assert_eq!(document.borrow().scroll_offset(scroll), 0.0);
 }
