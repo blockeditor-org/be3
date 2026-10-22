@@ -770,6 +770,8 @@ pub(crate) fn camera_view(
     )
 }
 
+const FIT_MARGIN: f32 = 20.0;
+
 const FITTED_ROOM: Vec2 = Vec2::new(640.0, 480.0);
 
 fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> {
@@ -2753,17 +2755,16 @@ impl CanvasState {
     }
 
     fn fit_into_view_within(&self, bounds: WorldRect, max_scale: f32) {
+        let Some(view) = self.editor.canvas().get_untracked() else {
+            return;
+        };
+        let shown = self.camera().rect_to_screen(bounds.rect());
         let stage = self.cells.value().stage.get();
-        let available = (stage.size() - Vec2::splat(40.0)).max(Vec2::splat(1.0));
-        let target = bounds.rect();
-        let scale = self.scale();
-        let fitted = (available.x / target.width().max(f32::EPSILON))
-            .min(available.y / target.height().max(f32::EPSILON))
-            .min(max_scale);
-        let factor = fitted / scale;
-        let anchor = self.camera().to_screen(target.center());
-        self.editor.zoom_at(factor, anchor);
-        self.editor.pan(stage.center() - anchor);
+        self.editor.fit(
+            view.rect_to_canvas(shown),
+            stage.expand(-FIT_MARGIN),
+            max_scale,
+        );
     }
 
     fn autosize_direct_editors(&self) {

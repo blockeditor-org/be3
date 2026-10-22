@@ -76,6 +76,7 @@ mod enter_on_a_selected_shape_edits_its_label;
 mod every_shape_is_drawn_in_the_clean_look;
 mod every_shape_is_drawn_in_the_hand_drawn_look;
 mod every_transform_field_previews_what_is_typed;
+mod fit_all_holds_when_the_window_resizes;
 mod fit_all_on_an_empty_canvas_returns_to_the_default_view;
 mod fit_all_without_frames_zooms_to_everything;
 mod fit_all_zooms_to_the_first_frame;
