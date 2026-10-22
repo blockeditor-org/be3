@@ -138,7 +138,8 @@ pub fn use_keyboard() -> ReadSignal<bool> {
 pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     let focused = focused.into_prop();
     let visible = with_document(|document| document.watch_focus_visible());
-    create_memo(move || focused.get() && visible.get())
+    let keyboard = with_document(|document| document.watch_keyboard());
+    create_memo(move || focused.get() && visible.get() && keyboard.get())
 }
 
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {
