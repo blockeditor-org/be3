@@ -287,7 +287,7 @@ fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page
     let mut shapes = vec![PageShape::Rect {
         rect: Rect::from_min_size(Pos2::ZERO, size),
         corner_radius: 0.0,
-        color: theme.surface,
+        color: theme.background,
     }];
     let push_text = |origin: Pos2, string: &str, color: Color32| {
         layout_text(string, font, TextLayout::DEFAULT).map(|galley| PageShape::Text {
