@@ -522,7 +522,9 @@ fn Scrolling(
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     let overflows = create_memo(move || position.get().max_offset() > 0.0);
-    component_accessibility(create_memo(move || scroll_view(reported.get())));
+    component_accessibility(create_memo(move || {
+        scroll_view(reported.get(), direction.get())
+    }));
 
     let near = create_signal(false);
     let engaged = create_signal(false);
@@ -775,15 +777,27 @@ pub fn scroll_animating(document: &Document, scroll: NodeId) -> bool {
         .with(|motion| motion.momentum.borrow().moving())
 }
 
-fn scroll_view(position: Option<ScrollPosition>) -> Node {
+fn scroll_view(position: Option<ScrollPosition>, direction: Direction) -> Node {
     let mut node = Node::new(Role::ScrollView);
     if let Some(position) = position {
-        node.set_scroll_y(position.offset.into());
-        node.set_scroll_y_min(0.0);
-        node.set_scroll_y_max(position.max_offset().into());
+        let (offset, max) = (position.offset.into(), position.max_offset().into());
+        match direction {
+            Direction::Horizontal => {
+                node.set_scroll_x(offset);
+                node.set_scroll_x_min(0.0);
+                node.set_scroll_x_max(max);
+                node.add_action(Action::ScrollLeft);
+                node.add_action(Action::ScrollRight);
+            }
+            Direction::Vertical => {
+                node.set_scroll_y(offset);
+                node.set_scroll_y_min(0.0);
+                node.set_scroll_y_max(max);
+                node.add_action(Action::ScrollUp);
+                node.add_action(Action::ScrollDown);
+            }
+        }
         node.add_action(Action::Focus);
-        node.add_action(Action::ScrollUp);
-        node.add_action(Action::ScrollDown);
         node.add_action(Action::SetScrollOffset);
     }
     node

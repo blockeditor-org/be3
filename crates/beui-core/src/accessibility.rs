@@ -7,6 +7,8 @@ use accesskit::{
 };
 
 use crate::base::focus::focus_of;
+use crate::base::list::Direction;
+use crate::base::offset::OffsetNode;
 use crate::base::overlay::OverlayNode;
 
 pub const LAYER_CLASS: &str = "beui-layer";
@@ -587,16 +589,34 @@ impl Document {
                 }
                 _ => {}
             },
-            Action::ScrollUp | Action::ScrollDown | Action::SetScrollOffset => {
+            Action::ScrollUp
+            | Action::ScrollDown
+            | Action::ScrollLeft
+            | Action::ScrollRight
+            | Action::SetScrollOffset => {
                 if let Some(scroll) = self.first_offset_within(target)
                     && let Some(position) = self.offset_position(scroll)
                 {
-                    let offset = match (request.action, request.data) {
-                        (Action::ScrollUp, _) => position.offset - position.viewport,
-                        (Action::ScrollDown, _) => position.offset + position.viewport,
-                        (Action::SetScrollOffset, Some(ActionData::SetScrollOffset(point))) => {
-                            point.y as f32
+                    let direction = self.arena.get_as::<OffsetNode>(scroll).direction;
+                    let offset = match (request.action, request.data, direction) {
+                        (Action::ScrollUp, _, Direction::Vertical)
+                        | (Action::ScrollLeft, _, Direction::Horizontal) => {
+                            position.offset - position.viewport
                         }
+                        (Action::ScrollDown, _, Direction::Vertical)
+                        | (Action::ScrollRight, _, Direction::Horizontal) => {
+                            position.offset + position.viewport
+                        }
+                        (
+                            Action::SetScrollOffset,
+                            Some(ActionData::SetScrollOffset(point)),
+                            Direction::Vertical,
+                        ) => point.y as f32,
+                        (
+                            Action::SetScrollOffset,
+                            Some(ActionData::SetScrollOffset(point)),
+                            Direction::Horizontal,
+                        ) => point.x as f32,
                         _ => position.offset,
                     };
                     self.set_offset_value(scroll, offset.clamp(0.0, position.max_offset()));

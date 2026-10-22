@@ -42,7 +42,7 @@ struct Item {
     phrase: String,
     control: bool,
     adjustable: bool,
-    scrollable: bool,
+    scrolls: Option<(Action, Action)>,
 }
 
 struct Finger {
@@ -244,8 +244,8 @@ impl ScreenReader {
             Command::Activate => self.act(ctx, Action::Click),
             Command::Increment => self.adjust(ctx, Action::Increment),
             Command::Decrement => self.adjust(ctx, Action::Decrement),
-            Command::ScrollUp => self.scroll(ctx, Action::ScrollUp),
-            Command::ScrollDown => self.scroll(ctx, Action::ScrollDown),
+            Command::ScrollUp => self.scroll(ctx, false),
+            Command::ScrollDown => self.scroll(ctx, true),
             Command::Repeat => {
                 if let Some(phrase) = self.current().map(|item| item.phrase.clone()) {
                     self.say(phrase);
@@ -318,20 +318,20 @@ impl ScreenReader {
         request(ctx, action, item.access);
     }
 
-    fn scroll(&mut self, ctx: &Context, action: Action) {
+    fn scroll(&mut self, ctx: &Context, forwards: bool) {
         let Some(index) = self.index() else {
             return;
         };
         let rect = self.items[index].rect;
-        let target = (0..=index)
-            .rev()
-            .find(|candidate| {
-                let item = &self.items[*candidate];
-                item.scrollable && (*candidate == index || item.rect.intersects(rect))
-            })
-            .map(|candidate| self.items[candidate].access);
+        let target = (0..=index).rev().find_map(|candidate| {
+            let item = &self.items[candidate];
+            let (back, forth) = item
+                .scrolls
+                .filter(|_| candidate == index || item.rect.intersects(rect))?;
+            Some((if forwards { forth } else { back }, item.access))
+        });
         match target {
-            Some(access) => request(ctx, action, access),
+            Some((action, access)) => request(ctx, action, access),
             None => self.say("Nothing to scroll here".to_owned()),
         }
     }
@@ -633,9 +633,9 @@ fn item(
     control: bool,
     inside: bool,
 ) -> Option<Item> {
-    let scrollable = speech::scrollable(node);
+    let scrolls = speech::scrolls(node);
     let named = speech::own_name(node).is_some();
-    if !control && !scrollable && (inside || !named) {
+    if !control && scrolls.is_none() && (inside || !named) {
         return None;
     }
     let local = target.local_node_id(access)?;
@@ -645,6 +645,6 @@ fn item(
         phrase: speech::phrase(nodes, node, control),
         control,
         adjustable: speech::adjustable(node),
-        scrollable,
+        scrolls,
     })
 }
