@@ -58,8 +58,9 @@ Touch:
   tap TARGET [FINGER]
   swipe FROM TO [FINGER]
   pinch TARGET FACTOR       two fingers spreading (FACTOR > 1) or closing around TARGET
-  touch down|move|up [FINGER=]TARGET...   fingers 0, 1, ... step by step, all in one frame
-  touch up                  lift every finger
+  touch down|move|up|cancel [FINGER=]TARGET...   fingers 0, 1, ... step by step, all in one
+                            frame; cancel is the system taking a finger back, as for a gesture
+  touch up / touch cancel   lift or cancel every finger
 Pen:
   pen move TARGET [PRESSURE]   the pen hovers over TARGET, or moves there pressed down with PRESSURE
   pen down TARGET [PRESSURE]   the tip touches TARGET, PRESSURE from 0 to 1 (0.5)
@@ -946,11 +947,15 @@ impl Automation {
                     "down" => TouchPhase::Start,
                     "move" => TouchPhase::Move,
                     "up" => TouchPhase::End,
-                    other => return Err(format!("touch takes down, move or up, not {other}")),
+                    "cancel" => TouchPhase::Cancel,
+                    other => {
+                        return Err(format!("touch takes down, move, up or cancel, not {other}"));
+                    }
                 };
                 let mut events = Vec::new();
+                let lifting = matches!(phase, TouchPhase::End | TouchPhase::Cancel);
                 if arguments.len() == 1 {
-                    if phase != TouchPhase::End {
+                    if !lifting {
                         return Err("touch down and touch move need a TARGET".to_owned());
                     }
                     for (finger, pos) in std::mem::take(&mut self.fingers) {
@@ -962,7 +967,7 @@ impl Automation {
                     let held = self.fingers.iter().position(|(held, _)| *held == finger);
                     let pos = match (target, held) {
                         (Some(target), _) => at(target)?,
-                        (None, Some(index)) if phase == TouchPhase::End => self.fingers[index].1,
+                        (None, Some(index)) if lifting => self.fingers[index].1,
                         (None, _) => return Err(format!("{spec} names no TARGET")),
                     };
                     match (phase, held) {
@@ -971,7 +976,7 @@ impl Automation {
                         }
                         (TouchPhase::Start, None) => self.fingers.push((finger, pos)),
                         (_, None) => return Err(format!("finger {finger} is not down")),
-                        (TouchPhase::End, Some(index)) => {
+                        (_, Some(index)) if lifting => {
                             self.fingers.remove(index);
                         }
                         (_, Some(index)) => self.fingers[index].1 = pos,

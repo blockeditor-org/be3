@@ -155,7 +155,8 @@ A command that acts on something takes a TARGET:
                                               set VALUE, expand, scroll-down, ...
 
 `touch` names each finger (`0=TARGET`, `1=TARGET`) so several move in one frame, which is how
-to make a pinch of your own; `touch up` with no finger lifts them all. `keydown` on a key that
+to make a pinch of your own; `touch up` with no finger lifts them all, and `touch cancel` takes
+them back the way the system does when it claims a gesture. `keydown` on a key that
 is already down repeats it. `a11y TARGET` with no action prints the node a screen reader would
 act on and the actions it offers; acting goes through the accessibility tree rather than the
 pointer or keys, the path a screen reader takes, and reaches plugins' nodes too.
