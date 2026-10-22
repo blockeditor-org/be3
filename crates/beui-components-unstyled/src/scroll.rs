@@ -300,10 +300,27 @@ impl Motion {
         }
         let wheel = self.axis().main(gesture.delta);
         let fling = self.axis().main(gesture.fling);
-        let Some(position) = self.placed().filter(|_| wheel != 0.0 || fling != 0.0) else {
+        let Some(mut position) = self.placed() else {
             return;
         };
         let mut momentum = self.momentum.borrow_mut();
+        if gesture.held && rubber_banding() {
+            if momentum.drag.is_none() {
+                momentum.grab(&position);
+            }
+            momentum.drag(&mut position, wheel, true);
+            self.publish(&momentum, position.offset);
+            return;
+        }
+        if momentum.drag.is_some() && !momentum.dragging {
+            momentum.release(-fling);
+            self.publish(&momentum, position.offset);
+            self.animate(&mut momentum);
+            return;
+        }
+        if wheel == 0.0 && fling == 0.0 {
+            return;
+        }
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);

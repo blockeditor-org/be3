@@ -9,6 +9,7 @@ const MOMENTUM_GAP: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum Wheeled {
+    StartAndScroll,
     Scroll,
     ScrollAndEnd,
     Ignore,
@@ -46,7 +47,7 @@ impl Wheel {
             }
             (TouchPhase::Started, _) => {
                 self.state = State::Scrolling;
-                Wheeled::Scroll
+                Wheeled::StartAndScroll
             }
             (TouchPhase::Moved, State::Coasting) => Wheeled::Ignore,
             (TouchPhase::Moved, _) => Wheeled::Scroll,

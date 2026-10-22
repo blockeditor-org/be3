@@ -17,7 +17,7 @@ fn a_lifted_trackpad_scroll_ends_and_the_systems_momentum_after_it_is_dropped() 
     assert_eq!(
         lifted,
         [
-            Wheeled::Scroll,
+            Wheeled::StartAndScroll,
             Wheeled::Scroll,
             Wheeled::Scroll,
             Wheeled::ScrollAndEnd
@@ -52,7 +52,11 @@ fn a_lifted_trackpad_scroll_ends_and_the_systems_momentum_after_it_is_dropped() 
     );
     assert_eq!(
         again,
-        [Wheeled::Scroll, Wheeled::Scroll, Wheeled::ScrollAndEnd],
+        [
+            Wheeled::StartAndScroll,
+            Wheeled::Scroll,
+            Wheeled::ScrollAndEnd
+        ],
         "the next scroll after the momentum is the fingers again"
     );
 }

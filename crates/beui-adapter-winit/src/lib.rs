@@ -636,6 +636,9 @@ impl ApplicationHandler for Runner {
                 if wheeled == Wheeled::Ignore {
                     return;
                 }
+                if wheeled == Wheeled::StartAndScroll {
+                    self.push(Event::ScrollStarted);
+                }
                 self.push(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),
                     MouseScrollDelta::PixelDelta(position) => {

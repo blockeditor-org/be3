@@ -67,6 +67,7 @@ impl Input {
                     unit: WheelUnit::Pixels,
                 });
             }
+            Event::ScrollStarted => output.push(InputEvent::WheelStarted),
             Event::ScrollEnded => output.push(InputEvent::WheelEnded),
             Event::Zoom(factor) => output.push(InputEvent::Zoom { factor }),
             Event::Touch {

@@ -2141,6 +2141,7 @@ pub enum InputEvent {
         y: f32,
         unit: WheelUnit,
     },
+    WheelStarted,
     WheelEnded,
     Zoom {
         factor: f32,

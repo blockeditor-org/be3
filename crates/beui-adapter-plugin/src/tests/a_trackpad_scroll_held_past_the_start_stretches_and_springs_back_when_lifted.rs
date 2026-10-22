@@ -19,7 +19,7 @@ impl App for Shared {
 }
 
 #[test]
-fn a_trackpad_scroll_lifted_against_the_start_bands_and_springs_back() {
+fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted() {
     let _root = RootScope::new();
     let scroll = NodeRef::new();
     let document = Rc::new(RefCell::new(build(move || {
@@ -70,26 +70,30 @@ fn a_trackpad_scroll_lifted_against_the_start_bands_and_springs_back() {
         y: 30.0,
         unit: WheelUnit::Pixels,
     };
+    let overscroll = || document.borrow().scroll_overscroll(scroll);
+    for _ in 0..3 {
+        frame(&mut surface, std::slice::from_ref(&wheel));
+    }
+    assert_eq!(overscroll(), 0.0, "a mouse wheel stops at the start");
+
+    frame(&mut surface, &[InputEvent::WheelStarted]);
     for _ in 0..5 {
         frame(&mut surface, std::slice::from_ref(&wheel));
     }
-    let overscroll = || document.borrow().scroll_overscroll(scroll);
-    assert_eq!(
-        overscroll(),
-        0.0,
-        "the fingers alone keep the list at its start"
+    let stretched = overscroll();
+    assert!(
+        stretched < -1.0,
+        "fingers on the trackpad pull the list past its start: {stretched}"
     );
+    for _ in 0..30 {
+        frame(&mut surface, &[]);
+    }
+    assert_eq!(overscroll(), stretched, "the list stays stretched while the fingers rest");
 
     frame(&mut surface, &[InputEvent::WheelEnded]);
-    let mut deepest: f32 = 0.0;
     for _ in 0..120 {
         frame(&mut surface, &[]);
-        deepest = deepest.min(overscroll());
     }
-    assert!(
-        deepest < -1.0,
-        "lifting the fingers flings the list past its start, where it bands: {deepest}"
-    );
-    assert_eq!(overscroll(), 0.0, "the band springs back");
+    assert_eq!(overscroll(), 0.0, "lifting the fingers springs the band back");
     assert_eq!(document.borrow().scroll_offset(scroll), 0.0);
 }

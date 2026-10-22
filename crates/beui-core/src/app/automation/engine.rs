@@ -816,6 +816,7 @@ impl Automation {
                 self.pointer = at;
                 input(vec![vec![
                     Event::PointerMoved(at),
+                    Event::ScrollStarted,
                     Event::Scroll(delta),
                     Event::ScrollEnded,
                 ]])

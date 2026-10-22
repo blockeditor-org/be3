@@ -22,6 +22,7 @@ pub struct Pointers {
     sessions: Vec<Session>,
     hovered: Vec<NodeId>,
     wheel_latch: Option<(NodeId, Instant, Pos2)>,
+    wheel_held: bool,
     fingers: Fingers,
     pinch_target: Option<NodeId>,
     kept_off: Vec<TouchId>,
@@ -334,8 +335,18 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
             doc.pointers.route(sink);
             cancel(doc, frame, event.pointer);
         }
+        PointerPhase::ScrollStarted => {
+            doc.pointers.wheel_held = true;
+            wheel(doc, frame, event, Vec2::ZERO, Vec2::ZERO);
+        }
         PointerPhase::Scroll(delta) => wheel(doc, frame, event, delta, Vec2::ZERO),
-        PointerPhase::ScrollEnded { fling } => wheel(doc, frame, event, Vec2::ZERO, fling),
+        PointerPhase::ScrollEnded { fling } => {
+            let held = std::mem::take(&mut doc.pointers.wheel_held);
+            wheel(doc, frame, event, Vec2::ZERO, fling);
+            if held && fling == Vec2::ZERO {
+                lift_latched(doc, frame, event);
+            }
+        }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, frame.root, event.pos, false).path;
             let sink = match gesture_claimant(doc, &path, event.pos) {
@@ -1406,6 +1417,27 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
         local,
         size,
         modifiers: event.modifiers,
+        held: doc.pointers.wheel_held,
+    });
+}
+
+fn lift_latched(doc: &mut Document, frame: &Frame, event: PointerEvent) {
+    let Some((target, node)) = doc
+        .pointers
+        .wheel_latch
+        .and_then(|(target, _, _)| Some((target, interactive(doc, target)?)))
+    else {
+        return;
+    };
+    let (local, size) = local(frame.rects, target, event.pos);
+    node.on_scroll.clone().call(ScrollGesture {
+        delta: Vec2::ZERO,
+        fling: Vec2::ZERO,
+        pos: event.pos,
+        local,
+        size,
+        modifiers: event.modifiers,
+        held: false,
     });
 }
 

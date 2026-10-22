@@ -14,10 +14,10 @@ fn a_new_scroll_soon_after_a_lift_scrolls_where_the_system_adds_no_momentum() {
     assert_eq!(
         phases(&mut Wheel::new(false), start, &gesture),
         [
-            Wheeled::Scroll,
+            Wheeled::StartAndScroll,
             Wheeled::Scroll,
             Wheeled::ScrollAndEnd,
-            Wheeled::Scroll,
+            Wheeled::StartAndScroll,
             Wheeled::Scroll,
             Wheeled::ScrollAndEnd
         ],
@@ -38,9 +38,9 @@ fn a_new_scroll_soon_after_a_lift_scrolls_where_the_system_adds_no_momentum() {
     assert_eq!(
         slow,
         [
-            Wheeled::Scroll,
+            Wheeled::StartAndScroll,
             Wheeled::ScrollAndEnd,
-            Wheeled::Scroll,
+            Wheeled::StartAndScroll,
             Wheeled::Scroll
         ],
         "fingers lifted without momentum leave the next swipe to scroll"

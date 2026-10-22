@@ -69,6 +69,7 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Input {
         InputEvent::Text(text) => Event::Text(text.clone()).into(),
         InputEvent::Paste(pasted) => Event::Paste(pasted.clone()).into(),
         InputEvent::Modifiers(modifiers) => Event::Modifiers(*modifiers).into(),
+        InputEvent::WheelStarted => Event::ScrollStarted.into(),
         InputEvent::WheelEnded => Event::ScrollEnded.into(),
         InputEvent::Zoom { factor } => Event::Zoom(*factor).into(),
         InputEvent::PointerMotion { x, y } => Event::PointerMotion(vec2(*x, *y) * scale).into(),
