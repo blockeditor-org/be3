@@ -2346,15 +2346,23 @@ pub(crate) fn region_damage(
     view: &RegionView,
     pieces: &[Piece],
     rotation: f32,
+    seen: u64,
 ) -> Option<Vec<Rect>> {
     if view.held.is_some() || rotation != 0.0 {
         return None;
     }
     with(plugin_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
-        runtime.template(screen, view.drawn).damage(pieces)
+        runtime.template(screen, view.drawn).damage(pieces, seen)
     })
     .flatten()
+}
+
+pub(crate) fn region_published(plugin_id: &str) -> u64 {
+    with(plugin_id, |runtime| {
+        runtime.shared.borrow().published.count()
+    })
+    .unwrap_or_default()
 }
 
 pub(super) fn each(mut act: impl FnMut(&mut Runtime)) {
