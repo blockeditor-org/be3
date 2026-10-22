@@ -105,7 +105,7 @@ pub const BLOCK_TYPES: &[BlockType] = &[
     of::<SettingsProfileContent>("Settings Profile", "\u{e8b8}", GOLD, ChildEdits::NONE),
     of::<TextContent>("Text", "\u{e873}", RED, ChildEdits::REPLACE),
     of::<TriangleContent>("Triangle", "\u{e86b}", TEAL, ChildEdits::NONE),
-    of::<VideoContent>("Video", "\u{e404}", GREEN, ChildEdits::ALL),
+    of::<VideoContent>("Video Editor", "\u{e404}", GREEN, ChildEdits::ALL),
     of::<WorkspaceContent>("Workspace", "\u{ea0f}", ORANGE, ChildEdits::ALL),
 ];
 
