@@ -63,10 +63,11 @@ where
             true => threshold.max(TOUCH_DRAG_THRESHOLD),
             false => threshold,
         };
-        if carried.with_untracked(Option::is_some)
-            || (point.pos - origin).length() < threshold
-            || board.value().carrying()
-        {
+        if carried.with_untracked(Option::is_some) {
+            board.value().track(point);
+            return;
+        }
+        if (point.pos - origin).length() < threshold || board.value().carrying() {
             return;
         }
         let Some(payload) = payload.get_untracked() else {
