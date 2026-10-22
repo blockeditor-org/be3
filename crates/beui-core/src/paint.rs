@@ -375,9 +375,16 @@ impl PaintCache {
         }
     }
 
-    fn store(&mut self, id: NodeId, placement: Placement, at: Vec2, recorded: Recorded) {
+    fn store(
+        &mut self,
+        document: u64,
+        id: NodeId,
+        placement: Placement,
+        at: Vec2,
+        recorded: Recorded,
+    ) {
         let (shapes, parts) = build(recorded.items, |child| self.display(child));
-        let display = Rc::new(Display::new(id, shapes, parts));
+        let display = Rc::new(Display::new(document, id, shapes, parts));
         self.note_scrolls(&display.parts, placement.own.scroll);
         let below = self.reads_below(&display);
         let old = self.entries.remove(&id);
@@ -1125,7 +1132,7 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
             };
             doc.paint_cache
                 .borrow_mut()
-                .store(id, placement, at, recorded);
+                .store(doc.zone(), id, placement, at, recorded);
         }
     }
     painter.paint_child(id, at);

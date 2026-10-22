@@ -454,6 +454,13 @@ hooks the higher crates fill in:
   facade hands the runner the ones to load. A renderer is told where to draw
   with `attach` (a raw-window-handle `WindowHandle`) or is made with its element,
   and draws a frame in two steps, `prepare` and then `present`.
+- `DomRenderer` builds its elements through the `Dom` trait: `WebDom` is the
+  page's DOM (the crate's `web` feature, which beui's `dom` feature turns on),
+  and `MemoryDom` an in-memory one that writes itself out as HTML, which is how
+  tests paint through it (guides/testing_a_gui.md). It keeps an element for
+  each display it has shown, keyed by `Display::document` and `Display::node`:
+  every document numbers its nodes from zero, so the node alone does not
+  identify a display once the inspector paints beside the app.
   `beui_core::renderer::Renderers` holds what a runner loaded, each with the
   `FontBackend` its text is measured with if it needs its own, and shows one.
   `Context::choose_renderer` (the inspector's Perf tab offers it when more
