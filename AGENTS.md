@@ -16,6 +16,7 @@ Guides:
 - guides/hosting.md
 - guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, input remaps, the lock screen, Wayland and X11 programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
+- guides/parallel_agents.md: coordinating subagents in worktrees on one cloud VM: landing, memory and disk limits, build server outages
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
 - guides/plugin_sdk.md: the shared module every plugin is linked against, and how hosts link them
 - guides/pinenote.md: block-app's session on the PineNote: e-paper, a display device that cannot draw, building for it
