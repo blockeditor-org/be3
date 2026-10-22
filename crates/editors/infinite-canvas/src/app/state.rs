@@ -1449,6 +1449,13 @@ impl CanvasState {
     }
 
     pub(crate) fn write_at(&self, point: CanvasPoint) {
+        let text = self.text_at(point);
+        let id = text.id;
+        self.add_entity(text);
+        self.edit_text_at(id, TextEntry::All);
+    }
+
+    fn text_at(&self, point: CanvasPoint) -> CanvasEntity {
         let mut text = self.styled(CanvasEntity::new(
             CanvasShape::Text,
             CanvasTransform::new(point, CanvasPoint::new(16.0, 32.0), 0.0),
@@ -1457,9 +1464,7 @@ impl CanvasState {
         let mut text = self.fit_text(text);
         text.transform.center =
             CanvasPoint::new(point.x + text.transform.size.x / 2.0 - TEXT_INSET, point.y);
-        let id = text.id;
-        self.add_entity(text);
-        self.edit_text_at(id, TextEntry::All);
+        text
     }
 
     pub(crate) fn entity_at(&self, point: CanvasPoint) -> Option<Uuid> {
@@ -2536,20 +2541,17 @@ impl CanvasState {
             Tool::Rectangle => Some(boxed(CanvasShape::Rectangle)),
             Tool::Ellipse => Some(boxed(CanvasShape::Ellipse)),
             Tool::Diamond => Some(boxed(CanvasShape::Diamond)),
+            Tool::Text if distance(start, current) < MIN_SIZE => Some(self.text_at(start)),
             Tool::Text => {
                 let bounds = WorldRect::from_points(start, current);
-                let dragged = distance(start, current) >= MIN_SIZE;
-                let size = match dragged {
-                    true => CanvasPoint::new(bounds.size().x.max(60.0), bounds.size().y.max(32.0)),
-                    false => CanvasPoint::new(180.0, 36.0),
-                };
+                let size = CanvasPoint::new(bounds.size().x.max(60.0), bounds.size().y.max(32.0));
                 let mut text = self.styled(CanvasEntity::new(
                     CanvasShape::Text,
-                    CanvasTransform::new(if dragged { bounds.center() } else { start }, size, 0.0),
+                    CanvasTransform::new(bounds.center(), size, 0.0),
                 ));
                 text.placeholder = "Text".into();
                 text.text_style = CanvasTextStyle {
-                    wrap: dragged,
+                    wrap: true,
                     ..CanvasTextStyle::default()
                 };
                 Some(text)
