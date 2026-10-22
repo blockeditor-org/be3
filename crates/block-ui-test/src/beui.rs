@@ -422,6 +422,11 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
+        let rect = self.rect();
+        let band = self.band(rect);
+        if let Some(viewport) = &mut self.viewport {
+            viewport.show(view, scale, band, rect.min);
+        }
         self.inbox.push(Message::Editor(EditorMessage::ViewChanged {
             instance: INSTANCE,
             x: view.min.x,
@@ -1528,6 +1533,7 @@ struct Viewport {
     zoom: f32,
     pan: Vec2,
     moved: bool,
+    world: Option<Vec2>,
     sent: Option<(Rect, f32, bool)>,
 }
 
@@ -1537,15 +1543,27 @@ impl Viewport {
             zoom: 1.0,
             pan: Vec2::ZERO,
             moved: false,
+            world: None,
             sent: None,
         }
     }
 
+    fn show(&mut self, view: Rect, scale: f32, region: Rect, origin: Pos2) {
+        let scale = scale.max(f32::EPSILON);
+        self.zoom = scale;
+        self.pan = view.center() + origin.to_vec2() - region.center();
+        self.world = Some(view.size() / scale);
+        self.moved = true;
+        self.sent = Some((view, scale, true));
+    }
+
     fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
-        let content = intrinsic
-            .unwrap_or(Vec2::ZERO)
-            .max(region.size())
-            .max(Vec2::new(1.0, 1.0));
+        let content = self.world.unwrap_or_else(|| {
+            intrinsic
+                .unwrap_or(Vec2::ZERO)
+                .max(region.size())
+                .max(Vec2::new(1.0, 1.0))
+        });
         let size = content * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
