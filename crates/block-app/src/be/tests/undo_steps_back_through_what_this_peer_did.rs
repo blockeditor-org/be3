@@ -4,7 +4,7 @@ use be_block::{Calendar, CalendarContent, CalendarEvent, Edit};
 
 fn titles(shared: &Shared, block: Uuid) -> Option<Vec<String>> {
     let held = shared.blocks.get(&block)?;
-    let calendar = CalendarContent::decode(&held.bytes).ok()?;
+    let calendar = CalendarContent::decode(held.bytes()).ok()?;
     Some(
         calendar
             .root()

@@ -8,7 +8,7 @@ use block_plugin_api::{ContentOperation, WatchedContent};
 fn counted(block: Uuid, expected: i64) {
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
-        let counter = CounterContent::decode(&held.bytes).ok()?;
+        let counter = CounterContent::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
     })
     .expect("the new stack never reached the expected count");

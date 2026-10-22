@@ -56,15 +56,15 @@ fn revision_history_previews_and_restores_saved_content() {
     let preview = Uuid::from_bytes(preview);
     let old = content(preview).expect("preview content exists");
     assert_eq!(
-        CounterContent::decode(&old.bytes).unwrap().root().value(),
+        CounterContent::decode(old.bytes()).unwrap().root().value(),
         5
     );
     assert!(!access(preview).can_edit());
     add(block, 3);
     wait_for_count(block, 10);
     assert_eq!(
-        content(preview).unwrap().bytes,
-        old.bytes,
+        content(preview).unwrap().bytes().to_vec(),
+        old.bytes().to_vec(),
         "live edits do not reach the preview"
     );
     assert!(matches!(
@@ -107,7 +107,7 @@ fn revision_history_previews_and_restores_saved_content() {
             panic!("retained history previews");
         };
         let id = Uuid::from_bytes(id);
-        saw_ten |= CounterContent::decode(&content(id).unwrap().bytes)
+        saw_ten |= CounterContent::decode(content(id).unwrap().bytes())
             .unwrap()
             .root()
             .value()

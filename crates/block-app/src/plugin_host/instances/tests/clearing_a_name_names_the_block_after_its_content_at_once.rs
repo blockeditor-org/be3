@@ -22,7 +22,7 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
 
     crate::be::set_name(block, Some("Research".to_owned()));
     let shown = crate::be::content(block)
-        .and_then(|content| BrowserTabContent::decode(&content.bytes).ok())
+        .and_then(|content| BrowserTabContent::decode(content.bytes()).ok())
         .expect("the new stack holds the tab");
     let edit = shown
         .root()
@@ -30,7 +30,7 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
     crate::be::operate_from(block, 0, BrowserTabContent::encode_operation(&edit));
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
-        let tab = BrowserTabContent::decode(&held.bytes).ok()?;
+        let tab = BrowserTabContent::decode(held.bytes()).ok()?;
         (tab.root().current().title == "Example Domain").then_some(())
     })
     .expect("the new stack never took the title");

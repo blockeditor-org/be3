@@ -920,7 +920,7 @@ fn content_of<R: Root + Model>(shared: &Shared, block: Uuid) -> Option<R> {
     if content.content_type != R::CONTENT_TYPE {
         return None;
     }
-    Document::<R>::decode(&content.bytes)
+    Document::<R>::decode(content.bytes())
         .ok()
         .map(|document| document.root())
 }

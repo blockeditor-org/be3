@@ -2155,12 +2155,12 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<M
 }
 
 fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
-    let known: std::collections::HashSet<Uuid> = {
+    let known: HashMap<Uuid, usize> = {
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         sessions
             .keys()
-            .filter(|block| held.blocks.contains_key(*block) && !held.previewed.contains(*block))
-            .copied()
+            .filter(|block| !held.previewed.contains(*block))
+            .filter_map(|block| Some((*block, held.blocks.get(block)?.unfolded())))
             .collect()
     };
     let unsealed = sessions
@@ -2175,11 +2175,18 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         .iter_mut()
         .map(|(block, session)| {
             let log = session.take_log();
-            let content = (!known.contains(block) || !log.is_empty()).then(|| {
+            let snapshot = match known.get(block) {
+                None => true,
+                Some(unfolded) => {
+                    log.iter()
+                        .any(|entry| matches!(entry, Logged::Replaced { .. }))
+                        || unfolded + log.len() > super::LOG_LIMIT / 2
+                }
+            };
+            let content = (snapshot || !log.is_empty()).then(|| {
                 (
                     session.content_type(),
-                    session.bytes(),
-                    session.session_state(),
+                    snapshot.then(|| (session.bytes(), session.session_state())),
                     session.derived(),
                     session.references(),
                 )
@@ -2233,7 +2240,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             changed = true;
         }
         held.graph.set_head(block, published.head);
-        let Some((content_type, bytes, session, derived, references)) = published.content else {
+        let Some((content_type, snapshot, derived, references)) = published.content else {
             continue;
         };
         held.graph.refer(block, references);
@@ -2243,11 +2250,13 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 for entry in published.log {
                     content.record(entry);
                 }
-                content.bytes = bytes;
-                content.session = session;
+                if let Some((bytes, session)) = snapshot {
+                    content.settle(bytes, session);
+                }
                 content.derived = derived;
             }
             None => {
+                let (bytes, session) = snapshot.unwrap_or_default();
                 held.blocks
                     .insert(block, Content::new(content_type, bytes, session, derived));
             }
@@ -2258,7 +2267,12 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
     changed
 }
 
-type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>, Vec<Uuid>);
+type PublishedContent = (
+    Uuid,
+    Option<(Vec<u8>, Vec<u8>)>,
+    Option<be_block::Entries>,
+    Vec<Uuid>,
+);
 
 struct Published {
     block: Uuid,

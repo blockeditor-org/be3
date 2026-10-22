@@ -2957,7 +2957,7 @@ impl Instances {
                     AudioCommand::Reset => player.reset(),
                     AudioCommand::Toggle => {
                         let audio = crate::be::content(Uuid::from_bytes(block_id))
-                            .and_then(|held| be_block::AudioContent::decode(&held.bytes).ok());
+                            .and_then(|held| be_block::AudioContent::decode(held.bytes()).ok());
                         if let Some(audio) = audio {
                             player.toggle(&audio);
                         }

@@ -5,7 +5,7 @@ use be_block::{ChildChange, PresentationContent};
 
 fn slides_of(shared: &Shared, block: Uuid) -> Option<Vec<Option<Uuid>>> {
     let held = shared.blocks.get(&block)?;
-    let presentation = PresentationContent::decode(&held.bytes).ok()?;
+    let presentation = PresentationContent::decode(held.bytes()).ok()?;
     Some(
         presentation
             .root()

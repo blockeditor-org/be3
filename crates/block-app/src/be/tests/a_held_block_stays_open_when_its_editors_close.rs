@@ -4,7 +4,7 @@ use be_block::{DisplaySettings as Settings, DisplaySettingsContent, ThemeKind};
 
 fn theme_of(shared: &Shared, block: Uuid) -> Option<ThemeKind> {
     let held = shared.blocks.get(&block)?;
-    DisplaySettingsContent::decode(&held.bytes)
+    DisplaySettingsContent::decode(held.bytes())
         .ok()
         .map(|settings| settings.root().theme())
 }

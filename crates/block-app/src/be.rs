@@ -52,8 +52,9 @@ const LOG_LIMIT: usize = 512;
 #[derive(Clone)]
 pub(crate) struct Content {
     pub(crate) content_type: Uuid,
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) session: Vec<u8>,
+    snapshot: (Vec<u8>, Vec<u8>),
+    unfolded: usize,
+    folded: std::sync::OnceLock<(Vec<u8>, Vec<u8>)>,
     pub(crate) derived: Option<be_block::Entries>,
     pub(crate) revision: u64,
     log: std::collections::VecDeque<(Vec<u8>, Option<u64>)>,
@@ -69,13 +70,50 @@ impl Content {
     ) -> Self {
         Self {
             content_type,
-            bytes,
-            session,
+            snapshot: (bytes, session),
+            unfolded: 0,
+            folded: std::sync::OnceLock::new(),
             derived,
             revision: 1,
             log: std::collections::VecDeque::new(),
             taken: std::collections::HashMap::new(),
         }
+    }
+
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.current().0
+    }
+
+    pub(crate) fn session(&self) -> &[u8] {
+        &self.current().1
+    }
+
+    fn current(&self) -> &(Vec<u8>, Vec<u8>) {
+        if self.unfolded == 0 {
+            return &self.snapshot;
+        }
+        self.folded.get_or_init(|| {
+            let (bytes, session) = &self.snapshot;
+            let operations: Vec<&[u8]> = self
+                .log
+                .iter()
+                .skip(self.log.len().saturating_sub(self.unfolded))
+                .map(|(operation, _)| operation.as_slice())
+                .collect();
+            kind_of(self.content_type)
+                .and_then(|kind| (kind.fold)(bytes, session, &operations))
+                .unwrap_or_else(|| self.snapshot.clone())
+        })
+    }
+
+    pub(crate) fn unfolded(&self) -> usize {
+        self.unfolded
+    }
+
+    pub(crate) fn settle(&mut self, bytes: Vec<u8>, session: Vec<u8>) {
+        self.snapshot = (bytes, session);
+        self.unfolded = 0;
+        self.folded = std::sync::OnceLock::new();
     }
 
     pub(crate) fn record(&mut self, entry: worker::Logged) {
@@ -86,6 +124,8 @@ impl Content {
                     *self.taken.entry(origin).or_default() += 1;
                 }
                 self.log.push_back((bytes, origin));
+                self.unfolded += 1;
+                self.folded = std::sync::OnceLock::new();
                 if self.log.len() > LOG_LIMIT {
                     self.log.pop_front();
                 }
@@ -111,8 +151,8 @@ impl Content {
             ),
             _ => Update::Snapshot {
                 content_type: self.content_type,
-                bytes: self.bytes.clone(),
-                session: self.session.clone(),
+                bytes: self.bytes().to_vec(),
+                session: self.session().to_vec(),
                 applied: self.taken.get(&origin).copied().unwrap_or_default(),
             },
         }
@@ -152,6 +192,8 @@ type MergeContent = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Option<(V
 
 type ContentReferences = fn(&[u8], Uuid) -> Vec<Uuid>;
 
+type FoldContent = fn(&[u8], &[u8], &[&[u8]]) -> Option<(Vec<u8>, Vec<u8>)>;
+
 struct Kind {
     content_type: Uuid,
     frozen: bool,
@@ -166,6 +208,7 @@ struct Kind {
     child: ChildOperations,
     merge: MergeContent,
     references: ContentReferences,
+    fold: FoldContent,
 }
 
 const fn kind<C>() -> Kind
@@ -186,6 +229,7 @@ where
         child: child_operations::<C>,
         merge: merge_content::<C>,
         references: content_references::<C>,
+        fold: fold_content::<C>,
     }
 }
 
@@ -207,6 +251,7 @@ where
         child: child_operations::<C>,
         merge: merge_content::<C>,
         references: content_references::<C>,
+        fold: fold_content::<C>,
     }
 }
 
@@ -247,6 +292,19 @@ fn content_references<C: be_block::BlockContent>(bytes: &[u8], organization: Uui
     C::decode(bytes)
         .map(|content| content.references_in(organization))
         .unwrap_or_default()
+}
+
+fn fold_content<C: be_block::LiveEdit>(
+    bytes: &[u8],
+    session: &[u8],
+    operations: &[&[u8]],
+) -> Option<(Vec<u8>, Vec<u8>)> {
+    let mut content = C::decode(bytes).ok()?;
+    content.adopt_session_state(session).ok()?;
+    for operation in operations {
+        content.apply(&C::decode_operation(operation).ok()?);
+    }
+    Some((content.encode(), content.session_state()))
 }
 
 fn child_operations<C: be_block::LiveEdit>(
@@ -305,7 +363,7 @@ fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
 pub(crate) fn describe_of(content: &Content) -> Option<be_block::Entries> {
     match &content.derived {
         Some(derived) => Some(derived.clone()),
-        None => (kind_of(content.content_type)?.describe)(&content.bytes),
+        None => (kind_of(content.content_type)?.describe)(content.bytes()),
     }
 }
 
@@ -528,7 +586,7 @@ pub(crate) fn change_child(
         hold(block, content_type);
         return None;
     };
-    for operation in (kind.child)(&held.bytes, change)? {
+    for operation in (kind.child)(held.bytes(), change)? {
         send(Command::Operate(block, None, operation, now()));
     }
     Some(true)

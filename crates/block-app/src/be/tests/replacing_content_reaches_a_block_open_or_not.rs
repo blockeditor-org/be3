@@ -4,7 +4,7 @@ use be_block::ImageContent;
 
 fn holds(shared: &Shared, block: Uuid, name: &str) -> bool {
     shared.blocks.get(&block).is_some_and(|held| {
-        ImageContent::decode(&held.bytes).is_ok_and(|image| {
+        ImageContent::decode(held.bytes()).is_ok_and(|image| {
             image.header().source_name == name && image.data() == name.as_bytes()
         })
     })

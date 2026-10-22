@@ -35,6 +35,7 @@ mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
 mod revision_history_previews_and_restores_saved_content;
+mod shared_content_folds_the_operations_logged_since_its_snapshot;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_peers_of_one_organization_share_a_counter;
@@ -174,7 +175,7 @@ impl Drop for Harness {
 fn count_of(block: Uuid) -> Option<i64> {
     let held = content(block)?;
     (held.content_type == CounterContent::CONTENT_TYPE)
-        .then(|| CounterContent::decode(&held.bytes).ok())
+        .then(|| CounterContent::decode(held.bytes()).ok())
         .flatten()
         .map(|counter| counter.root().value())
 }
@@ -182,7 +183,7 @@ fn count_of(block: Uuid) -> Option<i64> {
 fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
     let held = shared.blocks.get(&block)?;
     (held.content_type == CounterContent::CONTENT_TYPE)
-        .then(|| CounterContent::decode(&held.bytes).ok())
+        .then(|| CounterContent::decode(held.bytes()).ok())
         .flatten()
         .map(|counter| counter.root().value())
 }
@@ -229,14 +230,14 @@ fn settled(shared: &Shared, block: Uuid) -> bool {
 
 fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block::Checkout> {
     let held = shared.blocks.get(&block)?;
-    be_block::CheckoutContent::decode(&held.bytes)
+    be_block::CheckoutContent::decode(held.bytes())
         .ok()
         .map(|content| content.root())
 }
 
 fn text_of(shared: &Shared, block: Uuid) -> Option<String> {
     let held = shared.blocks.get(&block)?;
-    be_block::TextContent::decode(&held.bytes)
+    be_block::TextContent::decode(held.bytes())
         .ok()
         .map(|text| be_block::TextBlock::text(&text))
 }
@@ -245,9 +246,9 @@ const TYPIST: u64 = 1 << 63 | 7;
 
 fn type_text(block: Uuid, at: usize, text: &str) {
     let held = content(block).expect("the text block is held");
-    let mut current = be_block::TextContent::decode(&held.bytes).expect("the text block decodes");
+    let mut current = be_block::TextContent::decode(held.bytes()).expect("the text block decodes");
     current
-        .adopt_session_state(&held.session)
+        .adopt_session_state(held.session())
         .expect("the text block's session state decodes");
     let edit = be_block::TextBlock::insert(&current, TYPIST, at, text.as_bytes())
         .expect("there is somewhere to type");

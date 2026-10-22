@@ -19,7 +19,7 @@ fn opened_at(block: Uuid) -> i64 {
     crate::be::open(block, CounterContent::CONTENT_TYPE);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
-        CounterContent::decode(&held.bytes)
+        CounterContent::decode(held.bytes())
             .ok()
             .map(|counter| counter.root().value())
     })
