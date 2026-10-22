@@ -103,9 +103,10 @@ pub(crate) async fn browser_login(
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<Session, String> {
     let login = async {
-        let connection = Connection::connect(&socket_url(&server_url))
+        let mut connection = Connection::connect(&socket_url(&server_url))
             .await
             .map_err(|error| error.to_string())?;
+        let mut events = connection.subscribe();
         let response = connection
             .request(|request| ClientMessage::BeginBrowserLogin { request })
             .await
@@ -117,31 +118,59 @@ pub(crate) async fn browser_login(
             code: code.clone(),
             url: format!("{auth_url}?code={code}"),
         });
-        drop(connection);
         loop {
-            let result = async {
-                let connection = Connection::connect(&socket_url(&server_url)).await?;
-                connection
-                    .request(|request| ClientMessage::FinishBrowserLogin {
-                        request,
-                        code: code.clone(),
-                        secret: secret.clone(),
-                    })
-                    .await
+            if !approval_pushed(&mut events, connection.closed()).await {
+                connection = loop {
+                    crate::be::sleep(std::time::Duration::from_secs(2)).await;
+                    match Connection::connect(&socket_url(&server_url)).await {
+                        Ok(connection) => break connection,
+                        Err(ClientError::Disconnected(_)) => {}
+                        Err(error) => return Err(error.to_string()),
+                    }
+                };
+                events = connection.subscribe();
             }
-            .await;
-            match result {
+            match connection
+                .request(|request| ClientMessage::FinishBrowserLogin {
+                    request,
+                    code: code.clone(),
+                    secret: secret.clone(),
+                })
+                .await
+            {
                 Ok(ServerMessage::Ok { .. }) | Err(ClientError::Disconnected(_)) => {}
                 Ok(response) => return session_of(response).map_err(|error| error.to_string()),
                 Err(error) => return Err(error.to_string()),
             }
-            crate::be::sleep(std::time::Duration::from_secs(2)).await;
         }
     };
     match futures_util::future::select(Box::pin(login), cancelled).await {
         futures_util::future::Either::Left((result, _)) => result,
         futures_util::future::Either::Right(_) => Err("Sign-in cancelled".into()),
     }
+}
+
+async fn approval_pushed(
+    events: &mut tokio::sync::broadcast::Receiver<ServerMessage>,
+    mut closed: tokio::sync::watch::Receiver<bool>,
+) -> bool {
+    let pushed = async {
+        loop {
+            match events.recv().await {
+                Ok(ServerMessage::BrowserLoginFinished { .. })
+                | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => return true,
+                Ok(_) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return false,
+            }
+        }
+    };
+    let closed = async {
+        let _ = closed.wait_for(|closed| *closed).await;
+    };
+    matches!(
+        futures_util::future::select(std::pin::pin!(pushed), std::pin::pin!(closed)).await,
+        futures_util::future::Either::Left((true, _))
+    )
 }
 
 async fn authenticated(
