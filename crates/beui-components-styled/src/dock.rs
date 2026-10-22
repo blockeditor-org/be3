@@ -529,7 +529,6 @@ fn DockSideBar(
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
-    let rule = bar_rule(vacant);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
@@ -562,7 +561,6 @@ fn DockSideBar(
                     }</Show>
                 </List>
             </Frame>
-            <Frame fill={ColorRole::custom(rule)} width=RULE />
         </List>
     }
 }
