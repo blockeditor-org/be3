@@ -1436,8 +1436,9 @@ dismissed. There is one request for each reason, sent to one layer:
   on the tap, so a scroll that starts outside a layer leaves it open.
 
 Inside the layer it is sent to, a request goes to the most recently made
-enabled `BackHandler` in that layer first, and to `on_dismiss` only when there
-is none, so Escape, back and a press outside all play the same slide-away.
+enabled `BackHandler` in that layer that is in the tree (not in hidden
+`ShowKeepAlive` content or a closed overlay) first, and to `on_dismiss` only
+when there is none, so Escape, back and a press outside all play the same slide-away.
 An overlay closed because the one it is nested in closed is told so after the
 fact, as `Dismiss::WithParent`. Its owner writing `open` false
 (`Document::close_overlay`) runs nothing, so a prompt whose dismiss means

@@ -460,11 +460,8 @@ impl Document {
     }
 
     pub(crate) fn live(&self, node: NodeId) -> bool {
-        let mut current = Some(node);
+        let mut id = node;
         for _ in 0..ANCESTOR_LIMIT {
-            let Some(id) = current else {
-                return false;
-            };
             if Some(id) == self.root {
                 return true;
             }
@@ -476,7 +473,17 @@ impl Document {
             {
                 return false;
             }
-            current = self.arena.parent(id);
+            let Some(parent) = self.arena.parent(id) else {
+                return false;
+            };
+            let mut listed = false;
+            self.arena
+                .get(parent)
+                .for_each_child(&mut |child| listed |= child == id);
+            if !listed {
+                return false;
+            }
+            id = parent;
         }
         false
     }

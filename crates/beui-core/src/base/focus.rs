@@ -607,26 +607,8 @@ impl Document {
         if !self.contains(node) || focus_of(self.arena.get(node)).is_none() {
             return false;
         }
-        let mut current = node;
-        loop {
-            let element = self.arena.get(current);
-            if element
-                .as_any()
-                .downcast_ref::<OverlayNode>()
-                .is_some_and(|overlay| !overlay.is_open())
-            {
-                return false;
-            }
-            if Some(current) == self.root {
-                break;
-            }
-            let Some(parent) = self.arena.parent(current) else {
-                return false;
-            };
-            if !self.arena.get(parent).children().contains(&current) {
-                return false;
-            }
-            current = parent;
+        if !self.live(node) {
+            return false;
         }
         let layers = self.layers();
         let Some(layer) = self.layer_of(&layers, node) else {
