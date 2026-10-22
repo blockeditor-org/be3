@@ -55,6 +55,7 @@ struct Listed {
     frame: bool,
     embeds: bool,
     bounds: WorldRect,
+    reach: WorldRect,
     targets: Vec<Uuid>,
 }
 
@@ -109,9 +110,49 @@ impl Edges {
     }
 }
 
+const CELL: f32 = 256.0;
+
+#[derive(Default)]
+struct Cells(HashMap<(i32, i32), HashSet<Uuid>>);
+
+impl Cells {
+    fn covering(rect: WorldRect) -> impl Iterator<Item = (i32, i32)> {
+        let cell = |at: f32| (at / CELL).floor().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
+        let (left, top) = (cell(rect.min.x), cell(rect.min.y));
+        let (right, bottom) = (cell(rect.max.x), cell(rect.max.y));
+        (left..=right).flat_map(move |x| (top..=bottom).map(move |y| (x, y)))
+    }
+
+    fn add(&mut self, id: Uuid, rect: WorldRect) {
+        for at in Self::covering(rect) {
+            self.0.entry(at).or_default().insert(id);
+        }
+    }
+
+    fn remove(&mut self, id: Uuid, rect: WorldRect) {
+        for at in Self::covering(rect) {
+            if let Some(held) = self.0.get_mut(&at) {
+                held.remove(&id);
+                if held.is_empty() {
+                    self.0.remove(&at);
+                }
+            }
+        }
+    }
+
+    fn near(&self, rect: WorldRect) -> HashSet<Uuid> {
+        Self::covering(rect)
+            .filter_map(|at| self.0.get(&at))
+            .flatten()
+            .copied()
+            .collect()
+    }
+}
+
 #[derive(Default)]
 struct Catalog {
     listed: HashMap<Uuid, Listed>,
+    cells: Cells,
     bound_by: HashMap<Uuid, HashSet<Uuid>>,
     edges: Edges,
     framing: HashSet<Uuid>,
@@ -199,6 +240,7 @@ impl Catalog {
             self.embedders.remove(id);
             if let Some(was) = &was {
                 self.edges.remove(was.bounds);
+                self.cells.remove(*id, was.reach);
                 for target in &was.targets {
                     if let Some(followers) = self.bound_by.get_mut(target) {
                         followers.remove(id);
@@ -217,10 +259,13 @@ impl Catalog {
             };
             self.visited += 1;
             entity.follow(|target| outline(content, target));
+            let bounds = entity_bounds(&entity);
+            let stroke: f32 = content.field(ObjectId::from_uuid(*id), Entity::STROKE_WIDTH);
             let listed = Listed {
                 frame: entity.is_frame(),
                 embeds: entity.shape.embeds_block(),
-                bounds: entity_bounds(&entity),
+                bounds,
+                reach: bounds.expanded(stroke.max(0.0) * 0.5),
                 targets: entity
                     .bindings
                     .iter()
@@ -237,6 +282,7 @@ impl Catalog {
                 self.embedders.insert(*id);
             }
             self.edges.add(listed.bounds);
+            self.cells.add(*id, listed.reach);
             for target in &listed.targets {
                 self.bound_by.entry(*target).or_default().insert(*id);
             }
@@ -409,6 +455,17 @@ impl Entities {
 
     pub(crate) fn embedding_untracked(&self) -> Vec<Uuid> {
         self.embedding.get_untracked()
+    }
+
+    pub(crate) fn near_untracked(&self, rect: WorldRect) -> Vec<Uuid> {
+        let near = self.slots.value().catalog.borrow().cells.near(rect);
+        let mut listed: Vec<(usize, Uuid)> = self.order.with_untracked(|order| {
+            near.into_iter()
+                .filter_map(|id| Some((*order.get(&id)?, id)))
+                .collect()
+        });
+        listed.sort_unstable();
+        listed.into_iter().map(|(_, id)| id).collect()
     }
 
     pub(crate) fn region(&self) -> WorldRect {

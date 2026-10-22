@@ -44,6 +44,13 @@ impl WorldRect {
         CanvasPoint::new(self.max.x - self.min.x, self.max.y - self.min.y)
     }
 
+    pub(crate) fn expanded(self, by: f32) -> Self {
+        Self {
+            min: CanvasPoint::new(self.min.x - by, self.min.y - by),
+            max: CanvasPoint::new(self.max.x + by, self.max.y + by),
+        }
+    }
+
     pub(crate) fn union(self, other: Self) -> Self {
         Self {
             min: CanvasPoint::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y)),

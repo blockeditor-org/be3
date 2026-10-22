@@ -1485,22 +1485,37 @@ impl CanvasState {
                 CanvasPoint::new(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t)
             })
             .collect();
-        let entities = self.entities.all_untracked();
+        let swept = WorldRect::from_points(from, to).expanded(radius);
         let erasable =
             |entity: &CanvasEntity| !entity.hidden && !entity.locked && !entity.is_frame();
-        let mut crossed = HashSet::new();
-        for entity in entities.iter().filter(|entity| erasable(entity)) {
-            if !crossed.contains(&entity.id)
-                && samples
-                    .iter()
-                    .any(|point| hit_entity(entity, *point, radius))
-            {
-                crossed.extend(self.selection_ids(&entities, entity.id));
-            }
-        }
-        entities
+        let hit: Vec<CanvasEntity> = self
+            .entities
+            .near_untracked(swept)
             .into_iter()
-            .filter(|entity| crossed.contains(&entity.id) && erasable(entity))
+            .filter_map(|id| self.entities.get_untracked(id))
+            .filter(|entity| {
+                erasable(entity)
+                    && samples
+                        .iter()
+                        .any(|point| hit_entity(entity, *point, radius))
+            })
+            .collect();
+        let entered = self.entered_group.get_untracked();
+        let grouped = hit
+            .iter()
+            .any(|entity| entity.group_id.is_some_and(|group| Some(group) != entered));
+        let crossed: HashSet<Uuid> = match grouped {
+            true => {
+                let entities = self.entities.all_untracked();
+                hit.iter()
+                    .flat_map(|entity| self.selection_ids(&entities, entity.id))
+                    .collect()
+            }
+            false => hit.iter().map(|entity| entity.id).collect(),
+        };
+        untrack(|| self.entities.among(&crossed))
+            .into_iter()
+            .filter(erasable)
             .collect()
     }
 
