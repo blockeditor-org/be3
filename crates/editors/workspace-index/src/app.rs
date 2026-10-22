@@ -1,7 +1,7 @@
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::FolderContent;
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -14,11 +14,13 @@ use ui::FolderEditor;
 pub struct WorkspaceIndexApp;
 
 impl block_editor_beui::BeuiApp for WorkspaceIndexApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <FolderEditor editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <FolderEditor editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

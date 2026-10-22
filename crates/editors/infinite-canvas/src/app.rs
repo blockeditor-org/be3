@@ -41,11 +41,13 @@ use crate::geometry::MIN_SIZE;
 pub struct CanvasApp;
 
 impl block_editor_beui::BeuiApp for CanvasApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <CanvasEditor editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <CanvasEditor editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

@@ -3573,6 +3573,7 @@ fn StageCard(card: (f32, f32, f32, f32, &'static str)) -> CanvasItem {
 
 #[component]
 pub(crate) fn ThemesPage() -> NodeId {
+    let windowed = use_context::<DemoWindow>().is_some();
     view! {
         <ScrollPage>
             <Sample
@@ -3581,9 +3582,11 @@ pub(crate) fn ThemesPage() -> NodeId {
             >
                 <ThemedSamples />
             </Sample>
-            <Sample title="Window" code={vec![WindowSample::SOURCE]}>
-                <WindowSample />
-            </Sample>
+            <Show condition={windowed}>
+                <Sample title="Window" code={vec![WindowSample::SOURCE]}>
+                    <WindowSample />
+                </Sample>
+            </Show>
             <Sample title="Preferences" code={vec![PreferenceSettings::SOURCE]}>
                 <PreferenceSettings />
             </Sample>

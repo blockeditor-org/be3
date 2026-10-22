@@ -11,6 +11,7 @@ mod collapsible_sections_detects_indentation_blocks;
 mod collapsible_sections_detects_markdown_headings;
 mod core;
 mod ctrl_d;
+mod double_click_selects_the_word_beside_the_caret_within_its_line;
 mod down_and_up_arrows_step_through_a_fenced_code_block;
 mod down_arrow_skips_past_a_collapsed_section;
 mod dragging_back_after_selecting_past_the_edge_follows_the_pointer;

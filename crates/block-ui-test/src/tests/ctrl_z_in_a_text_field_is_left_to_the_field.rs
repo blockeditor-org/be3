@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::styled::Root;
 
 use beui::{Key, Modifiers};
 use block_editor_beui::BlockHistory;
@@ -10,7 +11,9 @@ fn ctrl_z_in_a_text_field_is_left_to_the_field() {
     host.set_editable(true);
     let mut test = BeuiTest::<ChildApp>::with_view(OwnedEditor::new(host, block), || {
         view! {
-            <TextInput @test_id={"field"} value=String::new() label="Field" />
+            <Root>
+                <TextInput @test_id={"field"} value=String::new() label="Field" />
+            </Root>
         }
     })
     .with_top_bar(false);

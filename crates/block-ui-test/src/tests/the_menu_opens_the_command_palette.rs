@@ -1,13 +1,16 @@
 use beui::Vec2;
+use beui::styled::Root;
 
 use super::*;
 
 struct PaletteApp;
 
 impl BeuiApp for PaletteApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Tidy editor={editor} />
+            <Root>
+                <Tidy editor={editor} />
+            </Root>
         }
     }
 }

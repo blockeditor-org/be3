@@ -212,6 +212,7 @@ impl InputAdapter {
                     unit: WheelUnit::Pixels,
                 });
             }
+            PointerPhase::ScrollStarted => output.push(InputEvent::WheelStarted),
             PointerPhase::ScrollEnded { .. } => output.push(InputEvent::WheelEnded),
             PointerPhase::Zoom(factor) => output.push(InputEvent::Zoom { factor }),
             PointerPhase::Cancel | PointerPhase::Gone => {}

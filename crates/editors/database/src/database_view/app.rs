@@ -2,6 +2,7 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::database::create_database;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
@@ -24,9 +25,11 @@ use ui::{DatabaseViewEditor, DatabaseViewPreview};
 pub struct DatabaseViewApp;
 
 impl block_editor_beui::BeuiApp for DatabaseViewApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <DatabaseViewEditor editor={editor} />
+            <Root>
+                <DatabaseViewEditor editor={editor} />
+            </Root>
         }
     }
 

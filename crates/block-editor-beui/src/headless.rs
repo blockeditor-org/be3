@@ -8,7 +8,7 @@ use block_plugin_api::{EditorInstanceId, EditorRegion, Message, ScreenLayout, Sc
 use crate::instance::BeuiInstance;
 use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost, OwnedEditor};
 
-pub type View = Box<dyn FnOnce() -> beui::NodeId>;
+pub type View = Box<dyn FnOnce() -> beui::styled::Root>;
 
 pub enum Adopted {
     Editor(OwnedEditor, Option<View>),

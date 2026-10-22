@@ -377,7 +377,18 @@ hooks the higher crates fill in:
   report a pinch) or Safari's `gesturechange`, whose scale over the last one's
   is the factor; the web adapter ignores a gesture while fingers are down,
   since those touches pinch already, and prevents the default of all of them
-  so the browser never zooms the page. Every pointer sample is an event of its
+  so the browser never zooms the page. Fingers touching a trackpad push
+  `Event::ScrollStarted` and lifting them `Event::ScrollEnded`; a plugin's host
+  forwards them as `InputEvent::WheelStarted` and `WheelEnded`. Between the two,
+  `ScrollGesture::held` is set and a `Scroll` follows the fingers as a touch drag
+  does, stretching past an end; the lift springs it back, or flings it at the
+  speed of its last samples and bands it if that carries it past an end. A wheel
+  without a start (a mouse) clamps at the ends. winit pushes them on a
+  `MouseWheel` phase of `Started` and `Ended`, and on macOS drops the momentum events the
+  system sends after a lift (from a `Started` within 100 ms of it to their
+  `Ended`, in `beui-adapter-winit/src/wheel.rs`): beui's fling replaces them,
+  and they would scroll clamped at an end instead of banding. The browser
+  reports neither, so a web wheel scroll never stretches or flings. Every pointer sample is an event of its
   own: the web adapter pushes each of a `pointermove`'s
   `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
   per sample, so a stroke keeps every point the device reported between two
@@ -2341,9 +2352,14 @@ accessibility tree with its title and passes it to `Platform::show_window`.
 winit retitles the window and the web adapter retitles the browser tab and
 colours the page's body to match; Android follows `system_bars`; DRM, headless
 and plugins ignore the title. A plugin pane has no title of its own and the
-plugin protocol carries none: block-editor-beui roots each pane's document in a
-transparent `primitives::Root`, so the host shows behind wherever the editor
-does not paint. Documents drawn over another one (the inspector's panels, the
+plugin protocol carries none: `BeuiApp::view` returns the editor's own `Root`,
+whose `clear_color` the plugin's surface is cleared to (the theme's background
+unless the editor names another role), and block-editor-beui puts the frame's
+chrome around that root's child. The pieces drawn over something of the host's
+(a preview, a creation dialog, artifact settings) are rooted in a transparent
+one. Holes are cut from that colour, never left by it: a child editor's `Embed`
+punches its rectangle, and a painting with holes records the colour as its first
+primitive so they cut it. Documents drawn over another one (the inspector's panels, the
 software keyboard) are built with `Document::new`, `enter` and `set_root` and
 have no `Root`, so they leave the window's appearance alone.
 
@@ -2881,7 +2897,11 @@ never painted from a layout the tree no longer has. A frame lays out at most
 four times: when the reports after the third still change something, the
 fourth layout holds its own reports back for the next frame, the frame is
 painted from it and asks for another, and debug builds log what was still
-changing. Each of those extra layouts is a cost the frame pays, so keep what a
+changing. Tests fail there instead: beui-core's own, and every test run through
+`block-ui-test`'s `DocumentTest` or `BeuiTest`, which turn on
+`beui::fail_unsettled_layout`. An open overlay whose anchor moved is placed
+again after the walk, but only one the walk placed: an overlay under a culled
+ancestor is not placed at all, so its anchor moving is nothing to report. Each of those extra layouts is a cost the frame pays, so keep what a
 report drives to painting where you can: a scrollbar's thumb is painted where
 the position says rather than laid out, which keeps scrolling to one layout a
 frame. Reach for a report only for what depends on how other nodes ended up,
@@ -2959,9 +2979,11 @@ pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
 pub struct CounterApp;
 
 impl block_editor_beui::BeuiApp for CounterApp {
-    fn view(editor: block_editor_beui::Editor) -> NodeId {
+    fn view(editor: block_editor_beui::Editor) -> Root {
         view! {
-            <Counter editor={editor} />
+            <Root>
+                <Counter editor={editor} />
+            </Root>
         }
     }
 

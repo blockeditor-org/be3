@@ -1,3 +1,4 @@
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{BarAction, TopBar};
 
 use super::*;
@@ -5,9 +6,11 @@ use super::*;
 struct BarApp;
 
 impl BeuiApp for BarApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <BarParent editor={editor} />
+            <Root>
+                <BarParent editor={editor} />
+            </Root>
         }
     }
 }

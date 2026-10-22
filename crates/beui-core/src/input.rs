@@ -48,6 +48,7 @@ pub struct ScrollGesture {
     pub local: Pos2,
     pub size: Vec2,
     pub modifiers: Modifiers,
+    pub held: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -114,6 +115,7 @@ pub enum Event {
     PointerGone,
     PointerMotion(Vec2),
     PointerMoved(Pos2),
+    ScrollStarted,
     Scroll(Vec2),
     ScrollEnded,
     Text(String),
@@ -165,6 +167,7 @@ impl Event {
                 | Self::PointerGone
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
+                | Self::ScrollStarted
                 | Self::Scroll(_)
                 | Self::ScrollEnded
                 | Self::Touch { .. }
@@ -240,6 +243,7 @@ pub enum PointerPhase {
     Up(PointerButton),
     Cancel,
     Gone,
+    ScrollStarted,
     Scroll(Vec2),
     ScrollEnded { fling: Vec2 },
     Zoom(f32),
@@ -454,6 +458,10 @@ impl InputState {
                         false => PointerPhase::Up(*button),
                     };
                     self.emit(PointerId::Mouse, phase, *pos);
+                }
+                Event::ScrollStarted => {
+                    self.scroll_samples.clear();
+                    self.wheel(PointerPhase::ScrollStarted);
                 }
                 Event::Scroll(delta) => {
                     match self.scroll_samples.back_mut() {

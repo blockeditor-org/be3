@@ -1,3 +1,4 @@
+use block_editor_beui::beui::styled::Root;
 use std::time::Duration;
 
 use block_editor_beui::Loaded;
@@ -15,11 +16,13 @@ const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 180.0);
 pub struct AudioApp;
 
 impl block_editor_beui::BeuiApp for AudioApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <AudioView editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <AudioView editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

@@ -50,7 +50,7 @@ pub use shared_caret::{SharedCaret, remote_carets};
 pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {
-    fn view(editor: Editor) -> beui::NodeId;
+    fn view(editor: Editor) -> beui::styled::Root;
     fn preview_view(_editor: Editor) -> beui::NodeId {
         beui::reactive::view! {
             <beui::styled::Frame />

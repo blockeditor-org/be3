@@ -1,5 +1,6 @@
 use beui_macros::component;
 
+use beui_components_unstyled::SyntaxColors;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
@@ -43,6 +44,7 @@ pub struct Theme {
     pub scrim: Color32,
     pub scrim_soft: Color32,
     pub scrim_strong: Color32,
+    pub syntax: SyntaxColors,
 }
 
 impl Theme {
@@ -89,6 +91,7 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: SyntaxColors::DEFAULT,
     };
 
     pub const OLED: Theme = Theme {
@@ -125,6 +128,7 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: SyntaxColors::DEFAULT,
     };
 
     pub const LIGHT: Theme = Theme {
@@ -161,6 +165,7 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: LIGHT_SYNTAX,
     };
 
     pub const EPAPER: Theme = Theme {
@@ -197,8 +202,44 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+        syntax: EPAPER_SYNTAX,
     };
 }
+
+const fn rgb(hex: u32) -> Color32 {
+    Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+}
+
+const LIGHT_SYNTAX: SyntaxColors = SyntaxColors {
+    invalid: rgb(0xd1242f),
+    keyword: rgb(0xcf222e),
+    keyword_storage: rgb(0x953800),
+    keyword_primitive_type: rgb(0x0550ae),
+    literal: rgb(0x0550ae),
+    literal_string: rgb(0x0a3069),
+    comment: rgb(0x6e7781),
+    punctuation: rgb(0x57606a),
+    punctuation_important: rgb(0x24292f),
+    variable: rgb(0x57606a),
+    variable_constant: rgb(0x116329),
+    variable_function: rgb(0x8250df),
+    variable_mutable: rgb(0x24292f),
+    variable_parameter: rgb(0x953800),
+    markdown_plain_text: rgb(0x181d26),
+    markdown_symbol: rgb(0x6e7781),
+    markdown_link: rgb(0x0969da),
+    markdown_code: rgb(0x116329),
+    unstyled: rgb(0x24292f),
+    invisible: rgb(0xc0c6cf),
+};
+
+const EPAPER_SYNTAX: SyntaxColors = SyntaxColors {
+    comment: Color32::from_gray(80),
+    punctuation: Color32::from_gray(80),
+    markdown_symbol: Color32::from_gray(80),
+    invisible: Color32::from_gray(180),
+    ..SyntaxColors::uniform(Color32::BLACK)
+};
 
 impl Default for Theme {
     fn default() -> Self {

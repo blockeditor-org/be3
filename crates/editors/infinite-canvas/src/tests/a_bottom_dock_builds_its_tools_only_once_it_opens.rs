@@ -28,18 +28,20 @@ fn a_bottom_dock_builds_its_tools_only_once_it_opens() {
         held.set(Some(open));
         let (above, tool) = (Rc::clone(&counted), counted);
         view! {
-            <Frame @node_ref=&anchor width=400.0 height=300.0>
-                <BottomDock
-                    anchor={anchor}
-                    open={open}
-                    name="dock"
-                    above={move || view! {
-                        <Counted built={above} />
-                    }}
-                >
-                    <Counted built={tool} />
-                </BottomDock>
-            </Frame>
+            <Root>
+                <Frame @node_ref=&anchor width=400.0 height=300.0>
+                    <BottomDock
+                        anchor={anchor}
+                        open={open}
+                        name="dock"
+                        above={move || view! {
+                            <Counted built={above} />
+                        }}
+                    >
+                        <Counted built={tool} />
+                    </BottomDock>
+                </Frame>
+            </Root>
         }
     });
     test.run();

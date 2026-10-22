@@ -385,10 +385,19 @@ impl Painting {
                 turn,
             }
         };
-        frame
-            .primitives
-            .iter()
-            .filter_map(|primitive| {
+        let background = (frame.background[3] > 0).then(|| Primitive {
+            clip: shown,
+            content: Content::RoundedRect(scaled_rect(RoundedRect {
+                rect: source,
+                corner_radius: 0.0,
+                stroke_width: 0.0,
+                color: frame.background,
+                turn: Turn::NONE,
+            })),
+        });
+        background
+            .into_iter()
+            .chain(frame.primitives.iter().filter_map(|primitive| {
                 let within = intersect(primitive.clip, source);
                 if within[2] <= within[0] || within[3] <= within[1] {
                     return None;
@@ -426,7 +435,7 @@ impl Painting {
                     }
                 };
                 Some(Primitive { clip, content })
-            })
+            }))
             .collect()
     }
 }

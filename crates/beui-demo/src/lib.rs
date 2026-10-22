@@ -144,7 +144,6 @@ const BASE_PAGES: [Page; 7] = [
     Page::Layering,
 ];
 
-#[cfg(test)]
 const PAGES: [Page; 30] = [
     Page::Docking,
     Page::Text,
@@ -344,6 +343,10 @@ impl DemoApp {
             }),
         }
     }
+}
+
+pub fn page_titles() -> impl Iterator<Item = &'static str> {
+    PAGES.into_iter().map(Page::title)
 }
 
 #[component]

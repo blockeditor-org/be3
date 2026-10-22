@@ -33,11 +33,13 @@ const TOOLS_WIDTH: f32 = 180.0;
 pub struct PixelArtApp;
 
 impl block_editor_beui::BeuiApp for PixelArtApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Loaded>
-                <PixelArtEditor editor={editor} />
-            </Loaded>
+            <Root>
+                <Loaded>
+                    <PixelArtEditor editor={editor} />
+                </Loaded>
+            </Root>
         }
     }
 

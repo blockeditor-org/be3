@@ -1855,6 +1855,25 @@ impl Core {
                 return;
             }
         }
+        if drag.selection_mode == DragSelectionMode::select(CursorLeftRightStop::Word) {
+            let stops = self.cursor_stops();
+            let (anchor_start, anchor_end) = word_around(document.bytes(), anchor, stops);
+            let (focus_start, focus_end) = word_around(document.bytes(), focus, stops);
+            let minimum = anchor_start.min(focus_start);
+            let maximum = anchor_end.max(focus_end);
+            let (from, to) = if focus < anchor {
+                (maximum, minimum)
+            } else {
+                (minimum, maximum)
+            };
+            self.cursor_positions[0] = CursorPosition {
+                pos: Selection::range(Position::at(&document, from), Position::at(&document, to)),
+                vertical_move_start: None,
+                node_select_start: None,
+                drag_info: Some(drag),
+            };
+            return;
+        }
         let anchor_left = to_boundary(
             document.bytes(),
             anchor,
@@ -2647,6 +2666,36 @@ enum AsciiClassification {
     Symbols,
     Text,
     Unicode,
+}
+
+fn word_around(bytes: &[u8], index: usize, stops: CursorStops) -> (usize, usize) {
+    let index = index.min(bytes.len());
+    let in_line = |byte: &u8| !matches!(byte, b'\n' | b'\r');
+    let word = |byte: &u8| in_line(byte) && !byte.is_ascii_whitespace();
+    let right = bytes.get(index);
+    let left = index.checked_sub(1).and_then(|left| bytes.get(left));
+    let seed = if right.is_some_and(word) {
+        index
+    } else if left.is_some_and(word) {
+        index - 1
+    } else if right.is_some_and(in_line) {
+        index
+    } else if left.is_some_and(in_line) {
+        index - 1
+    } else {
+        return (index, index);
+    };
+    let class = ascii_classification(bytes[seed]);
+    let same = |byte: u8| in_line(&byte) && ascii_classification(byte) == class;
+    let mut start = seed;
+    while start > 0 && (same(bytes[start - 1]) || (stops.inside_atomic_unit)(bytes, start)) {
+        start -= 1;
+    }
+    let mut end = seed + 1;
+    while end < bytes.len() && (same(bytes[end]) || (stops.inside_atomic_unit)(bytes, end)) {
+        end += 1;
+    }
+    (start, end)
 }
 
 fn ascii_classification(byte: u8) -> AsciiClassification {

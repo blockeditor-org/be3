@@ -8,7 +8,8 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Document, Key, KeyAt, KeyPhase};
+use beui::unstyled::Container;
+use beui::{Document, Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuSubmenu};
 
 use crate::chrome::ChromeRoot;
@@ -44,7 +45,7 @@ pub struct BeuiFrame {
 }
 
 impl BeuiFrame {
-    pub fn build(editor: Editor, view: impl FnOnce() -> NodeId + 'static) -> Self {
+    pub fn build(editor: Editor, view: impl FnOnce() -> beui::styled::Root + 'static) -> Self {
         let owned_bar = OwnedSignal::new(FrameBar::default());
         let bar = owned_bar.handle();
         let exit = Rc::new(Cell::new(false));
@@ -77,8 +78,11 @@ impl BeuiFrame {
                 }
                 escaped
             });
-            view! {
-                <Root clear_color=ColorRole::None>
+            let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
+            let rooted = Rc::clone(&root);
+            let frame = view! {
+                <Layers>
+                    <PlacedHole editor />
                     <List spacing=0.0>
                         <FrameMenu
                             editor
@@ -89,13 +93,18 @@ impl BeuiFrame {
                         />
                         <CommandPalette open={palette} />
                         <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
-                            let content = view();
+                            let built = view();
+                            let content = built.child();
+                            rooted.set(Some(built));
                             content_slot_writer.set(Some(content));
                             content
                         }</ChromeRoot>
                     </List>
-                </Root>
-            }
+                </Layers>
+            };
+            root.take()
+                .expect("view() builds its root synchronously")
+                .holding(frame)
         });
         Self {
             document,
@@ -387,4 +396,50 @@ pub(crate) fn FrameMenu(
     view! {
         <List spacing=0.0 />
     }
+}
+
+#[component]
+fn PlacedHole(editor: Editor) -> NodeId {
+    let placed = editor.placed_content();
+    view! {
+        <Container>|size: ReadSignal<Vec2>| {
+            let strips = create_memo(move || hole_strips(size.get(), placed.get()));
+            view! {
+                <Canvas>
+                    <ForEach keys={vec![0usize, 1, 2, 3]}>|strip: usize| {
+                        let rect = create_memo(move || strips.get()[strip]);
+                        let x = create_memo(move || rect.get().min.x);
+                        let y = create_memo(move || rect.get().min.y);
+                        let width = create_memo(move || rect.get().width().max(0.0));
+                        let height = create_memo(move || rect.get().height().max(0.0));
+                        view! {
+                            <CanvasItem x={x} y={y} width={width} height={height} pointer=false>
+                                <Embed slot={EmbedSlot::new()} />
+                            </CanvasItem>
+                        }
+                    }</ForEach>
+                </Canvas>
+            }
+        }</Container>
+    }
+}
+
+fn hole_strips(size: Vec2, placed: Option<Rect>) -> [Rect; 4] {
+    let Some(placed) = placed else {
+        return [Rect::ZERO; 4];
+    };
+    let frame = Rect::from_min_size(Pos2::ZERO, size);
+    let placed = placed.intersect(frame);
+    [
+        Rect::from_min_max(frame.min, pos2(frame.max.x, placed.min.y)),
+        Rect::from_min_max(pos2(frame.min.x, placed.max.y), frame.max),
+        Rect::from_min_max(
+            pos2(frame.min.x, placed.min.y),
+            pos2(placed.min.x, placed.max.y),
+        ),
+        Rect::from_min_max(
+            pos2(placed.max.x, placed.min.y),
+            pos2(frame.max.x, placed.max.y),
+        ),
+    ]
 }

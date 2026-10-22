@@ -1,4 +1,5 @@
 use beui::pos2;
+use beui::styled::Root;
 
 use super::*;
 
@@ -8,9 +9,11 @@ const BENEATH: Uuid = Uuid::from_u128(0x0012);
 struct WindowApp;
 
 impl BeuiApp for WindowApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(editor: Editor) -> Root {
         view! {
-            <Window editor={editor} />
+            <Root>
+                <Window editor={editor} />
+            </Root>
         }
     }
 }
