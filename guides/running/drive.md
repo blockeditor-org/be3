@@ -161,6 +161,10 @@ is already down repeats it. `a11y TARGET` with no action prints the node a scree
 act on and the actions it offers; acting goes through the accessibility tree rather than the
 pointer or keys, the path a screen reader takes, and reaches plugins' nodes too.
 
+A pointer gesture that starts somewhere the pointer is not (`click`, `down`, `drag`) first moves
+it there in a frame of its own, as a person's pointer arrives and hovers before it presses: what
+shows only on hover, such as a scrollbar, is there to be pressed.
+
 Every command that gives input waits until the app has settled and prints what changed in
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
 change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more. The app

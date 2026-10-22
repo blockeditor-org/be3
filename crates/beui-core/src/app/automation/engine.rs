@@ -194,6 +194,7 @@ pub struct Automation {
     active: Option<Active>,
     held: Modifiers,
     pointer: Pos2,
+    hovering: bool,
     buttons: Vec<PointerButton>,
     fingers: Vec<(u64, Pos2)>,
     pen: Option<(Pos2, bool)>,
@@ -216,6 +217,7 @@ impl Automation {
             active: None,
             held: Modifiers::NONE,
             pointer: Pos2::ZERO,
+            hovering: false,
             buttons: Vec::new(),
             fingers: Vec::new(),
             pen: None,
@@ -678,21 +680,20 @@ impl Automation {
                         return Err(format!("click takes right, middle or double, not {other}"));
                     }
                 };
-                self.pointer = at;
-                let steps = (0..count)
-                    .map(|_| {
-                        vec![
-                            Event::PointerMoved(at),
-                            self.button(at, button, true),
-                            self.button(at, button, false),
-                        ]
-                    })
-                    .collect();
+                let mut steps = self.arrive(at);
+                steps.extend((0..count).map(|_| {
+                    vec![
+                        Event::PointerMoved(at),
+                        self.button(at, button, true),
+                        self.button(at, button, false),
+                    ]
+                }));
                 input(steps)
             }
             "move" => {
                 let at = at(argument(0)?)?;
                 self.pointer = at;
+                self.hovering = true;
                 input(vec![vec![Event::PointerMoved(at)]])
             }
             "down" | "up" => {
@@ -711,16 +712,22 @@ impl Automation {
                     Some(target) => at(target)?,
                     None => self.pointer,
                 };
+                let mut steps = match pressed {
+                    true => self.arrive(at),
+                    false => Vec::new(),
+                };
                 self.pointer = at;
+                self.hovering = true;
                 if pressed {
                     self.buttons.push(button);
                 } else {
                     self.buttons.retain(|held| *held != button);
                 }
-                input(vec![vec![
+                steps.push(vec![
                     Event::PointerMoved(at),
                     self.button(at, button, pressed),
-                ]])
+                ]);
+                input(steps)
             }
             "drag" => {
                 let from = at(argument(0)?)?;
@@ -731,11 +738,12 @@ impl Automation {
                         .map_err(|_| format!("{steps} is not a number of steps"))?,
                     None => 2,
                 };
+                let mut frames = self.arrive(from);
                 self.pointer = to;
-                let mut frames = vec![vec![
+                frames.push(vec![
                     Event::PointerMoved(from),
                     self.button(from, PointerButton::Primary, true),
-                ]];
+                ]);
                 for step in 1..steps.max(1) {
                     frames.push(vec![Event::PointerMoved(
                         from + (to - from) * (step as f32 / steps as f32),
@@ -822,7 +830,10 @@ impl Automation {
                     Event::ScrollEnded,
                 ]])
             }
-            "leave" => input(vec![vec![Event::PointerGone]]),
+            "leave" => {
+                self.hovering = false;
+                input(vec![vec![Event::PointerGone]])
+            }
             "tap" => {
                 let at = at(argument(0)?)?;
                 let finger = finger(arguments.get(1))?;
@@ -1348,6 +1359,16 @@ impl Automation {
                 overflows: true,
             })),
             other => Err(format!("unknown command {other}\n{USAGE}")),
+        }
+    }
+
+    fn arrive(&mut self, at: Pos2) -> Vec<Vec<Event>> {
+        let arrived = self.hovering && self.pointer == at;
+        self.pointer = at;
+        self.hovering = true;
+        match arrived {
+            true => Vec::new(),
+            false => vec![vec![Event::PointerMoved(at)]],
         }
     }
 
