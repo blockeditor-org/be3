@@ -14,7 +14,7 @@ impl FontBackend for Swatches {
         _family: FontFamily,
         pixel_size: u32,
         _shape: Shaping,
-        _pixels_per_point: f32,
+        pixels_per_point: f32,
     ) -> Galley {
         let colours = (0..SIDE * SIDE)
             .flat_map(|at| match at < SIDE * SIDE / 2 {
@@ -56,6 +56,7 @@ impl FontBackend for Swatches {
                 range: 0..text.len(),
                 cursors: vec![(0, 0.0), (text.len(), 48.0)],
             }],
+            pixels_per_point,
         )
     }
 }

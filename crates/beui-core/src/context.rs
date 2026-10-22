@@ -1460,11 +1460,13 @@ pub fn scale_shape(shape: &mut Shape, scale: f32) {
         }
         Shape::Text {
             origin,
+            scale: held,
             rotation,
             clip,
             ..
         } => {
             *origin = pos2(origin.x * scale, origin.y * scale);
+            *held *= scale;
             *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }

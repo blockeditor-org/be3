@@ -236,6 +236,7 @@ impl FontBackend for BrowserFonts {
                 range: 0..text.len(),
                 cursors,
             }],
+            scale,
         )
     }
 

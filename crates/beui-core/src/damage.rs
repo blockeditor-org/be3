@@ -170,11 +170,12 @@ pub fn bounds(shape: &Shape) -> Rect {
         Shape::Text {
             origin,
             galley,
+            scale,
             rotation,
             clip,
             ..
         } => rotation
-            .bounds(Rect::from_min_size(*origin, galley.size()))
+            .bounds(Rect::from_min_size(*origin, galley.size() * *scale))
             .intersect(*clip),
         Shape::Line {
             from,

@@ -204,6 +204,7 @@ impl FreetypeFonts {
                 range: 0..text.len(),
                 cursors,
             }],
+            scale,
         )
     }
 

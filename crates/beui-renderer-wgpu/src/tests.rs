@@ -43,6 +43,7 @@ mod text_paints_glyphs_over_the_background;
 mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
 mod two_filters_each_change_the_region_they_cover;
 mod two_regions_repainted_under_a_blur_match_a_full_repaint;
+mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
 
 use std::cell::RefCell;
 

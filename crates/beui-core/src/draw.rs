@@ -186,6 +186,7 @@ pub fn push_quads(
         Shape::Text {
             origin,
             galley,
+            scale,
             color,
             rotation,
             clip,
@@ -196,25 +197,23 @@ pub fn push_quads(
                 (origin.x * pixels_per_point).round(),
                 (origin.y * pixels_per_point).round(),
             );
-            let [left, top, right, bottom] = galley.pixel_bounds();
-            let run = [
-                origin.x + left,
-                origin.y + top,
-                origin.x + right,
-                origin.y + bottom,
-            ];
-            if skipped(damaged, turn.swept(run), clip) {
+            let stretch = match pixels_per_point * scale / galley.pixels_per_point() {
+                near if (near - 1.0).abs() < 1.0e-4 => 1.0,
+                stretch => stretch,
+            };
+            let stretched = |[left, top, right, bottom]: [f32; 4]| {
+                [
+                    origin.x + left * stretch,
+                    origin.y + top * stretch,
+                    origin.x + right * stretch,
+                    origin.y + bottom * stretch,
+                ]
+            };
+            if skipped(damaged, turn.swept(stretched(galley.pixel_bounds())), clip) {
                 return;
             }
             for glyph in galley.glyphs() {
-                let [left, top, right, bottom] = glyph.bounds();
-                let near = [
-                    origin.x + left,
-                    origin.y + top,
-                    origin.x + right,
-                    origin.y + bottom,
-                ];
-                if skipped(damaged, turn.swept(near), clip) {
+                if skipped(damaged, turn.swept(stretched(glyph.bounds())), clip) {
                     continue;
                 }
                 let (Some(image), Some(offset)) = (glyph.image(), glyph.offset()) else {
@@ -223,13 +222,12 @@ pub fn push_quads(
                 if image.width == 0 || image.height == 0 {
                     continue;
                 }
-                let min = origin + offset;
-                let rect = [
-                    min.x,
-                    min.y,
-                    min.x + image.width as f32,
-                    min.y + image.height as f32,
-                ];
+                let rect = stretched([
+                    offset.x,
+                    offset.y,
+                    offset.x + image.width as f32,
+                    offset.y + image.height as f32,
+                ]);
                 if skipped(damaged, turn.swept(rect), clip) {
                     continue;
                 }

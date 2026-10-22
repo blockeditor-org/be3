@@ -98,6 +98,7 @@ pub enum Shape {
     Text {
         origin: Pos2,
         galley: Galley,
+        scale: f32,
         color: Color32,
         rotation: Rotation,
         clip: Rect,
@@ -147,6 +148,7 @@ impl Shape {
                 Self::Text {
                     origin,
                     galley,
+                    scale,
                     color,
                     rotation,
                     clip,
@@ -154,12 +156,14 @@ impl Shape {
                 Self::Text {
                     origin: other_origin,
                     galley: other_galley,
+                    scale: other_scale,
                     color: other_color,
                     rotation: other_rotation,
                     clip: other_clip,
                 },
             ) => {
                 origin == other_origin
+                    && scale == other_scale
                     && color == other_color
                     && rotation == other_rotation
                     && clip == other_clip
@@ -609,6 +613,7 @@ impl Painter {
         self.push(Shape::Text {
             origin,
             galley,
+            scale: 1.0,
             color,
             rotation: self.state.rotation,
             clip: Rect::EVERYTHING,

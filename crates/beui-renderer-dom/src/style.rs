@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 use beui_core::color::Color32;
 use beui_core::display::Group;
 use beui_core::fade::Fade;
-use beui_core::font::Galley;
+use beui_core::font::{FontId, Galley};
 use beui_core::geometry::Vec2;
 use beui_core::geometry::{Pos2, Rect, Rotation, vec2};
 use beui_core::painter::Shape;
@@ -66,10 +66,11 @@ pub fn look(shape: &Shape, factor: f32, image: Option<&str>) -> Option<Look> {
         Shape::Text {
             origin,
             galley,
+            scale,
             color,
             rotation,
             clip,
-        } => text(*origin, galley, *color, *rotation, *clip, factor)?,
+        } => text(*origin, galley, *scale, *color, *rotation, *clip, factor)?,
         Shape::Image {
             rect,
             source,
@@ -253,21 +254,22 @@ fn escaped(text: &str) -> String {
 fn text(
     origin: Pos2,
     galley: &Galley,
+    scale: f32,
     color: Color32,
     rotation: Rotation,
     clip: Rect,
     factor: f32,
 ) -> Option<Look> {
     let origin = Pos2::new(snap(origin.x, factor), snap(origin.y, factor));
-    let rect = Rect::from_min_size(origin, galley.size());
+    let rect = Rect::from_min_size(origin, galley.size() * scale);
     let mut css = placed(rect, clip, rotation)?;
-    let _ = write!(
-        css,
-        "font:{};color:{};",
-        css_font(galley.font()),
-        rgba(color)
-    );
-    let height = galley.line_height();
+    let font = galley.font();
+    let font = FontId {
+        size: font.size * scale,
+        ..font
+    };
+    let _ = write!(css, "font:{};color:{};", css_font(font), rgba(color));
+    let height = galley.line_height() * scale;
     let lines = galley
         .lines()
         .iter()
@@ -276,12 +278,12 @@ fn text(
             if text.trim().is_empty() {
                 return None;
             }
-            let left = line.cursors.first().map_or(0.0, |(_, x)| *x);
+            let left = line.cursors.first().map_or(0.0, |(_, x)| *x) * scale;
             Some(Line {
                 text: text.trim_end_matches(['\n', '\r']).replace('\t', " "),
                 css: format!(
                     "left:{left}px;top:{}px;height:{height}px;line-height:{height}px;",
-                    line.top
+                    line.top * scale
                 ),
             })
         })
