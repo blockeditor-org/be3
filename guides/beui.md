@@ -676,15 +676,14 @@ for one that is not), `radius` a `Radius` (`Xs` to `Lg`, `Full`, or
 `Border::FOCUS`, `Border::new(role)` with `.width(..)` and `.offset(..)`;
 `focus_border` shows one only while the focus ring is visible). A
 `ColorRole::custom(..)` wraps a colour or a signal of one.
-A frame can also paint a `shadow` (`Shadow`: a colour, a `spread` drawn as one
-ring per point fading outwards, and a `drop`) and a `pointer`, a beak of that
-reach on its top or bottom edge, filled and outlined with the frame so its
-border runs on around the beak; it shows only while an overlay points it at its
-anchor (below). Both paint outside the frame's box without taking room, so give
-them room in a padded frame around it: a plugin's host draws what is outside an
-overlay's content under the editors it holds. The styled `Frame` takes them as
-tokens: `elevation` (`Elevation::Floating`, the theme's `shadow` colour at
-`FLOATING_SHADOW_SPREAD`) and `pointer=true` (`POINTER_REACH`).
+A frame can also paint a `pointer`, a beak of that reach on its top or bottom
+edge, filled and outlined with the frame so its border runs on around the beak;
+it shows only while an overlay points it at its anchor (below). It paints
+outside the frame's box without taking room, so give it room in a padded frame
+around it: a plugin's host draws what is outside an overlay's content under the
+editors it holds. The styled `Frame` takes it as a token, `pointer=true`
+(`POINTER_REACH`). Frames paint no shadows: a floating surface stands apart by
+its fill and border.
 `Layers` lays every child over the same box, sized to the largest, later
 children on top: content over a background, a badge over an icon. A child that
 should not fill the box goes in a `Frame` that aligns it. Pointer input is the
@@ -2018,7 +2017,7 @@ closes it through `on_close` with `dismiss_on_outside_press` (any modal
 `DockDialog` takes it; a press on another pane never closes one). It has no
 title bar: its content draws its own header and close button (styled: the
 dialog card's raised surface, `Radius::Lg` on every corner, the dialog outline
-that shows focus and attention, and the floating shadow, kept `dialog::MARGIN`
+that shows focus and attention, kept `dialog::MARGIN`
 from the tab bar and the window's edges). Its layer hangs from the panel, so it
 follows the tab into another pane or a window.
 
