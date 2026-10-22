@@ -32,6 +32,7 @@ pub(super) fn block_type_descriptors(
         .map(|(block_type, entry)| BlockTypeDescriptor {
             block_type: block_type.into_bytes(),
             display_name: entry.display_name,
+            color: entry.color,
             icon_codepoint: entry.icon.to_owned(),
             children: block_plugin_api::ChildOperations {
                 add: entry.add,

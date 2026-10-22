@@ -6,6 +6,7 @@
     {
       "block_type": "00007072-6573-656e-7461-74696f6e0001",
       "display_name": "Presentation",
+      "color": [211, 126, 59],
       "icon": "\ue41b",
       "templates": {
         "main": {},

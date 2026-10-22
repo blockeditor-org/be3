@@ -6,6 +6,7 @@
     {
       "block_type": "776f726b-7370-6163-652d-75692d303031",
       "display_name": "Workspace",
+      "color": [203, 91, 125],
       "icon": "\ue8f0",
       "interaction": "Live",
       "resize": "None",

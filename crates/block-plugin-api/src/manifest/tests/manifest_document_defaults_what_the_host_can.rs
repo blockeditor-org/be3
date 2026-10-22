@@ -4,6 +4,7 @@ use super::*;
 fn manifest_document_defaults_what_the_host_can() {
     let document = ManifestDocument::parse(DOCUMENT).expect("the document is valid");
     let editor = &document.editors[0];
+    assert_eq!(editor.color, None);
     assert_eq!(editor.children, ChildOperations::default());
     assert_eq!(editor.interaction, InteractionMode::default());
     assert_eq!(editor.capabilities, EditorCapabilities::default());

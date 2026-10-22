@@ -15,6 +15,7 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
         types: vec![BlockTypeDescriptor {
             block_type: block_type.into_bytes(),
             display_name: "Note".to_owned(),
+            color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
         }],

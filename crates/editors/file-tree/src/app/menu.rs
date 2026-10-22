@@ -139,6 +139,7 @@ fn SectionMenu<F: Fn() + 'static>(
                 danger=true
                 row_test_id={"file-tree.section.delete".to_owned()}
             />
+            <Appearance editor row />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
@@ -321,6 +322,7 @@ fn BlockMenu<F: Fn() + 'static>(
                     on_click={restore}
                 />
             </Show>
+            <Appearance editor row />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
@@ -332,5 +334,85 @@ fn BlockMenu<F: Fn() + 'static>(
             </Show>
         },
         on_select: Callback::new(chose),
+    }
+}
+
+#[component]
+fn Appearance(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
+    use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR};
+    use block_editor_beui::beui::Color32;
+    use block_editor_beui::beui::icons::*;
+    let disabled = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
+    let set_icon = move |icon: Option<char>| {
+        if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
+            && let Some(id) = shown.id
+        {
+            editor.blocks().define(id, ICON.definition(icon.as_ref()));
+        }
+    };
+    let set_color = move |color: Option<[u8; 3]>| {
+        if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
+            && let Some(id) = shown.id
+        {
+            editor
+                .blocks()
+                .define(id, ICON_COLOR.definition(color.as_ref()));
+        }
+    };
+    let icons = [
+        ("Document", ICON_DESCRIPTION),
+        ("Folder", ICON_FOLDER),
+        ("Star", ICON_STAR),
+        ("Favorite", ICON_FAVORITE),
+        ("Home", ICON_HOME),
+        ("Work", ICON_WORK),
+        ("School", ICON_SCHOOL),
+        ("Book", ICON_BOOK),
+        ("Code", ICON_CODE),
+        ("Idea", ICON_LIGHTBULB),
+        ("Flag", ICON_FLAG),
+        ("Calendar", ICON_CALENDAR_MONTH),
+        ("Checklist", ICON_CHECKLIST),
+        ("Image", ICON_IMAGE),
+        ("Music", ICON_MUSIC_NOTE),
+        ("Public", ICON_PUBLIC),
+    ];
+    let colors = [
+        ("Blue", [65, 145, 210]),
+        ("Green", [44, 158, 128]),
+        ("Purple", [155, 112, 211]),
+        ("Orange", [211, 126, 59]),
+        ("Pink", [203, 91, 125]),
+        ("Teal", [64, 155, 173]),
+        ("Gold", [172, 145, 47]),
+        ("Gray", [135, 139, 148]),
+    ];
+    view! {
+        <MenuItem label="Appearance" glyph=ICON_PALETTE disabled row_test_id="file-tree.appearance">
+            <MenuItem label="Icon" row_test_id="file-tree.appearance.icon">
+                <MenuItem label="Use block type icon" on_click={move || set_icon(None)} />
+                <ForEach keys={icons.to_vec()}>|(name, icon): (&'static str, &'static str)|
+                    <MenuItem
+                        label={name}
+                        glyph={icon}
+                        on_click={move || set_icon(icon.chars().next())}
+                    />
+                </ForEach>
+            </MenuItem>
+            <MenuItem label="Icon color" row_test_id="file-tree.appearance.color">
+                <MenuItem label="Use block type color" on_click={move || set_color(None)} />
+                <ForEach keys={colors.to_vec()}>|(name, color): (&'static str, [u8; 3])| {
+                    let [r, g, b] = color;
+                    view! {
+                        <MenuItem
+                            label={name}
+                            glyph=ICON_CIRCLE
+                            glyph_color={Some(Color32::from_rgb(r,g,b))}
+                            on_click={move || set_color(Some(color))}
+                        />
+                    }
+                }</ForEach>
+            </MenuItem>
+        </MenuItem>
     }
 }

@@ -5,6 +5,7 @@ fn manifest_validation() {
     let editor = EditorManifest {
         block_type: [1; 16],
         display_name: "Counter".into(),
+        color: None,
         icon: "123".into(),
         templates: vec![TemplateManifest {
             id: "main".into(),

@@ -31,6 +31,8 @@ pub struct ManifestDocument {
 pub struct EditorDocument {
     pub block_type: String,
     pub display_name: String,
+    #[serde(default)]
+    pub color: Option<[u8; 3]>,
     pub icon: String,
     #[serde(default)]
     pub templates: Templates,
@@ -165,6 +167,7 @@ impl EditorDocument {
         Ok(EditorManifest {
             block_type: editor_type,
             display_name: self.display_name,
+            color: self.color,
             icon: self.icon,
             templates,
             children: self.children,

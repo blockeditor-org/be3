@@ -6,6 +6,7 @@
     {
       "block_type": "6be37c5e-0a1d-4f6e-9c20-7265706f0001",
       "display_name": "Repository",
+      "color": [172, 145, 47],
       "icon": "",
       "templates": {
         "main": {}
@@ -17,6 +18,7 @@
     {
       "block_type": "6be37c5e-0a1d-4f6e-9c20-636b6f750001",
       "display_name": "Checkout",
+      "color": [65, 145, 210],
       "icon": "",
       "regions": [
         "Frame"

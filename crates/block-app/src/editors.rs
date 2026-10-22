@@ -125,6 +125,7 @@ struct EditorRegistration {
     block_type: Uuid,
     display_name: &'static str,
     icon: &'static str,
+    color: Option<[u8; 3]>,
     open: OpenEditor,
     can_add_child: bool,
     can_delete_child: bool,
@@ -142,6 +143,7 @@ pub(crate) struct TemplateEntry {
 pub(crate) struct BlockTypeEntry {
     pub(crate) display_name: String,
     pub(crate) icon: &'static str,
+    pub(crate) color: Option<[u8; 3]>,
     pub(crate) add: bool,
     pub(crate) delete: bool,
     pub(crate) replace: bool,
@@ -217,6 +219,7 @@ impl EditorRegistry {
                     registration.block_type,
                     BlockTypeEntry {
                         display_name: registration.display_name.to_owned(),
+                        color: registration.color,
                         icon: registration.icon,
                         add: registration.can_add_child,
                         delete: registration.can_delete_child,
@@ -278,6 +281,7 @@ impl EditorRegistry {
                 block_type,
                 display_name,
                 icon,
+                color: editor.color,
                 open: {
                     let manifest = Arc::clone(manifest);
                     Box::new(move |id| PluginEditor::new(Arc::clone(&manifest), id, block_type))

@@ -19,6 +19,7 @@ const SPACING: f32 = 14.0;
 pub fn ActionRow(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph_color: Prop<Option<TextColor>>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] danger: bool,
@@ -43,7 +44,17 @@ pub fn ActionRow(
                 ..
             } = handle;
             view! {
-                <ActionRowFace hovered active focused label glyph detail disabled danger />
+                <ActionRowFace
+                    hovered
+                    active
+                    focused
+                    label
+                    glyph
+                    glyph_color
+                    detail
+                    disabled
+                    danger
+                />
             }
         }</unstyled::Button>
     }
@@ -57,6 +68,7 @@ pub(crate) fn ActionRowFace(
     label: Prop<String>,
     #[prop(default = String::new())] lead: Prop<String>,
     glyph: Prop<String>,
+    #[prop(default = None)] glyph_color: Prop<Option<TextColor>>,
     detail: Prop<String>,
     disabled: Prop<bool>,
     danger: Prop<bool>,
@@ -82,8 +94,9 @@ pub(crate) fn ActionRowFace(
         (false, false) => TextColor::Default,
     });
     let icon_color = create_memo(move || match (off.get(), danger.get()) {
+        (true, _) => TextColor::Muted,
         (false, true) => TextColor::Danger,
-        _ => TextColor::Muted,
+        _ => glyph_color.get().unwrap_or(TextColor::Muted),
     });
     let glyph = create_memo(move || glyph.get());
     let has_glyph = create_memo(move || !glyph.get().is_empty());

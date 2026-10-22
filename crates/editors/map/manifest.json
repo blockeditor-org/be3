@@ -6,6 +6,7 @@
     {
       "block_type": "6d617076-6965-7762-6c6f-636b00000001",
       "display_name": "Map",
+      "color": [64, 155, 173],
       "icon": "\ue55b",
       "templates": {
         "main": {}

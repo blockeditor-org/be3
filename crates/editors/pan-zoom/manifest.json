@@ -6,6 +6,7 @@
     {
       "block_type": "70616e5f-7a6f-6f6d-2d62-6c6f636b0001",
       "display_name": "Pan and Zoom",
+      "color": [172, 145, 47],
       "icon": "\uf655",
       "templates": {
         "main": {

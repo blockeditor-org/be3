@@ -450,6 +450,7 @@ pub struct PluginManifest {
 pub struct EditorManifest {
     pub block_type: [u8; 16],
     pub display_name: String,
+    pub color: Option<[u8; 3]>,
     pub icon: String,
     pub templates: Vec<TemplateManifest>,
     pub children: ChildOperations,
@@ -586,6 +587,7 @@ impl ResizeMode {
 pub struct BlockTypeDescriptor {
     pub block_type: [u8; 16],
     pub display_name: String,
+    pub color: Option<[u8; 3]>,
     pub icon_codepoint: String,
     pub children: ChildOperations,
 }

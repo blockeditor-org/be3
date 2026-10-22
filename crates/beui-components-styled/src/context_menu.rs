@@ -195,6 +195,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         label,
         lead,
         glyph,
+        glyph_color,
         detail,
         checked,
         disabled,
@@ -217,8 +218,11 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         (false, false) => TextColor::Default,
     });
     let icon_color = create_memo(move || match (disabled.get(), danger.get()) {
+        (true, _) => TextColor::Muted,
         (false, true) => TextColor::Danger,
-        _ => TextColor::Muted,
+        _ => glyph_color
+            .get()
+            .map_or(TextColor::Muted, TextColor::Custom),
     });
     let glyph = create_memo(move || match kind {
         MenuRowKind::Back => ICON_CHEVRON_LEFT.to_owned(),
@@ -363,6 +367,7 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
     let MenuRowHandle {
         label,
         glyph,
+        glyph_color,
         disabled,
         hovered,
         focused,
@@ -374,11 +379,17 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
+    let icon_color = create_memo(move || match disabled.get() {
+        true => TextColor::Muted,
+        false => glyph_color
+            .get()
+            .map_or(TextColor::Default, TextColor::Custom),
+    });
     let fill_color = create_memo(move || row_background(&theme, focused.get(), hovered.get()));
     view! {
         <Frame fill={ColorRole::custom(fill_color)} radius=Radius::Md padding>
             <List align=Align::Center spacing=TILE_SPACING>
-                <Text size=TextSize::Xl color align=TextAlign::Center>
+                <Text size=TextSize::Xl color={icon_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
                 <Text size=TextSize::Sm color align=TextAlign::Center ellipsis=true>{label}</Text>
@@ -412,6 +423,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         label,
         lead,
         glyph,
+        glyph_color,
         detail,
         checked,
         disabled,
@@ -441,6 +453,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 label
                 lead
                 glyph
+                glyph_color={create_memo(move || glyph_color.get().map(TextColor::Custom))}
                 detail
                 disabled
                 danger

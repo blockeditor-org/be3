@@ -74,9 +74,9 @@ pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
 pub use metadata::{
-    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, Entries,
-    INTRINSIC_NAME, LOCAL_ID, MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH,
-    Thumbhash,
+    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, Entries, ICON,
+    ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA,
+    THUMBHASH, Thumbhash,
 };
 pub use model::Root;
 pub use pdf::{PdfContent, PdfHeader};

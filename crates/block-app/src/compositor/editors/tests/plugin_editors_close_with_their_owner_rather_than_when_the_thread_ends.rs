@@ -17,6 +17,7 @@ fn plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
             editors: vec![EditorManifest {
                 block_type: block_type.into_bytes(),
                 display_name: "Test".to_owned(),
+                color: None,
                 icon: String::new(),
                 templates: Vec::new(),
                 children: Default::default(),
