@@ -256,8 +256,8 @@ impl EditorSession {
         }));
     }
 
-    pub(crate) fn set_view(&self, view: Rect, scale: f32, moved: bool) {
-        self.host.set_view(view, scale, moved);
+    pub(crate) fn set_view(&self, view: Rect, scale: f32) {
+        self.host.set_view(view, scale);
     }
 
     pub(crate) fn resized(&mut self, size: Vec2) {

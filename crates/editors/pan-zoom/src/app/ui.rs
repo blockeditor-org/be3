@@ -1,3 +1,4 @@
+use block_editor_beui::Fit;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_beui::beui::reactive::*;
@@ -96,7 +97,8 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let selected = create_signal(None::<usize>);
     let stage = NodeRef::new();
     editor.content(&stage);
-    let fitting = editor.keep_fitted(|| Some(Rect::from_min_size(pos2(0.0, 0.0), WORLD)));
+    let fitting =
+        editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
 
     let chrome = editor.chrome_shown();
     let panel_shown = create_memo(move || chrome.get() && open.get());

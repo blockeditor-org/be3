@@ -10,7 +10,6 @@ fn view_messages_round_trip() {
             width: 320.0,
             height: 240.5,
             scale: 1.5,
-            moved: true,
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
@@ -32,13 +31,20 @@ fn view_messages_round_trip() {
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
-            change: ViewChange::Follow {
-                factor: 0.5,
-                anchor: (40.0, 30.0),
-                x: -6.0,
-                y: 2.5,
-                resume: true,
-            },
+            change: ViewChange::KeepFitted(Some(FitArea::Rect {
+                x: 40.0,
+                y: 30.0,
+                width: -6.0,
+                height: 2.5,
+            })),
+        }),
+        Message::Editor(EditorMessage::ChangeView {
+            instance: EditorInstanceId(3),
+            change: ViewChange::KeepFitted(Some(FitArea::Centre)),
+        }),
+        Message::Editor(EditorMessage::ChangeView {
+            instance: EditorInstanceId(3),
+            change: ViewChange::Fit,
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),

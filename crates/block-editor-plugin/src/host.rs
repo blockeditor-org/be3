@@ -12,9 +12,9 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockImport, BlockPick, Camera, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildRect, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
-    FileSave, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId,
-    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, decode_host, encode_host,
+    FileSave, FitArea, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue,
+    HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange,
+    WebViewCommand, WebViewEvent, WebViewId, decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -339,7 +339,6 @@ impl Children {
 struct View {
     rect: Rect,
     scale: f32,
-    moved: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1125,10 +1124,6 @@ impl EditorHost {
         self.framed_view().map(|view| view.scale)
     }
 
-    pub fn view_moved(&self) -> bool {
-        self.framed_view().is_some_and(|view| view.moved)
-    }
-
     pub(crate) fn camera(&self) -> Option<Camera> {
         self.framed_view().map(|view| Camera {
             x: view.rect.min.x,
@@ -1159,15 +1154,14 @@ impl EditorHost {
         });
     }
 
-    pub fn follow_view(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
-        let origin = self.region.get().origin;
-        self.view_changes.borrow_mut().push(ViewChange::Follow {
-            factor,
-            anchor: (anchor.x - origin.x, anchor.y - origin.y),
-            x: delta.x,
-            y: delta.y,
-            resume,
-        });
+    pub fn keep_fitted(&self, area: Option<FitArea>) {
+        self.view_changes
+            .borrow_mut()
+            .push(ViewChange::KeepFitted(area));
+    }
+
+    pub fn fit_view(&self) {
+        self.view_changes.borrow_mut().push(ViewChange::Fit);
     }
 
     pub fn pan_drag_view(&self) {
@@ -1724,12 +1718,8 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn set_view(&self, view: Rect, scale: f32, moved: bool) {
-        self.view.set(Some(View {
-            rect: view,
-            scale,
-            moved,
-        }));
+    pub fn set_view(&self, view: Rect, scale: f32) {
+        self.view.set(Some(View { rect: view, scale }));
         self.changed();
     }
 
