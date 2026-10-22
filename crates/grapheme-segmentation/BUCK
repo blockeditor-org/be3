@@ -2,4 +2,4 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
 cargo_library()
 
-cargo_test(srcs = glob(["src/**/*.rs", "src/**/*.txt"]))
+cargo_test()

@@ -2,10 +2,10 @@ use foldhash::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use foldhash::fast::FixedState;
+use grapheme_segmentation::is_grapheme_boundary;
 use std::cell::OnceCell;
 use std::ops::Range;
 use std::rc::{Rc, Weak};
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -245,12 +245,8 @@ impl GalleyLine {
             if end <= start || text.get(start..end).is_none_or(single_character) {
                 continue;
             }
-            let inside: Vec<usize> = text
-                .get(start..end)
-                .into_iter()
-                .flat_map(|cluster| cluster.grapheme_indices(true))
-                .map(|(offset, _)| start + offset)
-                .filter(|at| *at > start)
+            let inside: Vec<usize> = (start + 1..end)
+                .filter(|&at| is_grapheme_boundary(text.as_bytes(), at))
                 .collect();
             let parts = inside.len() + 1;
             for (step, at) in inside.into_iter().enumerate() {
