@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
+use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 
 #[test]
 fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
@@ -41,7 +41,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
         "its owner is asked"
     );
     assert_eq!(
-        dock_state(harness.document(), dock).all_tabs(),
+        harness.document().api::<DockApi>(dock).state().all_tabs(),
         vec![TabId::new(1), TabId::new(2), TabId::new(3)],
         "the tab stays until its owner removes it"
     );

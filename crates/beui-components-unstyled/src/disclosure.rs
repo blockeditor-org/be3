@@ -14,18 +14,20 @@ pub struct DisclosureHandle {
     pub open: Binding<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct State {
     open: Binding<bool>,
 }
 
 #[component]
 pub fn Disclosure(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<DisclosureApi>,
     spacing: Prop<f32>,
     header: Render<DisclosureHandle>,
     children: Child,
     open: Binding<bool>,
 ) -> NodeId {
-    set_component_state(State { open });
+    api.fill(DisclosureApi(State { open }));
 
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::DisclosureTriangle);
@@ -58,6 +60,11 @@ pub fn Disclosure(
     }
 }
 
-pub fn disclosure_open(tree: &impl Inspect, disclosure: NodeId) -> bool {
-    tree.component_state::<State>(disclosure).open.get()
+#[derive(Clone, Copy)]
+pub struct DisclosureApi(State);
+
+impl DisclosureApi {
+    pub fn open(&self) -> bool {
+        self.0.open.get()
+    }
 }

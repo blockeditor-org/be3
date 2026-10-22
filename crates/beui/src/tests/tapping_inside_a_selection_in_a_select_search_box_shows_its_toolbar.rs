@@ -15,14 +15,25 @@ fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let trigger = unstyled::select_trigger(harness.document(), select);
+    let trigger = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
     harness.type_text("apple pie");
     harness.frame(Vec::new());
 
-    let search = unstyled::select_search(harness.document(), select);
-    let text = harness.rect(unstyled::text_input_text(harness.document(), search));
+    let search = harness
+        .document()
+        .api::<unstyled::SelectApi>(select)
+        .search();
+    let text = harness.rect(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(search)
+            .text(),
+    );
     let word = pos2(text.left() + 10.0, text.center().y);
     for _ in 0..2 {
         harness.touch(TouchPhase::Start, word);
@@ -33,9 +44,18 @@ fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
     harness.touch(TouchPhase::End, inside);
     harness.frame(Vec::new());
 
-    let toolbar = unstyled::text_input_toolbar(harness.document(), search)
+    let toolbar = harness
+        .document()
+        .api::<unstyled::TextInputApi>(search)
+        .toolbar(harness.document())
         .expect("tapping the selection shows the search box's toolbar");
     assert!(text_within(harness.document(), toolbar, "Copy").is_some());
-    assert!(unstyled::select_open(harness.document(), select));
-    assert!(unstyled::text_input_focused(harness.document(), search).get_untracked());
+    assert!(harness.document().api::<unstyled::SelectApi>(select).open());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::TextInputApi>(search)
+            .focused()
+            .get_untracked()
+    );
 }

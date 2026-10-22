@@ -54,7 +54,7 @@ impl Toolbar {
         [&self.device, &self.zoom].into_iter().any(|select| {
             select
                 .try_get()
-                .is_some_and(|select| select_open(&self.document, select))
+                .is_some_and(|select| self.document.api::<SelectApi>(select).open())
         })
     }
 }

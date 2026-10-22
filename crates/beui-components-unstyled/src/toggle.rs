@@ -21,6 +21,7 @@ pub struct ToggleHandle {
 
 #[component]
 pub fn Toggle(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ToggleApi>,
     checked: Binding<bool>,
     #[prop(default = false)] mixed: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -101,7 +102,7 @@ pub fn Toggle(
         false => CursorIcon::PointingHand,
     });
 
-    set_component_state(checked);
+    api.fill(ToggleApi(checked));
 
     view! {
         <Interactive
@@ -122,6 +123,11 @@ pub fn Toggle(
     }
 }
 
-pub fn toggle_checked(tree: &impl Inspect, toggle: NodeId) -> Binding<bool> {
-    *tree.component_state::<Binding<bool>>(toggle)
+#[derive(Clone, Copy)]
+pub struct ToggleApi(Binding<bool>);
+
+impl ToggleApi {
+    pub fn checked(&self) -> Binding<bool> {
+        self.0
+    }
 }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_tab_dropped_where_windows_overlap_joins_the_one_on_top() {
@@ -12,7 +12,7 @@ fn a_tab_dropped_where_windows_overlap_joins_the_one_on_top() {
         drag_with(&mut harness, tab, to, Modifiers::ALT);
         harness.frame(Vec::new());
     }
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let [below, above] = [state.windows()[0], state.windows()[1]];
     let layer = |harness: &Harness, title: &str| {
         let document = harness.document();
@@ -27,7 +27,7 @@ fn a_tab_dropped_where_windows_overlap_joins_the_one_on_top() {
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     harness.drag(tab, overlap);
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert!(
         state.surface_tabs(above).contains(&TabId::new(1)),
         "the drop goes to the window drawn on top: {:?}",
@@ -43,7 +43,7 @@ fn a_tab_dropped_where_windows_overlap_joins_the_one_on_top() {
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 4"));
     harness.drag(tab, overlap);
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert!(
         state.surface_tabs(below).contains(&TabId::new(4)),
         "and the next drop there goes to it, as the layers stack: {:?}",

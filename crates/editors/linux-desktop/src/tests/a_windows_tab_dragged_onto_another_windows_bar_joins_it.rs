@@ -1,5 +1,5 @@
 use block_editor_beui::beui::Pos2;
-use block_editor_beui::beui::unstyled::dock_state;
+use block_editor_beui::beui::unstyled::DockApi;
 
 use super::*;
 
@@ -24,7 +24,7 @@ fn a_windows_tab_dragged_onto_another_windows_bar_joins_it() {
     let dock = document
         .find_test_id("desktop.dock")
         .expect("the desktop has a dock");
-    let state = dock_state(document, dock);
+    let state = document.api::<DockApi>(dock).state();
     let windows = state.windows();
     assert_eq!(windows.len(), 1, "the dragged tab left its own window");
     assert_eq!(

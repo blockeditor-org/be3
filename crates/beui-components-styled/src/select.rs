@@ -27,6 +27,8 @@ const ARROW_SPACING: f32 = 4.0;
 
 #[component]
 pub fn Select(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SelectApi>,
+
     options: Children<ChoiceOption>,
     #[prop(default = None)] selected: Binding<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -38,6 +40,7 @@ pub fn Select(
     let placeholder = create_memo(move || placeholder.get());
     view! {
         <unstyled::Select
+            api
             options
             selected
             disabled
@@ -183,14 +186,6 @@ fn SelectPopup(children: Child) -> NodeId {
             {children}
         </Frame>
     }
-}
-
-pub fn select_selected(tree: &impl Inspect, select: NodeId) -> Option<usize> {
-    unstyled::select_selected(tree, select)
-}
-
-pub fn select_open(tree: &impl Inspect, select: NodeId) -> bool {
-    unstyled::select_open(tree, select)
 }
 
 fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {

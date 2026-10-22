@@ -22,9 +22,21 @@ fn a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking() {
     harness.finger(1, TouchPhase::End, flick);
     harness.frame(Vec::new());
     assert!(harness.simulated_cursor().distance(target) > 5.0);
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 
     harness.tap_trackpad();
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

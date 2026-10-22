@@ -15,5 +15,11 @@ fn shift_arrow_selects_the_character_that_typing_then_replaces() {
     harness.key(Key::ArrowLeft, Modifiers::SHIFT);
     harness.type_text("r");
 
-    assert_eq!(styled::text_input_value(harness.document(), input), "car");
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
+        "car"
+    );
 }

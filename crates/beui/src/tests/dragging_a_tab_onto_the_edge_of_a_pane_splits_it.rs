@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn dragging_a_tab_onto_the_edge_of_a_pane_splits_it() {
@@ -13,7 +13,7 @@ fn dragging_a_tab_onto_the_edge_of_a_pane_splits_it() {
     harness.drag(from, pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y / 2.0));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let leaves = state.leaves(state.main());
     assert_eq!(
         leaves.len(),

@@ -21,12 +21,30 @@ fn a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button() {
     let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
-    assert!(unstyled::button_focused(harness.document(), button).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(button)
+            .focused()
+            .get()
+    );
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(harness.document.scroll_offset(scroll), 40.0);
     harness.key(Key::PageDown, Modifiers::NONE);
     assert_eq!(harness.document.scroll_offset(scroll), 140.0);
-    assert!(unstyled::button_focused(harness.document(), button).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(button)
+            .focused()
+            .get()
+    );
     harness.key(Key::Tab, Modifiers::NONE);
-    assert!(unstyled::button_focused(harness.document(), button).get());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::ButtonApi>(button)
+            .focused()
+            .get()
+    );
 }

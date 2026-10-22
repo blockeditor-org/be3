@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{Entry, TabId, dock_state};
+use crate::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
@@ -28,7 +28,7 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     let onto = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     harness.drag(dragged, onto);
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let surface = state.windows()[0];
     let outer = state.leaves(surface)[0];
     assert_eq!(
@@ -48,7 +48,11 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     harness.click(pos2(group.right() + 30.0, group.center().y));
     harness.frame(Vec::new());
     assert_eq!(
-        dock_state(harness.document(), dock).focused_leaf(),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .focused_leaf(),
         Some(outer),
         "a press on the title bar of the window focuses its outer pane"
     );
@@ -57,7 +61,11 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        dock_state(harness.document(), dock).active_entry(outer),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .active_entry(outer),
         Some(Entry::Tab(TabId::new(4))),
         "Ctrl+Tab walks the tabs of the window rather than those of the group"
     );

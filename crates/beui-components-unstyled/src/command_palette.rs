@@ -43,6 +43,7 @@ struct State {
 
 #[component]
 pub fn CommandPalette(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<CommandPaletteApi>,
     open: Binding<bool>,
     list_height: Prop<f32>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
@@ -76,7 +77,7 @@ pub fn CommandPalette(
         rows: store(RefCell::new(Vec::new())),
         open,
     };
-    set_component_state(state);
+    api.fill(CommandPaletteApi(state));
 
     create_effect(move || {
         if open.get() {
@@ -316,42 +317,47 @@ fn reveal_reader(state: State) -> Prop<Option<usize>> {
     })
 }
 
-pub fn command_palette_search(tree: &impl Inspect, palette: NodeId) -> NodeId {
-    tree.component_state::<State>(palette).search.get()
-}
+#[derive(Clone, Copy)]
+pub struct CommandPaletteApi(State);
 
-pub fn command_palette_shown(tree: &impl Inspect, palette: NodeId) -> Vec<String> {
-    let state = *tree.component_state::<State>(palette);
-    let actions = state.actions.value();
-    let actions = actions.borrow();
-    state
-        .shown
-        .get_untracked()
-        .iter()
-        .filter_map(|key| actions.iter().find(|action| action.key() == *key))
-        .map(|action| action.id().to_owned())
-        .collect()
-}
+impl CommandPaletteApi {
+    pub fn search(&self) -> NodeId {
+        self.0.search.get()
+    }
 
-pub fn command_palette_highlighted(tree: &impl Inspect, palette: NodeId) -> Option<String> {
-    let state = *tree.component_state::<State>(palette);
-    let key = state.highlighted.get_untracked()?;
-    find(state, key).map(|action| action.id().to_owned())
-}
+    pub fn shown(&self) -> Vec<String> {
+        let state = self.0;
+        let actions = state.actions.value();
+        let actions = actions.borrow();
+        state
+            .shown
+            .get_untracked()
+            .iter()
+            .filter_map(|key| actions.iter().find(|action| action.key() == *key))
+            .map(|action| action.id().to_owned())
+            .collect()
+    }
 
-pub fn command_palette_row(tree: &impl Inspect, palette: NodeId, id: &str) -> Option<NodeId> {
-    let state = *tree.component_state::<State>(palette);
-    let key = state
-        .actions
-        .value()
-        .borrow()
-        .iter()
-        .find(|action| action.id() == id)
-        .map(Action::key)?;
-    let rows = state.rows.value();
-    let rows = rows.borrow();
-    rows.iter()
-        .rev()
-        .find(|(other, _)| *other == key)
-        .and_then(|(_, node)| node.try_get())
+    pub fn highlighted(&self) -> Option<String> {
+        let state = self.0;
+        let key = state.highlighted.get_untracked()?;
+        find(state, key).map(|action| action.id().to_owned())
+    }
+
+    pub fn row(&self, id: &str) -> Option<NodeId> {
+        let state = self.0;
+        let key = state
+            .actions
+            .value()
+            .borrow()
+            .iter()
+            .find(|action| action.id() == id)
+            .map(Action::key)?;
+        let rows = state.rows.value();
+        let rows = rows.borrow();
+        rows.iter()
+            .rev()
+            .find(|(other, _)| *other == key)
+            .and_then(|(_, node)| node.try_get())
+    }
 }

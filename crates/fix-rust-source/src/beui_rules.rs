@@ -27,7 +27,13 @@ const COMPONENT_CRATES: [&str; 4] = [
     "crates\\beui-components-unstyled\\",
 ];
 
-const DOCUMENT_ACCESS: [&str; 3] = ["with_document", "try_with_document", "NodeOf"];
+const DOCUMENT_ACCESS: [&str; 5] = [
+    "with_document",
+    "try_with_document",
+    "NodeOf",
+    "set_component_state",
+    "component_state",
+];
 
 pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
     let at = |node: &SyntaxNode| {

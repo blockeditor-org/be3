@@ -357,11 +357,6 @@ pub fn select_all(state: SelectableState) {
     state.select_all();
 }
 
-pub fn selectable_text(tree: &impl Inspect, selectable: NodeId) -> String {
-    tree.component_state::<SelectableState>(selectable)
-        .selected_text()
-}
-
 fn precedes(texts: &[NodeId], left: Caret, right: Caret) -> bool {
     let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
     (at(left), left.index) < (at(right), right.index)
@@ -484,13 +479,14 @@ fn long_press(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press:
 
 #[component]
 pub fn Selectable(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
     #[prop(default = SelectableState::default())] state: SelectableState,
     #[prop(default = Color32::from_rgba_unmultiplied(80, 140, 255, 90))] color: Prop<Color32>,
     #[prop(default = Color32::from_rgb(80, 140, 255))] handle_color: Prop<Color32>,
     on_toolbar: Callback<Option<Rect>>,
 ) -> NodeId {
-    set_component_state(state);
+    api.fill(state);
     state.0.value().region.fill(children);
     let focusable = NodeRef::new();
     create_effect(move || {

@@ -17,6 +17,12 @@ fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
     harness.click(harness.center(checkbox));
     harness.frame(Vec::new());
 
-    assert!(!styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        !harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
     assert!(!checked.get_untracked());
 }

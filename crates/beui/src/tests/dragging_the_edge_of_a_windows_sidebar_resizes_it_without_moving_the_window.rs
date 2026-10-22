@@ -1,7 +1,7 @@
 use super::*;
 use crate::geometry::vec2;
 use crate::unstyled::{
-    DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, dock_state,
+    DockApi, DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH,
 };
 
 #[test]
@@ -33,7 +33,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     let dock = dock.get();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let before = dock_state(harness.document(), dock);
+    let before = harness.document().api::<DockApi>(dock).state();
     let window = before.windows()[0];
     let leaf = before.leaves(window)[0];
     let placed = before.window_rect(window);
@@ -44,7 +44,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     harness.drag(edge, edge + vec2(60.0, 0.0));
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.sidebar_width(leaf),
         SIDEBAR_WIDTH + 60.0,
@@ -66,7 +66,11 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     harness.drag(edge, edge - vec2(400.0, 0.0));
     harness.frame(Vec::new());
     assert_eq!(
-        dock_state(harness.document(), dock).sidebar_width(leaf),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .sidebar_width(leaf),
         MIN_SIDEBAR_WIDTH,
         "the sidebar stops shrinking at its narrowest"
     );

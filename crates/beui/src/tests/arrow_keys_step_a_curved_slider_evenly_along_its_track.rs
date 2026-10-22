@@ -16,13 +16,21 @@ fn arrow_keys_step_a_curved_slider_evenly_along_its_track() {
     for _ in 0..10 {
         harness.key(Key::ArrowRight, Modifiers::NONE);
     }
-    let halfway = styled::slider_value(harness.document(), slider);
+    let halfway = harness
+        .document()
+        .api::<styled::SliderApi>(slider)
+        .value()
+        .get();
     assert!((halfway - 12.0).abs() < 0.5, "ten steps read {halfway}");
 
     for _ in 0..10 {
         harness.key(Key::ArrowRight, Modifiers::NONE);
     }
-    let end = styled::slider_value(harness.document(), slider);
+    let end = harness
+        .document()
+        .api::<styled::SliderApi>(slider)
+        .value()
+        .get();
     assert!((end - 120.0).abs() < 0.5, "twenty steps read {end}");
     assert!(
         end - halfway > halfway,

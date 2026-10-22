@@ -32,7 +32,7 @@ These four cover most review comments on beui code.
 If a function returns a `NodeId`, or a value built around one such as a
 `CanvasItem`, annotate it `#[component]` and name it in `CamelCase`. The
 attribute is what makes the function usable as a tag, gives it `@test_id`,
-`@node_ref` and `@sizing`, makes `component_state`, `component_accessibility`
+`@node_ref` and `@sizing`, makes `ComponentRef::fill`, `component_accessibility`
 and `component_placed` available inside it (they panic anywhere else), and
 gives it a scope of its own, so the contexts it provides reach only what it
 builds rather than its siblings. Nothing checks for the attribute; a plain
@@ -58,7 +58,7 @@ built it, exactly as a node's does: a value built inside a `show` branch or a
 `for_each` row goes with that branch or row, whatever happens to the value.
 That is how an item made of data rather than nodes — a label, a key, a
 callback — can still be a component, with its own scope, context, memos and
-cleanups, and still be written as a tag. Such a component has nothing for `component_state`, `component_accessibility`,
+cleanups, and still be written as a tag. Such a component has nothing for `ComponentRef::fill`, `component_accessibility`,
 or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
@@ -74,9 +74,9 @@ is kept, so a `show` or a `for_each` can build one; a generic type names its
 parameters first, as in `value_child_type!(<K> DockNode<K>)`.
 
 Functions that build no part of a view are ordinary functions. Deriving a
-colour from theme tokens and interaction state, mapping a value to a label,
-reading state back out of a built node — write those as plain functions, as
-`beui-components-styled`'s `checkbox.rs` does with `box_fill` and `checkbox_checked`.
+colour from theme tokens and interaction state, mapping a value to a label —
+write those as plain functions, as
+`beui-components-styled`'s `checkbox.rs` does with `box_fill`.
 
 ### A component usually ends with one `view!` and nothing after it
 
@@ -1637,8 +1637,9 @@ the deepest row still shown above a selection hidden inside a collapsed one, and
 while the selection is hidden or scrolled out of view it floats a button over
 the top or bottom edge that reports `on_reveal` - the caller expands the
 ancestors - and then scrolls the row into view once it is laid out. The file
-tree and the beui inspector both work this way. `styled::tree_row_node` and
-`styled::tree_focused` reach the rows through the styled tree's node.
+tree and the beui inspector both work this way, and both hold the tree's
+`TreeApi` through its `api` prop to find its rows (`row_node`) and its focus
+(`focused`).
 
 ### Screens
 
@@ -3071,11 +3072,22 @@ shapes in this layer. A new skin should be able to use the unstyled control
 without undoing visual decisions.
 
 State that belongs to the component's own handlers should be captured directly.
-Use `set_component_state` only when tests or host integration need to read the
-state from the component's `NodeId`, and expose a focused helper such as
-`toggle_checked(tree: &impl Inspect, NodeId)`. `Inspect` (in `beui::reactive`)
-is what a test holds of a built tree: `component_state`, `node_rect` and
-`is_overlay_open`, which `Document` implements; a helper asks nothing else of it.
+When callers, tests or host integration need to read it, the component exposes a
+typed handle: a `Copy` struct named after it (`ToggleApi`, `SelectApi`), usually
+wrapping its private state, whose methods answer what may be asked
+(`checked()`, `selected()`, `option_button(index)`). The component takes it as
+an ordinary prop, `#[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi>`,
+and calls `api.fill(SelectApi(state))` while it builds. A caller that wants the
+handle passes its own `ComponentRef` (`<Select api=select ...>`, then
+`select.get().selected()`), so the type checks that it fits; a styled component
+that wraps an unstyled one takes the unstyled one's handle and passes it on.
+`fill` also records the handle against the component's node, so a test holding
+only a `NodeId` (from a test id) reads it as `document.api::<SelectApi>(node)`.
+A method that needs to know where nodes were laid out takes
+`tree: &impl Inspect`, which is what a test holds of a built tree (`api`,
+`node_rect` and `is_overlay_open`, which `Document` implements). Never look
+another component's state up by its node from inside the tree; take its
+`ComponentRef` as a prop, as `TreeReveal` takes its tree's.
 
 The styled and unstyled crates never name `Document`, `with_document` or
 `NodeOf` outside their tests, so their components can be built on another

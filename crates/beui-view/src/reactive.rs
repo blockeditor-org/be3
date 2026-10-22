@@ -6,7 +6,7 @@ pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 pub use beui_core::painter::Corners;
 pub use beui_core::tree::{
     BareChild, BuildsNode, FromPlaced, ListChild, ParentKind, Placed, WithSizing,
-    component_accessibility, component_placed, set_component_state, with_sizing,
+    component_accessibility, component_placed, with_sizing,
 };
 pub use beui_tree::reactive::*;
 
@@ -316,6 +316,7 @@ pub use crate::actions::{
     action_glyph, action_label, action_scope, action_tooltip, active_actions, active_actions_from,
     add_to_menu, document_menu, menu_action, tidy_menu,
 };
+pub use crate::component_ref::ComponentRef;
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
 };

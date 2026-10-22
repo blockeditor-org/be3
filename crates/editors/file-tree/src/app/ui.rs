@@ -39,7 +39,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let zoom = Zoom::new(editor, tree);
     let keys = zoom.keys();
     let renaming = Renaming::new(editor, tree, keys);
-    let tree_ref = NodeRef::new();
+    let tree_ref = ComponentRef::new();
     let picker = picker(editor, tree, renaming, tree_ref);
     let exporter = Exporter::new(editor);
     let exported = exporter.error();
@@ -232,7 +232,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                             </Show>
                             <Tree
                                 @sizing=ItemSize::Percent(100.0)
-                                @node_ref={&tree_ref}
+                                api=tree_ref
                                 keys={keys}
                                 item={item}
                                 selected={focused}
@@ -821,7 +821,7 @@ fn arrival(
     editor: Editor,
     held: Held,
     rows: Memo<Vec<Row>>,
-    tree: NodeRef,
+    tree: ComponentRef<TreeApi<RowKey>>,
     drag: ReadSignal<Option<Drag>>,
 ) -> Option<(RowKey, bool)> {
     let drag = drag.get()?;
@@ -856,11 +856,8 @@ fn arrival(
     Some((key, accepts))
 }
 
-fn row_rect(tree: NodeId, key: &RowKey) -> Option<Rect> {
-    with_document(|document| {
-        let node = tree_row_node::<RowKey>(document, tree, key)?;
-        document.node_rect(node)
-    })
+fn row_rect(tree: TreeApi<RowKey>, key: &RowKey) -> Option<Rect> {
+    placements().rect(tree.row_node(key)?)
 }
 
 #[derive(Clone, Copy)]
@@ -872,7 +869,7 @@ pub(crate) struct Picker {
 struct PickerInner {
     picker: std::cell::RefCell<BlockPicker>,
     target: std::cell::Cell<Option<Uuid>>,
-    tree: NodeRef,
+    tree: ComponentRef<TreeApi<RowKey>>,
 }
 
 impl Picker {
@@ -911,7 +908,12 @@ impl Picker {
     }
 }
 
-fn picker(editor: Editor, tree: FileTree, renaming: Renaming, tree_ref: NodeRef) -> Picker {
+fn picker(
+    editor: Editor,
+    tree: FileTree,
+    renaming: Renaming,
+    tree_ref: ComponentRef<TreeApi<RowKey>>,
+) -> Picker {
     let error = create_signal(None::<String>);
     let picker = Picker {
         inner: store(PickerInner {

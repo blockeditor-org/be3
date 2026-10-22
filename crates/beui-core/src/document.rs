@@ -1683,6 +1683,10 @@ impl Document {
         self.component_states.entry(id).or_default().push(state);
     }
 
+    pub fn api<A: Clone + 'static>(&self, id: NodeId) -> A {
+        self.component_state::<A>(id).clone()
+    }
+
     pub fn component_state<T: 'static>(&self, id: NodeId) -> &T {
         self.component_states
             .get(&id)

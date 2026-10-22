@@ -1,6 +1,6 @@
 use super::*;
 use crate::painter::Shape;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
@@ -16,7 +16,7 @@ fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    let window = dock_state(harness.document(), dock).windows()[0];
+    let window = harness.document().api::<DockApi>(dock).state().windows()[0];
     let floated = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     let accent = Theme::of(harness.document().preferences().theme).accent;
 
@@ -45,7 +45,7 @@ fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
         "the bar of a window marks where the tab being dragged over it would land"
     );
     assert_eq!(
-        dock_state(harness.document(), dock).windows(),
+        harness.document().api::<DockApi>(dock).state().windows(),
         vec![window],
         "hovering a window's bar with a tab does not open another window"
     );

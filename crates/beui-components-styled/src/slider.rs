@@ -19,6 +19,8 @@ const FOCUS_RING_OFFSET: f32 = 3.0;
 
 #[component]
 pub fn Slider(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SliderApi>,
+
     value: Binding<f32>,
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
@@ -29,6 +31,7 @@ pub fn Slider(
 ) -> NodeId {
     view! {
         <unstyled::Slider
+            api
             value
             min
             max
@@ -90,10 +93,6 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
             </List>
         </Frame>
     }
-}
-
-pub fn slider_value(tree: &impl Inspect, slider: NodeId) -> f32 {
-    unstyled::slider_value(tree, slider).get()
 }
 
 fn filled_size(value: f32) -> ItemSize {

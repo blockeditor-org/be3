@@ -22,12 +22,15 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
             },
         ]
     });
-    let after_focus = unstyled::button_focused(&document, after);
+    let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("bl");
     assert_eq!(
-        styled::listbox_selected(harness.document(), listbox),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(listbox)
+            .selected(),
         Some(2)
     );
     harness.key(Key::Tab, Modifiers::NONE);
@@ -35,24 +38,36 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
     harness.key(Key::Tab, Modifiers::SHIFT);
     harness.type_text("b");
     assert_eq!(
-        styled::listbox_selected(harness.document(), listbox),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(listbox)
+            .selected(),
         Some(1)
     );
     harness.type_text("b");
     assert_eq!(
-        styled::listbox_selected(harness.document(), listbox),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(listbox)
+            .selected(),
         Some(2)
     );
     harness.key(Key::End, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(
-        styled::listbox_selected(harness.document(), listbox),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(listbox)
+            .selected(),
         Some(3)
     );
     harness.key(Key::Home, Modifiers::NONE);
     harness.key(Key::ArrowUp, Modifiers::NONE);
     assert_eq!(
-        styled::listbox_selected(harness.document(), listbox),
+        harness
+            .document()
+            .api::<styled::ChoiceApi>(listbox)
+            .selected(),
         Some(0)
     );
 }

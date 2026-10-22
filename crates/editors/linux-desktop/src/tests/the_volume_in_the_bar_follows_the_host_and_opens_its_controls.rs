@@ -1,5 +1,6 @@
-use block_editor_beui::beui::styled::slider::slider_value;
-use block_editor_beui::beui::styled::switch::switch_on;
+use block_editor_beui::beui::reactive::Get;
+use block_editor_beui::beui::styled::SliderApi;
+use block_editor_beui::beui::styled::ToggleApi;
 
 use super::*;
 
@@ -37,8 +38,11 @@ fn the_volume_in_the_bar_follows_the_host_and_opens_its_controls() {
     let document = fixture.test.document();
     let slider = document.find_test_id("desktop.volume.level").unwrap();
     let mute = document.find_test_id("desktop.volume.mute").unwrap();
-    assert!((slider_value(document, slider) - 0.7).abs() < 1e-4);
-    assert!(switch_on(document, mute), "and in the open popup");
+    assert!((document.api::<SliderApi>(slider).value().get() - 0.7).abs() < 1e-4);
+    assert!(
+        document.api::<ToggleApi>(mute).checked().get(),
+        "and in the open popup"
+    );
     assert!(
         fixture
             .test

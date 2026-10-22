@@ -296,6 +296,7 @@ struct State {
 
 #[component]
 pub(crate) fn MenuList(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<MenuListApi>,
     items: Run<MenuItem>,
     row: Option<RenderFn<MenuRowHandle>>,
     panel: Option<RenderFn<Child>>,
@@ -333,7 +334,7 @@ pub(crate) fn MenuList(
         },
         on_select,
     };
-    set_component_state(state);
+    api.fill(MenuListApi(state));
     let active_focus = active.map(move |active| match active {
         false => Focus::Away,
         true => first_focus(state, focus_first),
@@ -800,57 +801,6 @@ fn lose_focus(state: State, at: Focus, has_focus: bool) {
     }
 }
 
-pub fn menu_list_len(tree: &impl Inspect, menu: NodeId) -> usize {
-    tree.component_state::<State>(menu)
-        .rows
-        .value()
-        .borrow()
-        .len()
-}
-
-pub fn menu_list_row_button(tree: &impl Inspect, menu: NodeId, index: usize) -> NodeId {
-    tree.component_state::<State>(menu).rows.value().borrow()[index]
-        .button
-        .get()
-}
-
-pub fn menu_list_tile_button(
-    tree: &impl Inspect,
-    menu: NodeId,
-    index: usize,
-    tile: usize,
-) -> NodeId {
-    let rows = tree.component_state::<State>(menu).rows.value();
-    let rows = rows.borrow();
-    let button = rows[index].tiles.value().borrow()[tile].button;
-    button.get()
-}
-
-pub fn menu_list_back_button(tree: &impl Inspect, menu: NodeId) -> Option<NodeId> {
-    tree.component_state::<State>(menu).back.try_get()
-}
-
-pub fn menu_list_page(tree: &impl Inspect, menu: NodeId) -> Option<NodeId> {
-    let state = tree.component_state::<State>(menu);
-    state.page.get_untracked()?;
-    state.page_content.try_get()
-}
-
-pub fn menu_list_row_submenu_content(
-    tree: &impl Inspect,
-    menu: NodeId,
-    index: usize,
-) -> Option<NodeId> {
-    tree.component_state::<State>(menu).rows.value().borrow()[index]
-        .submenu
-        .content
-        .try_get()
-}
-
-pub fn menu_list_root_focusable(tree: &impl Inspect, menu: NodeId) -> NodeId {
-    tree.component_state::<State>(menu).root.get()
-}
-
 fn open_submenu(state: State, index: usize) -> bool {
     let rows = state.rows.value();
     let rows = rows.borrow();
@@ -1227,4 +1177,45 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
     };
     item.test_id = row_test_id;
     item
+}
+
+#[derive(Clone, Copy)]
+pub struct MenuListApi(State);
+
+impl MenuListApi {
+    pub fn row_count(&self) -> usize {
+        self.0.rows.value().borrow().len()
+    }
+
+    pub fn row_button(&self, index: usize) -> NodeId {
+        self.0.rows.value().borrow()[index].button.get()
+    }
+
+    pub fn tile_button(&self, index: usize, tile: usize) -> NodeId {
+        let rows = self.0.rows.value();
+        let rows = rows.borrow();
+        let button = rows[index].tiles.value().borrow()[tile].button;
+        button.get()
+    }
+
+    pub fn back_button(&self) -> Option<NodeId> {
+        self.0.back.try_get()
+    }
+
+    pub fn page(&self) -> Option<NodeId> {
+        let state = &self.0;
+        state.page.get_untracked()?;
+        state.page_content.try_get()
+    }
+
+    pub fn row_submenu_content(&self, index: usize) -> Option<NodeId> {
+        self.0.rows.value().borrow()[index]
+            .submenu
+            .content
+            .try_get()
+    }
+
+    pub fn root_focusable(&self) -> NodeId {
+        self.0.root.get()
+    }
 }

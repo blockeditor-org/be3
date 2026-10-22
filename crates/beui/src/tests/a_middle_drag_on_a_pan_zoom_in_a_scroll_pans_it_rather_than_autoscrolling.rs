@@ -2,7 +2,7 @@ use super::*;
 use crate::FontId;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{PanZoomView, Scroll, pan_zoom_view};
+use crate::unstyled::{PanZoomApi, PanZoomView, Scroll};
 
 #[test]
 fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
@@ -30,7 +30,11 @@ fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
 
     assert!(harness.document().autoscroll.is_none());
     assert_eq!(
-        pan_zoom_view(harness.document(), harness.find("stage")).get(),
+        harness
+            .document()
+            .api::<PanZoomApi>(harness.find("stage"))
+            .view()
+            .get(),
         PanZoomView::new(pos2(-40.0, -30.0), 1.0)
     );
 }

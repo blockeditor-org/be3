@@ -47,10 +47,6 @@ const OUTLINE_WIDTH: f32 = 1.0;
 const REVEAL_PADDING: f32 = 8.0;
 const EDIT_PADDING: f32 = 3.0;
 
-struct Parts {
-    rows: NodeRef,
-}
-
 #[derive(Clone, Copy, PartialEq)]
 struct Metrics {
     row: f32,
@@ -84,6 +80,7 @@ pub struct TreeRowFace<K> {
 
 #[component]
 pub fn Tree<K>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<unstyled::TreeApi<K>>,
     keys: Prop<Vec<K>>,
     item: Func<K, TreeItem>,
     selected: Prop<Option<K>>,
@@ -112,9 +109,7 @@ where
     let content = content.expect("tree requires a `content` builder");
     let row_test_id = row_test_id.unwrap_or_else(|| Func::new(|_| String::new()));
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
-    let rows = NodeRef::new();
     let viewport = NodeRef::new();
-    set_component_state(Parts { rows });
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     let menu = Func::new(move |key: K| menu.and_then(|menu| menu.call(key)));
     view! {
@@ -122,7 +117,7 @@ where
             <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                 <Frame padding=padding>
                     <unstyled::Tree
-                        @node_ref={&rows}
+                        api
                         keys
                         item
                         selected
@@ -146,7 +141,7 @@ where
                 </Frame>
             </Scroll>
             <unstyled::TreeReveal
-                tree={rows}
+                tree={api}
                 viewport={viewport}
                 on_reveal={on_reveal}
                 button={move |handle: TreeRevealHandle| {
@@ -182,24 +177,6 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
             />
         </Frame>
     }
-}
-
-pub fn tree_row_node<K>(built: &impl Inspect, tree: NodeId, key: &K) -> Option<NodeId>
-where
-    K: Clone + Eq + Hash + 'static,
-{
-    unstyled::tree_row_node::<K>(built, tree_rows(built, tree), key)
-}
-
-pub fn tree_focused<K>(built: &impl Inspect, tree: NodeId) -> Option<K>
-where
-    K: Clone + Eq + Hash + 'static,
-{
-    unstyled::tree_focused::<K>(built, tree_rows(built, tree))
-}
-
-pub fn tree_rows(built: &impl Inspect, tree: NodeId) -> NodeId {
-    built.component_state::<Parts>(tree).rows.get()
 }
 
 #[component]

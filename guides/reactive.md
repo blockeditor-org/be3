@@ -865,10 +865,11 @@ accepts an already built `Render`/`RenderFn`/`Func`, which is how a component
 forwards one it was given.
 
 State a component keeps for its own handlers belongs in an `Rc` the handlers
-capture; `set_component_state` additionally publishes it so that a test holding
-the component's `NodeId` can read it back with `Document::component_state`. That
-is the only reader: inside the tree, reaching for a `NodeId` to find state again
-is a sign the value should have been captured or passed as a prop.
+capture. What others may read of it is a typed handle the component fills
+through its `api` prop (`ComponentRef`, guides/beui.md), which a test holding
+only the component's `NodeId` reads back with `Document::api`. Inside the tree,
+reaching for a `NodeId` to find state again is a sign the value should have been
+captured or passed as a prop.
 
 ## Controlled state
 

@@ -60,6 +60,7 @@ struct State {
 
 #[component]
 pub fn Choice(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi>,
     options: Children<ChoiceOption>,
     #[prop(default = None)] selected: Binding<Option<usize>>,
     kind: ChoiceKind,
@@ -98,7 +99,7 @@ pub fn Choice(
         direction,
         typeahead: store(RefCell::default()),
     };
-    set_component_state(state);
+    api.fill(ChoiceApi(state));
     let built_options: Stored<RefCell<Vec<Rc<ChoiceOption>>>> = store(RefCell::default());
     let buttons = options.build_each(
         built_options,
@@ -158,14 +159,6 @@ pub fn Choice(
     view! {
         <List direction wrap spacing=6.0 children={buttons} />
     }
-}
-
-pub fn choice_selected(tree: &impl Inspect, choice: NodeId) -> Option<usize> {
-    let state = *tree.component_state::<State>(choice);
-    state
-        .selected
-        .get_untracked()
-        .filter(|index| *index < option_count(state))
 }
 
 fn track_focus(state: State, index: usize, has_focus: bool) {
@@ -241,5 +234,18 @@ fn typeahead(state: State, index: usize, text: &str) {
     if let Some(next) = matched {
         state.focus.set(Some(next));
         select(state, Some(next));
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ChoiceApi(State);
+
+impl ChoiceApi {
+    pub fn selected(&self) -> Option<usize> {
+        let state = self.0;
+        state
+            .selected
+            .get_untracked()
+            .filter(|index| *index < option_count(state))
     }
 }

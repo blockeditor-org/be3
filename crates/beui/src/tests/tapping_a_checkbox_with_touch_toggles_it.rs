@@ -17,5 +17,11 @@ fn tapping_a_checkbox_with_touch_toggles_it() {
     harness.touch(TouchPhase::End, center);
     harness.frame(Vec::new());
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

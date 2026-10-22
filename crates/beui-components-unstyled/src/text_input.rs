@@ -11,19 +11,15 @@ use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 
+use crate::ContextMenuApi;
+use crate::MenuListApi;
 use crate::Prose;
 use crate::SyntaxColors;
 use crate::TextArea;
+use crate::TextAreaApi;
 use crate::TextAreaColors;
 use crate::TextAreaState;
-use crate::context_menu_menu;
-use crate::context_menu_open;
-use crate::context_menu_toolbar;
-use crate::menu_list_len;
-use crate::menu_list_row_button;
 use crate::menu_popup::MenuStyle;
-use crate::text_area_index_at;
-use crate::text_area_shown;
 use crate::text_menu::TextContextMenu;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -72,6 +68,7 @@ impl Default for TextInputStyle {
     }
 }
 
+#[derive(Clone, Copy)]
 struct Input {
     state: TextAreaState,
     area: NodeRef,
@@ -81,6 +78,7 @@ struct Input {
 
 #[component]
 pub fn TextInput(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<TextInputApi>,
     value: Binding<String>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
@@ -115,12 +113,12 @@ pub fn TextInput(
     let disabled = create_memo(move || disabled.get());
     let masked = create_memo(move || password.get());
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
-    set_component_state(Input {
+    api.fill(TextInputApi(Input {
         state,
         area,
         menu: menu_node,
         focused: is_focused.read_only(),
-    });
+    }));
 
     create_effect(move || {
         let value = value.get();
@@ -284,70 +282,65 @@ fn text_of(state: TextAreaState) -> String {
     })
 }
 
-fn input(tree: &impl Inspect, input: NodeId) -> &Input {
-    tree.component_state::<Input>(input)
-}
+#[derive(Clone, Copy)]
+pub struct TextInputApi(Input);
 
-pub fn text_input_text(tree: &impl Inspect, input_node: NodeId) -> NodeId {
-    input(tree, input_node).state.canvas().get()
-}
-
-pub fn text_input_shown(tree: &impl Inspect, input_node: NodeId) -> String {
-    text_area_shown(tree, input(tree, input_node).area.get())
-}
-
-pub fn text_input_index_at(tree: &impl Inspect, input_node: NodeId, pos: Pos2) -> usize {
-    text_area_index_at(tree, input(tree, input_node).area.get(), pos)
-}
-
-pub fn text_input_value(tree: &impl Inspect, input_node: NodeId) -> String {
-    text_of(input(tree, input_node).state)
-}
-
-pub fn text_input_focused(tree: &impl Inspect, input_node: NodeId) -> ReadSignal<bool> {
-    input(tree, input_node).focused
-}
-
-pub fn text_input_caret(tree: &impl Inspect, input_node: NodeId) -> usize {
-    input(tree, input_node)
-        .state
-        .caret_indices()
-        .first()
-        .copied()
-        .unwrap_or(0)
-}
-
-pub fn text_input_state(tree: &impl Inspect, input_node: NodeId) -> TextAreaState {
-    input(tree, input_node).state
-}
-
-pub fn text_input_selection(tree: &impl Inspect, input_node: NodeId) -> Vec<Range<usize>> {
-    input(tree, input_node)
-        .state
-        .selection_ranges()
-        .into_iter()
-        .filter(|range| range.start < range.end)
-        .collect()
-}
-
-pub fn text_input_menu_row(
-    tree: &impl Inspect,
-    input_node: NodeId,
-    index: usize,
-) -> Option<NodeId> {
-    let menu = input(tree, input_node).menu.try_get()?;
-    if !context_menu_open(tree, menu) {
-        return None;
+impl TextInputApi {
+    pub fn text(&self) -> NodeId {
+        self.0.state.canvas().get()
     }
-    let list = context_menu_menu(tree, menu);
-    (index < menu_list_len(tree, list)).then(|| menu_list_row_button(tree, list, index))
-}
 
-pub fn text_input_toolbar(tree: &impl Inspect, input_node: NodeId) -> Option<NodeId> {
-    let menu = input(tree, input_node).menu.try_get()?;
-    context_menu_toolbar(tree, menu)
-}
+    pub fn shown(&self, tree: &impl Inspect) -> String {
+        tree.api::<TextAreaApi>(self.0.area.get()).shown()
+    }
 
-pub fn text_input_handles(tree: &impl Inspect, input_node: NodeId) -> Vec<Pos2> {
-    crate::text_area_handles(tree, input(tree, input_node).area.get())
+    pub fn index_at(&self, tree: &impl Inspect, pos: Pos2) -> usize {
+        tree.api::<TextAreaApi>(self.0.area.get())
+            .index_at(tree, pos)
+    }
+
+    pub fn value(&self) -> String {
+        text_of(self.0.state)
+    }
+
+    pub fn focused(&self) -> ReadSignal<bool> {
+        self.0.focused
+    }
+
+    pub fn caret(&self) -> usize {
+        self.0.state.caret_indices().first().copied().unwrap_or(0)
+    }
+
+    pub fn state(&self) -> TextAreaState {
+        self.0.state
+    }
+
+    pub fn selection(&self) -> Vec<Range<usize>> {
+        self.0
+            .state
+            .selection_ranges()
+            .into_iter()
+            .filter(|range| range.start < range.end)
+            .collect()
+    }
+
+    pub fn menu_row(&self, tree: &impl Inspect, index: usize) -> Option<NodeId> {
+        let menu = self.0.menu.try_get()?;
+        if !tree.api::<ContextMenuApi>(menu).open(tree) {
+            return None;
+        }
+        let list = tree.api::<ContextMenuApi>(menu).menu();
+        (index < tree.api::<MenuListApi>(list).row_count())
+            .then(|| tree.api::<MenuListApi>(list).row_button(index))
+    }
+
+    pub fn toolbar(&self, tree: &impl Inspect) -> Option<NodeId> {
+        let menu = self.0.menu.try_get()?;
+        tree.api::<ContextMenuApi>(menu).toolbar(tree)
+    }
+
+    pub fn handles(&self, tree: &impl Inspect) -> Vec<Pos2> {
+        tree.api::<crate::TextAreaApi>(self.0.area.get())
+            .handles(tree)
+    }
 }

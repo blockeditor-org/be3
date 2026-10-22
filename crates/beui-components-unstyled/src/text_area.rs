@@ -187,6 +187,7 @@ struct Surface {
 
 type Context = Surface;
 
+#[derive(Clone, Copy)]
 struct Parts {
     cx: Context,
     shown: Memo<String>,
@@ -1058,6 +1059,7 @@ struct Field {
 
 #[component]
 pub fn TextArea(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<TextAreaApi>,
     state: TextAreaState,
     #[prop(default = false)] single_line: bool,
     #[prop(default = true)] line_numbers: bool,
@@ -1388,10 +1390,10 @@ pub fn TextArea(
                         (false, false) => value,
                     }
                 });
-                set_component_state(Parts {
+                api.fill(TextAreaApi(Parts {
                     cx,
                     shown,
-                });
+                }));
                 let revealing = create_timer(move || {
                     cx.reveal_caret();
                     None
@@ -1598,15 +1600,6 @@ fn Editing(field: Field) -> NodeId {
     }
 }
 
-pub fn text_area_shown(tree: &impl Inspect, area: NodeId) -> String {
-    tree.component_state::<Parts>(area).shown.get_untracked()
-}
-
-pub fn text_area_index_at(tree: &impl Inspect, area: NodeId, pos: Pos2) -> usize {
-    let cx = tree.component_state::<Parts>(area).cx;
-    area_hit(tree, &cx, pos).unwrap_or(0)
-}
-
 fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
     let held = cx.held.value();
     let rows = held.rows.borrow();
@@ -1620,41 +1613,6 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
         .or(placed.last())?;
     let display = entry.text()?.index_at(pos)?;
     Some(entry.row().to_source(display))
-}
-
-pub fn text_area_remote_cursors(tree: &impl Inspect, area: NodeId) -> Vec<RemoteTextCursor> {
-    tree.component_state::<Parts>(area)
-        .cx
-        .remote_cursors
-        .get_untracked()
-}
-
-pub fn text_area_state(tree: &impl Inspect, area: NodeId) -> TextAreaState {
-    tree.component_state::<Parts>(area).cx.state
-}
-
-pub fn text_area_handles(tree: &impl Inspect, area: NodeId) -> Vec<Pos2> {
-    let cx = tree.component_state::<Parts>(area).cx;
-    let held = cx.held.value();
-    let rows = held.rows.borrow();
-    cx.handles()
-        .into_iter()
-        .filter_map(|(handle, byte)| {
-            let line = line_of(&cx.starts.get_untracked(), byte);
-            let entry = rows.get(&line)?;
-            let caret = entry
-                .text()?
-                .caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
-            let viewport = cx.viewport.try_get().and_then(|node| tree.node_rect(node));
-            let shown = viewport.is_none_or(|viewport| match cx.single_line {
-                true => (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)
-                    .contains(&caret.min.x),
-                false => caret.max.y > viewport.min.y && caret.min.y < viewport.max.y,
-            });
-            let center = handle_center(caret, handle);
-            shown.then_some(Pos2::new(center.x, center.y))
-        })
-        .collect()
 }
 
 #[component]
@@ -1688,5 +1646,51 @@ fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
     match pointing {
         true => CursorIcon::PointingHand,
         false => CursorIcon::Text,
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct TextAreaApi(Parts);
+
+impl TextAreaApi {
+    pub fn shown(&self) -> String {
+        self.0.shown.get_untracked()
+    }
+
+    pub fn index_at(&self, tree: &impl Inspect, pos: Pos2) -> usize {
+        let cx = self.0.cx;
+        area_hit(tree, &cx, pos).unwrap_or(0)
+    }
+
+    pub fn remote_cursors(&self) -> Vec<RemoteTextCursor> {
+        self.0.cx.remote_cursors.get_untracked()
+    }
+
+    pub fn state(&self) -> TextAreaState {
+        self.0.cx.state
+    }
+
+    pub fn handles(&self, tree: &impl Inspect) -> Vec<Pos2> {
+        let cx = self.0.cx;
+        let held = cx.held.value();
+        let rows = held.rows.borrow();
+        cx.handles()
+            .into_iter()
+            .filter_map(|(handle, byte)| {
+                let line = line_of(&cx.starts.get_untracked(), byte);
+                let entry = rows.get(&line)?;
+                let caret = entry
+                    .text()?
+                    .caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
+                let viewport = cx.viewport.try_get().and_then(|node| tree.node_rect(node));
+                let shown = viewport.is_none_or(|viewport| match cx.single_line {
+                    true => (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)
+                        .contains(&caret.min.x),
+                    false => caret.max.y > viewport.min.y && caret.min.y < viewport.max.y,
+                });
+                let center = handle_center(caret, handle);
+                shown.then_some(Pos2::new(center.x, center.y))
+            })
+            .collect()
     }
 }

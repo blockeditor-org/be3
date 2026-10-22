@@ -17,6 +17,7 @@ use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+#[derive(Clone, Copy)]
 struct State {
     overlay: NodeRef,
     content: NodeRef,
@@ -26,6 +27,7 @@ struct State {
 
 #[component]
 pub fn ContextMenu(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,
     children: Child,
     items: Children<MenuItem>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
@@ -47,12 +49,12 @@ pub fn ContextMenu(
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    set_component_state(State {
+    api.fill(ContextMenuApi(State {
         overlay,
         content,
         toolbar,
         more: more_button,
-    });
+    }));
 
     let (requested, requested_touch, requested_position, requested_focusing) =
         (open, touched, position, focusing);
@@ -264,28 +266,33 @@ fn ToolbarButton(
     }
 }
 
-pub fn context_menu_menu(tree: &impl Inspect, context_menu: NodeId) -> NodeId {
-    tree.component_state::<State>(context_menu).content.get()
-}
+#[derive(Clone, Copy)]
+pub struct ContextMenuApi(State);
 
-pub fn context_menu_overlay(tree: &impl Inspect, context_menu: NodeId) -> NodeId {
-    tree.component_state::<State>(context_menu).overlay.get()
-}
+impl ContextMenuApi {
+    pub fn menu(&self) -> NodeId {
+        self.0.content.get()
+    }
 
-pub fn context_menu_open(tree: &impl Inspect, context_menu: NodeId) -> bool {
-    tree.component_state::<State>(context_menu)
-        .overlay
-        .try_get()
-        .is_some_and(|overlay| tree.is_overlay_open(overlay))
-}
+    pub fn overlay(&self) -> NodeId {
+        self.0.overlay.get()
+    }
 
-pub fn context_menu_toolbar(tree: &impl Inspect, context_menu: NodeId) -> Option<NodeId> {
-    tree.component_state::<State>(context_menu)
-        .toolbar
-        .try_get()
-        .filter(|toolbar| tree.is_overlay_open(*toolbar))
-}
+    pub fn open(&self, tree: &impl Inspect) -> bool {
+        self.0
+            .overlay
+            .try_get()
+            .is_some_and(|overlay| tree.is_overlay_open(overlay))
+    }
 
-pub fn context_menu_more(tree: &impl Inspect, context_menu: NodeId) -> NodeId {
-    tree.component_state::<State>(context_menu).more.get()
+    pub fn toolbar(&self, tree: &impl Inspect) -> Option<NodeId> {
+        self.0
+            .toolbar
+            .try_get()
+            .filter(|toolbar| tree.is_overlay_open(*toolbar))
+    }
+
+    pub fn more(&self) -> NodeId {
+        self.0.more.get()
+    }
 }

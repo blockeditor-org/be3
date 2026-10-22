@@ -35,5 +35,11 @@ fn a_simulated_screen_larger_than_the_window_is_shrunk_to_fit() {
     let target = shown.center();
     harness.click(target);
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
 }

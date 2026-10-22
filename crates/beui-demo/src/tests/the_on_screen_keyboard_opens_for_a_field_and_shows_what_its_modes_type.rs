@@ -42,7 +42,7 @@ fn value_of(test: &DocumentTest) -> String {
         .document()
         .find_test_id("test.field")
         .expect("the field");
-    text_input_value(test.document(), field)
+    test.document().api::<TextInputApi>(field).value()
 }
 
 #[test]

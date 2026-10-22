@@ -24,7 +24,13 @@ fn the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 
-    assert!(styled::checkbox_checked(harness.document(), checkbox));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(checkbox)
+            .checked()
+            .get()
+    );
     assert_eq!(
         harness.reading().as_deref(),
         Some("Show timings, check box, checked")

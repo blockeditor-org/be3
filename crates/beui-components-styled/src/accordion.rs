@@ -18,10 +18,16 @@ const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 6.0;
 
 #[component]
-pub fn Accordion(title: Prop<String>, open: Binding<bool>, children: Child) -> NodeId {
+pub fn Accordion(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::DisclosureApi>,
+    title: Prop<String>,
+    open: Binding<bool>,
+    children: Child,
+) -> NodeId {
     let title_text = create_memo(move || title.get());
     view! {
         <unstyled::Disclosure
+            api
             spacing=SPACING
             header={move |handle| view! {
                 <AccordionHeader handle title={title_text} />
@@ -68,10 +74,6 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             </List>
         </Frame>
     }
-}
-
-pub fn accordion_open(tree: &impl Inspect, accordion: NodeId) -> bool {
-    unstyled::disclosure_open(tree, accordion)
 }
 
 fn glyph(open: bool) -> &'static str {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn dragging_the_bar_between_two_panes_moves_the_boundary() {
@@ -24,7 +24,7 @@ fn dragging_the_bar_between_two_panes_moves_the_boundary() {
         after.width(),
         before.width()
     );
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
         state.leaves(state.main()).len(),
         2,

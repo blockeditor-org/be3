@@ -25,6 +25,8 @@ const CLEAR_PADDING: f32 = 6.0;
 
 #[component]
 pub fn TextInput(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::TextInputApi>,
+
     value: Binding<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -56,6 +58,7 @@ pub fn TextInput(
     });
     view! {
         <unstyled::TextInput
+            api
             value
             placeholder
             disabled
@@ -183,8 +186,4 @@ pub fn text_input_style() -> TextInputStyle {
         prose: Prop::Static(None),
         menu: menu_style(),
     }
-}
-
-pub fn text_input_value(tree: &impl Inspect, input: NodeId) -> String {
-    unstyled::text_input_value(tree, input)
 }

@@ -61,6 +61,7 @@ struct State {
 
 #[component]
 pub fn Select(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi>,
     options: Children<ChoiceOption>,
     #[prop(default = None)] selected: Binding<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -107,7 +108,7 @@ pub fn Select(
         selected,
         highlighted,
     };
-    set_component_state(state);
+    api.fill(SelectApi(state));
 
     let trigger_view = trigger.unwrap_or_else(|| {
         Render::new(|_| {
@@ -310,38 +311,6 @@ fn blur(state: State, has_focus: bool, target: Focus) {
     }
 }
 
-pub fn select_selected(tree: &impl Inspect, select: NodeId) -> Option<usize> {
-    let state = *tree.component_state::<State>(select);
-    state
-        .selected
-        .get_untracked()
-        .filter(|index| *index < state.options.value().get_untracked().len())
-}
-
-pub fn select_open(tree: &impl Inspect, select: NodeId) -> bool {
-    tree.component_state::<State>(select).open.get()
-}
-
-pub fn select_trigger(tree: &impl Inspect, select: NodeId) -> NodeId {
-    tree.component_state::<State>(select).trigger.get()
-}
-
-pub fn select_search(tree: &impl Inspect, select: NodeId) -> NodeId {
-    tree.component_state::<State>(select).search.get()
-}
-
-pub fn select_option_button(tree: &impl Inspect, select: NodeId, index: usize) -> NodeId {
-    tree.component_state::<State>(select).rows.value().borrow()[index]
-        .button
-        .get()
-}
-
-pub fn select_highlighted(tree: &impl Inspect, select: NodeId) -> Option<usize> {
-    tree.component_state::<State>(select)
-        .highlighted
-        .get_untracked()
-}
-
 fn trigger_key(state: State, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
@@ -410,4 +379,37 @@ fn navigate(state: State, press: KeyPress) -> bool {
     };
     state.highlighted.set(Some(next));
     true
+}
+
+#[derive(Clone, Copy)]
+pub struct SelectApi(State);
+
+impl SelectApi {
+    pub fn selected(&self) -> Option<usize> {
+        let state = self.0;
+        state
+            .selected
+            .get_untracked()
+            .filter(|index| *index < state.options.value().get_untracked().len())
+    }
+
+    pub fn open(&self) -> bool {
+        self.0.open.get()
+    }
+
+    pub fn trigger(&self) -> NodeId {
+        self.0.trigger.get()
+    }
+
+    pub fn search(&self) -> NodeId {
+        self.0.search.get()
+    }
+
+    pub fn option_button(&self, index: usize) -> NodeId {
+        self.0.rows.value().borrow()[index].button.get()
+    }
+
+    pub fn highlighted(&self) -> Option<usize> {
+        self.0.highlighted.get_untracked()
+    }
 }

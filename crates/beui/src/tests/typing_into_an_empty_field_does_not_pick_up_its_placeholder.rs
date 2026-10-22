@@ -14,5 +14,11 @@ fn typing_into_an_empty_field_does_not_pick_up_its_placeholder() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("a");
 
-    assert_eq!(styled::text_input_value(harness.document(), input), "a");
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
+        "a"
+    );
 }

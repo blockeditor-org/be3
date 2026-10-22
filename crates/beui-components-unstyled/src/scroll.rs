@@ -462,6 +462,7 @@ impl Motion {
 
 #[component]
 fn Scrolling(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
     direction: Prop<Direction>,
     fit: bool,
     bleed: Prop<Sides>,
@@ -509,7 +510,7 @@ fn Scrolling(
     if let Some(offset) = motion.with(|motion| motion.node) {
         offset.on_steer(move |()| motion.value().steer());
     }
-    set_component_state(motion);
+    api.fill(ScrollApi(motion));
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     let overflows = create_memo(move || position.get().max_offset() > 0.0);
@@ -664,6 +665,7 @@ fn Scrolling(
 
 #[component]
 pub fn Scroll(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
@@ -688,6 +690,7 @@ pub fn Scroll(
     });
     let scroll = view! {
         <Scrolling
+            api
             direction
             fit
             bleed
@@ -759,11 +762,6 @@ pub(crate) fn fade_edges(
     }
 }
 
-pub fn scroll_animating(tree: &impl Inspect, scroll: NodeId) -> bool {
-    tree.component_state::<Stored<Motion>>(scroll)
-        .with(|motion| motion.momentum.borrow().moving())
-}
-
 fn scroll_view(position: Option<ScrollPosition>, direction: Direction) -> Node {
     let mut node = Node::new(Role::ScrollView);
     if let Some(position) = position {
@@ -826,4 +824,13 @@ fn navigates(key: Key) -> bool {
             | Key::PageUp
             | Key::PageDown
     )
+}
+
+#[derive(Clone, Copy)]
+pub struct ScrollApi(Stored<Motion>);
+
+impl ScrollApi {
+    pub fn animating(&self) -> bool {
+        self.0.with(|motion| motion.momentum.borrow().moving())
+    }
 }

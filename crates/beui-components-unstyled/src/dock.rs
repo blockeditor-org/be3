@@ -1154,6 +1154,7 @@ fn vacant_leaf(state: &DockState) -> LeafId {
 }
 
 pub(crate) struct DockConfig {
+    pub(crate) api: ComponentRef<DockApi>,
     pub(crate) state: Binding<DockState>,
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
@@ -1193,6 +1194,7 @@ pub(crate) struct DockConfig {
 #[component]
 pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let DockConfig {
+        api,
         state,
         on_close,
         title,
@@ -1333,7 +1335,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     })
                 }),
             };
-            set_component_state(dock);
+            api.fill(DockApi(dock));
             on_shortcut(move |press: KeyPress| {
                 if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt
                 {
@@ -2888,6 +2890,11 @@ fn DockDragLayer(dock: State) -> NodeId {
     }
 }
 
-pub fn dock_state(tree: &impl Inspect, dock: NodeId) -> DockState {
-    tree.component_state::<State>(dock).state.get()
+#[derive(Clone, Copy)]
+pub struct DockApi(State);
+
+impl DockApi {
+    pub fn state(&self) -> DockState {
+        self.0.state.get()
+    }
 }

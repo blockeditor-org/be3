@@ -6,7 +6,7 @@ fn pressed(test: &DocumentTest, id: &str) -> bool {
         .document()
         .find_test_id(id)
         .expect("the format bar shows its buttons");
-    toggle_button_pressed(test.document(), button)
+    test.document().api::<ToggleApi>(button).checked().get()
 }
 
 #[test]

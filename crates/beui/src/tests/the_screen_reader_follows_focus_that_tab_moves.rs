@@ -37,7 +37,13 @@ fn the_screen_reader_follows_focus_that_tab_moves() {
 
     harness.key(Key::Space, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert!(styled::checkbox_checked(harness.document(), second));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(second)
+            .checked()
+            .get()
+    );
     assert_eq!(
         harness.reading().as_deref(),
         Some("Show damage, check box, checked")

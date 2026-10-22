@@ -18,7 +18,7 @@ use beui_tree::reactive::{Binding, Callback, Get, Memo, ReadSignal, create_memo}
 use beui_core::current::{try_with_document, with_document};
 
 pub trait Inspect {
-    fn component_state<T: 'static>(&self, node: NodeId) -> &T;
+    fn api<A: Clone + 'static>(&self, node: NodeId) -> A;
 
     fn node_rect(&self, node: NodeId) -> Option<Rect>;
 
@@ -26,8 +26,8 @@ pub trait Inspect {
 }
 
 impl Inspect for Document {
-    fn component_state<T: 'static>(&self, node: NodeId) -> &T {
-        Document::component_state(self, node)
+    fn api<A: Clone + 'static>(&self, node: NodeId) -> A {
+        Document::api::<A>(self, node)
     }
 
     fn node_rect(&self, node: NodeId) -> Option<Rect> {
@@ -239,10 +239,6 @@ impl Placements {
 
 pub fn placements() -> Placements {
     Placements(with_document(|document| Rc::clone(&document.rects)))
-}
-
-pub fn component_state<T: Clone + 'static>(node: NodeId) -> T {
-    with_document(|document| document.component_state::<T>(node).clone())
 }
 
 pub fn viewport_rect() -> Rect {

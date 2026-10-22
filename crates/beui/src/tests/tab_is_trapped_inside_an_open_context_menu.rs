@@ -39,8 +39,14 @@ fn tab_is_trapped_inside_an_open_context_menu() {
     }]);
     harness.frame(Vec::new());
 
-    let content = unstyled::context_menu_menu(harness.document(), menu);
-    let root_focusable = unstyled::menu_list_root_focusable(harness.document(), content);
+    let content = harness
+        .document()
+        .api::<unstyled::ContextMenuApi>(menu)
+        .menu();
+    let root_focusable = harness
+        .document()
+        .api::<unstyled::MenuListApi>(content)
+        .root_focusable();
 
     assert_eq!(harness.document().focused_node(), Some(root_focusable));
 

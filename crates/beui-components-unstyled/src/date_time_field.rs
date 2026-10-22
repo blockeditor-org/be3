@@ -123,6 +123,7 @@ struct State {
 
 #[component]
 pub fn DateTimeField(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<DateTimeFieldApi>,
     #[prop(default = None)] value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
@@ -165,7 +166,7 @@ pub fn DateTimeField(
         on_open,
     };
     left_state.with(|left| left.set(Some(state)));
-    set_component_state(state);
+    api.fill(DateTimeFieldApi(state));
 
     create_effect(move || {
         let next = value.get();
@@ -316,28 +317,6 @@ fn SegmentView(
             </List>
         </Interactive>
     }
-}
-
-pub fn date_time_field_value(tree: &impl Inspect, field: NodeId) -> Option<DateTime> {
-    tree.component_state::<State>(field).value.get_untracked()
-}
-
-pub fn date_time_field_text(tree: &impl Inspect, field: NodeId) -> String {
-    let state = tree.component_state::<State>(field);
-    let values = state.values.get_untracked();
-    let typing = state.typing.get_untracked();
-    let mut text = String::new();
-    for (index, segment) in state.order.value().iter().enumerate() {
-        if index > 0 {
-            text.push_str(&separator(state.order.value()[index - 1], *segment));
-        }
-        match (&typing, values[segment.index()]) {
-            (Some((typing, buffer)), _) if typing == segment => text.push_str(buffer),
-            (_, Some(value)) => text.push_str(&format_segment(*segment, value)),
-            (_, None) => text.push_str(segment.placeholder()),
-        }
-    }
-    text
 }
 
 fn segments(parts: DateTimeParts, cycle: HourCycle) -> Vec<DateSegment> {
@@ -707,4 +686,31 @@ fn type_digit(state: State, segment: DateSegment, digit: i32, character: char) -
     }
     set_to(state, segment, Some(number.clamp(min, max)));
     advance(state, segment)
+}
+
+#[derive(Clone, Copy)]
+pub struct DateTimeFieldApi(State);
+
+impl DateTimeFieldApi {
+    pub fn value(&self) -> Option<DateTime> {
+        self.0.value.get_untracked()
+    }
+
+    pub fn text(&self) -> String {
+        let state = &self.0;
+        let values = state.values.get_untracked();
+        let typing = state.typing.get_untracked();
+        let mut text = String::new();
+        for (index, segment) in state.order.value().iter().enumerate() {
+            if index > 0 {
+                text.push_str(&separator(state.order.value()[index - 1], *segment));
+            }
+            match (&typing, values[segment.index()]) {
+                (Some((typing, buffer)), _) if typing == segment => text.push_str(buffer),
+                (_, Some(value)) => text.push_str(&format_segment(*segment, value)),
+                (_, None) => text.push_str(segment.placeholder()),
+            }
+        }
+        text
+    }
 }

@@ -5,7 +5,6 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::theme::{ThemeStore, use_theme};
-use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -91,10 +90,6 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             </Layers>
         </Frame>
     }
-}
-
-pub(super) fn selected_index(tree: &impl Inspect, choice: NodeId) -> Option<usize> {
-    unstyled::choice_selected(tree, choice)
 }
 
 fn ring(theme: &ThemeStore, checked: bool) -> Color32 {

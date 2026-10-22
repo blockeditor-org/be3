@@ -69,7 +69,13 @@ fn check_compact_rows(inset: f32) {
     let remainder = inset - skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
     let settled = top + skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
     let kept = rows[skipped];
-    assert!(styled::switch_on(harness.document(), switch));
+    assert!(
+        harness
+            .document()
+            .api::<styled::ToggleApi>(switch)
+            .checked()
+            .get()
+    );
     assert_eq!(harness.document.children(list)[0], kept);
     assert!(
         built

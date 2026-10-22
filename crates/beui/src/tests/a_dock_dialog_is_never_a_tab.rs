@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_dock_dialog_is_never_a_tab() {
@@ -10,13 +10,13 @@ fn a_dock_dialog_is_never_a_tab() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 
-    let tabs = || dock_state(harness.document(), node).all_tabs();
+    let tabs = || harness.document().api::<DockApi>(node).state().all_tabs();
     assert_eq!(
         tabs(),
         vec![TabId::new(1), TabId::new(2)],
         "a key declared as a dialog is not docked, even when it is declared as a tab too"
     );
-    let before = dock_state(harness.document(), node);
+    let before = harness.document().api::<DockApi>(node).state();
 
     let dialog = harness.rect(harness.find("dock.dialog.10"));
     let title = pos2(dialog.center().x, dialog.top() - 10.0);
@@ -36,7 +36,7 @@ fn a_dock_dialog_is_never_a_tab() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        dock_state(harness.document(), node),
+        harness.document().api::<DockApi>(node).state(),
         before,
         "dragging the dialog leaves the dock as it was"
     );

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
@@ -7,7 +7,10 @@ fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
-    let before = dock_state(harness.document(), dock)
+    let before = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window has a rect");
     let bounds = harness.rect(dock);
@@ -26,7 +29,10 @@ fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
     harness.press_at(bar);
     harness.frame(vec![Event::PointerMoved(pulled)]);
 
-    let held = dock_state(harness.document(), dock)
+    let held = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(held.min.x, 0.0, "the window rests against the left edge");
@@ -38,7 +44,10 @@ fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
 
     let released = harness.release_at(pulled);
 
-    let rested = dock_state(harness.document(), dock)
+    let rested = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(

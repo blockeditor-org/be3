@@ -58,7 +58,7 @@ pub mod toast;
 pub mod tooltip;
 pub mod tree;
 
-pub use accordion::{Accordion, accordion_open};
+pub use accordion::Accordion;
 pub use action_row::ActionRow;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::SHEET_STOPS;
@@ -72,7 +72,7 @@ pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
 pub use calendar::Calendar;
 pub use card::Card;
-pub use checkbox::{Checkbox, checkbox_checked};
+pub use checkbox::Checkbox;
 pub use chip::Chip;
 pub use color_input::ColorInput;
 pub use color_picker::{ColorPicker, DEFAULT_SWATCHES, PICKER_WIDTH};
@@ -95,47 +95,53 @@ pub use link::Link;
 pub use list_row::ListRow;
 pub use lock_screen::{LockAction, LockScreen};
 pub use menu_button::{IconMenuButton, MenuButton, PictureMenuButton};
-pub use number_input::{NumberInput, number_input_field, number_input_text};
+pub use number_input::{NumberInput, NumberInputTextApi};
 pub use popover::Popover;
 pub use preferences::{DEVELOPER_OVERRIDE, MotionSelect, PreferencesSection, ThemeSelect};
 pub use progress::Progress;
-pub use responsive_tabs::{ResponsiveTabs, responsive_tabs_selected};
+pub use responsive_tabs::{ResponsiveTabs, ResponsiveTabsApi};
 pub use root::Root;
 pub use scroll::{Bleed, Scroll};
 pub use scrollbar::Scrollbar;
-pub use select::{Select, select_open, select_selected};
+pub use select::Select;
 pub use selectable_text::SelectableText;
 pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
 pub use sheet::{ModalSheet, Sheet};
 pub use shortcut::Shortcut;
-pub use slider::{Slider, slider_value};
+pub use slider::Slider;
 pub use software_keyboard::{SoftwareKeyboard, keyboard_height};
 pub use spinner::Spinner;
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use stale_notice::StaleNotice;
-pub use switch::{Switch, switch_on};
+pub use switch::Switch;
 pub use table::{Table, TableCell, TableColumn, TableRow};
-pub use tabs::{Tabs, tabs_selected};
+pub use tabs::Tabs;
 pub use text::{
     Family, ICON_SCALE, ICON_SPACING_EM, Icon, Span, Text, TextColor, TextSize, TextStyle,
     TextStyleProvider, Weight,
 };
 pub use text_area::emoji::emoji_menu;
 pub use text_area::format_bar::FormatBar;
-pub use text_area::{TextArea, text_area_surface};
-pub use text_input::{TextInput, text_input_value};
+pub use text_area::{TextArea, TextAreaSurfaceApi};
+pub use text_input::TextInput;
 pub use theme::{
     Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,
 };
 pub use toast::{TOAST_DURATION, Toast, ToastAction, Toasts};
 pub use tooltip::Tooltip;
-pub use tree::{Tree, TreeMenu, TreeRowFace, tree_focused, tree_row_node, tree_rows};
+pub use tree::{Tree, TreeMenu, TreeRowFace};
 
 pub mod choice;
 pub mod listbox;
 pub mod radio_group;
 pub mod toggle_button;
-pub use listbox::{Listbox, listbox_selected};
-pub use radio_group::{RadioGroup, radio_group_selected};
-pub use toggle_button::{ToggleButton, toggle_button_pressed};
+pub use beui_components_unstyled::{
+    ButtonApi, CalendarApi, ChoiceApi, ColorAreaApi, ColorWheelApi, CommandPaletteApi,
+    ContextMenuApi, DateTimeFieldApi, DisclosureApi, DockApi, MenuListApi, NumberInputApi,
+    PanZoomApi, PopoverApi, ScrollApi, SelectApi, SelectableState, SliderApi, TextAreaApi,
+    TextInputApi, TimeListApi, ToggleApi, TreeApi,
+};
+pub use listbox::Listbox;
+pub use radio_group::RadioGroup;
+pub use toggle_button::ToggleButton;

@@ -24,6 +24,10 @@ fn tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_land
     harness.finger(1, TouchPhase::End, at + delta);
     harness.frame(Vec::new());
 
-    let value = styled::slider_value(harness.document(), slider);
+    let value = harness
+        .document()
+        .api::<styled::SliderApi>(slider)
+        .value()
+        .get();
     assert!((value - 0.5).abs() < 0.02, "the slider read {value}");
 }

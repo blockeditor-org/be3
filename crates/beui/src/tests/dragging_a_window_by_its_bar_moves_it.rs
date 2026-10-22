@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::dock_state;
+use crate::unstyled::DockApi;
 
 #[test]
 fn dragging_a_window_by_its_bar_moves_it() {
@@ -15,7 +15,7 @@ fn dragging_a_window_by_its_bar_moves_it() {
         Modifiers::ALT,
     );
     harness.frame(Vec::new());
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let window = state.windows()[0];
     let before = state.window_rect(window).expect("the window has a rect");
     let origin = harness.rect(dock).min + before.min.to_vec2();
@@ -24,7 +24,10 @@ fn dragging_a_window_by_its_bar_moves_it() {
     harness.drag(bar, bar + vec2(-60.0, -40.0));
     harness.frame(Vec::new());
 
-    let after = dock_state(harness.document(), dock)
+    let after = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
         .window_rect(window)
         .expect("the window is still open");
     assert_eq!(

@@ -136,6 +136,7 @@ impl Camera {
 
 #[component]
 pub fn PanZoom(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<PanZoomApi>,
     #[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>,
     #[prop(default = MIN_SCALE)] min_scale: Prop<f32>,
     #[prop(default = MAX_SCALE)] max_scale: Prop<f32>,
@@ -170,7 +171,7 @@ pub fn PanZoom(
                 focused: focused.read_only(),
             });
 
-            set_component_state(current);
+            api.fill(PanZoomApi(current));
 
             view! {
                 <Interactive
@@ -196,6 +197,11 @@ pub fn PanZoom(
     }
 }
 
-pub fn pan_zoom_view(tree: &impl Inspect, pan_zoom: NodeId) -> Binding<PanZoomView> {
-    *tree.component_state::<Binding<PanZoomView>>(pan_zoom)
+#[derive(Clone, Copy)]
+pub struct PanZoomApi(Binding<PanZoomView>);
+
+impl PanZoomApi {
+    pub fn view(&self) -> Binding<PanZoomView> {
+        self.0
+    }
 }

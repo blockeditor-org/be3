@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left() {
@@ -20,7 +20,7 @@ fn alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left() {
     );
     harness.frame(Vec::new());
 
-    let state = dock_state(harness.document(), dock);
+    let state = harness.document().api::<DockApi>(dock).state();
     let windows = state.windows();
     assert_eq!(
         windows.len(),
@@ -50,7 +50,11 @@ fn alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        dock_state(harness.document(), dock).focused_leaf(),
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .focused_leaf(),
         Some(floated),
         "a press inside the window does not reach the pane underneath it"
     );

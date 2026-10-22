@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_middle_click_on_a_dock_tab_closes_it() {
@@ -15,7 +15,7 @@ fn a_middle_click_on_a_dock_tab_closes_it() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        dock_state(harness.document(), dock).all_tabs(),
+        harness.document().api::<DockApi>(dock).state().all_tabs(),
         vec![TabId::new(1), TabId::new(3)],
         "a middle click closes the tab under the pointer and leaves the others open"
     );

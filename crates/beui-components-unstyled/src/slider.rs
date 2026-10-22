@@ -62,6 +62,7 @@ pub struct SliderHandle {
 
 #[component]
 pub fn Slider(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<SliderApi>,
     value: Binding<f32>,
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
@@ -140,7 +141,7 @@ pub fn Slider(
         }
     };
 
-    set_component_state(value);
+    api.fill(SliderApi(value));
 
     let tab_stop = create_memo(move || !disabled.get());
     view! {
@@ -186,10 +187,6 @@ pub fn Slider(
     }
 }
 
-pub fn slider_value(tree: &impl Inspect, slider: NodeId) -> Binding<f32> {
-    *tree.component_state::<Binding<f32>>(slider)
-}
-
 fn curved(fraction: f32, base: f32) -> f32 {
     if base == STRAIGHT {
         return fraction;
@@ -216,3 +213,12 @@ fn step_size(scale: SliderScale, value: f32, min: f32, max: f32) -> f32 {
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Copy)]
+pub struct SliderApi(Binding<f32>);
+
+impl SliderApi {
+    pub fn value(&self) -> Binding<f32> {
+        self.0
+    }
+}
