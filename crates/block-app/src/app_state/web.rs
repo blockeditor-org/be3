@@ -1,3 +1,4 @@
+use be_protocol::Organization;
 use uuid::Uuid;
 
 use super::{AppStateError, SavedAccount};
@@ -10,6 +11,8 @@ const TRIED_DISPLAY_MODES_KEY: &str = "block.tried-display-modes";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
 const REMAPPER_KEY: &str = "block.remapper";
 const IDENTITY_KEY: &str = "block.identity-secrets";
+const ORGANIZATIONS_KEY: &str = "block.last-organizations";
+const WARM_PLUGINS_KEY: &str = "block.warm-plugins";
 
 #[derive(serde::Deserialize, serde::Serialize)]
 struct StoredIdentity {
@@ -20,6 +23,13 @@ struct StoredIdentity {
 
 pub struct AppStateStore {
     storage: web_sys::Storage,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct StoredOrganization {
+    server: String,
+    account: Uuid,
+    organization: Organization,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -74,6 +84,10 @@ impl AppStateStore {
         identities
             .retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
         self.write(IDENTITY_KEY, &identities)?;
+        let mut organizations = self.stored_organizations()?;
+        organizations
+            .retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        self.write(ORGANIZATIONS_KEY, &organizations)?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -105,6 +119,8 @@ impl AppStateStore {
             INPUT_SETTINGS_KEY,
             REMAPPER_KEY,
             IDENTITY_KEY,
+            ORGANIZATIONS_KEY,
+            WARM_PLUGINS_KEY,
         ] {
             self.storage
                 .remove_item(key)
@@ -132,6 +148,44 @@ impl AppStateStore {
         };
         account.last_organization_id = organization_id;
         self.write(ACCOUNTS_KEY, &accounts)
+    }
+
+    fn stored_organizations(&self) -> Result<Vec<StoredOrganization>, AppStateError> {
+        Ok(self.read(ORGANIZATIONS_KEY)?.unwrap_or_default())
+    }
+
+    pub fn last_organization(
+        &self,
+        saved: &SavedAccount,
+    ) -> Result<Option<Organization>, AppStateError> {
+        Ok(self
+            .stored_organizations()?
+            .into_iter()
+            .find(|stored| stored.server == saved.server.key() && stored.account == saved.id)
+            .map(|stored| stored.organization))
+    }
+
+    pub fn set_last_organization_details(
+        &self,
+        saved: &SavedAccount,
+        organization: &Organization,
+    ) -> Result<(), AppStateError> {
+        let mut stored = self.stored_organizations()?;
+        stored.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        stored.push(StoredOrganization {
+            server: saved.server.key().to_owned(),
+            account: saved.id,
+            organization: organization.clone(),
+        });
+        self.write(ORGANIZATIONS_KEY, &stored)
+    }
+
+    pub fn warm_plugins(&self) -> Result<Vec<String>, AppStateError> {
+        Ok(self.read(WARM_PLUGINS_KEY)?.unwrap_or_default())
+    }
+
+    pub fn set_warm_plugins(&self, plugins: &[String]) -> Result<(), AppStateError> {
+        self.write(WARM_PLUGINS_KEY, &plugins)
     }
 
     fn stored_identities(&self) -> Result<Vec<StoredIdentity>, AppStateError> {

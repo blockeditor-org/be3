@@ -28,7 +28,7 @@ use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
 use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome, PickTree, Tree, TreeRow};
-use super::saved::{self, LAYOUT};
+use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
@@ -64,6 +64,7 @@ struct State {
     trees: RefCell<HashMap<PickTree, HashMap<BlockQuery, BlockList>>>,
     own_pick_tab: Cell<Option<TabId>>,
     tab_nodes: RefCell<HashMap<TabId, NodeRef>>,
+    saved_titles: RefCell<HashMap<TabId, String>>,
 }
 
 #[derive(Clone, Copy)]
@@ -129,6 +130,7 @@ impl Workspace {
                 trees: RefCell::new(HashMap::new()),
                 own_pick_tab: Cell::new(None),
                 tab_nodes: RefCell::new(HashMap::new()),
+                saved_titles: RefCell::new(HashMap::new()),
             }),
             editor,
             with_files,
@@ -777,10 +779,17 @@ impl Workspace {
         let Some(view) = self.editor.view_content() else {
             return;
         };
-        let Ok(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
+        let Ok((layout, titles)) = view.read(|held| {
+            let root = held.root();
+            (root.state(LAYOUT).cloned(), root.state(TITLES).cloned())
+        }) else {
             return;
         };
         inner.restored.set(true);
+        *inner.saved_titles.borrow_mut() = titles
+            .as_ref()
+            .map(saved::restore_titles)
+            .unwrap_or_default();
         untrack(|| self.adopt(layout.as_ref().and_then(saved::restore)));
     }
 
@@ -850,6 +859,7 @@ impl Workspace {
         let layout = inner.layout.snapshot();
         let tabs = self.tabs.get();
         let views = self.views.get();
+        let titles = self.titles.get();
         let files = self.files.get();
         let windows = match self.keeps_windows {
             true => self.kept.with(|kept| {
@@ -864,19 +874,27 @@ impl Workspace {
             return;
         }
         let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, windows);
-        untrack(|| self.editor.set_view_state(LAYOUT, Some(&state)));
+        let titles = saved::save_titles(&titles);
+        untrack(|| {
+            self.editor.set_view_state(LAYOUT, Some(&state));
+            self.editor.set_view_state(TITLES, Some(&titles));
+        });
     }
 
     fn refresh_titles(&self) {
         let types = self.types();
+        let inner = self.state.value();
+        let saved = inner.saved_titles.borrow();
         let titles = self.tabs.with(|tabs| {
             tabs.iter()
                 .map(|(tab, item)| {
-                    let label = self.info(item.id).map_or_else(
-                        || BlockLabel::new(types.as_ref(), item.block_type, None, false),
-                        |info| info.label(types.as_ref()),
-                    );
-                    (*tab, label.name)
+                    let name = match self.info(item.id) {
+                        Some(info) => info.label(types.as_ref()).name,
+                        None => saved.get(tab).cloned().unwrap_or_else(|| {
+                            BlockLabel::new(types.as_ref(), item.block_type, None, false).name
+                        }),
+                    };
+                    (*tab, name)
                 })
                 .collect()
         });

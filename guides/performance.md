@@ -151,7 +151,28 @@ or dump stacks to fold them yourself:
   the `BE3_*` values the dialog shows (guides/tracker.md): `be new-database`, `add-column`
   and `import` a generated CSV make a tracker of any size.
 
-4. Ideas tried and set aside
+4. Starting block-app
+
+Reopening the app should go straight from the page or window to the workspace the last
+session left, with every step that can overlap running at once. What keeps it that way:
+
+- The last organization opened is kept with its account in app state, so a restart opens
+  it without waiting for the server's organization list and keys, which are fetched in
+  the background (`resume_organization` in crates/block-app/src/main.rs). If the list
+  no longer has it, the app falls back to the organization list.
+- The plugins whose editors were open are kept in app state too, and are started, with
+  the shell's plugin, on the first frame (`plugin_host::warm`), before the shell asks
+  for them. A plugin with no editors open idles once it has loaded.
+- The host prefetches the content of an editor's references (up to four) as soon as its
+  block's node is known, so a database view's database loads beside the view.
+- The be worker joins every queued `Open` concurrently; its loop still awaits listings
+  between commands, so a query that lists many blocks (a block's references are one
+  summary request each) holds back opens queued behind it.
+- On the web, plugin manifests are fetched together, before the first frame.
+- workspace-ui keeps each tab's title in the view state's `titles`, so a restored tab is
+  named before its block's info arrives.
+
+5. Ideas tried and set aside
 
 Each of these helped, but works around a cost rather than removing it. Keep them for when
 nothing better is left.

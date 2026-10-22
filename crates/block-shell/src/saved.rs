@@ -9,6 +9,7 @@ use super::kept::KeptWindow;
 use super::tab::TabItem;
 
 pub(crate) const LAYOUT: &str = "layout";
+pub(crate) const TITLES: &str = "titles";
 
 #[derive(Deserialize, Serialize)]
 struct SavedLayout {
@@ -95,4 +96,22 @@ pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
         tabs,
         windows: saved.windows,
     })
+}
+
+pub(crate) fn save_titles(titles: &HashMap<TabId, String>) -> ViewState {
+    let mut saved: Vec<(u64, &String)> = titles
+        .iter()
+        .map(|(tab, title)| (tab.value(), title))
+        .collect();
+    saved.sort();
+    ViewState::new(&saved, Vec::new())
+}
+
+pub(crate) fn restore_titles(state: &ViewState) -> HashMap<TabId, String> {
+    state
+        .value::<Vec<(u64, String)>>()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(tab, title)| (TabId::new(tab), title))
+        .collect()
 }

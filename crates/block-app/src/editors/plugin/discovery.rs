@@ -105,22 +105,26 @@ async fn discover<F>(read: impl Fn(String) -> F) -> Plugins
 where
     F: Future<Output = Result<Vec<u8>, String>>,
 {
-    if let Ok(id) = read(build_id::FILE.to_owned()).await {
+    let (id, index) = futures_util::join!(read(build_id::FILE.to_owned()), read(INDEX.to_owned()));
+    if let Ok(id) = id {
         let _ = build_id::install_metadata(&String::from_utf8_lossy(&id));
     }
     let mut plugins = Plugins::default();
-    let manifests = read(INDEX.to_owned()).await.and_then(|document| {
+    let manifests = index.and_then(|document| {
         serde_json::from_slice::<Vec<String>>(&document).map_err(|error| error.to_string())
     });
     match manifests {
         Ok(manifests) => {
-            for manifest in manifests {
-                match read(manifest.clone())
-                    .await
+            let documents = futures_util::future::join_all(
+                manifests.iter().map(|manifest| read(manifest.clone())),
+            )
+            .await;
+            for (manifest, read) in manifests.iter().zip(documents) {
+                match read
                     .and_then(|bytes| String::from_utf8(bytes).map_err(|error| error.to_string()))
                 {
-                    Ok(document) => plugins.add(&manifest, &document),
-                    Err(error) => plugins.error(&manifest, error),
+                    Ok(document) => plugins.add(manifest, &document),
+                    Err(error) => plugins.error(manifest, error),
                 }
             }
         }

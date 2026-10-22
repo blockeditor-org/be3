@@ -1587,6 +1587,26 @@ pub(crate) fn intrinsic_size(plugin_id: &str, instance: EditorInstanceId) -> Opt
     .flatten()
 }
 
+pub(crate) fn warm(plugin: &PluginManifest) {
+    HOST.with(|host| {
+        let _ = host.borrow_mut().runtime(plugin);
+    });
+}
+
+pub(crate) fn in_use() -> Vec<String> {
+    HOST.with(|host| {
+        let mut in_use: Vec<String> = host
+            .borrow()
+            .runtimes
+            .iter()
+            .filter(|(_, runtime)| !runtime.instances.is_empty())
+            .map(|(plugin_id, _)| plugin_id.clone())
+            .collect();
+        in_use.sort_unstable();
+        in_use
+    })
+}
+
 pub(crate) fn running() -> Vec<RuntimeStatus> {
     HOST.with(|host| {
         let host = host.borrow();
