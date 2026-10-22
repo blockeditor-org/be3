@@ -165,9 +165,9 @@ session left, with every step that can overlap running at once. What keeps it th
   for them. A plugin with no editors open idles once it has loaded.
 - The host prefetches the content of an editor's references (up to four) as soon as its
   block's node is known, so a database view's database loads beside the view.
-- The be worker joins every queued `Open` concurrently; its loop still awaits listings
-  between commands, so a query that lists many blocks (a block's references are one
-  summary request each) holds back opens queued behind it.
+- The be worker joins every queued `Open` concurrently. Its loop still awaits listings
+  between commands, so keep each query to one listing request: a block's references
+  come in one `ListReferences`, not one `ReadBlock` each.
 - On the web, plugin manifests are fetched together, before the first frame.
 - workspace-ui keeps each tab's title in the view state's `titles`, so a restored tab is
   named before its block's info arrives.

@@ -1376,6 +1376,17 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    pub async fn referenced(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
+        let response = self
+            .connection
+            .request(|request| ClientMessage::ListReferences { request, block })
+            .await?;
+        match response {
+            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
+            _ => Err(ClientError::Unexpected),
+        }
+    }
+
     pub async fn delete(&self, block: Uuid) -> Result<(), ClientError> {
         self.connection
             .request(|request| ClientMessage::DeleteBlock { request, block })

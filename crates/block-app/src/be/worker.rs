@@ -2213,6 +2213,7 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
                 Listing::Children(parent) => peer.children(parent).await,
                 Listing::Shared => peer.shared().await,
                 Listing::Backrefs(block) => peer.backrefs(block).await,
+                Listing::References(block) => peer.referenced(block).await,
                 Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
             }
         }));
@@ -2260,6 +2261,7 @@ fn listing_failure(listing: Listing) -> &'static str {
         Listing::Children(BlockParent::Block(_)) => "Couldn't load what's inside this block",
         Listing::Shared => "Couldn't load what's shared with you",
         Listing::Backrefs(_) => "Couldn't load what links here",
+        Listing::References(_) => "Couldn't load what this block links to",
         Listing::Block(_) => "Couldn't load this block",
     }
 }

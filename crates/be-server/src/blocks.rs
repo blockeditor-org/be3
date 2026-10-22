@@ -643,6 +643,26 @@ impl ServerStore {
         .await
     }
 
+    pub async fn list_references(
+        &self,
+        identity: Identity,
+        block: Uuid,
+    ) -> Result<Vec<BlockSummary>, ServerError> {
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
+            if !seen.can_view(graph, block) {
+                return Ok(Vec::new());
+            }
+            Ok(graph
+                .references(block)
+                .into_iter()
+                .filter_map(|reference| summary_with(graph, &seen, reference))
+                .filter(|block| block.access.can_know_exists())
+                .collect())
+        })
+        .await
+    }
+
     pub async fn list_history(
         &self,
         identity: Identity,

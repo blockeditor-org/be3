@@ -122,6 +122,7 @@ pub enum Listing {
     Shared,
     Backrefs(Uuid),
     Block(Uuid),
+    References(Uuid),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -503,6 +504,10 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
     },
+    ListReferences {
+        request: u64,
+        block: Uuid,
+    },
     Unlist {
         request: u64,
         listing: Listing,
@@ -699,6 +704,7 @@ impl ClientMessage {
             | Self::ListShared { request }
             | Self::ListChildren { request, .. }
             | Self::ListBackrefs { request, .. }
+            | Self::ListReferences { request, .. }
             | Self::Unlist { request, .. }
             | Self::ListHistory { request, .. }
             | Self::PruneHistory { request, .. }

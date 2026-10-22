@@ -231,11 +231,13 @@ time, so notifications wait for the next post.
   before it is made) is never announced. `WatchHub` indexes clients
   by organization and account, so this never scans every connection.
 - A connection hears only of what it listed. `ListChildren`, `ListShared`,
-  `ListBackrefs` and `ReadBlock` each register a `Listing` with `WatchHub`
+  `ListBackrefs`, `ListReferences` and `ReadBlock` each register a `Listing` with `WatchHub`
   before reading (so nothing changed during the read is missed), and the hub
   remembers each block a connection has been told of. A change is sent when a
   listing matches the block as it now is (its parent, its own id, an entry point
-  under `Shared`, a reference to a backrefs target) or when the connection was
+  under `Shared`, a reference to a backrefs target, being referenced by a
+  block whose references are listed, as the connection last heard of that
+  block) or when the connection was
   told of it before, so a block moving out of a listed folder is still
   announced, and then forgotten. `Unlist` drops a listing and the blocks only it
   matched; a refused listing stays until then, so a block read before it is
@@ -789,9 +791,12 @@ every open block and of every revision preview's source (`Owner::Open`) and the
 roots (`Owner::Host`, for Settings and My files); version control its
 checkouts' subtrees (`Owner::Version`). After every change the graph turns
 what is wanted into `Listing`s - a parent's children (`ListChildren`), the
-blocks shared into view (`ListShared`), a block's backrefs (`ListBackrefs`), one
-block (`ReadBlock`) - expanding `References`, `Parents` and `Subtree` as the
-blocks they name arrive, and the worker fetches the new ones together
+blocks shared into view (`ListShared`), a block's backrefs (`ListBackrefs`), the
+blocks a block references (`ListReferences`, one request however many there
+are; the server stores references already resolved to real ids, checkouts'
+included), one block (`ReadBlock`) - expanding `Parents` and `Subtree` as the
+blocks they name arrive, and listing a block's references again when they
+change, and the worker fetches the new ones together
 (`fetch_listings`). A listing nobody wants any more is dropped, and with it
 every block no other listing holds, so closing a folder in the files pane
 empties it from the mirror; the worker sends `Unlist` for it, ahead of that
