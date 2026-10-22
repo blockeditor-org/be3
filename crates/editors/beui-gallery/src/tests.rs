@@ -7,4 +7,5 @@ use uuid::Uuid;
 use crate::app::BeuiGalleryApp;
 
 mod creating_a_beui_demo_makes_a_block_with_no_state;
+mod the_editor_opens_every_page_of_the_catalog;
 mod the_editor_shows_the_component_catalog;

@@ -352,6 +352,10 @@ impl DemoApp {
     }
 }
 
+pub fn page_titles() -> impl Iterator<Item = &'static str> {
+    PAGES.into_iter().map(Page::title)
+}
+
 #[component]
 pub fn Demo() -> NodeId {
     view! {
