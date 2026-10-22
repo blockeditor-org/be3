@@ -10,8 +10,8 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
-    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FitArea,
+    FrameChrome, FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
     ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
@@ -442,7 +442,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             width: view.width(),
             height: view.height(),
             scale,
-            moved: true,
         }));
     }
 
@@ -850,8 +849,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         let intrinsic = self.intrinsic;
         let band = self.band(rect);
+        let drawn = self
+            .frame
+            .is_none_or(|frame| frame.chrome == FrameChrome::Drawn);
         if let Some(viewport) = &mut self.viewport {
-            viewport.settle(&mut self.sent, band, rect.min);
+            viewport.settle(&mut self.sent, band, rect.min, intrinsic, drawn);
             self.inbox.extend(viewport.place(band, rect.min, intrinsic));
         }
     }
@@ -1551,7 +1553,8 @@ struct Viewport {
     pan: Vec2,
     moved: bool,
     world: Option<Vec2>,
-    sent: Option<(Rect, f32, bool)>,
+    fitted: Option<FitArea>,
+    sent: Option<(Rect, f32)>,
 }
 
 impl Viewport {
@@ -1561,6 +1564,7 @@ impl Viewport {
             pan: Vec2::ZERO,
             moved: false,
             world: None,
+            fitted: None,
             sent: None,
         }
     }
@@ -1571,20 +1575,23 @@ impl Viewport {
         self.pan = view.center() + origin.to_vec2() - region.center();
         self.world = Some(view.size() / scale);
         self.moved = true;
-        self.sent = Some((view, scale, true));
+        self.sent = Some((view, scale));
     }
 
-    fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
-        let content = self.world.unwrap_or_else(|| {
+    fn content(&self, region: Rect, intrinsic: Option<Vec2>) -> Vec2 {
+        self.world.unwrap_or_else(|| {
             intrinsic
                 .unwrap_or(Vec2::ZERO)
                 .max(region.size())
                 .max(Vec2::new(1.0, 1.0))
-        });
-        let size = content * self.zoom;
+        })
+    }
+
+    fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
+        let size = self.content(region, intrinsic) * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
-        let sent = (view, self.zoom, self.moved);
+        let sent = (view, self.zoom);
         if self.sent == Some(sent) {
             return None;
         }
@@ -1596,11 +1603,17 @@ impl Viewport {
             width: view.width(),
             height: view.height(),
             scale: self.zoom,
-            moved: self.moved,
         }))
     }
 
-    fn settle(&mut self, sent: &mut Vec<EditorMessage>, region: Rect, origin: Pos2) {
+    fn settle(
+        &mut self,
+        sent: &mut Vec<EditorMessage>,
+        region: Rect,
+        origin: Pos2,
+        intrinsic: Option<Vec2>,
+        drawn: bool,
+    ) {
         let mut changes = Vec::new();
         sent.retain(|message| match message {
             EditorMessage::ChangeView { change, .. } => {
@@ -1612,20 +1625,8 @@ impl Viewport {
         for change in changes {
             let anchored = |(x, y): (f32, f32)| Pos2::new(x, y) + origin.to_vec2();
             match change {
-                ViewChange::Follow {
-                    factor,
-                    anchor,
-                    x,
-                    y,
-                    resume,
-                } => {
-                    if self.moved && !resume {
-                        continue;
-                    }
-                    self.zoom_at(factor, anchored(anchor), region);
-                    self.pan += Vec2::new(x, y);
-                    self.moved = false;
-                }
+                ViewChange::KeepFitted(area) => self.fitted = area,
+                ViewChange::Fit => self.moved = false,
                 ViewChange::Zoom { factor, anchor } => self.apply(
                     ViewChange::Zoom {
                         factor,
@@ -1639,6 +1640,13 @@ impl Viewport {
                 change => self.apply(change, region),
             }
         }
+        if let Some(area) = self.fitted.filter(|_| drawn && !self.moved) {
+            let content = self.content(region, intrinsic);
+            let (scale, (x, y)) =
+                area.fit((content.x, content.y), (region.width(), region.height()));
+            self.zoom = scale.clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+            self.pan = (content * 0.5 - Vec2::new(x, y)) * self.zoom;
+        }
     }
 
     fn apply(&mut self, change: ViewChange, region: Rect) {
@@ -1648,7 +1656,7 @@ impl Viewport {
                 let anchor = anchor.map_or(region.center(), |(x, y)| Pos2::new(x, y));
                 self.zoom_at(factor, anchor, region);
             }
-            ViewChange::Follow { .. } | ViewChange::PanDrag => return,
+            ViewChange::KeepFitted(_) | ViewChange::Fit | ViewChange::PanDrag => return,
         }
         self.moved = true;
     }

@@ -461,7 +461,6 @@ impl Screens {
                 width,
                 height,
                 scale,
-                moved,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_view(
@@ -470,7 +469,6 @@ impl Screens {
                             geometry::vec2(*width, *height),
                         ),
                         *scale,
-                        *moved,
                     );
                 }
             }

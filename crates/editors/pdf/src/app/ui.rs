@@ -1,3 +1,4 @@
+use block_editor_beui::Fit;
 use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_beui::beui::reactive::*;
@@ -66,7 +67,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let forward = move || pages.go(pages.page() + 1);
     let fitting = editor.keep_fitted(move || {
         let size = shown.get().size();
-        (size.x > 0.0 && size.y > 0.0).then(|| Rect::from_min_size(Pos2::ZERO, size))
+        (size.x > 0.0 && size.y > 0.0).then(|| Fit::Area(Rect::from_min_size(Pos2::ZERO, size)))
     });
     let fit = move || fitting.fit();
 

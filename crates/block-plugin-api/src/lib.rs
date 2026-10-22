@@ -925,7 +925,6 @@ pub enum EditorMessage {
         width: f32,
         height: f32,
         scale: f32,
-        moved: bool,
     },
     ChangeView {
         instance: EditorInstanceId,
@@ -2081,14 +2080,40 @@ pub enum ViewChange {
         factor: f32,
         anchor: Option<(f32, f32)>,
     },
-    Follow {
-        factor: f32,
-        anchor: (f32, f32),
+    KeepFitted(Option<FitArea>),
+    Fit,
+    PanDrag,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum FitArea {
+    World,
+    Centre,
+    Rect {
         x: f32,
         y: f32,
-        resume: bool,
+        width: f32,
+        height: f32,
     },
-    PanDrag,
+}
+
+impl FitArea {
+    pub fn fit(self, world: (f32, f32), room: (f32, f32)) -> (f32, (f32, f32)) {
+        let (x, y, width, height) = match self {
+            Self::World => (0.0, 0.0, world.0, world.1),
+            Self::Centre => (world.0 * 0.5, world.1 * 0.5, 0.0, 0.0),
+            Self::Rect {
+                x,
+                y,
+                width,
+                height,
+            } => (x, y, width, height),
+        };
+        let scale = (room.0.max(1.0) / width.max(f32::EPSILON))
+            .min(room.1.max(1.0) / height.max(f32::EPSILON))
+            .min(1.0);
+        (scale, (x + width * 0.5, y + height * 0.5))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

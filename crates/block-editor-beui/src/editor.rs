@@ -19,7 +19,7 @@ use crate::{
     EditorHost, OwnedContentProjection, PickedBlock, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
-use block_plugin_api::AudioStatus;
+use block_plugin_api::{AudioStatus, FitArea};
 
 type Regenerate = Rc<dyn Fn(&[u8])>;
 type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
@@ -362,7 +362,6 @@ impl OwnedEditor {
         defer_graph_changes(&host);
         let owner = RootScope::new();
         let canvas = create_signal(None::<CanvasView>);
-        let moved = create_signal(false);
         let world = create_signal(None::<Vec2>);
         let scale = create_signal(1.0_f32);
         let chrome = create_signal(true);
@@ -384,7 +383,6 @@ impl OwnedEditor {
             block,
             roots: RefCell::new(None),
             canvas,
-            moved,
             world,
             scale,
             chrome,
@@ -446,7 +444,6 @@ struct EditorState {
     block: Uuid,
     roots: RefCell<Option<BlockList>>,
     canvas: Signal<Option<CanvasView>>,
-    moved: Signal<bool>,
     world: Signal<Option<Vec2>>,
     scale: Signal<f32>,
     chrome: Signal<bool>,
@@ -838,10 +835,6 @@ impl Editor {
         self.state().canvas.read_only()
     }
 
-    pub(crate) fn moved(&self) -> ReadSignal<bool> {
-        self.state().moved.read_only()
-    }
-
     pub fn world(&self) -> ReadSignal<Option<Vec2>> {
         self.state().world.read_only()
     }
@@ -1107,14 +1100,22 @@ impl Editor {
             .zoom_view(factor, Some(Pos2::new(anchor.x / ratio, anchor.y / ratio)));
     }
 
-    pub(crate) fn follow(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
+    pub(crate) fn keep_fitted_area(&self, area: Option<FitArea>) {
+        self.state().host.keep_fitted(area);
+    }
+
+    pub(crate) fn fit_view(&self) {
+        self.state().host.fit_view();
+    }
+
+    pub(crate) fn host_rect(&self, rect: Rect) -> FitArea {
         let ratio = self.ratio();
-        self.state().host.follow_view(
-            factor,
-            Pos2::new(anchor.x / ratio, anchor.y / ratio),
-            delta / ratio,
-            resume,
-        );
+        FitArea::Rect {
+            x: rect.min.x / ratio,
+            y: rect.min.y / ratio,
+            width: rect.width() / ratio,
+            height: rect.height() / ratio,
+        }
     }
 
     pub fn pan_drag(&self) {
@@ -1182,7 +1183,6 @@ impl Editor {
             let scale = self.view_scale();
             let divisor = scale.max(f32::EPSILON);
             state.canvas.set(self.view_canvas());
-            state.moved.set(state.host.view_moved());
             state.world.set(
                 self.view_rect()
                     .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),

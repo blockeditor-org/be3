@@ -12,7 +12,8 @@ use beui::{
 };
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
-    FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar, ViewChange,
+    FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
+    ViewChange,
 };
 use uuid::Uuid;
 
@@ -788,16 +789,7 @@ struct CameraOwner(Callback<Command>);
 #[derive(Clone, Copy)]
 enum Command {
     Pan(Vec2),
-    Zoom {
-        factor: f32,
-        anchor: Option<Pos2>,
-    },
-    Follow {
-        factor: f32,
-        anchor: Pos2,
-        delta: Vec2,
-        resume: bool,
-    },
+    Zoom { factor: f32, anchor: Option<Pos2> },
 }
 
 fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) {
@@ -816,20 +808,22 @@ fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) 
             );
             viewport.moved = true;
         }
-        Command::Follow {
-            factor,
-            anchor,
-            delta,
-            resume,
-        } => {
-            if viewport.moved && !resume {
-                return;
-            }
-            zoom(viewport, factor, anchor, rect, max_zoom);
-            viewport.pan += delta;
-            viewport.moved = false;
-        }
     }
+}
+
+fn follow(
+    viewport: &mut Viewport,
+    area: Option<FitArea>,
+    rect: Rect,
+    content: Vec2,
+    max_zoom: f32,
+) {
+    let Some(area) = area.filter(|_| !viewport.moved) else {
+        return;
+    };
+    let (scale, (x, y)) = area.fit((content.x, content.y), (rect.width(), rect.height()));
+    viewport.zoom = scale.clamp(MIN_ZOOM, max_zoom);
+    viewport.pan = (content * 0.5 - vec2(x, y)) * viewport.zoom;
 }
 
 fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom: f32) {
@@ -839,24 +833,6 @@ fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom
         let offset = anchor - rect.center();
         viewport.pan = offset - (offset - viewport.pan) * (new / old);
         viewport.zoom = new;
-    }
-}
-
-fn by_hand(command: Command) -> Vec<Command> {
-    match command {
-        Command::Follow {
-            factor,
-            anchor,
-            delta,
-            ..
-        } => vec![
-            Command::Zoom {
-                factor,
-                anchor: Some(anchor),
-            },
-            Command::Pan(delta),
-        ],
-        command => vec![command],
     }
 }
 
@@ -1123,13 +1099,62 @@ fn BlockFrameView(
                     .unwrap_or(vec2(420.0, 240.0));
                 vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
             });
+            let content_rect = create_memo(move || {
+                let state = viewport.get();
+                Rect::from_center_size(
+                    viewport_rect.get().center() + state.pan,
+                    content_size.get() * state.zoom,
+                )
+            });
+            let editor_view = create_memo(
+                move || {
+                    if !handle.pan_and_zoom {
+                        return None;
+                    }
+                    let origin = rect.get().min;
+                    if !placed {
+                        let state = viewport.get();
+                        return Some(EditorView {
+                            rect: content_rect.get().translate(-origin.to_vec2()),
+                            scale: state.zoom,
+                        });
+                    }
+                    revision.get();
+                    let shown = content.get().unwrap_or(rect.get());
+                    let scale = plugin_host::intrinsic_size(&plugin_id.value(), instance)
+                        .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
+                        .map_or(1.0, |intrinsic| {
+                            (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
+                        });
+                    Some(EditorView {
+                        rect: shown.translate(-origin.to_vec2()),
+                        scale,
+                    })
+                },
+            );
+            let fitted = create_signal(None::<FitArea>);
+            let fit = move || {
+                if !pan_and_zoom {
+                    return;
+                }
+                let mut state = viewport.get_untracked();
+                state.moved = false;
+                follow(
+                    &mut state,
+                    fitted.get_untracked(),
+                    viewport_rect.get_untracked(),
+                    content_size.get_untracked(),
+                    max_zoom,
+                );
+                if state != viewport.get_untracked() {
+                    viewport.set(state);
+                }
+            };
             let owner = use_context::<CameraOwner>();
             let command = move |command: Command| {
                     if !pan_and_zoom {
                         if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
-                            for command in by_hand(command) {
-                                owner.0.call(command);
-                            }
+                            owner.0.call(command);
                         }
                         return;
                     }
@@ -1148,10 +1173,13 @@ fn BlockFrameView(
                         return;
                     }
                     let rect = viewport_rect.get();
+                    let content = content_size.get();
+                    let area = fitted.get().filter(|_| chrome.get() == Chrome::Drawn);
                     let mut state = viewport.get_untracked();
                     if let Some(previous) = state.center.replace(rect.center()) {
                         state.pan += previous - rect.center();
                     }
+                    follow(&mut state, area, rect, content, max_zoom);
                     if state != viewport.get_untracked() {
                         viewport.set(state);
                     }
@@ -1169,18 +1197,14 @@ fn BlockFrameView(
                                 factor,
                                 anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
                             },
-                            ViewChange::Follow {
-                                factor,
-                                anchor: (ax, ay),
-                                x,
-                                y,
-                                resume,
-                            } => Command::Follow {
-                                factor,
-                                anchor: rect.min + vec2(ax, ay),
-                                delta: vec2(x, y),
-                                resume,
-                            },
+                            ViewChange::KeepFitted(area) => {
+                                fitted.set(area);
+                                continue;
+                            }
+                            ViewChange::Fit => {
+                                fit();
+                                continue;
+                            }
                             ViewChange::PanDrag => {
                                 pan_drags.update(|asked| *asked += 1);
                                 continue;
@@ -1201,41 +1225,6 @@ fn BlockFrameView(
                     }
                 });
             }
-            let content_rect = create_memo(move || {
-                let state = viewport.get();
-                Rect::from_center_size(
-                    viewport_rect.get().center() + state.pan,
-                    content_size.get() * state.zoom,
-                )
-            });
-            let editor_view = create_memo(
-                move || {
-                    if !handle.pan_and_zoom {
-                        return None;
-                    }
-                    let origin = rect.get().min;
-                    if !placed {
-                        let state = viewport.get();
-                        return Some(EditorView {
-                            rect: content_rect.get().translate(-origin.to_vec2()),
-                            scale: state.zoom,
-                            moved: state.moved,
-                        });
-                    }
-                    revision.get();
-                    let shown = content.get().unwrap_or(rect.get());
-                    let scale = plugin_host::intrinsic_size(&plugin_id.value(), instance)
-                        .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
-                        .map_or(1.0, |intrinsic| {
-                            (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
-                        });
-                    Some(EditorView {
-                        rect: shown.translate(-origin.to_vec2()),
-                        scale,
-                        moved: false,
-                    })
-                },
-            );
             let frame = create_memo(move || {
                 let origin = rect.get().min;
                 Some(FrameSpec {

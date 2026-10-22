@@ -1,0 +1,184 @@
+# Settings
+
+A plan for three tiers of settings: per user (which exists), per block with a
+workspace as the usual place, and per organization. It starts with the access
+model, because who may change a setting is ordinary block access. Each step
+says what "done" looks like. Items marked **(ask)** need a decision from the
+user during the work.
+
+## Where it stands
+
+- User settings are a root `Settings` block the user authored, found by
+  filtering `Query::Roots` by content type and author
+  (`block-app/src/root_settings.rs`, `block-editor-plugin/src/root_settings.rs`).
+  Its `kinds` map points to one child block per kind: display, input, default
+  editors (`EditorSettings`) and the logic game hotbar (`HotbarContent`). A
+  profile layers "this device" over "every device" (`Layered`).
+- A `Workspace` block holds only `entries` (`be-block/src/workspace.rs`). There
+  is no organization block; organizations, memberships and roles
+  (`Administrator`, `Editor`) are server tables (`be-server/src/schema.rs`).
+- Access is `None < KnowExists < View < Edit` (`be-graph/src/access.rs`). A
+  block's access is the higher of its own grant and its parent's
+  (`level_below`, `be-graph/src/lib.rs`), so a grant lower down can never take
+  access away. Anyone with Edit can share. Organization administrators get
+  Edit on every block (`be-server/src/blocks.rs`).
+- Since #603 no client lists every block, so nothing can enumerate every
+  database prefix. `Tracker::find` searches breadth-first from the roots and
+  what is shared (`be-cli/src/tracker.rs`). Since #600 a prefix is a label and
+  need not be unique.
+- `ARTIFACT` metadata stores its source inline (`ArtifactSource { source_type,
+  data }`, `be-block/src/metadata.rs`) instead of pointing to a block.
+- "Shared with me" is only a row in the file tree and the picker, filled from
+  `ListShared` (`editors/file-tree/src/app/rows.rs`, `block-shell/src/picker.rs`).
+  It is not a workspace and has no settings.
+
+## Principles
+
+- **Settings about the data follow the block; settings about the viewer follow
+  the viewer.** Tag definitions, prefixes and the owning organization's data
+  policies resolve from where the block lives. Theme, trust and the viewer's
+  own offline choice resolve from the viewer, whatever they are looking at.
+  When an owner's and a viewer's organization policies conflict, the stricter
+  wins.
+- **Access comes from the nearest grant on the path up, and Manage covers the
+  whole tree below it.** A lower grant can reduce Edit or View, never Manage,
+  so nobody can be locked out of what they manage, and nobody can keep
+  personal files in someone else's workspace out of its owner's reach.
+- **A setting the server enforces is shared with the server**, and the server
+  refuses the action when it can't read the policy. Storing a setting
+  unencrypted is only for data that doesn't matter.
+- **Never delete a personal account's data automatically**, unsent edits
+  included.
+
+## 1. Breaking changes, landed together before one server wipe
+
+Saved data may change incompatibly here, as a one-time exception to
+`guides/frozen_formats.md`: there is one server with data, and its content is
+kept as a `.block` file. Block files don't store permissions, so a re-import
+takes the default access. Land every step of this section, wipe the server,
+re-import once, and say so in `guides/frozen_formats.md`.
+
+1. **Metadata that points to a block.** A metadata value type holding a block
+   id, recorded in the graph's `references` so backrefs and `KnowExists` see
+   it. `ARTIFACT` points to a block instead of holding its source inline.
+   Done: an artifact block is a backref of the block it describes, and
+   `be-client/src/transfer.rs` exports and imports it.
+2. **The access model.** In `be-graph` and `be-server`:
+   - Add `Manage` above `Edit`. Manage shares and changes settings; Edit no
+     longer shares. Authors get Manage on what they create.
+   - The nearest grant on the path up wins for View and Edit, so a lower
+     grant can reduce them. Manage on any ancestor is Manage on the whole tree
+     below it and can't be reduced.
+   - Removing someone's View on a subtree rotates that subtree's keys, as
+     removing a reader does today.
+   - Organization administrators keep Manage on everything in their
+     organization.
+
+   Done: tests for reducing a grant below an inherited one, for Manage
+   surviving a lower grant, and for Edit no longer sharing.
+3. **The settings block.** Any block can hold a child settings block with a
+   `kinds` map, the same shape as the user's `Settings`. It never shows as an
+   entry in the file tree. **(ask)** How editing it is restricted: either a
+   built-in rule ("a settings block needs Manage on its parent to change, and
+   View on its parent to read") or a general ceiling grant ("at most View for
+   anyone without Manage") that the settings block happens to use. The
+   built-in rule is the smaller change and probably enough unless a ceiling
+   finds other uses. Done: a workspace and a folder each hold one, and the
+   server refuses an edit from someone with Edit but not Manage.
+
+## 2. Access UI
+
+4. **Share dialog.** Each person's effective access and where it comes from
+   ("Can edit, from *Team*", "Can view, set here"). In an organization, a line
+   saying the organization's administrators have access, which can't be
+   changed. When sharing a folder, a warning if items inside it have their own
+   access ("3 items inside have different access").
+5. **File tree icons.** A clickable share icon on a block whose access is set
+   on it, opening the share dialog; a clickable settings icon on a block that
+   has settings, opening them. Icons come from `beui_core::icons`. Done: a
+   painting of a tree showing both.
+
+## 3. Resolving settings
+
+6. **Resolution.** In order: organization policy, organization defaults, the
+   nearest block with settings, the user's every-device layer, the user's
+   this-device layer. Each kind declares whether it is a default (later layers
+   win) or a policy (it limits what later layers may choose), and the access
+   needed to change it: Edit for the prefix registry and tags, Manage for the
+   rest. Resolution walks ancestors and stops at the first one the viewer
+   can't view; cache the result per block, pushed when an ancestor's settings
+   change, never polled.
+7. **Visibility per kind.** "Anyone who can view a block inside" or "members
+   only", chosen by the block's managers. Defaults: the prefix registry and tag
+   definitions are visible to anyone inside, so a block shared alone still
+   shows its tags and resolves `BE-ABC`; everything else is members only. This
+   reveals tag names and prefixes to everyone a single block is shared with,
+   which is why it is a setting.
+8. **Settings editor.** A section for the current workspace and one for any
+   block that has settings, opened from the block's menu so that putting
+   settings on a folder is rare and deliberate. Where a value comes from
+   another layer, say so ("set in *Folder X*", "set by your organization").
+
+## 4. Workspace settings
+
+9. **Prefix registry.** A map from prefix to a list of databases, since a
+   prefix stays a label. It is the only way a prefix resolves: there is no
+   fallback search. Creating a database, changing its prefix, or moving it
+   into another workspace updates the registries. An ambiguous prefix says so
+   instead of picking one. `be` and the app both read it; naming a database by
+   its name (`be Issues row ...`) is unchanged. Update `guides/tracker.md`.
+10. **Tags.** Definitions (name, color) in the workspace's settings. Applying a
+    tag is metadata on the block that points to the tag (step 1), so it needs
+    Edit on the block. "Every block with tag X" is a `Query::Backrefs` on the
+    tag. Personal tags are the same type in the user's settings.
+11. **Hotbar.** A workspace or game world can set a default hotbar, and the
+    user's own hotbar overrides it.
+12. **Default editors (ask).** Whether these have a workspace layer at all.
+    Editors for one block type are views over the same data, so which one opens
+    a block is a viewer preference, and a workspace layer adds a second place
+    to look. Where an author's intent matters ("this database is a board"), it
+    belongs to that block, the way `plans/canvas.md` keeps a canvas's last
+    profile on the document, not to the workspace. Proposal: keep default
+    editors user-only, and let a block store its own preferred editor.
+13. **Home.** A landing page and pinned blocks for the workspace, and
+    templates for new blocks.
+
+## 5. Organization settings
+
+14. **Sharing a block with the server.** The server becomes an account a block
+    can be shared with, with keys like any reader. An action the server can't
+    check against an unreadable policy is refused.
+15. **The organization settings block.** One per custom organization, created
+    with it, shared with the server, editable only by administrators. The
+    default organization has none. It holds policies and defaults.
+16. **Offline-first.** Add the setting now, and say in its description that
+    offline-first doesn't exist yet. The organization's policy is required,
+    allowed or blocked. Each user chooses per workspace in their this-device
+    layer; blocks shared with them resolve from their own settings, since
+    "Shared with me" is not a workspace. When offline-first is built: on
+    losing access, unsent edits move to a local "unsent" area, stashed the way
+    `Peer::stash` keeps the losing side of a merge, and are offered back if
+    access returns. Personal accounts never delete anything automatically.
+    For organization accounts, policy decides what happens to cached content,
+    with a grace period for unsent edits. Enforcement on lost machines is for
+    MDM, out of scope.
+17. **Policies the server enforces.** Sharing outside the organization, who can
+    create workspaces, history retention (`be-commit/src/retention.rs` is
+    hardcoded today) and storage quotas.
+18. **Showing members what the organization can see.** A note on the account
+    screen that the organization's administrators can read their settings and
+    blocks.
+
+## Later
+
+- **Plugins.** Once plugins can be installed: a workspace recommends plugins
+  without trusting them, so joining a workspace never runs a stranger's code.
+  What runs is (plugins the user trusts and plugins the organization trusts)
+  limited to the organization's allowlist.
+- **Custom icons** as metadata pointing to an image block (step 1). An icon
+  from a workspace's icon set is a reference, not a child, so it needs the
+  "anyone inside" visibility of step 7.
+- Database conventions shared across databases (status workflows, fields,
+  saved views), instructions for agents working in a workspace, calendar and
+  locale, default access for new blocks, a spell-check dictionary, and links to
+  outside services.

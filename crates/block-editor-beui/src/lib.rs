@@ -38,7 +38,7 @@ pub use editor::{
     SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
-pub use fitting::Fitting;
+pub use fitting::{Fit, Fitting};
 pub use instance::BeuiPlugin;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
