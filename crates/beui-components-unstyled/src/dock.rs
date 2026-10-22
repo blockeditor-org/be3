@@ -1,5 +1,6 @@
 mod dialog;
 mod docking;
+mod documents;
 mod fullscreen;
 mod keyboard;
 mod modifier_drag;
@@ -47,6 +48,9 @@ pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
     Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
+};
+pub use documents::{
+    DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
 };
 use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;

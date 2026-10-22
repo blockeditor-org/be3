@@ -71,15 +71,4 @@ impl DockState {
             }
         });
     }
-
-    pub(super) fn rename_visits(&mut self, tab: TabId, with: TabId) {
-        for visit in &mut self.history {
-            if visit.from == tab {
-                visit.from = with;
-            }
-            if visit.to == tab {
-                visit.to = with;
-            }
-        }
-    }
 }

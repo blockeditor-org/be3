@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use beui::Image;
 use beui::reactive::*;
 #[cfg(not(target_os = "android"))]
-use beui::unstyled::DockingLayout;
+use beui::unstyled::{DockDocuments, DockSlot, DockingLayout};
 
 #[cfg(not(target_os = "android"))]
 use crate::github::branch_deleted;
@@ -62,7 +62,7 @@ pub(crate) const COMMON: [Common; 5] = [
 #[cfg(not(target_os = "android"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Tab {
-    PullRequest(u64),
+    PullRequest(DockSlot),
     Targets,
     Log,
 }
@@ -96,6 +96,7 @@ pub(crate) struct Model {
     pub(crate) listing: Signal<Loaded<()>>,
     pub(crate) pull_requests: KeyedStore<u64, PullRequest>,
     pub(crate) query: Signal<String>,
+    #[cfg(target_os = "android")]
     pub(crate) opened: Signal<Vec<PullRequest>>,
     pub(crate) selection: Selector<Option<u64>>,
     timelines: Cache<u64, Vec<Entry>>,
@@ -109,6 +110,8 @@ pub(crate) struct Model {
     pub(crate) viewer: Signal<Option<Viewer>>,
     #[cfg(not(target_os = "android"))]
     pub(crate) layout: DockingLayout<Tab>,
+    #[cfg(not(target_os = "android"))]
+    pub(crate) documents: DockDocuments<Tab, PullRequest, u64>,
     #[cfg(not(target_os = "android"))]
     stopped: Stored<Cell<bool>>,
     #[cfg(not(target_os = "android"))]
@@ -143,11 +146,19 @@ impl Model {
         let filter = create_signal(Filter::Open);
         let listing = create_signal(Loaded::Loading);
         let query = create_signal(String::new());
+        #[cfg(target_os = "android")]
         let opened = create_signal(Vec::<PullRequest>::new());
         #[cfg(not(target_os = "android"))]
         let layout = DockingLayout::new();
         #[cfg(not(target_os = "android"))]
-        let selection = create_selector(move || shown_pull_request(layout));
+        let documents =
+            DockDocuments::new(layout, Tab::PullRequest, |pull_request: &PullRequest| {
+                pull_request.number
+            });
+        #[cfg(not(target_os = "android"))]
+        let selection = create_selector(move || {
+            shown_pull_request(documents).map(|pull_request| pull_request.number)
+        });
         #[cfg(target_os = "android")]
         let selection = create_selector(move || {
             opened.with(|opened| opened.first().map(|pull_request| pull_request.number))
@@ -173,6 +184,7 @@ impl Model {
             listing,
             pull_requests: KeyedStore::new(),
             query,
+            #[cfg(target_os = "android")]
             opened,
             selection,
             timelines: store(RefCell::default()),
@@ -186,6 +198,8 @@ impl Model {
             viewer,
             #[cfg(not(target_os = "android"))]
             layout,
+            #[cfg(not(target_os = "android"))]
+            documents,
             #[cfg(not(target_os = "android"))]
             stopped: store(Cell::default()),
             #[cfg(not(target_os = "android"))]
@@ -250,50 +264,14 @@ impl Model {
 
     #[cfg(not(target_os = "android"))]
     pub(crate) fn select(&self, number: u64, beside: bool) {
-        let Some(pull_request) = self.pull_requests.try_get(&number) else {
-            return;
-        };
-        let pull_request = pull_request.get_untracked();
-        if self.pull_request(number).is_some() {
-            self.layout.show(&Tab::PullRequest(number));
-            return;
-        }
-        let shown = untrack(|| shown_pull_request(self.layout)).filter(|_| !beside);
-        match shown {
-            Some(shown)
-                if self
-                    .layout
-                    .replace(&Tab::PullRequest(shown), Tab::PullRequest(number)) =>
-            {
-                self.opened.update(|opened| {
-                    for held in opened.iter_mut().filter(|held| held.number == shown) {
-                        *held = pull_request.clone();
-                    }
-                });
-            }
-            _ => self.opened.update(|opened| opened.push(pull_request)),
+        if let Some(pull_request) = self.pull_requests.try_get(&number) {
+            self.documents.open(pull_request.get_untracked(), beside);
         }
     }
 
     #[cfg(target_os = "android")]
     pub(crate) fn deselect(&self) {
         self.opened.set(Vec::new());
-    }
-
-    #[cfg(not(target_os = "android"))]
-    pub(crate) fn close(&self, number: u64) {
-        self.opened
-            .update(|opened| opened.retain(|held| held.number != number));
-    }
-
-    #[cfg(not(target_os = "android"))]
-    fn pull_request(&self, number: u64) -> Option<PullRequest> {
-        self.opened.with_untracked(|opened| {
-            opened
-                .iter()
-                .find(|pull_request| pull_request.number == number)
-                .cloned()
-        })
     }
 
     #[cfg(not(target_os = "android"))]
@@ -460,8 +438,7 @@ impl Model {
     #[cfg(not(target_os = "android"))]
     pub(crate) fn run_again(&self) {
         let common = self.common.get_untracked();
-        let shown = untrack(|| shown_pull_request(self.layout))
-            .and_then(|number| self.pull_request(number));
+        let shown = untrack(|| shown_pull_request(self.documents));
         match shown {
             Some(pull_request) if self.can_check_out(&pull_request) => {
                 self.check_out(&pull_request, Some(common));
@@ -498,6 +475,46 @@ impl Model {
         open_url(url);
     }
 
+    #[cfg(not(target_os = "android"))]
+    fn refresh_opened(&self, listed: &[PullRequest]) {
+        let documents = self.documents;
+        for slot in documents.slots().get_untracked() {
+            let Some(held) = documents.content(slot) else {
+                continue;
+            };
+            let number = held.with_untracked(|held| held.number);
+            if let Some(refreshed) = listed
+                .iter()
+                .find(|pull_request| pull_request.number == number)
+            {
+                documents.refresh(refreshed.clone());
+            }
+        }
+    }
+
+    #[cfg(target_os = "android")]
+    fn refresh_opened(&self, listed: &[PullRequest]) {
+        let stale = self.opened.with_untracked(|opened| {
+            opened.iter().any(|held| {
+                listed
+                    .iter()
+                    .any(|pull_request| pull_request.number == held.number && pull_request != held)
+            })
+        });
+        if stale {
+            self.opened.update(|opened| {
+                for held in opened.iter_mut() {
+                    if let Some(refreshed) = listed
+                        .iter()
+                        .find(|pull_request| pull_request.number == held.number)
+                    {
+                        *held = refreshed.clone();
+                    }
+                }
+            });
+        }
+    }
+
     pub(crate) fn receive(&self, event: Event) {
         match event {
             Event::Connected(repository) => self.repository.set(match repository {
@@ -510,25 +527,7 @@ impl Model {
                 }
                 match listed {
                     Ok(listed) => {
-                        let stale = self.opened.with_untracked(|opened| {
-                            opened.iter().any(|held| {
-                                listed.iter().any(|pull_request| {
-                                    pull_request.number == held.number && pull_request != held
-                                })
-                            })
-                        });
-                        if stale {
-                            self.opened.update(|opened| {
-                                for held in opened.iter_mut() {
-                                    if let Some(refreshed) = listed
-                                        .iter()
-                                        .find(|pull_request| pull_request.number == held.number)
-                                    {
-                                        *held = refreshed.clone();
-                                    }
-                                }
-                            });
-                        }
+                        self.refresh_opened(&listed);
                         self.pull_requests.reconcile_owned(
                             listed
                                 .into_iter()
@@ -603,14 +602,7 @@ impl Model {
 }
 
 #[cfg(not(target_os = "android"))]
-fn shown_pull_request(layout: DockingLayout<Tab>) -> Option<u64> {
-    layout.state().with(|state| {
-        state
-            .recent_tabs()
-            .into_iter()
-            .find_map(|tab| match layout.key_of(tab) {
-                Some(Tab::PullRequest(number)) => Some(number),
-                _ => None,
-            })
-    })
+fn shown_pull_request(documents: DockDocuments<Tab, PullRequest, u64>) -> Option<PullRequest> {
+    let slot = documents.shown()?;
+    Some(documents.content(slot)?.get())
 }

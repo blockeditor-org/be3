@@ -42,7 +42,7 @@ fn holding_alt_and_pressing_q_switches_between_recent_tabs() {
     test.frame(press(Key::Q, alt));
     test.frame(Vec::new());
     assert!(
-        test.shows(&format!("dock.switch.{}", Page::Text.tab().value())),
+        test.shows(&format!("dock.switch.{}", tab(Page::Text))),
         "holding Alt and pressing Q lists the tabs over the dock"
     );
     test.snapshot("docking_switching_tabs");
