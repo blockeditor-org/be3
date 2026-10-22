@@ -121,6 +121,15 @@ pub(super) enum Command {
     Contact(ContactCommand),
     Leave(Uuid),
     Members(MembersCommand),
+    Invite {
+        email: String,
+        role: be_protocol::OrganizationRole,
+        reply: LinkReply,
+    },
+    CreateAgent {
+        name: String,
+        reply: AgentReply,
+    },
     Sync,
 }
 
@@ -171,6 +180,8 @@ impl Command {
             | Command::DismissPairing(_)
             | Command::Contact(_)
             | Command::Members(_)
+            | Command::Invite { .. }
+            | Command::CreateAgent { .. }
             | Command::Sync => None,
         }
     }
@@ -205,6 +216,8 @@ pub(super) enum MembersCommand {
 }
 
 type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
+
+type AgentReply = Box<dyn FnOnce(Result<crate::accounts::AgentCredentials, String>) + Send>;
 
 type CardReply = Box<dyn FnOnce(Result<be_keys::ContactCard, String>) + Send>;
 
@@ -1188,6 +1201,24 @@ impl Ran<'_> {
                 members(self.peer, self.shared, command).await;
                 false
             }
+            Command::Invite { email, role, reply } => {
+                reply(
+                    invite(self.peer, self.config, email, role)
+                        .await
+                        .map_err(|error| error.to_string()),
+                );
+                crate::host::wake();
+                false
+            }
+            Command::CreateAgent { name, reply } => {
+                reply(
+                    create_agent(self.peer, self.config, name)
+                        .await
+                        .map_err(|error| error.to_string()),
+                );
+                crate::host::wake();
+                false
+            }
             command => {
                 apply(
                     self.peer,
@@ -1346,6 +1377,89 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
     };
     reply(listed.map_err(|error| error.to_string()));
     crate::host::wake();
+}
+
+async fn invite(
+    peer: &Peer<Store>,
+    config: &Config,
+    email: String,
+    role: be_protocol::OrganizationRole,
+) -> Result<String, ClientError> {
+    let identity = peer.keys().identity();
+    let me = be_client::contacts::card(
+        peer.account(),
+        identity,
+        &config.display_name,
+        &config.email,
+    );
+    let code = be_client::contacts::invite(
+        peer.connection(),
+        identity,
+        &me,
+        peer.organization(),
+        email,
+        role,
+        peer.keys().escrow().as_ref(),
+    )
+    .await?;
+    Ok(crate::invite_link::link(
+        &crate::accounts::link_base(&config.server_url),
+        &code,
+    ))
+}
+
+async fn create_agent(
+    peer: &Peer<Store>,
+    config: &Config,
+    name: String,
+) -> Result<crate::accounts::AgentCredentials, ClientError> {
+    let identity = peer.keys().identity();
+    let me = be_client::contacts::card(
+        peer.account(),
+        identity,
+        &config.display_name,
+        &config.email,
+    );
+    let organization = peer.organization();
+    let phrase = be_keys::RecoveryPhrase::generate();
+    let secret = phrase.secret();
+    let public = secret.public();
+    let ServerMessage::AgentCreated { agent, token, .. } = peer
+        .connection()
+        .request(|request| ClientMessage::CreateAgent {
+            request,
+            organization,
+            name,
+            recovery: public.0,
+            contact: me.seal_own(&secret),
+            escrow: peer.keys().escrow().map_or_else(Vec::new, |escrow| {
+                be_client::contacts::seal_pin(&secret, organization, &escrow)
+            }),
+        })
+        .await?
+    else {
+        return Err(ClientError::Unexpected);
+    };
+    let card = be_keys::ContactCard {
+        account: agent.account.into_bytes(),
+        public,
+        display_name: agent.name.clone(),
+        email: agent.email.clone(),
+    };
+    peer.connection()
+        .request(|request| ClientMessage::PutContact {
+            request,
+            contact: agent.account,
+            sealed: card.seal_own(identity),
+        })
+        .await?;
+    Ok(crate::accounts::AgentCredentials {
+        name: agent.name,
+        server: config.server_url.clone(),
+        organization,
+        token,
+        phrase: phrase.to_string(),
+    })
 }
 
 async fn contact(
@@ -1537,7 +1651,11 @@ async fn apply(
     command: Command,
 ) -> bool {
     match command {
-        Command::Contact(_) | Command::Members(_) | Command::Sync => false,
+        Command::Contact(_)
+        | Command::Members(_)
+        | Command::Invite { .. }
+        | Command::CreateAgent { .. }
+        | Command::Sync => false,
         Command::Leave(block) => {
             if let Err(error) = peer.leave(block).await {
                 record(shared, error);

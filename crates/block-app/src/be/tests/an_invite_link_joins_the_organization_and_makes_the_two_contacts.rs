@@ -16,12 +16,9 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
         "outsider@example.com",
         "Outsider",
     );
+    harness.connect();
     let link = runtime()
-        .block_on(crate::accounts::invite(
-            url.clone(),
-            harness.token.clone(),
-            harness.me(),
-            harness.organization,
+        .block_on(crate::be::invite(
             "guest@example.com".to_owned(),
             be_protocol::OrganizationRole::Editor,
         ))

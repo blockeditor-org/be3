@@ -761,20 +761,6 @@ impl Connection {
                     pinned,
                 })
             }
-            ClientMessage::ReadEscrows {
-                request,
-                organization,
-            } => {
-                let account = self.account()?;
-                self.store.membership(account, organization).await?;
-                let (_, escrows, pinned) = self.store.opened(account, organization).await?;
-                Ok(ServerMessage::Escrows {
-                    request,
-                    escrows,
-                    pinned,
-                })
-            }
-
             ClientMessage::PutObjects { request, objects } => {
                 self.identity()?;
                 Ok(ServerMessage::Stored {

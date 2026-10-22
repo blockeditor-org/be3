@@ -765,9 +765,10 @@ worker's `Peer` borrow it (`link::signed_in`), which reconnects and
 authenticates again only once it has closed. Natively it runs on a runtime of
 its own, so it outlives the request that opened it. The server keeps one open
 organization per connection, so only the worker opens one, and a worker waits
-for the last one to stop before it does (`Link::open_organization`); a request
-about another organization must not open it (`ReadEscrows`, not
-`OpenOrganization`).
+for the last one to stop before it does (`Link::open_organization`). Opening it
+again, even the same one, drops the connection's watches and listings, so what
+needs the open organization's verified escrow key (inviting, creating an agent)
+goes through the worker's `Peer` rather than opening it.
 
 ### The graph mirror
 

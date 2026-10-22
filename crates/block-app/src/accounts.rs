@@ -272,30 +272,6 @@ pub(crate) async fn accept_invitation(
     Ok(invitation.organization)
 }
 
-pub(crate) async fn invite(
-    server_url: String,
-    token: String,
-    me: Me,
-    organization: Uuid,
-    email: String,
-    role: be_protocol::OrganizationRole,
-) -> Result<String, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    let escrow =
-        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
-    let code = be_client::contacts::invite(
-        &connection,
-        &me.secret(),
-        &me.card(),
-        organization,
-        email,
-        role,
-        escrow.as_ref(),
-    )
-    .await?;
-    Ok(crate::invite_link::link(&link_base(&server_url), &code))
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct AgentCredentials {
     pub(crate) name: String,
@@ -303,56 +279,6 @@ pub(crate) struct AgentCredentials {
     pub(crate) organization: Uuid,
     pub(crate) token: String,
     pub(crate) phrase: String,
-}
-
-pub(crate) async fn create_agent(
-    server_url: String,
-    token: String,
-    me: Me,
-    organization: Uuid,
-    name: String,
-) -> Result<AgentCredentials, AccountError> {
-    let phrase = be_keys::RecoveryPhrase::generate();
-    let secret = phrase.secret();
-    let public = secret.public();
-    let connection = authenticated(&server_url, token).await?;
-    let escrow =
-        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
-    let ServerMessage::AgentCreated { agent, token, .. } = connection
-        .request(|request| ClientMessage::CreateAgent {
-            request,
-            organization,
-            name,
-            recovery: public.0,
-            contact: me.card().seal_own(&secret),
-            escrow: escrow.map_or_else(Vec::new, |escrow| {
-                be_client::contacts::seal_pin(&secret, organization, &escrow)
-            }),
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    let card = be_keys::ContactCard {
-        account: agent.account.into_bytes(),
-        public,
-        display_name: agent.name.clone(),
-        email: agent.email.clone(),
-    };
-    connection
-        .request(|request| ClientMessage::PutContact {
-            request,
-            contact: agent.account,
-            sealed: card.seal_own(&me.secret()),
-        })
-        .await?;
-    Ok(AgentCredentials {
-        name: agent.name,
-        server: server_url,
-        organization,
-        token,
-        phrase: phrase.to_string(),
-    })
 }
 
 pub(crate) async fn agents(
