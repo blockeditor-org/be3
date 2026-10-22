@@ -347,7 +347,7 @@ impl SpaceId {
     }
 }
 
-const SPACE_SLOTS: usize = 4;
+pub(crate) const SPACE_SLOTS: usize = 4;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SpaceTransform {
@@ -500,6 +500,10 @@ impl Rects {
             self.bump();
         }
         moved
+    }
+
+    pub fn space_of(&self, id: SpaceId) -> Option<(Vec2, f32)> {
+        self.space(id).map(|space| (space.translation, space.scale))
     }
 
     fn space(&self, id: SpaceId) -> Option<Space> {

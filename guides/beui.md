@@ -424,7 +424,11 @@ hooks the higher crates fill in:
   embeds to describe itself only while something is listening. A document
   describes again only the nodes a change or a move reached, and passes over a
   subtree nothing in it changed (`FrameWork::walked_nodes` counts what it
-  visited).
+  visited). Each node is placed relative to its accessible parent in the
+  coordinates of the space it was laid out in, and each space a node lays
+  children into (`Document::enter_space`, a scroll's content, a canvas's
+  spaces) is a `GenericContainer` whose transform is the space's translation
+  and scale, so a scroll or pan changes only that node.
   `Frame::wait` is how long the adapter may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.

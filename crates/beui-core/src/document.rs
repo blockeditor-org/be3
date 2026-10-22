@@ -1955,8 +1955,8 @@ impl Document {
             space: given.space,
         };
         let moved = out.insert(id, placed) != Some(placed);
-        let space = out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
-        if moved || space {
+        out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
+        if moved {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
         if moved {
@@ -2004,7 +2004,7 @@ impl Document {
             .painters
             .insert(id, held)
             .map(|held| (held.given.clip, held.culled));
-        if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
+        if previous != Some(placed) || previous_held.map(|(_, was)| was) != Some(culled) {
             let parent = self.layout_parent;
             self.accessibility_tree
                 .get_mut()
@@ -2142,7 +2142,7 @@ impl Document {
         let state = painter.state();
         let kept = state.clip.intersect(clip);
         if out.set_scaled_space(space, state.space, translation, zoom.scale, kept) {
-            self.accessibility_tree.get_mut().mark(host, &self.arena);
+            self.accessibility_tree.get_mut().move_space(space);
         }
         entered
     }
