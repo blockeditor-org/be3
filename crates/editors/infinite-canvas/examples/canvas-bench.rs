@@ -130,8 +130,16 @@ fn report(name: &str, frames: &[Frame]) {
 }
 
 fn camera(test: &mut BeuiTest<CanvasApp>, center: Pos2, scale: f32) {
-    let size = test.rect().size() / scale;
-    test.set_view(Rect::from_center_size(center, size), scale);
+    let shown = test.rect_of("infinite-canvas.canvas").center();
+    let content = test
+        .intrinsic_size()
+        .unwrap_or_default()
+        .max(test.rect().size());
+    let size = content * scale;
+    test.set_view(
+        Rect::from_center_size(shown - center.to_vec2() * scale, size),
+        scale,
+    );
 }
 
 fn pan(count: usize, scale: f32) -> Vec<Frame> {
@@ -272,7 +280,7 @@ fn drag(count: usize) -> Vec<Frame> {
     let at = |along: f32| from + Vec2::new(200.0 * along, 40.0 * (along * 6.0).sin());
     let mut moves = Vec::new();
     for _ in 0..STROKES {
-        camera(&mut test, from - Vec2::new(held.x, held.y), 1.0);
+        camera(&mut test, Pos2::new(held.x, held.y), 1.0);
         test.run();
         test.settle();
         for (start, end) in [(0.0, 1.0), (1.0, 0.0)] {
