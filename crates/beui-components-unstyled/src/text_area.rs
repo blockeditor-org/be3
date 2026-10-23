@@ -261,10 +261,13 @@ impl Surface {
     }
 
     fn below_end(&self, pos: Pos2) -> bool {
-        let last = self.starts.get_untracked().len().saturating_sub(1);
-        self.entry(last)
-            .and_then(|entry| entry.rect(&self.held.value().placements))
-            .is_some_and(|rect| pos.y > rect.max.y)
+        let held = self.held.value();
+        let rows = held.rows.borrow();
+        rows.values()
+            .filter_map(|entry| entry.rect(&held.placements))
+            .map(|rect| rect.max.y)
+            .reduce(f32::max)
+            .is_some_and(|bottom| pos.y > bottom)
     }
 
     fn hit(&self, pos: Pos2) -> Option<usize> {
@@ -853,7 +856,17 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
             metric: CursorHorizontalPositionMetric::Byte,
             stop: CursorLeftRightStop::UnicodeGraphemeCluster,
         });
-        cx.state.set_selecting(false);
+        let Some(&caret) = cx.state.caret_indices().first() else {
+            return;
+        };
+        let position = cx.state.with_core(|core| core.position(caret));
+        cx.state.execute(EditorCommand::Click {
+            position,
+            mode,
+            extend: false,
+            select_syntax_node: syntax,
+        });
+        cx.state.set_selecting(true);
         cx.state.reveal_cursor();
         return;
     }
@@ -880,8 +893,14 @@ fn extend(cx: &Context, press: PointerPress) {
         return;
     }
     let (inside, beyond) = cx.inside(press.pos);
-    let Some(target) = cx.hit(inside) else {
-        return;
+    let target = match cx.below_end(inside) {
+        true => usize::MAX,
+        false => {
+            let Some(target) = cx.hit(inside) else {
+                return;
+            };
+            target
+        }
     };
     let position = cx.state.with_core(|core| core.position(target));
     cx.state.execute(EditorCommand::Drag(position));
