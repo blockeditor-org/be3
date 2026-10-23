@@ -349,8 +349,8 @@ impl beui::App for Shell {
         if let Some(scale) = self.app.scale.take() {
             context.set_zoom_factor(scale);
         }
-        if let Some(scale) = self.app.keyboard_scale.take() {
-            context.set_keyboard_scale(scale);
+        if let Some(share) = self.app.keyboard_share.take() {
+            context.set_keyboard_share(share);
         }
         if let Some(open) = self.app.inspector_requested.take()
             && open
@@ -475,7 +475,7 @@ struct BlockApp {
     ui_settings: Option<(beui::PreferenceLayer, u32, u32)>,
     preferences: Option<beui::PreferenceLayer>,
     scale: Option<f32>,
-    keyboard_scale: Option<f32>,
+    keyboard_share: Option<f32>,
     touched: bool,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
@@ -733,7 +733,7 @@ impl BlockApp {
             ui_settings: None,
             preferences: None,
             scale: None,
-            keyboard_scale: None,
+            keyboard_share: None,
             touched: false,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
@@ -2763,7 +2763,7 @@ impl BlockApp {
         self.ui_settings = Some(shown);
         self.preferences = Some(shown.0);
         self.scale = Some(settings.scale());
-        self.keyboard_scale = Some(settings.keyboard_scale());
+        self.keyboard_share = Some(settings.keyboard_share());
     }
 
     fn command(&mut self, context: &beui::Context, command: UiCommand) {

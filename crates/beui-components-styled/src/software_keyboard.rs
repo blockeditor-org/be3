@@ -21,18 +21,7 @@ use crate::theme::SEPARATOR_THICKNESS;
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: f32 = 4.0;
 const GAP: f32 = 2.5;
-const KEY_SHARE: f32 = 0.8;
-const KEY_HEIGHT_MIN: f32 = 40.0;
-const KEY_HEIGHT_MAX: f32 = 56.0;
 const EMOJI_SIZE: f32 = 44.0;
-
-pub fn keyboard_height(width: f32, scale: f32) -> f32 {
-    let key = (width / 10.0 * KEY_SHARE).clamp(KEY_HEIGHT_MIN, KEY_HEIGHT_MAX) * scale;
-    SEPARATOR_THICKNESS
-        + BAR_HEIGHT
-        + PADDING * 2.0
-        + key * unstyled::software_keyboard::layout::QWERTY.height()
-}
 
 pub fn keys_area(keyboard: Rect) -> Rect {
     let inner = keyboard.shrink(PADDING);

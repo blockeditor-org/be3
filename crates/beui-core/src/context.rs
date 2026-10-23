@@ -1065,12 +1065,12 @@ impl Context {
         self.inner.keyboard.borrow_mut().set_attached(attached);
     }
 
-    pub fn keyboard_scale(&self) -> f32 {
-        self.inner.keyboard.borrow().scale()
+    pub fn keyboard_share(&self) -> f32 {
+        self.inner.keyboard.borrow().share()
     }
 
-    pub fn set_keyboard_scale(&self, scale: f32) {
-        if self.inner.keyboard.borrow_mut().set_scale(scale) {
+    pub fn set_keyboard_share(&self, share: f32) {
+        if self.inner.keyboard.borrow_mut().set_share(share) {
             self.request_repaint();
         }
     }

@@ -143,7 +143,7 @@ pub(super) fn AppearanceSection(
             <LayeredSettingsRow
                 setting={keyboard_row}
                 label="On-screen keyboard height"
-                description="How tall the app's own on-screen keyboard draws its keys. It never covers more than half the screen."
+                description="How much of the screen the app's own on-screen keyboard covers."
                 separated=true
                 locked={read_only}
                 id={"display.keyboard".to_owned()}

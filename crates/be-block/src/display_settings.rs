@@ -76,8 +76,8 @@ pub struct DisplaySettings {
 impl DisplaySettings {
     pub const SCALES: [u32; 9] = [75, 90, 100, 110, 125, 150, 175, 200, 250];
     pub const DEFAULT_SCALE: u32 = 100;
-    pub const KEYBOARD_HEIGHTS: [u32; 7] = [70, 80, 90, 100, 115, 130, 150];
-    pub const DEFAULT_KEYBOARD_HEIGHT: u32 = 100;
+    pub const KEYBOARD_HEIGHTS: [u32; 7] = [20, 25, 30, 35, 40, 45, 50];
+    pub const DEFAULT_KEYBOARD_HEIGHT: u32 = 35;
 
     pub fn theme(&self) -> ThemeKind {
         self.theme.unwrap_or_default()
@@ -123,7 +123,7 @@ impl DisplaySettings {
             .unwrap_or(Self::DEFAULT_KEYBOARD_HEIGHT)
     }
 
-    pub fn keyboard_scale(&self) -> f32 {
+    pub fn keyboard_share(&self) -> f32 {
         self.keyboard_percent() as f32 / 100.0
     }
 

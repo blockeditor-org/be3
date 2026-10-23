@@ -2896,10 +2896,11 @@ It is three pieces:
   height off the bottom of the screen the focused field is on, the way the
   mouse simulation's strip is taken: a single screen's document is laid out
   above it, and on several screens that screen is shortened in what
-  `use_screens()` offers. `Context::set_keyboard_scale` scales the height of
-  its keys (`KeyboardHost::height` is handed it; block-app sets it from the
-  display settings' on-screen keyboard height), and the keyboard never takes
-  more than `MAX_SHARE` of the screen. A platform's own keyboard ignores it.
+  `use_screens()` offers. The keyboard covers a share of that screen's
+  height, `DEFAULT_SHARE` until `Context::set_keyboard_share` says otherwise
+  (at most `MAX_SHARE`; block-app sets it from the display settings' on-screen
+  keyboard height), and its keys stretch to fill it. A platform's own keyboard
+  ignores it.
   The keyboard is a document of its own, shown after
   the app with the pointer only while a press began on it or the pointer is
   over it, and with no keys.
