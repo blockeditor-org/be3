@@ -545,6 +545,9 @@ mod double_tapping_with_the_screen_reader_activates_what_it_is_reading;
 mod dragging_a_color_picker_previews_the_color_and_reports_it_once;
 mod dragging_a_color_wheels_ring_turns_its_hue;
 mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
+mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
+mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
+mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
 mod dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it;
 mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
@@ -2727,5 +2730,157 @@ fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool, parent: u64) -
         attended: attended.read_only(),
         open,
         anchor,
+    }
+}
+
+pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
+
+struct SpaceScreen;
+
+impl beui_core::renderer::Renderer for SpaceScreen {
+    fn name(&self) -> &'static str {
+        "screen"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo::default()
+    }
+
+    fn resize(&mut self, _width: u32, _height: u32) {}
+
+    fn physical(&self) -> Option<Vec2> {
+        Some(SPACE_SCREEN)
+    }
+
+    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, _background: Color32) -> bool {
+        false
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
+    }
+}
+
+struct SharedSpace(Rc<RefCell<beui_adapter_space::Space>>);
+
+impl beui_core::runner::WindowHost for SharedSpace {
+    fn setup(&mut self, setup: &Setup) {
+        self.0.borrow_mut().setup(setup);
+    }
+
+    fn input(
+        &mut self,
+        incoming: &mut Vec<beui_core::runner::Incoming>,
+        view: &beui_core::runner::HostView,
+    ) {
+        self.0.borrow_mut().input(incoming, view);
+    }
+
+    fn frame(
+        &mut self,
+        output: &crate::FrameOutput,
+        view: &beui_core::runner::HostView,
+    ) -> beui_core::runner::Hosted {
+        self.0.borrow_mut().frame(output, view)
+    }
+}
+
+struct SharedDocument(Rc<RefCell<Document>>);
+
+impl crate::App for SharedDocument {
+    fn update(&mut self, context: &Context, rect: crate::geometry::Rect) {
+        self.0.borrow_mut().show(context, rect);
+    }
+}
+
+struct Nowhere;
+
+impl beui_core::runner::Platform for Nowhere {}
+
+pub(crate) struct InSpace {
+    runner: beui_core::runner::Runner,
+    pub(crate) space: Rc<RefCell<beui_adapter_space::Space>>,
+    pub(crate) document: Rc<RefCell<Document>>,
+}
+
+impl InSpace {
+    pub(crate) fn new(document: Document) -> Self {
+        let space = Rc::new(RefCell::new(beui_adapter_space::Space::new()));
+        let document = Rc::new(RefCell::new(document));
+        let context = context();
+        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
+            options: beui_core::runner::RunOptions::default(),
+            context: context.clone(),
+            app: Box::new(SharedDocument(Rc::clone(&document))),
+            host: Some(Box::new(SharedSpace(Rc::clone(&space)))),
+        });
+        runner
+            .start(
+                vec![beui_core::renderer::Loaded {
+                    renderer: Box::new(SpaceScreen),
+                    fonts: None,
+                }],
+                Setup::new(Waker::new(|| {})),
+            )
+            .expect("the renderer loads");
+        context.stop_clock();
+        Self {
+            runner,
+            space,
+            document,
+        }
+    }
+
+    pub(crate) fn frame(&mut self, inputs: impl IntoIterator<Item = Input>) {
+        for input in inputs {
+            self.runner.push(input);
+        }
+        self.runner
+            .frame(&mut Nowhere, beui_core::app::SafeArea::default());
+        ::reactive::flush();
+    }
+
+    pub(crate) fn settle(&mut self) {
+        for _ in 0..4 {
+            self.frame([]);
+        }
+    }
+
+    pub(crate) fn on_screen(&self, window: crate::WindowId, pos: Pos2) -> Pos2 {
+        let space = self.space.borrow();
+        let point = space
+            .panel(window)
+            .unwrap_or_else(|| panic!("{window:?} has a panel"))
+            .world(pos);
+        let clip = space
+            .head
+            .view_projection(SPACE_SCREEN)
+            .project_point3(point);
+        pos2(
+            (clip.x + 1.0) / 2.0 * SPACE_SCREEN.x,
+            (1.0 - clip.y) / 2.0 * SPACE_SCREEN.y,
+        )
+    }
+
+    pub(crate) fn tab(&self, dock: NodeId, title: &str) -> (crate::WindowId, crate::geometry::Rect) {
+        let document = self.document.borrow();
+        let tab = dock_tab(&document, dock, title);
+        let rect = document.node_rect(tab).expect("the tab is laid out");
+        (document.window_of(tab), rect)
+    }
+
+    pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
+        let button = |pos, pressed| Input::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+        };
+        self.frame([Input::PointerMoved(from), button(from, true)]);
+        for step in 1..=8 {
+            let at = from + (to - from) * (step as f32 / 8.0);
+            self.frame([Input::PointerMoved(at)]);
+        }
+        self.frame([button(to, false)]);
+        self.settle();
     }
 }

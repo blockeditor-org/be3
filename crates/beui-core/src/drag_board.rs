@@ -233,6 +233,9 @@ impl Board {
             return;
         }
         if self.outside.get() {
+            if let Some(carried) = self.carried.borrow_mut().as_mut() {
+                carried.last = Some(point);
+            }
             self.leave();
             return;
         }

@@ -2677,7 +2677,8 @@ turns that into `Event::PointerOutside`, which sets `Pointer::outside` until
 the next press. While it is set and the pointer is outside its window's
 reported size, the board (`Board::set_outside`, each frame) drops nothing:
 the target the pointer left hears `over(None)` and the drop calls the
-`Outside` callback given to `Board::begin` with the last point, which
+`Outside` callback given to `Board::begin` with the last point (inside or
+out, so a drag that leaves on its first move still has one), which
 `Draggable` passes on as `on_drop_outside`. Where nothing opens windows the
 flag is ignored, so dragging out of a platform window still drops at the last
 point inside. `ui_types::Input` has no window: it is the
@@ -2729,7 +2730,8 @@ all its 3D (`glam`) stays in the crate.
   `WindowRequest`s. `Open` adds a panel at the size asked for and reports
   `Resized` and `Placed` the next frame: `Host` decodes the pose (a placement
   another host wrote opens at the pointer instead), `Beside(id)` puts it right
-  of that panel, tops level, `BESIDE_GAP` apart, and `AtPointer` puts the
+  of that panel (and of any panel already there), tops level, `BESIDE_GAP`
+  apart, and `AtPointer` puts the
   point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
   in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
   none, turned to face the viewer (yaw only). `Resize` sets the panel's size,

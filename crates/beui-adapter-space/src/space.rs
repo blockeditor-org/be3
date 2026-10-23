@@ -647,11 +647,25 @@ impl Space {
     fn beside(&self, other: WindowId, size: Vec2) -> Option<Pose> {
         let other = self.panel(other)?;
         let metres = glam::Vec2::new(size.x, size.y) / POINTS_PER_METRE;
-        let shift = Vec3::new(
-            other.metres().x / 2.0 + BESIDE_GAP + metres.x / 2.0,
-            (other.metres().y - metres.y) / 2.0,
-            0.0,
-        );
+        let local = |panel: &Panel| other.pose.rotation.inverse() * (panel.pose.position - other.pose.position);
+        let top = other.metres().y / 2.0;
+        let mut left = other.metres().x / 2.0 + BESIDE_GAP;
+        for _ in 0..self.panels.len() {
+            let blocking = self.panels.iter().find(|panel| {
+                let at = local(panel);
+                let half = panel.metres() / 2.0;
+                at.z.abs() < 0.01
+                    && at.x + half.x > left
+                    && at.x - half.x < left + metres.x
+                    && at.y + half.y > top - metres.y
+                    && at.y - half.y < top
+            });
+            let Some(blocking) = blocking else {
+                break;
+            };
+            left = local(blocking).x + blocking.metres().x / 2.0 + BESIDE_GAP;
+        }
+        let shift = Vec3::new(left + metres.x / 2.0, top - metres.y / 2.0, 0.0);
         Some(Pose {
             position: other.pose.position + other.pose.rotation * shift,
             rotation: other.pose.rotation,

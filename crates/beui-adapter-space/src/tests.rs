@@ -31,6 +31,7 @@ mod motion_a_driver_sends_turns_the_head_while_steering;
 mod moving_a_window_carries_its_panel;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
+mod windows_opened_beside_the_same_one_line_up_to_its_right;
 
 const PLATFORM: Vec2 = vec2(800.0, 600.0);
 
