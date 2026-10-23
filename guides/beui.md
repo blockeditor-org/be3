@@ -1188,6 +1188,15 @@ it back without passing the edge. A band let go while already heading back
 hands the speed it still has to a fling into the content. The sheet's content
 bounces the same way.
 
+`Offset` never clamps: it shows its child at whatever offset it is given, past
+either end included, and the band is just the part of that offset beyond them
+(`ScrollPosition::overscroll`, with `clamped` the part within). Keeping the
+offset in range is whatever drives it. When content shrinks under a `Scroll` or
+an offset is set past an end while nothing is moving it, the `Scroll` puts it
+back at the end in its report of that layout and holds the report back, so the
+next layout pass of the same frame lays out and reports the settled position and
+nothing past the end is ever painted.
+
 That offset is anchored to a node, not measured from the top of the content:
 the scroll remembers the node at the top of its viewport and where it started,
 so a row further up growing or shrinking - a wrapping label, an image that

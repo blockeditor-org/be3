@@ -226,18 +226,34 @@ impl Motion {
         let Some(node) = self.node() else {
             return (0.0, 0.0);
         };
-        match node.offset() {
-            Some(offset) => (offset, node.overscroll()),
-            None => (0.0, 0.0),
-        }
+        let Some(raw) = node.offset() else {
+            return (0.0, 0.0);
+        };
+        let offset = raw.clamp(0.0, self.shape().max_offset);
+        (offset, raw - offset)
     }
 
     fn place_content(&self, offset: f32, overscroll: f32) {
         let Some(node) = self.node() else {
             return;
         };
-        node.drive_offset(offset);
-        node.set_overscroll(overscroll);
+        node.drive_offset(offset + overscroll);
+    }
+
+    fn settle_content(&self, position: ScrollPosition) -> bool {
+        let held = self.held.borrow();
+        if position.overscroll() == 0.0
+            || held.travel.is_some()
+            || !matches!(held.phase, Phase::Still)
+        {
+            return false;
+        }
+        drop(held);
+        let Some(node) = self.node() else {
+            return false;
+        };
+        node.drive_offset(position.clamped());
+        true
     }
 
     fn place_height(&self, rest: Rest) {
@@ -1213,7 +1229,11 @@ pub fn Sheet(
                                             <Offset
                                                 @node_ref=&content
                                                 fit=true
-                                                on_change={move |value| position.set(Some(value))}
+                                                on_change={move |value: ScrollPosition| {
+                                                    if !motion.value().settle_content(value) {
+                                                        position.set(Some(value));
+                                                    }
+                                                }}
                                             >
                                                 {children}
                                             </Offset>

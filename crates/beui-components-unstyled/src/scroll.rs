@@ -1,5 +1,6 @@
 use beui_core::layer::LayerPolicy;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{Action, Node, Role};
@@ -273,15 +274,32 @@ impl Motion {
         let reported = self.reported.get_untracked()?;
         let node = self.node?;
         let offset = node.offset()?;
-        Some(ScrollPosition { offset, ..reported })
+        let position = ScrollPosition { offset, ..reported };
+        Some(ScrollPosition {
+            offset: position.clamped(),
+            ..position
+        })
     }
 
     fn publish(&self, momentum: &Momentum, position: &ScrollPosition, offset: f32) {
         let Some(node) = self.node else {
             return;
         };
-        node.drive_offset(offset);
-        node.set_overscroll(rubber_band(momentum.stretch, position.viewport));
+        node.drive_offset(offset + rubber_band(momentum.stretch, position.viewport));
+    }
+
+    fn settle(&self, position: ScrollPosition) -> bool {
+        let Some(node) = self.node else {
+            return false;
+        };
+        let Ok(momentum) = self.momentum.try_borrow() else {
+            return false;
+        };
+        let stray = position.overscroll() != 0.0 && momentum.drag.is_none() && !momentum.moving();
+        if stray {
+            node.drive_offset(position.clamped());
+        }
+        stray
     }
 
     fn coasting(&self) -> bool {
@@ -446,13 +464,9 @@ impl Motion {
     }
 
     fn steer(&self) {
-        let Some(node) = self.node else {
-            return;
-        };
         if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
             momentum.rest();
         }
-        node.set_overscroll(0.0);
     }
 
     fn finish(&self) {
@@ -499,9 +513,19 @@ fn Scrolling(
     #[prop(children)] content: Render<Callback<ScrollPosition>>,
 ) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
-    let node = content.call(Callback::new(move |position: ScrollPosition| {
-        reported.set(Some(position));
-        on_change.call(position);
+    let settles = Rc::new(Cell::new(None::<Stored<Motion>>));
+    let node = content.call(Callback::new({
+        let settles = Rc::clone(&settles);
+        move |position: ScrollPosition| {
+            if settles
+                .get()
+                .is_some_and(|motion| motion.value().settle(position))
+            {
+                return;
+            }
+            reported.set(Some(position));
+            on_change.call(position);
+        }
     }));
     let motion = store(Motion {
         node: node.first_offset_within(),
@@ -512,6 +536,7 @@ fn Scrolling(
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
     });
+    settles.set(Some(motion));
     let animation = create_animation(
         move |frame| motion.value().step(frame.delta.as_secs_f32()).is_some(),
         move || motion.value().finish(),
@@ -572,12 +597,12 @@ fn Scrolling(
         None
     });
     reveal.with(|reveal| reveal.timer.set(Some(fading)));
-    let moved = Cell::new(None::<(f32, f32)>);
+    let moved = Cell::new(None::<f32>);
     create_effect(move || {
         let Some(position) = reported.get() else {
             return;
         };
-        let at = (position.offset, position.overscroll);
+        let at = position.offset;
         if moved.replace(Some(at)).is_some_and(|was| was != at) {
             reveal.value().poke();
         }
@@ -791,7 +816,7 @@ pub(crate) fn fade_edges(
 fn scroll_view(position: Option<ScrollPosition>, direction: Direction) -> Node {
     let mut node = Node::new(Role::ScrollView);
     if let Some(position) = position {
-        let (offset, max) = (position.offset.into(), position.max_offset().into());
+        let (offset, max) = (position.clamped().into(), position.max_offset().into());
         match direction {
             Direction::Horizontal => {
                 node.set_scroll_x(offset);

@@ -14,7 +14,6 @@ pub struct ScrollPosition {
     pub offset: f32,
     pub content: f32,
     pub viewport: f32,
-    pub overscroll: f32,
 }
 
 impl ScrollPosition {
@@ -22,11 +21,18 @@ impl ScrollPosition {
         offset: 0.0,
         content: 0.0,
         viewport: 0.0,
-        overscroll: 0.0,
     };
 
     pub fn max_offset(&self) -> f32 {
         (self.content - self.viewport).max(0.0)
+    }
+
+    pub fn clamped(&self) -> f32 {
+        self.offset.clamp(0.0, self.max_offset())
+    }
+
+    pub fn overscroll(&self) -> f32 {
+        self.offset - self.clamped()
     }
 }
 
@@ -45,7 +51,6 @@ pub struct OffsetNode {
     pub direction: Direction,
     pub child: Option<NodeId>,
     pub offset: f32,
-    pub overscroll: f32,
     pub fits: bool,
     pub position: Option<ScrollPosition>,
     anchored: bool,
@@ -62,7 +67,6 @@ impl OffsetNode {
             direction: Direction::Vertical,
             child: Some(child),
             offset: 0.0,
-            overscroll: 0.0,
             fits: false,
             position: None,
             anchored: false,
@@ -86,15 +90,12 @@ impl OffsetNode {
         ))
     }
 
-    fn settled(&mut self, main: f32, content: f32) -> ScrollPosition {
-        let position = ScrollPosition {
-            offset: self.offset.clamp(0.0, (content - main).max(0.0)),
+    fn settled(&self, main: f32, content: f32) -> ScrollPosition {
+        ScrollPosition {
+            offset: self.offset,
             content,
             viewport: main,
-            overscroll: self.overscroll,
-        };
-        self.offset = position.offset;
-        position
+        }
     }
 
     fn place(
@@ -106,7 +107,7 @@ impl OffsetNode {
         position: ScrollPosition,
         host: NodeId,
     ) {
-        let offset = doc.pixel_grid().snap(position.offset + self.overscroll);
+        let offset = doc.pixel_grid().snap(position.offset);
         self.translation = self.direction.axes(-offset, 0.0);
         self.host = Some(host);
         let entered = doc.enter_space(host, 1, painter, self.translation, rect, out);
@@ -247,7 +248,7 @@ impl Element for OffsetNode {
             + self.revealed(doc, out, host, main);
         doc.report_anchor_shift(outer);
         if shift != 0.0 {
-            self.offset = (self.offset + shift).max(0.0);
+            self.offset += shift;
             self.anchored = false;
             doc.invalidate_after_layout(host);
         }
@@ -298,7 +299,6 @@ impl Element for OffsetNode {
         let mut properties = vec![
             ("direction", format!("{:?}", self.direction)),
             ("offset", self.offset.to_string()),
-            ("overscroll", self.overscroll.to_string()),
             ("fits", self.fits.to_string()),
         ];
         if let Some(position) = self.position {
@@ -390,15 +390,6 @@ impl Document {
         self.arena.touch_mut_as::<OffsetNode>(offset).on_steer = Callback::new(handler);
     }
 
-    pub fn set_offset_overscroll(&mut self, offset: NodeOf<OffsetNode>, overscroll: f32) {
-        if self.arena.get_as::<OffsetNode>(offset).overscroll == overscroll {
-            return;
-        }
-        self.arena
-            .relayout_alone_mut_as::<OffsetNode>(offset)
-            .overscroll = overscroll;
-    }
-
     pub fn first_offset_within(&self, id: NodeId) -> Option<NodeOf<OffsetNode>> {
         if !self.contains(id) {
             return None;
@@ -426,7 +417,14 @@ impl Document {
 
     pub fn scroll_overscroll(&self, scroll: NodeId) -> f32 {
         self.first_offset_within(scroll).map_or(0.0, |offset| {
-            self.arena.get_as::<OffsetNode>(offset).overscroll
+            let node = self.arena.get_as::<OffsetNode>(offset);
+            node.position.map_or(0.0, |position| {
+                ScrollPosition {
+                    offset: node.offset,
+                    ..position
+                }
+                .overscroll()
+            })
         })
     }
 
