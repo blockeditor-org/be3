@@ -570,6 +570,12 @@ impl<A: App + 'static> Stepped<A> {
         self.gesture(&["scroll"], &[target.into()], &[&down, &right])
     }
 
+    pub fn motion(&mut self, by: Vec2) -> String {
+        let scale = self.runner.context().pixels_per_point();
+        let (right, down) = ((by.x * scale).to_string(), (by.y * scale).to_string());
+        self.gesture(&["motion"], &[], &[&right, &down])
+    }
+
     pub fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) -> String {
         let (down, right) = (down.to_string(), right.to_string());
         self.gesture(&["wheel"], &[target.into()], &[&down, &right])

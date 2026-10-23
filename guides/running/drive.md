@@ -139,6 +139,7 @@ A command that acts on something takes a TARGET:
     drive scroll TARGET 300                   a touchpad scroll of 300 pixels
     drive zoom TARGET 2                       a touchpad pinch
     drive leave                               the pointer leaves the window
+    drive motion 200 0                        a mouse moving 200 pixels right with the pointer locked
     drive tap TARGET                          touch, finger 0
     drive swipe FROM TO
     drive pinch TARGET 2                      two fingers spreading apart
@@ -159,7 +160,10 @@ A command that acts on something takes a TARGET:
 `touch` names each finger (`0=TARGET`, `1=TARGET`) so several move in one frame, which is how
 to make a pinch of your own; `touch up` with no finger lifts them all, and `touch cancel` takes
 them back the way the system does when it claims a gesture. `keydown` on a key that
-is already down repeats it. `a11y TARGET` with no action prints the node a screen reader would
+is already down repeats it. `motion DX DY` is relative motion (`Input::PointerMotion`), what a
+locked pointer reports: it reaches what holds pointer lock, such as a 3D view's look, and turns
+the head in space while Ctrl and Shift are held (`drive keydown ctrl; drive keydown shift;
+drive motion 200 0; drive keyup shift; drive keyup ctrl`). `a11y TARGET` with no action prints the node a screen reader would
 act on and the actions it offers; acting goes through the accessibility tree rather than the
 pointer or keys, the path a screen reader takes, and reaches plugins' nodes too.
 

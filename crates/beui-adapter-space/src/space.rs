@@ -201,12 +201,24 @@ impl Space {
                 ..
             } => self.platform_input(units, input, out),
             Incoming::Input {
+                units,
+                input: Input::PointerMotion(motion),
+                ..
+            } if self.steering() => self.head.look(self.pixels(units, motion)),
+            Incoming::Input {
                 units: Units::Points,
                 window,
                 input,
             } => self.driven(window, input, out),
             Incoming::Input { units, input, .. } => self.platform_input(units, input, out),
             other => out.push(other),
+        }
+    }
+
+    fn pixels(&self, units: Units, motion: Vec2) -> Vec2 {
+        match units {
+            Units::Points => motion * self.pixels_per_point,
+            Units::Physical | Units::Logical => motion,
         }
     }
 
@@ -231,7 +243,6 @@ impl Space {
         match input {
             Input::Key(keystroke) => self.key(units, keystroke, out),
             Input::Modifiers(modifiers) => self.modifiers(units, modifiers, out),
-            Input::PointerMotion(motion) if self.steering() => self.head.look(motion),
             Input::PointerMoved(at) => {
                 self.cursor = Some(Cursor::Platform(at));
                 let ray = self.head.ray(self.platform, at.to_vec2());

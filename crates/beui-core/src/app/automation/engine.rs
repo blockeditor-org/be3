@@ -49,6 +49,8 @@ Pointer:
   scroll TARGET DY [DX]     a touchpad scroll of DY pixels, down when positive
   zoom TARGET FACTOR        a touchpad pinch, such as 2 to zoom in or 0.5 out
   leave                     the pointer leaves the window
+  motion DX DY              a mouse moving DX, DY pixels with the pointer locked, as a game's look
+                            or a host's steering reads it
 Touch:
   tap TARGET [FINGER]
   swipe FROM TO [FINGER]
@@ -725,6 +727,15 @@ impl Automation {
                 input(self.gestures.scroll(at, vec2(number(2)?, number(1)?)))
             }
             "leave" => input(self.gestures.leave()),
+            "motion" => {
+                let pixels = |index: usize| -> Result<f32, String> {
+                    let text = argument(index)?;
+                    text.parse::<f32>()
+                        .map(|value| value / view.pixels_per_point)
+                        .map_err(|_| format!("{text} is not a number of pixels"))
+                };
+                input(self.gestures.motion(vec2(pixels(0)?, pixels(1)?)))
+            }
             "tap" => {
                 let at = at(argument(0)?)?;
                 input(self.gestures.tap(at, finger(arguments.get(1))?))
