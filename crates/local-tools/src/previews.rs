@@ -73,6 +73,9 @@ pub fn generate(
         .transpose()?
         .map(|site| format!("{ROOT}/site/{site}/index.html?changes={manifest_hash}"));
 
+    if let Some(page) = &page {
+        let _ = writeln!(comment, "**[Review them]({page})**\n");
+    }
     comment.push_str("<details><summary>Painting previews</summary>\n\n");
     let count = |status: Status| {
         manifest
@@ -98,9 +101,6 @@ pub fn generate(
         unreadable => {
             let _ = write!(comment, ", {unreadable} unreadable.\n\n");
         }
-    }
-    if let Some(page) = &page {
-        let _ = writeln!(comment, "**[Review them]({page})**\n");
     }
     if omitted > 0 {
         let _ = writeln!(
