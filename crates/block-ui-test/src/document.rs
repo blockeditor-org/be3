@@ -37,11 +37,22 @@ impl DerefMut for DocumentTest {
 
 impl DocumentTest {
     pub fn new(document: Document, size: Vec2) -> Self {
+        Self::start(document, size, false)
+    }
+
+    pub fn hosting_windows(document: Document, size: Vec2) -> Self {
+        Self::start(document, size, true)
+    }
+
+    fn start(document: Document, size: Vec2, hosting: bool) -> Self {
         beui::fail_unsettled_layout(true);
         let fonts = FontLibrary::bundled();
         let context = Context::new(FreetypeFonts::new(fonts.clone()));
         let window = WindowSize { size, scale: 1.0 };
-        let mut stepped = Stepped::new(context, Showing(document), window, None);
+        let mut stepped = match hosting {
+            true => Stepped::hosting_windows(context, Showing(document), window),
+            false => Stepped::new(context, Showing(document), window, None),
+        };
         stepped.settle_after_gestures(false);
         let mut test = Self {
             stepped,
@@ -136,6 +147,23 @@ impl DocumentTest {
                 .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
         overflow::assert_fits(name, overflow::overflows(self.stepped.document()));
+    }
+
+    pub fn snapshot_window(&mut self, name: &str, window: beui::WindowId) {
+        self.refresh();
+        let output = self
+            .stepped
+            .windows()
+            .output(window)
+            .cloned()
+            .unwrap_or_else(|| panic!("window {window:?} has painted nothing"));
+        let background = self
+            .latest
+            .as_ref()
+            .map_or(Color32::BLACK, background);
+        let painting = capture::capture_window(&output, 1.0, background)
+            .expect("the painting could not be rendered");
+        snapshot::assert_snapshot(name, &painting);
     }
 
     pub fn snapshot_dom(&mut self, name: &str) {

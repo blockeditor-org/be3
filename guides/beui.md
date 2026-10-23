@@ -2570,10 +2570,77 @@ them. `Context::opens_windows` says whether anything can open windows; where
 nothing can (every platform adapter on its own), a window is shown inside the
 main one instead.
 
+An app makes a window with the `Window` component (`beui::primitives`):
+
+```rust
+view! {
+    <Window
+        id={window}
+        size={vec2(320.0, 240.0)}
+        at={pos2(40.0, 40.0)}
+        placement={WindowPlacement::Host(saved_pose)}
+        title={Some("Inspector".to_owned())}
+        open={shown}
+        on_report={move |report: WindowReport| remember(report)}
+    >|handle: WindowHandle|
+        <Panel handle />
+    </Window>
+}
+```
+
+Where a host opens windows it is one: its content is laid out from its own
+corner, `(0, 0)`, at its size (the size the host last reported, else `size`)
+and painted into its own `WindowOutput`. The document asks the host to `Open`
+it, with `placement` and `size`, when it opens and to `Close` it when it
+closes or leaves the tree; `on_report` hears the host's `Resized`, `Placed`
+(the `HostPlacement` to store and hand back as `placement` next time) and
+`Closed`, after which the window stays shut until the app closes and opens it
+again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
+`LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
+how floating windows looked before there were windows, so an app looks the
+same either way. `WindowHandle` (also `use_window()` inside the content)
+carries the `id`, the shown `size` and `is_window()`, which says which of the
+two it is. `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
+return whether it took the request: false means the window is an overlay and
+the caller moves or resizes it itself. Overlays opened inside a window (menus,
+tooltips) are laid out inside that window and paint into it.
+
+Underneath, the window is an `OverlayNode` carrying a `WindowSpec`
+(`Document::set_overlay_window`), and each `Layer` names its `window`: the
+window's own layer and everything opened from inside it.
+`Document::window_layers(id)` is one window's layers with the window's own at
+index 0, which hit testing, press claims and forwarding use, so a press in
+one window never reaches another's nodes at the same coordinates. Focus,
+key routing and tab order stay one across every window. `Document::window_of`
+names the window a node is in, `window_rect` its rectangle and `open_windows`
+the windows the host shows. Damage is not told apart by window: each window
+gets the frame's damage clipped to its size (the whole window when it opens or
+resizes), and scrolling blits are turned into damage while any window is open.
+The cursor goes to the window the pointer is over, the IME area to the window
+holding the focus, and the rest of `WindowState` stays on the main window.
+The accessibility tree stays one tree, with each window's nodes in its own
+coordinates.
+
+Tests host windows with `testing::Stepped::hosting_windows` (block-ui-test's
+`DocumentTest::hosting_windows`), whose host opens every window asked for at
+its size and reports `Resized` and `Placed` back the next frame.
+`frame_in(window, inputs)` sends input to a window, `take_window_requests`
+reads what the app asked, `report_window` reports as a host would, `windows()`
+lists the open windows and each one's latest `WindowOutput`, and
+`DocumentTest::snapshot_window(name, id)` takes a window's painting.
+
 Pointer input names its window: `Incoming::Input` carries a `window`
 (`Incoming::in_window`; every constructor starts with the main window), in
-that window's own coordinates, and `PointerPress` and `DragPoint` carry it
-on to handlers and the drag board. `ui_types::Input` has no window: it is the
+that window's own coordinates. The intake turns a change of window into
+`Event::PointerWindow`, so every `PointerEvent` and `InputState::pointer`
+carry the window too. A host names the window under the pointer even while a
+press made in another window holds it, and does not send `PointerLeft` when
+the pointer only crosses into another window: the node holding the press goes
+on getting the drag, and its `PointerPress` names the window the pointer is
+over and the position in that window (`local` is then measured from the
+holder's rectangle in its own window, so it means little; a click needs the
+release in the window the press began in). The drag board looks for drop
+targets only in the window the `DragPoint` names. `ui_types::Input` has no window: it is the
 plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_core::runner::WindowHost` sits between one platform window and an
