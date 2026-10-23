@@ -22,7 +22,7 @@ use text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::Scroll;
+use crate::{Scroll, ScrollbarStyle};
 use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::clipboard::{PasteKind, Pasted};
@@ -87,6 +87,8 @@ const RUN_CHIP_RADIUS: f32 = 3.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
 const CODE_RADIUS: f32 = 3.0;
+const QUOTE_INDENT: f32 = 14.0;
+const QUOTE_BAR_WIDTH: f32 = 3.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -849,7 +851,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-            Inline::Run => {}
+            Inline::Run | Inline::Bullet | Inline::Quote => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -1077,6 +1079,7 @@ pub fn TextArea(
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
+    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
@@ -1478,6 +1481,7 @@ pub fn TextArea(
                                         <Scroll
                                             offset={offset}
                                             focus_color={Color32::TRANSPARENT}
+                                            scrollbar
                                             on_change={scroll}
                                         >
                                             <Editing field={field} />

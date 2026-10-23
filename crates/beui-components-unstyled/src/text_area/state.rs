@@ -554,6 +554,8 @@ impl TextAreaState {
                 None => {
                     let row = build_row(&inputs, line, start, end, newline);
                     let font = FontId::proportional(options.body_size);
+                    let indent = row.quote as f32 * super::QUOTE_INDENT;
+                    let wrap = (wrap - indent).max(1.0);
                     let row_height = rich_layout(&row, font, options.padding(), wrap)?.size.y;
                     (row_height, row.block.map_or(0.0, |(_, size)| size.y))
                 }
@@ -638,6 +640,7 @@ impl TextAreaState {
                 wrap_width: wrap,
                 padding: options.padding(),
                 style: SpanStyle::new(font, Color32::WHITE),
+                hang: row.hang,
             };
             lines.push(lay_out(&row.pieces(), options)?);
         }

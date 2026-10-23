@@ -200,9 +200,8 @@ pub fn Interactive(
     });
     if let Some(cursor) = cursor {
         create_binding(move || {
-            with_document(|document| {
-                document.set_interactive_cursor(interactive, Some(cursor.get()))
-            })
+            let cursor = cursor.get();
+            with_document(|document| document.set_interactive_cursor(interactive, Some(cursor)))
         });
     }
     create_binding(move || {

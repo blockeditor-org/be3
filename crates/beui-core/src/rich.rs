@@ -210,6 +210,7 @@ pub struct RichOptions {
     pub wrap_width: f32,
     pub padding: (f32, f32),
     pub style: SpanStyle,
+    pub hang: usize,
 }
 
 #[derive(Clone)]
@@ -678,32 +679,40 @@ impl RichLayout {
                 true => builder.stops(&whole),
                 false => Vec::new(),
             };
+            let hang = hang_indent(&whole, start..end, options.hang, options.wrap_width);
             let mut whole = Some(whole);
             loop {
-                let origin = match from == start {
-                    true => 0.0,
-                    false => stops
-                        .get(stops.partition_point(|(byte, _)| *byte < from))
-                        .map_or(0.0, |(_, x)| *x),
+                let (origin, indent) = match from == start {
+                    true => (0.0, 0.0),
+                    false => (
+                        stops
+                            .get(stops.partition_point(|(byte, _)| *byte < from))
+                            .map_or(0.0, |(_, x)| *x),
+                        hang,
+                    ),
                 };
-                let broke = match total - origin > options.wrap_width {
-                    true => builder.breakpoint(&stops, from, end, origin, options.wrap_width),
+                let wrap = options.wrap_width - indent;
+                let broke = match total - origin > wrap {
+                    true => builder.breakpoint(&stops, from, end, origin, wrap),
                     false => None,
                 };
-                let (to, runs) = match (broke, from == start) {
+                let (to, mut runs) = match (broke, from == start) {
                     (Some((to, _, _)), _) => (to, builder.runs(from, to)),
                     (None, true) => (end, whole.take().unwrap_or_default()),
                     (None, false) => (end, builder.runs(from, end)),
                 };
+                for run in &mut runs {
+                    run.x += indent;
+                }
                 let mut line = line(from..to, runs, top, strut, options.padding);
                 top += line.height;
                 let Some((_, reach, limit)) = broke else {
-                    line.reach = total - origin;
+                    line.reach = total - origin + indent;
                     lines.push(line);
                     break;
                 };
-                line.reach = reach;
-                line.limit = limit;
+                line.reach = reach + indent;
+                line.limit = limit + indent;
                 lines.push(line);
                 from = to;
             }
@@ -958,6 +967,17 @@ impl RichLayout {
 }
 
 const ELLIPSIS: &str = "\u{2026}";
+
+fn hang_indent(runs: &[RichRun], paragraph: Range<usize>, hang: usize, wrap: f32) -> f32 {
+    if hang <= paragraph.start || hang > paragraph.end {
+        return 0.0;
+    }
+    let x = match runs.iter().find(|run| run.range.contains(&hang)) {
+        Some(run) => run.x_of(hang),
+        None => runs.last().map_or(0.0, |run| run.x + run.width),
+    };
+    x.min(wrap / 2.0)
+}
 
 fn line(
     range: Range<usize>,
