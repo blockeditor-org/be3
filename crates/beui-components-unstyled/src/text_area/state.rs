@@ -1,8 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
-use std::hash::{BuildHasher, Hash, Hasher};
-
-use foldhash::fast::FixedState;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -20,10 +16,12 @@ use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
-use super::rows::{
-    DOCUMENT_PADDING, Prose, RowInputs, RowOptions, TextWidget, build_row, line_range, line_starts,
-    rich_layout,
-};
+use super::rows::{Prose, RowInputs, RowOptions, build_row, line_range, line_starts};
+
+pub struct ProseLine {
+    pub layout: RichLayout,
+    pub quote: usize,
+}
 
 #[derive(Clone, Copy)]
 pub enum Grab {
@@ -44,8 +42,6 @@ pub struct Snapshot {
     pub runs: Option<Rc<Vec<TextRun>>>,
     pub formats: Option<Arc<Formats>>,
 }
-
-const MEASURED_BYTES: usize = 64 * 1024;
 
 impl Snapshot {
     pub fn runs_in(&self, start: usize, end: usize) -> &[TextRun] {
@@ -138,7 +134,6 @@ type CursorCache = (
 struct Inner {
     core: RefCell<Core>,
     snapshot: RefCell<Snapshot>,
-    heights: RefCell<HashMap<u64, (f32, f32)>>,
     find: Find,
     canvas: NodeRef,
     cursor_cache: RefCell<CursorCache>,
@@ -196,7 +191,6 @@ impl TextAreaState {
         let state = Self(store(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
-            heights: RefCell::default(),
             find: Find::new(),
             canvas: NodeRef::new(),
             cursor_cache: RefCell::new((Vec::new(), Vec::new(), None)),
@@ -514,87 +508,6 @@ impl TextAreaState {
         inner.layout.get_untracked().index_at(pos)
     }
 
-    pub fn measure(&self, widgets: &[TextWidget], width: f32) -> Option<Vec2> {
-        let inner = self.0.value();
-        let snapshot = inner.snapshot.borrow();
-        if !snapshot.loaded {
-            return None;
-        }
-        let options = RowOptions {
-            body_size: super::rows::BODY_SIZE,
-            mask: false,
-            single_line: false,
-            prose: None,
-        };
-        let colors = TextAreaColors::DEFAULT;
-        let starts = &snapshot.starts;
-        let wrap = (width - super::PADDING.x * 2.0).max(1.0);
-        let mut height = DOCUMENT_PADDING.y;
-        let (mut shaped_bytes, mut shaped_height, mut one_line) = (0usize, 0.0f32, f32::MAX);
-        let mut held = inner.heights.borrow_mut();
-        let mut heights = HashMap::with_capacity(held.len());
-        for line in 0..starts.len() {
-            let (start, end, newline) = line_range(&snapshot.bytes, starts, line)?;
-            if snapshot.hidden.iter().any(|range| range.contains(&start)) {
-                continue;
-            }
-            if start >= MEASURED_BYTES && shaped_bytes > 0 {
-                let per_byte = shaped_height / shaped_bytes as f32;
-                height += ((end - start + 1) as f32 * per_byte).max(one_line);
-                continue;
-            }
-            let inputs = RowInputs {
-                snapshot: &snapshot,
-                widgets,
-                client_colors: &[],
-                composition: None,
-                colors: &colors,
-                options,
-                placeholder: None,
-                void_size: None,
-            };
-            let key = line_key(&snapshot, widgets, start, end, wrap);
-            let (row_height, block) = match held.get(&key) {
-                Some(measured) => *measured,
-                None => {
-                    let row = build_row(&inputs, line, start, end, newline);
-                    let font = FontId::proportional(options.body_size);
-                    let indent = row.quote as f32 * super::QUOTE_INDENT;
-                    let wrap = (wrap - indent).max(1.0);
-                    let row_height = rich_layout(&row, font, options.padding(), wrap)?.size.y;
-                    (row_height, row.block.map_or(0.0, |(_, size)| size.y))
-                }
-            };
-            heights.insert(key, (row_height, block));
-            height += row_height + block;
-            shaped_bytes += end - start + 1;
-            shaped_height += row_height;
-            one_line = one_line.min(row_height);
-        }
-        *held = heights;
-        Some(Vec2::new(width, height))
-    }
-
-    pub fn measure_prose(
-        &self,
-        font_size: f32,
-        prose: Prose,
-        placeholder: &str,
-        wrap_width: f32,
-    ) -> Option<Vec2> {
-        let lines = self.lay_out_prose(
-            font_size,
-            prose,
-            placeholder,
-            wrap_width,
-            &TextAreaColors::DEFAULT,
-            beui_view::reactive::rich_layout,
-        )?;
-        Some(lines.iter().fold(Vec2::ZERO, |size, line| {
-            Vec2::new(size.x.max(line.size.x), size.y + line.size.y)
-        }))
-    }
-
     pub fn lay_out_prose(
         &self,
         font_size: f32,
@@ -602,8 +515,9 @@ impl TextAreaState {
         placeholder: &str,
         wrap_width: f32,
         colors: &TextAreaColors,
+        square: f32,
         mut lay_out: impl FnMut(&[Piece], RichOptions) -> Option<RichLayout>,
-    ) -> Option<Vec<RichLayout>> {
+    ) -> Option<Vec<ProseLine>> {
         let inner = self.0.value();
         let snapshot = inner.snapshot.borrow();
         if !snapshot.loaded {
@@ -637,16 +551,19 @@ impl TextAreaState {
                 colors,
                 options,
                 placeholder: shown,
-                void_size: None,
             };
             let row = build_row(&inputs, line, start, end, newline);
+            let quote = row.look.quote;
             let options = RichOptions {
-                wrap_width: (wrap - row.quote as f32 * super::QUOTE_INDENT).max(1.0),
+                wrap_width: (wrap - quote as f32 * square).max(1.0),
                 padding: options.padding(),
                 style: SpanStyle::new(font, Color32::WHITE),
                 hang: row.hang,
             };
-            lines.push(lay_out(&row.pieces(), options)?);
+            lines.push(ProseLine {
+                layout: lay_out(&row.pieces(Vec2::splat(square)), options)?,
+                quote,
+            });
         }
         Some(lines)
     }
@@ -909,56 +826,6 @@ impl TextAreaState {
         inner.cursor_counter.set(inner.cursor_counter.get() + 1);
         inner.cursors.set(inner.cursor_counter.get());
     }
-}
-
-fn line_key(
-    snapshot: &Snapshot,
-    widgets: &[TextWidget],
-    start: usize,
-    end: usize,
-    wrap: f32,
-) -> u64 {
-    let mut hasher = FixedState::with_seed(0).build_hasher();
-    wrap.to_bits().hash(&mut hasher);
-    let last = (end + 1).min(snapshot.bytes.len());
-    snapshot.bytes[start..last].hash(&mut hasher);
-    let mut runs = snapshot.highlight().styles_in(start..last).into_iter();
-    if let Some(mut style) = runs.next() {
-        let mut length = 1usize;
-        for next in runs {
-            if next == style {
-                length += 1;
-                continue;
-            }
-            (style, length).hash(&mut hasher);
-            (style, length) = (next, 1);
-        }
-        (style, length).hash(&mut hasher);
-    }
-    for widget in widgets
-        .iter()
-        .filter(|widget| widget.range.start <= end && widget.range.end >= start)
-    {
-        (
-            widget.range.start.wrapping_sub(start),
-            widget.range.end.wrapping_sub(start),
-        )
-            .hash(&mut hasher);
-        (&widget.label, widget.icon, widget.italic).hash(&mut hasher);
-        widget
-            .block_size
-            .map(|size| (size.x.to_bits(), size.y.to_bits()))
-            .hash(&mut hasher);
-    }
-    snapshot
-        .sections
-        .iter()
-        .any(|section| section.collapsed && section.line_start == start)
-        .hash(&mut hasher);
-    for run in snapshot.runs_in(start, end) {
-        (run.at - start, run.pos, run.len, run.visible, &run.deleted).hash(&mut hasher);
-    }
-    hasher.finish()
 }
 
 fn shifted_line_starts(starts: &[usize], bytes: &[u8], change: TextChange) -> Vec<usize> {

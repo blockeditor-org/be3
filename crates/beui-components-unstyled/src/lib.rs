@@ -119,11 +119,12 @@ pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::{
-    Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
-    SyntaxColors, TextArea, TextAreaApi, TextAreaColors, TextAreaLayout, TextAreaState,
-    TextCheckbox, TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji,
+    Completer, Completion, CompletionMenu, CompletionRowHandle, LeafSpan, MarkerKind, Prose,
+    ProseLine, RemoteTextCursor, SyntaxColors, TextArea, TextAreaApi, TextAreaColors,
+    TextAreaLayout, TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget, emoji_completer,
+    search_emoji,
 };
-pub use text_input::{TextInput, TextInputApi, TextInputHandle, TextInputStyle, measure_prose};
+pub use text_input::{TextInput, TextInputApi, TextInputHandle, TextInputStyle};
 pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeListApi, TimeOptionHandle, grid_columns};
 pub use toggle::{Toggle, ToggleApi, ToggleHandle};

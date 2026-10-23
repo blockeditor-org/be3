@@ -17,11 +17,6 @@ const ROW_HEIGHT: f32 = TEXT_SIZE * 1.6;
 const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 const PAGE_ROWS: usize = 16;
 
-pub(crate) fn intrinsic_size(len: usize, width: f32) -> Vec2 {
-    let rows = len.div_ceil(BYTES_PER_ROW).max(1);
-    Vec2::new(width, rows as f32 * ROW_HEIGHT + PADDING.y * 2.0)
-}
-
 #[derive(Clone, PartialEq)]
 pub(crate) struct HexGeometry {
     char_width: f32,

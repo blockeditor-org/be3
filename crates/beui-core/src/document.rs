@@ -153,6 +153,7 @@ pub struct Document {
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
     placements: NodeMap<::reactive::OwnedSignal<Rect>>,
     placed: NodeMap<::reactive::OwnedSignal<bool>>,
+    text_bounds: NodeMap<::reactive::OwnedSignal<Rect>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
@@ -375,6 +376,7 @@ impl Document {
             node_refs: HashMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
+            text_bounds: NodeMap::default(),
             component_states: HashMap::default(),
             component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
@@ -1078,6 +1080,7 @@ impl Document {
         self.paint_cache.borrow_mut().forget(id);
         self.placements.remove(&id);
         self.placed.remove(&id);
+        self.text_bounds.remove(&id);
         self.measurements.remove(&id);
         self.baselines.remove(&id);
         self.component_states.remove(&id);
@@ -1932,6 +1935,20 @@ impl Document {
         self.reached_pass.insert(id, self.layout_pass);
     }
 
+    pub fn watch_text_bounds(
+        &mut self,
+        text: NodeOf<crate::base::text::TextNode>,
+    ) -> ::reactive::ReadSignal<Rect> {
+        if let Some(watched) = self.text_bounds.get(&text.id()) {
+            return watched.read_only();
+        }
+        let bounds = self.text_geometry(text).bounds().unwrap_or(Rect::ZERO);
+        let watched = ::reactive::OwnedSignal::new(bounds);
+        let read = watched.read_only();
+        self.text_bounds.insert(text.id(), watched);
+        read
+    }
+
     pub fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
         if let Some(watched) = self.placed.get(&id) {
             return watched.read_only();
@@ -2186,18 +2203,31 @@ impl Document {
             .filter(|(placed, watched)| watched.get_untracked() != *placed)
             .map(|(placed, watched)| (watched.handle(), placed))
             .collect();
-        if reports.is_empty() && moved.is_empty() && placed.is_empty() {
+        let bounded: Vec<(::reactive::Signal<Rect>, Rect)> = self
+            .text_bounds
+            .iter()
+            .filter_map(|(id, watched)| {
+                let bounds = self.text_geometry(NodeOf::assumed(id)).bounds()?;
+                (watched.get_untracked() != bounds).then(|| (watched.handle(), bounds))
+            })
+            .collect();
+        if reports.is_empty() && moved.is_empty() && placed.is_empty() && bounded.is_empty() {
             return;
         }
         crate::current::enter(self, || {
-            for report in reports {
-                report();
-            }
             for (write, rect) in moved {
                 write.set(rect);
             }
             for (write, shown) in placed {
                 write.set(shown);
+            }
+            for (write, bounds) in bounded {
+                write.set(bounds);
+            }
+        });
+        crate::current::enter(self, || {
+            for report in reports {
+                report();
             }
         });
     }

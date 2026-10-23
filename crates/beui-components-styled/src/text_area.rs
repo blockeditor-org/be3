@@ -2,24 +2,25 @@ pub mod emoji;
 pub mod find;
 pub mod format_bar;
 
-use crate::frame::Frame;
+use crate::frame::{Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
+use crate::frame::ColorRole;
 use crate::scroll::scrollbar_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox, TextWidget, VoidSize,
-    VoidView,
+    Completer, MarkerKind, RemoteTextCursor, TextAreaColors, TextAreaState, TextLeaf, TextLine,
+    TextMarker, TextWidget,
 };
-use beui_core::base::ItemSize;
+use beui_core::base::{Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::file_picker::PickedFile;
 use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::{self, *};
 use beui_view::reactive::*;
 use emoji::emoji_menu;
 
@@ -38,8 +39,9 @@ pub fn TextArea(
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    render_void: Option<RenderFn<VoidView>>,
-    #[prop(default = None)] void_size: Option<VoidSize>,
+    leaf: Option<RenderFn<TextLeaf, Span>>,
+    marker: Option<RenderFn<TextMarker>>,
+    line: Option<RenderFn<TextLine>>,
     #[prop(default = true)] emoji: bool,
     #[prop(default = false)] pastes_images: bool,
     on_widget_press: Callback<usize, bool>,
@@ -65,10 +67,24 @@ pub fn TextArea(
     api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
-    let render_void = render_void.unwrap_or_else(|| {
-        RenderFn::new(|_: VoidView| {
+    let leaf = leaf.unwrap_or_else(|| {
+        RenderFn::new(|leaf: TextLeaf| {
             view! {
-                <Frame />
+                <unstyled::LeafSpan leaf />
+            }
+        })
+    });
+    let marker = marker.unwrap_or_else(|| {
+        RenderFn::new(|marker: TextMarker| {
+            view! {
+                <DocumentMarker marker />
+            }
+        })
+    });
+    let line = line.unwrap_or_else(|| {
+        RenderFn::new(|line: TextLine| {
+            view! {
+                <DocumentLine line />
             }
         })
     });
@@ -101,9 +117,9 @@ pub fn TextArea(
                     on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
                     block={block}
                     selected_widget={selected_widget}
-                    render_void={render_void}
-                    void_size
-                    checkbox={inline_checkbox()}
+                    leaf
+                    marker
+                    line
                     completer={match emoji {
                         true => unstyled::emoji_completer(),
                         false => Completer::none(),
@@ -115,24 +131,97 @@ pub fn TextArea(
     }
 }
 
-fn inline_checkbox() -> RenderFn<TextCheckbox> {
-    RenderFn::new(|checkbox: TextCheckbox| {
-        let TextCheckbox {
-            checked,
-            disabled,
-            line,
-        } = checkbox;
-        view! {
-            <Checkbox
-                @test_id={format!("text.checkbox.{line}")}
-                checked
-                disabled
-                capture_presses=true
-                tab_stop=false
-                press_focus=false
-            />
+const BULLET_SIZE: f32 = 6.0;
+const BULLET_ROOM: f32 = 10.0;
+const QUOTE_INDENT: f32 = 14.0;
+const QUOTE_BAR_WIDTH: f32 = 3.0;
+const LIST_INDENT: f32 = 24.0;
+const CODE_INSET: f32 = 3.0;
+
+#[component]
+pub fn DocumentMarker(marker: TextMarker) -> NodeId {
+    let theme = use_theme();
+    let gap = marker.gap();
+    let content = match marker.kind.get_untracked() {
+        MarkerKind::Bullet => view! {
+            <Frame width=BULLET_ROOM height=BULLET_SIZE>
+                <List direction=Direction::Horizontal justify=Justify::Center spacing=0.0>
+                    <Frame width=BULLET_SIZE fill=ColorRole::Text radius=Radius::Full />
+                </List>
+            </Frame>
+        },
+        MarkerKind::Number(_) => {
+            let font = create_memo(move || marker.style.get().font);
+            let color = create_memo(move || theme.text_muted.get());
+            view! {
+                <primitives::Text font color>{marker.number()}</primitives::Text>
+            }
         }
-    })
+        MarkerKind::Check(_) => {
+            let TextMarker {
+                checked,
+                disabled,
+                line,
+                ..
+            } = marker;
+            view! {
+                <Checkbox
+                    @test_id={format!("text.checkbox.{line}")}
+                    checked
+                    disabled
+                    capture_presses=true
+                    tab_stop=false
+                    press_focus=false
+                />
+            }
+        }
+        MarkerKind::Void(_) => view! {
+            <Frame />
+        },
+    };
+    view! {
+        <primitives::Frame padding=gap>{content}</primitives::Frame>
+    }
+}
+
+#[component]
+pub fn DocumentLine(line: TextLine) -> NodeId {
+    let look = line.look;
+    let outer = create_memo(move || Sides::horizontal((line.padding.get() - CODE_INSET).max(0.0)));
+    let nested = line.nested();
+    let inner = create_memo(move || {
+        let inset = line.padding.get().min(CODE_INSET);
+        let quote = look.get().quote as f32 * QUOTE_INDENT;
+        Sides::new(
+            inset + quote + nested.get() as f32 * LIST_INDENT,
+            0.0,
+            inset,
+            0.0,
+        )
+    });
+    let code = create_memo(move || match look.get().code_block {
+        true => ColorRole::SurfaceRaised,
+        false => ColorRole::None,
+    });
+    let quotes = line.quotes();
+    let text = line.text;
+    view! {
+        <Frame padding=outer>
+            <Layers>
+                <Frame fill=code padding=inner>{text}</Frame>
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <ForEach keys={quotes}>|_: usize|
+                        <Frame
+                            width=QUOTE_INDENT
+                            padding={Sides::new(0.0, 0.0, QUOTE_INDENT - QUOTE_BAR_WIDTH, 0.0)}
+                        >
+                            <Frame fill=ColorRole::Accent radius=Radius::Full />
+                        </Frame>
+                    </ForEach>
+                </List>
+            </Layers>
+        </Frame>
+    }
 }
 
 fn blank_widget() -> RenderFn<usize> {

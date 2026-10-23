@@ -1162,14 +1162,16 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn fit_edited_text(&self, id: Uuid) {
+    pub(crate) fn fit_edited_text(&self, id: Uuid, content: Vec2) -> bool {
         let Some(held) = self.entities.get_untracked(id) else {
-            return;
+            return false;
         };
-        let fitted = self.fit_text(held.clone());
-        if fitted.transform != held.transform {
+        let fitted = fit_text(held.clone(), content);
+        let grown = fitted.transform != held.transform;
+        if grown {
             self.record_update(vec![held], vec![fitted]);
         }
+        grown
     }
 
     pub(crate) fn edit_text_at(&self, entity: Uuid, entry: TextEntry) {
@@ -1193,26 +1195,6 @@ impl CanvasState {
         if let Some(surface) = self.surface().try_get() {
             with_document(|document| document.focus_focusable(surface));
         }
-    }
-
-    pub(crate) fn fit_text(&self, mut entity: CanvasEntity) -> CanvasEntity {
-        if entity.shape != CanvasShape::Text {
-            return entity;
-        }
-        let text_style = entity.text_style;
-        let Some(measured) = super::text::measure(&entity, self.scale()) else {
-            return entity;
-        };
-        let mut size = text_box_size(&text_style, entity.style.text_size.px(), measured);
-        if text_style.wrap {
-            size = CanvasPoint::new(entity.transform.size.x, entity.transform.size.y.max(size.y));
-        }
-        if (entity.transform.size.x - size.x).abs() >= 0.5
-            || (entity.transform.size.y - size.y).abs() >= 0.5
-        {
-            entity.transform = text_grown(entity.transform, &text_style, size);
-        }
-        entity
     }
 
     pub(crate) fn take_context_position(&self) -> Option<CanvasPoint> {
@@ -1493,7 +1475,8 @@ impl CanvasState {
             CanvasTransform::new(point, CanvasPoint::new(16.0, 32.0), 0.0),
         ));
         text.placeholder = "Text".into();
-        let mut text = self.fit_text(text);
+        text.transform.size.y =
+            text.style.text_size.px() * text.text_style.line_height + 2.0 * TEXT_INSET;
         text.transform.center =
             CanvasPoint::new(point.x + text.transform.size.x / 2.0 - TEXT_INSET, point.y);
         text
@@ -2637,7 +2620,15 @@ impl CanvasState {
                 .get(id)
                 .is_some_and(|text| !text.text.is_empty())
             {
-                untrack(|| state.keep_draft(id));
+                untrack(|| {
+                    with_document(|document| {
+                        document.report_after_layout(move || {
+                            if state.is_alive() {
+                                state.keep_draft(id);
+                            }
+                        })
+                    })
+                });
             }
         });
         let state = self;
@@ -2997,4 +2988,21 @@ impl CanvasState {
             content.y / scale.max(f32::EPSILON),
         ))
     }
+}
+
+fn fit_text(mut entity: CanvasEntity, content: Vec2) -> CanvasEntity {
+    if entity.shape != CanvasShape::Text {
+        return entity;
+    }
+    let text_style = entity.text_style;
+    let mut size = text_box_size(&text_style, entity.style.text_size.px(), content);
+    if text_style.wrap {
+        size = CanvasPoint::new(entity.transform.size.x, entity.transform.size.y.max(size.y));
+    }
+    if (entity.transform.size.x - size.x).abs() >= 0.5
+        || (entity.transform.size.y - size.y).abs() >= 0.5
+    {
+        entity.transform = text_grown(entity.transform, &text_style, size);
+    }
+    entity
 }

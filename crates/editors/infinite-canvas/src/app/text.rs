@@ -84,21 +84,6 @@ pub(crate) fn rich_state(entity: &CanvasEntity) -> TextAreaState {
     TextAreaState::with_schema(Arc::new(buffer), Arc::new(Basic))
 }
 
-pub(crate) fn measure(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
-    if entity.shape != CanvasShape::Text {
-        return None;
-    }
-    let font_px = font_px(entity, scale);
-    let wrap_width = (entity.transform.size.x - TEXT_INSET * 2.0) * scale;
-    let measured = rich_state(entity).measure_prose(
-        font_px,
-        prose(entity.text_style, font_px),
-        &entity.placeholder,
-        wrap_width,
-    )?;
-    Some(Vec2::new(measured.x / scale, measured.y / scale))
-}
-
 pub(crate) fn text_turn(entity: &CanvasEntity) -> f32 {
     match entity.shape {
         CanvasShape::Path | CanvasShape::Freehand => 0.0,
@@ -235,10 +220,31 @@ pub(crate) fn EntityText(
         syntax: SyntaxColors::uniform(color.get()),
         ..TextAreaColors::DEFAULT
     });
-    let area = live_text(state, id, editing);
+    let field = NodeRef::new();
+    let grows = create_signal(false);
+    let area = live_text(state, id, editing, grows);
+    let content = create_signal(Vec2::ZERO);
+    create_effect(move || {
+        if !editing.get() {
+            grows.set(false);
+        }
+    });
+    create_effect(move || {
+        let content = content.get();
+        if !editing.get() || !grows.get() || content == Vec2::ZERO {
+            return;
+        }
+        let unit = unit.get();
+        untrack(|| {
+            if state.fit_edited_text(id, content / unit)
+                && let Some(node) = field.try_get()
+            {
+                node.reveal();
+            }
+        });
+    });
     let remote_cursors = peer_carets(state, id, area);
     share_caret(state, id, area, editing);
-    let field = NodeRef::new();
     create_effect(move || {
         if !editing.get() {
             return;
@@ -283,6 +289,7 @@ pub(crate) fn EntityText(
                     padding={inset}
                     prose
                     remote_cursors
+                    on_content_size={move |size: Vec2| content.set(size)}
                     on_focus_change={left}
                 />
             </Turn>
@@ -330,7 +337,12 @@ fn share_caret(state: CanvasState, id: Uuid, area: TextAreaState, editing: Memo<
     });
 }
 
-fn live_text(state: CanvasState, id: Uuid, editing: Memo<bool>) -> TextAreaState {
+fn live_text(
+    state: CanvasState,
+    id: Uuid,
+    editing: Memo<bool>,
+    grows: Signal<bool>,
+) -> TextAreaState {
     let object = ObjectId::from_uuid(id);
     let editor = state.editor();
     let host = editor.host();
@@ -380,10 +392,15 @@ fn live_text(state: CanvasState, id: Uuid, editing: Memo<bool>) -> TextAreaState
             adopted.set(true);
             let revision = text_editor_core::Document::revision(document.as_ref());
             let fitted = fitted.value();
-            if first {
-                fitted.set(revision);
-            } else if fitted.replace(revision) != revision {
-                state.fit_edited_text(id);
+            let changed = match first {
+                true => {
+                    fitted.set(revision);
+                    area.bytes().is_empty()
+                }
+                false => fitted.replace(revision) != revision,
+            };
+            if changed && !grows.get_untracked() {
+                grows.set(true);
             }
         });
     });

@@ -53,6 +53,15 @@ pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
     with_document(|document| document.watch_placement(node))
 }
 
+pub fn text_bounds(node: NodeId) -> Option<ReadSignal<Rect>> {
+    with_document(|document| {
+        let text = document
+            .arena
+            .kind_of::<beui_core::base::text::TextNode>(node)?;
+        Some(document.watch_text_bounds(text))
+    })
+}
+
 pub fn node_placed(node: NodeId) -> ReadSignal<bool> {
     with_document(|document| document.watch_placed(node))
 }

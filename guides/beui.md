@@ -619,11 +619,13 @@ code background) and `carets` in front of it, blinking ones included - byte
 ranges over the joined content - and a `TextItem` given `at` is placed at that
 index as if it were a caret instead of in the flow, which is how something
 floats beside a position in the text. `Document::text_geometry` answers where an index is and which index is
-under a point from the node's last layout, without a document installed.
+under a point from the node's last layout, without a document installed, and
+`text_bounds(node)` is a signal of where its laid-out text reaches (its natural
+size, not the rect it was given), written after each layout that moves it.
 `unstyled::TextArea` is built from exactly this: a row per document line in a
 `VirtualList`, each a `ForEach` of the row's spans, a gutter of `Text`s beside
-it, checkboxes, embedded widgets and the caret's anchor as `TextItem`s, and
-table spacers as `Gap`s.
+it, and list markers, voids, embedded widgets and the caret's anchor as
+`TextItem`s.
 
 The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until
@@ -798,10 +800,15 @@ chrome wraps the whole scrolling area rather than one line. `prose` (a `Prose`, 
 rather than a document: no whitespace markers and no document padding, with
 the weight, horizontal alignment, padding around each line, wrapping, and where
 the lines sit when they are shorter than the area that it names.
-`measure_prose` measures text exactly as such an area lays it out, so a caller
-can size a box to it. The infinite canvas sizes its text entities this way and
-draws each text and label as a read-only rich `TextArea` over a `LiveText`, the
-same area whether or not it is being edited. A `TextArea` takes its view size
+Nothing measures text off the tree: a `TextArea` reports the size its laid-out
+rows reach through `on_content_size` (padding included, read from the rows'
+`text_bounds`), and a caller sizes a box from that. The infinite canvas grows a
+text entity this way while it is edited, and draws each text and label as a
+read-only rich `TextArea` over a `LiveText`, the same area whether or not it is
+being edited. Its export is the one place text is laid out away from the tree
+(`TextAreaState::lay_out_prose`): it gives every marker a square the height of
+a line and paints it, and each quote's bar, as a pink box, since export does
+not draw them yet. A `TextArea` takes its view size
 from its own layout, not from where it lands on screen, so one inside a scaled
 `CanvasItem` is not laid out again when the view pans or zooms; a
 `VirtualList` reads the clip only while some of its rows lie outside it. A document whose language is
@@ -835,9 +842,18 @@ which blocks a highlighter decorates (a code block's language). `schema::basic` 
 with the usual marks, headings, lists, checklists, quotes and code blocks. `TextAreaState::with_schema`
 makes an area for one, `TextAreaState::selected` is the selection's marks and block props,
 and `styled::FormatBar` shows the tools it is given glyphs for. The area draws rich text with no
-gutter or whitespace markers, hands each line to `render_block` with the line's laid-out text
-as a `NodeId` to place inside whatever it draws around it (a bullet, a checkbox, a quote's bar),
-and draws each void with `render_void` at the size `void_size` gives it. Copying and pasting
+gutter or whitespace markers. How a document looks is three render hooks, the way Slate's are,
+each keyed by the line description (`LineLook`) that markdown and rich text both give: `leaf`
+turns a run of text and its resolved style into a `Span`, so every run stays in the line's one
+`Text` and wraps and carries the caret across style changes; `marker` draws a list marker
+(bullet, number, checkbox with a `checked` binding that toggles it) or a void (`MarkerKind`)
+as the content of a `TextItem`; and `line` wraps a line's text node in whatever goes around it
+(quote bars, a code block's background, a rich list's indent), keeping the area's horizontal
+padding it is handed. The engine says what is on a line, never how big: each marker is
+measured by its `Text` during layout, and wrapped lines hang at the laid-out x after it. The
+unstyled defaults draw from `TextAreaColors`; `styled::TextArea` draws with `DocumentMarker` and
+`DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
+and hands every other marker to `DocumentMarker`. Copying and pasting
 carries the text without its marks. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same

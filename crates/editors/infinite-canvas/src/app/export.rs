@@ -10,10 +10,10 @@ use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, SyntaxColors, TextAreaColors};
+use block_editor_beui::beui::unstyled::{ChoiceOption, ProseLine, SyntaxColors, TextAreaColors};
 use block_editor_beui::beui::{
     Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
-    Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, pos2,
+    Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
 };
 use block_editor_beui::{FileSaver, SavedFile};
 use uuid::Uuid;
@@ -467,7 +467,15 @@ fn draw(
 }
 
 fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) {
-    for (origin, layout) in written(painter, entity, ink, camera) {
+    for Written {
+        origin,
+        layout,
+        missing,
+    } in written(painter, entity, ink, camera)
+    {
+        for rect in missing {
+            painter.rect_filled(rect, 0.0, MISSING);
+        }
         layout.paint_runs(painter, origin, |run| {
             (
                 run.style.color,
@@ -489,12 +497,13 @@ fn entity_corner(
     )
 }
 
-fn written(
-    painter: &Painter,
-    entity: &CanvasEntity,
-    ink: Color32,
-    camera: Camera,
-) -> Vec<(Vec2, RichLayout)> {
+struct Written {
+    origin: Vec2,
+    layout: RichLayout,
+    missing: Vec<Rect>,
+}
+
+fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) -> Vec<Written> {
     if entity.text.is_empty() || !writes(entity) {
         return Vec::new();
     }
@@ -511,17 +520,19 @@ fn written(
         syntax: SyntaxColors::uniform(ink),
         ..TextAreaColors::DEFAULT
     };
+    let square = line_height(px);
     let Some(lines) = rich_state(entity).lay_out_prose(
         px,
         prose,
         "",
         inner.width(),
         &colors,
+        square,
         |pieces, options| Some(painter.rich_layout(pieces, options)),
     ) else {
         return Vec::new();
     };
-    let height: f32 = lines.iter().map(|line| line.size.y).sum();
+    let height: f32 = lines.iter().map(|line| line.layout.size.y).sum();
     let mut top = match prose.vertical_align {
         TextAlign::Start => inner.top(),
         TextAlign::Center => inner.center().y - height / 2.0,
@@ -529,11 +540,27 @@ fn written(
     };
     lines
         .into_iter()
-        .map(|mut line| {
-            line.align(inner.width(), prose.align, |x| x);
-            let origin = Vec2::new(inner.left(), top);
-            top += line.size.y;
-            (origin, line)
+        .map(|ProseLine { mut layout, quote }| {
+            let indent = quote as f32 * square;
+            layout.align(inner.width() - indent, prose.align, |x| x);
+            let origin = Vec2::new(inner.left() + indent, top);
+            let mut missing: Vec<Rect> = layout
+                .inline_rects()
+                .into_iter()
+                .map(|(_, rect)| rect.translate(origin))
+                .collect();
+            if quote > 0 {
+                missing.push(Rect::from_min_size(
+                    pos2(inner.left(), top),
+                    Vec2::new(indent, layout.size.y),
+                ));
+            }
+            top += layout.size.y;
+            Written {
+                origin,
+                layout,
+                missing,
+            }
         })
         .collect()
 }
@@ -670,6 +697,8 @@ fn svg_entity(
     );
 }
 
+const MISSING: Color32 = Color32::from_rgb(255, 105, 180);
+
 fn svg_written(
     out: &mut String,
     painter: &Painter,
@@ -681,6 +710,16 @@ fn svg_written(
     if lines.is_empty() {
         return;
     }
+    for rect in lines.iter().flat_map(|line| &line.missing) {
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{}{turn}/>\n",
+            number(rect.min.x),
+            number(rect.min.y),
+            number(rect.width()),
+            number(rect.height()),
+            paint("fill", MISSING)
+        ));
+    }
     let body = FontId::proportional(font_px(entity, 1.0))
         .bold(text_style(entity).weight == CanvasTextWeight::Bold);
     out.push_str(&format!(
@@ -689,7 +728,7 @@ fn svg_written(
         weight_of(body.bold),
         paint("fill", ink)
     ));
-    for (origin, layout) in &lines {
+    for Written { origin, layout, .. } in &lines {
         for line in &layout.lines {
             for run in &line.runs {
                 let Some(galley) = run.galley.as_ref().filter(|_| run.kind == SpanKind::Text)

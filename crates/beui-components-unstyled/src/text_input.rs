@@ -251,16 +251,6 @@ pub fn TextInput(
     }
 }
 
-pub fn measure_prose(
-    value: &str,
-    placeholder: &str,
-    font_size: f32,
-    prose: Prose,
-    wrap_width: f32,
-) -> Option<Vec2> {
-    plain_text(value).measure_prose(font_size, prose, placeholder, wrap_width)
-}
-
 fn plain_text(value: &str) -> TextAreaState {
     let buffer = Arc::new(TextBuffer::new(value.as_bytes()));
     let state = TextAreaState::new(buffer as Arc<dyn text_editor_core::Document>);

@@ -1233,6 +1233,11 @@ impl TextGeometry {
         self.rects.get(&self.node)
     }
 
+    pub fn bounds(&self) -> Option<Rect> {
+        let (shift, layout) = self.placement()?;
+        Some(Rect::from_min_size(pos2(shift.x, shift.y), layout.size))
+    }
+
     pub fn caret_rect(&self, index: usize, width: f32) -> Option<Rect> {
         let (shift, layout) = self.placement()?;
         Some(layout.caret_rect(index, width).translate(shift))

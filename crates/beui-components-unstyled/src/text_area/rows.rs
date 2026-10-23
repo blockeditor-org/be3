@@ -9,7 +9,7 @@ use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::font::{FontId, Galley, TextAlign, TextLayout};
 use beui_core::geometry::Vec2;
-use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
+use beui_core::rich::{Piece, SpanStyle};
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
@@ -17,14 +17,6 @@ use super::state::Snapshot;
 
 pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
 pub const CODE_SIZE: f32 = BODY_SIZE;
-pub const CHECKBOX_WIDTH: f32 = 18.0;
-pub const BULLET_WIDTH: f32 = 10.0;
-pub const BULLET_SIZE: f32 = 6.0;
-pub const LIST_INDENT: f32 = 24.0;
-pub const INLINE_WIDGET_HEIGHT: f32 = 24.0;
-pub const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
-pub const RUN_CHIP_HEIGHT: f32 = 16.0;
-pub const RUN_CHIP_PADDING: f32 = 4.0;
 pub const RUN_CHIP_SIZE: f32 = 10.0;
 pub const DOCUMENT_PADDING: Vec2 = Vec2::new(24.0, 16.0);
 pub const LINE_PADDING: (f32, f32) = (3.0, 4.0);
@@ -106,8 +98,7 @@ impl RowOptions {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Inline {
-    Checkbox { line_start: usize, checked: bool },
-    Bullet,
+    Marker(ListMarker),
     Quote,
     Widget(usize),
     Run,
@@ -117,7 +108,6 @@ pub enum Inline {
 #[derive(Clone, PartialEq, Debug)]
 pub struct InlineItem {
     pub inline: Inline,
-    pub size: Vec2,
     pub style: SpanStyle,
     pub label: String,
     pub props: MarkSet,
@@ -141,6 +131,7 @@ pub enum SpanKind {
 pub struct RowSpan {
     pub range: Range<usize>,
     pub style: SpanStyle,
+    pub leaf: Option<SynHlStyle>,
     pub kind: SpanKind,
     pub break_after: bool,
     pub invisible: Option<usize>,
@@ -158,8 +149,7 @@ pub struct Row {
     pub line_height: f32,
     pub block: Option<(usize, Vec2)>,
     pub code: Vec<Range<usize>>,
-    pub code_block: bool,
-    pub quote: usize,
+    pub look: LineLook,
     pub hang: usize,
     pub placeholder: bool,
     pub props: MarkSet,
@@ -172,29 +162,16 @@ impl Row {
             line,
             start,
             end: shift(self.end),
+            look: LineLook {
+                marker: shift(self.look.marker.start)..shift(self.look.marker.end),
+                ..self.look.clone()
+            },
             segments: self
                 .segments
                 .iter()
                 .map(|segment| Segment {
                     source: shift(segment.source.start)..shift(segment.source.end),
                     ..segment.clone()
-                })
-                .collect(),
-            inline: self
-                .inline
-                .iter()
-                .map(|item| match item.inline {
-                    Inline::Checkbox {
-                        line_start,
-                        checked,
-                    } => InlineItem {
-                        inline: Inline::Checkbox {
-                            line_start: shift(line_start),
-                            checked,
-                        },
-                        ..item.clone()
-                    },
-                    _ => item.clone(),
                 })
                 .collect(),
             ..self.clone()
@@ -280,29 +257,27 @@ impl Row {
             .map_or(0, |segment| segment.display.end)
     }
 
-    pub fn pieces(&self) -> Vec<Piece<'_>> {
+    pub fn pieces(&self, item: Vec2) -> Vec<Piece<'_>> {
         let mut flow = 0;
         self.spans
             .iter()
             .map(|span| {
-                let size = match span.kind {
-                    SpanKind::Text => {
-                        return Piece::Text {
-                            text: self.display.get(span.range.clone()).unwrap_or_default(),
-                            style: span.style,
-                            break_after: span.break_after,
-                        };
+                let text = self.display.get(span.range.clone()).unwrap_or_default();
+                match span.kind {
+                    SpanKind::Text => Piece::Text {
+                        text,
+                        style: span.style,
+                        break_after: span.break_after,
+                    },
+                    SpanKind::Space(width) => Piece::Gap(width),
+                    SpanKind::Inline(_) => {
+                        flow += 1;
+                        Piece::Inline {
+                            index: flow - 1,
+                            size: item,
+                            text,
+                        }
                     }
-                    SpanKind::Space(width) => return Piece::Gap(width),
-                    SpanKind::Inline(index) => {
-                        self.inline.get(index).map_or(Vec2::ZERO, |item| item.size)
-                    }
-                };
-                flow += 1;
-                Piece::Inline {
-                    index: flow - 1,
-                    size,
-                    text: self.display.get(span.range.clone()).unwrap_or_default(),
                 }
             })
             .collect()
@@ -332,12 +307,7 @@ pub struct RowInputs<'a> {
     pub colors: &'a TextAreaColors,
     pub options: RowOptions,
     pub placeholder: Option<&'a str>,
-    pub void_size: Option<VoidSize>,
 }
-
-pub type VoidSize = fn(&MarkSet) -> Vec2;
-
-pub const VOID_SIZE: Vec2 = Vec2::new(16.0, 16.0);
 
 pub fn style_size(style: SynHlStyle, body_size: f32) -> f32 {
     if style.family == SynHlFontFamily::Monospace {
@@ -462,6 +432,7 @@ impl Builder<'_> {
                     && last.style == style
                     && last.break_after == break_after
                     && last.invisible.is_none()
+                    && last.leaf.is_none()
                     && last.range.end == start =>
             {
                 last.range.end = display.end;
@@ -469,6 +440,7 @@ impl Builder<'_> {
             _ => self.row.spans.push(RowSpan {
                 range: display.clone(),
                 style,
+                leaf: None,
                 kind,
                 break_after,
                 invisible: None,
@@ -492,6 +464,12 @@ impl Builder<'_> {
         }
     }
 
+    fn leaf(&mut self, syntax: SynHlStyle) {
+        if let Some(last) = self.row.spans.last_mut() {
+            last.leaf = Some(syntax);
+        }
+    }
+
     fn invisible(&mut self, byte: usize, trailing: bool) {
         if let Some(last) = self.row.spans.last_mut()
             && !trailing
@@ -507,42 +485,12 @@ impl Builder<'_> {
             true => (OBJECT, false),
             false => (shown.as_str(), true),
         };
-        let Some(list) = look.list else {
-            let item = self.push_inline(Inline::Quote, body, String::new());
-            self.push(text, source, mapped, body, SpanKind::Inline(item));
-            self.row.hang = self.row.display.len();
-            return;
+        let inline = match look.list {
+            Some(list) => Inline::Marker(list),
+            None => Inline::Quote,
         };
-        if source.is_empty() {
-            self.gap(look.depth as f32 * LIST_INDENT, body);
-        }
-        let end = source.end;
-        match list {
-            ListMarker::Bullet => {
-                let item = self.push_inline(Inline::Bullet, body, String::new());
-                self.push(text, source, mapped, body, SpanKind::Inline(item));
-            }
-            ListMarker::Number(ordinal) => {
-                let style = SpanStyle {
-                    color: self
-                        .inputs
-                        .colors
-                        .syntax
-                        .scope(SynHlColorScope::MarkdownSymbol),
-                    ..body
-                };
-                self.push(&format!("{ordinal}."), source, false, style, SpanKind::Text);
-            }
-            ListMarker::Check(checked) => {
-                let inline = Inline::Checkbox {
-                    line_start: self.row.start,
-                    checked,
-                };
-                let item = self.push_inline(inline, body, String::new());
-                self.push(text, source, mapped, body, SpanKind::Inline(item));
-            }
-        }
-        self.push(" ", end..end, false, body, SpanKind::Text);
+        let item = self.push_inline(inline, body, String::new());
+        self.push(text, source, mapped, body, SpanKind::Inline(item));
         self.row.hang = self.row.display.len();
     }
 
@@ -551,6 +499,7 @@ impl Builder<'_> {
         self.row.spans.push(RowSpan {
             range: at..at,
             style,
+            leaf: None,
             kind: SpanKind::Space(width),
             break_after: false,
             invisible: None,
@@ -612,32 +561,8 @@ impl Builder<'_> {
     }
 
     fn push_inline(&mut self, inline: Inline, style: SpanStyle, label: String) -> usize {
-        let size = inline_size(inline, &label, style);
-        self.push_inline_sized(inline, style, label, size)
-    }
-
-    fn inline_sized(
-        &mut self,
-        inline: Inline,
-        source: Range<usize>,
-        style: SpanStyle,
-        label: String,
-        size: Vec2,
-    ) {
-        let index = self.push_inline_sized(inline, style, label, size);
-        self.push(OBJECT, source, false, style, SpanKind::Inline(index));
-    }
-
-    fn push_inline_sized(
-        &mut self,
-        inline: Inline,
-        style: SpanStyle,
-        label: String,
-        size: Vec2,
-    ) -> usize {
         self.row.inline.push(InlineItem {
             inline,
-            size,
             style,
             label,
             props: MarkSet::default(),
@@ -663,34 +588,8 @@ fn deleted_preview(deleted: &[u8]) -> String {
     preview
 }
 
-pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
-    match inline {
-        Inline::Checkbox { .. } => Vec2::splat(CHECKBOX_WIDTH),
-        Inline::Bullet => Vec2::new(BULLET_WIDTH, BULLET_SIZE),
-        Inline::Quote => Vec2::ZERO,
-        Inline::Widget(_) => Vec2::new(
-            galley(label, style.font).map_or(0.0, |galley| galley.size().x),
-            INLINE_WIDGET_HEIGHT,
-        ),
-        Inline::Run => Vec2::new(
-            galley(label, style.font).map_or(0.0, |galley| galley.size().x)
-                + RUN_CHIP_PADDING * 2.0,
-            RUN_CHIP_HEIGHT,
-        ),
-        Inline::Void => VOID_SIZE,
-    }
-}
-
 pub fn widget_label(widget: &TextWidget) -> String {
     format!(" {} ", widget.label)
-}
-
-pub fn widget_size(widget: &TextWidget, label: &str, style: SpanStyle) -> Vec2 {
-    let icon = match widget.icon {
-        Some(_) => INLINE_WIDGET_ICON_INSET * 2.0,
-        None => 0.0,
-    };
-    inline_size(Inline::Widget(0), label, style) + Vec2::new(icon, 0.0)
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -705,7 +604,7 @@ pub struct RowKey {
     placeholder: Option<String>,
     props: MarkSet,
     look: LineLook,
-    voids: Vec<(MarkSet, [u32; 2])>,
+    voids: Vec<MarkSet>,
 }
 
 impl RowKey {
@@ -773,11 +672,7 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
             .as_deref()
             .map_or_else(Vec::new, |formats| {
                 memchr::memmem::find_iter(&bytes[start..end], VOID.as_bytes())
-                    .map(|at| {
-                        let props = formats.marks_at(start + at).cloned().unwrap_or_default();
-                        let size = inputs.void_size.map_or(VOID_SIZE, |size| size(&props));
-                        (props, [size.x.to_bits(), size.y.to_bits()])
-                    })
+                    .map(|at| formats.marks_at(start + at).cloned().unwrap_or_default())
                     .collect()
             }),
     })
@@ -846,8 +741,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         true => LineLook::at(start),
         false => highlight.line_look(start),
     };
-    builder.row.quote = look.quote;
-    builder.row.code_block = look.code_block;
+    builder.row.look = look.clone();
     let marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
     let mut marked = look.list.is_some() || !marker.is_empty();
     let trailing_from = bytes[start..end]
@@ -885,13 +779,11 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 builder.row.block = Some((widget_index, widget.block_size.unwrap_or_default()));
             }
             let label = widget_label(widget);
-            let size = widget_size(widget, &label, base);
-            builder.inline_sized(
+            builder.inline(
                 Inline::Widget(widget_index),
                 widget.range.clone(),
                 base,
                 label,
-                size,
             );
             index = widget.range.end;
             continue;
@@ -900,8 +792,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             && bytes[index..end].starts_with(VOID.as_bytes())
         {
             let props = formats.marks_at(index).cloned().unwrap_or_default();
-            let size = inputs.void_size.map_or(VOID_SIZE, |size| size(&props));
-            let item = builder.push_inline_sized(Inline::Void, base, String::new(), size);
+            let item = builder.push_inline(Inline::Void, base, String::new());
             builder.row.inline[item].props = props;
             builder.push(
                 OBJECT,
@@ -965,6 +856,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             None => base,
         };
         builder.push(&text, index..stop, true, base, SpanKind::Text);
+        builder.leaf(style);
         index = stop;
     }
     builder.runs(runs, end, builder.span_style(style_at(end)));
@@ -1004,7 +896,7 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     }
     builder.row.line_height = height + padding.0 + padding.1;
     let highlight = builder.inputs.snapshot.highlight();
-    if builder.row.code_block {
+    if builder.row.look.code_block {
         return builder.row;
     }
     let code = |byte: usize| highlight.style_at(byte).color == SynHlColorScope::MarkdownCode;
@@ -1032,19 +924,4 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     }
     builder.row.code = ranges;
     builder.row
-}
-
-pub fn rich_layout(
-    row: &Row,
-    font: FontId,
-    padding: (f32, f32),
-    wrap_width: f32,
-) -> Option<RichLayout> {
-    let options = RichOptions {
-        wrap_width,
-        padding,
-        style: SpanStyle::new(font, Color32::WHITE),
-        hang: row.hang,
-    };
-    beui_view::reactive::rich_layout(&row.pieces(), options)
 }

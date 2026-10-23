@@ -21,8 +21,6 @@ use crate::presence::TextCursor;
 
 use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
 
-pub(crate) const DIRECT_EDITOR_WIDTH: f32 = 600.0;
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct FocusedEmbed {
     pub id: Uuid,

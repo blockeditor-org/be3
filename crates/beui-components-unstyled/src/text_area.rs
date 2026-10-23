@@ -2,6 +2,7 @@ mod actions;
 pub mod colors;
 mod completion;
 pub(crate) mod emoji;
+pub mod hooks;
 pub mod keys;
 mod lines;
 pub mod rows;
@@ -41,25 +42,14 @@ use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
 use rows::{BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, galley, line_of};
 use state::{AreaGeometry, Grab};
+use text_editor_core::ListMarker;
 
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
-pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
-pub use state::{TextAreaLayout, TextAreaState};
-
-#[derive(Clone, Copy)]
-pub struct VoidView {
-    pub state: TextAreaState,
-    pub props: Memo<text_editor_core::MarkSet>,
-    pub size: Memo<Vec2>,
-}
-
-pub struct TextCheckbox {
-    pub checked: Binding<bool>,
-    pub disabled: Memo<bool>,
-    pub line: usize,
-}
+pub use hooks::{LeafSpan, MarkerKind, TextLeaf, TextLine, TextMarker};
+pub use rows::{Prose, TextWidget};
+pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 pub const CARET_WIDTH: f32 = 2.0;
@@ -68,15 +58,11 @@ const GUTTER_PADDING_RIGHT: f32 = 10.0;
 const GUTTER_ARROW_SIZE: f32 = 14.0;
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
-const CHECKBOX_RADIUS: f32 = 3.0;
-const CHECKBOX_OUTLINE: f32 = 1.5;
 const INLINE_WIDGET_RADIUS: f32 = 5.0;
 const RUN_CHIP_RADIUS: f32 = 3.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
-const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
+const CODE_OUTSET: Vec2 = Vec2::new(hooks::CODE_OUTSET, -1.0);
 const CODE_RADIUS: f32 = 3.0;
-const QUOTE_INDENT: f32 = 14.0;
-const QUOTE_BAR_WIDTH: f32 = 3.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -159,9 +145,11 @@ struct Surface {
     text_extent: Signal<Vec2>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    checkbox: Option<RenderFn<TextCheckbox>>,
-    render_void: Option<RenderFn<VoidView>>,
-    void_size: Option<VoidSize>,
+    leaf: RenderFn<TextLeaf, beui_view::components::text::Span>,
+    marker: RenderFn<TextMarker>,
+    line: RenderFn<TextLine>,
+    rights: Signal<BTreeMap<u64, f32>>,
+    on_content_size: Callback<Vec2>,
     completion: Memo<Option<Query>>,
     completions: Memo<Vec<Completion>>,
     completing: Memo<bool>,
@@ -806,7 +794,7 @@ fn hold(cx: &Context, press: PointerPress) {
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
     if let Some((entry, index, item)) = cx.inline_at(pos) {
         match item.inline {
-            Inline::Checkbox { .. } => {
+            Inline::Marker(ListMarker::Check(_)) => {
                 cx.state.set_selecting(false);
                 return;
             }
@@ -837,7 +825,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-            Inline::Run | Inline::Bullet | Inline::Quote => {}
+            Inline::Run | Inline::Marker(_) | Inline::Quote => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -1070,9 +1058,10 @@ pub fn TextArea(
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    checkbox: Option<RenderFn<TextCheckbox>>,
-    render_void: Option<RenderFn<VoidView>>,
-    #[prop(default = None)] void_size: Option<VoidSize>,
+    leaf: Option<RenderFn<TextLeaf, beui_view::components::text::Span>>,
+    marker: Option<RenderFn<TextMarker>>,
+    line: Option<RenderFn<TextLine>>,
+    on_content_size: Callback<Vec2>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
@@ -1272,9 +1261,11 @@ pub fn TextArea(
                     text_extent,
                     block,
                     selected_widget,
-                    checkbox,
-                    render_void,
-                    void_size,
+                    leaf: leaf.unwrap_or_else(hooks::default_leaf),
+                    marker: marker.unwrap_or_else(|| hooks::default_marker(colors)),
+                    line: line.unwrap_or_else(|| hooks::default_line(colors)),
+                    rights: create_signal(BTreeMap::new()),
+                    on_content_size,
                     completion,
                     completions,
                     completing,
@@ -1590,7 +1581,7 @@ fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
             _,
             _,
             InlineItem {
-                inline: Inline::Checkbox { .. },
+                inline: Inline::Marker(ListMarker::Check(_)),
                 ..
             }
         ))
