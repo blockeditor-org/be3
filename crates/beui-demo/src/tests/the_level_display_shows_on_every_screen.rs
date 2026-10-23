@@ -1,4 +1,4 @@
-use beui::icons::ICON_VOLUME_OFF;
+use beui::icons::ICON_VOLUME_X;
 use beui::{Rect, Screen};
 
 use super::*;
@@ -9,7 +9,7 @@ fn the_level_display_shows_on_every_screen() {
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
         let level = Some(OsdLevel {
-            glyph: ICON_VOLUME_OFF.to_owned(),
+            glyph: ICON_VOLUME_X.to_owned(),
             label: "Volume".to_owned(),
             level: 0.3,
             muted: true,

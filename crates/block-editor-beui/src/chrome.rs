@@ -1,4 +1,4 @@
-use beui::icons::ICON_TUNE;
+use beui::icons::ICON_SLIDERS_HORIZONTAL;
 use beui::reactive::*;
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
@@ -139,7 +139,7 @@ fn PanelItem(open: Signal<bool>) -> NodeId {
     let opener = Action::new("chrome.open-panel", "Open the side panel", move || {
         open.set(true)
     })
-    .glyph(ICON_TUNE)
+    .glyph(ICON_SLIDERS_HORIZONTAL)
     .register();
     add_to_menu(vec![MenuNode::action(&opener)]);
     view! {
@@ -156,7 +156,7 @@ fn SheetToggle() -> NodeId {
     view! {
         <ToggleButton
             label="Sidebar"
-            glyph={ICON_TUNE.to_owned()}
+            glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
             icon_only=true
             pressed={open}
             @test_id={"chrome.sidebar"}

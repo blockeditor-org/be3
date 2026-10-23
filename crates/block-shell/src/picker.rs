@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use block_editor_beui::be_block::{BlockContent, FolderContent};
 use block_editor_beui::beui::Rect;
-use block_editor_beui::beui::icons::{ICON_PEOPLE, ICON_WORKSPACES};
+use block_editor_beui::beui::icons::{ICON_BOXES, ICON_USERS};
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
@@ -529,7 +529,7 @@ impl Walk<'_> {
                 key,
                 block_type: Uuid::nil(),
                 name: "Shared with me".to_owned(),
-                icon: ICON_PEOPLE.to_owned(),
+                icon: ICON_USERS.to_owned(),
                 detail: String::new(),
                 above: String::new(),
                 depth: 0,
@@ -544,7 +544,7 @@ impl Walk<'_> {
 
 fn section_icon(row: &mut TreeRow) {
     if row.icon.is_empty() {
-        ICON_WORKSPACES.clone_into(&mut row.icon);
+        ICON_BOXES.clone_into(&mut row.icon);
     }
 }
 

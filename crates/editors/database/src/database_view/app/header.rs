@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_SEARCH, ICON_TUNE};
+use block_editor_beui::beui::icons::{ICON_PLUS, ICON_SEARCH, ICON_SLIDERS_HORIZONTAL};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::narrow_chrome;
@@ -67,7 +67,7 @@ fn WideHeader(data: Data) -> NodeId {
                     <Text style=TextStyle::CAPTION>{count}</Text>
                     <Popover
                         label="Display"
-                        glyph={ICON_TUNE.to_owned()}
+                        glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
                         max_width=DISPLAY_WIDTH
                         @test_id={"database-view.display"}
                     >|_|
@@ -106,7 +106,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                     <SearchField @sizing=ItemSize::Percent(100.0) data={data} />
                     <Button
                         label={filtered}
-                        glyph={ICON_TUNE.to_owned()}
+                        glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
                         variant=ButtonVariant::Secondary
                         @test_id={"database-view.filter-and-display"}
                         on_click={open}
@@ -180,7 +180,7 @@ fn ViewTabs(data: Data) -> NodeId {
                 }
             }</ForEach>
             <IconButton
-                glyph={ICON_ADD.to_owned()}
+                glyph={ICON_PLUS.to_owned()}
                 label="New view"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}
@@ -219,7 +219,7 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
     match compact {
         true => view! {
             <IconButton
-                glyph={ICON_ADD.to_owned()}
+                glyph={ICON_PLUS.to_owned()}
                 label="New"
                 variant=ButtonVariant::Primary
                 disabled={disabled}
@@ -230,7 +230,7 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
         false => view! {
             <Button
                 label="New"
-                glyph={ICON_ADD.to_owned()}
+                glyph={ICON_PLUS.to_owned()}
                 variant=ButtonVariant::Primary
                 disabled={disabled}
                 @test_id={"database-view.new"}

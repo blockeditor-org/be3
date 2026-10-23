@@ -9,7 +9,30 @@ pub const MAX_NAME_BYTES: usize = 128;
 pub const NAME: MetaKey<String> =
     MetaKey::defined(0x6be3_6d65_7461_4e00_8a1e_6e61_6d65_0001, "name");
 
-pub const ICON: MetaKey<char> = MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_6963_6f6e_0001, "icon");
+pub const ICON: MetaKey<String> =
+    MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_6963_6f6e_0002, "icon_name");
+
+pub const MATERIAL_ICON: MetaKey<char> =
+    MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_6963_6f6e_0001, "icon");
+
+const MATERIAL_ICON_NAMES: [(char, &str); 16] = [
+    ('\u{e873}', "file-text"),
+    ('\u{e2c7}', "folder"),
+    ('\u{f09a}', "star"),
+    ('\u{e87e}', "heart"),
+    ('\u{e9b2}', "house"),
+    ('\u{e943}', "briefcase"),
+    ('\u{e80c}', "graduation-cap"),
+    ('\u{e86e}', "book"),
+    ('\u{e86f}', "code"),
+    ('\u{e90f}', "lightbulb"),
+    ('\u{f0c6}', "flag"),
+    ('\u{ebcc}', "calendar-days"),
+    ('\u{e6b1}', "list-checks"),
+    ('\u{e3f4}', "image"),
+    ('\u{e405}', "eighth-note"),
+    ('\u{e80b}', "globe"),
+];
 
 pub const ICON_COLOR: MetaKey<[u8; 3]> =
     MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_636f_6c72_0001, "icon_color");
@@ -168,6 +191,16 @@ impl BlockMetadata {
         self.get(&NAME)
             .or_else(|| self.get(&INTRINSIC_NAME))
             .filter(|name| !name.is_empty())
+    }
+
+    pub fn icon(&self) -> Option<String> {
+        self.get(&ICON).or_else(|| {
+            let material = self.get(&MATERIAL_ICON)?;
+            MATERIAL_ICON_NAMES
+                .iter()
+                .find(|(codepoint, _)| *codepoint == material)
+                .map(|(_, name)| (*name).to_owned())
+        })
     }
 
     pub fn named_by_hand(&self) -> bool {

@@ -1,6 +1,6 @@
 use beui::KeyAt;
 use block_editor_beui::beui::Key;
-use block_editor_beui::beui::icons::{ICON_CANCEL, ICON_FLIP_TO_FRONT};
+use block_editor_beui::beui::icons::{ICON_BRING_TO_FRONT, ICON_CIRCLE_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::{DockingLayout, TabId};
 
@@ -30,7 +30,7 @@ pub(super) fn bind_window_switcher(layout: DockingLayout<TabId>) {
                 layout.commit_switch();
             }
         })
-        .glyph(ICON_FLIP_TO_FRONT)
+        .glyph(ICON_BRING_TO_FRONT)
         .shortcut(chord)
         .at(KeyAt::Window)
         .capture()
@@ -45,7 +45,7 @@ pub(super) fn bind_window_switcher(layout: DockingLayout<TabId>) {
             layout.cancel_switch();
         },
     )
-    .glyph(ICON_CANCEL)
+    .glyph(ICON_CIRCLE_X)
     .shortcut(escape)
     .shortcut(escape.shift())
     .enabled(open)

@@ -1,5 +1,5 @@
 use super::*;
-use crate::icons::ICON_EDIT;
+use crate::icons::ICON_PENCIL;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::MenuItem;
@@ -30,7 +30,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
                 items={view! {
                     <MenuItem
                         label="Rename"
-                        glyph={ICON_EDIT.to_owned()}
+                        glyph={ICON_PENCIL.to_owned()}
                         detail="Ctrl+R"
                         on_click={move || clicks.update(|clicks| *clicks += 1)}
                     />
@@ -45,7 +45,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
     harness.settle();
     assert!(!sheet_shown(&harness), "a click opens a dropdown");
     assert!(
-        shown(&harness, ICON_EDIT).is_some(),
+        shown(&harness, ICON_PENCIL).is_some(),
         "the dropdown shows the icon"
     );
     assert!(
@@ -62,7 +62,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
     harness.settle();
     assert!(sheet_shown(&harness), "a tap opens a sheet");
     assert!(
-        shown(&harness, ICON_EDIT).is_some(),
+        shown(&harness, ICON_PENCIL).is_some(),
         "the sheet shows the icon"
     );
     assert!(

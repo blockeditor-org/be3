@@ -2,7 +2,7 @@ use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::text::{Icon, TextColor};
 use crate::theme::use_theme;
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_CHEVRON_RIGHT, ICON_MORE_HORIZ};
+use beui_core::icons::{ICON_CHEVRON_RIGHT, ICON_ELLIPSIS};
 use beui_macros::{component, view};
 
 use crate::border::Separator;
@@ -158,7 +158,7 @@ pub fn SettingsRow(
             >
                 <IconMenuButton
                     label="More"
-                    glyph={ICON_MORE_HORIZ.to_owned()}
+                    glyph={ICON_ELLIPSIS.to_owned()}
                     size=IconButtonSize::Compact
                     disabled={locked}
                     @test_id={menu_test_id}

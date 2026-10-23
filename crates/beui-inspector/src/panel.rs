@@ -8,7 +8,7 @@ use beui_core::base::TextAlign;
 use beui_core::context::RendererChoices;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
-use beui_core::icons::{ICON_ARROW_SELECTOR_TOOL, ICON_CLOSE};
+use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
 use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_core::performance::PerformanceSnapshot;
@@ -975,7 +975,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
     view! {
         <ToggleButton
             label="Pick"
-            glyph={ICON_ARROW_SELECTOR_TOOL.to_owned()}
+            glyph={ICON_MOUSE_POINTER_2.to_owned()}
             icon_only=true
             pressed={Binding::new(picking, move |_| state.value().toggle_picking())}
         />
@@ -986,7 +986,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
 fn CloseButton(state: Stored<State>) -> NodeId {
     view! {
         <IconButton
-            glyph={ICON_CLOSE.to_owned()}
+            glyph={ICON_X.to_owned()}
             label="Close inspector"
             variant=ButtonVariant::Ghost
             size=IconButtonSize::Compact

@@ -1,6 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 #[test]
 fn evicting_a_virtual_scroll_row_disposes_its_effects() {
@@ -10,7 +11,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <VirtualList
                         @node_ref=&list
                         keys={indices(100)}
@@ -22,7 +23,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                             </Show>
                         </List>
                     </VirtualList>
-                </Offset>
+                </Scroll>
             </List>
         }
     });

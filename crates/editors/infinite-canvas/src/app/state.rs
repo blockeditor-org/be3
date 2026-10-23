@@ -15,9 +15,8 @@ use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_SELECTOR_TOOL, ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW,
-    ICON_INK_ERASER, ICON_LASSO_SELECT, ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE,
-    ICON_TEXT_FIELDS,
+    ICON_BRUSH, ICON_CIRCLE, ICON_DIAMOND, ICON_ERASER, ICON_LASSO_SELECT, ICON_MOUSE_POINTER_2,
+    ICON_MOVE_UP_RIGHT, ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SLASH, ICON_TYPE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
@@ -99,17 +98,17 @@ pub(crate) enum Tool {
 impl Tool {
     pub(crate) fn glyph(self) -> &'static str {
         match self {
-            Tool::Select => ICON_ARROW_SELECTOR_TOOL,
+            Tool::Select => ICON_MOUSE_POINTER_2,
             Tool::Lasso => ICON_LASSO_SELECT,
-            Tool::Frame => ICON_CROP_FREE,
-            Tool::Line => ICON_DIAGONAL_LINE,
-            Tool::Arrow => ICON_NORTH_EAST,
-            Tool::Rectangle => ICON_RECTANGLE,
-            Tool::Ellipse => ICON_PANORAMA_FISH_EYE,
+            Tool::Frame => ICON_SCAN,
+            Tool::Line => ICON_SLASH,
+            Tool::Arrow => ICON_MOVE_UP_RIGHT,
+            Tool::Rectangle => ICON_RECTANGLE_HORIZONTAL,
+            Tool::Ellipse => ICON_CIRCLE,
             Tool::Diamond => ICON_DIAMOND,
-            Tool::Text => ICON_TEXT_FIELDS,
-            Tool::Pen => ICON_DRAW,
-            Tool::Eraser => ICON_INK_ERASER,
+            Tool::Text => ICON_TYPE,
+            Tool::Pen => ICON_BRUSH,
+            Tool::Eraser => ICON_ERASER,
         }
     }
 

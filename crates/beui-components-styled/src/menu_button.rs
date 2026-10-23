@@ -11,7 +11,7 @@ use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{MenuButtonHandle, MenuItem, Picture};
 use beui_core::font::TextAlign;
-use beui_core::icons::ICON_ARROW_DROP_DOWN;
+use beui_core::icons::ICON_CHEVRON_DOWN;
 use beui_core::image::Image;
 use beui_core::input::ScrollGesture;
 use beui_core::node::NodeId;
@@ -35,7 +35,7 @@ pub fn MenuButton(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let trailing = create_memo(move || match arrow.get() {
-        true => ICON_ARROW_DROP_DOWN.to_owned(),
+        true => ICON_CHEVRON_DOWN.to_owned(),
         false => String::new(),
     });
     let icon_only = create_memo(move || icon_only.get());

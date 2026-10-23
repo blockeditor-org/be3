@@ -1,4 +1,4 @@
-use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
+use beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::Picture;
@@ -125,7 +125,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                     <SlotDrop session={session} target={parent} folder=true>
                         <IconButton
-                            glyph={ICON_ARROW_UPWARD.to_owned()}
+                            glyph={ICON_ARROW_UP.to_owned()}
                             label="Up to the parent folder"
                             disabled={top}
                             @test_id={"logic-grid.hotbar-up"}
@@ -135,7 +135,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                     <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{title}</Text>
                     <MenuButton
                         label="Hotbar actions"
-                        glyph={ICON_ADD.to_owned()}
+                        glyph={ICON_PLUS.to_owned()}
                         icon_only=true
                         arrow=false
                         @test_id={"logic-grid.hotbar-actions"}

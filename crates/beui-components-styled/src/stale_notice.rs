@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonVariant};
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_DELETE, ICON_HISTORY, ICON_RESTART_ALT};
+use beui_core::icons::{ICON_ROTATE_CCW, ICON_ROTATE_CCW_CLOCK, ICON_TRASH};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -31,7 +31,7 @@ pub fn StaleNotice(
         <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
                 <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={ICON_HISTORY.to_owned()} />
+                    <Icon glyph={ICON_ROTATE_CCW_CLOCK.to_owned()} />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
                 <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center wrap=true>
@@ -41,14 +41,14 @@ pub fn StaleNotice(
                     <Button
                         @test_id={reset_id}
                         label="Reset"
-                        glyph={ICON_RESTART_ALT.to_owned()}
+                        glyph={ICON_ROTATE_CCW.to_owned()}
                         variant=ButtonVariant::Primary
                         on_click={on_reset}
                     />
                     <Button
                         @test_id={delete_id}
                         label="Delete"
-                        glyph={ICON_DELETE.to_owned()}
+                        glyph={ICON_TRASH.to_owned()}
                         variant=ButtonVariant::Secondary
                         on_click={on_delete}
                     />

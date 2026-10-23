@@ -6,7 +6,7 @@ use super::style::{STROKES, StylePopover};
 use block_editor_beui::be_block::canvas::{CanvasColor, CanvasProfile};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
-use block_editor_beui::beui::icons::ICON_TUNE;
+use block_editor_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle};
@@ -97,7 +97,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 }</Show>
                 <Show condition={inspectable}>
                     <IconButton
-                        glyph={ICON_TUNE.to_owned()}
+                        glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
                         label="Inspector"
                         @test_id={"infinite-canvas.inspect"}
                         on_click={tune}

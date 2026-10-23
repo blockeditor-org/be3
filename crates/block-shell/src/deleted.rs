@@ -1,5 +1,5 @@
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::icons::{ICON_DELETE, ICON_RESTORE};
+use block_editor_beui::beui::icons::{ICON_ROTATE_CCW_CLOCK, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
@@ -49,14 +49,14 @@ pub(crate) fn DeletedBar(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text size=TextSize::Xs align=TextAlign::Center>
-                        <Icon glyph={ICON_DELETE.to_owned()} />
+                        <Icon glyph={ICON_TRASH.to_owned()} />
                     </Text>
                     <Text>"Deleted block"</Text>
                     <Text style=TextStyle::CAPTION>{caption}</Text>
                     <Button
                         @test_id={"workspace.deleted.restore"}
                         label="Restore"
-                        glyph={ICON_RESTORE.to_owned()}
+                        glyph={ICON_ROTATE_CCW_CLOCK.to_owned()}
                         variant=ButtonVariant::Secondary
                         disabled={locked}
                         on_click={move || {

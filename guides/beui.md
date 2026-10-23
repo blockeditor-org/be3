@@ -397,7 +397,10 @@ hooks the higher crates fill in:
   host forwards unchanged. Between the two,
   `ScrollGesture::held` is set and a `Scroll` follows the fingers as a touch drag
   does, stretching past an end; the lift springs it back, or flings it at the
-  speed of its last samples and bands it if that carries it past an end. A wheel
+  speed of its last samples and bands it if that carries it past an end. A
+  start alone, fingers resting without moving (macOS's `MayBegin`), goes to the
+  press claimant under the pointer, so it catches a `Scroll` or sheet that is
+  flinging or bouncing and holds it until the fingers move or lift. A wheel
   without a start (a mouse) clamps at the ends. winit pushes them on a
   `MouseWheel` phase of `Started` and `Ended`, and on macOS drops the momentum events the
   system sends after a lift (from a `Started` within 100 ms of it to their
@@ -1199,6 +1202,26 @@ momentum an unfinished fling carries, and drives the offset from all three. So r
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
 
+A `Scroll`'s momentum is one motion across the edge, not a fling with a band
+laid over it. It keeps how far its content has gone past an end unbanded (the
+fingers' distance in a drag, the fling's travel after a fling crosses the end),
+and shows `rubber_band` of it, a curve that leaves the edge at the speed it is
+pulled and stiffens from there. `rubber_band::bounce` moves that stretch: going
+out it is an undamped spring, so a fling keeps its speed as it crosses the end
+and slows smoothly, and from its furthest point a critically damped one brings
+it back without passing the edge. A band let go while already heading back
+hands the speed it still has to a fling into the content. The sheet's content
+bounces the same way.
+
+`Offset` never clamps: it shows its child at whatever offset it is given, past
+either end included, and the band is just the part of that offset beyond them
+(`ScrollPosition::overscroll`, with `clamped` the part within). Keeping the
+offset in range is whatever drives it. When content shrinks under a `Scroll` or
+an offset is set past an end while nothing is moving it, the `Scroll` puts it
+back at the end in its report of that layout and holds the report back, so the
+next layout pass of the same frame lays out and reports the settled position and
+nothing past the end is ever painted.
+
 That offset is anchored to a node, not measured from the top of the content:
 the scroll remembers the node at the top of its viewport and where it started,
 so a row further up growing or shrinking - a wrapping label, an image that
@@ -1320,7 +1343,7 @@ for a moment, and `styled::Tooltip` is the bubble version of it:
 ```rust
 view! {
     <Tooltip label="Reveal the block being shown">
-        <IconButton glyph={ICON_MY_LOCATION.to_owned()} label="Reveal" on_click={find} />
+        <IconButton glyph={ICON_LOCATE_FIXED.to_owned()} label="Reveal" on_click={find} />
     </Tooltip>
 }
 ```
@@ -3291,7 +3314,7 @@ neighbours, so an icon beside a label is one `Text`, not a row of two:
 ```rust
 view! {
     <Text style=TextStyle::CAPTION>
-        <Icon glyph=ICON_SCHEDULE />
+        <Icon glyph=ICON_CLOCK />
         "Edited five minutes ago"
     </Text>
 }
@@ -3299,6 +3322,23 @@ view! {
 
 A lone icon is a `Text` holding only an `Icon`; give it `align=TextAlign::Center`
 when it is placed in a box bigger than itself.
+
+The icons are Lucide's, drawn from its font
+(`beui-font-freetype/src/assets/icons/lucide.ttf`, committed unmodified from
+the `lucide-static` npm package, version 1.61.0). `beui_core::icons` is
+generated from that package: one `ICON_*` constant per icon named in
+`icon-nodes.json` (its aliases are left out), holding the codepoint
+`font/codepoints.json` gives it, and `named` for the same icons by Lucide name,
+which is what anything saved holds, since Lucide renumbers an icon now and
+then. A comment after each constant lists its tags from `tags.json` and the
+older names (aliases) it shares a codepoint with: search them for what an icon
+is for ("duplicate" finds `ICON_COPY_PLUS`) rather than guessing from names.
+The file's `@yeskeepfile` comment stops `./scripts/verify` deleting them; a
+comment holding that marker keeps every comment in its file, as `@yeskeep`
+keeps the one comment holding it. Regenerate all of it from the new package
+whenever the font is updated. Text
+is Inter Regular (`Inter-Regular.ttf` from Inter's release, unmodified), with
+Hack for monospace and Noto Emoji as the fallback.
 
 `TextStyleProvider` gives every styled text created within it a style its own
 props override, the way a disabled section mutes everything in it. It is

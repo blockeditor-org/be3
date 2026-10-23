@@ -7,7 +7,7 @@
       "id": "258b6b70-6093-4260-8b73-6bb993c2e483",
       "edits": "70616e5f-7a6f-6f6d-2d62-6c6f636b0001",
       "display_name": "Pan and Zoom",
-      "icon": "\uf655",
+      "icon": "\ue121",
       "templates": {
         "main": {
           "category": "debug"

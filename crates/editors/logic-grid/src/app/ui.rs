@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
+use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
@@ -112,7 +112,7 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
         <Toolbar shown={shown}>
             <Button
                 label="Compile"
-                glyph={ICON_BUILD.to_owned()}
+                glyph={ICON_WRENCH.to_owned()}
                 variant=ButtonVariant::Secondary
                 disabled={read_only}
                 @test_id={"logic-grid.compile"}
@@ -138,7 +138,7 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
             <Text style=TextStyle::CAPTION>{percent}</Text>
             <IconButton glyph={ICON_ZOOM_IN.to_owned()} label="Zoom in" on_click={zoom_in} />
             <IconButton
-                glyph={ICON_FIT_SCREEN.to_owned()}
+                glyph={ICON_SCAN.to_owned()}
                 label="Return to the origin"
                 on_click={recenter}
             />

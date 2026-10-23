@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use beui::NodeId;
-use beui::icons::ICON_PLAY_ARROW;
+use beui::icons::ICON_PLAY;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::MenuItem;
@@ -409,7 +409,7 @@ pub(crate) fn Actions(
     view! {
         <SplitButton
             label="Run"
-            glyph=ICON_PLAY_ARROW
+            glyph=ICON_PLAY
             variant=ButtonVariant::Primary
             menu_label="More ways to run it"
             disabled
@@ -510,7 +510,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
                 </Text>
                 <SplitButton
                     label="Run main"
-                    glyph=ICON_PLAY_ARROW
+                    glyph=ICON_PLAY
                     variant=ButtonVariant::Secondary
                     menu_label="More ways to run main"
                     disabled

@@ -4,7 +4,7 @@ use block_editor_beui::be_block::Item;
 use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FOLDER};
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
@@ -174,7 +174,7 @@ fn SlotRow(
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={is_component}>
                 <IconButton
-                    glyph={ICON_DELETE.to_owned()}
+                    glyph={ICON_TRASH.to_owned()}
                     label="Unpin"
                     disabled={read_only}
                     @test_id={format!("hotbar.slot.{index}.unpin")}

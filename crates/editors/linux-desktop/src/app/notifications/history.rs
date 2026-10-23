@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
+use block_editor_beui::beui::icons::{ICON_BELL, ICON_BELL_RING, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::PopoverHandle;
@@ -25,8 +25,8 @@ fn received_at(received: u64) -> String {
 pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId {
     let listed = notifications.listed();
     let glyph = create_memo(move || match listed.with(Vec::is_empty) {
-        true => ICON_NOTIFICATIONS.to_owned(),
-        false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
+        true => ICON_BELL.to_owned(),
+        false => ICON_BELL_RING.to_owned(),
     });
     let label = create_memo(move || match listed.with(Vec::len) {
         0 => "Notifications".to_owned(),
@@ -144,7 +144,7 @@ fn NotificationRow(
                 </List>
             </ListRow>
             <IconButton
-                glyph={ICON_CLOSE.to_owned()}
+                glyph={ICON_X.to_owned()}
                 label="Dismiss"
                 variant=ButtonVariant::Ghost
                 size=IconButtonSize::Compact

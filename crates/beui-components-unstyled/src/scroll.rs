@@ -1,12 +1,13 @@
 use beui_core::layer::LayerPolicy;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
 use super::fling::Fling;
-use super::rubber_band::{MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband};
+use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
 use beui_core::base::Sides;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
@@ -123,7 +124,7 @@ impl Reveal {
 }
 
 struct Momentum {
-    overscroll: f32,
+    stretch: f32,
     drag: Option<f32>,
     dragging: bool,
     velocity: f32,
@@ -134,7 +135,7 @@ struct Momentum {
 impl Momentum {
     fn new() -> Self {
         Self {
-            overscroll: 0.0,
+            stretch: 0.0,
             drag: None,
             dragging: false,
             velocity: 0.0,
@@ -144,14 +145,18 @@ impl Momentum {
     }
 
     fn moving(&self) -> bool {
-        self.overscroll != 0.0
+        self.stretch != 0.0
             || self.velocity != 0.0
             || self.fling.is_some()
             || self.autoscroll != 0.0
     }
 
     fn flinging(&self) -> bool {
-        self.fling.is_some() && self.overscroll == 0.0 && self.drag.is_none()
+        self.fling.is_some() && self.stretch == 0.0 && self.drag.is_none()
+    }
+
+    fn coasting(&self) -> bool {
+        (self.fling.is_some() || self.stretch != 0.0) && self.drag.is_none()
     }
 
     fn stop_fling(&mut self) {
@@ -162,7 +167,7 @@ impl Momentum {
     }
 
     fn rest(&mut self) {
-        self.overscroll = 0.0;
+        self.stretch = 0.0;
         self.drag = None;
         self.velocity = 0.0;
         self.fling = None;
@@ -170,7 +175,7 @@ impl Momentum {
     }
 
     fn grab(&mut self, position: &ScrollPosition) {
-        self.drag = Some(position.offset + unband(self.overscroll, position.viewport));
+        self.drag = Some(position.offset + self.stretch);
         self.velocity = 0.0;
         self.fling = None;
     }
@@ -179,8 +184,8 @@ impl Momentum {
         let raw = self.drag.unwrap_or(position.offset) - delta;
         position.offset = raw.clamp(0.0, position.max_offset());
         self.drag = Some(if banding { raw } else { position.offset });
-        self.overscroll = match banding {
-            true => rubber_band(raw - position.offset, position.viewport),
+        self.stretch = match banding {
+            true => raw - position.offset,
             false => 0.0,
         };
         self.velocity = 0.0;
@@ -188,14 +193,13 @@ impl Momentum {
 
     fn release(&mut self, velocity: f32) {
         self.drag = None;
-        self.velocity = if self.overscroll == 0.0 {
-            velocity
-        } else {
-            velocity * 0.35
-        };
-        if self.overscroll != 0.0 {
-            return;
+        self.velocity = velocity;
+        if self.stretch == 0.0 {
+            self.coast();
         }
+    }
+
+    fn coast(&mut self) {
         self.fling = (self.velocity.abs() >= MINIMUM_VELOCITY)
             .then(|| Fling::new(self.velocity))
             .flatten();
@@ -214,13 +218,12 @@ impl Momentum {
             }
             return;
         }
-        if self.overscroll != 0.0 {
-            spring_back(
-                &mut self.overscroll,
-                &mut self.velocity,
-                elapsed,
-                SCROLL_SPRING,
-            );
+        if self.stretch != 0.0 {
+            let back = bounce(&mut self.stretch, &mut self.velocity, elapsed);
+            if self.stretch == 0.0 {
+                self.velocity = back;
+                self.coast();
+            }
             return;
         }
         let Some(fling) = &mut self.fling else {
@@ -236,7 +239,7 @@ impl Momentum {
         if raw != position.offset {
             self.fling = None;
             match banding {
-                true => self.overscroll = raw - position.offset,
+                true => self.stretch = raw - position.offset,
                 false => self.velocity = 0.0,
             }
         }
@@ -271,19 +274,36 @@ impl Motion {
         let reported = self.reported.get_untracked()?;
         let node = self.node?;
         let offset = node.offset()?;
-        Some(ScrollPosition { offset, ..reported })
+        let position = ScrollPosition { offset, ..reported };
+        Some(ScrollPosition {
+            offset: position.clamped(),
+            ..position
+        })
     }
 
-    fn publish(&self, momentum: &Momentum, offset: f32) {
+    fn publish(&self, momentum: &Momentum, position: &ScrollPosition, offset: f32) {
         let Some(node) = self.node else {
             return;
         };
-        node.drive_offset(offset);
-        node.set_overscroll(momentum.overscroll);
+        node.drive_offset(offset + rubber_band(momentum.stretch, position.viewport));
     }
 
-    fn flinging(&self) -> bool {
-        self.momentum.borrow().flinging()
+    fn settle(&self, position: ScrollPosition) -> bool {
+        let Some(node) = self.node else {
+            return false;
+        };
+        let Ok(momentum) = self.momentum.try_borrow() else {
+            return false;
+        };
+        let stray = position.overscroll() != 0.0 && momentum.drag.is_none() && !momentum.moving();
+        if stray {
+            node.drive_offset(position.clamped());
+        }
+        stray
+    }
+
+    fn coasting(&self) -> bool {
+        self.momentum.borrow().coasting()
     }
 
     fn stop_fling(&self) {
@@ -291,26 +311,29 @@ impl Motion {
     }
 
     fn wheel(&self, gesture: ScrollGesture) {
-        if let Some(animation) = self.animation.get() {
-            animation.stop();
-        }
         let wheel = self.axis().main(gesture.delta);
         let fling = self.axis().main(gesture.fling);
         let Some(mut position) = self.placed() else {
             return;
         };
         let mut momentum = self.momentum.borrow_mut();
+        if !gesture.held && momentum.drag.is_none() && wheel == 0.0 && fling == 0.0 {
+            return;
+        }
+        if let Some(animation) = self.animation.get() {
+            animation.stop();
+        }
         if gesture.held && rubber_banding() {
             if momentum.drag.is_none() {
                 momentum.grab(&position);
             }
             momentum.drag(&mut position, wheel, true);
-            self.publish(&momentum, position.offset);
+            self.publish(&momentum, &position, position.offset);
             return;
         }
         if momentum.drag.is_some() && !momentum.dragging {
             momentum.release(-fling);
-            self.publish(&momentum, position.offset);
+            self.publish(&momentum, &position, position.offset);
             self.animate(&mut momentum);
             return;
         }
@@ -319,7 +342,7 @@ impl Motion {
         }
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
-        self.publish(&momentum, offset);
+        self.publish(&momentum, &position, offset);
         if fling != 0.0 && rubber_banding() {
             momentum.release(-fling);
             self.animate(&mut momentum);
@@ -353,7 +376,7 @@ impl Motion {
         } else if gesture.cancelled {
             momentum.release(0.0);
         }
-        self.publish(&momentum, position.offset);
+        self.publish(&momentum, &position, position.offset);
         if gesture.ended || gesture.cancelled {
             self.animate(&mut momentum);
         }
@@ -368,11 +391,11 @@ impl Motion {
             momentum.autoscroll = 0.0;
             return;
         }
-        if momentum.overscroll != 0.0
+        if momentum.stretch != 0.0
             && let Some(position) = self.placed()
         {
             momentum.rest();
-            self.publish(&momentum, position.offset);
+            self.publish(&momentum, &position, position.offset);
         }
         momentum.drag = None;
         momentum.velocity = 0.0;
@@ -398,7 +421,11 @@ impl Motion {
         };
         let mut momentum = self.momentum.borrow_mut();
         momentum.rest();
-        self.publish(&momentum, offset.clamp(0.0, position.max_offset()));
+        self.publish(
+            &momentum,
+            &position,
+            offset.clamp(0.0, position.max_offset()),
+        );
     }
 
     fn key(&self, press: KeyPress) -> bool {
@@ -431,19 +458,15 @@ impl Motion {
         if press.pressed {
             let mut momentum = self.momentum.borrow_mut();
             momentum.rest();
-            self.publish(&momentum, offset);
+            self.publish(&momentum, &position, offset);
         }
         true
     }
 
     fn steer(&self) {
-        let Some(node) = self.node else {
-            return;
-        };
         if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
             momentum.rest();
         }
-        node.set_overscroll(0.0);
     }
 
     fn finish(&self) {
@@ -454,7 +477,7 @@ impl Motion {
         let autoscroll = momentum.autoscroll;
         momentum.rest();
         momentum.autoscroll = autoscroll;
-        self.publish(&momentum, position.offset);
+        self.publish(&momentum, &position, position.offset);
     }
 
     fn step(&self, elapsed: f32) -> Option<Duration> {
@@ -472,7 +495,7 @@ impl Motion {
         }
         let mut position = self.placed()?;
         momentum.animate(&mut position, elapsed, rubber_banding());
-        self.publish(&momentum, position.offset);
+        self.publish(&momentum, &position, position.offset);
         momentum.moving().then_some(Duration::ZERO)
     }
 }
@@ -490,9 +513,19 @@ fn Scrolling(
     #[prop(children)] content: Render<Callback<ScrollPosition>>,
 ) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
-    let node = content.call(Callback::new(move |position: ScrollPosition| {
-        reported.set(Some(position));
-        on_change.call(position);
+    let settles = Rc::new(Cell::new(None::<Stored<Motion>>));
+    let node = content.call(Callback::new({
+        let settles = Rc::clone(&settles);
+        move |position: ScrollPosition| {
+            if settles
+                .get()
+                .is_some_and(|motion| motion.value().settle(position))
+            {
+                return;
+            }
+            reported.set(Some(position));
+            on_change.call(position);
+        }
     }));
     let motion = store(Motion {
         node: node.first_offset_within(),
@@ -503,6 +536,7 @@ fn Scrolling(
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
     });
+    settles.set(Some(motion));
     let animation = create_animation(
         move |frame| motion.value().step(frame.delta.as_secs_f32()).is_some(),
         move || motion.value().finish(),
@@ -563,12 +597,12 @@ fn Scrolling(
         None
     });
     reveal.with(|reveal| reveal.timer.set(Some(fading)));
-    let moved = Cell::new(None::<(f32, f32)>);
+    let moved = Cell::new(None::<f32>);
     create_effect(move || {
         let Some(position) = reported.get() else {
             return;
         };
-        let at = (position.offset, position.overscroll);
+        let at = position.offset;
         if moved.replace(Some(at)).is_some_and(|was| was != at) {
             reveal.value().poke();
         }
@@ -628,7 +662,7 @@ fn Scrolling(
                     scroll_axis={axis}
                     @node_ref=&catcher
                     claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                        motion.value().flinging() && under(&catcher, pos)
+                        motion.value().coasting() && under(&catcher, pos)
                     }}
                     on_press={move |_: PointerPress| motion.value().stop_fling()}
                     on_hover_move={move |press: PointerPress| {
@@ -782,7 +816,7 @@ pub(crate) fn fade_edges(
 fn scroll_view(position: Option<ScrollPosition>, direction: Direction) -> Node {
     let mut node = Node::new(Role::ScrollView);
     if let Some(position) = position {
-        let (offset, max) = (position.offset.into(), position.max_offset().into());
+        let (offset, max) = (position.clamped().into(), position.max_offset().into());
         match direction {
             Direction::Horizontal => {
                 node.set_scroll_x(offset);

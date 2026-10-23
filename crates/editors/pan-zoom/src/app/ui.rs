@@ -1,6 +1,6 @@
 use block_editor_beui::Fit;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
+use block_editor_beui::beui::icons::ICON_PANEL_LEFT_OPEN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
@@ -217,7 +217,7 @@ fn Rail(open: Signal<bool>) -> NodeId {
                 <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
                     <Frame fill=ColorRole::SurfaceRaised radius=Radius::Md padding=8.0>
                         <Text align=TextAlign::Center>
-                            <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} />
+                            <Icon glyph={ICON_PANEL_LEFT_OPEN.to_owned()} />
                         </Text>
                     </Frame>
                 </unstyled::Button>

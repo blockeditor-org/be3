@@ -15,7 +15,7 @@ use beui_core::base::TextAlign;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
-use beui_core::icons::{ICON_APPS, ICON_SEARCH, ICON_TERMINAL};
+use beui_core::icons::{ICON_LAYOUT_GRID, ICON_SEARCH, ICON_TERMINAL};
 use beui_core::image::Image;
 use beui_core::input::{Key, KeyPress};
 use beui_core::keys::{KeyAt, KeyPhase};
@@ -351,7 +351,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         Row::Run => "launcher.run".to_owned(),
     };
     let glyph = match &row {
-        Row::Item(_) => ICON_APPS,
+        Row::Item(_) => ICON_LAYOUT_GRID,
         Row::Run => ICON_TERMINAL,
     };
     let highlighted = state.highlighted;

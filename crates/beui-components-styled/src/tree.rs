@@ -19,8 +19,7 @@ use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::geometry::{Pos2, pos2};
 use beui_core::icons::{
-    ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
-    ICON_MORE_HORIZ,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
 };
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -163,8 +162,8 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
         reveal,
     } = handle;
     let glyph = create_memo(move || match edge.get() {
-        Edge::Top | Edge::TopEnd => ICON_ARROW_UPWARD.to_owned(),
-        Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWNWARD.to_owned(),
+        Edge::Top | Edge::TopEnd => ICON_ARROW_UP.to_owned(),
+        Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWN.to_owned(),
     });
     view! {
         <Frame padding=REVEAL_PADDING>
@@ -387,7 +386,7 @@ fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
                 radius={Radius::custom(CHEVRON_RADIUS)}
             >
                 <Text size={glyph_size} color={color} align=TextAlign::Center>
-                    <Icon glyph={ICON_MORE_HORIZ.to_owned()} />
+                    <Icon glyph={ICON_ELLIPSIS.to_owned()} />
                 </Text>
             </Frame>
         </Tooltip>
@@ -453,8 +452,8 @@ fn ChevronFace(
         false => TextColor::Muted,
     });
     let glyph = create_memo(move || match expanded.get() {
-        true => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
-        false => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
+        true => ICON_CHEVRON_DOWN.to_owned(),
+        false => ICON_CHEVRON_RIGHT.to_owned(),
     });
     let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * sized.get().indent));
     let width = create_memo(move || Extent::px(sized.get().chevron));

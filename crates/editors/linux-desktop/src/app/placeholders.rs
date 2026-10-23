@@ -1,4 +1,4 @@
-use block_editor_beui::beui::icons::{ICON_OPEN_IN_NEW, ICON_REOPEN_WINDOW, ICON_WEB_ASSET};
+use block_editor_beui::beui::icons::{ICON_APP_WINDOW, ICON_EXTERNAL_LINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
@@ -226,7 +226,7 @@ fn PlaceholderBody(
                 </Show>
                 <Show condition={plain}>
                     <Text size=TextSize::Xl5 color=TextColor::Muted>
-                        <Icon glyph={ICON_WEB_ASSET.to_owned()} />
+                        <Icon glyph={ICON_APP_WINDOW.to_owned()} />
                     </Text>
                 </Show>
                 <Text style=TextStyle::HEADING>{name}</Text>
@@ -234,7 +234,7 @@ fn PlaceholderBody(
                 <List direction=Direction::Horizontal align=Align::Center spacing=BUTTON_SPACING>
                     <Button
                         label="Open"
-                        glyph={ICON_OPEN_IN_NEW.to_owned()}
+                        glyph={ICON_EXTERNAL_LINK.to_owned()}
                         variant=ButtonVariant::Primary
                         disabled={unopenable}
                         @test_id={format!("desktop.placeholder.{}.open", key.0)}
@@ -261,7 +261,7 @@ pub(crate) fn OpenAllButton(placeholders: Placeholders) -> NodeId {
     });
     view! {
         <IconButton
-            glyph={ICON_REOPEN_WINDOW.to_owned()}
+            glyph={ICON_APP_WINDOW.to_owned()}
             label={label}
             @test_id={"desktop.placeholders.open_all"}
             on_click={move || placeholders.open_all()}

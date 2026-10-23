@@ -1,6 +1,6 @@
 use block_editor_beui::Fit;
 use block_editor_beui::be_block::PdfContent;
-use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
+use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
@@ -89,7 +89,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             <Toolbar shown={chrome}>
                 <Text>"PDF"</Text>
                 <block_editor_beui::beui::styled::IconButton
-                    glyph={ICON_ARROW_BACK.to_owned()}
+                    glyph={ICON_ARROW_LEFT.to_owned()}
                     label="Previous page"
                     disabled={first}
                     @test_id={"pdf.previous"}
@@ -97,7 +97,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                 />
                 <Text style=TextStyle::CAPTION>{page_label}</Text>
                 <block_editor_beui::beui::styled::IconButton
-                    glyph={ICON_ARROW_FORWARD.to_owned()}
+                    glyph={ICON_ARROW_RIGHT.to_owned()}
                     label="Next page"
                     disabled={last}
                     @test_id={"pdf.next"}

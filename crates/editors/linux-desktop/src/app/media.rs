@@ -1,8 +1,7 @@
 use beui::KeyAt;
 use block_editor_beui::beui::icons::{
-    ICON_BRIGHTNESS_HIGH, ICON_BRIGHTNESS_LOW, ICON_MIC, ICON_MIC_OFF, ICON_PLAY_PAUSE,
-    ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_STOP, ICON_VOLUME_DOWN, ICON_VOLUME_OFF,
-    ICON_VOLUME_UP,
+    ICON_MIC, ICON_MIC_OFF, ICON_PLAY, ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_SQUARE, ICON_SUN,
+    ICON_SUN_DIM, ICON_VOLUME_1, ICON_VOLUME_2, ICON_VOLUME_X,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -79,16 +78,16 @@ impl MediaKey {
 
     fn glyph(self) -> &'static str {
         match self {
-            Self::VolumeUp => ICON_VOLUME_UP,
-            Self::VolumeDown => ICON_VOLUME_DOWN,
-            Self::Mute => ICON_VOLUME_OFF,
+            Self::VolumeUp => ICON_VOLUME_2,
+            Self::VolumeDown => ICON_VOLUME_1,
+            Self::Mute => ICON_VOLUME_X,
             Self::MicMute => ICON_MIC_OFF,
-            Self::BrightnessUp => ICON_BRIGHTNESS_HIGH,
-            Self::BrightnessDown => ICON_BRIGHTNESS_LOW,
-            Self::PlayPause => ICON_PLAY_PAUSE,
-            Self::Next => ICON_SKIP_NEXT,
-            Self::Previous => ICON_SKIP_PREVIOUS,
-            Self::Stop => ICON_STOP,
+            Self::BrightnessUp => ICON_SUN,
+            Self::BrightnessDown => ICON_SUN_DIM,
+            Self::PlayPause => ICON_PLAY,
+            Self::Next => ICON_SKIP_FORWARD,
+            Self::Previous => ICON_SKIP_BACK,
+            Self::Stop => ICON_SQUARE,
         }
     }
 
@@ -116,9 +115,9 @@ impl MediaKey {
 
 pub(crate) fn volume_glyph(level: MediaLevel) -> &'static str {
     match level.level {
-        _ if level.muted || level.level <= 0.0 => ICON_VOLUME_OFF,
-        volume if volume < 0.5 => ICON_VOLUME_DOWN,
-        _ => ICON_VOLUME_UP,
+        _ if level.muted || level.level <= 0.0 => ICON_VOLUME_X,
+        volume if volume < 0.5 => ICON_VOLUME_1,
+        _ => ICON_VOLUME_2,
     }
 }
 
@@ -142,8 +141,8 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
         }),
         Shown::Brightness => levels.brightness.map(|level| OsdLevel {
             glyph: match level < 0.5 {
-                true => ICON_BRIGHTNESS_LOW,
-                false => ICON_BRIGHTNESS_HIGH,
+                true => ICON_SUN_DIM,
+                false => ICON_SUN,
             }
             .to_owned(),
             label: "Brightness".to_owned(),

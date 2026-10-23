@@ -6,7 +6,7 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_RIGHT, ICON_FIBER_MANUAL_RECORD};
+use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_RIGHT, ICON_DOT};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -83,7 +83,7 @@ pub(crate) fn ActionRowFace(
     let theme = use_theme();
     let ticked = create_memo(move || checked.get() == Some(true));
     let tick = match radio {
-        true => ICON_FIBER_MANUAL_RECORD,
+        true => ICON_DOT,
         false => ICON_CHECK,
     };
     let off = create_memo(move || disabled.get());

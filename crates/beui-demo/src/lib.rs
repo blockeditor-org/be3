@@ -4,15 +4,15 @@ use base_pages::{
 use beui::KeyAt;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::icons::{
-    ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
-    ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
-    ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_FORMAT_BOLD,
-    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LINE_CURVE, ICON_LINK, ICON_LIST, ICON_LOCK,
-    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW,
-    ICON_POWER_SETTINGS_NEW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
-    ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
-    ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP,
-    ICON_WIDGETS,
+    ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG, ICON_CALENDAR_DAYS,
+    ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST, ICON_COPY,
+    ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
+    ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
+    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
+    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_POWER, ICON_SHARE_2,
+    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
+    ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE, ICON_VOLUME_1, ICON_VOLUME_2,
+    ICON_VOLUME_X,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -215,36 +215,36 @@ impl Page {
 
     fn icon(self) -> &'static str {
         match self {
-            Page::Docking => ICON_VIEW_QUILT,
-            Page::Text => ICON_TEXT_FIELDS,
-            Page::Buttons => ICON_SMART_BUTTON,
-            Page::Inputs => ICON_TOGGLE_ON,
-            Page::Choices => ICON_RADIO_BUTTON_CHECKED,
-            Page::Pickers => ICON_CALENDAR_MONTH,
+            Page::Docking => ICON_LAYOUT_PANEL_LEFT,
+            Page::Text => ICON_TYPE,
+            Page::Buttons => ICON_MOUSE_POINTER_CLICK,
+            Page::Inputs => ICON_TOGGLE_RIGHT,
+            Page::Choices => ICON_CIRCLE_DOT,
+            Page::Pickers => ICON_CALENDAR_DAYS,
             Page::Colors => ICON_PALETTE,
             Page::Menus => ICON_MENU,
             Page::Overlays => ICON_LAYERS,
             Page::Rows => ICON_LIST,
-            Page::Tree => ICON_ACCOUNT_TREE,
-            Page::Layout => ICON_DASHBOARD,
-            Page::Editor => ICON_NOTES,
-            Page::RichText => ICON_FORMAT_BOLD,
-            Page::Collaboration => ICON_SHARE,
-            Page::Canvas => ICON_DRAW,
+            Page::Tree => ICON_NETWORK,
+            Page::Layout => ICON_LAYOUT_DASHBOARD,
+            Page::Editor => ICON_TEXT_ALIGN_START,
+            Page::RichText => ICON_BOLD,
+            Page::Collaboration => ICON_SHARE_2,
+            Page::Canvas => ICON_PEN_TOOL,
             Page::Themes => ICON_CONTRAST,
-            Page::Pressing => ICON_TOUCH_APP,
-            Page::Values => ICON_TUNE,
-            Page::Selecting => ICON_INPUT,
-            Page::Popups => ICON_OPEN_IN_NEW,
-            Page::Dragging => ICON_DRAG_INDICATOR,
-            Page::Scrolling => ICON_SWAP_VERT,
-            Page::Frames => ICON_CROP_SQUARE,
-            Page::Paths => ICON_LINE_CURVE,
-            Page::TextNodes => ICON_TITLE,
-            Page::Lists => ICON_VIEW_COLUMN,
-            Page::ControlFlow => ICON_ALT_ROUTE,
+            Page::Pressing => ICON_POINTER,
+            Page::Values => ICON_SLIDERS_HORIZONTAL,
+            Page::Selecting => ICON_LOG_IN,
+            Page::Popups => ICON_EXTERNAL_LINK,
+            Page::Dragging => ICON_GRIP_VERTICAL,
+            Page::Scrolling => ICON_ARROW_UP_DOWN,
+            Page::Frames => ICON_SQUARE,
+            Page::Paths => ICON_SPLINE,
+            Page::TextNodes => ICON_HEADING,
+            Page::Lists => ICON_COLUMNS_3,
+            Page::ControlFlow => ICON_SPLIT,
             Page::Interaction => ICON_MOUSE,
-            Page::Layering => ICON_FLIP_TO_FRONT,
+            Page::Layering => ICON_BRING_TO_FRONT,
         }
     }
 
@@ -596,7 +596,7 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
                 layout.commit_switch();
             }
         })
-        .glyph(ICON_FLIP_TO_FRONT)
+        .glyph(ICON_BRING_TO_FRONT)
         .shortcut(chord)
         .at(KeyAt::Window)
         .register();
@@ -631,7 +631,7 @@ fn DemoShell() -> NodeId {
             <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
                 <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                     <DockPane id="catalog">
-                        <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
+                        <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
                             <CatalogPanel pages active={active} />
                         </DockTab>
                     </DockPane>
@@ -671,7 +671,7 @@ fn DemoShell() -> NodeId {
                         anchor={dialog.anchor()}
                         dismiss_on_outside_press={dialog.card}
                         title={dialog.title()}
-                        icon=ICON_OPEN_IN_NEW
+                        icon=ICON_EXTERNAL_LINK
                         size={dialog.size()}
                         on_close={move || dialogs.close(dialog.id)}
                     >
@@ -833,7 +833,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             />
             <IconButton
                 @test_id={"demo.inspector"}
-                glyph=ICON_BUG_REPORT
+                glyph=ICON_BUG
                 label="Open the inspector"
                 variant=ButtonVariant::Ghost
                 on_click={|| with_document(Document::open_inspector)}

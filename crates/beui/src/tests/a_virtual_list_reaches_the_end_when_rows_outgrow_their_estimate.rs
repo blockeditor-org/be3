@@ -1,6 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 const ROWS: usize = 100;
 const ESTIMATE: f32 = 20.0;
@@ -15,7 +16,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <VirtualList
                         @node_ref=&list
                         keys={indices(ROWS)}
@@ -31,7 +32,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
                             </Frame>
                         }
                     }</VirtualList>
-                </Offset>
+                </Scroll>
             </List>
         }
     });

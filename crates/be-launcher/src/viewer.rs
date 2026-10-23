@@ -1,4 +1,4 @@
-use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
+use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_EXTERNAL_LINK, ICON_X};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::Picture;
@@ -120,13 +120,8 @@ pub(crate) fn ViewerBar(
                 disabled={last}
                 on_click={on_next}
             />
-            <IconButton glyph=ICON_OPEN_IN_NEW label="Open in the browser" on_click={on_browse} />
-            <IconButton
-                @test_id={"viewer.close"}
-                glyph=ICON_CLOSE
-                label="Close"
-                on_click={on_close}
-            />
+            <IconButton glyph=ICON_EXTERNAL_LINK label="Open in the browser" on_click={on_browse} />
+            <IconButton @test_id={"viewer.close"} glyph=ICON_X label="Close" on_click={on_close} />
         </List>
     }
 }

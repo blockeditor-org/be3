@@ -1,6 +1,6 @@
 use beui::KeyAt;
 use block_editor_beui::beui::Key;
-use block_editor_beui::beui::icons::ICON_FULLSCREEN;
+use block_editor_beui::beui::icons::ICON_MAXIMIZE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Editor, HostWindows, WindowAction};
 
@@ -20,7 +20,7 @@ pub(super) fn bind_fullscreen(editor: Editor) {
             });
         }
     })
-    .glyph(ICON_FULLSCREEN)
+    .glyph(ICON_MAXIMIZE)
     .shortcut(Chord::logo(Key::F))
     .at(KeyAt::Window)
     .capture()

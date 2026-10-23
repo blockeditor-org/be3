@@ -17,7 +17,7 @@ use beui_components_unstyled::{
 };
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_MORE_VERT};
+use beui_core::icons::{ICON_ARROW_LEFT, ICON_ELLIPSIS_VERTICAL, ICON_X};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -58,7 +58,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <Show condition={backward}>
                         <IconButton
                             @test_id={"dock.back"}
-                            glyph=ICON_ARROW_BACK
+                            glyph=ICON_ARROW_LEFT
                             label="Back"
                             variant=ButtonVariant::Ghost
                             on_click={back}
@@ -252,7 +252,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     <Show condition={closable}>
                         <IconButton
                             @test_id={format!("dock.switcher.close.{id}")}
-                            glyph=ICON_CLOSE
+                            glyph=ICON_X
                             label="Close tab"
                             variant=ButtonVariant::Ghost
                             on_click={close}
@@ -262,7 +262,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                         <IconMenuButton
                             @test_id={format!("dock.switcher.menu.{id}")}
                             label="More"
-                            glyph=ICON_MORE_VERT
+                            glyph=ICON_ELLIPSIS_VERTICAL
                             items={view! {
                                 <unstyled::MenuNodes
                                     nodes={menu}

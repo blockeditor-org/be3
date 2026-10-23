@@ -20,7 +20,7 @@ pub struct BlockDisplay {
 
 pub fn label_glyph(label: &BlockLabel) -> Option<&'static str> {
     match label.reach {
-        Reach::Open if label.deleted => Some(beui::icons::ICON_DELETE),
+        Reach::Open if label.deleted => Some(beui::icons::ICON_TRASH),
         Reach::Open => label.icon,
         Reach::Locked | Reach::NoAccess => Some(beui::icons::ICON_LOCK),
     }

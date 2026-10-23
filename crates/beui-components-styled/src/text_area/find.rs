@@ -13,7 +13,7 @@ use crate::text::{Text, TextColor, TextStyle};
 use beui_components_unstyled::TextAreaState;
 use beui_core::font::TextAlign;
 use beui_core::icons::{
-    ICON_CLOSE, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_UP, ICON_MATCH_CASE, ICON_SEARCH,
+    ICON_CASE_SENSITIVE, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_SEARCH, ICON_X,
 };
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -67,7 +67,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             />
                         </Frame>
                         <ToggleButton
-                            glyph=ICON_MATCH_CASE
+                            glyph=ICON_CASE_SENSITIVE
                             icon_only=true
                             label="Match case"
                             pressed={Binding::new(case_sensitive, move |pressed: bool| state.set_find_case_sensitive(pressed))}
@@ -75,21 +75,21 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                         />
                         <Text style=TextStyle::CAPTION>{summary}</Text>
                         <IconButton
-                            glyph=ICON_KEYBOARD_ARROW_UP
+                            glyph=ICON_CHEVRON_UP
                             label="Previous match"
                             disabled={no_matches}
                             @test_id={"text.find.previous"}
                             on_click={move || state.find_step(FindDirection::Previous)}
                         />
                         <IconButton
-                            glyph=ICON_KEYBOARD_ARROW_DOWN
+                            glyph=ICON_CHEVRON_DOWN
                             label="Next match"
                             disabled={no_matches}
                             @test_id={"text.find.next"}
                             on_click={move || state.find_step(FindDirection::Next)}
                         />
                         <IconButton
-                            glyph=ICON_CLOSE
+                            glyph=ICON_X
                             label="Close"
                             @test_id={"text.find.close"}
                             on_click={move || state.close_find()}

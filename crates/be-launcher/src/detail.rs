@@ -1,5 +1,5 @@
 use beui::NodeId;
-use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
+use beui::icons::{ICON_EXTERNAL_LINK, ICON_GIT_COMMIT_HORIZONTAL, ICON_REFRESH_CW};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled;
@@ -127,13 +127,13 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                             />
                             <Button
                                 label="Open on GitHub"
-                                glyph=ICON_OPEN_IN_NEW
+                                glyph=ICON_EXTERNAL_LINK
                                 variant=ButtonVariant::Ghost
                                 on_click={open}
                             />
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                             <IconButton
-                                glyph=ICON_REFRESH
+                                glyph=ICON_REFRESH_CW
                                 label="Reload the conversation"
                                 on_click={refresh}
                             />
@@ -314,7 +314,7 @@ fn CommitRow(sha: String, message: String) -> NodeId {
         <Frame padding={Sides::symmetric(EVENT_INDENT, 3.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph=ICON_COMMIT />
+                    <Icon glyph=ICON_GIT_COMMIT_HORIZONTAL />
                 </Text>
                 <Text style=TextStyle::CODE color=TextColor::Muted>{sha}</Text>
                 <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{message}</Text>

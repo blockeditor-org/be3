@@ -1,5 +1,5 @@
 use beui_components_unstyled::{ChoiceOption, MenuItem};
-use beui_core::icons::ICON_SETTINGS_BACKUP_RESTORE;
+use beui_core::icons::ICON_ROTATE_CCW;
 use beui_core::node::NodeId;
 use beui_core::preferences::{Motion, PreferenceLayer, PreferenceSource, ThemeKind};
 use beui_macros::{component, view};
@@ -113,7 +113,7 @@ pub fn PreferencesSection(
     let theme_menu: Children<MenuItem> = [view! {
         <MenuItem
             label=RESET
-            glyph={ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+            glyph={ICON_ROTATE_CCW.to_owned()}
             disabled={create_memo(move || theme.get().is_none())}
             row_test_id={"preferences.theme.reset".to_owned()}
             on_click={move || set_theme.call(None)}
@@ -124,7 +124,7 @@ pub fn PreferencesSection(
     let motion_menu: Children<MenuItem> = [view! {
         <MenuItem
             label=RESET
-            glyph={ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+            glyph={ICON_ROTATE_CCW.to_owned()}
             disabled={create_memo(move || motion.get().is_none())}
             row_test_id={"preferences.motion.reset".to_owned()}
             on_click={move || set_motion.call(None)}

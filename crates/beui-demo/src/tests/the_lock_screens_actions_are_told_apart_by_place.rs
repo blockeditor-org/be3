@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::icons::ICON_BEDTIME;
+use beui::icons::ICON_MOON;
 
 use super::*;
 
@@ -13,7 +13,7 @@ fn the_lock_screens_actions_are_told_apart_by_place() {
         move || {
             let same = LockAction {
                 label: "Suspend".to_owned(),
-                glyph: ICON_BEDTIME.to_owned(),
+                glyph: ICON_MOON.to_owned(),
             };
             view! {
                 <Root>

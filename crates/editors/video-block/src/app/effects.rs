@@ -2,7 +2,7 @@ use block_editor_beui::be_block::video::{
     MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect,
 };
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_LINK_OFF;
+use block_editor_beui::beui::icons::ICON_UNLINK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
@@ -112,7 +112,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 <Text style=TextStyle::CAPTION color={parent_color}>{parent_name}</Text>
                 <Show condition={hanging}>
                     <IconButton
-                        glyph={ICON_LINK_OFF.to_owned()}
+                        glyph={ICON_UNLINK.to_owned()}
                         label="Move this clip onto the base track"
                         @test_id={"video.detach"}
                         on_click={move || {

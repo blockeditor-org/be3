@@ -1,4 +1,5 @@
 use super::*;
+use crate::unstyled::Scroll;
 
 #[test]
 fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
@@ -9,7 +10,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <VirtualList
                         @node_ref=&list
                         keys={keys}
@@ -25,7 +26,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
                             </Frame>
                         }
                     }</VirtualList>
-                </Offset>
+                </Scroll>
             </List>
         }
     });

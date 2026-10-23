@@ -313,7 +313,7 @@ pub fn face(value: Value) -> Face {
     use beui_core::icons::*;
     use beui_core::input::Key;
     match value {
-        Value::Char(' ') => Face::glyph(ICON_SPACE_BAR),
+        Value::Char(' ') => Face::glyph(ICON_SPACE),
         Value::Char('\t') => Face::text("\\t"),
         Value::Char('\u{a0}') => Face::text("nbsp"),
         Value::Char(character) if is_combining(character) => {
@@ -322,23 +322,23 @@ pub fn face(value: Value) -> Face {
         Value::Char(character) => Face::text(character.to_string()),
         Value::Key(key) => match key {
             Key::Escape => Face::text("Esc"),
-            Key::Tab => Face::glyph(ICON_KEYBOARD_TAB),
-            Key::Enter => Face::glyph(ICON_KEYBOARD_RETURN),
-            Key::Backspace => Face::glyph(ICON_BACKSPACE),
+            Key::Tab => Face::glyph(ICON_ARROW_RIGHT_TO_LINE),
+            Key::Enter => Face::glyph(ICON_CORNER_DOWN_LEFT),
+            Key::Backspace => Face::glyph(ICON_DELETE),
             Key::Delete => Face::text("»"),
             Key::Insert => Face::text("Ins"),
-            Key::Home => Face::glyph(ICON_FIRST_PAGE),
+            Key::Home => Face::glyph(ICON_CHEVRON_FIRST),
             Key::End => Face::text("End"),
             Key::PageUp => Face::text("PgUp"),
             Key::PageDown => Face::text("PgDn"),
-            Key::ArrowLeft => Face::glyph(ICON_KEYBOARD_ARROW_LEFT),
-            Key::ArrowRight => Face::glyph(ICON_KEYBOARD_ARROW_RIGHT),
-            Key::ArrowUp => Face::glyph(ICON_KEYBOARD_ARROW_UP),
-            Key::ArrowDown => Face::glyph(ICON_KEYBOARD_ARROW_DOWN),
+            Key::ArrowLeft => Face::glyph(ICON_CHEVRON_LEFT),
+            Key::ArrowRight => Face::glyph(ICON_CHEVRON_RIGHT),
+            Key::ArrowUp => Face::glyph(ICON_CHEVRON_UP),
+            Key::ArrowDown => Face::glyph(ICON_CHEVRON_DOWN),
             key => Face::text(format!("{key:?}")),
         },
         Value::Modifier(modifier) => match modifier {
-            Modifier::Shift => Face::glyph(ICON_SHIFT),
+            Modifier::Shift => Face::glyph(ICON_ARROW_BIG_UP),
             Modifier::Ctrl => Face::text("Ctrl"),
             Modifier::Alt => Face::text("Alt"),
             Modifier::Meta => Face::text("Meta"),
@@ -346,29 +346,27 @@ pub fn face(value: Value) -> Face {
             Modifier::Superscript => Face::glyph(ICON_SUPERSCRIPT),
             Modifier::Subscript => Face::glyph(ICON_SUBSCRIPT),
         },
-        Value::CapsLock => Face::glyph(ICON_KEYBOARD_CAPSLOCK),
-        Value::Action(Action::DeleteWordLeft) => Face::around("«", ICON_MATCH_WORD, ""),
-        Value::Action(Action::DeleteWordRight) => Face::around("", ICON_MATCH_WORD, "»"),
+        Value::CapsLock => Face::glyph(ICON_ARROW_BIG_UP_DASH),
+        Value::Action(Action::DeleteWordLeft) => Face::around("«", ICON_WHOLE_WORD, ""),
+        Value::Action(Action::DeleteWordRight) => Face::around("", ICON_WHOLE_WORD, "»"),
         Value::Action(action) => Face::glyph(match action {
-            Action::Copy => ICON_CONTENT_COPY,
-            Action::Paste => ICON_CONTENT_PASTE,
-            Action::PastePlain => ICON_CONTENT_PASTE_GO,
-            Action::SelectAll => ICON_SELECT_ALL,
-            Action::Undo => ICON_UNDO,
-            Action::Redo => ICON_REDO,
+            Action::Copy => ICON_COPY,
+            Action::Paste => ICON_CLIPBOARD,
+            Action::PastePlain => ICON_CLIPBOARD_PASTE,
+            Action::SelectAll => ICON_SQUARE_DASHED_MOUSE_POINTER,
+            Action::Undo => ICON_UNDO_2,
+            Action::Redo => ICON_REDO_2,
             Action::DeleteWordLeft | Action::DeleteWordRight => "",
         }),
         Value::Layer(layer) => match layer {
             Layer::Text => Face::text("ABC"),
             Layer::Greek => Face::text("αβγ"),
             Layer::Numpad => Face::text("123"),
-            Layer::Emoji => Face::glyph(ICON_EMOJI_EMOTIONS),
+            Layer::Emoji => Face::glyph(ICON_FACE_SLIGHTLY_SMILING),
         },
-        Value::Compose => Face::glyph(ICON_GLYPHS),
-        Value::Slider(Slider::CursorLeft | Slider::SelectWords) => {
-            Face::glyph(ICON_KEYBOARD_ARROW_LEFT)
-        }
-        Value::Slider(Slider::CursorRight) => Face::glyph(ICON_KEYBOARD_ARROW_RIGHT),
+        Value::Compose => Face::glyph(ICON_LANGUAGES),
+        Value::Slider(Slider::CursorLeft | Slider::SelectWords) => Face::glyph(ICON_CHEVRON_LEFT),
+        Value::Slider(Slider::CursorRight) => Face::glyph(ICON_CHEVRON_RIGHT),
     }
 }
 
@@ -408,46 +406,14 @@ fn is_combining(character: char) -> bool {
 }
 
 pub const EMOJI_GROUPS: [(emojis::Group, &str, &str); 8] = [
-    (
-        emojis::Group::SmileysAndEmotion,
-        beui_core::icons::ICON_EMOJI_EMOTIONS,
-        "Smileys",
-    ),
-    (
-        emojis::Group::PeopleAndBody,
-        beui_core::icons::ICON_EMOJI_PEOPLE,
-        "People",
-    ),
-    (
-        emojis::Group::AnimalsAndNature,
-        beui_core::icons::ICON_EMOJI_NATURE,
-        "Nature",
-    ),
-    (
-        emojis::Group::FoodAndDrink,
-        beui_core::icons::ICON_EMOJI_FOOD_BEVERAGE,
-        "Food",
-    ),
-    (
-        emojis::Group::TravelAndPlaces,
-        beui_core::icons::ICON_EMOJI_TRANSPORTATION,
-        "Travel",
-    ),
-    (
-        emojis::Group::Activities,
-        beui_core::icons::ICON_EMOJI_EVENTS,
-        "Activities",
-    ),
-    (
-        emojis::Group::Objects,
-        beui_core::icons::ICON_EMOJI_OBJECTS,
-        "Objects",
-    ),
-    (
-        emojis::Group::Symbols,
-        beui_core::icons::ICON_EMOJI_SYMBOLS,
-        "Symbols",
-    ),
+    (emojis::Group::SmileysAndEmotion, "\u{1f600}", "Smileys"),
+    (emojis::Group::PeopleAndBody, "\u{1f44b}", "People"),
+    (emojis::Group::AnimalsAndNature, "\u{1f43b}", "Nature"),
+    (emojis::Group::FoodAndDrink, "\u{1f354}", "Food"),
+    (emojis::Group::TravelAndPlaces, "\u{1f697}", "Travel"),
+    (emojis::Group::Activities, "\u{26bd}", "Activities"),
+    (emojis::Group::Objects, "\u{1f4a1}", "Objects"),
+    (emojis::Group::Symbols, "\u{1f523}", "Symbols"),
 ];
 
 pub fn emojis_in(group: usize) -> Vec<&'static str> {
