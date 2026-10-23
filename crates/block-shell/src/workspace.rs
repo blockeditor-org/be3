@@ -23,6 +23,7 @@ use block_editor_beui::{
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
+use super::appearance::Appearing;
 use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
@@ -84,6 +85,7 @@ pub struct Workspace {
     pub(crate) sheet: Signal<PhoneSheet>,
     pub(crate) picks: Signal<Vec<Pick>>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
+    appearance: Signal<Option<Appearing>>,
     pub(crate) share: Signal<Option<Share>>,
     windows: Memo<Vec<HostWindow>>,
     keeps_windows: bool,
@@ -107,6 +109,7 @@ impl Workspace {
         let sheet = create_signal(PhoneSheet::Closed);
         let picks = create_signal(Vec::new());
         let dialog = create_signal(None);
+        let appearance = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
         let windows = editor.host_value::<HostWindows>();
@@ -146,6 +149,7 @@ impl Workspace {
             picks,
             default_editors,
             dialog,
+            appearance,
             share,
             windows,
             keeps_windows,
@@ -416,6 +420,16 @@ impl Workspace {
             match dialog {
                 ShellDialog::Rename => self.open_dialog(OpenDialog::Rename(block)),
                 ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
+                ShellDialog::Appearance { anchor, within } => {
+                    let tab = within
+                        .map(Uuid::from_bytes)
+                        .and_then(|within| self.tab_of_block(within))
+                        .or_else(|| inner.layout.focused());
+                    self.appearance.set(Some(Appearing {
+                        block,
+                        anchor: PickAnchor { rect: anchor, tab },
+                    }));
+                }
             }
         }
         for panel in self.editor.take_panel_requests() {
@@ -436,6 +450,26 @@ impl Workspace {
             self.share.set(Some(Share::new(block, request)));
         }
         self.dialog.set(Some(dialog));
+    }
+
+    pub fn appearance_dialogs(&self) -> Memo<Vec<(Uuid, TabId)>> {
+        let appearance = self.appearance;
+        create_memo(move || {
+            appearance
+                .get()
+                .and_then(|shown| Some((shown.block, shown.anchor.tab?)))
+                .into_iter()
+                .collect()
+        })
+    }
+
+    pub fn appearance_anchor(&self) -> Option<PickAnchor> {
+        self.appearance
+            .with_untracked(|shown| shown.map(|shown| shown.anchor))
+    }
+
+    pub(crate) fn close_appearance(&self) {
+        self.appearance.set(None);
     }
 
     pub(crate) fn close_dialog(&self) {

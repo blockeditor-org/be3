@@ -1,8 +1,8 @@
 use block_editor_beui::BlockParent;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{
-    ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK,
-    ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+    ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE, ICON_PENCIL_LINE,
+    ICON_ROTATE_CCW_CLOCK, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -139,7 +139,7 @@ fn SectionMenu<F: Fn() + 'static>(
                 danger=true
                 row_test_id={"file-tree.section.delete".to_owned()}
             />
-            <Appearance editor row />
+            <Appearance editor picker row />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
@@ -318,7 +318,7 @@ fn BlockMenu<F: Fn() + 'static>(
                     on_click={restore}
                 />
             </Show>
-            <Appearance editor row />
+            <Appearance editor picker row />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
@@ -334,83 +334,24 @@ fn BlockMenu<F: Fn() + 'static>(
 }
 
 #[component]
-fn Appearance(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
-    use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON};
-    use block_editor_beui::beui::Color32;
-    use block_editor_beui::beui::icons::{ICON_CIRCLE, ICON_PALETTE, named};
+fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuItem {
     let disabled = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
-    let set_icon = move |icon: Option<&'static str>| {
-        if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
-            && let Some(id) = shown.id
-        {
-            let blocks = editor.blocks();
-            blocks.define(id, ICON.definition(icon.map(str::to_owned).as_ref()));
-            blocks.define(id, MATERIAL_ICON.definition(None));
-        }
-    };
-    let set_color = move |color: Option<[u8; 3]>| {
+    let open = move || {
         if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
             && let Some(id) = shown.id
         {
             editor
-                .blocks()
-                .define(id, ICON_COLOR.definition(color.as_ref()));
+                .host()
+                .edit_appearance(id, picker.row_anchor(&shown.key));
         }
     };
-    let icons = [
-        ("Document", "file-text"),
-        ("Folder", "folder"),
-        ("Star", "star"),
-        ("Favorite", "heart"),
-        ("Home", "house"),
-        ("Work", "briefcase"),
-        ("School", "graduation-cap"),
-        ("Book", "book"),
-        ("Code", "code"),
-        ("Idea", "lightbulb"),
-        ("Flag", "flag"),
-        ("Calendar", "calendar-days"),
-        ("Checklist", "list-checks"),
-        ("Image", "image"),
-        ("Music", "eighth-note"),
-        ("Public", "globe"),
-    ];
-    let colors = [
-        ("Blue", [65, 145, 210]),
-        ("Green", [44, 158, 128]),
-        ("Purple", [155, 112, 211]),
-        ("Orange", [211, 126, 59]),
-        ("Pink", [203, 91, 125]),
-        ("Teal", [64, 155, 173]),
-        ("Gold", [172, 145, 47]),
-        ("Gray", [135, 139, 148]),
-    ];
     view! {
-        <MenuItem label="Appearance" glyph=ICON_PALETTE disabled row_test_id="file-tree.appearance">
-            <MenuItem label="Icon" row_test_id="file-tree.appearance.icon">
-                <MenuItem label="Use block type icon" on_click={move || set_icon(None)} />
-                <ForEach keys={icons.to_vec()}>|(name, icon): (&'static str, &'static str)|
-                    <MenuItem
-                        label={name}
-                        glyph={named(icon).unwrap_or_default()}
-                        on_click={move || set_icon(Some(icon))}
-                    />
-                </ForEach>
-            </MenuItem>
-            <MenuItem label="Icon color" row_test_id="file-tree.appearance.color">
-                <MenuItem label="Use block type color" on_click={move || set_color(None)} />
-                <ForEach keys={colors.to_vec()}>|(name, color): (&'static str, [u8; 3])| {
-                    let [r, g, b] = color;
-                    view! {
-                        <MenuItem
-                            label={name}
-                            glyph=ICON_CIRCLE
-                            glyph_color={Some(Color32::from_rgb(r,g,b))}
-                            on_click={move || set_color(Some(color))}
-                        />
-                    }
-                }</ForEach>
-            </MenuItem>
-        </MenuItem>
+        <MenuItem
+            label="Appearance…"
+            glyph=ICON_PALETTE
+            disabled
+            row_test_id="file-tree.appearance"
+            on_click={open}
+        />
     }
 }

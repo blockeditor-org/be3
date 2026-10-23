@@ -1,7 +1,7 @@
 use crate::{
     ArtifactDescription, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
     ChildContent, ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply,
-    HostRequest, Message, VersionCommand,
+    HostRequest, Message, ShellDialog, VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -101,9 +101,19 @@ impl EditorMessage {
             | Self::OpenArtifact { block_id, .. }
             | Self::Define { block_id, .. }
             | Self::VersionStatus { block_id, .. } => existing(block_id),
-            Self::ShowDialog { block_id, .. } | Self::SetAccess { block_id, .. } => {
+            Self::ShowDialog {
+                block_id, dialog, ..
+            } => {
                 existing(block_id);
+                if let ShellDialog::Appearance {
+                    within: Some(within),
+                    ..
+                } = dialog
+                {
+                    existing(within);
+                }
             }
+            Self::SetAccess { block_id, .. } => existing(block_id),
             Self::OpenBlock { block_id, via, .. } | Self::ShowBlock { block_id, via, .. } => {
                 existing(block_id);
                 via.iter_mut().for_each(existing);
@@ -136,6 +146,7 @@ impl EditorMessage {
                     BlockCommand::Share
                     | BlockCommand::Leave
                     | BlockCommand::Rename
+                    | BlockCommand::Appearance { .. }
                     | BlockCommand::Undo
                     | BlockCommand::Redo
                     | BlockCommand::Artifact { .. }

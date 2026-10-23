@@ -409,10 +409,14 @@ pub struct SettingsProgress {
     pub summary: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ShellDialog {
     Rename,
     Share,
+    Appearance {
+        anchor: Option<Rect>,
+        within: Option<[u8; 16]>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1460,6 +1464,9 @@ pub enum BlockCommand {
     Share,
     Leave,
     Rename,
+    Appearance {
+        anchor: Option<Rect>,
+    },
     Undo,
     Redo,
     Artifact {

@@ -2012,6 +2012,37 @@ impl BlockApp {
         }
     }
 
+    fn show_appearance(
+        &mut self,
+        from: Option<Uuid>,
+        id: Uuid,
+        anchor: Option<block_plugin_api::Rect>,
+    ) {
+        let Some(handler) = self.handler_for(from, ShellRequest::Dialog) else {
+            return;
+        };
+        let source = from.and_then(|from| self.with_editor(from, |editor| editor.pick_source()));
+        let target = self.with_editor(handler, |editor| editor.pick_source());
+        let anchor = (|| {
+            let (source, target) = (source.flatten()?, target.flatten()?);
+            crate::plugin_host::reanchor(
+                anchor?,
+                crate::plugin_host::frame_placement(&source.plugin_id, source.instance)?,
+                crate::plugin_host::frame_placement(&target.plugin_id, target.instance)?,
+            )
+        })();
+        let within = from.and_then(|from| self.child_within(handler, from));
+        self.with_editor(handler, |handler| {
+            handler.show_dialog(
+                id,
+                ShellDialog::Appearance {
+                    anchor,
+                    within: within.map(Uuid::into_bytes),
+                },
+            );
+        });
+    }
+
     fn show_panel(&mut self, panel: HostPanel) {
         if let Some(shell) = self.shell {
             self.with_editor(shell, |shell| shell.show_panel(panel));
@@ -2441,6 +2472,7 @@ impl BlockApp {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
             BlockCommand::Leave => self.leaving = Some(id),
             BlockCommand::Rename => self.show_dialog(from, id, ShellDialog::Rename),
+            BlockCommand::Appearance { anchor } => self.show_appearance(from, id, anchor),
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}

@@ -8,6 +8,12 @@ fn block_commands_round_trip() {
         BlockCommand::Share,
         BlockCommand::Leave,
         BlockCommand::Rename,
+        BlockCommand::Appearance {
+            anchor: Some(Rect::from_min_size(
+                Pos2::new(4.0, 8.0),
+                Vec2::new(16.0, 24.0),
+            )),
+        },
         BlockCommand::Unlink { container: [5; 16] },
         BlockCommand::Delete {
             block_type: [2; 16],
