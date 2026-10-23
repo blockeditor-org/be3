@@ -1,5 +1,5 @@
-use beui::reactive::*;
 use beui::automation::WindowSize;
+use beui::reactive::*;
 use beui::testing::{Showing, Stepped};
 use beui::{Context, FreetypeFonts, Vec2};
 

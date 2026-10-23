@@ -17,7 +17,10 @@ fn the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked() {
     assert!(harness.compositor().lock_due(), "the lock time ran out");
     assert!(!harness.compositor().idle(), "before the screens go off");
     harness.frame(vec![Input::PointerMoved(pos2(5.0, 5.0))]);
-    assert!(!harness.compositor().lock_due(), "input starts the count again");
+    assert!(
+        !harness.compositor().lock_due(),
+        "input starts the count again"
+    );
 
     let (window, _) = harness.open();
     let _inhibitor = harness.client.inhibit(&window.surface);

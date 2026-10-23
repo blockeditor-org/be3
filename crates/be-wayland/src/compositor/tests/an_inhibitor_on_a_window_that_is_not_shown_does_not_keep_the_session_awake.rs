@@ -12,7 +12,12 @@ fn an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake() 
     let _inhibitor = harness.client.inhibit(&hidden.surface);
     harness.settle();
     assert!(
-        harness.compositor().windows().list().get_untracked().is_empty(),
+        harness
+            .compositor()
+            .windows()
+            .list()
+            .get_untracked()
+            .is_empty(),
         "the window has nothing to show, so it is not shown"
     );
 

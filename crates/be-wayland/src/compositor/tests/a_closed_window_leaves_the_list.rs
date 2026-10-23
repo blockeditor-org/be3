@@ -8,7 +8,14 @@ fn a_closed_window_leaves_the_list() {
     window.xdg_surface.destroy();
     harness.settle();
 
-    assert!(harness.compositor().windows().list().get_untracked().is_empty());
+    assert!(
+        harness
+            .compositor()
+            .windows()
+            .list()
+            .get_untracked()
+            .is_empty()
+    );
     assert!(harness.compositor().windows().signals(id).is_none());
     assert!(
         harness

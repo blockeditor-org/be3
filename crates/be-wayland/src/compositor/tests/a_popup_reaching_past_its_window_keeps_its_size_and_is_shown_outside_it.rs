@@ -9,9 +9,12 @@ fn a_popup_reaching_past_its_window_keeps_its_size_and_is_shown_outside_it() {
     let (window, id) = harness.open();
     let shown = harness.window(id);
 
-    let menu = harness
-        .client
-        .popup(harness.stepped.app_mut().compositor.server(), &window, (10, 280), (150, 200));
+    let menu = harness.client.popup(
+        harness.stepped.app_mut().compositor.server(),
+        &window,
+        (10, 280),
+        (150, 200),
+    );
     harness.settle();
     assert_eq!(
         harness.client.received.popup_geometry,

@@ -31,7 +31,10 @@ fn the_session_idles_after_the_blank_time_and_wakes_on_input() {
     assert!(!idle.get_untracked());
 
     harness.frame_at(woken + BLANK - SECOND);
-    assert!(!harness.compositor().idle(), "the input started the count again");
+    assert!(
+        !harness.compositor().idle(),
+        "the input started the count again"
+    );
     harness.frame_at(woken + BLANK);
     assert!(harness.compositor().idle());
 

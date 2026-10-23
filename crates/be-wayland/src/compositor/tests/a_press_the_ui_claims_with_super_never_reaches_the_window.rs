@@ -22,11 +22,7 @@ fn a_press_the_ui_claims_with_super_never_reaches_the_window() {
     for which in [PointerButton::Primary, PointerButton::Secondary] {
         harness.frame(vec![button(center, which, true)]);
         harness.frame(vec![Input::PointerMoved(center + Vec2::new(30.0, 20.0))]);
-        harness.frame(vec![button(
-            center + Vec2::new(30.0, 20.0),
-            which,
-            false,
-        )]);
+        harness.frame(vec![button(center + Vec2::new(30.0, 20.0), which, false)]);
     }
     harness.frame(vec![
         button(center, PointerButton::Primary, true),

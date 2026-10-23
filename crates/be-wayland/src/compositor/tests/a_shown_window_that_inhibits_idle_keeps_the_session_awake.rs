@@ -14,7 +14,10 @@ fn a_shown_window_that_inhibits_idle_keeps_the_session_awake() {
 
     harness.context().advance_clock(BLANK * 3);
     harness.frame(Vec::new());
-    assert!(!harness.compositor().idle(), "a video playing on screen keeps it on");
+    assert!(
+        !harness.compositor().idle(),
+        "a video playing on screen keeps it on"
+    );
 
     inhibitor.destroy();
     harness.settle();

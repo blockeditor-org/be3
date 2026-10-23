@@ -25,9 +25,12 @@ fn a_drag_reaches_a_popup_past_its_windows_edge() {
         .received
         .serial
         .expect("the press carried a serial");
-    let menu = harness
-        .client
-        .popup(harness.stepped.app_mut().compositor.server(), &window, (10, 280), (150, 200));
+    let menu = harness.client.popup(
+        harness.stepped.app_mut().compositor.server(),
+        &window,
+        (10, 280),
+        (150, 200),
+    );
     harness.client.start_drag(&device, &window.surface, serial);
     harness.settle();
 

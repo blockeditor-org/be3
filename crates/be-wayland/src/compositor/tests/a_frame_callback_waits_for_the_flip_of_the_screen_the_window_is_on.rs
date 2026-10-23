@@ -23,7 +23,10 @@ fn a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on() {
         harness.client.received.frames, 0,
         "a painted window is not told to draw again before its screen flips"
     );
-    assert!(harness.compositor().awaits_flip(), "the host is asked for the flip");
+    assert!(
+        harness.compositor().awaits_flip(),
+        "the host is asked for the flip"
+    );
 
     harness.compositor().presented(right, flip(1));
     harness.frame(Vec::new());

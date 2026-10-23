@@ -82,9 +82,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     menu.set(true);
     stepped.frame(Vec::new());
     stepped.document_mut().focus_focusable(item.get());
-    stepped.frame(
-        vec![key(Key::Escape, true), key(Key::Escape, false)],
-    );
+    stepped.frame(vec![key(Key::Escape, true), key(Key::Escape, false)]);
     stepped.frame(Vec::new());
     assert!(!menu.get_untracked(), "Escape closes a menu open over it");
     assert_eq!(stopped.get(), 0, "and leaves the presentation up");

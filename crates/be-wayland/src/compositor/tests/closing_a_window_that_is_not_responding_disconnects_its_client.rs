@@ -31,7 +31,12 @@ fn closing_a_window_that_is_not_responding_disconnects_its_client() {
         "closing a frozen client disconnects it"
     );
     assert!(
-        harness.compositor().windows().list().get_untracked().is_empty(),
+        harness
+            .compositor()
+            .windows()
+            .list()
+            .get_untracked()
+            .is_empty(),
         "its window goes"
     );
 }

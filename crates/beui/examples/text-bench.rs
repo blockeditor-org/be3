@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 use beui::primitives::{Span, Text};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::TextAreaState;
 use beui::testing::{Screen, Showing};
+use beui::unstyled::TextAreaState;
 use beui::{
     Document, Incoming, Input, Launch, Platform, PointerButton, Pos2, RunOptions, Setup, Vec2,
     Waker, pos2,
