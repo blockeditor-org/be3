@@ -134,18 +134,30 @@ host's events and a plugin's. A host passes a key on to a plugin as the platform
 reported it, physical key and text included, so the plugin's runner sees what the
 host's did.
 
-A key has two names. `Key` is what it means under the person's layout, so
-Ctrl+Z is the key that types `z`, wherever it sits: every runner names it from
-the platform's layout (winit's key without modifiers, xkb's keysym, the web's
-`KeyboardEvent.key`, Android's key code), and only a key whose character has
-no `Key` of its own (a Cyrillic letter, say) is named by its place on a US
-keyboard instead. `evdev` on `Keystroke` and `Event::Key` is where the key
+A key has two names. `Key` is what shortcuts match, and one rule names it on
+every platform, `Key::from_typed`: if the key's character under the person's
+layout is an ASCII letter or digit, `Key` is that letter or digit; otherwise it
+is the key at that place on a US keyboard. Named keys (Enter, arrows, F-keys,
+modifiers, media keys) are named by what they are. So Ctrl+Z is the key that
+types `z` wherever the layout puts it, a Cyrillic or accented letter (`с`, `ą`)
+is the key it sits on, and punctuation is positional: AZERTY's comma key is
+`Key::M` and US `;` is `Key::Semicolon`, as in VS Code's default keybindings.
+Shift can't change the answer: on a letter it only changes case, and on the
+digit row whichever side is a symbol falls to its place, which is that digit
+(US Shift+1 `!`, AZERTY `&` and Czech `ě` are all `Key::One`). Menus label a
+punctuation shortcut with its US character. Each runner gives the rule the
+layout's character and the physical key: winit its key without modifiers and
+physical key, the web `KeyboardEvent.key` and `code` (never the deprecated
+`keyCode`), drm the keysym's character and its evdev code, Android the key's
+unmodified character and key code. Web and winit share `Key::from_value`, which
+reads a W3C key value. `evdev` on `Keystroke` and `Event::Key` is where the key
 sits, as a Linux evdev code (`KEY_A` is 30), on every platform: winit and the
 web map their W3C physical codes with `Key::evdev_from_code`, Android passes
-its scan code and drm its evdev code, and drive sends `Key::evdev`. It is
-`None` for a key with no physical place, such as one from an on-screen
-keyboard. It is for programs that apply a layout of their own, such as
-be-wayland's Wayland clients; shortcuts match `Key`.
+its scan code and drm its evdev code, and drive sends `Key::evdev`;
+`Key::from_evdev` names the key in that place. It is `None` for a key with no
+physical place, such as one from an on-screen keyboard. It is for programs that
+apply a layout of their own, such as be-wayland's Wayland clients; shortcuts
+match `Key`.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 

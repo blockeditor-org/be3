@@ -728,6 +728,13 @@ fn modifiers(meta: jint) -> Modifiers {
     }
 }
 
+fn unicode(character: jint) -> Option<char> {
+    u32::try_from(character)
+        .ok()
+        .filter(|character| *character > 0)
+        .and_then(char::from_u32)
+}
+
 fn is_modifier(code: jint) -> bool {
     matches!(code, 57..=60 | 113 | 114 | 117 | 118)
 }
@@ -1137,12 +1144,10 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     repeat: jint,
     meta: jint,
     character: jint,
+    layout_character: jint,
 ) -> jboolean {
-    let key = key(code);
-    let character = u32::try_from(character)
-        .ok()
-        .filter(|character| *character > 0)
-        .and_then(char::from_u32);
+    let character = unicode(character);
+    let key = Key::from_typed(unicode(layout_character), key(code));
     let types = character.is_some_and(|character| !character.is_control());
     let handled = key.is_some() || types || is_modifier(code);
     let text = character.map(String::from);

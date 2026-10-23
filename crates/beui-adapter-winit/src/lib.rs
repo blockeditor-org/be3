@@ -55,7 +55,6 @@ use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
 #[cfg(target_os = "linux")]
-const EVDEV_BACK: u32 = 158;
 const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
 
 type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
@@ -697,16 +696,7 @@ impl ApplicationHandler for Runner {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let evdev = evdev(event.physical_key);
-                let key = match logical_key(&event.key_without_modifiers) {
-                    Logical::Key(key) => Some(key),
-                    Logical::Ignored => None,
-                    Logical::Unknown => match event.physical_key {
-                        PhysicalKey::Code(code) => Key::from_code(&code.to_string()),
-                        PhysicalKey::Unidentified(_) => evdev
-                            .filter(|code| *code == EVDEV_BACK)
-                            .map(|_| Key::BrowserBack),
-                    },
-                };
+                let key = logical_key(&event.key_without_modifiers, evdev.and_then(Key::from_evdev));
                 self.push(Input::Key(Keystroke {
                     key,
                     pressed: event.state == ElementState::Pressed,
@@ -870,27 +860,16 @@ fn evdev(physical: PhysicalKey) -> Option<u32> {
     }
 }
 
-enum Logical {
-    Key(Key),
-    Ignored,
-    Unknown,
-}
-
-fn logical_key(logical: &winit::keyboard::Key) -> Logical {
+fn logical_key(logical: &winit::keyboard::Key, physical: Option<Key>) -> Option<Key> {
     use winit::keyboard::Key as Winit;
     let apple = cfg!(target_os = "macos");
-    let named = match logical {
-        Winit::Named(named) => Key::from_logical(&named.to_string(), apple),
-        Winit::Character(text) => Key::from_logical(text, apple),
+    match logical {
+        Winit::Named(named) => Key::from_value(&named.to_string(), physical, apple),
+        Winit::Character(text) => Key::from_value(text, physical, apple),
         Winit::Unidentified(winit::keyboard::NativeKey::Xkb(XKB_AUDIO_MIC_MUTE)) => {
             Some(Key::MicMute)
         }
-        Winit::Unidentified(_) | Winit::Dead(_) => None,
-    };
-    match (named, logical) {
-        (Some(key), _) => Logical::Key(key),
-        (None, Winit::Named(_)) => Logical::Ignored,
-        (None, _) => Logical::Unknown,
+        Winit::Unidentified(_) | Winit::Dead(_) => physical,
     }
 }
 

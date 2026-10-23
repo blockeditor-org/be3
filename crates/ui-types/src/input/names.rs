@@ -8,66 +8,22 @@ impl Key {
         }
     }
 
-    pub fn from_code(code: &str) -> Option<Self> {
-        let key = match code {
-            "ArrowDown" => Self::ArrowDown,
-            "ArrowLeft" => Self::ArrowLeft,
-            "ArrowRight" => Self::ArrowRight,
-            "ArrowUp" => Self::ArrowUp,
-            "Backspace" => Self::Backspace,
-            "Delete" => Self::Delete,
-            "End" => Self::End,
-            "Enter" | "NumpadEnter" => Self::Enter,
-            "Escape" => Self::Escape,
-            "Home" => Self::Home,
-            "BracketLeft" => Self::BracketLeft,
-            "BracketRight" => Self::BracketRight,
-            "Minus" | "NumpadSubtract" => Self::Minus,
-            "PageDown" => Self::PageDown,
-            "PageUp" => Self::PageUp,
-            "Equal" | "NumpadAdd" => Self::Plus,
-            "Space" => Self::Space,
-            "Tab" => Self::Tab,
-            "Digit0" | "Numpad0" => Self::Zero,
-            "Digit1" | "Numpad1" => Self::One,
-            "Digit2" | "Numpad2" => Self::Two,
-            "Digit3" | "Numpad3" => Self::Three,
-            "Digit4" | "Numpad4" => Self::Four,
-            "Digit5" | "Numpad5" => Self::Five,
-            "Digit6" | "Numpad6" => Self::Six,
-            "Digit7" | "Numpad7" => Self::Seven,
-            "Digit8" | "Numpad8" => Self::Eight,
-            "Digit9" | "Numpad9" => Self::Nine,
-            "Backquote" => Self::Backtick,
-            "Insert" => Self::Insert,
-            "Comma" => Self::Comma,
-            "Period" | "NumpadDecimal" => Self::Period,
-            "Slash" | "NumpadDivide" => Self::Slash,
-            "Backslash" => Self::Backslash,
-            "Semicolon" => Self::Semicolon,
-            "Quote" => Self::Quote,
-            "BrowserBack" => Self::BrowserBack,
-            "AudioVolumeUp" => Self::VolumeUp,
-            "AudioVolumeDown" => Self::VolumeDown,
-            "AudioVolumeMute" => Self::VolumeMute,
-            "MediaPlayPause" => Self::MediaPlayPause,
-            "MediaTrackNext" => Self::MediaNext,
-            "MediaTrackPrevious" => Self::MediaPrevious,
-            "MediaStop" => Self::MediaStop,
-            "ShiftLeft" | "ShiftRight" => Self::Shift,
-            "ControlLeft" | "ControlRight" => Self::Ctrl,
-            "AltLeft" | "AltRight" => Self::Alt,
-            _ => return Self::letter_code(code).or_else(|| Self::function_code(code)),
-        };
-        Some(key)
+    pub fn from_typed(character: Option<char>, physical: Option<Self>) -> Option<Self> {
+        match character {
+            Some(character) if character.is_ascii_alphanumeric() => {
+                Self::unshifted(character.to_ascii_lowercase())
+            }
+            _ => physical,
+        }
     }
 
-    pub fn from_logical(value: &str, apple: bool) -> Option<Self> {
+    pub fn from_value(value: &str, physical: Option<Self>, apple: bool) -> Option<Self> {
         let mut chars = value.chars();
         if let (Some(single), None) = (chars.next(), chars.next()) {
-            return Self::from_char(single);
+            return Self::from_typed(Some(single), physical);
         }
         let key = match value {
+            "Dead" | "Unidentified" => return physical,
             "ArrowDown" => Self::ArrowDown,
             "ArrowLeft" => Self::ArrowLeft,
             "ArrowRight" => Self::ArrowRight,
@@ -98,6 +54,32 @@ impl Key {
             "Alt" => Self::Alt,
             "Meta" => Self::meta(apple),
             _ => return Self::function_code(value),
+        };
+        Some(key)
+    }
+
+    pub fn from_evdev(evdev: u32) -> Option<Self> {
+        let key = match evdev {
+            54 => Self::Shift,
+            97 => Self::Ctrl,
+            100 => Self::Alt,
+            126 => Self::Logo,
+            71 => Self::Seven,
+            72 => Self::Eight,
+            73 => Self::Nine,
+            74 => Self::Minus,
+            75 => Self::Four,
+            76 => Self::Five,
+            77 => Self::Six,
+            78 => Self::Plus,
+            79 => Self::One,
+            80 => Self::Two,
+            81 => Self::Three,
+            82 => Self::Zero,
+            83 => Self::Period,
+            96 => Self::Enter,
+            98 => Self::Slash,
+            _ => return Self::ALL.into_iter().find(|key| key.evdev() == Some(evdev)),
         };
         Some(key)
     }
@@ -158,16 +140,70 @@ impl Key {
             "BrowserHome" => 172,
             "BrowserRefresh" => 173,
             "BrowserSearch" => 217,
-            _ => return Self::from_code(code)?.evdev(),
+            _ => return Self::named_by_code(code)?.evdev(),
         };
         Some(evdev)
+    }
+
+    fn named_by_code(code: &str) -> Option<Self> {
+        let key = match code {
+            "ArrowDown" => Self::ArrowDown,
+            "ArrowLeft" => Self::ArrowLeft,
+            "ArrowRight" => Self::ArrowRight,
+            "ArrowUp" => Self::ArrowUp,
+            "Backspace" => Self::Backspace,
+            "Delete" => Self::Delete,
+            "End" => Self::End,
+            "Enter" => Self::Enter,
+            "Escape" => Self::Escape,
+            "Home" => Self::Home,
+            "BracketLeft" => Self::BracketLeft,
+            "BracketRight" => Self::BracketRight,
+            "Minus" => Self::Minus,
+            "PageDown" => Self::PageDown,
+            "PageUp" => Self::PageUp,
+            "Equal" => Self::Plus,
+            "Space" => Self::Space,
+            "Tab" => Self::Tab,
+            "Digit0" => Self::Zero,
+            "Digit1" => Self::One,
+            "Digit2" => Self::Two,
+            "Digit3" => Self::Three,
+            "Digit4" => Self::Four,
+            "Digit5" => Self::Five,
+            "Digit6" => Self::Six,
+            "Digit7" => Self::Seven,
+            "Digit8" => Self::Eight,
+            "Digit9" => Self::Nine,
+            "Backquote" => Self::Backtick,
+            "Insert" => Self::Insert,
+            "Comma" => Self::Comma,
+            "Period" => Self::Period,
+            "Slash" => Self::Slash,
+            "Backslash" => Self::Backslash,
+            "Semicolon" => Self::Semicolon,
+            "Quote" => Self::Quote,
+            "BrowserBack" => Self::BrowserBack,
+            "AudioVolumeUp" => Self::VolumeUp,
+            "AudioVolumeDown" => Self::VolumeDown,
+            "AudioVolumeMute" => Self::VolumeMute,
+            "MediaPlayPause" => Self::MediaPlayPause,
+            "MediaTrackNext" => Self::MediaNext,
+            "MediaTrackPrevious" => Self::MediaPrevious,
+            "MediaStop" => Self::MediaStop,
+            "ShiftLeft" => Self::Shift,
+            "ControlLeft" => Self::Ctrl,
+            "AltLeft" => Self::Alt,
+            _ => return Self::letter_code(code).or_else(|| Self::function_code(code)),
+        };
+        Some(key)
     }
 
     fn letter_code(code: &str) -> Option<Self> {
         let letter = code.strip_prefix("Key")?;
         let mut chars = letter.chars();
         match (chars.next(), chars.next()) {
-            (Some(letter @ 'A'..='Z'), None) => Self::from_char(letter),
+            (Some(letter @ 'A'..='Z'), None) => Self::unshifted(letter.to_ascii_lowercase()),
             _ => None,
         }
     }
@@ -181,36 +217,6 @@ impl Key {
             .checked_sub(1)
             .and_then(|index| FUNCTION.get(index))
             .copied()
-    }
-
-    pub fn from_char(c: char) -> Option<Self> {
-        let key = match c.to_ascii_lowercase() {
-            '[' | '{' => Self::BracketLeft,
-            ']' | '}' => Self::BracketRight,
-            '-' | '_' => Self::Minus,
-            '=' | '+' => Self::Plus,
-            ' ' => Self::Space,
-            '0' | ')' => Self::Zero,
-            '1' | '!' => Self::One,
-            '2' | '@' => Self::Two,
-            '3' | '#' => Self::Three,
-            '4' | '$' => Self::Four,
-            '5' | '%' => Self::Five,
-            '6' | '^' => Self::Six,
-            '7' | '&' => Self::Seven,
-            '8' | '*' => Self::Eight,
-            '9' | '(' => Self::Nine,
-            '`' | '~' => Self::Backtick,
-            ',' | '<' => Self::Comma,
-            '.' | '>' => Self::Period,
-            '/' | '?' => Self::Slash,
-            '\\' | '|' => Self::Backslash,
-            ';' | ':' => Self::Semicolon,
-            '\'' | '"' => Self::Quote,
-            letter @ 'a'..='z' => LETTERS[usize::from(letter as u8 - b'a')],
-            _ => return None,
-        };
-        Some(key)
     }
 }
 

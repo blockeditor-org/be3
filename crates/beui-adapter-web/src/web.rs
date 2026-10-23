@@ -1099,13 +1099,8 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
 }
 
 fn key(event: &web_sys::KeyboardEvent) -> Option<Key> {
-    let value = event.key();
-    let typed = value.chars().nth(1).is_none() || matches!(value.as_str(), "Unidentified" | "Dead");
-    match Key::from_logical(&value, apple()) {
-        Some(key) => Some(key),
-        None if typed => Key::from_code(&event.code()),
-        None => None,
-    }
+    let physical = Key::evdev_from_code(&event.code()).and_then(Key::from_evdev);
+    Key::from_value(&event.key(), physical, apple())
 }
 
 fn keystroke(event: &web_sys::KeyboardEvent, pressed: bool) -> Keystroke {

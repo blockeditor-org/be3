@@ -66,7 +66,7 @@ impl Keyboard {
             out.terminal = virtual_terminal(sym);
             out.quit = held.ctrl && held.alt && sym == keysyms::KEY_BackSpace;
         }
-        let key = key(sym).unwrap_or(Key::Unidentified);
+        let key = key(sym, code).unwrap_or(Key::Unidentified);
         let stroke = Keystroke {
             key: Some(key),
             pressed,
