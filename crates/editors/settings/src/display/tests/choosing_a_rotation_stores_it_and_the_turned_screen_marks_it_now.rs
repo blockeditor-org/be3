@@ -5,7 +5,7 @@ fn choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now() {
     let mut settings = Harness::in_a_session(vec![gaming_monitor()]);
     assert_eq!(settings.content().root().screen(MONITOR).rotation, None);
 
-    settings.editor.click(&tile(Rotation::Clockwise90));
+    settings.editor.click(tile(Rotation::Clockwise90));
     settings.run();
 
     let root = settings.content().root();

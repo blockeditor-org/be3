@@ -3,12 +3,12 @@ use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
-pub use ui_types::window::ImeArea;
 pub use ui_types::input::{
     BackEdge, BackGesture, CursorIcon, DroppedFile, ImeEvent, ImeText, Input, Key, KeyChord,
     KeyPress, Keyboard, Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId,
     TouchPhase,
 };
+pub use ui_types::window::ImeArea;
 
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;

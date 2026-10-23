@@ -14,12 +14,15 @@ fn ctrl() -> Modifiers {
 }
 
 fn run_from_palette(editor: &mut BeuiTest<CanvasApp>, typed: &str) {
-    editor.key(Key::P, Modifiers {
+    editor.key(
+        Key::P,
+        Modifiers {
             shift: true,
             ..ctrl()
-        });
+        },
+    );
     editor.run();
-    editor.type_text(&typed);
+    editor.type_text(typed);
     editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
     editor.run();

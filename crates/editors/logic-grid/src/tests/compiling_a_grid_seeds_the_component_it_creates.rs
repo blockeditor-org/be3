@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::beui::Modifiers;
 use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn compiling_a_grid_seeds_the_component_it_creates() {

@@ -1,9 +1,9 @@
-use block_editor_beui::beui::Modifiers;
 use beui::Key;
 use block_editor_beui::PeerPresence;
 use block_editor_beui::be_block::block_url::block_url;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
 use block_editor_beui::be_block::{TextBlock, TextContent};
+use block_editor_beui::beui::Modifiers;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;

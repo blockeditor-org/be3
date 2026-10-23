@@ -8,7 +8,7 @@ fn scrubbing_a_number_is_one_undo_step() {
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(120.0, 80.0), 0.0);
     rectangle.style.fill = CanvasFill::Solid;
     let mut editor = vector_editor(std::slice::from_ref(&rectangle));
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
 
     let field = editor.point_of("infinite-canvas.transform.x");

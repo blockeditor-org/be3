@@ -63,10 +63,13 @@ fn the_letters_and_numbers_pick_every_tool() {
         assert_eq!(entities(&editor).len(), count, "{key:?} selects");
     }
     editor.key(Key::R, Modifiers::NONE);
-    editor.key(Key::V, Modifiers {
+    editor.key(
+        Key::V,
+        Modifiers {
             shift: true,
             ..Modifiers::NONE
-        });
+        },
+    );
     editor.run();
     let from = origin + Vec2::new(620.0, 120.0);
     editor.drag(from, from + Vec2::new(60.0, 40.0));

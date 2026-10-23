@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use beui::{
-    Launch, Modifiers, Pen, PenPhase, Platform, PointerButton, Pos2, ScrollDelta, Keystroke, Setup,
+    Keystroke, Launch, Modifiers, Pen, PenPhase, Platform, PointerButton, Pos2, ScrollDelta, Setup,
     TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;

@@ -3,9 +3,9 @@ use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
     ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, HostPanel, HostReply, TimedInput, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size,
-    ViewportMetrics, WebViewEvent, WebViewId,
+    FrameReport, HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message,
+    Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, TimedInput, ViewportMetrics,
+    WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -1008,11 +1008,7 @@ impl EditorSession {
             state.occluders = occluders;
             state.camera = camera;
             state.window = block_plugin_api::WindowRequests {
-                ime: frame
-                    .window
-                    .ime
-                    .clone()
-                    .map(|ime| ime.translated(-origin)),
+                ime: frame.window.ime.clone().map(|ime| ime.translated(-origin)),
                 ..frame.window.clone()
             };
             let reports = matches!(region, EditorRegion::Frame);

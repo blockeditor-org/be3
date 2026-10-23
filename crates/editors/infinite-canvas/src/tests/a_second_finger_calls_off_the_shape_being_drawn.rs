@@ -6,7 +6,7 @@ fn a_second_finger_calls_off_the_shape_being_drawn() {
     for tool in ["Rectangle", "Pen"] {
         let mut editor = phone(&[]);
 
-        editor.click(&format!("infinite-canvas.dock.tool.{tool}"));
+        editor.click(format!("infinite-canvas.dock.tool.{tool}"));
         editor.run();
         let from = editor.rect_of("infinite-canvas.canvas").center();
         editor.fingers(TouchPhase::Start, &[(1, from)]);

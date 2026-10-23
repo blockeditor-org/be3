@@ -24,9 +24,9 @@ fn swiping_back_in_a_folder_shows_the_one_above_it() {
     listed.set_intrinsic_name("Notes".to_owned());
     my_files(&mut fixture, vec![projects, listed]);
     fixture.settle();
-    fixture.test.click(&format!("file-tree.{files}.row"));
+    fixture.test.click(format!("file-tree.{files}.row"));
     fixture.settle();
-    fixture.test.click(&format!("file-tree.{folder}.row"));
+    fixture.test.click(format!("file-tree.{folder}.row"));
     fixture.settle();
     let mut roadmap = BlockInfo::new(inside, text_type, BlockParent::Block(folder));
     roadmap.set_intrinsic_name("Roadmap".to_owned());

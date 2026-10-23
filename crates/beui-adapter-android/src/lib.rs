@@ -516,7 +516,8 @@ impl Runner {
                 let window = self.runner.window();
                 platform.sync_ime(window.requests.ime.as_ref());
                 if window
-                    .requests.ime
+                    .requests
+                    .ime
                     .as_ref()
                     .is_some_and(|area| area.keyboard.shown())
                 {

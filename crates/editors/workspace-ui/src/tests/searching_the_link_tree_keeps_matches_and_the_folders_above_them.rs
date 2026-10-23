@@ -1,5 +1,5 @@
-use block_editor_beui::beui::Modifiers;
 use block_editor_beui::BlockLocation;
+use block_editor_beui::beui::Modifiers;
 
 use super::*;
 
@@ -38,7 +38,7 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.link.{}.chevron", places.work));
+        .click(format!("picker.link.{}.chevron", places.work));
     fixture.settle();
     fixture.test.click("picker.search");
     fixture.test.type_text("minu");

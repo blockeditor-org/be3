@@ -785,8 +785,10 @@ impl Context {
     }
 
     pub fn set_pointer_locked(&self, locked: bool) {
-        let changed =
-            std::mem::replace(&mut self.inner.window.borrow_mut().requests.pointer_locked, locked) != locked;
+        let changed = std::mem::replace(
+            &mut self.inner.window.borrow_mut().requests.pointer_locked,
+            locked,
+        ) != locked;
         if changed {
             self.request_repaint();
         }

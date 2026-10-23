@@ -42,7 +42,7 @@ fn an_import_keeps_the_location_it_started_with() {
 
     fixture.test.click("picker.location");
     fixture.settle();
-    fixture.test.click(&format!("picker.place.{folder}"));
+    fixture.test.click(format!("picker.place.{folder}"));
     fixture.settle();
 
     let imported = Uuid::new_v4();

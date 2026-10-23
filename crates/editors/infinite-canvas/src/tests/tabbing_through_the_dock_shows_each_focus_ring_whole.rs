@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::beui::overflow::OverflowKind;
+use block_editor_beui::beui::{Key, Modifiers};
 
 const MOST_STOPS: usize = 80;
 

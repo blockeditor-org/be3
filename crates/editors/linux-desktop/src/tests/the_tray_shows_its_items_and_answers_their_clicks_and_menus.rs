@@ -113,13 +113,11 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     );
     fixture.test.snapshot("the_tray_in_the_bar");
 
-    fixture.test.click(&item(CHAT));
+    fixture.test.click(item(CHAT));
     fixture.settle();
-    fixture
-        .test
-        .click_with(&item(CHAT), PointerButton::Middle);
+    fixture.test.click_with(item(CHAT), PointerButton::Middle);
     fixture.settle();
-    fixture.test.scroll(&item(CHAT), Vec2::new(0.0, -40.0));
+    fixture.test.scroll(item(CHAT), Vec2::new(0.0, -40.0));
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<TrayRequest>(),
@@ -138,14 +136,14 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
 
     fixture
         .test
-        .click_with(&item(CHAT), PointerButton::Secondary);
+        .click_with(item(CHAT), PointerButton::Secondary);
     fixture.settle();
     fixture.test.settle();
     assert!(
         fixture.test.shown(&format!("{}.1", item(CHAT))),
         "a right click opens the menu"
     );
-    fixture.test.hover(&format!("{}.3", item(CHAT)));
+    fixture.test.hover(format!("{}.3", item(CHAT)));
     fixture.settle();
     fixture.test.settle();
     assert!(
@@ -153,7 +151,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
         "a submenu opens on hover"
     );
     fixture.test.snapshot("the_tray_menu");
-    fixture.test.click(&format!("{}.5", item(CHAT)));
+    fixture.test.click(format!("{}.5", item(CHAT)));
     fixture.settle();
     fixture.test.settle();
     assert_eq!(
@@ -170,11 +168,11 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     );
     assert!(!fixture.test.shown(&format!("{}.1", item(CHAT))));
 
-    fixture.test.click(&item(SYNC));
+    fixture.test.click(item(SYNC));
     fixture.settle();
     fixture
         .test
-        .click_with(&item(SYNC), PointerButton::Secondary);
+        .click_with(item(SYNC), PointerButton::Secondary);
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<TrayRequest>(),
@@ -194,7 +192,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
         !fixture.test.shown(&item(CHAT)),
         "an item goes when its program does"
     );
-    fixture.test.click(&item(SYNC));
+    fixture.test.click(item(SYNC));
     fixture.settle();
     fixture.test.settle();
     assert!(

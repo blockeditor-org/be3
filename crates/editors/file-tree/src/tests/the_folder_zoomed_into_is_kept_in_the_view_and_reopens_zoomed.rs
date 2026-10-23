@@ -25,7 +25,7 @@ fn the_folder_zoomed_into_is_kept_in_the_view_and_reopens_zoomed() {
     let (folder, notes) = (Uuid::from_u128(2), Uuid::from_u128(3));
     let mut fixture = viewed_on_phone(EditorView::document(FILES_EDITOR, None));
     with_folder(&mut fixture, folder, notes);
-    fixture.test.click(&format!("file-tree.{folder}.row"));
+    fixture.test.click(format!("file-tree.{folder}.row"));
     fixture.settle();
     assert!(fixture.test.shown("file-tree.back"));
     let saved = fixture.test.content::<EditorViewContent>(None);

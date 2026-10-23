@@ -42,7 +42,7 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
         "and come back once it closes"
     );
 
-    fixture.test.click(&format!("{}.action.reply", toast(1)));
+    fixture.test.click(format!("{}.action.reply", toast(1)));
     fixture.settle();
     assert_eq!(
         fixture.signals(),
@@ -53,7 +53,7 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
     );
     assert!(!fixture.test.shown(&toast(1)));
 
-    fixture.test.click(&format!("{}.action.pause", toast(2)));
+    fixture.test.click(format!("{}.action.pause", toast(2)));
     fixture.settle();
     assert_eq!(
         fixture.signals(),
@@ -62,7 +62,7 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
     );
     assert!(!fixture.test.shown(&toast(2)), "but its toast goes");
 
-    fixture.test.click(&format!("{}.dismiss", toast(3)));
+    fixture.test.click(format!("{}.dismiss", toast(3)));
     fixture.settle();
     assert_eq!(
         fixture.signals(),

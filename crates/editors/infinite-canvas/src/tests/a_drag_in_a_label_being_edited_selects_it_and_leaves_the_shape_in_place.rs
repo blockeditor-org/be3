@@ -11,7 +11,7 @@ fn a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place() {
     let mut editor = editor(std::slice::from_ref(&shape));
     let field = format!("infinite-canvas.text.{}", shape.id);
 
-    editor.double_click(&format!("infinite-canvas.entity.{}", shape.id));
+    editor.double_click(format!("infinite-canvas.entity.{}", shape.id));
     editor.run();
     let rect = editor.rect_of(&field);
     let y = rect.center().y;

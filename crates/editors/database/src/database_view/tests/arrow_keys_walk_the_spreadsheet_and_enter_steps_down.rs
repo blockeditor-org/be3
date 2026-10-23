@@ -14,7 +14,7 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
 
     fixture
         .harness
-        .click(&format!("database-view.cell.0.{first}"));
+        .click(format!("database-view.cell.0.{first}"));
     fixture.settle();
 
     assert_eq!(
@@ -39,7 +39,7 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
         "B2"
     );
 
-    fixture.harness.click(&format!(
+    fixture.harness.click(format!(
         "database-view.cell-editor.field.{}",
         fixture.fields[1]
     ));

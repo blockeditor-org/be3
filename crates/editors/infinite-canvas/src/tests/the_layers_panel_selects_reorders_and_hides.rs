@@ -22,7 +22,7 @@ fn the_layers_panel_selects_reorders_and_hides() {
         "the frontmost layer is listed first"
     );
 
-    editor.click(&format!("infinite-canvas.layer.{back}"));
+    editor.click(format!("infinite-canvas.layer.{back}"));
     editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
@@ -46,7 +46,7 @@ fn the_layers_panel_selects_reorders_and_hides() {
         "dropping a layer on the top half of another puts it in front"
     );
 
-    editor.click(&format!("infinite-canvas.layer.{front}.visibility"));
+    editor.click(format!("infinite-canvas.layer.{front}.visibility"));
     editor.run();
     let hidden: Vec<_> = entities(&editor)
         .into_iter()

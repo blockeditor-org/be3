@@ -179,7 +179,11 @@ pub struct Runner {
     failure: Option<String>,
 }
 
-fn type_pastes(pastes: &Receiver<Pasted>, held: crate::input::Modifiers, incoming: &mut Vec<Incoming>) {
+fn type_pastes(
+    pastes: &Receiver<Pasted>,
+    held: crate::input::Modifiers,
+    incoming: &mut Vec<Incoming>,
+) {
     while let Ok(pasted) = pastes.try_recv() {
         if let Pasted::Text(text) = pasted {
             let mut typed = Vec::new();

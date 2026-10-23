@@ -33,15 +33,18 @@ fn ime_messages_round_trip() {
                 Input::Ime(ImeEvent::ReplaceText {
                     range: 4..8,
                     text: "hello".into(),
-                }).into(),
+                })
+                .into(),
                 Input::Ime(ImeEvent::DeleteSurrounding {
                     before: 1,
                     after: 2,
-                }).into(),
+                })
+                .into(),
                 Input::Ime(ImeEvent::SetSelection {
                     anchor: 3,
                     focus: 3,
-                }).into(),
+                })
+                .into(),
                 Input::Ime(ImeEvent::Disabled).into(),
             ],
         }),

@@ -10,12 +10,15 @@ fn the_palette_and_the_shortcuts_run_the_canvas_actions() {
         ..Modifiers::NONE
     };
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
-    editor.key(Key::P, Modifiers {
+    editor.key(
+        Key::P,
+        Modifiers {
             shift: true,
             ..ctrl
-        });
+        },
+    );
     editor.run();
     editor.type_text("duplicate");
     editor.run();

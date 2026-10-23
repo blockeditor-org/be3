@@ -10,7 +10,10 @@ fn the_editor_changes_rules_and_keeps_the_comments() {
     editor.run();
     editor.click("input-remaps.group.0.rule.1.key");
     editor.run();
-    editor.key(block_editor_beui::beui::Key::A, block_editor_beui::beui::Modifiers::CTRL);
+    editor.key(
+        block_editor_beui::beui::Key::A,
+        block_editor_beui::beui::Modifiers::CTRL,
+    );
     editor.type_text("K");
     editor.run();
 

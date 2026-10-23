@@ -25,7 +25,7 @@ fn revision_history_on_a_phone_and_late_replies() {
     fixture.show_history();
     fixture
         .test
-        .click(&format!("workspace.revision.{}", "03".repeat(32)));
+        .click(format!("workspace.revision.{}", "03".repeat(32)));
     fixture.settle();
     let request = fixture
         .test

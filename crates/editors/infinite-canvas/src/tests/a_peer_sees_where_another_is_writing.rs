@@ -68,7 +68,7 @@ fn a_peer_sees_where_another_is_writing() {
     forward_presence(&mut writer, &mut watcher, &mut held);
     assert!(shown_carets(&watcher, note.id).is_empty());
 
-    writer.click(&format!("infinite-canvas.entity.{}", shape.id));
+    writer.click(format!("infinite-canvas.entity.{}", shape.id));
     writer.run();
     writer.key(Key::Enter, Modifiers::NONE);
     writer.run();

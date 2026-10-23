@@ -169,19 +169,19 @@ impl Harness {
     }
 
     fn open_menu(&mut self, row: &str) {
-        self.editor.click(&format!("{row}.menu"));
+        self.editor.click(format!("{row}.menu"));
         self.run();
     }
 
     fn keep(&mut self, row: &str) {
         self.open_menu(row);
-        self.editor.click(&format!("{row}.keep"));
+        self.editor.click(format!("{row}.keep"));
         self.run();
     }
 
     fn reset(&mut self, row: &str) {
         self.open_menu(row);
-        self.editor.click(&format!("{row}.reset"));
+        self.editor.click(format!("{row}.reset"));
         self.run();
     }
 

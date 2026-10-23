@@ -25,7 +25,7 @@ fn revision_history_previews_a_file_on_a_phone() {
     fixture.test.click("dock.switch");
     fixture.settle();
     fixture.test.settle();
-    fixture.test.click(&format!(
+    fixture.test.click(format!(
         "dock.switcher.tab.{}",
         block_shell::REVISIONS.value()
     ));
@@ -33,7 +33,7 @@ fn revision_history_previews_a_file_on_a_phone() {
     fixture.test.settle();
     fixture
         .test
-        .click(&format!("workspace.revision.{}", "04".repeat(32)));
+        .click(format!("workspace.revision.{}", "04".repeat(32)));
     fixture.settle();
     let request = fixture
         .test

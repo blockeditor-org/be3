@@ -24,9 +24,9 @@ fn the_transform_fields_edit_the_selected_entity() {
         .collect();
     let mut editor = vector_editor(&rectangles);
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangles[0].id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangles[0].id));
     editor.run();
-    editor.click(&format!("infinite-canvas.entity.{}", rectangles[2].id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangles[2].id));
     editor.run();
     editor.click("infinite-canvas.transform.x");
     editor.run();

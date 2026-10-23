@@ -5,13 +5,11 @@ fn losing_focus_lets_go_of_the_modifiers_and_an_emulated_touch() {
     let mut intaken = Intaken::new();
     intaken.runner.context().set_touch_emulation(true);
     intaken.frame(1.0, [Input::Modifiers(Modifiers::SHIFT).into()]);
-    intaken
-        .runner
-        .push(Input::PointerButton {
-            pos: pos2(4.0, 6.0),
-            button: PointerButton::Primary,
-            pressed: true,
-        });
+    intaken.runner.push(Input::PointerButton {
+        pos: pos2(4.0, 6.0),
+        button: PointerButton::Primary,
+        pressed: true,
+    });
     intaken.frame(1.0, []);
 
     let seen = intaken.frame(1.0, [Input::Focus(false).into()]);

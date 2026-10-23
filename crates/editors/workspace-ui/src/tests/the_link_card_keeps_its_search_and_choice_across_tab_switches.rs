@@ -21,11 +21,11 @@ fn the_link_card_keeps_its_search_and_choice_across_tab_switches() {
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.link.{}.chevron", places.work));
+        .click(format!("picker.link.{}.chevron", places.work));
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.link.{}.row", places.minutes));
+        .click(format!("picker.link.{}.row", places.minutes));
     fixture.settle();
     fixture
         .test

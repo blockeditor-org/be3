@@ -20,7 +20,10 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     harness.frame(vec![]);
     let output = harness.frame(vec![Event::PointerMoved(pos2(10.0, 10.0))]);
     assert!(!output.changed);
-    assert_eq!(output.window.requests.cursor, crate::CursorIcon::PointingHand);
+    assert_eq!(
+        output.window.requests.cursor,
+        crate::CursorIcon::PointingHand
+    );
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
     with_installed(harness.document_mut(), |_| {
         create_effect(move || {

@@ -36,9 +36,9 @@ fn content(editor: &BeuiTest<InputSettingsApp>) -> InputSettingsContent {
 }
 
 fn reset(editor: &mut BeuiTest<InputSettingsApp>, row: &str) {
-    editor.click(&format!("{row}.menu"));
+    editor.click(format!("{row}.menu"));
     editor.run();
-    editor.click(&format!("{row}.reset"));
+    editor.click(format!("{row}.reset"));
     editor.run();
 }
 

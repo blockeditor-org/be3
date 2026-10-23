@@ -16,10 +16,13 @@ fn the_palette_and_the_shortcuts_run_the_format_actions() {
     editor.run();
     assert!(text(&editor).contains("**"), "{:?}", text(&editor));
 
-    editor.key(Key::P, Modifiers {
+    editor.key(
+        Key::P,
+        Modifiers {
             shift: true,
             ..ctrl
-        });
+        },
+    );
     editor.run();
     editor.type_text("heading");
     editor.run();

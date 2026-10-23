@@ -25,7 +25,7 @@ fn a_conflict_is_resolved_by_taking_a_side() {
     let mut editor = checkout(state, status);
     editor.snapshot("a_conflict_is_resolved_by_taking_a_side");
 
-    editor.click(&format!("checkout.theirs.{note}"));
+    editor.click(format!("checkout.theirs.{note}"));
     editor.run();
 
     assert_eq!(

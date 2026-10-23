@@ -35,11 +35,11 @@ pub use ui_types::{
     KeyChord, Keyboard, Keystroke, Modifiers, PasteKind, Pasted, Pen, PenPhase, PickedFile,
     PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
-pub use ui_types::{ImeArea, WindowRequests};
 pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
+pub use ui_types::{ImeArea, WindowRequests};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;

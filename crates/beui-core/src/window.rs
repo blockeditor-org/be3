@@ -42,7 +42,6 @@ impl WindowState {
             },
             appearance: std::mem::take(&mut self.appearance),
             typed: self.typed.wrapping_add(u64::from(typed)),
-            ..Self::default()
         };
     }
 

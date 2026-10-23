@@ -47,7 +47,7 @@ fn typed_text_grows_away_from_the_edges_it_is_aligned_to() {
     let mut editor = editor(&labels);
 
     for label in &labels {
-        editor.click(&format!("infinite-canvas.entity.{}", label.id));
+        editor.click(format!("infinite-canvas.entity.{}", label.id));
         editor.run();
         editor.key(Key::Enter, Modifiers::NONE);
         editor.run();

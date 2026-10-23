@@ -17,7 +17,7 @@ fn a_held_finger_opens_the_context_menu_in_every_tool() {
     ] {
         let rectangle = card();
         let mut editor = vector_phone(std::slice::from_ref(&rectangle));
-        editor.tap(&format!("infinite-canvas.dock.tool.{tool}"));
+        editor.tap(format!("infinite-canvas.dock.tool.{tool}"));
         editor.run();
         let center = editor
             .rect_of(&format!("infinite-canvas.entity.{}", rectangle.id))

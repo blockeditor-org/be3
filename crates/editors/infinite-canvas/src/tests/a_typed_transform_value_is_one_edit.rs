@@ -22,7 +22,7 @@ fn a_typed_transform_value_is_one_edit() {
     editor.click("infinite-canvas.transform.x");
     editor.run();
     for digit in ["1", "2", "5"] {
-        editor.type_text(&digit);
+        editor.type_text(digit);
         editor.run();
     }
     editor.key(Key::Enter, Modifiers::NONE);

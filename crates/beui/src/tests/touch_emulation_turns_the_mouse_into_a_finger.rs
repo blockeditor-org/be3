@@ -14,28 +14,22 @@ fn touch_emulation_turns_the_mouse_into_a_finger() {
         force: None,
     };
 
-    intaken
-        .runner
-        .push(Input::PointerButton {
-            pos: pos2(20.0, 40.0),
-            button: PointerButton::Primary,
-            pressed: true,
-        });
+    intaken.runner.push(Input::PointerButton {
+        pos: pos2(20.0, 40.0),
+        button: PointerButton::Primary,
+        pressed: true,
+    });
     intaken.runner.push(Input::PointerMoved(pos2(30.0, 40.0)));
-    intaken
-        .runner
-        .push(Input::PointerButton {
-            pos: pos2(30.0, 40.0),
-            button: PointerButton::Secondary,
-            pressed: true,
-        });
-    intaken
-        .runner
-        .push(Input::PointerButton {
-            pos: pos2(30.0, 40.0),
-            button: PointerButton::Primary,
-            pressed: false,
-        });
+    intaken.runner.push(Input::PointerButton {
+        pos: pos2(30.0, 40.0),
+        button: PointerButton::Secondary,
+        pressed: true,
+    });
+    intaken.runner.push(Input::PointerButton {
+        pos: pos2(30.0, 40.0),
+        button: PointerButton::Primary,
+        pressed: false,
+    });
     let seen = intaken.frame(2.0, []);
 
     assert_eq!(
@@ -53,13 +47,11 @@ fn touch_emulation_turns_the_mouse_into_a_finger() {
         "every platform is asked to show the finger as the touch cursor"
     );
 
-    intaken
-        .runner
-        .push(Input::PointerButton {
-            pos: pos2(20.0, 40.0),
-            button: PointerButton::Primary,
-            pressed: true,
-        });
+    intaken.runner.push(Input::PointerButton {
+        pos: pos2(20.0, 40.0),
+        button: PointerButton::Primary,
+        pressed: true,
+    });
     intaken.frame(2.0, []);
     intaken.runner.context().set_touch_emulation(false);
     assert_eq!(

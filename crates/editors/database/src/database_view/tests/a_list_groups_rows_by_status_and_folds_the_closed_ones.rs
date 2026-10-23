@@ -19,14 +19,14 @@ fn a_list_groups_rows_by_status_and_folds_the_closed_ones() {
     tracker
         .fixture
         .harness
-        .click(&format!("database-view.group.{done}.toggle"));
+        .click(format!("database-view.group.{done}.toggle"));
     tracker.fixture.settle();
     assert!(tracker.fixture.harness.shown(&shipped));
 
     tracker
         .fixture
         .harness
-        .click(&format!("database-view.group.{review}.toggle"));
+        .click(format!("database-view.group.{review}.toggle"));
     tracker.fixture.settle();
     assert!(!tracker.fixture.harness.shown(&tracker.line(1)));
     tracker.fixture.harness.record();

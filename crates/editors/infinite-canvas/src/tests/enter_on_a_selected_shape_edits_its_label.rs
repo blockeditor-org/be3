@@ -6,7 +6,7 @@ fn enter_on_a_selected_shape_edits_its_label() {
     let mut editor = editor(&[card()]);
     let id = card().id;
 
-    editor.click(&format!("infinite-canvas.entity.{id}"));
+    editor.click(format!("infinite-canvas.entity.{id}"));
     editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
@@ -31,7 +31,7 @@ fn enter_on_a_selected_shape_edits_its_label() {
     );
     editor.snapshot("a_shape_draws_its_rich_label");
 
-    editor.double_click(&format!("infinite-canvas.entity.{id}"));
+    editor.double_click(format!("infinite-canvas.entity.{id}"));
     editor.run();
     editor.key(Key::A, Modifiers::CTRL);
     editor.type_text("Again");

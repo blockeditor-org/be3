@@ -41,7 +41,7 @@ fn a_workspace_header_adds_into_that_workspace() {
         "a workspace the account may only view offers no add"
     );
 
-    fixture.test.hover(&format!("file-tree.{files}.row"));
+    fixture.test.hover(format!("file-tree.{files}.row"));
     fixture.settle();
     fixture
         .test
@@ -82,7 +82,7 @@ fn a_workspace_header_adds_into_that_workspace() {
     );
 
     for _ in 0..2 {
-        fixture.test.click(&format!("file-tree.{files}.chevron"));
+        fixture.test.click(format!("file-tree.{files}.chevron"));
         fixture.settle();
     }
     fixture.test.key(Key::Tab, Modifiers::NONE);

@@ -49,7 +49,7 @@ fn renaming_a_row_edits_its_name_in_place() {
     fixture.settle();
     fixture.test.type_text("Ideas");
     fixture.settle();
-    fixture.test.click(&format!("file-tree.{files}.row"));
+    fixture.test.click(format!("file-tree.{files}.row"));
     fixture.settle();
     assert!(!fixture.test.shown(&field), "clicking away ends the edit");
     assert_eq!(

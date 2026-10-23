@@ -190,7 +190,9 @@ impl Platform for WinitPlatform<'_> {
         if window.requests.pointer_locked != shown.requests.pointer_locked {
             lock_pointer(&*surface.window, window.requests.pointer_locked);
         }
-        if (window.requests.cursor, window.requests.pointer_locked) != (shown.requests.cursor, shown.requests.pointer_locked) {
+        if (window.requests.cursor, window.requests.pointer_locked)
+            != (shown.requests.cursor, shown.requests.pointer_locked)
+        {
             show_cursor(surface, window);
         }
         if let Some(request) = ime_request(window, shown) {
@@ -216,7 +218,11 @@ impl Platform for WinitPlatform<'_> {
 
 fn ime_request(window: &WindowState, shown: &WindowState) -> Option<ImeRequest> {
     fn typed(state: &WindowState) -> Option<&ImeArea> {
-        state.requests.ime.as_ref().filter(|area| area.keyboard.shown())
+        state
+            .requests
+            .ime
+            .as_ref()
+            .filter(|area| area.keyboard.shown())
     }
     let (wanted, asked) = (typed(window), typed(shown));
     if wanted == asked {
@@ -450,10 +456,10 @@ impl Runner {
                         self.pointer = physical(position);
                         let button = PointerButton::Other(code);
                         self.push(Input::PointerButton {
-                                pos: self.pointer,
-                                button,
-                                pressed,
-                            });
+                            pos: self.pointer,
+                            button,
+                            pressed,
+                        });
                     }
                     _ => {}
                 }

@@ -24,7 +24,7 @@ fn a_shape_is_drawn_while_dragged_as_it_lands() {
         ("Diamond", -60.0, CanvasShape::Diamond),
         ("Arrow", 100.0, CanvasShape::Path),
     ] {
-        editor.click(&format!("infinite-canvas.dock.tool.{tool}"));
+        editor.click(format!("infinite-canvas.dock.tool.{tool}"));
         editor.run();
         let landed: HashSet<Uuid> = entities(&editor).iter().map(|entity| entity.id).collect();
         let from = canvas.center() + Vec2::new(offset, -60.0);

@@ -1,7 +1,6 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
-    DroppedFile, Input, InputBatch, Message, Monitor, Pasted, ScreenId, TimedInput,
-    ViewportMetrics,
+    DroppedFile, Input, InputBatch, Message, Monitor, Pasted, ScreenId, TimedInput, ViewportMetrics,
 };
 use uuid::Uuid;
 

@@ -12,7 +12,7 @@ fn pixels(png: &[u8]) -> image::RgbaImage {
 fn a_selection_is_copied_and_exported_as_png() {
     let card = card();
     let mut editor = editor(std::slice::from_ref(&card));
-    editor.click(&format!("infinite-canvas.entity.{}", card.id));
+    editor.click(format!("infinite-canvas.entity.{}", card.id));
     editor.run();
 
     palette_runs(&mut editor, "copy as png");

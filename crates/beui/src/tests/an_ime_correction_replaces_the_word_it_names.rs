@@ -27,7 +27,8 @@ fn an_ime_correction_replaces_the_word_it_names() {
         harness
             .frame(Vec::new())
             .window
-            .requests.ime
+            .requests
+            .ime
             .and_then(|area| area.text),
         Some(ImeText {
             start: 0,

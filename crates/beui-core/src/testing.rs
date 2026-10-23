@@ -453,12 +453,16 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn key_down(&mut self, key: Key) -> String {
-        let name = key.name().unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        let name = key
+            .name()
+            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
         self.gesture(&["keydown"], &[], &[&name])
     }
 
     pub fn key_up(&mut self, key: Key) -> String {
-        let name = key.name().unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        let name = key
+            .name()
+            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
         self.gesture(&["keyup"], &[], &[&name])
     }
 

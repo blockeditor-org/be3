@@ -59,10 +59,13 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
     }
     editor.snapshot("turned_text_is_drawn_turned_as_it_is_exported");
 
-    editor.key(Key::A, Modifiers {
+    editor.key(
+        Key::A,
+        Modifiers {
             ctrl: true,
             ..Modifiers::NONE
-        });
+        },
+    );
     editor.run();
     palette_runs(&mut editor, "copy as svg");
     let copied = editor.take_copied_text();
@@ -80,7 +83,7 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
         "the export turns the text and the label as the canvas does:\n{svg}"
     );
 
-    editor.double_click(&format!("infinite-canvas.text.{}", note.id));
+    editor.double_click(format!("infinite-canvas.text.{}", note.id));
     editor.run();
     editor.next_frame();
     let (angle, ..) = turned(&editor, "Turned note");

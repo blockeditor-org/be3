@@ -52,7 +52,7 @@ fn apply(editor: &mut BeuiTest<InputRemapsApp>, text: &str) {
     show_toml(editor);
     editor.click("input-remaps.text");
     editor.run();
-    editor.type_text(&text);
+    editor.type_text(text);
     editor.run();
     editor.click("input-remaps.apply");
     editor.run();

@@ -1,7 +1,7 @@
 use crate::{
-    DecodeError, HelloAccepted, Input, InputBatch, MAX_QUEUED_MESSAGES, Message, ScrollDelta,
-    TimedInput,
-    REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport, decode_frame,
+    DecodeError, HelloAccepted, Input, InputBatch, MAX_QUEUED_MESSAGES, Message,
+    REQUEST_TIMEOUT_MILLISECONDS, ScrollDelta, SurfaceSpec, SurfaceSupport, TimedInput,
+    decode_frame,
 };
 use std::collections::{HashMap, VecDeque};
 

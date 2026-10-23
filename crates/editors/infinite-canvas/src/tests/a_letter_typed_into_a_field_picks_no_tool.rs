@@ -6,7 +6,7 @@ fn a_letter_typed_into_a_field_picks_no_tool() {
     let rectangle = card();
     let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.click("infinite-canvas.transform.x");
     editor.run();

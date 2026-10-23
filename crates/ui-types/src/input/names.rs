@@ -281,8 +281,8 @@ impl Key {
 
     pub fn evdev(self) -> Option<u32> {
         const LETTER_CODES: [u32; 26] = [
-            30, 48, 46, 32, 18, 33, 34, 35, 23, 36, 37, 38, 50, 49, 24, 25, 16, 19, 31, 20, 22, 47, 17,
-            45, 21, 44,
+            30, 48, 46, 32, 18, 33, 34, 35, 23, 36, 37, 38, 50, 49, 24, 25, 16, 19, 31, 20, 22, 47,
+            17, 45, 21, 44,
         ];
         if let Some(index) = LETTERS.iter().position(|letter| *letter == self) {
             return Some(LETTER_CODES[index]);

@@ -32,9 +32,9 @@ fn every_transform_field_previews_what_is_typed() {
         ("height", "60"),
         ("rotation", "45"),
     ] {
-        editor.click(&format!("infinite-canvas.transform.{field}"));
+        editor.click(format!("infinite-canvas.transform.{field}"));
         editor.run();
-        editor.type_text(&typed);
+        editor.type_text(typed);
         editor.run();
 
         assert_ne!(

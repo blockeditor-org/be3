@@ -13,7 +13,8 @@ fn superseded_events_are_coalesced() {
         },
         3,
     );
-    let wheel = |x: f32, y: f32| TimedInput::from(Input::Scroll(ScrollDelta::Pixels(Vec2::new(x, y))));
+    let wheel =
+        |x: f32, y: f32| TimedInput::from(Input::Scroll(ScrollDelta::Pixels(Vec2::new(x, y))));
     let held = || TimedInput::from(Input::Modifiers(Modifiers::default()));
     for event in [
         moved(1.0, 2.0, 1),

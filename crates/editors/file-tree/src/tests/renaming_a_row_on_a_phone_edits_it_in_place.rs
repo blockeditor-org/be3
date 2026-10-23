@@ -13,7 +13,7 @@ fn renaming_a_row_on_a_phone_edits_it_in_place() {
     fixture.settle();
     let field = format!("file-tree.{notes}.rename");
 
-    fixture.test.click(&format!("file-tree.{notes}.more"));
+    fixture.test.click(format!("file-tree.{notes}.more"));
     fixture.settle();
     fixture.click_item("Rename");
     fixture.test.settle();

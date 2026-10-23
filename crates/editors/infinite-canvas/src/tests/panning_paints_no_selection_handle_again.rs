@@ -23,7 +23,7 @@ fn panning_paints_no_selection_handle_again() {
     let view = Rect::from_min_size(pos2(0.0, 0.0), editor.rect().size());
     editor.set_view(view, 1.0);
     editor.run();
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
 
     editor.set_view(view.translate(Vec2::new(40.0, 25.0)), 1.0);

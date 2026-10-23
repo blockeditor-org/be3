@@ -1,6 +1,6 @@
-use block_editor_beui::beui::TouchPhase;
 use beui::Vec2;
 use block_editor_beui::be_block::TextBlock;
+use block_editor_beui::beui::TouchPhase;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
