@@ -99,7 +99,8 @@ fn line_look(
         }
     }
     let mut content = at;
-    let list = (node.start_byte() == skip_spaces(source, at, end))
+    let first = skip_spaces(source, at, end);
+    let list = (node.start_byte() <= first && first < node.end_byte())
         .then(|| list_marker(node, source))
         .flatten();
     if let Some((_, marker_end)) = list {
@@ -111,7 +112,7 @@ fn line_look(
     };
     LineLook {
         marker: match content > lead {
-            true => lead..content,
+            true => start..content,
             false => start..start,
         },
         list: list.map(|(list, _)| list),

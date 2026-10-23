@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn markdown_lines_are_described_from_the_parse_tree() {
-    let source = "- one\n  * [ ] two\n  - [x] three\n7. seven\n10) ten\n   cont\n\n> quote\nlazy\n\n> > a\n> - b\n\n```\n- code\n```\nplain\n";
+    let source = "- four\n    * spaces\n- one\n  * [ ] two\n  - [x] three\n7. seven\n10) ten\n   cont\n\n> quote\nlazy\n\n> > a\n> - b\n>   - c\n\n```\n- code\n```\nplain\n";
     let mut tester = EditorTester::with_language(source.as_bytes(), TextLanguage::Markdown);
     let highlight = tester.editor.highlight();
     let look = |line: &str| {
@@ -19,16 +19,32 @@ fn markdown_lines_are_described_from_the_parse_tree() {
     };
 
     assert_eq!(
+        look("    * spaces"),
+        ("    * ".into(), Some(ListMarker::Bullet), 1, 0, false)
+    );
+    assert_eq!(
         look("- one"),
         ("- ".into(), Some(ListMarker::Bullet), 0, 0, false)
     );
     assert_eq!(
         look("  * [ ] two"),
-        ("* [ ] ".into(), Some(ListMarker::Check(false)), 1, 0, false)
+        (
+            "  * [ ] ".into(),
+            Some(ListMarker::Check(false)),
+            1,
+            0,
+            false
+        )
     );
     assert_eq!(
         look("  - [x] three"),
-        ("- [x] ".into(), Some(ListMarker::Check(true)), 1, 0, false)
+        (
+            "  - [x] ".into(),
+            Some(ListMarker::Check(true)),
+            1,
+            0,
+            false
+        )
     );
     assert_eq!(
         look("7. seven"),
@@ -45,6 +61,10 @@ fn markdown_lines_are_described_from_the_parse_tree() {
     assert_eq!(
         look("> - b"),
         ("> - ".into(), Some(ListMarker::Bullet), 0, 1, false)
+    );
+    assert_eq!(
+        look(">   - c"),
+        (">   - ".into(), Some(ListMarker::Bullet), 1, 1, false)
     );
     assert_eq!(look("- code"), ("".into(), None, 0, 0, true));
     assert_eq!(look("plain"), ("".into(), None, 0, 0, false));

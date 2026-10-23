@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use beui_core::base::{Direction, Justify};
+use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::icons::ICON_CHECK;
@@ -16,15 +16,15 @@ use crate::{Toggle, ToggleHandle};
 use super::colors::TextAreaColors;
 use super::state::TextAreaState;
 
-const BULLET_SIZE: f32 = 6.0;
-const BULLET_ROOM: f32 = 10.0;
-const MARKER_GAP_EM: f32 = 0.3;
+pub const MARKER_COLUMN_EM: f32 = 1.6;
+pub const MARKER_GAP_EM: f32 = 0.3;
+pub const LIST_INDENT_EM: f32 = MARKER_COLUMN_EM + MARKER_GAP_EM;
+pub const QUOTE_INDENT_EM: f32 = 0.875;
+pub const QUOTE_BAR_WIDTH: f32 = 3.0;
+pub const BULLET_EM: f32 = 0.375;
 const CHECKBOX_SIZE: f32 = 18.0;
 const CHECKBOX_RADIUS: f32 = 3.0;
 const CHECKBOX_OUTLINE: f32 = 1.5;
-const QUOTE_INDENT: f32 = 14.0;
-const QUOTE_BAR_WIDTH: f32 = 3.0;
-const LIST_INDENT: f32 = 24.0;
 pub const CODE_OUTSET: f32 = 3.0;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -76,12 +76,30 @@ impl TextMarker {
         let style = self.style;
         create_memo(move || Sides::new(0.0, 0.0, style.get().font.size * MARKER_GAP_EM, 0.0))
     }
+
+    pub fn bullet(&self) -> Memo<f32> {
+        let style = self.style;
+        create_memo(move || style.get().font.size * BULLET_EM)
+    }
+}
+
+#[component]
+pub fn MarkerColumn(marker: TextMarker, content: NodeId) -> NodeId {
+    let style = marker.style;
+    let width = create_memo(move || {
+        Extent::at_least(style.get().font.size * (MARKER_COLUMN_EM + MARKER_GAP_EM))
+    });
+    let gap = marker.gap();
+    view! {
+        <Frame width padding=gap align={Align2::new(Align::End, Align::Start)}>{content}</Frame>
+    }
 }
 
 #[derive(Clone, Copy)]
 pub struct TextLine {
     pub look: Memo<LineLook>,
     pub padding: Memo<f32>,
+    pub size: Memo<f32>,
     pub text: NodeId,
 }
 
@@ -91,14 +109,20 @@ impl TextLine {
         create_memo(move || (0..look.get().quote).collect())
     }
 
-    pub fn nested(&self) -> Memo<usize> {
-        let look = self.look;
+    pub fn quote_indent(&self) -> Memo<f32> {
+        let size = self.size;
+        create_memo(move || size.get() * QUOTE_INDENT_EM)
+    }
+
+    pub fn indent(&self) -> Memo<f32> {
+        let (look, size) = (self.look, self.size);
         create_memo(move || {
             let look = look.get();
-            match look.list.is_some() && look.marker.is_empty() {
-                true => look.depth,
-                false => 0,
-            }
+            let nested = match look.list {
+                Some(_) => look.depth as f32 * LIST_INDENT_EM,
+                None => 0.0,
+            };
+            (look.quote as f32 * QUOTE_INDENT_EM + nested) * size.get()
         })
     }
 }
@@ -150,16 +174,14 @@ pub fn default_line(colors: Memo<TextAreaColors>) -> RenderFn<TextLine> {
 
 #[component]
 fn DefaultMarker(marker: TextMarker, colors: Memo<TextAreaColors>) -> NodeId {
-    let gap = marker.gap();
     let content = match marker.kind.get_untracked() {
         MarkerKind::Bullet => {
             let color = create_memo(move || marker.style.get().color);
+            let size = marker.bullet();
+            let side = create_memo(move || Extent::px(size.get()));
+            let radius = create_memo(move || size.get() / 2.0);
             view! {
-                <Frame width=BULLET_ROOM height=BULLET_SIZE>
-                    <List direction=Direction::Horizontal justify=Justify::Center spacing=0.0>
-                        <Frame width=BULLET_SIZE fill=color radius={BULLET_SIZE / 2.0} />
-                    </List>
-                </Frame>
+                <Frame width=side height=side fill=color radius />
             }
         }
         MarkerKind::Number(_) => {
@@ -184,12 +206,15 @@ fn DefaultMarker(marker: TextMarker, colors: Memo<TextAreaColors>) -> NodeId {
                 </Toggle>
             }
         }
-        MarkerKind::Void(_) => view! {
-            <Frame />
-        },
+        MarkerKind::Void(_) => {
+            let gap = marker.gap();
+            return view! {
+                <Frame padding=gap />
+            };
+        }
     };
     view! {
-        <Frame padding=gap>{content}</Frame>
+        <MarkerColumn marker content />
     }
 }
 
@@ -229,16 +254,10 @@ fn CheckboxBox(colors: Memo<TextAreaColors>, handle: ToggleHandle) -> NodeId {
 fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
     let look = line.look;
     let outer = create_memo(move || Sides::horizontal((line.padding.get() - CODE_OUTSET).max(0.0)));
-    let nested = line.nested();
+    let indent = line.indent();
     let inner = create_memo(move || {
         let inset = line.padding.get().min(CODE_OUTSET);
-        let quote = look.get().quote as f32 * QUOTE_INDENT;
-        Sides::new(
-            inset + quote + nested.get() as f32 * LIST_INDENT,
-            0.0,
-            inset,
-            0.0,
-        )
+        Sides::new(inset + indent.get(), 0.0, inset, 0.0)
     });
     let code = create_memo(move || match look.get().code_block {
         true => colors.get().code_background,
@@ -246,6 +265,9 @@ fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
     });
     let bar = create_memo(move || colors.get().syntax.markdown_symbol);
     let quotes = line.quotes();
+    let quote = line.quote_indent();
+    let width = create_memo(move || Extent::px(quote.get()));
+    let room = create_memo(move || Sides::new(0.0, 0.0, quote.get() - QUOTE_BAR_WIDTH, 0.0));
     let text = line.text;
     view! {
         <Frame padding=outer>
@@ -253,10 +275,7 @@ fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
                 <Frame fill=code padding=inner>{text}</Frame>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <ForEach keys={quotes}>|_: usize|
-                        <Frame
-                            width=QUOTE_INDENT
-                            padding={Sides::new(0.0, 0.0, QUOTE_INDENT - QUOTE_BAR_WIDTH, 0.0)}
-                        >
+                        <Frame width padding=room>
                             <Frame fill=bar />
                         </Frame>
                     </ForEach>

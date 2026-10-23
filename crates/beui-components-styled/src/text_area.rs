@@ -12,10 +12,10 @@ use crate::scroll::scrollbar_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, MarkerKind, RemoteTextCursor, TextAreaColors, TextAreaState, TextLeaf, TextLine,
-    TextMarker, TextWidget,
+    Completer, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, RemoteTextCursor, TextAreaColors,
+    TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget,
 };
-use beui_core::base::{Direction, ItemSize, Justify};
+use beui_core::base::{Direction, ItemSize};
 use beui_core::color::Color32;
 use beui_core::file_picker::PickedFile;
 use beui_core::geometry::Rect;
@@ -131,25 +131,19 @@ pub fn TextArea(
     }
 }
 
-const BULLET_SIZE: f32 = 6.0;
-const BULLET_ROOM: f32 = 10.0;
-const QUOTE_INDENT: f32 = 14.0;
-const QUOTE_BAR_WIDTH: f32 = 3.0;
-const LIST_INDENT: f32 = 24.0;
 const CODE_INSET: f32 = 3.0;
 
 #[component]
 pub fn DocumentMarker(marker: TextMarker) -> NodeId {
     let theme = use_theme();
-    let gap = marker.gap();
     let content = match marker.kind.get_untracked() {
-        MarkerKind::Bullet => view! {
-            <Frame width=BULLET_ROOM height=BULLET_SIZE>
-                <List direction=Direction::Horizontal justify=Justify::Center spacing=0.0>
-                    <Frame width=BULLET_SIZE fill=ColorRole::Text radius=Radius::Full />
-                </List>
-            </Frame>
-        },
+        MarkerKind::Bullet => {
+            let size = marker.bullet();
+            let side = create_memo(move || Extent::px(size.get()));
+            view! {
+                <Frame width=side height=side fill=ColorRole::Text radius=Radius::Full />
+            }
+        }
         MarkerKind::Number(_) => {
             let font = create_memo(move || marker.style.get().font);
             let color = create_memo(move || theme.text_muted.get());
@@ -175,12 +169,15 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
                 />
             }
         }
-        MarkerKind::Void(_) => view! {
-            <Frame />
-        },
+        MarkerKind::Void(_) => {
+            let gap = marker.gap();
+            return view! {
+                <primitives::Frame padding=gap />
+            };
+        }
     };
     view! {
-        <primitives::Frame padding=gap>{content}</primitives::Frame>
+        <MarkerColumn marker content />
     }
 }
 
@@ -188,22 +185,19 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
 pub fn DocumentLine(line: TextLine) -> NodeId {
     let look = line.look;
     let outer = create_memo(move || Sides::horizontal((line.padding.get() - CODE_INSET).max(0.0)));
-    let nested = line.nested();
+    let indent = line.indent();
     let inner = create_memo(move || {
         let inset = line.padding.get().min(CODE_INSET);
-        let quote = look.get().quote as f32 * QUOTE_INDENT;
-        Sides::new(
-            inset + quote + nested.get() as f32 * LIST_INDENT,
-            0.0,
-            inset,
-            0.0,
-        )
+        Sides::new(inset + indent.get(), 0.0, inset, 0.0)
     });
     let code = create_memo(move || match look.get().code_block {
         true => ColorRole::SurfaceRaised,
         false => ColorRole::None,
     });
     let quotes = line.quotes();
+    let quote = line.quote_indent();
+    let width = create_memo(move || Extent::px(quote.get()));
+    let room = create_memo(move || Sides::new(0.0, 0.0, quote.get() - QUOTE_BAR_WIDTH, 0.0));
     let text = line.text;
     view! {
         <Frame padding=outer>
@@ -211,10 +205,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
                 <Frame fill=code padding=inner>{text}</Frame>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <ForEach keys={quotes}>|_: usize|
-                        <Frame
-                            width=QUOTE_INDENT
-                            padding={Sides::new(0.0, 0.0, QUOTE_INDENT - QUOTE_BAR_WIDTH, 0.0)}
-                        >
+                        <Frame width padding=room>
                             <Frame fill=ColorRole::Accent radius=Radius::Full />
                         </Frame>
                     </ForEach>

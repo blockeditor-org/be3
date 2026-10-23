@@ -238,6 +238,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let wrapped = cx.line.call(TextLine {
         look,
         padding,
+        size: cx.font_size,
         text: lines,
     });
     view! {

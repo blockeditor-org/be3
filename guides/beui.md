@@ -844,13 +844,20 @@ makes an area for one, `TextAreaState::selected` is the selection's marks and bl
 and `styled::FormatBar` shows the tools it is given glyphs for. The area draws rich text with no
 gutter or whitespace markers. How a document looks is three render hooks, the way Slate's are,
 each keyed by the line description (`LineLook`) that markdown and rich text both give: `leaf`
-turns a run of text and its resolved style into a `Span`, so every run stays in the line's one
-`Text` and wraps and carries the caret across style changes; `marker` draws a list marker
-(bullet, number, checkbox with a `checked` binding that toggles it) or a void (`MarkerKind`)
-as the content of a `TextItem`; and `line` wraps a line's text node in whatever goes around it
-(quote bars, a code block's background, a rich list's indent), keeping the area's horizontal
-padding it is handed. The engine says what is on a line, never how big: each marker is
-measured by its `Text` during layout, and wrapped lines hang at the laid-out x after it. The
+(`RenderFn<TextLeaf, Span>`) turns a run of text and its resolved style into a `Span`, so every
+run stays in the line's one `Text` and wraps and carries the caret across style changes; `marker`
+(`RenderFn<TextMarker>`) draws a list marker (bullet, number, checkbox with a `checked` binding
+that toggles it) or a void (`MarkerKind`) as the content of a `TextItem`; and `line`
+(`RenderFn<TextLine>`) wraps a line's text node in whatever goes around it (quote bars, a code
+block's background, a list's indent), keeping the area's horizontal padding it is handed. The
+engine says what is on a line, never how big: each marker is measured by its `Text` during
+layout, and wrapped lines hang at the laid-out x after it. A markdown line's marker covers its
+leading indentation and its `>` and list marker bytes, so they are drawn by the marker item (the
+caret still steps through them) rather than shown as text. Both kinds of list look the same:
+`MarkerColumn` puts a list marker in a column `MARKER_COLUMN_EM` of the text size wide, right
+aligned so numbers line up on the dot (a wider marker widens only its own line), and
+`TextLine::indent` indents a line by a fixed `LIST_INDENT_EM` per nesting level and
+`QUOTE_INDENT_EM` per quote, whatever the source's spaces. The
 unstyled defaults draw from `TextAreaColors`; `styled::TextArea` draws with `DocumentMarker` and
 `DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
 and hands every other marker to `DocumentMarker`. Copying and pasting
