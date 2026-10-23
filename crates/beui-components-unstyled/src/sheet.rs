@@ -7,7 +7,7 @@ use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
-use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband};
+use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, bounce, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
 use beui_core::base::offset::ScrollPosition;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -226,18 +226,34 @@ impl Motion {
         let Some(node) = self.node() else {
             return (0.0, 0.0);
         };
-        match node.offset() {
-            Some(offset) => (offset, node.overscroll()),
-            None => (0.0, 0.0),
-        }
+        let Some(raw) = node.offset() else {
+            return (0.0, 0.0);
+        };
+        let offset = raw.clamp(0.0, self.shape().max_offset);
+        (offset, raw - offset)
     }
 
     fn place_content(&self, offset: f32, overscroll: f32) {
         let Some(node) = self.node() else {
             return;
         };
-        node.drive_offset(offset);
-        node.set_overscroll(overscroll);
+        node.drive_offset(offset + overscroll);
+    }
+
+    fn settle_content(&self, position: ScrollPosition) -> bool {
+        let held = self.held.borrow();
+        if position.overscroll() == 0.0
+            || held.travel.is_some()
+            || !matches!(held.phase, Phase::Still)
+        {
+            return false;
+        }
+        drop(held);
+        let Some(node) = self.node() else {
+            return false;
+        };
+        node.drive_offset(position.clamped());
+        true
     }
 
     fn place_height(&self, rest: Rest) {
@@ -780,6 +796,10 @@ impl Motion {
 
     fn wheel(&self, gesture: ScrollGesture) {
         let (wheel, fling) = (gesture.delta.y, gesture.fling.y);
+        if gesture.held && wheel == 0.0 && fling == 0.0 {
+            self.stop_fling();
+            return;
+        }
         if self.held.borrow().travel.is_some() || (wheel == 0.0 && fling == 0.0) {
             return;
         }
@@ -1057,15 +1077,15 @@ impl Motion {
                 !settled
             }
             Phase::Bounce { velocity } => {
-                let mut overscroll = overscroll;
-                spring_back(&mut overscroll, velocity, elapsed, SCROLL_SPRING);
-                let settled = overscroll == 0.0 && *velocity == 0.0;
-                if settled {
-                    held.phase = Phase::Still;
+                let mut stretch = unband(overscroll, shape.viewport);
+                let back = bounce(&mut stretch, velocity, elapsed);
+                if stretch == 0.0 {
+                    held.phase = Fling::new(back).map_or(Phase::Still, Phase::Fling);
                 }
+                let moving = !matches!(held.phase, Phase::Still);
                 drop(held);
-                self.place_content(offset, overscroll);
-                !settled
+                self.place_content(offset, rubber_band(stretch, shape.viewport));
+                moving
             }
         }
     }
@@ -1209,7 +1229,11 @@ pub fn Sheet(
                                             <Offset
                                                 @node_ref=&content
                                                 fit=true
-                                                on_change={move |value| position.set(Some(value))}
+                                                on_change={move |value: ScrollPosition| {
+                                                    if !motion.value().settle_content(value) {
+                                                        position.set(Some(value));
+                                                    }
+                                                }}
                                             >
                                                 {children}
                                             </Offset>

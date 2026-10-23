@@ -1,6 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 const HEADER: f32 = 50.0;
 const FOOTER: f32 = 30.0;
@@ -14,7 +15,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <List spacing=0.0>
                         <Frame height=HEADER>
                             <Spacer />
@@ -40,7 +41,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                             <Spacer />
                         </Frame>
                     </List>
-                </Offset>
+                </Scroll>
             </List>
         }
     });

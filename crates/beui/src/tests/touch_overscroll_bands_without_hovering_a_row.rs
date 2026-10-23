@@ -38,7 +38,11 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     let overscroll = harness.document().scroll_overscroll(scroll);
     assert!(overscroll < 0.0);
     assert!(overscroll.abs() < 100.0);
-    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
+    assert_eq!(
+        harness.document().scroll_offset(scroll),
+        overscroll,
+        "the content is pulled past its start by the overscroll"
+    );
     assert!(!hovered.get_untracked());
     assert_eq!(harness.document().focused_node(), None);
 

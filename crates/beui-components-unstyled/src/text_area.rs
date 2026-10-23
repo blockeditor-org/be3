@@ -367,7 +367,7 @@ impl Surface {
                 None => return,
             },
         };
-        let mut offset = position.offset;
+        let mut offset = position.clamped();
         if rect.min.y - REVEAL_MARGIN.y < offset {
             offset = rect.min.y - REVEAL_MARGIN.y;
         }
