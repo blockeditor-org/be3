@@ -1,4 +1,4 @@
-use crate::{Content, Frame, Glyph, Pixels, RoundedRect, TextureKey, Vertex};
+use crate::{Content, Fade, Frame, Glyph, Pixels, RoundedRect, TextureKey, Vertex};
 
 pub fn rasterize<'a>(
     frame: &Frame,
@@ -10,6 +10,7 @@ pub fn rasterize<'a>(
         width,
         height,
         pixels: vec![premultiplied(background); (width * height) as usize],
+        fade: Fade::NONE,
     };
     let sampler = |key: TextureKey| {
         textures(key)
@@ -18,6 +19,7 @@ pub fn rasterize<'a>(
     };
     let scale = frame.pixels_per_point;
     for primitive in &frame.primitives {
+        canvas.fade = primitive.fade.scaled(scale);
         let clip = canvas.scaled(primitive.clip, scale);
         match &primitive.content {
             Content::Mesh(triangles) => {
@@ -87,6 +89,7 @@ struct Canvas {
     width: u32,
     height: u32,
     pixels: Vec<[u8; 4]>,
+    fade: Fade,
 }
 
 impl Canvas {
@@ -95,6 +98,7 @@ impl Canvas {
     }
 
     fn blend(&mut self, x: u32, y: u32, color: [f32; 3], alpha: f32) {
+        let alpha = alpha * self.fade.alpha([x as f32 + 0.5, y as f32 + 0.5]);
         let target = self.pixel(x, y);
         for (target, source) in target.iter_mut().zip(color) {
             let blended = source * alpha + *target as f32 * (1.0 - alpha);

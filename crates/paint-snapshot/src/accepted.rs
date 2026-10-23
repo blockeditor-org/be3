@@ -10,7 +10,10 @@ pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
         .encode()
         .expect("the painting could not be encoded");
     assert_bytes(name, &bytes, how_to_accept, REVIEW, |previous| {
-        let previous = Snapshot::decode(previous).expect("the accepted painting is unreadable");
+        let previous = match Snapshot::decode(previous) {
+            Ok(previous) => previous,
+            Err(error) => return format!("the accepted painting is unreadable: {error}"),
+        };
         crate::difference(&previous, snapshot)
             .map(|difference| difference.description)
             .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned())

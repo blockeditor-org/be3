@@ -3,8 +3,8 @@ use std::collections::btree_map::Entry;
 use std::hash::{Hash as _, Hasher as _};
 
 pub use paint_format::{
-    Content, Frame, Glyph, PAINTING_EXTENSION, Painting, Pixels, Placement, Primitive, RoundedRect,
-    ScreenPaintings, TextureKey, Triangle, Turn, Vertex, rasterize,
+    Content, Fade, Frame, Glyph, PAINTING_EXTENSION, Painting, Pixels, Placement, Primitive,
+    RoundedRect, ScreenPaintings, TextureKey, Triangle, Turn, Vertex, rasterize,
 };
 
 use crate::color::Color32;
@@ -56,7 +56,12 @@ pub fn painting(
     let turn_of = |turn: crate::draw::Turn| turned(turn, pixels_per_point);
     let mut textures = BTreeMap::new();
     let mut primitives = Vec::new();
-    let quads = crate::draw::quads(output, pixels_per_point).list;
+    let mut quads = Vec::new();
+    let mut fades = Vec::new();
+    for (shape, fade) in crate::display::flatten_faded(&output.layers) {
+        crate::draw::push_quads(&shape, pixels_per_point, None, &mut quads);
+        fades.resize(quads.len(), saved(fade));
+    }
     let mut background = background;
     if punches == Punches::Erase
         && background.alpha() > 0
@@ -65,6 +70,7 @@ pub fn painting(
         let whole = [0.0, 0.0, size.x, size.y];
         primitives.push(Primitive {
             clip: whole,
+            fade: Fade::NONE,
             content: Content::RoundedRect(RoundedRect {
                 rect: whole,
                 corner_radius: 0.0,
@@ -76,7 +82,7 @@ pub fn painting(
         background = Color32::TRANSPARENT;
     }
     let mut joined = false;
-    for quad in quads {
+    for (quad, fade) in quads.into_iter().zip(fades) {
         let joining = std::mem::replace(&mut joined, false);
         if let Quad::Triangle {
             corners,
@@ -101,10 +107,12 @@ pub fn painting(
             match primitives.last_mut() {
                 Some(Primitive {
                     clip: held,
+                    fade: was,
                     content: Content::Mesh(triangles),
-                }) if joining && *held == clip => triangles.push(triangle),
+                }) if joining && *held == clip && *was == fade => triangles.push(triangle),
                 _ => primitives.push(Primitive {
                     clip,
+                    fade,
                     content: Content::Mesh(vec![triangle]),
                 }),
             }
@@ -133,6 +141,7 @@ pub fn painting(
                     primitive.clip[2].min(clip[2]),
                     primitive.clip[3].min(clip[3]),
                 ];
+                primitive.fade = saved(loaded(fade).within(loaded(primitive.fade)));
                 if primitive.clip[2] > primitive.clip[0] && primitive.clip[3] > primitive.clip[1] {
                     primitives.push(primitive);
                 }
@@ -150,6 +159,7 @@ pub fn painting(
                         .into_iter()
                         .map(move |clip| Primitive {
                             clip,
+                            fade: primitive.fade,
                             content: primitive.content.clone(),
                         })
                 })
@@ -253,7 +263,11 @@ pub fn painting(
         if outside {
             continue;
         }
-        primitives.push(Primitive { clip, content });
+        primitives.push(Primitive {
+            clip,
+            fade,
+            content,
+        });
     }
     Ok(Painting {
         frame: Frame {
@@ -267,6 +281,29 @@ pub fn painting(
         },
         textures,
     })
+}
+
+fn saved(fade: crate::fade::Fade) -> Fade {
+    match fade.is_none() {
+        true => Fade::NONE,
+        false => Fade {
+            rect: [
+                fade.rect.min.x,
+                fade.rect.min.y,
+                fade.rect.max.x,
+                fade.rect.max.y,
+            ],
+            widths: fade.widths,
+        },
+    }
+}
+
+fn loaded(fade: Fade) -> crate::fade::Fade {
+    let [left, top, right, bottom] = fade.rect;
+    crate::fade::Fade::new(
+        Rect::from_min_max(pos2(left, top), pos2(right, bottom)),
+        fade.widths,
+    )
 }
 
 fn turned(turn: crate::draw::Turn, pixels_per_point: f32) -> Turn {
