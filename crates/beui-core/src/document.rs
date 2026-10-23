@@ -1376,7 +1376,10 @@ impl Document {
                 self.update_layout(ctx, rect)
             });
         self.ask_for_windows(ctx);
-        ctx.set_keyboard_window(self.focused.map_or(WindowId::MAIN, |focused| self.window_of(focused)));
+        ctx.set_keyboard_window(
+            self.focused
+                .map_or(WindowId::MAIN, |focused| self.window_of(focused)),
+        );
         if self.has_keyboard()
             && let Some(area) = self.focused_ime_area()
         {

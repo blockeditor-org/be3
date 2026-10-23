@@ -44,7 +44,8 @@ impl Default for Windows {
 
 impl Windows {
     pub(crate) fn note(&mut self, id: WindowId, overlay: NodeOf<OverlayNode>) {
-        self.nodes.retain(|(held, node)| *held != id && *node != overlay);
+        self.nodes
+            .retain(|(held, node)| *held != id && *node != overlay);
         self.nodes.push((id, overlay));
     }
 }

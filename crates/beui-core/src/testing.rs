@@ -1,9 +1,9 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::pin;
+use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
@@ -167,7 +167,8 @@ impl Windows {
             size,
             placement: placement.clone(),
         });
-        self.reports.push(WindowReport::Resized { window: id, size });
+        self.reports
+            .push(WindowReport::Resized { window: id, size });
         self.reports.push(WindowReport::Placed {
             window: id,
             placement,

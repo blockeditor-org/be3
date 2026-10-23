@@ -73,7 +73,11 @@ fn a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own() {
             },
         ],
     );
-    assert_eq!(clicks.get_untracked(), 1, "a press in the window reaches its content");
+    assert_eq!(
+        clicks.get_untracked(),
+        1,
+        "a press in the window reaches its content"
+    );
     harness.click(pos2(60.0, 50.0));
     assert_eq!(
         clicks.get_untracked(),

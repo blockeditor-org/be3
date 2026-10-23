@@ -22,5 +22,8 @@ fn the_window_sample_floats_beside_its_button_where_nothing_opens_windows() {
 
     test.click("demo.window.trigger");
     test.frame(Vec::new());
-    assert!(!test.shows("demo.window.panel"), "the button closes it again");
+    assert!(
+        !test.shows("demo.window.panel"),
+        "the button closes it again"
+    );
 }

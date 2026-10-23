@@ -15,7 +15,11 @@ fn the_window_sample_opens_a_window_of_its_own_where_a_host_opens_windows() {
     let [window] = opened.as_slice() else {
         panic!("the sample opens one window, not {opened:?}");
     };
-    assert_eq!(window.size, Vec2::new(220.0, 120.0), "at the size it asks for");
+    assert_eq!(
+        window.size,
+        Vec2::new(220.0, 120.0),
+        "at the size it asks for"
+    );
     let output = test.frame_in(window.id, Vec::new());
     assert_eq!(
         output

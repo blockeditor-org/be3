@@ -27,7 +27,11 @@ fn a_window_shows_as_an_overlay_where_nothing_opens_windows() {
         "a window asks nothing of a platform that opens no windows: {:?}",
         output.window_requests
     );
-    assert_eq!(output.windows.len(), 1, "everything paints into the main window");
+    assert_eq!(
+        output.windows.len(),
+        1,
+        "everything paints into the main window"
+    );
     assert_eq!(
         harness.document().node_rect(content.get()),
         Some(Rect::from_min_size(pos2(50.0, 40.0), vec2(120.0, 80.0))),
@@ -44,5 +48,9 @@ fn a_window_shows_as_an_overlay_where_nothing_opens_windows() {
     );
 
     harness.click(pos2(60.0, 50.0));
-    assert_eq!(clicks.get_untracked(), 1, "a press on the overlay reaches its content");
+    assert_eq!(
+        clicks.get_untracked(),
+        1,
+        "a press on the overlay reaches its content"
+    );
 }

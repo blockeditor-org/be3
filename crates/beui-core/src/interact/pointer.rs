@@ -983,7 +983,10 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                     };
                     let clicked = match session.kind.settles {
                         true => !session.dragged,
-                        false => session.window == session.origin_window && over(frame.rects, *owner, pos),
+                        false => {
+                            session.window == session.origin_window
+                                && over(frame.rects, *owner, pos)
+                        }
                     };
                     if !clicked {
                         continue;
@@ -1415,17 +1418,17 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
     let target = latched(doc, frame, event.window, pos, along)
         .or(claimed)
         .or_else(|| {
-        for id in path {
-            let node = interactive(doc, id)?;
-            if node.wants_wheel(along) {
-                return Some(id);
+            for id in path {
+                let node = interactive(doc, id)?;
+                if node.wants_wheel(along) {
+                    return Some(id);
+                }
+                if node.forwards() {
+                    return None;
+                }
             }
-            if node.forwards() {
-                return None;
-            }
-        }
-        None
-    });
+            None
+        });
     doc.pointers.wheel_latch = target.map(|target| (target, frame.now, event.window, pos));
     let Some((target, node)) = target.and_then(|target| Some((target, interactive(doc, target)?)))
     else {

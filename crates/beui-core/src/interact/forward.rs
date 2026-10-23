@@ -298,10 +298,11 @@ pub(super) fn route(
     let pointer_events = ctx.input(|input| input.pointer_events.clone());
     let routed = std::mem::take(&mut doc.pointers.routed);
     let reachable = |doc: &Document, sink: NodeId| {
-        doc.window_layers(doc.window_of(sink)).is_some_and(|layers| {
-            doc.layer_of(&layers, sink)
-                .is_some_and(|layer| layers.reachable(layer))
-        })
+        doc.window_layers(doc.window_of(sink))
+            .is_some_and(|layers| {
+                doc.layer_of(&layers, sink)
+                    .is_some_and(|layer| layers.reachable(layer))
+            })
     };
     let mut deliveries: Vec<(NodeId, Vec<Forwarded>)> = Vec::new();
     let mut deliver = |to: Option<NodeId>, event: Forwarded| {

@@ -157,10 +157,7 @@ impl DocumentTest {
             .output(window)
             .cloned()
             .unwrap_or_else(|| panic!("window {window:?} has painted nothing"));
-        let background = self
-            .latest
-            .as_ref()
-            .map_or(Color32::BLACK, background);
+        let background = self.latest.as_ref().map_or(Color32::BLACK, background);
         let painting = capture::capture_window(&output, 1.0, background)
             .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);

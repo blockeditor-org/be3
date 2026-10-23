@@ -18,7 +18,9 @@ fn closing_a_window_asks_its_host_and_a_close_by_the_host_reaches_the_app() {
                 on_report={move |report: WindowReport| heard.update(|heard| heard.push(report))}
             >|handle: WindowHandle| {
                 held.set(Some(handle));
-                view! { <Frame /> }
+                view! {
+                    <Frame />
+                }
             }</Window>
         }
     });
@@ -27,12 +29,21 @@ fn closing_a_window_asks_its_host_and_a_close_by_the_host_reaches_the_app() {
     harness.frame(Vec::new());
     harness.take_window_requests();
     let handle = held.get().expect("the window built its content");
-    assert!(handle.is_window(), "the content can tell it is a window of its own");
+    assert!(
+        handle.is_window(),
+        "the content can tell it is a window of its own"
+    );
 
     let (moved, resized) = with_installed(harness.document_mut(), |_| {
-        (handle.begin_move(), handle.begin_resize(WindowEdge::BottomRight))
+        (
+            handle.begin_move(),
+            handle.begin_resize(WindowEdge::BottomRight),
+        )
     });
-    assert!(moved && resized, "the host takes a move and a resize of a window it shows");
+    assert!(
+        moved && resized,
+        "the host takes a move and a resize of a window it shows"
+    );
     harness.frame(Vec::new());
     assert_eq!(
         harness.take_window_requests(),

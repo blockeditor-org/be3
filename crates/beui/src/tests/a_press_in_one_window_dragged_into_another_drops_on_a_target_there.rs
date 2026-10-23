@@ -1,7 +1,7 @@
 use super::*;
+use crate::WindowId;
 use crate::primitives::{Window, WindowHandle};
 use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
-use crate::WindowId;
 
 #[test]
 fn a_press_in_one_window_dragged_into_another_drops_on_a_target_there() {
@@ -55,7 +55,10 @@ fn a_press_in_one_window_dragged_into_another_drops_on_a_target_there() {
         .get_untracked()
         .expect("the drop lands on the target in the window the pointer is over");
     assert_eq!(payload, 7);
-    assert_eq!(point.window, window, "the drop says which window it landed in");
+    assert_eq!(
+        point.window, window,
+        "the drop says which window it landed in"
+    );
     assert_eq!(
         point.pos,
         pos2(80.0, 70.0),
