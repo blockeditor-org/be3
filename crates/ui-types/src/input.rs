@@ -571,7 +571,7 @@ pub struct Keystroke {
     pub key: Option<Key>,
     pub pressed: bool,
     pub repeat: bool,
-    pub code: Option<u32>,
+    pub evdev: Option<u32>,
     pub text: Option<String>,
 }
 

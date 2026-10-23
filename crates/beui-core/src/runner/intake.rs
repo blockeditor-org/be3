@@ -214,7 +214,7 @@ impl Intake {
             key,
             pressed,
             repeat,
-            code,
+            evdev,
             text,
         } = stroke;
         let modifiers = self.modifiers;
@@ -224,7 +224,7 @@ impl Intake {
                 && !text.is_empty()
                 && !text.chars().any(char::is_control)
         });
-        let Some(key) = key.or(code.map(|_| Key::Unidentified)) else {
+        let Some(key) = key.or(evdev.map(|_| Key::Unidentified)) else {
             events.extend(text.map(Event::Text));
             return;
         };
@@ -238,7 +238,7 @@ impl Intake {
                 repeat,
                 modifiers,
             },
-            code,
+            evdev,
             text,
         });
     }

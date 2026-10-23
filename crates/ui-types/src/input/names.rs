@@ -62,6 +62,107 @@ impl Key {
         Some(key)
     }
 
+    pub fn from_logical(value: &str, apple: bool) -> Option<Self> {
+        let mut chars = value.chars();
+        if let (Some(single), None) = (chars.next(), chars.next()) {
+            return Self::from_char(single);
+        }
+        let key = match value {
+            "ArrowDown" => Self::ArrowDown,
+            "ArrowLeft" => Self::ArrowLeft,
+            "ArrowRight" => Self::ArrowRight,
+            "ArrowUp" => Self::ArrowUp,
+            "Backspace" => Self::Backspace,
+            "Delete" => Self::Delete,
+            "End" => Self::End,
+            "Enter" => Self::Enter,
+            "Escape" => Self::Escape,
+            "Home" => Self::Home,
+            "PageDown" => Self::PageDown,
+            "PageUp" => Self::PageUp,
+            "Tab" => Self::Tab,
+            "Insert" => Self::Insert,
+            "BrowserBack" => Self::BrowserBack,
+            "AudioVolumeUp" => Self::VolumeUp,
+            "AudioVolumeDown" => Self::VolumeDown,
+            "AudioVolumeMute" => Self::VolumeMute,
+            "MicrophoneVolumeMute" => Self::MicMute,
+            "BrightnessUp" => Self::BrightnessUp,
+            "BrightnessDown" => Self::BrightnessDown,
+            "MediaPlayPause" | "MediaPlay" | "MediaPause" => Self::MediaPlayPause,
+            "MediaTrackNext" => Self::MediaNext,
+            "MediaTrackPrevious" => Self::MediaPrevious,
+            "MediaStop" => Self::MediaStop,
+            "Shift" => Self::Shift,
+            "Control" => Self::Ctrl,
+            "Alt" => Self::Alt,
+            "Meta" => Self::meta(apple),
+            _ => return Self::function_code(value),
+        };
+        Some(key)
+    }
+
+    pub fn evdev_from_code(code: &str) -> Option<u32> {
+        let evdev = match code {
+            "ShiftRight" => 54,
+            "NumpadMultiply" => 55,
+            "CapsLock" => 58,
+            "NumLock" => 69,
+            "ScrollLock" => 70,
+            "Numpad7" => 71,
+            "Numpad8" => 72,
+            "Numpad9" => 73,
+            "NumpadSubtract" => 74,
+            "Numpad4" => 75,
+            "Numpad5" => 76,
+            "Numpad6" => 77,
+            "NumpadAdd" => 78,
+            "Numpad1" => 79,
+            "Numpad2" => 80,
+            "Numpad3" => 81,
+            "Numpad0" => 82,
+            "NumpadDecimal" => 83,
+            "Lang5" => 85,
+            "IntlBackslash" => 86,
+            "IntlRo" => 89,
+            "Convert" => 92,
+            "KanaMode" => 93,
+            "NonConvert" => 94,
+            "NumpadEnter" => 96,
+            "ControlRight" => 97,
+            "NumpadDivide" => 98,
+            "PrintScreen" => 99,
+            "AltRight" => 100,
+            "Power" => 116,
+            "NumpadEqual" => 117,
+            "Pause" => 119,
+            "NumpadComma" => 121,
+            "Lang1" => 122,
+            "Lang2" => 123,
+            "IntlYen" => 124,
+            "MetaLeft" | "OSLeft" => 125,
+            "MetaRight" | "OSRight" => 126,
+            "ContextMenu" => 127,
+            "Undo" => 131,
+            "Copy" => 133,
+            "Paste" => 135,
+            "Find" => 136,
+            "Cut" => 137,
+            "Help" => 138,
+            "Sleep" => 142,
+            "WakeUp" => 143,
+            "LaunchMail" => 155,
+            "BrowserFavorites" => 156,
+            "BrowserForward" => 159,
+            "Eject" => 161,
+            "BrowserHome" => 172,
+            "BrowserRefresh" => 173,
+            "BrowserSearch" => 217,
+            _ => return Self::from_code(code)?.evdev(),
+        };
+        Some(evdev)
+    }
+
     fn letter_code(code: &str) -> Option<Self> {
         let letter = code.strip_prefix("Key")?;
         let mut chars = letter.chars();

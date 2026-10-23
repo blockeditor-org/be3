@@ -11,17 +11,16 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
         strokes(&events, Modifiers::default())
             .into_iter()
             .filter(|stroke| stroke.1)
-            .map(|(key, _, shift, code, text)| (key, shift, code, text))
+            .map(|(key, _, shift, evdev, text)| (key, shift, evdev, text))
             .collect();
-    let code = |code: u32| cfg!(target_os = "linux").then_some(code);
     assert_eq!(
         pressed,
         vec![
-            (Key::A, false, code(30), Some("a".to_owned())),
-            (Key::Shift, true, code(42), None),
-            (Key::B, true, code(48), Some("B".to_owned())),
-            (Key::Shift, true, code(42), None),
-            (Key::One, true, code(2), Some("!".to_owned())),
+            (Key::A, false, Some(30), Some("a".to_owned())),
+            (Key::Shift, true, Some(42), None),
+            (Key::B, true, Some(48), Some("B".to_owned())),
+            (Key::Shift, true, Some(42), None),
+            (Key::One, true, Some(2), Some("!".to_owned())),
         ],
         "each character a key makes is that key pressed, with shift held where it needs it, so a \
          Wayland program's window, which reads keys rather than text, gets it too"
@@ -86,14 +85,14 @@ fn strokes(events: &[Input], held: Modifiers) -> Vec<Stroke> {
             Input::Key(Keystroke {
                 key: Some(key),
                 pressed,
-                code,
+                evdev,
                 text,
                 ..
             }) => {
                 if *key == Key::Shift {
                     shift = *pressed;
                 }
-                Some((*key, *pressed, shift, *code, text.clone()))
+                Some((*key, *pressed, shift, *evdev, text.clone()))
             }
             _ => None,
         })

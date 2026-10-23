@@ -9,7 +9,7 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
         key: Some(key),
         pressed: true,
         repeat: false,
-        code: None,
+        evdev: None,
         text: Some(text.to_owned()),
     };
 
@@ -18,7 +18,7 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
         seen,
         [Event::Key {
             press: KeyPress::down(Key::A, Modifiers::NONE),
-            code: None,
+            evdev: None,
             text: Some("a".to_owned()),
         }]
     );
@@ -42,7 +42,7 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
             Event::Modifiers(Modifiers::CTRL),
             Event::Key {
                 press: KeyPress::down(Key::S, Modifiers::CTRL),
-                code: None,
+                evdev: None,
                 text: None,
             }
         ],

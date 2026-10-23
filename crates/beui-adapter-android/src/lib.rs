@@ -110,6 +110,7 @@ enum Message {
         key: Option<Key>,
         pressed: bool,
         repeat: bool,
+        evdev: Option<u32>,
         modifiers: Modifiers,
         text: Option<String>,
     },
@@ -588,6 +589,7 @@ impl Runner {
                 key,
                 pressed,
                 repeat,
+                evdev,
                 modifiers,
                 text,
             } => {
@@ -596,7 +598,7 @@ impl Runner {
                     key,
                     pressed,
                     repeat,
-                    code: None,
+                    evdev,
                     text,
                 }));
             }
@@ -1130,6 +1132,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     _env: EnvUnowned<'local>,
     _: JClass<'local>,
     code: jint,
+    scan_code: jint,
     pressed: jboolean,
     repeat: jint,
     meta: jint,
@@ -1148,6 +1151,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
             key,
             pressed,
             repeat: repeat > 0,
+            evdev: u32::try_from(scan_code).ok().filter(|evdev| *evdev > 0),
             modifiers: modifiers(meta),
             text,
         });

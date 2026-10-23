@@ -12,7 +12,7 @@ fn stroke(key: Key, code: u32, pressed: bool, repeat: bool) -> Input {
         key: Some(key),
         pressed,
         repeat,
-        code: Some(code),
+        evdev: Some(code),
         text: None,
     })
 }
@@ -116,7 +116,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
         forwarded
             .get_untracked()
             .iter()
-            .filter(|event| matches!(event, Event::Key { code: Some(_), .. }))
+            .filter(|event| matches!(event, Event::Key { evdev: Some(_), .. }))
             .count()
             == 2,
         "a plain F after the action reaches the app whole: {:?}",

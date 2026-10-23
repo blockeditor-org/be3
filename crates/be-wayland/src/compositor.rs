@@ -640,7 +640,7 @@ impl Compositor {
             match forwarded {
                 Forwarded::Input(Event::Key {
                     press,
-                    code: Some(code),
+                    evdev: Some(code),
                     ..
                 }) if !press.repeat && state.keyboard_window() == Some(id) => {
                     if press.pressed {

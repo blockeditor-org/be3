@@ -92,7 +92,7 @@ pub enum Event {
     Modifiers(Modifiers),
     Key {
         press: KeyPress,
-        code: Option<u32>,
+        evdev: Option<u32>,
         text: Option<String>,
     },
     PointerButton {
@@ -137,7 +137,7 @@ impl Event {
     pub fn key(press: KeyPress) -> Self {
         Self::Key {
             press,
-            code: None,
+            evdev: None,
             text: None,
         }
     }

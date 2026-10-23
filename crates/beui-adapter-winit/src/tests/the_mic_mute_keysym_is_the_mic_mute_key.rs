@@ -1,5 +1,5 @@
 use super::*;
-use winit::keyboard::{Key as Winit, NativeKey};
+use winit::keyboard::{Key as Winit, NamedKey, NativeKey};
 
 #[test]
 fn the_mic_mute_keysym_is_the_mic_mute_key() {

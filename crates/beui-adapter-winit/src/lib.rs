@@ -29,7 +29,7 @@ use winit::event::{
 use winit::event_loop::{
     ActiveEventLoop, AsyncRequestSerial, ControlFlow, DndAction, EventLoop, EventLoopProxy,
 };
-use winit::keyboard::{NamedKey, PhysicalKey};
+use winit::keyboard::{NativeKeyCode, PhysicalKey};
 use winit::monitor::Fullscreen;
 use winit::window::{
     CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, Window,
@@ -696,26 +696,22 @@ impl ApplicationHandler for Runner {
                 self.push(Input::Zoom(1.0 + delta as f32));
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                #[cfg(target_os = "linux")]
-                let code = {
-                    use winit::platform::scancode::PhysicalKeyExtScancode;
-                    event.physical_key.to_scancode()
-                };
-                #[cfg(not(target_os = "linux"))]
-                let code = None;
+                let evdev = evdev(event.physical_key);
                 let key = match logical_key(&event.key_without_modifiers) {
                     Logical::Key(key) => Some(key),
                     Logical::Ignored => None,
                     Logical::Unknown => match event.physical_key {
-                        PhysicalKey::Code(code) => Key::from_code(&format!("{code:?}")),
-                        PhysicalKey::Unidentified(_) => unidentified_key(event.physical_key),
+                        PhysicalKey::Code(code) => Key::from_code(&code.to_string()),
+                        PhysicalKey::Unidentified(_) => {
+                            evdev.filter(|code| *code == EVDEV_BACK).map(|_| Key::BrowserBack)
+                        }
                     },
                 };
                 self.push(Input::Key(Keystroke {
                     key,
                     pressed: event.state == ElementState::Pressed,
                     repeat: event.repeat,
-                    code,
+                    evdev,
                     text: event.text.map(|text| text.to_string()),
                 }));
             }
@@ -865,18 +861,13 @@ fn cursor(icon: CursorIcon) -> Option<winit::cursor::CursorIcon> {
     })
 }
 
-#[cfg(target_os = "linux")]
-fn unidentified_key(physical: PhysicalKey) -> Option<Key> {
-    use winit::platform::scancode::PhysicalKeyExtScancode;
-    match physical.to_scancode() {
-        Some(EVDEV_BACK) => Some(Key::BrowserBack),
-        _ => None,
+fn evdev(physical: PhysicalKey) -> Option<u32> {
+    match physical {
+        PhysicalKey::Code(code) => Key::evdev_from_code(&code.to_string()),
+        PhysicalKey::Unidentified(NativeKeyCode::Xkb(code)) => code.checked_sub(8),
+        PhysicalKey::Unidentified(NativeKeyCode::Android(code)) => Some(code),
+        PhysicalKey::Unidentified(_) => None,
     }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn unidentified_key(_: PhysicalKey) -> Option<Key> {
-    None
 }
 
 enum Logical {
@@ -887,15 +878,10 @@ enum Logical {
 
 fn logical_key(logical: &winit::keyboard::Key) -> Logical {
     use winit::keyboard::Key as Winit;
+    let apple = cfg!(target_os = "macos");
     let named = match logical {
-        Winit::Named(named) => named_key(*named),
-        Winit::Character(text) => {
-            let mut chars = text.chars();
-            match (chars.next(), chars.next()) {
-                (Some(c), None) => Key::from_char(c),
-                _ => None,
-            }
-        }
+        Winit::Named(named) => Key::from_logical(&named.to_string(), apple),
+        Winit::Character(text) => Key::from_logical(text, apple),
         Winit::Unidentified(winit::keyboard::NativeKey::Xkb(XKB_AUDIO_MIC_MUTE)) => {
             Some(Key::MicMute)
         }
@@ -906,68 +892,6 @@ fn logical_key(logical: &winit::keyboard::Key) -> Logical {
         (None, Winit::Named(_)) => Logical::Ignored,
         (None, _) => Logical::Unknown,
     }
-}
-
-fn named_key(named: NamedKey) -> Option<Key> {
-    let key = match named {
-        NamedKey::ArrowDown => Key::ArrowDown,
-        NamedKey::ArrowLeft => Key::ArrowLeft,
-        NamedKey::ArrowRight => Key::ArrowRight,
-        NamedKey::ArrowUp => Key::ArrowUp,
-        NamedKey::Backspace => Key::Backspace,
-        NamedKey::Delete => Key::Delete,
-        NamedKey::End => Key::End,
-        NamedKey::Enter => Key::Enter,
-        NamedKey::Escape => Key::Escape,
-        NamedKey::Home => Key::Home,
-        NamedKey::PageDown => Key::PageDown,
-        NamedKey::PageUp => Key::PageUp,
-        NamedKey::Tab => Key::Tab,
-        NamedKey::Insert => Key::Insert,
-        NamedKey::BrowserBack => Key::BrowserBack,
-        NamedKey::F1 => Key::F1,
-        NamedKey::F2 => Key::F2,
-        NamedKey::F3 => Key::F3,
-        NamedKey::F4 => Key::F4,
-        NamedKey::F5 => Key::F5,
-        NamedKey::F6 => Key::F6,
-        NamedKey::F7 => Key::F7,
-        NamedKey::F8 => Key::F8,
-        NamedKey::F9 => Key::F9,
-        NamedKey::F10 => Key::F10,
-        NamedKey::F11 => Key::F11,
-        NamedKey::F12 => Key::F12,
-        NamedKey::F13 => Key::F13,
-        NamedKey::F14 => Key::F14,
-        NamedKey::F15 => Key::F15,
-        NamedKey::F16 => Key::F16,
-        NamedKey::F17 => Key::F17,
-        NamedKey::F18 => Key::F18,
-        NamedKey::F19 => Key::F19,
-        NamedKey::F20 => Key::F20,
-        NamedKey::F21 => Key::F21,
-        NamedKey::F22 => Key::F22,
-        NamedKey::F23 => Key::F23,
-        NamedKey::F24 => Key::F24,
-        NamedKey::AudioVolumeUp => Key::VolumeUp,
-        NamedKey::AudioVolumeDown => Key::VolumeDown,
-        NamedKey::AudioVolumeMute => Key::VolumeMute,
-        NamedKey::MicrophoneVolumeMute => Key::MicMute,
-        NamedKey::BrightnessUp => Key::BrightnessUp,
-        NamedKey::BrightnessDown => Key::BrightnessDown,
-        NamedKey::MediaPlayPause | NamedKey::MediaPlay | NamedKey::MediaPause => {
-            Key::MediaPlayPause
-        }
-        NamedKey::MediaTrackNext => Key::MediaNext,
-        NamedKey::MediaTrackPrevious => Key::MediaPrevious,
-        NamedKey::MediaStop => Key::MediaStop,
-        NamedKey::Shift => Key::Shift,
-        NamedKey::Control => Key::Ctrl,
-        NamedKey::Alt => Key::Alt,
-        NamedKey::Meta => Key::meta(cfg!(target_os = "macos")),
-        _ => return None,
-    };
-    Some(key)
 }
 
 fn show_cursor(surface: &Surface, state: &WindowState) {

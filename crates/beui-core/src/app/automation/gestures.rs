@@ -380,6 +380,14 @@ impl Gestures {
         Ok(vec![events])
     }
 
+    pub fn focus(&mut self, focused: bool) -> Frames {
+        if !focused {
+            self.held = Modifiers::NONE;
+            self.keys.clear();
+        }
+        vec![vec![Input::Focus(focused)]]
+    }
+
     pub fn compose(&mut self, text: String) -> Frames {
         let mut events = self.enable_ime();
         self.composing = Some(text.clone());

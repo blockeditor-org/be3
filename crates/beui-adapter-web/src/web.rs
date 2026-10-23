@@ -915,13 +915,9 @@ fn listen(
             event.meta_key(),
             event.shift_key(),
         );
-        let key = key(&event);
-        push(Input::Key(Keystroke {
-            key,
-            pressed: true,
-            repeat: event.repeat(),
-            ..Keystroke::default()
-        }));
+        let stroke = keystroke(&event, true);
+        let key = stroke.key;
+        push(Input::Key(stroke));
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
         let printable = event.key().chars().count() == 1 && !modifiers.command();
         let passes = key.is_some_and(|key| key.is_media() || key.is_modifier());
@@ -939,10 +935,7 @@ fn listen(
             event.meta_key(),
             event.shift_key(),
         );
-        push(Input::Key(Keystroke {
-            key: key(&event),
-            ..Keystroke::default()
-        }));
+        push(Input::Key(keystroke(&event, false)));
     })?;
     on(agent_target, "input", {
         let agent = agent.clone();
@@ -1106,10 +1099,22 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
 }
 
 fn key(event: &web_sys::KeyboardEvent) -> Option<Key> {
-    match event.code().as_str() {
-        "MetaLeft" | "MetaRight" => Some(Key::meta(apple())),
-        "" => Key::from_code(&event.key()),
-        code => Key::from_code(code),
+    let value = event.key();
+    let typed = value.chars().nth(1).is_none() || matches!(value.as_str(), "Unidentified" | "Dead");
+    match Key::from_logical(&value, apple()) {
+        Some(key) => Some(key),
+        None if typed => Key::from_code(&event.code()),
+        None => None,
+    }
+}
+
+fn keystroke(event: &web_sys::KeyboardEvent, pressed: bool) -> Keystroke {
+    Keystroke {
+        key: key(event),
+        pressed,
+        repeat: pressed && event.repeat(),
+        evdev: Key::evdev_from_code(&event.code()),
+        text: None,
     }
 }
 

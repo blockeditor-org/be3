@@ -445,7 +445,7 @@ fn stroke(key: Key, code: u32, pressed: bool, modifiers: beui::Modifiers) -> Eve
             repeat: false,
             modifiers,
         },
-        code: Some(code),
+        evdev: Some(code),
         text: None,
     }
 }

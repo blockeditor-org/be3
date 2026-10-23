@@ -83,7 +83,7 @@ Files:
 Window (headless only, except focus, blur, leave and close):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
-  focus / blur              the window gains or loses focus
+  focus / blur              the window gains or loses focus; blur lets go of held keys
   clipboard [TEXT]          read the clipboard, or put TEXT on it
   close                     ask the window to close, as its close button does; an app that stays
                             open, to ask about unsaved changes, answers with what changed
@@ -842,7 +842,7 @@ impl Automation {
                 };
                 input(frames)
             }
-            "focus" | "blur" => input(vec![vec![Input::Focus(command == "focus")]]),
+            "focus" | "blur" => input(self.gestures.focus(command == "focus")),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(

@@ -131,8 +131,21 @@ back phases, IME events, `CursorIcon`, pastes and picked files, and the raw
 `Input` a platform produces) live in the framework-free `ui-types` crate, which
 the plugin protocol (`block-plugin-api`) uses too, so nothing converts between a
 host's events and a plugin's. A host passes a key on to a plugin as the platform
-reported it, scan code and text included, so the plugin's runner sees what the
+reported it, physical key and text included, so the plugin's runner sees what the
 host's did.
+
+A key has two names. `Key` is what it means under the person's layout, so
+Ctrl+Z is the key that types `z`, wherever it sits: every runner names it from
+the platform's layout (winit's key without modifiers, xkb's keysym, the web's
+`KeyboardEvent.key`, Android's key code), and only a key whose character has
+no `Key` of its own (a Cyrillic letter, say) is named by its place on a US
+keyboard instead. `evdev` on `Keystroke` and `Event::Key` is where the key
+sits, as a Linux evdev code (`KEY_A` is 30), on every platform: winit and the
+web map their W3C physical codes with `Key::evdev_from_code`, Android passes
+its scan code and drm its evdev code, and drive sends `Key::evdev`. It is
+`None` for a key with no physical place, such as one from an on-screen
+keyboard. It is for programs that apply a layout of their own, such as
+be-wayland's Wayland clients; shortcuts match `Key`.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 
@@ -277,9 +290,9 @@ What one event goes through, in order:
    decided on libinput's own clock before the keymap sees the key, and nothing
    about it is the document's to judge. The keymap's own actions (switching
    terminals, Ctrl+Alt+Backspace) are the adapter's too. A key is one
-   `Event::Key`: the `KeyPress`, the scan code (`code`, for Wayland programs,
-   and on its own as `Key::Unidentified` for a key beui has no name for) and
-   the text it typed. `Event::Text` is text that came without a key, and
+   `Event::Key`: the `KeyPress`, the physical key as an evdev code (`evdev`,
+   for Wayland programs, and on its own as `Key::Unidentified` for a key beui
+   has no name for) and the text it typed. `Event::Text` is text that came without a key, and
    `Event::Paste` is a paste.
 2. `InputState::begin_frame` turns the frame's events into `PointerEvent`s:
    moves, presses, releases, cancels, wheel turns and zooms, each where the
@@ -296,7 +309,7 @@ What one event goes through, in order:
    and window listeners first (capturing actions, and in block-app the shell
    plugin's intercepted chords, `compositor/intercept.rs`), then F6 and
    Shift+F6, which move the focus between forwarding catchers. A key one of
-   them takes is gone, code and text with it, and so are its repeats and
+   them takes is gone, physical key and text with it, and so are its repeats and
    release when they come. A key bound for an app goes no further; any other
    key goes on down the tree and back up, and types its text unless something
    on the way took it.

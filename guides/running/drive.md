@@ -203,7 +203,7 @@ before its answer and stops at the first that fails:
     EOF
 
 `type` presses the key that makes each character, with Shift where a US layout needs it,
-with each key's scan code, so a Wayland program's window takes it as it takes `key` and
+with each key's evdev code, so a Wayland program's window takes it as it takes `key` and
 `keydown`. A character no key makes, such as `é`, is sent as text, which only beui takes.
 
 ## The headless window
@@ -214,7 +214,8 @@ real one:
 - `drive resize 390x844@3` resizes it and sets its scale, which is how to see a phone's
   layout; `drive resize screen 1920x1080` sets the screen it fills when the app asks for
   fullscreen. Only a headless window can be resized this way.
-- `drive focus` and `drive blur` give it focus or take it away.
+- `drive focus` and `drive blur` give it focus or take it away. Like the runner,
+  `blur` lets go of every key drive holds.
 - `drive clipboard` prints the window's clipboard and `drive clipboard TEXT` sets it; the
   app's own copy and paste use it, and `drive key ctrl+v` pastes it. In a headless window
   the clipboard is the window's own; in a real one it is the system's.

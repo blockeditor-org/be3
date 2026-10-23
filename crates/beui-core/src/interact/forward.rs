@@ -187,13 +187,13 @@ impl Replay {
     fn input(&mut self, event: &Event, out: &mut Vec<Replayed>) {
         let input = match event {
             Event::PointerMotion(delta) => Input::PointerMotion(*delta),
-            Event::Key { press, code, text } => {
+            Event::Key { press, evdev, text } => {
                 self.modifiers(press.modifiers, out);
                 Input::Key(Keystroke {
                     key: Some(press.key),
                     pressed: press.pressed,
                     repeat: press.repeat,
-                    code: *code,
+                    evdev: *evdev,
                     text: text.clone(),
                 })
             }

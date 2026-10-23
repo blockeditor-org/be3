@@ -71,7 +71,7 @@ impl Keyboard {
             key: Some(key),
             pressed,
             repeat: false,
-            code: Some(code),
+            evdev: Some(code),
             text: Some(text),
         };
         if pressed && !key.is_modifier() && out.terminal.is_none() {
