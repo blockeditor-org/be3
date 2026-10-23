@@ -25,6 +25,11 @@ variables, so a program needs nothing of its own to be driven:
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
 - `BEUI_SPACE=1` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR simulator
   host"), headless or in a window; `drive shot` takes the 3D view, every other command the app.
+  Targets, clicks and `find` are in the app's main window only: drive cannot reach what is in
+  its other windows (the other panels), since only the 3D host knows where they are on screen.
+  Test those through `Space` and a `Runner` instead (`InSpace` in crates/beui/src/tests.rs).
+  Holding a walking key keeps frames coming, so the command waits out its settle timeout and
+  the head walks far; turn with `drive motion` while Ctrl and Shift are held instead.
 
 `be-drive launch` (crates/be-drive) sets the first two, waits for the program to settle and writes the
 `env` file. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.
