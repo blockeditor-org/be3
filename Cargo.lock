@@ -723,6 +723,8 @@ dependencies = [
  "block-ui",
  "build-id",
  "futures-util",
+ "ghostty-vt",
+ "portable-pty",
  "serde_json",
  "tokio",
  "uuid",

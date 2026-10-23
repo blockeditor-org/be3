@@ -65,6 +65,13 @@ A row (be DATABASE row ROW-ID [VERB]):
 A text block:
   cat | write TEXT | append TEXT | edit
 
+A terminal block:
+  terminal-host [-- PROGRAM ARGUMENTS...]
+                                      Run its shell (or PROGRAM) on this machine, as this
+                                      machine's user, for everyone the block is shared with:
+                                      it stays connected and keeps the shell running until
+                                      stopped. Share the block with this agent first.
+
 TEXT given as - is read from standard input. --json prints JSON.
 
 Environment:
@@ -83,6 +90,7 @@ pub struct Options {
     pub prefix: Option<String>,
     pub within: Option<String>,
     pub column: NewColumn,
+    pub command: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -130,6 +138,10 @@ pub fn parse(
                 .ok_or_else(|| format!("{argument} needs a value"))
         };
         match argument.as_str() {
+            "--" => {
+                options.command = rest.by_ref().collect();
+                break;
+            }
             "--json" => json = true,
             "--multiple" => options.column.multiple = true,
             "--body" => options.body = Some(Body::Replace(text(value()?)?)),
@@ -410,6 +422,9 @@ async fn block_verb<S: ObjectStore>(
             ))
         }
         ("help", _, _) => print(USAGE.to_owned()),
+        ("terminal-host", _, _) => Err(
+            "terminal-host needs a live connection; run it as `be TARGET terminal-host`".to_owned(),
+        ),
         ("delete", _, _) => print(tracker.delete_block(entry).await?),
         ("download", _, _) => {
             let (top, blocks) = tracker.download(entry).await?;
