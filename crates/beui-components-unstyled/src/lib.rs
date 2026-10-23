@@ -119,7 +119,7 @@ pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::{
-    BlockView, Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
+    Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
     SyntaxColors, TextArea, TextAreaApi, TextAreaColors, TextAreaLayout, TextAreaState,
     TextCheckbox, TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji,
 };

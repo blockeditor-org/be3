@@ -8,7 +8,7 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{BlockView, TextAreaState, VoidView};
+use beui::unstyled::{TextAreaState, VoidView};
 use beui::{Direction, ItemSize, NodeId, TextAlign, Vec2};
 use beui_macros::{component, sample};
 use text_editor_core::schema::basic::{
@@ -22,18 +22,12 @@ use crate::sample::{Sample, ScrollPage};
 
 const TEXT: &str = "Rich text\nThe document is plain text with marks beside it. Select words and \
 press a button above, or Ctrl+B, Ctrl+I, Ctrl+U and Ctrl+E.\nBlocks\nA heading, a list item \
-or a quote is a prop of its line, and the page draws each line with its own render_block.\nPress \
+or a quote is a prop of its line, and the text area draws each line from it.\nPress \
 Enter to continue a list\nTab nests an item\nEnter on an empty item leaves the list\nWrite a \
 schema\nRender its blocks\nShip it\nA quote is drawn with a bar beside it.\nfn main() {\n    \
 println!(\"decorated by the rust highlighter\");\n}\nAsk \u{fffc} about voids: the caret steps \
 over one in a single move.\n";
 const EDITOR_HEIGHT: f32 = 420.0;
-const LEAD_WIDTH: f32 = 28.0;
-const INDENT_WIDTH: f32 = 24.0;
-const BULLET_SIZE: f32 = 6.0;
-const QUOTE_BAR: f32 = 3.0;
-const QUOTE_GAP: f32 = 10.0;
-const CODE_PADDING: f32 = 8.0;
 const MENTION_CHAR: f32 = 7.5;
 const MENTION_PADDING: f32 = 6.0;
 const MENTION_HEIGHT: f32 = 20.0;
@@ -61,7 +55,6 @@ pub(crate) fn RichTextPage() -> NodeId {
                 title="Rich text editor"
                 code={vec![
                     RichTextEditor::SOURCE,
-                    RichBlock::SOURCE,
                     Mention::SOURCE,
                     clear_formatting::SOURCE,
                 ]}
@@ -92,7 +85,6 @@ pub(crate) fn editor_seeds() -> Vec<Seed> {
         basic::mark(line("Ctrl+I"), basic::CODE),
         basic::mark(line("Ctrl+U"), basic::CODE),
         basic::mark(line("Ctrl+E"), basic::CODE),
-        basic::mark(line("render_block"), basic::CODE),
         basic::block(
             line("Press Enter to continue").start..line("leaves the list").end,
             LIST,
@@ -113,14 +105,6 @@ pub(crate) fn editor_seeds() -> Vec<Seed> {
         ),
         basic::mark_value(mention..mention + VOID.len(), MENTION, Value::text("ada")),
     ]
-}
-
-pub(crate) fn render_block() -> RenderFn<BlockView> {
-    RenderFn::new(|block: BlockView| {
-        view! {
-            <RichBlock block />
-        }
-    })
 }
 
 pub(crate) fn render_void() -> RenderFn<VoidView> {
@@ -175,7 +159,6 @@ fn RichTextEditor() -> NodeId {
                 @test_id="demo.rich.editor"
                 @sizing=ItemSize::Fixed(EDITOR_HEIGHT)
                 state
-                render_block={render_block()}
                 render_void={render_void()}
                 void_size={Some(mention_size as fn(&MarkSet) -> Vec2)}
             />
@@ -198,119 +181,6 @@ fn clear_formatting(transform: &mut Transform<'_>) {
         for key in keys {
             transform.set_mark(range.clone(), &key, None);
         }
-    }
-}
-
-#[sample]
-#[component]
-fn RichBlock(block: BlockView) -> NodeId {
-    let BlockView {
-        state,
-        line,
-        start,
-        props,
-        line_height,
-        text,
-    } = block;
-    let list = create_memo(move || {
-        props.with(|props| props.get(LIST).and_then(Value::as_text).map(str::to_owned))
-    });
-    let listed = create_memo(move || list.get().is_some());
-    let quoted = create_memo(move || props.with(|props| props.get(QUOTE).is_some()));
-    let code = create_memo(move || props.with(|props| props.get(CODE_BLOCK).is_some()));
-    let indent = create_memo(move || props.with(basic::depth) as f32 * INDENT_WIDTH);
-    let lead = create_memo(move || match listed.get() {
-        true => Some(LEAD_WIDTH + indent.get()),
-        false => Some(0.0),
-    });
-    let marker = create_memo(move || Sides::new(indent.get(), 0.0, 0.0, 0.0));
-    let first_line = create_memo(move || Some(line_height.get()));
-    let fill = create_memo(move || match code.get() {
-        true => ColorRole::Surface,
-        false => ColorRole::None,
-    });
-    let padding = create_memo(move || match code.get() {
-        true => Sides::horizontal(CODE_PADDING),
-        false => Sides::ZERO,
-    });
-    view! {
-        <Frame fill padding>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Show condition={quoted}>
-                    <Frame padding={Sides::new(0.0, 0.0, QUOTE_GAP, 0.0)}>
-                        <Frame width=QUOTE_BAR fill=ColorRole::Accent />
-                    </Frame>
-                </Show>
-                <Frame width=lead padding=marker align={Align2::new(Align::Start, Align::Start)}>
-                    <Frame height=first_line align={Align2::new(Align::Start, Align::Center)}>
-                        <List spacing=0.0>
-                            <Show condition={listed}>
-                                <ListMarker state line start props kind={list} />
-                            </Show>
-                        </List>
-                    </Frame>
-                </Frame>
-                <Frame @sizing=ItemSize::Percent(100.0)>{text}</Frame>
-            </List>
-        </Frame>
-    }
-}
-
-#[sample]
-#[component]
-fn ListMarker(
-    state: TextAreaState,
-    line: ReadSignal<usize>,
-    start: Memo<usize>,
-    props: Memo<MarkSet>,
-    kind: Memo<Option<String>>,
-) -> NodeId {
-    let bullet = create_memo(move || kind.get().as_deref() == Some(basic::BULLET));
-    let number = create_memo(move || kind.get().as_deref() == Some(NUMBER));
-    let check = create_memo(move || kind.get().as_deref() == Some(CHECK));
-    let ordinal = create_memo(move || {
-        state.content().get();
-        let at = line.get();
-        let ordinal = state.with_snapshot(|snapshot| {
-            snapshot
-                .formats
-                .as_ref()
-                .map_or(1, |formats| basic::ordinal(formats, at))
-        });
-        format!("{ordinal}.")
-    });
-    let checked = create_memo(move || props.with(|props| props.get(CHECKED).is_some()));
-    let toggle = move |on: bool| {
-        let at = state.with_core(|core| core.position(start.get_untracked()));
-        state.execute(EditorCommand::SetBlock {
-            at: Some(at),
-            key: Name::new(CHECKED),
-            value: on.then_some(Value::Bool(true)),
-        });
-    };
-    view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Show condition={bullet}>
-                <Frame
-                    width=BULLET_SIZE
-                    height=BULLET_SIZE
-                    fill=ColorRole::Text
-                    radius=Radius::Full
-                />
-            </Show>
-            <Show condition={number}>
-                <Text color=TextColor::Muted>{ordinal}</Text>
-            </Show>
-            <Show condition={check}>
-                <Checkbox
-                    @test_id={format!("demo.rich.checkbox.{}", line.get_untracked())}
-                    checked={Binding::new(checked, toggle)}
-                    capture_presses=true
-                    tab_stop=false
-                    press_focus=false
-                />
-            </Show>
-        </List>
     }
 }
 

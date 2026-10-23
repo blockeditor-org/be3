@@ -60,6 +60,7 @@ mod a_selected_bound_arrow_shows_where_each_end_is_anchored;
 mod a_selection_is_copied_and_exported_as_png;
 mod a_shape_is_drawn_while_dragged_as_it_lands;
 mod a_short_finger_stroke_keeps_every_point;
+mod a_text_label_draws_its_lists_and_quotes;
 mod a_text_tapped_in_starts_at_the_tap;
 mod a_typed_transform_value_is_one_edit;
 mod a_view_the_host_sets_is_not_fitted_back;
