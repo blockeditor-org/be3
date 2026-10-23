@@ -15,12 +15,10 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
 | `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/ci` | what CI runs: `./scripts/verify`, and `--android DIR` the signed APKs, `--previews BASE OUT` the paint previews |
-| `./scripts/buck test //crates/...` | the tests alone; outside CI it prints only the failures and the compiler's errors, and `BE3_VERBOSE=1` prints everything |
-| `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
-| `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
-| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
+| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below) |
+| `./scripts/test //crates/editors/checklist:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
-| `./scripts/buck test //crates/app-tests:test` | the app tests: block-app headless with every plugin, driven and painted as a whole; add `-- --env UPDATE_SNAPSHOTS=1` to accept their paintings |
+| `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with every plugin, driven and painted as a whole |
 | `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server:dist` is the server's |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
@@ -231,17 +229,25 @@ worker and passes when it does, which is cached like any other; `./scripts/verif
 builds those instead. A test with `remote_execution = "disabled"` gets a
 `:test-run` that runs here. compile_fail's tests (below) have one too.
 
+`./scripts/test` runs tests on workers too, through `buck/dev/test.bxl`: an
+action for each `:test` that runs its command with the name to filter by and keeps the
+test's output, its exit status and the paintings it accepted, which is all that
+comes back; `buck2 test` would download the test binary and everything it reads,
+hundreds of megabytes for block-app's. A test's `ExternalRunnerTestInfo` is
+the command, unless it has a `RemoteTestInfo` (`buck/cargo/defs.bzl`), as the
+tests that paint do, naming the accepted paintings and the worker's lavapipe.
+
 **Plugin tests** read and write the accepted paintings in `snapshots/`. Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
 the host `block-app` runs a plugin in, so they paint with the FreeType and
-HarfBuzz the plugin ships. `buck2 test` runs a crate's `:test` here, writing
-paintings straight into `snapshots/`. `./scripts/verify` instead builds each
+HarfBuzz the plugin ships. `./scripts/test --update` copies what a crate's
+`:test` accepted on a worker into `snapshots/`. `./scripts/verify` builds each
 crate's `:test-run`, an action that runs them on a worker and is cached like
 any other: it outputs the paintings that changed and the names of the ones it
 compared, and `./scripts/verify` copies the first into `snapshots/` and
 deletes the paintings no test named.
 
 **Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are
-treated the same way: `:test` runs here and `:test-run` is the action
+treated the same way: `:test` is what `./scripts/test` runs and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
 runs with, kept out of its compile. crates/app-tests runs block-app's `:native` headless, so it runs on Linux x86_64 only.
 It also passes `run_apart = True`, which makes a `:test-run-<file>` for each file under

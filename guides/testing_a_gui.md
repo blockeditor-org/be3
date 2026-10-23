@@ -325,16 +325,16 @@ plugin's own imports linked: the gpu abi a plugin draws through, the threads a p
 spawns, and the repository itself. Under ./scripts/verify the run is an action on a worker,
 which reads the accepted paintings as its inputs and outputs the ones that changed;
 ./scripts/verify then copies those into snapshots/, so a failure's output is in the
-build's log, not on this machine. ./scripts/buck test (below) runs the module here
-instead, writing what it accepts straight into snapshots/.
+build's log, not on this machine. ./scripts/test (below) runs it on a worker too, and
+copies what it accepts into snapshots/.
 Do not build or test an editor package for the host by itself:
 its tests only mean anything as the wasm guest it ships as, and a native run refuses to
 compare a painting rather than making one nothing would agree with.
 
 While working on one editor, run its tests alone:
 
-  ./scripts/buck test //crates/editors/checklist:test
-  ./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
+  ./scripts/test //crates/editors/checklist:test
+  ./scripts/test //crates/editors/checklist:test --update
 
 The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
@@ -346,11 +346,11 @@ Until then the module's tests run one after another, in name order, on one threa
 crate keeps per thread (the frame clock, the pinned wall clock) carries from one test into the
 next, and anything that starts afresh with each harness must be reset when it does
 (HeadlessPlugin::new restarts the frame clock). A test that fails only after others ran passes
-alone, and in the runner's rerun too; reproduce it by running the whole module, with no filter,
-through ./scripts/buck test, which runs it again every time where ./scripts/verify's cached
-:test-run does not. A single test is a filter handed through to the
+alone, and in the runner's rerun too; reproduce it by running the whole module, with no filter:
+./scripts/test //crates/editors/checklist:test. A single test is a filter handed through to the
 test binary: ./scripts/test some_test_name finds the crate and runs it, and
-./scripts/buck test //crates/editors/checklist:test -- --test-arg=some_test_name is the same by hand.
+./scripts/test //crates/editors/checklist:test some_test_name names the crate itself. A run
+that passed comes from the cache when nothing it reads changed; one that failed runs again.
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine
 code as a .cwasm the runner maps in, so a run that changed nothing takes seconds; that
@@ -405,5 +405,5 @@ which close() checks, so a test that ends without calling it fails too.
 - Each test takes a second or two, most of it the app starting, and they run in parallel. Keep to what only the app can show, and test an
   editor's own behaviour in its own crate.
 
-  ./scripts/buck test //crates/app-tests:test
-  ./scripts/buck test //crates/app-tests:test -- --env UPDATE_SNAPSHOTS=1
+  ./scripts/test //crates/app-tests:test
+  ./scripts/test //crates/app-tests:test --update

@@ -202,21 +202,32 @@ def _painting_command(ctx, env):
         command = cmd_args("sh", "-c", _restore_library_path, "sh", command)
     return command
 
+# What ./scripts/test runs on a worker for a :test (buck/dev/test.bxl) when its
+# ExternalRunnerTestInfo is not enough: the command and environment, and the
+# files it reads that the command does not name, such as the accepted
+# paintings.
+RemoteTestInfo = provider(fields = ["command", "env", "hidden"])
+
 def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     command = _painting_command(ctx, env)
-    return inject_test_run_info(
-        ctx,
-        ExternalRunnerTestInfo(
-            command = [command],
-            env = env,
-            labels = ctx.attrs.labels,
-            run_from_project_root = True,
-            type = "rust",
-            use_project_relative_paths = False,
-        ),
-    ) + [DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs)]
+    remote = RemoteTestInfo(command = command, env = env, hidden = ctx.attrs._inputs[DefaultInfo].default_outputs)
+    return (
+        [remote]
+        + inject_test_run_info(
+            ctx,
+            ExternalRunnerTestInfo(
+                command = [command],
+                env = env,
+                labels = ctx.attrs.labels,
+                run_from_project_root = True,
+                type = "rust",
+                use_project_relative_paths = False,
+            ),
+        )
+        + [DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs)]
+    )
 
 painting_test = rule(
     attrs = {
@@ -225,6 +236,7 @@ painting_test = rule(
         "labels": attrs.list(attrs.string(), default = []),
         "manifest": attrs.source(),
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
+        "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
     },
     impl = _painting_test_impl,
 )

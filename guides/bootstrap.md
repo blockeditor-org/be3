@@ -13,7 +13,10 @@ Where code belongs:
 
 - before a buck2 command, or deciding what it builds: `crates/bootstrap`;
 - after a buck2 command, reading what it built: `crates/local-tools`, built
-  for this machine in that same command (guides/buck2.md);
+  for this machine in that same command (guides/buck2.md), except for
+  `./scripts/test`, which only prints what each test's action kept and copies
+  the paintings it accepted, so the bootstrap does that and nothing is
+  downloaded to run it;
 - inside an action on a worker: a tool the action depends on, built by buck2.
 
 A command is one buck2 invocation, and the bootstrap runs it; the one
