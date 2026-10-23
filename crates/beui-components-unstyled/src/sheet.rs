@@ -7,7 +7,7 @@ use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
-use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband};
+use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, bounce, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
 use beui_core::base::offset::ScrollPosition;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -780,6 +780,10 @@ impl Motion {
 
     fn wheel(&self, gesture: ScrollGesture) {
         let (wheel, fling) = (gesture.delta.y, gesture.fling.y);
+        if gesture.held && wheel == 0.0 && fling == 0.0 {
+            self.stop_fling();
+            return;
+        }
         if self.held.borrow().travel.is_some() || (wheel == 0.0 && fling == 0.0) {
             return;
         }
@@ -1057,15 +1061,15 @@ impl Motion {
                 !settled
             }
             Phase::Bounce { velocity } => {
-                let mut overscroll = overscroll;
-                spring_back(&mut overscroll, velocity, elapsed, SCROLL_SPRING);
-                let settled = overscroll == 0.0 && *velocity == 0.0;
-                if settled {
-                    held.phase = Phase::Still;
+                let mut stretch = unband(overscroll, shape.viewport);
+                let back = bounce(&mut stretch, velocity, elapsed);
+                if stretch == 0.0 {
+                    held.phase = Fling::new(back).map_or(Phase::Still, Phase::Fling);
                 }
+                let moving = !matches!(held.phase, Phase::Still);
                 drop(held);
-                self.place_content(offset, overscroll);
-                !settled
+                self.place_content(offset, rubber_band(stretch, shape.viewport));
+                moving
             }
         }
     }

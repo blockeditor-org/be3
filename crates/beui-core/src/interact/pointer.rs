@@ -336,6 +336,7 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
         PointerPhase::ScrollStarted => {
             doc.pointers.wheel_held = true;
             wheel(doc, frame, event, Vec2::ZERO, Vec2::ZERO);
+            catch_wheel(doc, frame, event);
         }
         PointerPhase::Scroll(delta) => wheel(doc, frame, event, delta, Vec2::ZERO),
         PointerPhase::ScrollEnded { fling } => {
@@ -1410,6 +1411,27 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
         size,
         modifiers: event.modifiers,
         held: doc.pointers.wheel_held,
+    });
+}
+
+fn catch_wheel(doc: &mut Document, frame: &Frame, event: PointerEvent) {
+    let Some((target, on_scroll)) =
+        hit::claimant(doc, frame.rects, frame.root, event.pos, event.modifiers)
+            .and_then(|target| Some((target, interactive(doc, target)?.on_scroll)))
+            .filter(|(_, on_scroll)| !on_scroll.is_empty())
+    else {
+        return;
+    };
+    doc.pointers.wheel_latch = Some((target, frame.now, event.pos));
+    let (local, size) = local(frame.rects, target, event.pos);
+    on_scroll.call(ScrollGesture {
+        delta: Vec2::ZERO,
+        fling: Vec2::ZERO,
+        pos: event.pos,
+        local,
+        size,
+        modifiers: event.modifiers,
+        held: true,
     });
 }
 

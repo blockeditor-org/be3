@@ -397,7 +397,10 @@ hooks the higher crates fill in:
   host forwards unchanged. Between the two,
   `ScrollGesture::held` is set and a `Scroll` follows the fingers as a touch drag
   does, stretching past an end; the lift springs it back, or flings it at the
-  speed of its last samples and bands it if that carries it past an end. A wheel
+  speed of its last samples and bands it if that carries it past an end. A
+  start alone, fingers resting without moving (macOS's `MayBegin`), goes to the
+  press claimant under the pointer, so it catches a `Scroll` or sheet that is
+  flinging or bouncing and holds it until the fingers move or lift. A wheel
   without a start (a mouse) clamps at the ends. winit pushes them on a
   `MouseWheel` phase of `Started` and `Ended`, and on macOS drops the momentum events the
   system sends after a lift (from a `Started` within 100 ms of it to their
@@ -1173,6 +1176,17 @@ focusable `Interactive` for the keys, the wheel and the drag, keeps the
 momentum an unfinished fling carries, and drives the offset from all three. So reach for `Offset` when something needs its
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
+
+A `Scroll`'s momentum is one motion across the edge, not a fling with a band
+laid over it. It keeps how far its content has gone past an end unbanded (the
+fingers' distance in a drag, the fling's travel after a fling crosses the end),
+and shows `rubber_band` of it, a curve that leaves the edge at the speed it is
+pulled and stiffens from there. `rubber_band::bounce` moves that stretch: going
+out it is an undamped spring, so a fling keeps its speed as it crosses the end
+and slows smoothly, and from its furthest point a critically damped one brings
+it back without passing the edge. A band let go while already heading back
+hands the speed it still has to a fling into the content. The sheet's content
+bounces the same way.
 
 That offset is anchored to a node, not measured from the top of the content:
 the scroll remembers the node at the top of its viewport and where it started,
