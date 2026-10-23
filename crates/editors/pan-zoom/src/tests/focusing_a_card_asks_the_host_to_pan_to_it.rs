@@ -19,6 +19,6 @@ fn focusing_a_card_asks_the_host_to_pan_to_it() {
     let changes = test.take_view_changes();
     assert!(matches!(
         changes.as_slice(),
-        [ViewChange::Pan { x, y }] if (*x - expected.x).abs() < 0.01 && (*y - expected.y).abs() < 0.01
+        [ViewChange::Pan(by)] if (by.x - expected.x).abs() < 0.01 && (by.y - expected.y).abs() < 0.01
     ));
 }

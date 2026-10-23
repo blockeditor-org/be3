@@ -36,10 +36,11 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             instance: EditorInstanceId(0),
             region: EditorRegion::Frame,
             metrics: ViewportMetrics {
-                logical_width: 800.0,
-                logical_height: 600.0,
-                visible_x: 0.0,
-                visible_y: 0.0,
+                logical: block_plugin_api::Size {
+                    width: 800.0,
+                    height: 600.0,
+                },
+                visible: block_plugin_api::Pos2::ZERO,
                 pixel_width: 800,
                 pixel_height: 600,
                 scale_factor: 1.0,

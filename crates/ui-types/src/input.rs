@@ -582,13 +582,6 @@ pub enum ScrollDelta {
     Pages(Vec2),
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DroppedFile {
-    pub name: String,
-    pub path: Option<std::path::PathBuf>,
-    pub bytes: Option<std::sync::Arc<[u8]>>,
-}
-
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Input {
     Focus(bool),
@@ -629,12 +622,6 @@ pub enum Input {
         repeat: bool,
     },
     InterceptedTap(Key),
-    #[serde(skip)]
-    FileHovered,
-    #[serde(skip)]
-    FileHoverCancelled,
-    #[serde(skip)]
-    FileDropped(DroppedFile),
 }
 
 impl Input {

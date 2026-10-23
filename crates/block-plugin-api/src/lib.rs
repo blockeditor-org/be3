@@ -212,8 +212,7 @@ pub struct ScreenPlacement {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegionSize {
     pub screen: ScreenId,
-    pub logical_width: f32,
-    pub logical_height: f32,
+    pub logical: Size,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -859,10 +858,7 @@ pub enum EditorMessage {
     },
     ViewChanged {
         instance: EditorInstanceId,
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
+        view: Rect,
         scale: f32,
     },
     ChangeView {
@@ -879,8 +875,7 @@ pub enum EditorMessage {
     },
     Resized {
         instance: EditorInstanceId,
-        width: f32,
-        height: f32,
+        size: Size,
     },
     LeaveFrame {
         instance: EditorInstanceId,
@@ -993,8 +988,7 @@ pub enum EditorMessage {
     DragOver {
         instance: EditorInstanceId,
         region: EditorRegion,
-        x: f32,
-        y: f32,
+        pos: Pos2,
         block_id: [u8; 16],
         block_type: [u8; 16],
         dropped: bool,
@@ -1007,8 +1001,7 @@ pub enum EditorMessage {
     FileDrop {
         instance: EditorInstanceId,
         region: EditorRegion,
-        x: f32,
-        y: f32,
+        pos: Pos2,
         files: Vec<DroppedFile>,
         dropped: bool,
     },
@@ -2011,13 +2004,10 @@ pub enum SurfaceFormat {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ViewChange {
-    Pan {
-        x: f32,
-        y: f32,
-    },
+    Pan(Vec2),
     Zoom {
         factor: f32,
-        anchor: Option<(f32, f32)>,
+        anchor: Option<Pos2>,
     },
     KeepFitted(Option<FitArea>),
     Fit,
@@ -2032,25 +2022,24 @@ pub enum FitArea {
 }
 
 impl FitArea {
-    pub fn fit(self, world: (f32, f32), room: (f32, f32)) -> (f32, (f32, f32)) {
-        let (x, y, width, height) = match self {
-            Self::World => (0.0, 0.0, world.0, world.1),
-            Self::Centre => (world.0 * 0.5, world.1 * 0.5, 0.0, 0.0),
-            Self::Rect(rect) => (rect.min.x, rect.min.y, rect.width(), rect.height()),
+    pub fn fit(self, world: Vec2, room: Vec2) -> (f32, Pos2) {
+        let area = match self {
+            Self::World => Rect::from_min_size(Pos2::ZERO, world),
+            Self::Centre => Rect::from_min_size(Pos2::ZERO + world * 0.5, Vec2::ZERO),
+            Self::Rect(rect) => rect,
         };
-        let scale = (room.0.max(1.0) / width.max(f32::EPSILON))
-            .min(room.1.max(1.0) / height.max(f32::EPSILON))
+        let size = area.size();
+        let scale = (room.x.max(1.0) / size.x.max(f32::EPSILON))
+            .min(room.y.max(1.0) / size.y.max(f32::EPSILON))
             .min(1.0);
-        (scale, (x + width * 0.5, y + height * 0.5))
+        (scale, area.center())
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ViewportMetrics {
-    pub logical_width: f32,
-    pub logical_height: f32,
-    pub visible_x: f32,
-    pub visible_y: f32,
+    pub logical: Size,
+    pub visible: Pos2,
     pub pixel_width: u32,
     pub pixel_height: u32,
     pub scale_factor: f32,

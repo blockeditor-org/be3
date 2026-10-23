@@ -17,7 +17,7 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
+    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
     PointerButton, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
@@ -873,19 +873,19 @@ fn listen(
     )?;
     on(surface_target, "dragover", |event: web_sys::DragEvent| {
         event.prevent_default();
-        push(Input::FileHovered);
+        push(FileDrag::Hovered);
     })?;
     on(surface_target, "dragleave", |_event: web_sys::DragEvent| {
-        push(Input::FileHoverCancelled);
+        push(FileDrag::Cancelled);
     })?;
     on(surface_target, "drop", |event: web_sys::DragEvent| {
         event.prevent_default();
         let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
-            push(Input::FileHoverCancelled);
+            push(FileDrag::Cancelled);
             return;
         };
         if files.length() == 0 {
-            push(Input::FileHoverCancelled);
+            push(FileDrag::Cancelled);
         }
         for index in 0..files.length() {
             let Some(file) = files.get(index) else {
@@ -896,7 +896,7 @@ fn listen(
                     .await
                     .ok()
                     .map(|buffer| js_sys::Uint8Array::new(&buffer).to_vec());
-                push(Input::FileDropped(DroppedFile {
+                push(FileDrag::Dropped(DroppedFile {
                     name: file.name(),
                     path: None,
                     bytes: bytes.map(Arc::from),

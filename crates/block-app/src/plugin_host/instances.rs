@@ -1117,8 +1117,8 @@ impl Instances {
                 .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
-        let zoom = match screen.request.metrics.logical_width > 0.0 {
-            true => input.rect.width() / screen.request.metrics.logical_width,
+        let zoom = match screen.request.metrics.logical.width > 0.0 {
+            true => input.rect.width() / screen.request.metrics.logical.width,
             false => 1.0,
         };
         let every_sample = screen
@@ -1209,8 +1209,10 @@ impl Instances {
         entry.reported_size = Some(size);
         vec![Message::Editor(EditorMessage::Resized {
             instance,
-            width: size.x,
-            height: size.y,
+            size: Size {
+                width: size.x,
+                height: size.y,
+            },
         })]
     }
 
@@ -1543,10 +1545,7 @@ impl Instances {
                 if let Some(view) = entry.view {
                     opened.push(Message::Editor(EditorMessage::ViewChanged {
                         instance,
-                        x: view.rect.min.x,
-                        y: view.rect.min.y,
-                        width: view.rect.width(),
-                        height: view.rect.height(),
+                        view: view.rect,
                         scale: view.scale,
                     }));
                 }
@@ -1565,7 +1564,7 @@ impl Instances {
                     .values_mut()
                     .find(|screen| screen.request.screen == size.screen)
                 {
-                    let used = vec2(size.logical_width, size.logical_height);
+                    let used = vec2(size.logical.width, size.logical.height);
                     changed |= screen.used != Some(used);
                     screen.used = Some(used);
                 }
@@ -1595,8 +1594,7 @@ impl Instances {
                 vec![Message::Editor(EditorMessage::DragOver {
                     instance,
                     region,
-                    x: event.position.x,
-                    y: event.position.y,
+                    pos: event.position,
                     block_id: event.drag.block_id.into_bytes(),
                     block_type: event.drag.block_type.into_bytes(),
                     dropped: event.dropped,
@@ -1629,8 +1627,7 @@ impl Instances {
                 vec![Message::Editor(EditorMessage::FileDrop {
                     instance,
                     region,
-                    x: event.position.x,
-                    y: event.position.y,
+                    pos: event.position,
                     files: event.files,
                     dropped: event.dropped,
                 })]
@@ -2086,7 +2083,7 @@ impl Instances {
                         super::ScreenStatus {
                             screen: screen.request.screen,
                             region: screen.request.region,
-                            logical: vec2(metrics.logical_width, metrics.logical_height),
+                            logical: vec2(metrics.logical.width, metrics.logical.height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
                             used: screen.used,
@@ -2349,8 +2346,8 @@ impl Instances {
         let area = screen.window.ime.as_ref()?;
         let origin = rect.min.to_vec2();
         let stretch = vec2(
-            ratio(rect.width(), screen.request.metrics.logical_width),
-            ratio(rect.height(), screen.request.metrics.logical_height),
+            ratio(rect.width(), screen.request.metrics.logical.width),
+            ratio(rect.height(), screen.request.metrics.logical.height),
         );
         Some(ImeArea {
             rect: host_rect(area.rect, origin, stretch),

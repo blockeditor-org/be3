@@ -35,10 +35,11 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
         region: EditorRegion::Frame,
         frame: None,
         metrics: ViewportMetrics {
-            logical_width: 100.0,
-            logical_height: 100.0,
-            visible_x: 0.0,
-            visible_y: 0.0,
+            logical: block_plugin_api::Size {
+                width: 100.0,
+                height: 100.0,
+            },
+            visible: block_plugin_api::Pos2::ZERO,
             pixel_width: 100,
             pixel_height: 100,
             scale_factor: 1.0,

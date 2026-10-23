@@ -4,11 +4,25 @@ use std::time::{Duration, Instant};
 use crate::geometry::{Pos2, Vec2};
 
 pub use ui_types::input::{
-    BackEdge, BackGesture, CursorIcon, DroppedFile, ImeEvent, ImeText, Input, Key, KeyChord,
+    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord,
     KeyPress, Keyboard, Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId,
     TouchPhase,
 };
 pub use ui_types::window::ImeArea;
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DroppedFile {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum FileDrag {
+    Hovered,
+    Cancelled,
+    Dropped(DroppedFile),
+}
 
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;

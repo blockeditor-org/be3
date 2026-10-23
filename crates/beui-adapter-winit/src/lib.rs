@@ -43,7 +43,7 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
+    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
     PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
@@ -735,17 +735,17 @@ impl ApplicationHandler for Runner {
                         .set_valid_dnd_actions(id, &[DndAction::Copy])
                         .is_ok()
                 {
-                    self.push(Input::FileHovered);
+                    self.push(FileDrag::Hovered);
                 }
             }
             WindowEvent::DragLeft { .. } => {
                 self.dropping = None;
-                self.push(Input::FileHoverCancelled);
+                self.push(FileDrag::Cancelled);
             }
             WindowEvent::DragDropped { id, .. } => {
                 self.dropping = event_loop.fetch_data_transfer(id, &TypeHint::UriList).ok();
                 if self.dropping.is_none() {
-                    self.push(Input::FileHoverCancelled);
+                    self.push(FileDrag::Cancelled);
                 }
             }
             WindowEvent::DataTransferReceived { serial, value, .. }
@@ -754,7 +754,7 @@ impl ApplicationHandler for Runner {
                 self.dropping = None;
                 let paths = value.try_as_file_paths().unwrap_or_default();
                 if paths.is_empty() {
-                    self.push(Input::FileHoverCancelled);
+                    self.push(FileDrag::Cancelled);
                 }
                 for path in paths {
                     let name = path
@@ -762,7 +762,7 @@ impl ApplicationHandler for Runner {
                         .and_then(|name| name.to_str())
                         .unwrap_or_default()
                         .to_owned();
-                    self.push(Input::FileDropped(DroppedFile {
+                    self.push(FileDrag::Dropped(DroppedFile {
                         name,
                         path: Some(path),
                         bytes: None,

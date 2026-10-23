@@ -820,9 +820,9 @@ fn follow(
     let Some(area) = area.filter(|_| !viewport.moved) else {
         return;
     };
-    let (scale, (x, y)) = area.fit((content.x, content.y), (rect.width(), rect.height()));
+    let (scale, centre) = area.fit(content, rect.size());
     viewport.zoom = scale.clamp(MIN_ZOOM, max_zoom);
-    viewport.pan = (content * 0.5 - vec2(x, y)) * viewport.zoom;
+    viewport.pan = (content * 0.5 - centre.to_vec2()) * viewport.zoom;
 }
 
 fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom: f32) {
@@ -1191,10 +1191,10 @@ fn BlockFrameView(
                     let rect = rect.get_untracked();
                     for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
                         command(match change {
-                            ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
+                            ViewChange::Pan(by) => Command::Pan(by),
                             ViewChange::Zoom { factor, anchor } => Command::Zoom {
                                 factor,
-                                anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
+                                anchor: anchor.map(|at| rect.min + at.to_vec2()),
                             },
                             ViewChange::KeepFitted(area) => {
                                 fitted.set(area);

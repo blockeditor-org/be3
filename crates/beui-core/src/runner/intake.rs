@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{
-    Event, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta, TouchId,
+    Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta, TouchId,
     TouchPhase,
 };
 
@@ -20,6 +20,7 @@ pub enum Units {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Incoming {
     Input(Units, Input),
+    FileDrag(FileDrag),
     Time(Instant),
 }
 
@@ -30,6 +31,12 @@ impl Incoming {
 
     pub fn points(input: Input) -> Self {
         Self::Input(Units::Points, input)
+    }
+}
+
+impl From<FileDrag> for Incoming {
+    fn from(drag: FileDrag) -> Self {
+        Self::FileDrag(drag)
     }
 }
 
@@ -83,6 +90,14 @@ impl Intake {
                     if produced {
                         events.push(Event::Time(at));
                     }
+                }
+                Incoming::FileDrag(drag) => {
+                    events.push(match drag {
+                        FileDrag::Hovered => Event::FileHovered,
+                        FileDrag::Cancelled => Event::FileHoverCancelled,
+                        FileDrag::Dropped(file) => Event::FileDropped(file),
+                    });
+                    produced = true;
                 }
                 Incoming::Input(units, input) => {
                     let scale = match units {
@@ -203,9 +218,6 @@ impl Intake {
             Input::ScrollEnded => events.push(Event::ScrollEnded),
             Input::Zoom(factor) => events.push(Event::Zoom(factor)),
             Input::Back(gesture) => events.push(Event::Back(gesture)),
-            Input::FileHovered => events.push(Event::FileHovered),
-            Input::FileHoverCancelled => events.push(Event::FileHoverCancelled),
-            Input::FileDropped(file) => events.push(Event::FileDropped(file)),
         }
     }
 

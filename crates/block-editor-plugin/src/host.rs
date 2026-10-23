@@ -1136,17 +1136,14 @@ impl EditorHost {
     }
 
     pub fn pan_view(&self, delta: Vec2) {
-        self.view_changes.borrow_mut().push(ViewChange::Pan {
-            x: delta.x,
-            y: delta.y,
-        });
+        self.view_changes.borrow_mut().push(ViewChange::Pan(delta));
     }
 
     pub fn zoom_view(&self, factor: f32, anchor: Option<Pos2>) {
         let origin = self.region.get().origin;
         self.view_changes.borrow_mut().push(ViewChange::Zoom {
             factor,
-            anchor: anchor.map(|anchor| (anchor.x - origin.x, anchor.y - origin.y)),
+            anchor: anchor.map(|anchor| Pos2::new(anchor.x - origin.x, anchor.y - origin.y)),
         });
     }
 

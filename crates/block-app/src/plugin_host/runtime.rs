@@ -2277,7 +2277,7 @@ pub(crate) fn drag_over_region(
             .map_or(Pos2::ZERO, |placement| placement.rect.min);
         let was = runtime.instances.dragging(instance, region);
         let event = over.map(|(drag, at)| BlockDragEvent {
-            position: at - origin,
+            position: Pos2::ZERO + (at - origin),
             drag,
             dropped,
         });

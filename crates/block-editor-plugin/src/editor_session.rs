@@ -782,8 +782,10 @@ impl EditorSession {
             state.reported = Some(used);
             sizes.push(RegionSize {
                 screen: placement.screen,
-                logical_width: used.x,
-                logical_height: used.y,
+                logical: Size {
+                    width: used.x,
+                    height: used.y,
+                },
             });
         }
         sizes
@@ -872,8 +874,8 @@ impl EditorSession {
             return Rect::ZERO;
         };
         Rect::from_min_size(
-            pos2(-metrics.visible_x, -metrics.visible_y),
-            vec2(metrics.logical_width, metrics.logical_height),
+            pos2(-metrics.visible.x, -metrics.visible.y),
+            vec2(metrics.logical.width, metrics.logical.height),
         )
     }
 

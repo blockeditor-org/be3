@@ -372,12 +372,17 @@ hooks the higher crates fill in:
 - An adapter only translates: it hands `Runner::push` an `Incoming`, which is
   a `ui_types::Input` with its positions and deltas in physical pixels
   (`Incoming::from`), in the window's logical pixels (`Incoming::logical`) or
-  in points (`Incoming::points`), or `Incoming::Time`, below. An `Input` is
+  in points (`Incoming::points`), an `Incoming::FileDrag` (files hovered over
+  the window, the hover cancelled, or a `DroppedFile` dropped: its name and
+  its host path or its bytes), or `Incoming::Time`, below. `FileDrag` and
+  `DroppedFile` live in beui-core rather than ui-types because they never
+  cross the plugin protocol: a plugin's host turns them into its own
+  `FileDrop` messages. An `Input` is
   what any platform reports: pointer moves and buttons, a `Keystroke` (the
   key under the layout, its text and its physical place as an evdev code,
   with no modifiers; guides/beui_keyboard.md), a `ScrollDelta` in pixels,
   lines (`SCROLL_LINE` points) or pages (`SCROLL_PAGE`), touches, pen samples,
-  text, IME edits, a paste, file drops, the modifiers held and the window's
+  text, IME edits, a paste, the modifiers held and the window's
   focus. The runner's intake is the one place it becomes `Event`s, and drive's
   gestures, the on-screen keyboard and typed pastes push `Input` there too, so
   they are normalized as a window's input is. A trackpad's two-finger

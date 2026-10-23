@@ -11,7 +11,7 @@ fn a_zoom_anchor_leaves_the_region_it_was_taken_from() {
         vec![
             ViewChange::Zoom {
                 factor: 2.0,
-                anchor: Some((30.0, 20.0)),
+                anchor: Some(geometry::pos2(30.0, 20.0)),
             },
             ViewChange::Zoom {
                 factor: 0.5,
