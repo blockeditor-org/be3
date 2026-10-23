@@ -10,7 +10,7 @@ use crate::app::automation::{Inbox, Reply, Resize, Simulation, WindowSize, ask};
 use crate::app::{App, SafeArea, Setup, Waker};
 use crate::color::Color32;
 use crate::context::RendererInfo;
-use crate::context::{Context, FrameOutput};
+use crate::context::{Context, FrameOutput, WindowOutput};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
@@ -39,7 +39,7 @@ impl Renderer for Screen {
         Some(self.0)
     }
 
-    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, _scale: f32, _background: Color32) -> bool {
         output.changed
     }
 
@@ -168,6 +168,7 @@ impl<A: App + 'static> Stepped<A> {
             },
             context,
             app: Box::new(app),
+            host: None,
         });
         let window = window(&runner);
         runner

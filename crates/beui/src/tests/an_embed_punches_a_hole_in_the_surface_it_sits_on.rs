@@ -33,7 +33,7 @@ fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
         .expect("the second embed was laid out")
         .rect;
     let punched: Vec<_> = output
-        .shapes()
+        .main().shapes()
         .iter()
         .filter_map(|shape| match shape {
             Shape::Punch { rect, .. } => Some(*rect),

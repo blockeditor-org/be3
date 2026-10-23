@@ -26,7 +26,7 @@ fn accent_rings(selected: Option<usize>) -> usize {
     let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     output
-        .shapes()
+        .main().shapes()
         .iter()
         .filter(|shape| {
             matches!(shape, crate::Shape::Rect { rect, stroke_width, color, .. }

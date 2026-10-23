@@ -26,7 +26,7 @@ fn a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field() {
             .text(),
     );
     let caret = output
-        .shapes()
+        .main().shapes()
         .iter()
         .find_map(|shape| match shape {
             crate::Shape::Rect {

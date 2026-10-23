@@ -22,7 +22,7 @@ pub use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
     ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererChoices,
-    RendererInfo,
+    RendererInfo, WindowOutput,
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
@@ -90,7 +90,11 @@ pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::winit;
 pub use beui_core::runner::{
-    Adapter, Incoming, Launch, Platform, RunOptions, Running, Units, panic_message,
+    Adapter, HostView, Hosted, HostedAdapter, Incoming, Launch, Platform, RunOptions, Running,
+    Units, WindowHost, panic_message,
+};
+pub use beui_core::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
 };
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_adapter};

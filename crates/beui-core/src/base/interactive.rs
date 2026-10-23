@@ -238,6 +238,7 @@ pub fn press_at(
     time: std::time::Instant,
 ) -> PointerPress {
     PointerPress {
+        window: crate::window::WindowId::MAIN,
         pos,
         local: pos - rect.min.to_vec2(),
         size: rect.size(),

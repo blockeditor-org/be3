@@ -14,7 +14,7 @@ fn enabling_touch_emulation_in_the_inspector_does_not_paint_a_pointer() {
     assert!(harness.touch_emulation());
 
     let output = harness.frame(vec![]);
-    assert!(!output.shapes().iter().any(|shape| matches!(
+    assert!(!output.main().shapes().iter().any(|shape| matches!(
         shape,
         crate::painter::Shape::Rect {
             rect,

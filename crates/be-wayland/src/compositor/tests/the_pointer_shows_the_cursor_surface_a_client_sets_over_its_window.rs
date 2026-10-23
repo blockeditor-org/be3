@@ -62,7 +62,7 @@ fn the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window() {
         harness
             .output
             .as_ref()
-            .map(|output| output.window.requests.cursor),
+            .map(|output| output.main().window.requests.cursor),
         Some(CursorIcon::None),
         "a null cursor hides the pointer over the window"
     );

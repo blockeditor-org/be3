@@ -23,7 +23,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
         .set_preference_layer(PreferenceSource::App, app);
     let captions = |output: &crate::FrameOutput, theme: Theme| {
         output
-            .shapes()
+            .main().shapes()
             .iter()
             .filter(|shape| {
                 matches!(shape, crate::Shape::Text { color, .. } if *color == theme.text_muted)

@@ -9,9 +9,11 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Modifiers, PointerPress};
 use crate::node::Rects;
+use crate::window::WindowId;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DragPoint {
+    pub window: WindowId,
     pub pos: Pos2,
     pub local: Pos2,
     pub size: Vec2,
@@ -22,6 +24,7 @@ pub struct DragPoint {
 impl DragPoint {
     pub fn of(press: PointerPress) -> Self {
         Self {
+            window: press.window,
             pos: press.pos,
             local: press.local,
             size: press.size,
@@ -32,6 +35,7 @@ impl DragPoint {
 
     pub fn at(pos: Pos2, modifiers: Modifiers) -> Self {
         Self {
+            window: WindowId::MAIN,
             pos,
             local: pos,
             size: Vec2::ZERO,

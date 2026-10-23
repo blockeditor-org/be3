@@ -8,7 +8,7 @@ pub use paint_format::{
 };
 
 use crate::color::Color32;
-use crate::context::FrameOutput;
+use crate::context::{FrameOutput, WindowOutput};
 use crate::draw::Quad;
 use crate::font::GlyphImage;
 use crate::geometry::{Rect, Vec2, pos2};
@@ -24,7 +24,11 @@ pub trait Paints {
 
 pub fn overflows(output: &FrameOutput, pixels_per_point: f32) -> Vec<String> {
     let mut found = output.overflows.clone();
-    for quad in crate::draw::quads(output, pixels_per_point).list {
+    let quads = output
+        .windows
+        .iter()
+        .flat_map(|window| crate::draw::quads(window, pixels_per_point).list);
+    for quad in quads {
         if let Quad::Drawing { rect, drawing, .. } = &quad
             && let Some(paints) = drawing.paints()
         {
@@ -46,7 +50,7 @@ pub enum Punches {
 }
 
 pub fn painting(
-    output: &FrameOutput,
+    output: &WindowOutput,
     size: Vec2,
     pixels_per_point: f32,
     background: Color32,

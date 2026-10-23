@@ -308,7 +308,7 @@ hooks the higher crates fill in:
   the keyboard, intercepted keys, the paste kinds the focus takes, the IME
   area and keyboard toggles, the same type a plugin sends its host), `typed`
   and `appearance`, which the
-  `Context` fills during a frame and `FrameOutput::window` carries. While
+  `Context` fills during a frame and the main window's `WindowOutput::window` carries. While
   `Context::touch_emulation` is on its cursor is `CursorIcon::Touch`
   whatever the app asked: a finger-sized circle, defined once in
   `beui_core::touch_cursor` as an image at any scale (winit's custom cursor,
@@ -1475,7 +1475,7 @@ dismissed. There is one request for each reason, sent to one layer:
 - Back - Android's back gesture, or the Back key or mouse button - goes to the
   topmost layer that has an enabled `BackHandler` in it or is dismissable,
   stopping at the first layer that blocks everything; the root's handlers come
-  last. `FrameOutput::handles_back` says whether anything would take it.
+  last. `WindowRequests::handles_back` says whether anything would take it.
 - A press outside goes to every dismissable layer it is outside of, from the
   top down, until it lands in one or is shut out by one that blocks everything
   (and then to the chain of blocking layers that one is nested in, so a press
@@ -2541,6 +2541,67 @@ so pasting and composition behave like any other input on the page. Like the
 desktop runner, it only asks the browser for a frame when an event arrived,
 something asked for a repaint, or a `Waker` was woken.
 
+### Windows and window hosts
+
+An app has one `Document`, one reactive graph and one focus, but may show
+several top-level windows. A frame's `FrameOutput` holds one `WindowOutput` per
+window in `windows`: its `id` (`beui_core::window::WindowId`;
+`WindowId::MAIN` is the window the app starts in, `WindowId::next()` makes a
+new one), its `size` in points, its display `layers`, its `WindowState`
+(cursor, IME area, appearance), and its own `damage`, `moved` and `changed`.
+`FrameOutput::main()` is the main window, `FrameOutput::window(id)` any other.
+What happens once for the whole app (copies, pastes, file picks, closing,
+actions, accessibility) stays on `FrameOutput`. A renderer, `painting` and
+`quads` each take one `WindowOutput`; `painting::overflows` reads every window.
+
+The app asks its host for windows with `Context::request_window`, which
+collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
+placement, size }`, `BeginMove(window)`, `BeginResize(window, WindowEdge)`
+(the host then moves or resizes it, as an OS does after winit's
+`drag_window`) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
+`Beside(window)`, or `Host(HostPlacement)`: a value only the host
+understands (a screen position, a 3D pose), which the app stores and hands
+back unchanged. The host answers with `WindowReport`s pushed as
+`Incoming::Window`: `Resized { window, size }` in points, `Placed { window,
+placement }` and `Closed(window)`. The runner applies them before the frame
+lays out, and `Context::window_size` and `Context::window_placement` read
+them. `Context::opens_windows` says whether anything can open windows; where
+nothing can (every platform adapter on its own), a window is shown inside the
+main one instead.
+
+Pointer input names its window: `Incoming::Input` carries a `window`
+(`Incoming::in_window`; every constructor starts with the main window), in
+that window's own coordinates, and `PointerPress` and `DragPoint` carry it
+on to handlers and the drag board. `ui_types::Input` has no window: it is the
+plugin protocol's input too, and a plugin region is always one window.
+
+A `beui_core::runner::WindowHost` sits between one platform window and an
+app with many windows, on any adapter. It goes in `Launch::host`, or wraps an
+adapter as a `HostedAdapter { adapter, host }`. The runner calls it at three
+points:
+
+- `setup(&Setup)` after the renderers load and whenever the GPU is replaced;
+  `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format.
+- `input(&mut Vec<Incoming>, &HostView)` with everything that arrived for the
+  frame (the platform's input and a driver's), before the app sees it: it may
+  rewrite, drop or add entries, name each pointer event's window in that
+  window's coordinates, and push `WindowReport`s. `HostView` is the platform
+  window's size in physical pixels, the pixels per point and the frame's time.
+- `frame(&FrameOutput, &HostView) -> Hosted` after the app's frame: it reads
+  each window's output and requests and returns the one `WindowOutput` the
+  platform window shows, which the runner hands to the platform
+  (`show_window`) and the renderers in place of the app's main window, with
+  a `repaint_after` that keeps frames coming while the host animates.
+
+With a host, the main window's size is the one the host reports, not the
+platform window's, and the app gets no safe area. A wgpu host draws each
+window into a texture of its own and composites them through a `Drawing`
+(`beui::drawing`, whose `Draw::prepare` has the device, queue and an
+encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
+window. The native run functions (`beui::run_with`, `run_on`) wrap their
+adapter in a host when `BEUI_SPACE` is set (`in_space` in
+`crates/beui/src/window.rs`).
+
 ### The on-screen keyboard
 
 beui has an on-screen keyboard of its own, modelled on Android's Unexpected
@@ -3435,7 +3496,7 @@ id and translation, and group nodes around them - `Group::Clip`,
 `Group::Filter` - which a painter opens (`with_clip_rect`, `shifted`, `faded`
 with the space of the fade that opened it, `in_document`) rather than writing
 them onto each shape or child: a recorded shape's own `clip` is always
-everything, and `FrameOutput::shapes` folds the groups into it.
+everything, and `WindowOutput::shapes` folds the groups into it.
 `PainterState::within` is what each group does to the painter inside it, so a
 node visited without painting again hands its children the painters its tree
 says they had. When a node paints again its new tree is set against its old one by
@@ -3470,18 +3531,18 @@ changed, to stderr and to `beui::take_over_repaints`.
 
 A frame hands the renderer these trees, with the frame's own groups around them
 (`Context::clipped`, `Context::scaled` and `Context::apply_filter` wrap what
-they cover), rather than a flat list of shapes; `FrameOutput::shapes` flattens
+they cover), rather than a flat list of shapes; `WindowOutput::shapes` flattens
 them on demand, for tests and software rasterising. `Renderer` encodes a node's
 shapes once and keeps their instances in a GPU buffer, only walks the trees that
 reach the damage, and draws a scroll group through a translation and clip of its
 own, so a scroll or a pan encodes nothing again. A scroll whose offset changed
-reports its copy as `FrameOutput::moved`, and a host that keeps its last frame,
+reports its copy as `WindowOutput::moved`, and a host that keeps its last frame,
 as `beui::run` does, copies that region by the scroll with `Renderer::shift` and
 repaints only what the copy cannot supply - the rows it exposes, whatever
 changed, and whatever does not move with the rows, such as a fade's bands or a
 scrollbar drawn over them. Only one region is copied per frame: when several
 scrolls moved at once the largest is copied and the rest are repainted.
-`FrameOutput::repaint` covers the moved region for hosts that do not copy.
+`Repainting::repaint` on the `WindowOutput` covers the moved region for hosts that do not copy.
 
 Pointer input only visits a node when the pointer lies within the rects of it
 and everything `children` returns under it, or when it leads to a node that

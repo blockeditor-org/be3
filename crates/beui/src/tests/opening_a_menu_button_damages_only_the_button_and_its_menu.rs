@@ -37,7 +37,7 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
         pressed: false,
     }]);
 
-    let damage = opened.damage().expect("opening a menu repaints");
+    let damage = opened.main().damage().expect("opening a menu repaints");
     assert!(
         damage.contains(pos),
         "the button that opened is damaged: {damage:?}"

@@ -8,7 +8,7 @@ pub(crate) fn capture(
     background: Color32,
 ) -> Result<Snapshot, String> {
     Snapshot::of_painting(beui::painting::painting(
-        output,
+        output.main(),
         size,
         pixels_per_point,
         background,

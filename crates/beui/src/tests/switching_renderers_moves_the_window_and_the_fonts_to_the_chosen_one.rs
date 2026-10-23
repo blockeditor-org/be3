@@ -70,7 +70,7 @@ impl Renderer for Recording {
         None
     }
 
-    fn prepare(&mut self, _output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, _background: Color32) -> bool {
         false
     }
 

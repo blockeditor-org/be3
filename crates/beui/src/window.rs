@@ -45,8 +45,9 @@ pub fn run_with_renderers(
         options,
         context: crate::system_context(),
         app,
+        host: None,
     };
-    pollster::block_on(adapter.run(launch))
+    pollster::block_on(in_space(adapter).run(launch))
 }
 
 #[cfg(not(target_os = "android"))]
@@ -153,6 +154,17 @@ pub fn run_on(
         options,
         context: crate::system_context(),
         app: Box::new(app),
+        host: None,
     };
-    pollster::block_on(adapter.run(launch))
+    pollster::block_on(in_space(adapter).run(launch))
+}
+
+fn in_space(adapter: Box<dyn Adapter>) -> Box<dyn Adapter> {
+    match std::env::var("BEUI_SPACE") {
+        Ok(value) if !value.is_empty() && value != "0" => {
+            eprintln!("beui: BEUI_SPACE is set, but this build has no space adapter");
+            adapter
+        }
+        _ => adapter,
+    }
 }

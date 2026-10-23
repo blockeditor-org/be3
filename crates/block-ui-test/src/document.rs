@@ -161,5 +161,5 @@ impl DocumentTest {
 }
 
 fn background(output: &FrameOutput) -> Color32 {
-    output.window.appearance.clear_color
+    output.main().window.appearance.clear_color
 }

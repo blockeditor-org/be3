@@ -293,7 +293,11 @@ impl Automation {
             && let Some(step) = steps.pop_front()
         {
             for event in &step {
-                if let Incoming::Input(_, Input::Focus(focused)) = event {
+                if let Incoming::Input {
+                    input: Input::Focus(focused),
+                    ..
+                } = event
+                {
                     self.focused = *focused;
                 }
             }

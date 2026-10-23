@@ -36,7 +36,7 @@ fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
         pos2(floated.right() + 40.0, floated.bottom() + 20.0),
     );
     assert!(
-        output.shapes().iter().any(|shape| matches!(
+        output.main().shapes().iter().any(|shape| matches!(
             shape,
             Shape::Rect { rect, color, .. }
                 if bar.contains_rect(*rect) && color.to_array()[..3] == accent.to_array()[..3]

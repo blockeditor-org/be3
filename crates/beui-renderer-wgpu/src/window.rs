@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, RendererInfo};
+use beui_core::context::{WindowOutput, RendererInfo};
 use beui_core::geometry::Vec2;
 use beui_core::renderer::{Renderer, WindowHandle};
 
@@ -87,12 +87,12 @@ impl Renderer for WindowSurface {
         self.target.physical()
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         self.target
             .prepare(&mut self.gpu, output, scale, background)
     }
 
-    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.target.note(output, scale, background);
     }
 

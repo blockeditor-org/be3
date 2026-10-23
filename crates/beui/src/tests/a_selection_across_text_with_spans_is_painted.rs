@@ -26,7 +26,7 @@ fn a_selection_across_text_with_spans_is_painted() {
     );
     let output = harness.frame(Vec::new());
 
-    let highlighted = output.shapes().iter().any(|shape| {
+    let highlighted = output.main().shapes().iter().any(|shape| {
         matches!(shape, crate::Shape::Rect { color, stroke_width, .. }
             if *color == styled::Theme::DARK.accent_soft && *stroke_width == 0.0)
     });

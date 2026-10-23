@@ -27,7 +27,7 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
     harness.advance(Duration::from_secs(1));
     let damage = harness
         .frame(Vec::new())
-        .damage()
+        .main().damage()
         .expect("the drawing repaints on its deadline");
 
     assert_eq!(

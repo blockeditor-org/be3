@@ -28,7 +28,7 @@ fn a_picture_given_a_source_paints_only_that_part_of_the_image() {
     let output = harness.frame(Vec::new());
 
     let drawn: Vec<_> = output
-        .shapes()
+        .main().shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::painter::Shape::Image { rect, source, .. } => Some((*rect, *source)),

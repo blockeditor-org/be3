@@ -21,7 +21,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     harness.key(Key::Home, Modifiers::NONE);
     let start = harness
         .frame(Vec::new())
-        .window
+        .main().window.clone()
         .requests
         .ime
         .expect("a focused text area asks for the keyboard");
@@ -33,7 +33,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     harness.key(Key::End, Modifiers::NONE);
     let end = harness
         .frame(Vec::new())
-        .window
+        .main().window.clone()
         .requests
         .ime
         .expect("the keyboard is still asked for");
@@ -46,7 +46,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
         .frame(vec![Input::Ime(ImeEvent::SetComposingText(
             "nihao".to_owned(),
         ))])
-        .window
+        .main().window.clone()
         .requests
         .ime
         .expect("the keyboard is asked for while composing");
@@ -57,7 +57,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
 
     let cleared = harness
         .frame(vec![Input::Ime(ImeEvent::SetComposingText(String::new()))])
-        .window
+        .main().window.clone()
         .requests
         .ime
         .expect("the keyboard is still asked for");

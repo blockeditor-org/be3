@@ -24,7 +24,7 @@ fn hovering_a_link_underlines_it_without_moving_anything() {
 
 fn underlines(output: &crate::FrameOutput) -> usize {
     output
-        .shapes()
+        .main().shapes()
         .iter()
         .filter(|shape| {
             matches!(shape, crate::Shape::Rect { stroke_width, color, .. }

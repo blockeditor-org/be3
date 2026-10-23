@@ -77,10 +77,10 @@ fn painting_of_sized(name: &str, document: beui::Document, select_default: bool,
     stepped.advance(Duration::from_secs(1));
     let output = stepped.frame(Vec::new());
     let painted = beui::painting::painting(
-        &output,
+        output.main(),
         size,
         1.0,
-        output.window.appearance.clear_color,
+        output.main().window.appearance.clear_color,
         beui::painting::Punches::Shown,
     )
     .unwrap();

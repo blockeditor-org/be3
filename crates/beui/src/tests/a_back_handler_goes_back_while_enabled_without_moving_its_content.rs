@@ -18,12 +18,12 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     });
 
     let mut harness = Harness::new(document);
-    assert!(!harness.frame(Vec::new()).window.requests.handles_back);
+    assert!(!harness.frame(Vec::new()).main().window.requests.handles_back);
     harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 0);
 
     enabled.set(true);
-    assert!(harness.frame(Vec::new()).window.requests.handles_back);
+    assert!(harness.frame(Vec::new()).main().window.requests.handles_back);
     let resting = harness.rect(page.get());
 
     harness.frame(vec![

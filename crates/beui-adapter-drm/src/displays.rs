@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::{
-    Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Screen,
+    Color32, CursorIcon, WindowOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Screen,
     Setup, Vec2,
 };
 use beui_core::renderer::Renderer;
@@ -106,7 +106,7 @@ impl Displays {
         self.placed = placed;
     }
 
-    fn prepare(&mut self, frame: &FrameOutput, scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, frame: &WindowOutput, scale: f32, background: Color32) -> bool {
         if self.look() != self.look {
             self.replace_pointer();
         }
@@ -216,7 +216,7 @@ impl Renderer for DisplayRenderer {
         )
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         self.0.borrow_mut().prepare(output, scale, background)
     }
 

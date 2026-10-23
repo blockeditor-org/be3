@@ -1,6 +1,6 @@
 use super::*;
 
-fn paint(context: &beui::Context, squares: &[Rect]) -> FrameOutput {
+fn paint(context: &beui::Context, squares: &[Rect]) -> beui::WindowOutput {
     context.run(|context| {
         let painter = context.painter();
         painter.rect_filled(
@@ -12,6 +12,8 @@ fn paint(context: &beui::Context, squares: &[Rect]) -> FrameOutput {
             painter.rect_filled(*square, 0.0, Color32::from_rgb(0, 0, 255));
         }
     })
+    .main()
+    .clone()
 }
 
 #[test]

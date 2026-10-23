@@ -36,6 +36,7 @@ const SYNTHESIZED_SLOP: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
+    pub window: crate::window::WindowId,
     pub pos: Pos2,
     pub local: Pos2,
     pub size: Vec2,

@@ -28,10 +28,10 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     });
 
     let mut harness = Harness::new(document);
-    assert!(!harness.frame(Vec::new()).window.requests.handles_back);
+    assert!(!harness.frame(Vec::new()).main().window.requests.handles_back);
 
     open.set(true);
-    assert!(harness.frame(Vec::new()).window.requests.handles_back);
+    assert!(harness.frame(Vec::new()).main().window.requests.handles_back);
     harness.frame(Vec::new());
     let resting = harness.rect(body.get());
 
@@ -82,7 +82,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     );
     harness.settle();
     assert_eq!(dismissed.get_untracked(), 1);
-    assert!(!harness.frame(Vec::new()).window.requests.handles_back);
+    assert!(!harness.frame(Vec::new()).main().window.requests.handles_back);
 
     open.set(true);
     harness.frame(Vec::new());

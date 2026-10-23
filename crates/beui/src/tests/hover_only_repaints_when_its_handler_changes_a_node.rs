@@ -19,9 +19,9 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     let mut harness = Harness::new(document);
     harness.frame(vec![]);
     let output = harness.frame(vec![Input::PointerMoved(pos2(10.0, 10.0))]);
-    assert!(!output.changed);
+    assert!(!output.main().changed);
     assert_eq!(
-        output.window.requests.cursor,
+        output.main().window.requests.cursor,
         crate::CursorIcon::PointingHand
     );
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
@@ -39,14 +39,14 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     assert!(
         harness
             .frame(vec![Input::PointerMoved(pos2(10.0, 10.0))])
-            .changed
+            .main().changed
     );
     let before = (layouts.get_untracked(), paints.get_untracked());
     assert!(
         !harness
             .frame(vec![Input::PointerMoved(pos2(20.0, 20.0))])
-            .changed
+            .main().changed
     );
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), before);
-    assert!(harness.frame(vec![Input::PointerLeft]).changed);
+    assert!(harness.frame(vec![Input::PointerLeft]).main().changed);
 }

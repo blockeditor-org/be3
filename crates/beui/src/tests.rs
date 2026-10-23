@@ -804,6 +804,7 @@ mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_top_layer_takes_a_click_over_the_layer_below;
+mod a_window_host_sizes_the_main_window_and_shows_what_it_composes;
 mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
 mod the_window_is_shown_the_ime_again_after_typing_into_it;
@@ -1716,14 +1717,14 @@ pub(crate) fn track_within(harness: &Harness, bar: NodeId) -> Rect {
 }
 
 pub(crate) fn thumb_painted(output: &crate::FrameOutput, track: Rect) -> bool {
-    output.shapes().iter().any(|shape| {
+    output.main().shapes().iter().any(|shape| {
         matches!(shape, crate::painter::Shape::Rect { rect, .. } if track.contains_rect(*rect) && *rect != track)
     })
 }
 
 pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
     output
-        .shapes()
+        .main().shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::painter::Shape::Rect { rect, .. }
@@ -1738,7 +1739,7 @@ pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
 }
 
 pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32) -> bool {
-    output.shapes().iter().any(|shape| {
+    output.main().shapes().iter().any(|shape| {
         matches!(
             shape,
             crate::painter::Shape::Rect {
@@ -2416,6 +2417,7 @@ impl Intaken {
             options: beui_core::runner::RunOptions::default(),
             context: context(),
             app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
+            host: None,
         });
         runner
             .start(
@@ -2540,7 +2542,7 @@ fn open_anchored_in(
 }
 
 fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
-    output.shapes().into_iter().find_map(|shape| match shape {
+    output.main().shapes().into_iter().find_map(|shape| match shape {
         crate::painter::Shape::Rect { rotation, .. }
             if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
         {
@@ -2551,7 +2553,7 @@ fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
 }
 
 fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
-    output.shapes().into_iter().any(|shape| match shape {
+    output.main().shapes().into_iter().any(|shape| match shape {
         crate::painter::Shape::Rect { rect, color, .. } => {
             let [red, green, blue, alpha] = color.to_array();
             rect.contains_rect(panel) && red == 0 && green == 0 && blue == 0 && alpha > 0

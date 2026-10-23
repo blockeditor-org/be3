@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use crate::geometry::{Pos2, Vec2};
+use crate::window::{WindowId, WindowReport};
 use crate::input::{
     Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta,
     TouchId, TouchPhase,
@@ -19,18 +20,44 @@ pub enum Units {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Incoming {
-    Input(Units, Input),
+    Input {
+        units: Units,
+        window: WindowId,
+        input: Input,
+    },
     FileDrag(FileDrag),
     Time(Instant),
+    Window(WindowReport),
 }
 
 impl Incoming {
+    pub fn new(units: Units, input: Input) -> Self {
+        Self::Input {
+            units,
+            window: WindowId::MAIN,
+            input,
+        }
+    }
+
     pub fn logical(input: Input) -> Self {
-        Self::Input(Units::Logical, input)
+        Self::new(Units::Logical, input)
     }
 
     pub fn points(input: Input) -> Self {
-        Self::Input(Units::Points, input)
+        Self::new(Units::Points, input)
+    }
+
+    pub fn in_window(mut self, id: WindowId) -> Self {
+        if let Self::Input { window, .. } = &mut self {
+            *window = id;
+        }
+        self
+    }
+}
+
+impl From<WindowReport> for Incoming {
+    fn from(report: WindowReport) -> Self {
+        Self::Window(report)
     }
 }
 
@@ -42,12 +69,13 @@ impl From<FileDrag> for Incoming {
 
 impl From<Input> for Incoming {
     fn from(input: Input) -> Self {
-        Self::Input(Units::Physical, input)
+        Self::new(Units::Physical, input)
     }
 }
 
 pub(crate) struct Intake {
     pub(crate) incoming: Vec<Incoming>,
+    pub(crate) reports: Vec<WindowReport>,
     modifiers: Modifiers,
     pointer: Pos2,
     held: u8,
@@ -59,6 +87,7 @@ impl Default for Intake {
     fn default() -> Self {
         Self {
             incoming: Vec::new(),
+            reports: Vec::new(),
             modifiers: Modifiers::NONE,
             pointer: Pos2::ZERO,
             held: 0,
@@ -99,7 +128,12 @@ impl Intake {
                     });
                     produced = true;
                 }
-                Incoming::Input(units, input) => {
+                Incoming::Window(report) => self.reports.push(report),
+                Incoming::Input {
+                    units,
+                    window: _,
+                    input,
+                } => {
                     let scale = match units {
                         Units::Physical => drain.pixels_per_point,
                         Units::Logical => drain.pixels_per_point / drain.native_pixels_per_point,

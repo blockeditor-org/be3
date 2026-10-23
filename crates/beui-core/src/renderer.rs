@@ -6,7 +6,7 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use crate::app::Setup;
 use crate::app::automation::Capture;
 use crate::color::Color32;
-use crate::context::{Context, FrameOutput, RendererChoices, RendererInfo};
+use crate::context::{Context, RendererChoices, RendererInfo, WindowOutput};
 use crate::font::FontBackend;
 use crate::geometry::Vec2;
 use crate::screens::Screen;
@@ -47,9 +47,9 @@ pub trait Renderer {
         None
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool;
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool;
 
-    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.prepare(output, scale, background);
     }
 
@@ -178,11 +178,11 @@ impl Renderers {
         self.slots[self.active].renderer.screens()
     }
 
-    pub fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+    pub fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         self.active_mut().prepare(output, scale, background)
     }
 
-    pub fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    pub fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.active_mut().note(output, scale, background);
     }
 

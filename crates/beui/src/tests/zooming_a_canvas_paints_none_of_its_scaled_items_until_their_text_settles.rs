@@ -5,7 +5,7 @@ use crate::reactive::*;
 
 fn tallest_glyph(output: &FrameOutput) -> u32 {
     output
-        .shapes()
+        .main().shapes()
         .iter()
         .filter_map(|shape| match shape {
             Shape::Text { galley, .. } => Some(galley.clone()),
@@ -46,7 +46,7 @@ fn zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let first = harness.frame(Vec::new());
-    let shapes = first.shapes().len();
+    let shapes = first.main().shapes().len();
     let crisp = tallest_glyph(&first);
 
     view.set(Some(CanvasView::new(pos2(25.0, 15.0), 2.0)));
@@ -60,10 +60,10 @@ fn zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles() {
         work.painted_nodes, 1,
         "zooming scales the canvas's items without painting any of them again"
     );
-    assert_eq!(output.shapes().len(), shapes);
+    assert_eq!(output.main().shapes().len(), shapes);
     let framed = Rect::from_min_size(pos2(45.0, 95.0), Vec2::new(160.0, 40.0));
     let moved = output
-        .shapes()
+        .main().shapes()
         .iter()
         .any(|shape| matches!(shape, Shape::Rect { rect, .. } if *rect == framed));
     assert!(moved, "the framed item is painted where the zoom put it");
@@ -88,7 +88,7 @@ fn zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles() {
     );
     assert!(
         settled
-            .shapes()
+            .main().shapes()
             .iter()
             .any(|shape| matches!(shape, Shape::Rect { rect, .. } if *rect == framed))
     );

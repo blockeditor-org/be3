@@ -64,9 +64,9 @@ impl Screen {
     fn paint(&mut self, harness: &Harness) -> Vec<u8> {
         use beui::Repainting as _;
         let output = harness.output.as_ref().expect("a frame ran");
-        let repaint = output.repaint(beui::Color32::BLACK);
+        let repaint = output.main().repaint(beui::Color32::BLACK);
         self.renderer
-            .prepare(&self.device, &self.queue, output, SCREEN, 1.0, repaint);
+            .prepare(&self.device, &self.queue, output.main(), SCREEN, 1.0, repaint);
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());

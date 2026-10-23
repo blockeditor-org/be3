@@ -8,7 +8,7 @@ use crate::Repainting;
 use crate::renderer_info;
 use crate::wgpu_color_in;
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, Moved, RendererInfo};
+use beui_core::context::{WindowOutput, Moved, RendererInfo};
 use beui_core::geometry::{Vec2, vec2};
 
 pub type OpenDevice = Arc<
@@ -350,7 +350,7 @@ impl Target {
             .is_some_and(|retained| retained.size == (self.config.width, self.config.height))
     }
 
-    pub fn note(&mut self, output: &FrameOutput, scale: f32, clear_color: Color32) {
+    pub fn note(&mut self, output: &WindowOutput, scale: f32, clear_color: Color32) {
         let physical = vec2(self.config.width as f32, self.config.height as f32);
         let size = (physical, scale);
         let stale = self.prepared_size != Some(size)
@@ -400,7 +400,7 @@ impl Target {
     pub fn prepare(
         &mut self,
         gpu: &mut Gpu,
-        output: &FrameOutput,
+        output: &WindowOutput,
         scale: f32,
         clear_color: Color32,
     ) -> bool {
