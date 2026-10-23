@@ -363,6 +363,26 @@ impl Screens {
                         .collect(),
                 );
             }
+            Message::Editor(EditorMessage::PeerMessages {
+                instance,
+                block_id,
+                messages,
+            }) => {
+                let Some(session) = self.sessions.get(instance) else {
+                    return false;
+                };
+                session.push_peer_messages(
+                    Uuid::from_bytes(*block_id),
+                    messages
+                        .iter()
+                        .map(|message| crate::PeerMessage {
+                            from: message.from,
+                            channel: Uuid::from_bytes(message.channel),
+                            payload: message.payload.clone(),
+                        })
+                        .collect(),
+                );
+            }
             Message::Editor(EditorMessage::ContentOperations {
                 instance,
                 block_id,

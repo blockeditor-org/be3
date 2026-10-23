@@ -149,6 +149,17 @@ person, so a reader can join a colour to a cursor, and the server never returns
 to a client the presence that client posted, so a user is never among the
 people their own editor shows them.
 
+An instance may also speak to the other clients in its block's live session
+directly: it sends a payload on a channel (a uuid naming what the payload
+means) to one client, by the id presence carries, or to all of them, and the
+host relays it sealed with the block's key, as it relays the session's own
+traffic, so the server cannot read it. What other clients send it arrives in
+order, as peer messages naming the client and the channel. Nothing is kept:
+a message reaches the clients in the session when it is sent, and an instance
+that was not open, or a client that has left, never hears it. The terminal
+block is built on this; its host machine shows a presence entry of its own,
+and the bytes between it and every viewer travel as peer messages.
+
 The only thing the host owes an instance about presence is whether its block is
 currently being viewed. The framework answers that by publishing and clearing
 the viewing entry itself, and passes it on so an instance knows when to start

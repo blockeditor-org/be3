@@ -27,7 +27,7 @@ use web as platform;
 pub(crate) use platform::sleep;
 
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
-pub(crate) use worker::{History, PairingRequest, Presence, Shared};
+pub(crate) use worker::{History, PairingRequest, PeerMessage, Presence, Shared};
 
 use worker::Command;
 
@@ -473,6 +473,7 @@ const KINDS: &[Kind] = &[
     kind::<be_block::PanZoomContent>(),
     kind::<be_block::Scene3dContent>(),
     kind::<be_block::TriangleContent>(),
+    kind::<be_block::TerminalContent>(),
     kind::<be_block::RepositoryContent>(),
     kind::<be_block::CheckoutContent>(),
 ];
@@ -774,6 +775,33 @@ pub(crate) fn presence_since(block: Uuid, sent: Option<u64>) -> Option<(u64, Vec
         let (revision, presence) = shared.presence.get(&block)?;
         (sent != Some(*revision)).then(|| (*revision, presence.clone()))
     })?
+}
+
+pub(crate) fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload: Vec<u8>) {
+    send(Command::SendToPeers {
+        block,
+        to,
+        channel,
+        payload,
+    });
+}
+
+pub(crate) fn peer_messages_since(block: Uuid, seen: u64) -> Vec<(u64, PeerMessage)> {
+    with_shared(|shared| {
+        shared.peer_messages.get(&block).map(|queue| {
+            queue
+                .iter()
+                .filter(|(sequence, _)| *sequence > seen)
+                .cloned()
+                .collect()
+        })
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+pub(crate) fn peer_messages_seen() -> u64 {
+    with_shared(|shared| shared.peer_message_count).unwrap_or_default()
 }
 
 pub(crate) fn history(block: Uuid) -> History {

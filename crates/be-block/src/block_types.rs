@@ -8,7 +8,7 @@ use crate::{
     ImageContent, InputRemapperContent, InputSettingsContent, LogicGameContent, LogicGridContent,
     MapContent, PanZoomContent, PdfContent, PixelArtContent, PixelRayTracerContent,
     PresentationContent, RepositoryContent, Scene3dContent, SettingsContent,
-    SettingsProfileContent, TextContent, TriangleContent, VideoContent, WorkspaceContent,
+    SettingsProfileContent, TerminalContent, TextContent, TriangleContent, VideoContent, WorkspaceContent,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -103,6 +103,7 @@ pub const BLOCK_TYPES: &[BlockType] = &[
     of::<Scene3dContent>("3D scene", "\u{e061}", RED, ChildEdits::NONE),
     of::<SettingsContent>("Settings", "\u{e154}", TEAL, ChildEdits::NONE),
     of::<SettingsProfileContent>("Settings Profile", "\u{e154}", GOLD, ChildEdits::NONE),
+    of::<TerminalContent>("Terminal", "\u{e181}", GREEN, ChildEdits::NONE),
     of::<TextContent>("Text", "\u{e0cc}", RED, ChildEdits::REPLACE),
     of::<TriangleContent>("Triangle", "\u{e192}", TEAL, ChildEdits::NONE),
     of::<VideoContent>("Video Editor", "\u{e0d0}", GREEN, ChildEdits::ALL),

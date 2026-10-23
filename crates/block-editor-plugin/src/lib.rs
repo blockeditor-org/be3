@@ -56,8 +56,8 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    OpenRequest, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest,
-    PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest, ShownPresence, Waker,
+    OpenRequest, PeerMessage, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest,
+    PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, Waker,
 };
 pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};
 #[cfg(target_arch = "wasm32")]
