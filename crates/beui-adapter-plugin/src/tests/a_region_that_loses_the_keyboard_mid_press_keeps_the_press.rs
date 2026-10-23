@@ -42,8 +42,10 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
     let pen = |phase: PenPhase, pos| Input::Pen {
         phase,
         pos,
-        pressure: 0.5,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure: 0.5,
+            ..Pen::default()
+        },
     };
     let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
     send(Input::Focus(true));

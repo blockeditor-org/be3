@@ -3,14 +3,14 @@ use super::*;
 #[test]
 fn pen_phases_become_pen_inputs() {
     let tilted = Pen {
+        pressure: 0.75,
         tilt: vec2(0.5, -0.25),
         eraser: true,
     };
     let mut replay = Replay::default();
-    let penned = |phase, force| {
+    let penned = |phase, pen| {
         let mut event = pointer(PointerId::Pen, phase, pos2(100.0, 50.0));
-        event.force = force;
-        event.pen = Some(tilted);
+        event.pen = pen;
         sent(event)
     };
     let phases = [
@@ -25,7 +25,7 @@ fn pen_phases_become_pen_inputs() {
             &mut replay,
             phases
                 .iter()
-                .map(|(phase, _)| penned(*phase, Some(0.75)))
+                .map(|(phase, _)| penned(*phase, Some(tilted)))
                 .collect(),
             1.0
         ),
@@ -34,7 +34,6 @@ fn pen_phases_become_pen_inputs() {
             .map(|(_, phase)| Input::Pen {
                 phase: *phase,
                 pos: Pos2::ZERO,
-                pressure: 0.75,
                 pen: tilted,
             })
             .collect::<Vec<_>>()
@@ -44,9 +43,8 @@ fn pen_phases_become_pen_inputs() {
         [Input::Pen {
             phase: PenPhase::Move,
             pos: Pos2::ZERO,
-            pressure: 0.0,
-            pen: tilted,
+            pen: Pen::default(),
         }],
-        "a pen with no force presses with none"
+        "a pen sample that carries no pen replays one at rest, with no pressure"
     );
 }
