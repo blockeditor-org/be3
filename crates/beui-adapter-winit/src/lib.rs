@@ -696,7 +696,10 @@ impl ApplicationHandler for Runner {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let evdev = evdev(event.physical_key);
-                let key = logical_key(&event.key_without_modifiers, evdev.and_then(Key::from_evdev));
+                let key = logical_key(
+                    &event.key_without_modifiers,
+                    evdev.and_then(Key::from_evdev),
+                );
                 self.push(Input::Key(Keystroke {
                     key,
                     pressed: event.state == ElementState::Pressed,

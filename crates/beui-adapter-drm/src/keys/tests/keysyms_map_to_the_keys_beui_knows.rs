@@ -16,7 +16,10 @@ fn keysyms_map_to_the_keys_beui_knows() {
         Some(Key::One),
         "a symbol is the key in its place"
     );
-    assert_eq!(key(keysyms::KEY_semicolon, KEY_SEMICOLON), Some(Key::Semicolon));
+    assert_eq!(
+        key(keysyms::KEY_semicolon, KEY_SEMICOLON),
+        Some(Key::Semicolon)
+    );
     assert_eq!(key(keysyms::KEY_KP_1, 79), Some(Key::One));
     assert_eq!(key(keysyms::KEY_KP_Add, 78), Some(Key::Plus));
     assert_eq!(key(keysyms::KEY_F12, 88), Some(Key::F12));
