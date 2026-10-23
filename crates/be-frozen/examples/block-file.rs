@@ -184,7 +184,9 @@ async fn run(tracker: &Tracker<MemoryStore>, arguments: &[&str]) -> Result<Strin
     )?;
     match cli::run(tracker, &invocation).await? {
         cli::Outcome::Print(printed) => Ok(printed),
-        cli::Outcome::Edit { .. } => Err(format!("{arguments:?} asked for an editor")),
+        cli::Outcome::Edit { .. } | cli::Outcome::Watch { .. } => {
+            Err(format!("{arguments:?} asked for an editor or a watch"))
+        }
     }
 }
 

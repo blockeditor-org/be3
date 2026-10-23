@@ -15,7 +15,8 @@ that build on it. VISION.md says why each part exists.
 - `paint-review` and `paint-review-web`: the web page a pull request's summary
   comment links to for reviewing the paintings it changed.
 - `be-launcher`: installs CI builds on Android and lists pull requests.
-- `be-cli` (`be`): reads and changes the tracker (guides/tracker.md).
+- `be-cli` (`be`): reads and changes the tracker (guides/tracker.md), and keeps
+  a folder and a directory on disk in step with `be-sync` (guides/sync.md).
 - `ghostty-vt`: the terminal core be-launcher shows build output with, kept
   building for a terminal in the desktop session.
 - The build and test tools: `buck-tools`, `local-tools`, `bootstrap`,

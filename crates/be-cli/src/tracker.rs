@@ -1780,35 +1780,5 @@ fn is_code(text: &str) -> bool {
 }
 
 fn replace_text(current: &TextContent, text: &str) -> Option<be_block::Edit> {
-    let now = TextBlock::text(current);
-    if now == text {
-        return None;
-    }
-    let start = now
-        .bytes()
-        .zip(text.bytes())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let start = (0..=start)
-        .rev()
-        .find(|index| now.is_char_boundary(*index) && text.is_char_boundary(*index))
-        .unwrap_or(0);
-    let tail = now[start..]
-        .bytes()
-        .rev()
-        .zip(text[start..].bytes().rev())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let tail = (0..=tail)
-        .rev()
-        .find(|length| {
-            now.is_char_boundary(now.len() - length) && text.is_char_boundary(text.len() - length)
-        })
-        .unwrap_or(0);
-    TextBlock::replace(
-        current,
-        CLIENT,
-        start..now.len() - tail,
-        &text.as_bytes()[start..text.len() - tail],
-    )
+    TextBlock::rewrite(current, CLIENT, text.as_bytes())
 }

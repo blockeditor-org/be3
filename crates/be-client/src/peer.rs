@@ -861,18 +861,66 @@ impl<S: ObjectStore> Peer<S> {
         extra_parents: Vec<CommitId>,
         defined: Option<Entries>,
     ) -> Result<Saved, ClientError> {
-        let references = self.references(block, content);
-        let manifest = self
-            .write_content(block, C::CONTENT_TYPE, &content.encode())
-            .await?;
+        self.save_bytes(
+            block,
+            C::CONTENT_TYPE,
+            &content.encode(),
+            content.references_in(self.organization()),
+            derived_metadata(content),
+            expected,
+            time,
+            pinned,
+            extra_parents,
+            defined,
+        )
+        .await
+    }
+
+    pub async fn save_encoded(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: &[u8],
+        references: Vec<Uuid>,
+        derived: Entries,
+        expected: Option<CommitId>,
+        defined: Option<Entries>,
+    ) -> Result<Saved, ClientError> {
+        self.save_bytes(
+            block,
+            content_type,
+            bytes,
+            references,
+            derived,
+            expected,
+            now_milliseconds(),
+            false,
+            Vec::new(),
+            defined,
+        )
+        .await
+    }
+
+    async fn save_bytes(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: &[u8],
+        references: Vec<Uuid>,
+        derived: Entries,
+        expected: Option<CommitId>,
+        time: i64,
+        pinned: bool,
+        extra_parents: Vec<CommitId>,
+        defined: Option<Entries>,
+    ) -> Result<Saved, ClientError> {
+        let references = self.resolve(block, references);
+        let manifest = self.write_content(block, content_type, bytes).await?;
         let defined = match defined {
             Some(defined) => defined,
             None => self.metadata_at(block, expected).await?.defined,
         };
-        let metadata = BlockMetadata {
-            defined,
-            derived: derived_metadata(content),
-        };
+        let metadata = BlockMetadata { defined, derived };
         self.publish_manifest(
             block,
             manifest,

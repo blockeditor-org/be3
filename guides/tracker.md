@@ -66,6 +66,8 @@ be Issues download issues.block         a block and everything inside it, as one
 be upload issues.block --in a1f3
                                         a copy of it, here or in another organization
                                         (without --in, where new-database puts one)
+be Code sync ~/code [--watch]           a folder or workspace and a directory, kept in
+                                        step both ways (guides/sync.md)
 ```
 
 `be ls` lists the top: the organization's roots the account can see
