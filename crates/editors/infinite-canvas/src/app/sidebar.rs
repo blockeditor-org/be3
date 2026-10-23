@@ -5,7 +5,7 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_FORMAT_COLOR_RESET;
+use block_editor_beui::beui::icons::ICON_DROPLET_OFF;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
@@ -210,7 +210,7 @@ fn FrameBackground(
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <ToggleButton
                     label="Theme background"
-                    glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
+                    glyph={ICON_DROPLET_OFF.to_owned()}
                     pressed={Binding::new(following, move |_: bool| set(None))}
                     disabled={locked}
                     @test_id={"infinite-canvas.background.theme"}
@@ -912,7 +912,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ToggleButton
                             label="No fill"
-                            glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
+                            glyph={ICON_DROPLET_OFF.to_owned()}
                             pressed={Binding::new(none, clearing)}
                             @test_id={"infinite-canvas.fill.none"}
                         />

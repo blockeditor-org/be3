@@ -69,9 +69,9 @@ fn KeyboardBar() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0 justify=Justify::End align=Align::Center>
             <IconButton
                 @test_id="keyboard.close"
-                glyph=icons::ICON_KEYBOARD_HIDE
+                glyph=icons::ICON_KEYBOARD_OFF
                 label="Close the keyboard"
-                size=IconButtonSize::Compact
+                size=IconButtonSize::Toolbar
                 press_focus=false
                 on_click={close_keyboard}
             />
@@ -227,10 +227,10 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
             >
                 <ForEach keys={groups}>|index: usize| {
                     {
-                        let (_, glyph, label) = EMOJI_GROUPS[index];
+                        let (_, emoji, label) = EMOJI_GROUPS[index];
                         let selected = create_memo(move || group.get() == index);
                         view! {
-                            <EmojiTab glyph label selected on_click={move || group.set(index)} />
+                            <EmojiTab emoji label selected on_click={move || group.set(index)} />
                         }
                     }
                 }</ForEach>
@@ -270,7 +270,7 @@ fn drawn(text: &str) -> bool {
 
 #[component]
 fn EmojiTab(
-    glyph: &'static str,
+    emoji: &'static str,
     label: &'static str,
     selected: Memo<bool>,
     on_click: ClickCallback,
@@ -289,9 +289,7 @@ fn EmojiTab(
                 });
                 view! {
                     <Frame fill radius=Radius::Sm padding=Sides::all(6.0)>
-                        <Text>
-                            <Icon glyph size=TextSize::Lg />
-                        </Text>
+                        <Text size=TextSize::Lg>{emoji}</Text>
                     </Frame>
                 }
             }}

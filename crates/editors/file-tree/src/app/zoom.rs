@@ -4,7 +4,7 @@ use std::rc::Rc;
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::{BlockContent, FolderContent, ViewState};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
+use block_editor_beui::beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
@@ -202,7 +202,7 @@ pub(crate) fn ZoomBar(
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <IconButton
                     @test_id={"file-tree.back"}
-                    glyph={ICON_ARROW_UPWARD.to_owned()}
+                    glyph={ICON_ARROW_UP.to_owned()}
                     label="Up one level"
                     on_click={move || zoom.up()}
                 />
@@ -214,7 +214,7 @@ pub(crate) fn ZoomBar(
                     <IconButton
                         @node_ref={&new_button}
                         @test_id={"file-tree.new"}
-                        glyph={ICON_ADD.to_owned()}
+                        glyph={ICON_PLUS.to_owned()}
                         label="New"
                         on_click={on_new}
                     />

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::be_block::canvas::{CanvasGrid, CanvasGridSpacing};
-use block_editor_beui::beui::icons::ICON_GRID_ON;
+use block_editor_beui::beui::icons::ICON_GRID_3X3;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Painter, Pos2, Rect, Vec2, pos2};
@@ -34,7 +34,7 @@ pub(crate) fn grid_actions(state: CanvasState) -> GridActions {
             ..grid
         });
     })
-    .glyph(ICON_GRID_ON)
+    .glyph(ICON_GRID_3X3)
     .checked(create_memo(move || !grid.get().hidden))
     .enabled(live)
     .register();

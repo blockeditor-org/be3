@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::map::{MapColor, MapPoint};
-use block_editor_beui::beui::icons::ICON_LOCATION_ON;
+use block_editor_beui::beui::icons::ICON_MAP_PIN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Pos2, Rect, TextAlign};
@@ -55,7 +55,7 @@ pub(crate) fn Marker(
                         color={color.map(TextColor::Custom)}
                         align=TextAlign::Center
                     >
-                        <Icon glyph={ICON_LOCATION_ON.to_owned()} />
+                        <Icon glyph={ICON_MAP_PIN.to_owned()} />
                     </Text>
                 </Frame>
                 <Show condition={named}>|| {

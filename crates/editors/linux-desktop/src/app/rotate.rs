@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::display_settings::Rotation;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_SCREEN_ROTATION;
+use block_editor_beui::beui::icons::ICON_ROTATE_CW_SQUARE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::PopoverHandle;
@@ -35,7 +35,7 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
     view! {
         <BarPopup
             label="Rotate the screen"
-            glyph={ICON_SCREEN_ROTATION.to_owned()}
+            glyph={ICON_ROTATE_CW_SQUARE.to_owned()}
             icon_only=true
             width=PICKER_WIDTH
             @test_id={"desktop.rotate"}

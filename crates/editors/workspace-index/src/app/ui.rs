@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
+use block_editor_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -100,8 +100,8 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let empty = create_memo(move || entries.with(Vec::is_empty));
     let unordered = create_memo(move || sort.get() == FolderSort::Intrinsic);
     let direction_glyph = create_memo(move || match descending.get() {
-        true => ICON_ARROW_DOWNWARD.to_owned(),
-        false => ICON_ARROW_UPWARD.to_owned(),
+        true => ICON_ARROW_DOWN.to_owned(),
+        false => ICON_ARROW_UP.to_owned(),
     });
     let direction_label = create_memo(move || match descending.get() {
         true => "Descending".to_owned(),

@@ -6,7 +6,6 @@ use crate::font::{FontId, Galley, TextAlign, Wraps};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::{Corners, Painter};
 
-const WRAP_FALLBACK_REMAINING_WIDTH: f32 = 0.15;
 const SPAN_UNDERLINE_OFFSET: f32 = 0.12;
 const SPAN_STRIKE_OFFSET: f32 = 0.32;
 const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
@@ -531,14 +530,7 @@ impl Builder<'_> {
         let count = candidates.clone().count();
         let fits = &stops[first..first + count];
         let good = fits.iter().rposition(|(byte, _)| self.good(*byte));
-        let fallback = fits
-            .len()
-            .checked_sub(1)
-            .filter(|last| wrap - (fits[*last].1 - origin) < wrap * WRAP_FALLBACK_REMAINING_WIDTH);
-        let Some(chosen) = good.or(fallback) else {
-            if !fits.is_empty() {
-                return None;
-            }
+        let Some(chosen) = good.or(fits.len().checked_sub(1)) else {
             let (byte, x) = stops[first..]
                 .iter()
                 .find(|(byte, x)| *byte < to && *x > origin)?;
@@ -546,7 +538,7 @@ impl Builder<'_> {
         };
         let (byte, x) = fits[chosen];
         let reach = x - origin;
-        let mut limit = stops[first + chosen + 1..]
+        let limit = stops[first + chosen + 1..]
             .iter()
             .take_while(|(next, _)| *next <= to)
             .find(|(next, _)| *next > byte && (good.is_none() || *next == to || self.good(*next)))
@@ -554,9 +546,6 @@ impl Builder<'_> {
                 true => stops[stops.partition_point(|(byte, _)| *byte <= to) - 1].1 - origin,
                 false => x - origin,
             });
-        if good.is_none() {
-            limit = limit.min(reach / (1.0 - WRAP_FALLBACK_REMAINING_WIDTH));
-        }
         Some((byte, reach, limit))
     }
 

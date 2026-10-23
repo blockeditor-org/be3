@@ -2,9 +2,7 @@ use beui::KeyAt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use beui::datetime::{DateTime, HourCycle};
-use beui::icons::{
-    ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
-};
+use beui::icons::{ICON_LOCK, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Key, NodeId};
@@ -18,10 +16,10 @@ const SECONDS_PER_MINUTE: u64 = 60;
 fn action(power: PowerAction) -> LockAction {
     let (label, glyph) = match power {
         PowerAction::Lock => ("Lock", ICON_LOCK),
-        PowerAction::Suspend => ("Suspend", ICON_BEDTIME),
-        PowerAction::Restart => ("Restart", ICON_RESTART_ALT),
-        PowerAction::PowerOff => ("Power off", ICON_POWER_SETTINGS_NEW),
-        PowerAction::LogOut => ("Log out", ICON_LOGOUT),
+        PowerAction::Suspend => ("Suspend", ICON_MOON),
+        PowerAction::Restart => ("Restart", ICON_ROTATE_CCW),
+        PowerAction::PowerOff => ("Power off", ICON_POWER),
+        PowerAction::LogOut => ("Log out", ICON_LOG_OUT),
     };
     LockAction {
         label: label.to_owned(),

@@ -23,7 +23,7 @@ fn manifest_from_json_reads_a_document() {
                 .into_bytes()
         )
     );
-    assert_eq!(editor.icon, "\u{eb8d}");
+    assert_eq!(editor.icon, "\u{e0ef}");
     assert_eq!(editor.regions, vec![EditorRegion::Frame]);
     assert_eq!(manifest.entry_point, "counter.wasm");
 }

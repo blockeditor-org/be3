@@ -16,8 +16,7 @@ use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::icons::{
-    ICON_CHECK, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIBER_MANUAL_RECORD,
-    ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
+    ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_DOT,
 };
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -314,7 +313,7 @@ pub(crate) fn MenuCheck(
 ) -> DynamicSegment<ListChild> {
     let ticked = create_memo(move || checked.get() == Some(true));
     let tick = match radio {
-        true => ICON_FIBER_MANUAL_RECORD,
+        true => ICON_DOT,
         false => ICON_CHECK,
     };
     view! {
@@ -341,8 +340,8 @@ pub(crate) fn MenuTreeLead(
     let expandable = create_memo(move || expanded.get().is_some());
     let leaf = create_memo(move || !expandable.get());
     let glyph = create_memo(move || match expanded.get() {
-        Some(true) => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
-        Some(false) => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
+        Some(true) => ICON_CHEVRON_DOWN.to_owned(),
+        Some(false) => ICON_CHEVRON_RIGHT.to_owned(),
         None => String::new(),
     });
     let label = create_memo(move || match expanded.get() {

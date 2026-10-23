@@ -1,7 +1,7 @@
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{BlockContent, EditorViewContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_LINK, ICON_LINK_OFF};
+use block_editor_beui::beui::icons::{ICON_LINK, ICON_UNLINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::MenuItem;
@@ -105,7 +105,7 @@ pub(crate) fn LinkedBar(
                             <Button
                                 @test_id={"workspace.linked.unlink"}
                                 label="Unlink"
-                                glyph={ICON_LINK_OFF.to_owned()}
+                                glyph={ICON_UNLINK.to_owned()}
                                 variant=ButtonVariant::Secondary
                                 disabled={unlink_off}
                                 on_click={move || {

@@ -8,6 +8,6 @@ cargo_test()
 # them to the browser rather than carrying them in the module.
 export_file(
     name = "icons.ttf",
-    src = "src/assets/icons/MaterialSymbolsRounded-Filled.ttf",
+    src = "src/assets/icons/lucide.ttf",
     visibility = ["//crates/beui-web-demo:", "//crates/paint-review-web:"],
 )

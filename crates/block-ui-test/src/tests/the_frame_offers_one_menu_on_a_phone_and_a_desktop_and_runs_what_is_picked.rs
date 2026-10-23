@@ -1,5 +1,5 @@
 use beui::Vec2;
-use beui::icons::ICON_AUTO_FIX_HIGH;
+use beui::icons::ICON_WAND_SPARKLES;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{BarAction, BlockCommand};
 use block_plugin_api::MenuCheck;
@@ -24,7 +24,7 @@ fn Tidy(editor: Editor) -> NodeId {
     let tidied = create_signal(String::from("messy"));
     let neat = create_signal(false);
     let tidy = Action::new("tidy.up", "Tidy up", move || tidied.set("tidy".to_owned()))
-        .glyph(ICON_AUTO_FIX_HIGH)
+        .glyph(ICON_WAND_SPARKLES)
         .register();
     let neatly = Action::new("tidy.neat", "Keep it neat", move || {
         neat.update(|on| *on = !*on)

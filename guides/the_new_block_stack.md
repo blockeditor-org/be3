@@ -1245,7 +1245,7 @@ only" note; on a profile's own page its one item is Stop keeping in this profile
 value the inspector overrides says so instead (`overridden`, from the `PreferenceSources` host
 value, which also gives the system's theme and motion that an unset one shows as its
 default). Menu items
-carry icons (`ICON_KEEP`, `ICON_SETTINGS_BACKUP_RESTORE`, `ICON_KEEP_OFF`). `ChangesToast` shows
+carry icons (`ICON_PIN`, `ICON_ROTATE_CCW`, `ICON_PIN_OFF`). `ChangesToast` shows
 one toast per visit to a page naming what now applies on every device ("Theme, scale
 and 1 more now apply on your devices") with Keep on this device only, which moves those
 values into the profile and puts the every-device ones back, and Undo.

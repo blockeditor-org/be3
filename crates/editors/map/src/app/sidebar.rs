@@ -3,7 +3,7 @@ use block_editor_beui::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
-use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_CIRCLE, ICON_DELETE, ICON_MY_LOCATION};
+use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_CIRCLE, ICON_LOCATE_FIXED, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Pressable;
@@ -350,7 +350,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_ARROW_BACK.to_owned()}
+                    glyph={ICON_ARROW_LEFT.to_owned()}
                     label="Back to all points"
                     @test_id={"map.point.back"}
                     on_click={move || state.select(None)}
@@ -377,7 +377,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     }}
                 />
                 <IconButton
-                    glyph={ICON_MY_LOCATION.to_owned()}
+                    glyph={ICON_LOCATE_FIXED.to_owned()}
                     label="Centre the map here"
                     on_click={move || {
                         if let Some(point) = point.get_untracked() {
@@ -386,7 +386,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     }}
                 />
                 <IconButton
-                    glyph={ICON_DELETE.to_owned()}
+                    glyph={ICON_TRASH.to_owned()}
                     label="Remove this point of interest"
                     @test_id={"map.point.remove"}
                     on_click={move || {

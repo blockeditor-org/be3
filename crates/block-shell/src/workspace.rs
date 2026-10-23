@@ -7,7 +7,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::beui::icons::ICON_WEB_ASSET;
+use block_editor_beui::beui::icons::ICON_APP_WINDOW;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
@@ -1404,7 +1404,13 @@ pub fn WindowTab(
     let editor = workspace.editor();
     let tab = window_tab(key);
     view! {
-        <DockTab id={tab} title icon=ICON_WEB_ASSET picture on_close={move || workspace.close(tab)}>
+        <DockTab
+            id={tab}
+            title
+            icon=ICON_APP_WINDOW
+            picture
+            on_close={move || workspace.close(tab)}
+        >
             <Layers>
                 <Dynamic value={bound}>|bound: Option<HostWindowId>| {
                     match (bound, placeholder) {
@@ -1484,7 +1490,7 @@ pub fn AttachedWindow(
             id={window_tab(window)}
             parent={window_tab(workspace.window_key(parent))}
             title={title}
-            icon=ICON_WEB_ASSET
+            icon=ICON_APP_WINDOW
             size
             modal
             on_close={move || workspace.close(window_tab(window))}

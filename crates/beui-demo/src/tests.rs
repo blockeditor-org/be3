@@ -4,7 +4,7 @@ use block_ui_test::DocumentTest;
 
 use super::*;
 use crate::{DemoApp, PAGES, Page};
-use beui::icons::ICON_VOLUME_UP;
+use beui::icons::ICON_VOLUME_2;
 use std::time::Duration;
 
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
@@ -248,7 +248,7 @@ fn level_display() -> DocumentTest {
     let document = build(move || {
         let shown = create_signal(0_u64);
         let level = Some(OsdLevel {
-            glyph: ICON_VOLUME_UP.to_owned(),
+            glyph: ICON_VOLUME_2.to_owned(),
             label: "Volume".to_owned(),
             level: 0.65,
             muted: false,

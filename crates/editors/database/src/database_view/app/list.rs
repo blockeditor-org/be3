@@ -3,7 +3,7 @@ use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue, short_id
 use block_editor_beui::be_block::database_schema::{
     ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
 };
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
+use block_editor_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
@@ -216,7 +216,7 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_EXPAND_MORE.to_owned()}
+                    glyph={ICON_CHEVRON_DOWN.to_owned()}
                     label={chevron}
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -230,7 +230,7 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
                 <IconButton
-                    glyph={ICON_ADD.to_owned()}
+                    glyph={ICON_PLUS.to_owned()}
                     label="Add a row to this group"
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -485,7 +485,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                 match kind {
                     PartKind::Page => view! {
                         <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
-                            <Icon glyph={ICON_DESCRIPTION.to_owned()} />
+                            <Icon glyph={ICON_FILE_TEXT.to_owned()} />
                         </Text>
                     },
                     PartKind::Plain => view! {

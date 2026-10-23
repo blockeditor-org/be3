@@ -3,8 +3,7 @@ use std::rc::Rc;
 
 use beui::NodeId;
 use beui::icons::{
-    ICON_CLOSE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_INFO, ICON_REDO, ICON_SHARE, ICON_TERMINAL,
-    ICON_UNDO,
+    ICON_INFO, ICON_PENCIL_LINE, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL, ICON_UNDO_2, ICON_X,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -293,7 +292,7 @@ fn frame_actions(
         undo: Action::new("editor.undo", "Undo", move || {
             watched.with(|watched| watched.try_step(false));
         })
-        .glyph(ICON_UNDO)
+        .glyph(ICON_UNDO_2)
         .pin(Pin::Icon)
         .shortcut(Chord::ctrl(Key::Z))
         .enabled(can(|state| state.can_undo))
@@ -301,7 +300,7 @@ fn frame_actions(
         redo: Action::new("editor.redo", "Redo", move || {
             watched.with(|watched| watched.try_step(true));
         })
-        .glyph(ICON_REDO)
+        .glyph(ICON_REDO_2)
         .pin(Pin::Icon)
         .shortcut(Chord::ctrl(Key::Z).shift())
         .shortcut(Chord::ctrl(Key::Y))
@@ -310,13 +309,13 @@ fn frame_actions(
         rename: Action::new("editor.rename", "Rename", move || {
             editor.host().rename_block(id)
         })
-        .glyph(ICON_DRIVE_FILE_RENAME_OUTLINE)
+        .glyph(ICON_PENCIL_LINE)
         .enabled(can(|state| state.can_rename))
         .register(),
         share: Action::new("editor.share", "Share", move || {
             editor.host().share_block(id)
         })
-        .glyph(ICON_SHARE)
+        .glyph(ICON_SHARE_2)
         .pin(Pin::Label)
         .enabled(can(|state| state.can_share))
         .register(),
@@ -326,7 +325,7 @@ fn frame_actions(
         .glyph(ICON_INFO)
         .register(),
         close: Action::new("editor.close", "Close", move || on_exit.call())
-            .glyph(ICON_CLOSE)
+            .glyph(ICON_X)
             .enabled(closable)
             .register(),
     }
