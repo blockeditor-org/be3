@@ -566,6 +566,12 @@ pub struct Pen {
     pub eraser: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+pub enum KeySide {
+    Left,
+    Right,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Keystroke {
     pub key: Option<Key>,

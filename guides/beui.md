@@ -273,6 +273,7 @@ direction:
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
+| `beui-adapter-space` | the VR simulator `WindowHost` that `BEUI_SPACE=1` wraps around a native or headless adapter: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -2601,6 +2602,50 @@ encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
 window. The native run functions (`beui::run_with`, `run_on`) wrap their
 adapter in a host when `BEUI_SPACE` is set (`in_space` in
 `crates/beui/src/window.rs`).
+
+### Space: the VR simulator host
+
+`crates/beui-adapter-space` is a `WindowHost` that shows an app's windows as
+panels in a first-person 3D scene, a VR simulator that runs on any wgpu adapter.
+`BEUI_SPACE=1` turns it on for any native or headless (`:dev`) run: `in_space`
+wraps the platform adapter in `HostedAdapter { adapter, host: Space::new() }`.
+Everything it does is in the host, so no platform adapter knows about it, and
+all its 3D (`glam`) stays in the crate.
+
+- Panels: `Space::panels` is a list of `Panel { window, pose, size }` keyed by
+  `WindowId`; a panel is `size / POINTS_PER_METRE` (1000) metres. On the first
+  frame it opens the main window's panel at the platform window's size in
+  points, at eye height straight ahead, far enough that it fills 80% of the
+  view's width, and reports that size (`WindowReport::Resized`).
+- Pointer: input in physical or logical pixels is the platform's; a ray from
+  the eye through the cursor picks the nearest panel's front (`panel::pick`) and
+  the app gets the input in that window's points. A press captures the window
+  it hit until the last button is let go. A miss sends the window `PointerLeft`,
+  and presses that miss reach nothing. Input in points is a driver's (`drive`
+  sees the app's main window): it passes through unchanged and only moves the
+  3D cursor.
+- Head: holding right Ctrl and right Shift (`Keystroke::is`) steers. Right Ctrl
+  alone still reaches the app; when Shift joins it the app sees it let go. While
+  steering the host asks for pointer lock, `PointerMotion` turns the head (yaw,
+  and pitch clamped short of straight up or down) and W, A, S and D, by their
+  place, walk along the floor relative to where the head faces, timed from
+  `HostView::now`; none of it reaches the app, nor the releases of keys it took.
+- Carry: on `WindowRequest::BeginMove` the panel keeps its pose relative to the
+  head, with the grabbed point on the cursor's ray at a fixed distance, so
+  moving the mouse or steering carries it. Scroll changes the distance and does
+  not reach the app; the app sees no pointer moves meanwhile. Letting go of the
+  button that was down when it began (or, if none was, the next click) ends it:
+  the app gets that release where it grabbed, the panel turns to face the viewer
+  (yaw only), and the host reports `WindowReport::Placed` with the pose as
+  `space X Y Z QX QY QZ QW` (`Pose::placement`, `Pose::from_placement`). Poses
+  live in memory.
+- Drawing: each window's display is drawn by its own
+  `beui_renderer_wgpu::Renderer` into a mipmapped texture, only when that
+  window's output changed, sampled with trilinear and anisotropic filtering;
+  then a 4x multisampled, depth-tested pass draws a floor grid, the panels
+  (their backs grey) and a cursor disc where the ray meets a panel, and a
+  `Drawing` blits it into the platform window. A frame is composed again only
+  when the head, a panel, the cursor or a window's output changed.
 
 ### The on-screen keyboard
 

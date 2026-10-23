@@ -24,6 +24,7 @@ members = [
     "crates/beui-adapter-drm",
     "crates/beui-adapter-headless",
     "crates/beui-adapter-plugin",
+    "crates/beui-adapter-space",
     "crates/beui-adapter-web",
     "crates/beui-adapter-winit",
     "crates/beui-components-styled",

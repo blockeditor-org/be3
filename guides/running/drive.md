@@ -16,15 +16,17 @@ once it has settled; running it again restarts it, which is how to pick up a reb
 
 ## Starting any beui program
 
-beui's run functions (`beui::run`, `run_with`, `run_with_renderers`, `run_on`) read two
+beui's run functions (`beui::run`, `run_with`, `run_with_renderers`, `run_on`) read these
 variables, so a program needs nothing of its own to be driven:
 
 - `BEUI_HEADLESS=WIDTHxHEIGHT[@SCALE]` runs it on `beui::Headless` (crates/beui-adapter-headless),
   which draws offscreen with wgpu and needs no display server. `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT`
   is the screen a fullscreen window grows to.
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
+- `BEUI_SPACE=1` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR simulator
+  host"), headless or in a window; `drive shot` takes the 3D view, every other command the app.
 
-`be-drive launch` (crates/be-drive) sets both, waits for the program to settle and writes the
+`be-drive launch` (crates/be-drive) sets the first two, waits for the program to settle and writes the
 `env` file. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.
 Arguments after `--` go to the launcher, which passes on those it does not know:
 

@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 use crate::geometry::{Pos2, Vec2};
 
 pub use ui_types::input::{
-    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
-    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
+    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, KeySide,
+    Keyboard, Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 pub use ui_types::window::ImeArea;
 

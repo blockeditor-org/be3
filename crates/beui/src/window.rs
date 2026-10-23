@@ -162,8 +162,10 @@ pub fn run_on(
 fn in_space(adapter: Box<dyn Adapter>) -> Box<dyn Adapter> {
     match std::env::var("BEUI_SPACE") {
         Ok(value) if !value.is_empty() && value != "0" => {
-            eprintln!("beui: BEUI_SPACE is set, but this build has no space adapter");
-            adapter
+            Box::new(beui_core::runner::HostedAdapter {
+                adapter,
+                host: Box::new(beui_adapter_space::Space::new()),
+            })
         }
         _ => adapter,
     }
