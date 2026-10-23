@@ -59,7 +59,10 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
         pos: pos2(50.0, 10.0),
         force: None,
     });
-    send(pen(PenPhase::Down(PointerButton::Primary), pos2(30.0, 40.0)));
+    send(pen(
+        PenPhase::Down(PointerButton::Primary),
+        pos2(30.0, 40.0),
+    ));
     surface.update(&shown);
 
     let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));

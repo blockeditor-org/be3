@@ -14,9 +14,7 @@ use beui_core::runner::{Adapter, Incoming, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
 use beui_core::window::WindowState;
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
-use block_editor_plugin::{
-    DescribedAction, Description, EditorHost, Frame, Region, TimedInput,
-};
+use block_editor_plugin::{DescribedAction, Description, EditorHost, Frame, Region, TimedInput};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
