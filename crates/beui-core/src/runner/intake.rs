@@ -99,10 +99,11 @@ impl Default for Intake {
     }
 }
 
-pub(crate) struct Drain {
+pub(crate) struct Drain<'a> {
     pub pixels_per_point: f32,
     pub native_pixels_per_point: f32,
     pub touch_emulation: bool,
+    pub window_size: &'a dyn Fn(WindowId) -> Option<Vec2>,
 }
 
 impl Intake {
@@ -110,7 +111,7 @@ impl Intake {
         self.modifiers
     }
 
-    pub(crate) fn drain(&mut self, drain: &mut Drain, events: &mut Vec<Event>) {
+    pub(crate) fn drain(&mut self, drain: &mut Drain<'_>, events: &mut Vec<Event>) {
         if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
             events.push(self.touch(TouchPhase::Cancel));
         }
@@ -153,7 +154,7 @@ impl Intake {
         }
     }
 
-    fn input(&mut self, input: Input, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
+    fn input(&mut self, input: Input, scale: f32, drain: &Drain<'_>, events: &mut Vec<Event>) {
         let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
         match input {
             Input::Key(stroke) => self.key(stroke, events),
@@ -166,6 +167,7 @@ impl Intake {
             Input::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
             Input::PointerMoved(pos) => {
                 self.pointer = points(pos);
+                self.back_inside(drain);
                 if !drain.touch_emulation {
                     events.push(Event::PointerMoved(self.pointer));
                 } else if self.emulated_touch {
@@ -261,6 +263,17 @@ impl Intake {
             Input::ScrollEnded => events.push(Event::ScrollEnded),
             Input::Zoom(factor) => events.push(Event::Zoom(factor)),
             Input::Back(gesture) => events.push(Event::Back(gesture)),
+        }
+    }
+
+    fn back_inside(&mut self, drain: &Drain<'_>) {
+        if self.left
+            && (drain.window_size)(self.window).is_some_and(|size| {
+                let pos = self.pointer;
+                pos.x >= 0.0 && pos.y >= 0.0 && pos.x < size.x && pos.y < size.y
+            })
+        {
+            self.left = false;
         }
     }
 

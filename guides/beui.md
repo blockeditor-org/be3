@@ -441,7 +441,8 @@ hooks the higher crates fill in:
   intercepted keys with the modifiers held, and drops a held modifier's
   repeats and the text of a shortcut. It turns the primary mouse button into
   a finger while `Context::touch_emulation` is on, holds `PointerGone` back
-  while a button is held, and lets go of the modifiers when the keyboard is
+  while a button is held (sending it after the release, unless a move
+  inside the pointer's window's reported size came first: the pointer came back), and lets go of the modifiers when the keyboard is
   lost (`Input::Focus(false)` means only the keyboard). `Input::PointersCancelled`
   says every press, touch and pen session is over and its release will not
   come: the runner lets go of its buttons and emulated touch, and the

@@ -498,6 +498,11 @@ impl Runner {
                 pixels_per_point: scale,
                 native_pixels_per_point: self.native,
                 touch_emulation: self.context.touch_emulation(),
+                window_size: &|window| {
+                    self.context
+                        .window_size(window)
+                        .or((window == WindowId::MAIN).then_some(physical / scale))
+                },
             },
             &mut self.events,
         );
