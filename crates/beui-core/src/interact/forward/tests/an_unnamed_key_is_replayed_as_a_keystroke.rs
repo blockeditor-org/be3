@@ -13,7 +13,7 @@ fn an_unnamed_key_is_replayed_as_a_keystroke() {
             key: Some(Key::Unidentified),
             pressed: true,
             repeat: false,
-            code: Some(30),
+            evdev: Some(30),
             text: Some("ş".to_owned()),
         })]
     );

@@ -27,7 +27,7 @@ fn modifiers_are_replayed_only_when_they_change() {
                 key: Some(Key::A),
                 pressed: true,
                 repeat: false,
-                code: Some(30),
+                evdev: Some(30),
                 text: None,
             }),
         ]

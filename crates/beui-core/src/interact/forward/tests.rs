@@ -80,7 +80,7 @@ fn key(key: Key, modifiers: Modifiers, text: Option<&str>) -> Forwarded {
             repeat: false,
             modifiers,
         },
-        code: Some(30),
+        evdev: Some(30),
         text: text.map(str::to_owned),
     })
 }
