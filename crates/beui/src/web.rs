@@ -22,6 +22,7 @@ pub async fn run_web(
         options,
         context: crate::context(),
         app: Box::new(app),
+        host: None,
     };
     web_adapter(element_id, renderers).run(launch).await
 }

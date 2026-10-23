@@ -63,7 +63,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
 }
 
 fn painted_rect(output: &crate::FrameOutput, rect: Rect, color: Color32) -> bool {
-    output.shapes().iter().any(|shape| {
+    output.main().shapes().iter().any(|shape| {
         matches!(shape, crate::Shape::Rect { rect: painted, color: fill, .. } if *painted == rect && *fill == color)
     })
 }

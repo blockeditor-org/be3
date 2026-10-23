@@ -17,7 +17,7 @@ use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{Key, KeyChord, Modifiers};
-use crate::window::Appearance;
+use crate::window::{Appearance, WindowId};
 
 use crate::display::Display;
 use crate::interact;
@@ -170,6 +170,7 @@ pub struct Document {
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<String>>,
     animations: Rc<Cell<usize>>,
+    pub(crate) windows: crate::window::hosted::Windows,
 }
 
 #[derive(Clone, Copy)]
@@ -392,6 +393,7 @@ impl Document {
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
+            windows: Default::default(),
         }
     }
 
@@ -1310,6 +1312,7 @@ impl Document {
             }
             self.viewport = Some((ctx.clone(), rect, scale));
         }
+        self.follow_windows(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             let actions = ctx.take_accessibility_actions(self.accessibility_id);
             if !actions.is_empty() {
@@ -1372,6 +1375,11 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
+        self.ask_for_windows(ctx);
+        ctx.set_keyboard_window(
+            self.focused
+                .map_or(WindowId::MAIN, |focused| self.window_of(focused)),
+        );
         if self.has_keyboard()
             && let Some(area) = self.focused_ime_area()
         {
@@ -1394,6 +1402,7 @@ impl Document {
         repaints.extend(cache.take_due(now));
         cache.mark(&repaints, &self.arena);
         self.arena.recycle(released);
+        let mut window_damage = Region::NOTHING;
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             let verifying = verifying_paint();
@@ -1404,10 +1413,25 @@ impl Document {
             let moves = cache.take_moves();
             let stale = cache.take_stale();
             let everything = self.damage.is_everything();
-            let region = self.damage.take(rect);
-            let (region, moved) = match everything {
-                true => (region, None),
-                false => self.settle_moves(moves, stale, region, rect),
+            let windowed = !self.windows.paintings.is_empty();
+            let whole = self.damage.take(self.window_bounds(rect));
+            window_damage = whole;
+            let region = whole.clipped(rect);
+            let (region, moved) = match (everything, windowed) {
+                (true, _) => (region, None),
+                (false, true) => {
+                    let mut region = region;
+                    for moved in &moves {
+                        region.add(moved.viewport.intersect(rect));
+                        window_damage.add(moved.viewport);
+                    }
+                    for stale in &stale {
+                        region.add(stale.rect.intersect(rect));
+                        window_damage.add(stale.rect);
+                    }
+                    (region, None)
+                }
+                (false, false) => self.settle_moves(moves, stale, region, rect),
             };
             if let Some(previous) = previous {
                 self.verify_paint(ctx, rect, &previous, &region, moved, everything);
@@ -1432,6 +1456,7 @@ impl Document {
             ctx.note_animating();
         }
         ctx.show_painting(&self.painting, rect);
+        self.show_windows(ctx, window_damage);
         if ctx.automated() {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
@@ -1466,22 +1491,45 @@ impl Document {
         let mut roots = Vec::new();
         if let Some(root) = self.root {
             paint::paint(self, &painter, &self.rects, root);
-            roots.push(root);
+            roots.push((WindowId::MAIN, root));
         }
-        for overlay in self.layers().iter().filter_map(|layer| layer.overlay) {
+        let layers = self.layers();
+        let open = self.open_windows();
+        for layer in layers.iter().skip(1) {
+            let Some(overlay) = layer.overlay else {
+                continue;
+            };
+            if !layer.window.is_main() && !open.contains(&layer.window) {
+                continue;
+            }
             let scrim = self.overlay_scrim(overlay);
             let content = self.overlay_content(overlay);
-            for layer in [Some(scrim), content].into_iter().flatten() {
-                if self.rects.contains_key(&layer) {
-                    paint::paint(self, &painter, &self.rects, layer);
-                    roots.push(layer);
+            for root in [Some(scrim), content].into_iter().flatten() {
+                if self.rects.contains_key(&root) {
+                    paint::paint(self, &painter, &self.rects, root);
+                    roots.push((layer.window, root));
                 }
             }
         }
         let cache = self.paint_cache.get_mut();
-        cache.settle_roots(roots);
+        cache.settle_roots(roots.iter().map(|(_, root)| *root).collect());
         if cache.take_recorded() {
-            self.painting = cache.painting();
+            let mut main = Vec::new();
+            let mut windows: Vec<(WindowId, crate::window::hosted::Painting)> = Vec::new();
+            for (window, root) in &roots {
+                let Some(painted) = cache.painting_of(*root) else {
+                    continue;
+                };
+                match window.is_main() {
+                    true => main.push(painted),
+                    false => match windows.iter_mut().find(|(id, _)| id == window) {
+                        Some((_, painting)) => painting.push(painted),
+                        None => windows.push((*window, vec![painted])),
+                    },
+                }
+            }
+            self.painting = main;
+            self.windows.paintings = windows;
         }
         self.damage.add_region(cache.take_damage());
     }
@@ -2234,9 +2282,11 @@ impl Document {
     }
 
     pub fn viewport_rect(&self) -> Rect {
-        self.viewport
-            .as_ref()
-            .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
+        self.windows.viewport.unwrap_or_else(|| {
+            self.viewport
+                .as_ref()
+                .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
+        })
     }
 
     pub fn pixels_per_point(&self) -> f32 {
@@ -2402,7 +2452,10 @@ impl Document {
             };
             let painter = Painter::resumed(ctx.clone(), state);
             self.layout_parent = self.arena.parent(boundary);
+            let viewport = self.window_rect(self.window_of(boundary));
+            let held = self.swap_window_viewport(viewport);
             layout::layout(self, &painter, boundary, placed.rect, rects);
+            self.swap_window_viewport(held);
             self.layout_parent = None;
             self.placing.clear();
         }

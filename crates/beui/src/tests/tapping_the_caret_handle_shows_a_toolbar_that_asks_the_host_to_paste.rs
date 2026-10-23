@@ -47,7 +47,10 @@ fn tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste() {
     harness.touch(TouchPhase::Start, row);
     let output = harness.touch(TouchPhase::End, row);
     assert_eq!(output.paste, Some(crate::PasteRequest::Asked));
-    assert_eq!(output.window.requests.pastes, [crate::PasteKind::Text]);
+    assert_eq!(
+        output.main().window.requests.pastes,
+        [crate::PasteKind::Text]
+    );
 
     harness.frame(vec![Input::Paste(crate::Pasted::Text("Say ".to_owned()))]);
     assert_eq!(

@@ -42,7 +42,7 @@ fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked()
     );
     let hovered = harness.frame(vec![Input::PointerMoved(elsewhere)]);
     assert_eq!(
-        hovered.window.requests.cursor,
+        hovered.main().window.requests.cursor,
         CursorIcon::PointingHand,
         "the document beside an open popover still answers the pointer"
     );

@@ -93,6 +93,7 @@ mod a_dock_dialog_is_never_a_tab;
 mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
 mod a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_document;
 mod a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced;
+mod a_dock_tab_dropped_where_no_window_is_opens_a_window_at_the_pointer;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
 mod a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane;
@@ -122,6 +123,7 @@ mod a_driver_hovers_before_it_presses_so_a_scrollbar_shown_on_hover_takes_its_cl
 mod a_driver_lets_go_of_its_held_keys_and_pointers_when_the_window_loses_focus;
 mod a_driver_lists_and_runs_an_action;
 mod a_driver_lists_components_and_their_internals;
+mod a_driver_moves_a_locked_pointer;
 mod a_driver_pastes_the_headless_clipboard_with_ctrl_v;
 mod a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad;
 mod a_driver_reads_the_environment_an_app_gives_its_programs;
@@ -188,6 +190,11 @@ mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
 mod a_headless_window_fills_its_screen_when_the_app_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
+mod a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there;
+mod a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_reports;
+mod a_hosted_dock_windows_grip_asks_its_host_to_resize_it;
+mod a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own;
+mod a_hosts_report_of_a_windows_size_and_place_reaches_the_app;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
 mod a_kept_alive_child_shown_again_keeps_the_sizing_it_was_last_given;
@@ -257,6 +264,7 @@ mod a_plugin_tree_that_is_not_a_tree_is_cut_into_one;
 mod a_plugin_tree_update_sends_only_what_changed;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
+mod a_pointer_that_leaves_while_pressed_and_comes_back_is_not_gone_after_the_release;
 mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
@@ -264,6 +272,7 @@ mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
 mod a_press_cancelled_after_the_pointer_left_does_not_wait_for_its_release;
 mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
+mod a_press_in_one_window_dragged_into_another_drops_on_a_target_there;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
 mod a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on;
 mod a_press_just_outside_a_windows_border_resizes_it;
@@ -304,6 +313,7 @@ mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_second_swipe_during_a_fling_keeps_scrolling;
 mod a_secondary_drag_carried_over_a_floating_window_keeps_moving_the_split;
 mod a_secondary_drag_released_as_the_pointer_leaves_still_ends;
+mod a_secondary_drag_with_the_dock_drag_modifier_hands_a_hosted_windows_resize_to_its_host;
 mod a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split;
 mod a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner;
 mod a_select_following_its_prop_does_not_report_a_change;
@@ -347,6 +357,7 @@ mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
 mod a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
+mod a_tab_dragged_from_one_hosted_dock_window_onto_anothers_bar_joins_it;
 mod a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it;
 mod a_tab_dropped_in_the_frame_it_last_moved_lands_where_it_was_let_go;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
@@ -404,8 +415,10 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
+mod a_window_host_sizes_the_main_window_and_shows_what_it_composes;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
+mod a_window_shows_as_an_overlay_where_nothing_opens_windows;
 mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
@@ -509,6 +522,7 @@ mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
 mod closing_a_dock_tab_asks_its_owner_to_remove_it;
 mod closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window;
 mod closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border;
+mod closing_a_window_asks_its_host_and_a_close_by_the_host_reaches_the_app;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod component_children_keep_their_owner_when_rendered_later;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
@@ -531,6 +545,10 @@ mod double_tapping_with_the_screen_reader_activates_what_it_is_reading;
 mod dragging_a_color_picker_previews_the_color_and_reports_it_once;
 mod dragging_a_color_wheels_ring_turns_its_hue;
 mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
+mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
+mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
+mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
+mod dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it;
 mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_panes_grip_moves_every_tab_of_the_pane;
@@ -806,6 +824,8 @@ mod the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated;
 mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
+mod the_space_host_carries_the_main_window_its_app_asks_to_move;
+mod the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reach_it;
 mod the_top_layer_takes_a_click_over_the_layer_below;
 mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
@@ -967,6 +987,22 @@ impl Harness {
             crate::testing::Showing(document),
             window,
             None,
+        );
+        stepped.settle_after_gestures(false);
+        Self(stepped)
+    }
+
+    pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
+        crate::verify_paint(true);
+        crate::inspector::install(&mut document);
+        let window = beui_core::app::automation::WindowSize {
+            size: viewport,
+            scale: 1.0,
+        };
+        let mut stepped = crate::testing::Stepped::hosting_windows(
+            context(),
+            crate::testing::Showing(document),
+            window,
         );
         stepped.settle_after_gestures(false);
         Self(stepped)
@@ -1720,13 +1756,14 @@ pub(crate) fn track_within(harness: &Harness, bar: NodeId) -> Rect {
 }
 
 pub(crate) fn thumb_painted(output: &crate::FrameOutput, track: Rect) -> bool {
-    output.shapes().iter().any(|shape| {
+    output.main().shapes().iter().any(|shape| {
         matches!(shape, crate::painter::Shape::Rect { rect, .. } if track.contains_rect(*rect) && *rect != track)
     })
 }
 
 pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
     output
+        .main()
         .shapes()
         .iter()
         .filter_map(|shape| match shape {
@@ -1742,7 +1779,7 @@ pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
 }
 
 pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32) -> bool {
-    output.shapes().iter().any(|shape| {
+    output.main().shapes().iter().any(|shape| {
         matches!(
             shape,
             crate::painter::Shape::Rect {
@@ -1819,6 +1856,70 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
+    let dock = NodeRef::new();
+    let document = build_node(move || {
+        let layout = unstyled::DockingLayout::new();
+        view! {
+            <styled::Docking @node_ref=&dock layout drag_modifier>
+                <unstyled::DockSplit id="split">
+                    <unstyled::DockPane id="left">
+                        <unstyled::DockTab id=1u64 title="Tab 1">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                    <unstyled::DockPane id="right">
+                        <unstyled::DockTab id=2u64 title="Tab 2">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                </unstyled::DockSplit>
+                <unstyled::DockWindow
+                    id="first"
+                    rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
+                >
+                    <unstyled::DockPane id="third">
+                        <unstyled::DockTab id=3u64 title="Tab 3">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                </unstyled::DockWindow>
+                <unstyled::DockWindow
+                    id="second"
+                    rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
+                >
+                    <unstyled::DockPane id="fourth">
+                        <unstyled::DockTab id=4u64 title="Tab 4">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                </unstyled::DockWindow>
+            </styled::Docking>
+        }
+    });
+    (document, dock.get())
+}
+
+pub(crate) fn window_showing(harness: &Harness, dock: NodeId, title: &str) -> crate::WindowId {
+    harness
+        .document()
+        .window_of(dock_tab(harness.document(), dock, title))
+}
+
+pub(crate) fn press_in(harness: &mut Harness, window: crate::WindowId, pos: Pos2, pressed: bool) {
+    harness.frame_in(
+        window,
+        vec![
+            Input::PointerMoved(pos),
+            Input::PointerButton {
+                pos,
+                button: PointerButton::Primary,
+                pressed,
+            },
+        ],
+    );
 }
 
 pub(crate) struct SplitDock {
@@ -2420,6 +2521,7 @@ impl Intaken {
             options: beui_core::runner::RunOptions::default(),
             context: context(),
             app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
+            host: None,
         });
         runner
             .start(
@@ -2544,18 +2646,22 @@ fn open_anchored_in(
 }
 
 fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
-    output.shapes().into_iter().find_map(|shape| match shape {
-        crate::painter::Shape::Rect { rotation, .. }
-            if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
-        {
-            Some(rotation.pivot)
-        }
-        _ => None,
-    })
+    output
+        .main()
+        .shapes()
+        .into_iter()
+        .find_map(|shape| match shape {
+            crate::painter::Shape::Rect { rotation, .. }
+                if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
+            {
+                Some(rotation.pivot)
+            }
+            _ => None,
+        })
 }
 
 fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
-    output.shapes().into_iter().any(|shape| match shape {
+    output.main().shapes().into_iter().any(|shape| match shape {
         crate::painter::Shape::Rect { rect, color, .. } => {
             let [red, green, blue, alpha] = color.to_array();
             rect.contains_rect(panel) && red == 0 && green == 0 && blue == 0 && alpha > 0
@@ -2624,5 +2730,166 @@ fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool, parent: u64) -
         attended: attended.read_only(),
         open,
         anchor,
+    }
+}
+
+pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
+
+struct SpaceScreen;
+
+impl beui_core::renderer::Renderer for SpaceScreen {
+    fn name(&self) -> &'static str {
+        "screen"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo::default()
+    }
+
+    fn resize(&mut self, _width: u32, _height: u32) {}
+
+    fn physical(&self) -> Option<Vec2> {
+        Some(SPACE_SCREEN)
+    }
+
+    fn prepare(
+        &mut self,
+        _output: &crate::WindowOutput,
+        _scale: f32,
+        _background: Color32,
+    ) -> bool {
+        false
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
+    }
+}
+
+struct SharedSpace(Rc<RefCell<beui_adapter_space::Space>>);
+
+impl beui_core::runner::WindowHost for SharedSpace {
+    fn setup(&mut self, setup: &Setup) {
+        self.0.borrow_mut().setup(setup);
+    }
+
+    fn input(
+        &mut self,
+        incoming: &mut Vec<beui_core::runner::Incoming>,
+        view: &beui_core::runner::HostView,
+    ) {
+        self.0.borrow_mut().input(incoming, view);
+    }
+
+    fn frame(
+        &mut self,
+        output: &crate::FrameOutput,
+        view: &beui_core::runner::HostView,
+    ) -> beui_core::runner::Hosted {
+        self.0.borrow_mut().frame(output, view)
+    }
+}
+
+struct SharedDocument(Rc<RefCell<Document>>);
+
+impl crate::App for SharedDocument {
+    fn update(&mut self, context: &Context, rect: crate::geometry::Rect) {
+        self.0.borrow_mut().show(context, rect);
+    }
+}
+
+struct Nowhere;
+
+impl beui_core::runner::Platform for Nowhere {}
+
+pub(crate) struct InSpace {
+    runner: beui_core::runner::Runner,
+    pub(crate) space: Rc<RefCell<beui_adapter_space::Space>>,
+    pub(crate) document: Rc<RefCell<Document>>,
+}
+
+impl InSpace {
+    pub(crate) fn new(document: Document) -> Self {
+        let space = Rc::new(RefCell::new(beui_adapter_space::Space::new()));
+        let document = Rc::new(RefCell::new(document));
+        let context = context();
+        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
+            options: beui_core::runner::RunOptions::default(),
+            context: context.clone(),
+            app: Box::new(SharedDocument(Rc::clone(&document))),
+            host: Some(Box::new(SharedSpace(Rc::clone(&space)))),
+        });
+        runner
+            .start(
+                vec![beui_core::renderer::Loaded {
+                    renderer: Box::new(SpaceScreen),
+                    fonts: None,
+                }],
+                Setup::new(Waker::new(|| {})),
+            )
+            .expect("the renderer loads");
+        context.stop_clock();
+        Self {
+            runner,
+            space,
+            document,
+        }
+    }
+
+    pub(crate) fn frame(&mut self, inputs: impl IntoIterator<Item = Input>) {
+        for input in inputs {
+            self.runner.push(input);
+        }
+        self.runner
+            .frame(&mut Nowhere, beui_core::app::SafeArea::default());
+        ::reactive::flush();
+    }
+
+    pub(crate) fn settle(&mut self) {
+        for _ in 0..4 {
+            self.frame([]);
+        }
+    }
+
+    pub(crate) fn on_screen(&self, window: crate::WindowId, pos: Pos2) -> Pos2 {
+        let space = self.space.borrow();
+        let point = space
+            .panel(window)
+            .unwrap_or_else(|| panic!("{window:?} has a panel"))
+            .world(pos);
+        let clip = space
+            .head
+            .view_projection(SPACE_SCREEN)
+            .project_point3(point);
+        pos2(
+            (clip.x + 1.0) / 2.0 * SPACE_SCREEN.x,
+            (1.0 - clip.y) / 2.0 * SPACE_SCREEN.y,
+        )
+    }
+
+    pub(crate) fn tab(
+        &self,
+        dock: NodeId,
+        title: &str,
+    ) -> (crate::WindowId, crate::geometry::Rect) {
+        let document = self.document.borrow();
+        let tab = dock_tab(&document, dock, title);
+        let rect = document.node_rect(tab).expect("the tab is laid out");
+        (document.window_of(tab), rect)
+    }
+
+    pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
+        let button = |pos, pressed| Input::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+        };
+        self.frame([Input::PointerMoved(from), button(from, true)]);
+        for step in 1..=8 {
+            let at = from + (to - from) * (step as f32 / 8.0);
+            self.frame([Input::PointerMoved(at)]);
+        }
+        self.frame([button(to, false)]);
+        self.settle();
     }
 }

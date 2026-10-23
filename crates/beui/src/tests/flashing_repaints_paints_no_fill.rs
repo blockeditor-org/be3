@@ -20,7 +20,7 @@ fn flashing_repaints_paints_no_fill() {
     let output = harness.frame(Vec::new());
 
     assert!(flashed(&output, repainted, flash::REPAINT));
-    assert!(!output.shapes().iter().any(|shape| matches!(
+    assert!(!output.main().shapes().iter().any(|shape| matches!(
         shape,
         crate::painter::Shape::Rect {
             rect,

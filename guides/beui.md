@@ -273,6 +273,7 @@ direction:
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
+| `beui-adapter-space` | the VR simulator `WindowHost` that `BEUI_SPACE=1` wraps around a native or headless adapter: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -308,7 +309,7 @@ hooks the higher crates fill in:
   the keyboard, intercepted keys, the paste kinds the focus takes, the IME
   area and keyboard toggles, the same type a plugin sends its host), `typed`
   and `appearance`, which the
-  `Context` fills during a frame and `FrameOutput::window` carries. While
+  `Context` fills during a frame and the main window's `WindowOutput::window` carries. While
   `Context::touch_emulation` is on its cursor is `CursorIcon::Touch`
   whatever the app asked: a finger-sized circle, defined once in
   `beui_core::touch_cursor` as an image at any scale (winit's custom cursor,
@@ -443,7 +444,8 @@ hooks the higher crates fill in:
   intercepted keys with the modifiers held, and drops a held modifier's
   repeats and the text of a shortcut. It turns the primary mouse button into
   a finger while `Context::touch_emulation` is on, holds `PointerGone` back
-  while a button is held, and lets go of the modifiers when the keyboard is
+  while a button is held (sending it after the release, unless a move
+  inside the pointer's window's reported size came first: the pointer came back), and lets go of the modifiers when the keyboard is
   lost (`Input::Focus(false)` means only the keyboard). `Input::PointersCancelled`
   says every press, touch and pen session is over and its release will not
   come: the runner lets go of its buttons and emulated touch, and the
@@ -1498,7 +1500,7 @@ dismissed. There is one request for each reason, sent to one layer:
 - Back - Android's back gesture, or the Back key or mouse button - goes to the
   topmost layer that has an enabled `BackHandler` in it or is dismissable,
   stopping at the first layer that blocks everything; the root's handlers come
-  last. `FrameOutput::handles_back` says whether anything would take it.
+  last. `WindowRequests::handles_back` says whether anything would take it.
 - A press outside goes to every dismissable layer it is outside of, from the
   top down, until it lands in one or is shut out by one that blocks everything
   (and then to the chain of blocking layers that one is nested in, so a press
@@ -1919,6 +1921,26 @@ calculation on its own, which is what the drop targets and the tests are
 resolved against. A window is a floating overlay, so it paints above the dock
 and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
+
+A dock window is a `Window` (see "Windows and window hosts") sized to its rect
+plus the reach of its resize grips, which lie around it. Where nothing opens
+windows it is that `Window`'s overlay and the dock moves, clamps, springs back
+and resizes it itself. Where a host opens windows each dock window is a real
+window: a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
+(as does a secondary drag with `drag_modifier`, from the nearest edge or
+corner), so the host moves and resizes it. A size set from inside, such as
+`DockTabControl::resize_window`, changes the rect and so the `Window`'s `size`,
+which asks the host with `WindowRequest::Resize`; either way the dock writes the size of the host's
+`Resized` reports into the window's rect (less the grips) and keeps each
+`Placed` report's `HostPlacement` in memory, handing it back as
+`WindowPlacement::Host` when the window opens again (after the dock was
+stacked, say). A window opened with no placement kept opens `Beside` the main
+window. Each window holds its own drop target, and drop targets are resolved
+in the window the `DragPoint` names, in that window's coordinates
+(`stacked_at` takes the window), so a tab dragged from one window onto
+another's bar or pane lands there. A tab or pane dropped where no window is (a
+`Draggable`'s `on_drop_outside`, below) floats into a new window opened
+`AtPointer`; without a host that drop keeps its old meaning.
 
 How the windows stack is the document's layer order alone (`Document::layers()`),
 not anything in `DockState`: a press on a window, the focus moving into one and
@@ -2563,6 +2585,225 @@ the browser has no WebGPU. It reads the keyboard through a hidden text area,
 so pasting and composition behave like any other input on the page. Like the
 desktop runner, it only asks the browser for a frame when an event arrived,
 something asked for a repaint, or a `Waker` was woken.
+
+### Windows and window hosts
+
+An app has one `Document`, one reactive graph and one focus, but may show
+several top-level windows. A frame's `FrameOutput` holds one `WindowOutput` per
+window in `windows`: its `id` (`beui_core::window::WindowId`;
+`WindowId::MAIN` is the window the app starts in, `WindowId::next()` makes a
+new one), its `size` in points, its display `layers`, its `WindowState`
+(cursor, IME area, appearance), and its own `damage`, `moved` and `changed`.
+`FrameOutput::main()` is the main window, `FrameOutput::window(id)` any other.
+What happens once for the whole app (copies, pastes, file picks, closing,
+actions, accessibility) stays on `FrameOutput`. A renderer, `painting` and
+`quads` each take one `WindowOutput`; `painting::overflows` reads every window.
+
+The app asks its host for windows with `Context::request_window`, which
+collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
+placement, size }`, `BeginMove(window)`, `BeginResize(window, WindowEdge)`
+(the host then moves or resizes it, as an OS does after winit's
+`drag_window`), `Resize { window, size }` (the app wants another size; the
+host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
+`Beside(window)`, or `Host(HostPlacement)`: a value only the host
+understands (a screen position, a 3D pose), which the app stores and hands
+back unchanged. The host answers with `WindowReport`s pushed as
+`Incoming::Window`: `Resized { window, size }` in points, `Placed { window,
+placement }` and `Closed(window)`. The runner applies them before the frame
+lays out, and `Context::window_size` and `Context::window_placement` read
+them. `Context::opens_windows` says whether anything can open windows; where
+nothing can (every platform adapter on its own), a window is shown inside the
+main one instead.
+
+An app makes a window with the `Window` component (`beui::primitives`):
+
+```rust
+view! {
+    <Window
+        id={window}
+        size={vec2(320.0, 240.0)}
+        at={pos2(40.0, 40.0)}
+        placement={WindowPlacement::Host(saved_pose)}
+        title={Some("Inspector".to_owned())}
+        open={shown}
+        on_report={move |report: WindowReport| remember(report)}
+    >|handle: WindowHandle|
+        <Panel handle />
+    </Window>
+}
+```
+
+Where a host opens windows it is one: its content is laid out from its own
+corner, `(0, 0)`, at its size (the size the host last reported, else `size`)
+and painted into its own `WindowOutput`. The document asks the host to `Open`
+it, with `placement` and `size`, when it opens and to `Close` it when it
+closes or leaves the tree. When `size` changes while it is open, to something
+other than the size the host last reported, the document asks for it with
+`Resize`; the window keeps the reported size until the host answers, so an
+app that follows `Resized` reports in its `size` never fights the host; `on_report` hears the host's `Resized`, `Placed`
+(the `HostPlacement` to store and hand back as `placement` next time) and
+`Closed`, after which the window stays shut until the app closes and opens it
+again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
+`LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
+how floating windows looked before there were windows, so an app looks the
+same either way. `WindowHandle` (also `use_window()` inside the content)
+carries the `id`, the shown `size` and `is_window()`, which says which of the
+two it is. `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
+return whether it took the request: false means the window is an overlay and
+the caller moves or resizes it itself. Overlays opened inside a window (menus,
+tooltips) are laid out inside that window and paint into it.
+
+Underneath, the window is an `OverlayNode` carrying a `WindowSpec`
+(`Document::set_overlay_window`), and each `Layer` names its `window`: the
+window's own layer and everything opened from inside it.
+`Document::window_layers(id)` is one window's layers with the window's own at
+index 0, which hit testing, press claims and forwarding use, so a press in
+one window never reaches another's nodes at the same coordinates. Focus,
+key routing and tab order stay one across every window. `Document::window_of`
+names the window a node is in, `window_rect` its rectangle and `open_windows`
+the windows the host shows. Damage is not told apart by window: each window
+gets the frame's damage clipped to its size (the whole window when it opens or
+resizes), and scrolling blits are turned into damage while any window is open.
+The cursor goes to the window the pointer is over, the IME area to the window
+holding the focus, and the rest of `WindowState` stays on the main window.
+The accessibility tree stays one tree, with each window's nodes in its own
+coordinates.
+
+Tests host windows with `testing::Stepped::hosting_windows` (block-ui-test's
+`DocumentTest::hosting_windows`), whose host opens every window asked for at
+its size and reports `Resized` and `Placed` back the next frame.
+`frame_in(window, inputs)` sends input to a window, `take_window_requests`
+reads what the app asked, `report_window` reports as a host would, `windows()`
+lists the open windows and each one's latest `WindowOutput`, and
+`DocumentTest::snapshot_window(name, id)` takes a window's painting.
+
+Pointer input names its window: `Incoming::Input` carries a `window`
+(`Incoming::in_window`; every constructor starts with the main window), in
+that window's own coordinates. The intake turns a change of window into
+`Event::PointerWindow`, so every `PointerEvent` and `InputState::pointer`
+carry the window too. A host names the window under the pointer even while a
+press made in another window holds it, and does not send `PointerLeft` when
+the pointer only crosses into another window: the node holding the press goes
+on getting the drag, and its `PointerPress` names the window the pointer is
+over and the position in that window (`local` is then measured from the
+holder's rectangle in its own window, so it means little; a click needs the
+release in the window the press began in). The drag board looks for drop
+targets only in the window the `DragPoint` names. A host signals that the pointer, holding a
+button, is over no window by sending `PointerLeft` (moves and the release then
+keep going to the window the press began in, outside its rect): the intake
+turns that into `Event::PointerOutside`, which sets `Pointer::outside` until
+the next press. While it is set and the pointer is outside its window's
+reported size, the board (`Board::set_outside`, each frame) drops nothing:
+the target the pointer left hears `over(None)` and the drop calls the
+`Outside` callback given to `Board::begin` with the last point (inside or
+out, so a drag that leaves on its first move still has one), which
+`Draggable` passes on as `on_drop_outside`. Where nothing opens windows the
+flag is ignored, so dragging out of a platform window still drops at the last
+point inside. `ui_types::Input` has no window: it is the
+plugin protocol's input too, and a plugin region is always one window.
+
+A `beui_core::runner::WindowHost` sits between one platform window and an
+app with many windows, on any adapter. It goes in `Launch::host`, or wraps an
+adapter as a `HostedAdapter { adapter, host }`. The runner calls it at three
+points:
+
+- `setup(&Setup)` after the renderers load and whenever the GPU is replaced;
+  `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format.
+- `input(&mut Vec<Incoming>, &HostView)` with everything that arrived for the
+  frame (the platform's input and a driver's), before the app sees it: it may
+  rewrite, drop or add entries, name each pointer event's window in that
+  window's coordinates, and push `WindowReport`s. `HostView` is the platform
+  window's size in physical pixels, the pixels per point and the frame's time.
+- `frame(&FrameOutput, &HostView) -> Hosted` after the app's frame: it reads
+  each window's output and requests and returns the one `WindowOutput` the
+  platform window shows, which the runner hands to the platform
+  (`show_window`) and the renderers in place of the app's main window, with
+  a `repaint_after` that keeps frames coming while the host animates.
+
+With a host, the main window's size is the one the host reports, not the
+platform window's, and the app gets no safe area. A wgpu host draws each
+window into a texture of its own and composites them through a `Drawing`
+(`beui::drawing`, whose `Draw::prepare` has the device, queue and an
+encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
+window. The native run functions (`beui::run_with`, `run_on`) wrap their
+adapter in a host when `BEUI_SPACE` is set (`in_space` in
+`crates/beui/src/window.rs`).
+
+### Space: the VR simulator host
+
+`crates/beui-adapter-space` is a `WindowHost` that shows an app's windows as
+panels in a first-person 3D scene, a VR simulator that runs on any wgpu adapter.
+`BEUI_SPACE=1` turns it on for any native or headless (`:dev`) run: `in_space`
+wraps the platform adapter in `HostedAdapter { adapter, host: Space::new() }`.
+Everything it does is in the host, so no platform adapter knows about it, and
+all its 3D (`glam`) stays in the crate.
+
+- Panels: `Space::panels` is a list of `Panel { window, pose, size }` keyed by
+  `WindowId`; a panel is `size / POINTS_PER_METRE` (1000) metres. On the first
+  frame it opens the main window's panel at the platform window's size in
+  points, at eye height straight ahead, far enough that it fills 80% of the
+  view's width, and reports that size (`WindowReport::Resized`).
+- Windows: the runner sets `Context::opens_windows` under any host, so every
+  `Window` is a real window here. `Space::request` handles each of the frame's
+  `WindowRequest`s. `Open` adds a panel at the size asked for and reports
+  `Resized` and `Placed` the next frame: `Host` decodes the pose (a placement
+  another host wrote opens at the pointer instead), `Beside(id)` puts it right
+  of that panel (and of any panel already there), tops level, `BESIDE_GAP`
+  apart, and `AtPointer` puts the
+  point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
+  in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
+  none, turned to face the viewer (yaw only). `Resize` sets the panel's size,
+  keeping its top-left corner, and reports `Resized` the next frame. `Close`
+  removes the panel and its texture; the main window's panel never closes.
+- Pointer: input in physical or logical pixels is the platform's; a ray from
+  the eye through the cursor picks the nearest panel's front (`panel::pick`) and
+  the app gets the input as that window's, in its points. Moving onto another
+  panel just names the new window, held button or not (no `PointerLeft`), so
+  a drag goes on across windows. Moving off every panel sends the last window
+  `PointerLeft`; while a button is held, moves and the release then go to the
+  window the press began in, at the point the ray meets that panel's plane,
+  outside its rectangle. That is how an app tells a drop on nothing (the dock
+  floats a tab dropped there into a window opened `AtPointer`). Presses that
+  miss reach nothing. Input in points is a driver's (`drive` sees the app's
+  main window): it passes through unchanged and only moves the 3D cursor.
+- Head: holding Ctrl and Shift (either side) steers. Ctrl or Shift alone
+  still reaches the app; when the other joins it the app sees both keys let go and its modifiers cleared. While steering
+  the host asks for pointer lock, `PointerMotion` turns the head (yaw, and
+  pitch clamped short of straight up or down) and W, A, S and D, by their
+  place, walk along the floor relative to where the head faces, timed from
+  `HostView::now`. No key pressed while steering reaches the app, nor its
+  release, and clicks reach it without Ctrl or Shift, so an app in space never
+  sees a Ctrl+Shift chord. Keys, modifiers and `PointerMotion` sent by `drive`
+  go through the same rule (a driver's motion is in points, scaled to pixels
+  first), so `drive keydown ctrl; drive keydown shift; drive keydown w` walks
+  and `drive motion 200 0` while Ctrl and Shift are held turns the head.
+- Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
+  head, with the grabbed point on the cursor's ray at a fixed distance, so
+  moving the mouse or steering carries it. As the mouse swings the ray around
+  the viewer the panel turns with it, by the ray's change of yaw about the
+  grabbed point, so a panel that faced the viewer goes on facing them
+  (`Carry::aim`); steering turns it with the head instead. Scroll changes the distance and does
+  not reach the app; the app sees no pointer moves meanwhile. Letting go of the
+  button that was down when it began (or, if none was, the next click) ends it:
+  the app gets that release where it grabbed, the panel turns to face the viewer
+  (yaw only), and the host reports `WindowReport::Placed` with the pose as
+  `space X Y Z QX QY QZ QW` (`Pose::placement`, `Pose::from_placement`). Poses
+  live in memory.
+- Resize: on `WindowRequest::BeginResize(window, edge)` (`resize::Resize`)
+  the cursor's ray meets the panel's plane as it was, and that edge or corner
+  follows it while the opposite one stays put, no smaller than
+  `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
+  app lays out at it the same frame; the app sees no moves meanwhile, and the
+  carry's rule for letting go ends it, with a `Placed` for the panel's new
+  centre.
+- Drawing: each window's display is drawn by its own
+  `beui_renderer_wgpu::Renderer` into a mipmapped texture, only when that
+  window's output changed, sampled with trilinear and anisotropic filtering;
+  then a 4x multisampled, depth-tested pass draws a floor grid, the panels
+  (their backs grey; nearer panels hide farther ones by depth) and a cursor
+  disc where the ray meets a panel, and a
+  `Drawing` blits it into the platform window. A frame is composed again only
+  when the head, a panel, the cursor or a window's output changed.
 
 ### The on-screen keyboard
 
@@ -3475,7 +3716,7 @@ id and translation, and group nodes around them - `Group::Clip`,
 `Group::Filter` - which a painter opens (`with_clip_rect`, `shifted`, `faded`
 with the space of the fade that opened it, `in_document`) rather than writing
 them onto each shape or child: a recorded shape's own `clip` is always
-everything, and `FrameOutput::shapes` folds the groups into it.
+everything, and `WindowOutput::shapes` folds the groups into it.
 `PainterState::within` is what each group does to the painter inside it, so a
 node visited without painting again hands its children the painters its tree
 says they had. When a node paints again its new tree is set against its old one by
@@ -3510,18 +3751,18 @@ changed, to stderr and to `beui::take_over_repaints`.
 
 A frame hands the renderer these trees, with the frame's own groups around them
 (`Context::clipped`, `Context::scaled` and `Context::apply_filter` wrap what
-they cover), rather than a flat list of shapes; `FrameOutput::shapes` flattens
+they cover), rather than a flat list of shapes; `WindowOutput::shapes` flattens
 them on demand, for tests and software rasterising. `Renderer` encodes a node's
 shapes once and keeps their instances in a GPU buffer, only walks the trees that
 reach the damage, and draws a scroll group through a translation and clip of its
 own, so a scroll or a pan encodes nothing again. A scroll whose offset changed
-reports its copy as `FrameOutput::moved`, and a host that keeps its last frame,
+reports its copy as `WindowOutput::moved`, and a host that keeps its last frame,
 as `beui::run` does, copies that region by the scroll with `Renderer::shift` and
 repaints only what the copy cannot supply - the rows it exposes, whatever
 changed, and whatever does not move with the rows, such as a fade's bands or a
 scrollbar drawn over them. Only one region is copied per frame: when several
 scrolls moved at once the largest is copied and the rest are repainted.
-`FrameOutput::repaint` covers the moved region for hosts that do not copy.
+`Repainting::repaint` on the `WindowOutput` covers the moved region for hosts that do not copy.
 
 Pointer input only visits a node when the pointer lies within the rects of it
 and everything `children` returns under it, or when it leads to a node that

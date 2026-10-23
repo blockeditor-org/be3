@@ -22,7 +22,7 @@ fn painting_never_has_to_move_a_rect_onto_the_pixel_grid() {
     harness.rescale(1.5);
     let output = harness.frame(Vec::new());
 
-    let painted = quads(&output, output.pixels_per_point());
+    let painted = quads(output.main(), output.pixels_per_point());
     let mut checked = 0;
     for quad in &painted.list {
         if let crate::draw::Quad::Rect { rect, .. } = quad {

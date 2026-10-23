@@ -27,7 +27,7 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
         "damage above and below an element taller than both must not be joined into one region across it"
     );
     assert_eq!(
-        output.damage.rects(),
+        output.main().damage.rects(),
         [harness.rect(top), harness.rect(bottom)],
         "the frame reports the two panels as separate regions, leaving the one between them out"
     );

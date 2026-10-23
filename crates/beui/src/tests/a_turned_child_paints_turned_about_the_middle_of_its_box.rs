@@ -28,7 +28,7 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
         "a quarter turn stands it up"
     );
     let painted = |output: &crate::FrameOutput| {
-        flatten(&output.layers)
+        flatten(&output.main().layers)
             .iter()
             .find_map(|shape| match shape {
                 Shape::Rect {

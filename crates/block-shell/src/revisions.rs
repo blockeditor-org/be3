@@ -291,6 +291,9 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
         history.busy.get() || history.listed.get() != history.target.get().map(|item| item.id)
     });
     let has_file = create_memo(move || !no_file.get());
+    let first_load = create_memo(move || {
+        history.loading.get() && history.listed.get() != history.target.get().map(|item| item.id)
+    });
     let empty = create_memo(move || {
         !no_file.get()
             && !history.loading.get()
@@ -319,7 +322,7 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
                     <Show condition={has_file}>
                         <Text wrap=true>{name}</Text>
                     </Show>
-                    <Show condition={history.loading}>
+                    <Show condition={first_load}>
                         <Text wrap=true style=TextStyle::CAPTION>"Loading revisions…"</Text>
                     </Show>
                     <Show condition={history.busy}>

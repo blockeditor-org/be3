@@ -24,7 +24,9 @@ use crate::painter::{Painter, Scope, Shape};
 use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
 use crate::screen_simulation::ScreenSimulation;
 use crate::screens::Screen;
-use crate::window::{Appearance, WindowState};
+use crate::window::{
+    Appearance, HostPlacement, WindowId, WindowReport, WindowRequest, WindowState,
+};
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
 
@@ -32,6 +34,20 @@ type CopyWatcher = Rc<dyn Fn(&str)>;
 struct Kept {
     dump: AccessibilityDump,
     viewport: Option<Vec2>,
+}
+
+#[derive(Clone, Default)]
+struct KnownWindow {
+    size: Option<Vec2>,
+    placement: Option<HostPlacement>,
+}
+
+struct ShownWindow {
+    id: WindowId,
+    size: Vec2,
+    layers: Vec<Layer>,
+    damage: Region,
+    title: Option<String>,
 }
 
 #[derive(Clone)]
@@ -57,6 +73,12 @@ struct Inner {
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
     next_file_pick: Cell<u64>,
     window: RefCell<WindowState>,
+    window_requests: RefCell<Vec<WindowRequest>>,
+    windows: RefCell<foldhash::HashMap<WindowId, KnownWindow>>,
+    window_reports: RefCell<Vec<WindowReport>>,
+    shown_windows: RefCell<Vec<ShownWindow>>,
+    keyboard_window: Cell<WindowId>,
+    opens_windows: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
@@ -184,43 +206,24 @@ pub struct ActionGroup {
     pub actions: Vec<ActionInfo>,
 }
 
-pub struct FrameOutput {
+#[derive(Clone)]
+pub struct WindowOutput {
+    pub id: WindowId,
+    pub size: Vec2,
     pub layers: Rc<Vec<Layer>>,
-    dump: Option<AccessibilityDump>,
     pub window: WindowState,
-    pub fullscreen: Option<bool>,
-    pub close_requested: bool,
-    pub copied_text: Option<String>,
-    pub copied_image: Option<Vec<u8>>,
-    pub paste: Option<PasteRequest>,
-    pub file_picks: Vec<FilePickRequest>,
-    pub repaint: bool,
-    pub repaint_after: Duration,
-    pub animating: bool,
     pub changed: bool,
     pub damage: Region,
     pub moved: Option<Moved>,
-    accessibility: Vec<Fragment>,
-    pub actions: Vec<ActionGroup>,
-    pub unran_actions: Vec<String>,
-    pub hits: Option<Vec<String>>,
-    pub comps: Option<Vec<String>>,
-    pub overflows: Vec<String>,
-    pub typed: Vec<crate::input::Input>,
-    pixels_per_point: f32,
 }
 
-impl FrameOutput {
+impl WindowOutput {
     pub fn shapes(&self) -> Vec<Shape> {
         crate::display::flatten(&self.layers)
     }
 
     pub fn filters(&self) -> Vec<Filter> {
         crate::display::filters(&self.layers)
-    }
-
-    pub fn pixels_per_point(&self) -> f32 {
-        self.pixels_per_point
     }
 
     pub fn damaged(&self) -> Option<Region> {
@@ -242,6 +245,51 @@ impl FrameOutput {
     pub fn damage(&self) -> Option<Rect> {
         let bounds = self.unmoved().bounds();
         bounds.is_positive().then_some(bounds)
+    }
+}
+
+pub struct FrameOutput {
+    pub windows: Vec<WindowOutput>,
+    pub window_requests: Vec<WindowRequest>,
+    dump: Option<AccessibilityDump>,
+    pub fullscreen: Option<bool>,
+    pub close_requested: bool,
+    pub copied_text: Option<String>,
+    pub copied_image: Option<Vec<u8>>,
+    pub paste: Option<PasteRequest>,
+    pub file_picks: Vec<FilePickRequest>,
+    pub repaint: bool,
+    pub repaint_after: Duration,
+    pub animating: bool,
+    accessibility: Vec<Fragment>,
+    pub actions: Vec<ActionGroup>,
+    pub unran_actions: Vec<String>,
+    pub hits: Option<Vec<String>>,
+    pub comps: Option<Vec<String>>,
+    pub overflows: Vec<String>,
+    pub typed: Vec<crate::input::Input>,
+    pixels_per_point: f32,
+}
+
+impl FrameOutput {
+    pub fn main(&self) -> &WindowOutput {
+        self.window(WindowId::MAIN)
+            .expect("a frame always holds the main window")
+    }
+
+    pub fn main_mut(&mut self) -> &mut WindowOutput {
+        self.windows
+            .iter_mut()
+            .find(|window| window.id == WindowId::MAIN)
+            .expect("a frame always holds the main window")
+    }
+
+    pub fn window(&self, id: WindowId) -> Option<&WindowOutput> {
+        self.windows.iter().find(|window| window.id == id)
+    }
+
+    pub fn pixels_per_point(&self) -> f32 {
+        self.pixels_per_point
     }
 
     pub fn test_ids(&self) -> Rc<TestIds> {
@@ -290,6 +338,12 @@ impl Context {
                 file_picks: RefCell::new(Vec::new()),
                 next_file_pick: Cell::new(0),
                 window: RefCell::new(WindowState::default()),
+                window_requests: RefCell::new(Vec::new()),
+                windows: RefCell::new(foldhash::HashMap::default()),
+                window_reports: RefCell::new(Vec::new()),
+                shown_windows: RefCell::new(Vec::new()),
+                keyboard_window: Cell::new(WindowId::MAIN),
+                opens_windows: Cell::new(false),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
@@ -573,6 +627,9 @@ impl Context {
         self.inner.copied_image.borrow_mut().take();
         self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
+        self.inner.window_requests.borrow_mut().clear();
+        self.inner.shown_windows.borrow_mut().clear();
+        self.inner.keyboard_window.set(WindowId::MAIN);
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
@@ -596,10 +653,14 @@ impl Context {
         let scale = self.pixels_per_point();
         let filters = crate::display::filters(&layers);
         let moved = self.settle_moves(&layers, scale);
+        self.inner.window_reports.borrow_mut().clear();
         let previous = self.inner.previous.replace(Some(Previous {
             pixels_per_point: scale,
             filters: filters.clone(),
         }));
+        let rescaled = previous
+            .as_ref()
+            .is_none_or(|old| old.pixels_per_point != scale);
         if let Some(old) = &previous {
             for index in 0..old.filters.len().max(filters.len()) {
                 let (was, now) = (old.filters.get(index), filters.get(index));
@@ -639,19 +700,42 @@ impl Context {
             }
             None => None,
         };
-        FrameOutput {
+        let (main, others) = self.window_states(self.shown_window());
+        let mut windows = vec![WindowOutput {
+            id: WindowId::MAIN,
+            size: self.window_size(WindowId::MAIN).unwrap_or(Vec2::ZERO),
             layers,
+            window: main,
+            changed,
             damage,
             moved,
+        }];
+        let shown = std::mem::take(&mut *self.inner.shown_windows.borrow_mut());
+        for (shown, window) in shown.into_iter().zip(others) {
+            let damage = match rescaled {
+                true => Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)),
+                false => shown.damage,
+            };
+            windows.push(WindowOutput {
+                id: shown.id,
+                size: shown.size,
+                layers: Rc::new(shown.layers),
+                window,
+                changed: !damage.is_empty(),
+                damage,
+                moved: None,
+            });
+        }
+        FrameOutput {
+            windows,
+            window_requests: std::mem::take(&mut *self.inner.window_requests.borrow_mut()),
             dump,
             copied_text,
             copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
-            changed,
             repaint_after: self.inner.repaint_after.get(),
             animating: self.inner.animating.get(),
-            window: self.shown_window(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             repaint: self.inner.repaint.get(),
@@ -814,6 +898,112 @@ impl Context {
 
     pub fn cursor_icon(&self) -> CursorIcon {
         self.inner.window.borrow().requests.cursor
+    }
+
+    pub fn request_window(&self, request: WindowRequest) {
+        self.inner.window_requests.borrow_mut().push(request);
+    }
+
+    pub fn opens_windows(&self) -> bool {
+        self.inner.opens_windows.get()
+    }
+
+    pub fn set_opens_windows(&self, opens: bool) {
+        self.inner.opens_windows.set(opens);
+    }
+
+    pub fn window_size(&self, window: WindowId) -> Option<Vec2> {
+        self.inner
+            .windows
+            .borrow()
+            .get(&window)
+            .and_then(|known| known.size)
+    }
+
+    pub fn window_placement(&self, window: WindowId) -> Option<HostPlacement> {
+        self.inner
+            .windows
+            .borrow()
+            .get(&window)
+            .and_then(|known| known.placement.clone())
+    }
+
+    pub fn window_reported(&self, report: WindowReport) {
+        let mut windows = self.inner.windows.borrow_mut();
+        let changed = match &report {
+            WindowReport::Resized { window, size } => {
+                let known = &mut windows.entry(*window).or_default().size;
+                known.replace(*size) != Some(*size)
+            }
+            WindowReport::Placed { window, placement } => {
+                let known = &mut windows.entry(*window).or_default().placement;
+                known.replace(placement.clone()).as_ref() != Some(placement)
+            }
+            WindowReport::Closed(window) => {
+                windows.remove(window);
+                true
+            }
+        };
+        if changed {
+            self.inner.window_reports.borrow_mut().push(report);
+        }
+    }
+
+    pub fn take_window_reports(&self) -> Vec<WindowReport> {
+        std::mem::take(&mut *self.inner.window_reports.borrow_mut())
+    }
+
+    pub fn set_keyboard_window(&self, window: WindowId) {
+        self.inner.keyboard_window.set(window);
+    }
+
+    pub fn show_window(
+        &self,
+        id: WindowId,
+        size: Vec2,
+        painting: &[(Rc<Display>, Vec2)],
+        damage: Region,
+        title: Option<String>,
+    ) {
+        let layers = painting
+            .iter()
+            .map(|(display, at)| Layer::Display(*at, Rc::clone(display)))
+            .collect();
+        self.inner.shown_windows.borrow_mut().push(ShownWindow {
+            id,
+            size,
+            layers,
+            damage,
+            title,
+        });
+    }
+
+    fn window_states(&self, mut main: WindowState) -> (WindowState, Vec<WindowState>) {
+        let pointer = self.inner.input.borrow().pointer.window;
+        let keyboard = self.inner.keyboard_window.get();
+        let shown = self.inner.shown_windows.borrow();
+        let mut others = Vec::with_capacity(shown.len());
+        for window in shown.iter() {
+            let mut state = WindowState {
+                typed: main.typed,
+                ..WindowState::default()
+            };
+            state.appearance.clear_color = main.appearance.clear_color;
+            state.appearance.system_bars = main.appearance.system_bars;
+            state.appearance.title.clone_from(&window.title);
+            if pointer == window.id {
+                state.requests.cursor = main.requests.cursor;
+                state.requests.pointer_locked = main.requests.pointer_locked;
+            }
+            if keyboard == window.id {
+                state.requests.ime = main.requests.ime.take();
+            }
+            others.push(state);
+        }
+        if shown.iter().any(|window| window.id == pointer) {
+            main.requests.cursor = CursorIcon::default();
+        }
+        (main, others)
     }
 
     fn shown_window(&self) -> WindowState {

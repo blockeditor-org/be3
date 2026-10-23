@@ -15,7 +15,10 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
 
     let gap = pos2(middle, right.center().y);
     let output = harness.frame(vec![Input::PointerMoved(gap)]);
-    assert_eq!(output.window.requests.cursor, CursorIcon::ResizeHorizontal);
+    assert_eq!(
+        output.main().window.requests.cursor,
+        CursorIcon::ResizeHorizontal
+    );
     harness.drag(gap, gap + vec2(50.0, 0.0));
     harness.frame(Vec::new());
     let moved = harness.rect(harness.find("content.1"));
@@ -35,7 +38,7 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
     let inside = pos2(right.left() + 4.0, right.center().y);
     let output = harness.frame(vec![Input::PointerMoved(inside)]);
     assert_ne!(
-        output.window.requests.cursor,
+        output.main().window.requests.cursor,
         CursorIcon::ResizeHorizontal,
         "past the few points either side of the line that grab it, the pane's content is the pane's"
     );

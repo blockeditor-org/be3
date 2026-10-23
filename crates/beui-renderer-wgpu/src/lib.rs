@@ -7,7 +7,7 @@ use std::rc::Rc;
 use bytemuck::{Pod, Zeroable};
 
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, Moved};
+use beui_core::context::{Moved, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::draw::{Quad, Turn, push_quads};
@@ -283,7 +283,7 @@ pub trait Repainting {
     fn repaint_moving(&self, background: Color32) -> (Repaint, Option<Moved>);
 }
 
-impl Repainting for FrameOutput {
+impl Repainting for WindowOutput {
     fn repaint(&self, background: Color32) -> Repaint {
         let region = self.unmoved();
         match region.is_empty() {
@@ -974,7 +974,7 @@ impl Renderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        output: &FrameOutput,
+        output: &WindowOutput,
         screen: Vec2,
         pixels_per_point: f32,
         repaint: Repaint,
@@ -1123,7 +1123,7 @@ impl Renderer {
     fn emit(
         &mut self,
         frame: &mut Frame,
-        output: &FrameOutput,
+        output: &WindowOutput,
         repaint: Repaint,
     ) -> (Vec<Instance>, Vec<Step>) {
         let mut instances = Vec::new();
@@ -1524,7 +1524,7 @@ impl Renderer {
         self.frames += 1;
     }
 
-    fn sweep(&mut self, output: &FrameOutput, pixels_per_point: f32) {
+    fn sweep(&mut self, output: &WindowOutput, pixels_per_point: f32) {
         let mut live = std::collections::HashSet::new();
         let at = Walk {
             factor: pixels_per_point,

@@ -525,9 +525,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn wants_another_frame(&self) -> bool {
-        self.output
-            .as_ref()
-            .is_some_and(|output| output.changed || output.repaint_after < std::time::Duration::MAX)
+        self.output.as_ref().is_some_and(|output| {
+            output.main().changed || output.repaint_after < std::time::Duration::MAX
+        })
     }
 
     pub fn drawn(&self) -> Option<&beui::FrameOutput> {
@@ -614,7 +614,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 states: states
                     .into_iter()
                     .map(|(block, history)| block_plugin_api::HistoryState {
-                        head: None,
+                        head: history.head,
                         block_id: block.into_bytes(),
                         can_undo: history.can_undo,
                         can_redo: history.can_redo,
@@ -757,7 +757,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn settle(&mut self) {
         self.settle_until("its animations to finish", |test| {
             test.output.as_ref().is_none_or(|output| {
-                !output.changed && output.repaint_after > std::time::Duration::ZERO
+                !output.main().changed && output.repaint_after > std::time::Duration::ZERO
             })
         });
     }
@@ -775,7 +775,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 .output
                 .as_ref()
                 .map_or((false, std::time::Duration::MAX), |output| {
-                    (output.changed, output.repaint_after)
+                    (output.main().changed, output.repaint_after)
                 });
             if changed && eager < EAGER_FRAMES {
                 eager += 1;

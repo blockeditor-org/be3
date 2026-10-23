@@ -15,6 +15,7 @@ fn a_frame_rounds_each_corner_on_its_own() {
     let mut harness = Harness::sized(document, vec2(200.0, 100.0));
     let output = harness.frame(Vec::new());
     let corners = output
+        .main()
         .shapes()
         .iter()
         .find_map(|shape| match shape {

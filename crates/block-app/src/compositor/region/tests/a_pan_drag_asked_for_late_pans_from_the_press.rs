@@ -5,6 +5,7 @@ fn mouse(phase: PointerPhase, x: f32, y: f32) -> Forwarded {
     Forwarded::Pointer {
         event: PointerEvent {
             pointer: PointerId::Mouse,
+            window: beui::WindowId::MAIN,
             phase,
             pos: pos2(x, y),
             modifiers: Default::default(),

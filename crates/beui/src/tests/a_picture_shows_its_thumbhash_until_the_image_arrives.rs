@@ -6,6 +6,7 @@ use crate::unstyled::Picture;
 
 fn painted(output: &crate::FrameOutput) -> Vec<(Rect, Image, bool)> {
     output
+        .main()
         .shapes()
         .iter()
         .filter_map(|shape| match shape {

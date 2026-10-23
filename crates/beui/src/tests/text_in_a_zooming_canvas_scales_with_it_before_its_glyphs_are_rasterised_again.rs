@@ -4,7 +4,7 @@ use crate::reactive::*;
 use crate::{Quad, quads};
 
 fn glyph_span(output: &FrameOutput) -> [f32; 4] {
-    quads(output, 1.0)
+    quads(output.main(), 1.0)
         .list
         .iter()
         .filter_map(|quad| match quad {

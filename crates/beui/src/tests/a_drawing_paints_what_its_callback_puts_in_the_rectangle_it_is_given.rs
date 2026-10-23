@@ -51,6 +51,7 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
 
 fn fills(output: &crate::FrameOutput) -> Vec<(Vec2, Color32)> {
     output
+        .main()
         .shapes()
         .iter()
         .filter_map(|shape| match shape {

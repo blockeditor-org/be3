@@ -27,7 +27,7 @@ fn a_separator_keeps_the_length_it_is_given_where_its_row_centres_it() {
 }
 
 fn rule(output: &crate::FrameOutput) -> Option<Rect> {
-    output.shapes().iter().find_map(|shape| match shape {
+    output.main().shapes().iter().find_map(|shape| match shape {
         crate::painter::Shape::Rect { rect, color, .. } if *color == Theme::DARK.border => {
             Some(*rect)
         }

@@ -19,14 +19,14 @@ fn the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated() {
     let output = harness.frame(Vec::new());
     let cursor = harness.simulated_cursor();
 
-    assert_eq!(output.window.requests.cursor, CursorIcon::Touch);
-    let ring = output.shapes().iter().any(|shape| {
+    assert_eq!(output.main().window.requests.cursor, CursorIcon::Touch);
+    let ring = output.main().shapes().iter().any(|shape| {
         matches!(shape, Shape::Rect { rect, stroke_width, .. }
             if *stroke_width == crate::touch_cursor::STROKE
                 && (rect.center() - cursor).length() < 0.01)
     });
     assert!(!ring, "the simulated cursor is the touch circle");
-    let arrow = output.shapes().iter().any(|shape| {
+    let arrow = output.main().shapes().iter().any(|shape| {
         matches!(shape, Shape::Text { origin, .. }
             if origin.x < cursor.x
                 && origin.y < cursor.y

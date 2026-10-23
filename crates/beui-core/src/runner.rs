@@ -18,10 +18,12 @@ use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
 use crate::input::{Event, Input};
 use crate::renderer::{Loaded, Renderers};
-use crate::window::{WindowReports, WindowState};
+use crate::window::{WindowId, WindowReport, WindowReports, WindowState};
 
+mod host;
 mod intake;
 
+pub use host::{HostView, Hosted, HostedAdapter, WindowHost};
 use intake::{Drain, Intake};
 pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
 
@@ -74,6 +76,7 @@ pub struct Launch {
     pub options: RunOptions,
     pub context: Context,
     pub app: Box<dyn App>,
+    pub host: Option<Box<dyn WindowHost>>,
 }
 
 pub type Running = Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>;
@@ -154,6 +157,7 @@ impl App for Exited {
 
 pub struct Runner {
     app: Box<dyn App>,
+    host: Option<Box<dyn WindowHost>>,
     context: Context,
     renderers: Option<Renderers>,
     waker: Option<Waker>,
@@ -171,6 +175,7 @@ pub struct Runner {
     closing: bool,
     asked: WindowState,
     shown: WindowState,
+    background: crate::color::Color32,
     reports: WindowReports,
     native: f32,
     output: Option<FrameOutput>,
@@ -199,7 +204,9 @@ impl Runner {
             options,
             context,
             app,
+            host,
         } = launch;
+        context.set_opens_windows(host.is_some());
         let automation = options.automation.map(Automation::new);
         context.keep_accessibility(options.accessibility_tree || automation.is_some());
         if automation.is_some() {
@@ -207,6 +214,7 @@ impl Runner {
         }
         Self {
             app,
+            host,
             context,
             renderers: None,
             waker: None,
@@ -224,6 +232,7 @@ impl Runner {
             closing: false,
             asked: WindowState::default(),
             shown: WindowState::default(),
+            background: crate::color::Color32::BLACK,
             reports: WindowReports::default(),
             native: 1.0,
             output: None,
@@ -255,6 +264,9 @@ impl Runner {
             automation.inbox().set_waker(setup.waker.clone());
         }
         self.app.setup(&setup);
+        if let Some(host) = &mut self.host {
+            host.setup(&setup);
+        }
         Ok(())
     }
 
@@ -396,6 +408,9 @@ impl Runner {
                     let mut setup = Setup::new(waker.clone());
                     renderers.provide(&mut setup);
                     self.app.renderer_replaced(&setup);
+                    if let Some(host) = &mut self.host {
+                        host.setup(&setup);
+                    }
                 }
             }
             Err(error) => panic!("beui: the GPU was lost and could not be reopened: {error}"),
@@ -470,15 +485,46 @@ impl Runner {
         };
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
+        let view = HostView {
+            platform: physical,
+            pixels_per_point: scale,
+            now: self.context.now(),
+        };
+        if let Some(host) = &mut self.host {
+            host.input(&mut self.intake.incoming, &view);
+        }
         self.intake.drain(
             &mut Drain {
                 pixels_per_point: scale,
                 native_pixels_per_point: self.native,
                 touch_emulation: self.context.touch_emulation(),
+                window_size: &|window| {
+                    self.context
+                        .window_size(window)
+                        .or((window == WindowId::MAIN).then_some(physical / scale))
+                },
             },
             &mut self.events,
         );
-        let screen = physical / scale;
+        for report in self.intake.reports.drain(..) {
+            self.context.window_reported(report);
+        }
+        let (screen, safe_area) = match &self.host {
+            Some(_) => (
+                self.context
+                    .window_size(WindowId::MAIN)
+                    .unwrap_or(physical / scale),
+                SafeArea::default(),
+            ),
+            None => {
+                let screen = physical / scale;
+                self.context.window_reported(WindowReport::Resized {
+                    window: WindowId::MAIN,
+                    size: screen,
+                });
+                (screen, safe_area)
+            }
+        };
         match renderers.screens() {
             Some(screens) => {
                 self.context.set_screens(
@@ -508,6 +554,7 @@ impl Runner {
         });
         if self.publishing_accessibility {
             let title = output
+                .main()
                 .window
                 .appearance
                 .title
@@ -546,42 +593,50 @@ impl Runner {
             .paste
             .is_some_and(|paste| paste != PasteRequest::Typed)
             && !delivered
-            && !output.window.requests.pastes.is_empty()
+            && !output.main().window.requests.pastes.is_empty()
         {
             let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
-            platform.paste(&output.window.requests.pastes, answer);
+            platform.paste(&output.main().window.requests.pastes, answer);
             while let Ok(pasted) = self.pastes.1.try_recv() {
                 self.intake.incoming.push(Input::Paste(pasted).into());
             }
         }
+        let hosted = self.host.as_mut().map(|host| host.frame(&output, &view));
+        let shown = hosted
+            .as_ref()
+            .map_or_else(|| output.main(), |hosted| &hosted.window);
         let window_units = scale / self.context.native_pixels_per_point();
-        let window = output.window.clone().scaled(window_units);
+        let window = shown.window.clone().scaled(window_units);
         if window != self.shown {
             platform.show_window(&window, &self.shown);
             self.shown = window;
         }
-        self.asked.clone_from(&output.window);
+        self.asked.clone_from(&output.main().window);
+        self.background = shown.window.appearance.clear_color;
         if let Some(fullscreen) = output.fullscreen
             && fullscreen != self.context.fullscreen()
         {
             platform.set_fullscreen(fullscreen);
         }
 
-        let background = output.window.appearance.clear_color;
+        let background = self.background;
         let pending = match seen {
-            true => renderers.prepare(&output, scale, background),
+            true => renderers.prepare(shown, scale, background),
             false => {
-                renderers.note(&output, scale, background);
+                renderers.note(shown, scale, background);
                 false
             }
         };
+        let repaint_after = hosted.as_ref().map_or(output.repaint_after, |hosted| {
+            output.repaint_after.min(hosted.repaint_after)
+        });
         let mut frame = Frame {
             pending,
             deferred: !self.events.is_empty()
                 || !self.intake.incoming.is_empty()
                 || self.reports.pending(),
             repaint: output.repaint,
-            repaint_after: output.repaint_after,
+            repaint_after,
             animating: output.animating,
         };
         let closing = output.close_requested || self.closing;
@@ -626,10 +681,10 @@ impl Runner {
             }
             if automation.wants_painting() {
                 automation.painted(crate::painting::painting(
-                    &output,
+                    output.main(),
                     screen,
                     scale,
-                    background,
+                    output.main().window.appearance.clear_color,
                     crate::painting::Punches::Erase,
                 ));
             }
@@ -656,7 +711,7 @@ impl Runner {
         if self.occluded && !self.unpresented {
             return false;
         }
-        let background = self.asked.appearance.clear_color;
+        let background = self.background;
         let Some(renderers) = self.renderers.as_mut() else {
             return false;
         };

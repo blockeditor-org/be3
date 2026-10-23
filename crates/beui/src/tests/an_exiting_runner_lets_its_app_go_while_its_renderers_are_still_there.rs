@@ -22,7 +22,7 @@ impl Renderer for Screen {
         Some(vec2(200.0, 100.0))
     }
 
-    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(&mut self, output: &crate::WindowOutput, _scale: f32, _background: Color32) -> bool {
         output.changed
     }
 
@@ -68,6 +68,7 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Holding(log)),
+        host: None,
     });
     let loaded = vec![Loaded {
         renderer: Box::new(Screen(log)),

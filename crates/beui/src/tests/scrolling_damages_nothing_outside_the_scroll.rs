@@ -27,6 +27,7 @@ fn scrolling_damages_nothing_outside_the_scroll() {
     harness.frame(vec![Input::PointerMoved(bounds.center())]);
     let damage = harness
         .frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -25.0)))])
+        .main()
         .damage()
         .expect("scrolling repaints");
 

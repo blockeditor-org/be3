@@ -23,7 +23,7 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let first = harness.frame(Vec::new()).shapes().len();
+    let first = harness.frame(Vec::new()).main().shapes().len();
 
     view.set(Some(CanvasView::new(pos2(25.0, 15.0), 1.0)));
     let output = harness.frame(Vec::new());
@@ -36,8 +36,9 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
         work.painted_nodes, 1,
         "panning moves the canvas's items without painting any of them again"
     );
-    assert_eq!(output.shapes().len(), first);
+    assert_eq!(output.main().shapes().len(), first);
     let moved = output
+        .main()
         .shapes()
         .iter()
         .any(|shape| matches!(shape, Shape::Rect { rect, .. } if rect.min == pos2(35.0, 55.0)));

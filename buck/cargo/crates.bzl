@@ -3715,6 +3715,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-adapter-android:beui-adapter-android",
+                    "//crates/beui-adapter-space:beui-adapter-space",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
@@ -3732,6 +3733,7 @@ crates = {
                     "survey": {
                         "deps": [
                             "//crates/beui-adapter-android:beui-adapter-android",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
                             "//crates/beui-core:beui-core",
@@ -3757,6 +3759,7 @@ crates = {
                     "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-android:beui-adapter-android",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
                             "//crates/beui-core:beui-core",
@@ -3800,6 +3803,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-adapter-headless:beui-adapter-headless",
+                    "//crates/beui-adapter-space:beui-adapter-space",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3818,6 +3822,7 @@ crates = {
                     "survey": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3844,6 +3849,7 @@ crates = {
                     "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3888,6 +3894,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-adapter-headless:beui-adapter-headless",
+                    "//crates/beui-adapter-space:beui-adapter-space",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3906,6 +3913,7 @@ crates = {
                     "survey": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3932,6 +3940,7 @@ crates = {
                     "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3976,6 +3985,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-adapter-headless:beui-adapter-headless",
+                    "//crates/beui-adapter-space:beui-adapter-space",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3994,6 +4004,7 @@ crates = {
                     "survey": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4020,6 +4031,7 @@ crates = {
                     "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4064,6 +4076,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-adapter-headless:beui-adapter-headless",
+                    "//crates/beui-adapter-space:beui-adapter-space",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4082,6 +4095,7 @@ crates = {
                     "survey": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4108,6 +4122,7 @@ crates = {
                     "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4201,6 +4216,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-adapter-headless:beui-adapter-headless",
+                    "//crates/beui-adapter-space:beui-adapter-space",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4219,6 +4235,7 @@ crates = {
                     "survey": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4245,6 +4262,7 @@ crates = {
                     "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4289,6 +4307,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-adapter-headless:beui-adapter-headless",
+                    "//crates/beui-adapter-space:beui-adapter-space",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4307,6 +4326,7 @@ crates = {
                     "survey": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4333,6 +4353,7 @@ crates = {
                     "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -4819,6 +4840,119 @@ crates = {
                 "test_deps": [
                     "//crates/beui:beui",
                 ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-adapter-space": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_adapter_space",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-adapter-space",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },
@@ -32374,6 +32508,74 @@ third_party = {
         "sha256": "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d",
         "size_bytes": 22330,
         "version": "0.14.0",
+    },
+    "glam-0.30.10": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Cameron Hart <cameron.hart@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A simple and fast 3D math library for games and graphics",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/bitshifter/glam-rs",
+            "CARGO_PKG_RUST_VERSION": "1.68.2",
+        },
+        "library": {
+            "crate": "glam",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "glam",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9",
+        "size_bytes": 773605,
+        "version": "0.30.10",
     },
     "glob-0.3.4": {
         "build_script": None,

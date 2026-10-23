@@ -13,6 +13,7 @@ use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::{NodeId, NodeOf, Rects};
 use beui_core::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
 use beui_core::rich::CaretHandle;
+use beui_core::window::WindowId;
 use beui_tree::reactive::{Binding, Callback, Get, Memo, ReadSignal, create_memo};
 
 use beui_core::current::{try_with_document, with_document};
@@ -240,16 +241,18 @@ pub fn focus_ancestry() -> Vec<NodeId> {
     with_document(|document| document.focus_ancestry())
 }
 
-pub fn stacked_at(nodes: &[NodeId], pos: Pos2) -> Vec<NodeId> {
+pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> {
     with_document(|document| {
         let layers = document.layers();
         let mut placed: Vec<(usize, NodeId)> = nodes
             .iter()
+            .filter(|node| document.window_of(**node) == window)
             .filter_map(|node| Some((document.layer_of(&layers, *node)?, *node)))
             .collect();
         placed.sort_by_key(|(layer, _)| std::cmp::Reverse(*layer));
         let foreign = (1..layers.len()).rev().find(|index| {
-            layers[*index].policy != LayerPolicy::Inert
+            layers[*index].window == window
+                && layers[*index].policy != LayerPolicy::Inert
                 && !placed.iter().any(|(layer, _)| layer == index)
                 && document
                     .layer_covers(&layers[*index])

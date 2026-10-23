@@ -238,6 +238,7 @@ pub fn press_at(
     time: std::time::Instant,
 ) -> PointerPress {
     PointerPress {
+        window: crate::window::WindowId::MAIN,
         pos,
         local: pos - rect.min.to_vec2(),
         size: rect.size(),
@@ -608,6 +609,7 @@ impl Document {
         &mut self,
         rects: &Rects,
         layers: &[NodeOf<OverlayNode>],
+        window: crate::window::WindowId,
         pos: Pos2,
         primary: bool,
     ) {
@@ -620,9 +622,10 @@ impl Document {
             .iter()
             .filter(|id| self.arena.contains(**id))
             .filter(|id| {
-                !rects
-                    .visible(id)
-                    .is_some_and(|rect| rect.contains_half_open(pos))
+                self.window_of(**id) != window
+                    || !rects
+                        .visible(id)
+                        .is_some_and(|rect| rect.contains_half_open(pos))
             })
             .filter_map(|id| {
                 self.arena

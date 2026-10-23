@@ -9,14 +9,14 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     harness.click(harness.simulation_tab_center());
     harness.frame(Vec::new());
 
-    assert!(harness.frame(Vec::new()).filters().is_empty());
+    assert!(harness.frame(Vec::new()).main().filters().is_empty());
 
     harness.drag_simulation_slider("blur", 1.0);
     harness.drag_simulation_slider("contrast", 0.5);
     harness.choose_in_simulation("color_vision", 1);
     let output = harness.frame(Vec::new());
 
-    let filters = output.filters();
+    let filters = output.main().filters();
     let [filter] = filters.as_slice() else {
         panic!("the simulate tab set {} filters", filters.len());
     };

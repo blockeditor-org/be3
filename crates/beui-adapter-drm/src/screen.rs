@@ -1,4 +1,4 @@
-use beui::{FrameOutput, Rect, Renderer, Repaint, Vec2, vec2};
+use beui::{Rect, Renderer, Repaint, Vec2, WindowOutput, vec2};
 use smithay::utils::{Physical, Rectangle};
 
 use crate::gpu::{Gpu, Sprite};
@@ -143,7 +143,7 @@ impl Screen {
         self.prepared.is_some() || self.cursor || self.settling != Drawn::Nothing
     }
 
-    pub fn prepare(&mut self, gpu: &Gpu, output: &FrameOutput, scale: f32) {
+    pub fn prepare(&mut self, gpu: &Gpu, output: &WindowOutput, scale: f32) {
         let Some(repaint) = self.pending else {
             return;
         };

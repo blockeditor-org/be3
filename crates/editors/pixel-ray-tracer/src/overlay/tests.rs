@@ -10,5 +10,5 @@ fn shapes_of(draw: Draw, rect: Rect) -> Vec<Shape> {
     let output = context.run(|context| {
         draw(&context.painter(), rect);
     });
-    output.shapes().to_vec()
+    output.main().shapes().to_vec()
 }

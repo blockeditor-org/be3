@@ -67,6 +67,7 @@ impl PluginSurface {
             options: RunOptions::default(),
             context,
             app: Box::new(app),
+            host: None,
         };
         let mut running = adapter.run(launch);
         match running
@@ -231,13 +232,13 @@ impl PluginSurface {
         let (width, height) = self.surface.borrow().size?;
         let pixels_per_point = output.pixels_per_point();
         beui_core::painting::painting(
-            output,
+            output.main(),
             beui_core::geometry::vec2(
                 width as f32 / pixels_per_point,
                 height as f32 / pixels_per_point,
             ),
             pixels_per_point,
-            output.window.appearance.clear_color,
+            output.main().window.appearance.clear_color,
             beui_core::painting::Punches::Erase,
         )
         .ok()

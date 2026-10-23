@@ -18,7 +18,7 @@ fn clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed() {
     let second_focused = document.api::<unstyled::ButtonApi>(second).focused();
     let mut harness = Harness::new(document);
     let rings = |output: &crate::FrameOutput| {
-        output.shapes().iter().filter(|shape| matches!(shape,
+        output.main().shapes().iter().filter(|shape| matches!(shape,
             crate::Shape::Rect { color, stroke_width, .. } if *color == styled::Theme::DARK.accent && *stroke_width == 2.0
         )).count()
     };

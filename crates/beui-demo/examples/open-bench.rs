@@ -46,8 +46,8 @@ mod bench {
 
     use beui::testing::Screen;
     use beui::{
-        Color32, Context, FrameOutput, Incoming, Input, Launch, Platform, PointerButton, Pos2,
-        Rect, RunOptions, ScrollDelta, Setup, Vec2, Waker,
+        Color32, Context, Incoming, Input, Launch, Platform, PointerButton, Pos2, Rect, RunOptions,
+        ScrollDelta, Setup, Vec2, Waker, WindowOutput,
     };
     use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;
@@ -118,7 +118,7 @@ mod bench {
             self.screen.physical()
         }
 
-        fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+        fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
             let started = Instant::now();
             let pending = match &mut *self.gpu.borrow_mut() {
                 Some(gpu) => gpu.prepare(output, scale, background),
@@ -160,6 +160,7 @@ mod bench {
                 },
                 context,
                 app: Box::new(DemoApp::new()),
+                host: None,
             });
             let timing = Timing {
                 gpu: Rc::clone(&gpu),

@@ -29,7 +29,7 @@ fn a_child_tilted_by_an_angle_keeps_its_box_and_its_clips_take_the_tilt() {
     let output = harness.frame(Vec::new());
     let tilted = harness.rect(turn.get());
     assert_eq!(tilted.size(), vec2(60.0, 60.0), "a tilt keeps the box");
-    let (angle, bounds, clip) = flatten(&output.layers)
+    let (angle, bounds, clip) = flatten(&output.main().layers)
         .iter()
         .find_map(|shape| match shape {
             Shape::Rect {

@@ -10,6 +10,7 @@ use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
 use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
 use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::window::{WindowId, WindowPlacement, WindowReport};
 
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
@@ -106,8 +107,27 @@ pub enum Placement {
     Popover { gap: u16, margin: u16 },
 }
 
+#[derive(Clone)]
+pub struct WindowSpec {
+    pub id: WindowId,
+    pub size: Vec2,
+    pub placement: WindowPlacement,
+    pub title: Option<String>,
+    pub on_report: Callback<WindowReport>,
+}
+
+impl PartialEq for WindowSpec {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.size == other.size
+            && self.placement == other.placement
+            && self.title == other.title
+    }
+}
+
 pub struct OverlayNode {
     pub(crate) content: Option<NodeId>,
+    pub(crate) window: Option<WindowSpec>,
     scrim: NodeOf<FrameNode>,
     dims: bool,
     pub(crate) open: bool,
@@ -128,6 +148,7 @@ impl OverlayNode {
     fn new(scrim: NodeOf<FrameNode>, anchor: OverlayAnchor, placement: Placement) -> Self {
         Self {
             content: None,
+            window: None,
             scrim,
             dims: false,
             open: false,
@@ -169,6 +190,9 @@ impl OverlayNode {
     }
 
     fn area(&self, doc: &Document, viewport: Rect, anchored: Option<Rect>) -> Rect {
+        if doc.in_window_viewport() {
+            return viewport;
+        }
         let opened = || {
             self.screen
                 .as_deref()
@@ -510,6 +534,14 @@ impl Element for OverlayNode {
             return;
         };
         let painter = &painter.ctx().painter();
+        if let Some(window) = self.window.as_ref().filter(|_| doc.opens_windows()) {
+            let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
+            let rect = Rect::from_min_size(Pos2::ZERO, size);
+            let outer = doc.swap_window_viewport(Some(rect));
+            crate::layout::layout(doc, painter, content, rect, out);
+            doc.swap_window_viewport(outer);
+            return;
+        }
         let viewport = doc.viewport_rect();
         if self.policy == LayerPolicy::BlocksAll {
             crate::layout::layout(doc, painter, self.scrim.id(), viewport, out);
@@ -576,6 +608,12 @@ impl Element for OverlayNode {
                 },
             ),
             ("traps focus", self.traps_focus.to_string()),
+            (
+                "window",
+                self.window
+                    .as_ref()
+                    .map_or_else(|| "none".to_owned(), |window| format!("{:?}", window.id)),
+            ),
             ("dismissable", (!self.on_dismiss.is_empty()).to_string()),
         ]
     }
@@ -618,11 +656,14 @@ impl Document {
             let Some(content) = self.arena.get_as(overlay).content else {
                 continue;
             };
+            let viewport = self.window_rect(self.window_of(overlay.id()));
             let mut element = self.arena.take(overlay);
             let outer = self.enter_measure(overlay.id());
+            let held = self.swap_window_viewport(viewport);
             if let Some(node) = element.as_any_mut().downcast_mut::<OverlayNode>() {
                 node.place_content(self, &painter, content, out);
             }
+            self.swap_window_viewport(held);
             self.leave_measure(outer);
             self.arena.put_back(overlay, element);
             self.forget_placing();
@@ -644,6 +685,30 @@ impl Document {
             self.arena.get_mut_as::<OverlayNode>(overlay).content = content;
             self.layers_changed();
         }
+    }
+
+    pub fn set_overlay_window(&mut self, overlay: NodeOf<OverlayNode>, window: Option<WindowSpec>) {
+        if self.arena.get_as::<OverlayNode>(overlay).window == window {
+            return;
+        }
+        let reshaped = self
+            .arena
+            .get_as::<OverlayNode>(overlay)
+            .window
+            .as_ref()
+            .map(|held| held.id)
+            != window.as_ref().map(|window| window.id);
+        if let Some(window) = &window {
+            self.windows.note(window.id, overlay);
+        }
+        self.arena.get_mut_as::<OverlayNode>(overlay).window = window;
+        if reshaped {
+            self.layers_changed();
+        }
+    }
+
+    pub fn overlay_window(&self, overlay: NodeOf<OverlayNode>) -> Option<&WindowSpec> {
+        self.arena.get_as::<OverlayNode>(overlay).window.as_ref()
     }
 
     pub fn set_overlay_anchor(&mut self, overlay: NodeOf<OverlayNode>, anchor: OverlayAnchor) {
