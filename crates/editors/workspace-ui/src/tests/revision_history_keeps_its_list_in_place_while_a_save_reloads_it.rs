@@ -15,7 +15,10 @@ fn listing(fixture: &mut Fixture, block: Uuid) -> Option<u64> {
 fn button(fixture: &Fixture, commit: u8) -> Rect {
     let document = fixture.test.document();
     let node = document
-        .find_test_id(&format!("workspace.revision.{}", format!("{commit:02x}").repeat(32)))
+        .find_test_id(&format!(
+            "workspace.revision.{}",
+            format!("{commit:02x}").repeat(32)
+        ))
         .expect("the revision is listed");
     document.node_rect(node).expect("the revision is laid out")
 }
