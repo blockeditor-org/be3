@@ -589,15 +589,18 @@ as the demo's Paths page does) rather than spilling past it.
 Text is never one of those. A base `Text` takes concrete values and knows
 nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
 given), a `color` and `underline`, and the props that shape the paragraph -
-alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`
-and `carets`. Its content is its children: string literals and
+alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`,
+`glyphs` and `carets`. Its content is its children: string literals and
 `Prop<String>`s in its own style, `Span`s - value children with no node, each
 overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
-`italic`, and its `color`, `underline` or `strikethrough`, and marking a wrap
-opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
+`italic`, and its `color`, `underline` or `strikethrough`, giving it a
+`background` (a `SpanBackground`: a colour, a corner radius and an outset), and
+marking a wrap opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
 inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
 given width that holds no bytes, so the indices on either side of one are the
-same. An unset span prop takes its Text's. A Text whose only child is a
+same. A tab in a span's text is laid out as its own run that reaches the next
+tab stop, every `TAB_COLUMNS` (4) spaces of its span's font from the start of
+its line. An unset span prop takes its Text's. A Text whose only child is a
 string or `Prop<String>` keeps it as its own content rather than as a span,
 which costs no more than a node made with `Document::create_text`.
 
@@ -619,16 +622,24 @@ with `line_padding` above and below each line, and aligns, truncates with an
 ellipsis and spaces lines by `line_height` whatever its content. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
 line breaking resumes from the line that span is on; a colour or decoration
-change only repaints. It also paints `marks` behind the text (a selection, a
-code background) and `carets` in front of it, blinking ones included - byte
+change, and any change to `marks`, `glyphs` or `carets`, only repaints. It paints each span's `background` behind the span's
+range on every line the span is laid out on, so it follows wrapping, as one
+shape where neighbouring spans have the same background (an inline code span
+split by its styles). Over that it paints `marks` (selections, flat), then the
+text, then `glyphs` (`TextGlyph`: a string in a font and colour, centred across
+the laid-out box of a byte range on every line it is on and set on that line's
+baseline, taking no room, the way a text area shows a whitespace marker over a
+real space) and `carets` in front of the text, blinking ones included - byte
 ranges over the joined content - and a `TextItem` given `at` is placed at that
 index as if it were a caret instead of in the flow, which is how something
 floats beside a position in the text. `Document::text_geometry` answers where an index is and which index is
-under a point from the node's last layout, without a document installed.
+under a point from the node's last layout, without a document installed, and
+`text_bounds(node)` is a signal of where its laid-out text reaches (its natural
+size, not the rect it was given), written after each layout that moves it.
 `unstyled::TextArea` is built from exactly this: a row per document line in a
 `VirtualList`, each a `ForEach` of the row's spans, a gutter of `Text`s beside
-it, checkboxes, embedded widgets and the caret's anchor as `TextItem`s, and
-table spacers as `Gap`s.
+it, and list markers, voids, embedded widgets and the caret's anchor as
+`TextItem`s.
 
 The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until
@@ -773,7 +784,8 @@ under the pointer. The unstyled module contains
 `text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
 handle owned by the scope that made it; `with_core` and `with_core_mut` reach
 the `Core`), lays the
-document out with a gutter, wrapping, collapsible sections and markdown
+document out with a gutter (line numbers and a border line, no fill: the area paints no
+background, so it shows whatever is behind it), wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
 names - `block` builds what goes under a block widget's line, and
 `selected_widget` what floats under an inline one while it is selected - which
@@ -803,10 +815,16 @@ chrome wraps the whole scrolling area rather than one line. `prose` (a `Prose`, 
 rather than a document: no whitespace markers and no document padding, with
 the weight, horizontal alignment, padding around each line, wrapping, and where
 the lines sit when they are shorter than the area that it names.
-`measure_prose` measures text exactly as such an area lays it out, so a caller
-can size a box to it. The infinite canvas sizes its text entities this way and
-draws each text and label as a read-only rich `TextArea` over a `LiveText`, the
-same area whether or not it is being edited. A `TextArea` takes its view size
+Nothing measures text off the tree: a `TextArea` reports the size its laid-out
+rows reach through `on_content_size` (padding included, read from the rows'
+`text_bounds`), and a caller sizes a box from that. The infinite canvas grows a
+text entity this way while it is edited, and draws each text and label as a
+read-only rich `TextArea` over a `LiveText`, the same area whether or not it is
+being edited, with `styled::DocumentMarker` as its marker hook, so a checklist shows the styled
+`Checkbox` at the size of its text (a `Checkbox`'s `size` is the `TextSize` it sits beside). Its export is the one place text is laid out away from the tree
+(`TextAreaState::lay_out_prose`): it gives every marker a square the height of
+a line and paints it, and each quote's bar, as a pink box, since export does
+not draw them yet. A `TextArea` takes its view size
 from its own layout, not from where it lands on screen, so one inside a scaled
 `CanvasItem` is not laid out again when the view pans or zooms; a
 `VirtualList` reads the clip only while some of its rows lie outside it. A document whose language is
@@ -834,15 +852,41 @@ text takes the marks before it that grow (or after it at a paragraph's start), a
 decides what Enter (given the line, its neighbours and whether it is empty), Backspace at a
 block's start and Tab do to a block. No block traps the caret at the document's edge: Down at the
 very end of a document whose last line has props, or Up at the very start of one whose first line
-has, opens a plain line past it, and so does a click below the last line. The schema also decides its tools (a name, a
+has, opens a plain line past it, and so does a click below the last line; a press there anchors a drag at that caret, so dragging up selects from the end. The schema also decides its tools (a name, a
 shortcut, whether the selection has it, and the command it runs), each leaf's `SynHlStyle`, and
 which blocks a highlighter decorates (a code block's language). `schema::basic` is a schema
 with the usual marks, headings, lists, checklists, quotes and code blocks. `TextAreaState::with_schema`
 makes an area for one, `TextAreaState::selected` is the selection's marks and block props,
 and `styled::FormatBar` shows the tools it is given glyphs for. The area draws rich text with no
-gutter or whitespace markers, hands each line to `render_block` with the line's laid-out text
-as a `NodeId` to place inside whatever it draws around it (a bullet, a checkbox, a quote's bar),
-and draws each void with `render_void` at the size `void_size` gives it. Copying and pasting
+gutter or whitespace markers. In markdown and plain text, whitespace stays real text (a space
+and a tab take their own advance in their own font, a `\r` none) and the area shows its markers
+as the row `Text`'s `glyphs`: trailing whitespace always, any other only while selected, so
+selecting never moves the text. A line's newline takes the width of an invisible `mm` in the line's font
+after its text (the caret at the line's end sits before it), so a selection over it shows, and its
+marker is drawn centred there while it is selected. How a document looks is three render hooks, the way Slate's are,
+each keyed by the line description (`LineLook`) that markdown and rich text both give: `leaf`
+(`RenderFn<TextLeaf, Span>`) turns a run of text, its resolved `SpanStyle` and its `SynHlStyle` into a
+`Span`, so every run stays in the line's one `Text` and wraps and carries the caret across style
+changes; the leaf draws an inline code span's background (`SynHlStyle::code`, which the markdown
+highlighter sets for a code span and `schema::basic` for the code mark, never for a code block)
+as the span's `background`, and `LeafSpan` is the span with a given background; `marker`
+(`RenderFn<TextMarker>`) draws a list marker (bullet, number, checkbox with a `checked` binding
+that toggles it) or a void (`MarkerKind`) as the content of a `TextItem`; and `line`
+(`RenderFn<TextLine>`) wraps a line's text node in whatever goes around it (quote bars, a code
+block's background, a list's indent), keeping the area's horizontal padding it is handed. The
+engine says what is on a line, never how big: each marker is measured by its `Text` during
+layout, and wrapped lines hang at the laid-out x after it. A markdown line's marker covers its
+leading indentation and its `>` and list marker bytes, so they are drawn by the marker item (the
+caret still steps through them) rather than shown as text. Both kinds of list look the same:
+`MarkerColumn` puts a list marker in a column `MARKER_COLUMN_EM` of the text size wide, right
+aligned so numbers line up on the dot (a wider marker widens only its own line), and
+`TextLine::indent` indents a line by a fixed `LIST_INDENT_EM` per nesting level and
+`QUOTE_INDENT_EM` per quote, whatever the source's spaces. A markdown line that continues a list
+item (`LineLook::continues`) hides its indentation the same way and is indented to its item's
+text. The
+unstyled defaults draw from `TextAreaColors`; `styled::TextArea` draws with `DocumentLeaf`,
+`DocumentMarker` and `DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
+and hands every other marker to `DocumentMarker`. Copying and pasting
 carries the text without its marks. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same

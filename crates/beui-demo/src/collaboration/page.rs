@@ -12,10 +12,10 @@ use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
 use text_editor_core::schema::basic::{self, Basic};
-use text_editor_core::{CursorPosition, EditorCommand, MarkSet, TextLanguage, Value};
+use text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
 
 use super::{Caret, Side, SideDocument, Simulation};
-use crate::rich_text::{GLYPHS, mention_size, render_void};
+use crate::rich_text::{GLYPHS, render_marker};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
 
@@ -388,8 +388,7 @@ fn EditorPane(
                     (Side::Left.client(), LEFT_COLOR),
                     (Side::Right.client(), RIGHT_COLOR),
                 ]}
-                render_void={render_void()}
-                void_size={Some(mention_size as fn(&MarkSet) -> beui::Vec2)}
+                marker={render_marker()}
             />
         </List>
     }

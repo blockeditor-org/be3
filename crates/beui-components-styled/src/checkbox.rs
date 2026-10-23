@@ -5,7 +5,7 @@ use crate::focus_ring::FocusRing;
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 
-use crate::text::{Text, TextColor};
+use crate::text::{Text, TextColor, TextSize};
 use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::node::NodeId;
@@ -28,6 +28,7 @@ pub fn Checkbox(
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
+    #[prop(default = TextSize::Base)] size: Prop<TextSize>,
 ) -> NodeId {
     view! {
         <Toggle
@@ -39,13 +40,13 @@ pub fn Checkbox(
             tab_stop
             press_focus
         >|handle: ToggleHandle|
-            <CheckboxFace handle />
+            <CheckboxFace handle size />
         </Toggle>
     }
 }
 
 #[component]
-fn CheckboxFace(handle: ToggleHandle) -> NodeId {
+fn CheckboxFace(handle: ToggleHandle, size: Prop<TextSize>) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
@@ -55,6 +56,11 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
+    let scale = create_memo(move || size.get().px() / TextSize::Base.px());
+    let side = create_memo(move || Extent::px(BOX_SIZE * scale.get()));
+    let mark = create_memo(move || Extent::px(MARK_SIZE * scale.get()));
+    let box_radius = create_memo(move || Radius::custom(Radius::Sm.px() * scale.get()));
+    let mark_radius = create_memo(move || Radius::custom(MARK_RADIUS * scale.get()));
     let fill_color =
         create_memo(move || box_fill(&theme, disabled.get(), checked.get(), hovered.get()));
     let border_visible = create_memo(move || !checked.get());
@@ -70,20 +76,20 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
         <FocusRing focused offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame
-                    width=BOX_SIZE
-                    height=BOX_SIZE
+                    width=side
+                    height=side
                     fill={ColorRole::custom(fill_color)}
                     border={create_memo(move || border_visible.get().then(|| Border::new(ColorRole::Custom(box_border.get()))))}
-                    radius=Radius::Sm
+                    radius=box_radius
                     align=Align::Center
                 >
                     <Layers>
                         <Show condition={checked}>
                             <Frame
-                                width=MARK_SIZE
-                                height=MARK_SIZE
+                                width=mark
+                                height=mark
                                 fill={ColorRole::custom(mark_color)}
-                                radius={Radius::custom(MARK_RADIUS)}
+                                radius=mark_radius
                             />
                         </Show>
                     </Layers>

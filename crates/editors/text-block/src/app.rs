@@ -15,11 +15,10 @@ use block_editor_beui::be_block::TextContent;
 use block_editor_beui::{Creation, Editor, Loaded};
 use uuid::Uuid;
 
-use crate::hex::{self, HexView};
+use crate::hex::HexView;
 
-use embeds::ResolvedEmbed;
 use import_error::ImportError;
-use state::{DIRECT_EDITOR_WIDTH, State};
+use state::State;
 use surface::TextSurface;
 use toolbar::{EditorMenu, FormatBar, format_actions};
 
@@ -47,7 +46,6 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     action_scope(&content);
-    intrinsic_size(state);
     let formats = format_actions(state);
 
     let hex = state.hex_view;
@@ -79,35 +77,4 @@ pub fn TextEditor(editor: Editor) -> NodeId {
             <FormatBar state={state} formats />
         </List>
     }
-}
-
-fn intrinsic_size(state: State) {
-    let width = create_signal(DIRECT_EDITOR_WIDTH);
-    let resized = state.editor.resized();
-    create_effect(move || {
-        if let Some(size) = resized.get() {
-            width.set(size.x.max(1.0));
-        }
-    });
-    let content = state.text.content();
-    let hex = state.hex_view;
-    let embeds = state.embeds;
-    let measured = create_memo(move || {
-        content.get();
-        let width = width.get();
-        if !state.text.loaded() {
-            return None;
-        }
-        if hex.get() {
-            return Some(hex::intrinsic_size(state.text.bytes().len(), width));
-        }
-        let widgets = embeds
-            .get()
-            .iter()
-            .map(ResolvedEmbed::widget)
-            .collect::<Vec<_>>();
-        state.text.measure(&widgets, width)
-    });
-    let editor = state.editor;
-    create_effect(move || editor.set_intrinsic_size(measured.get()));
 }

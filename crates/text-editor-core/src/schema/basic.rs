@@ -92,11 +92,13 @@ pub fn line_looks(formats: &Formats) -> Vec<LineLook> {
                     _ => None,
                 });
             LineLook {
+                marker: block.start..block.start,
                 list,
                 depth: match list {
                     Some(_) => level.max(0) as usize,
                     None => 0,
                 },
+                continues: false,
                 quote: usize::from(on(props, QUOTE)),
                 code_block: props.get(CODE_BLOCK).is_some(),
             }
@@ -262,6 +264,7 @@ impl Schema for Basic {
             italic: on(marks, ITALIC),
             underline: on(marks, UNDERLINE) || link,
             strikethrough: on(marks, STRIKETHROUGH) || checked,
+            code: code && !code_block,
         }
     }
 
