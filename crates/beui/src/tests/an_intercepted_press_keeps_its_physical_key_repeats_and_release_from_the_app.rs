@@ -43,7 +43,7 @@ fn heard_logo(pressed: bool) -> Event {
                 false => Modifiers::NONE,
             },
         },
-        code: Some(KEY_LEFTMETA),
+        evdev: Some(KEY_LEFTMETA),
         text: None,
     }
 }
