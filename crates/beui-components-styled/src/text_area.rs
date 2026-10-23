@@ -9,6 +9,7 @@ use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
 use crate::scroll::scrollbar_style;
+use crate::text::TextSize;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -133,6 +134,7 @@ pub fn TextArea(
 
 const CODE_INSET: f32 = 3.0;
 const CODE_RADIUS: Radius = Radius::Sm;
+const NUMBER_ALPHA: f32 = 0.6;
 
 #[component]
 pub fn DocumentLeaf(leaf: TextLeaf) -> Span {
@@ -154,18 +156,19 @@ pub fn DocumentLeaf(leaf: TextLeaf) -> Span {
 
 #[component]
 pub fn DocumentMarker(marker: TextMarker) -> NodeId {
-    let theme = use_theme();
+    let style = marker.style;
     let content = match marker.kind.get_untracked() {
         MarkerKind::Bullet => {
             let size = marker.bullet();
             let side = create_memo(move || Extent::px(size.get()));
+            let color = create_memo(move || style.get().color);
             view! {
-                <Frame width=side height=side fill=ColorRole::Text radius=Radius::Full />
+                <Frame width=side height=side fill={ColorRole::custom(color)} radius=Radius::Full />
             }
         }
         MarkerKind::Number(_) => {
-            let font = create_memo(move || marker.style.get().font);
-            let color = create_memo(move || theme.text_muted.get());
+            let font = create_memo(move || style.get().font);
+            let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
             view! {
                 <primitives::Text font color>{marker.number()}</primitives::Text>
             }
@@ -177,11 +180,13 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
                 line,
                 ..
             } = marker;
+            let size = create_memo(move || TextSize::Custom(style.get().font.size));
             view! {
                 <Checkbox
                     @test_id={format!("text.checkbox.{line}")}
                     checked
                     disabled
+                    size
                     capture_presses=true
                     tab_stop=false
                     press_focus=false

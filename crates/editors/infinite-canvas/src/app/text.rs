@@ -10,6 +10,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     self, Prose, RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaState,
+    TextMarker,
 };
 use block_editor_beui::beui::{
     Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
@@ -220,6 +221,11 @@ pub(crate) fn EntityText(
         syntax: SyntaxColors::uniform(color.get()),
         ..TextAreaColors::DEFAULT
     });
+    let marker = RenderFn::new(|marker: TextMarker| {
+        view! {
+            <DocumentMarker marker />
+        }
+    });
     let field = NodeRef::new();
     let grows = create_signal(false);
     let area = live_text(state, id, editing, grows);
@@ -289,6 +295,7 @@ pub(crate) fn EntityText(
                     padding={inset}
                     prose
                     remote_cursors
+                    marker
                     on_content_size={move |size: Vec2| content.set(size)}
                     on_focus_change={left}
                 />
