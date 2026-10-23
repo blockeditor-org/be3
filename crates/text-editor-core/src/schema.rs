@@ -1,7 +1,7 @@
 use crate::Language;
 use crate::core::EditorCommand;
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
-use crate::rich::{Expand, MarkSet, Name, Value};
+use crate::rich::{Expand, Formats, MarkSet, Name, Value};
 
 pub mod basic;
 
@@ -25,6 +25,21 @@ pub struct Line<'a> {
     pub at_end: bool,
     pub above: Option<(&'a MarkSet, bool)>,
     pub below: Option<&'a MarkSet>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListMarker {
+    Bullet,
+    Number(usize),
+    Check(bool),
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LineLook {
+    pub list: Option<ListMarker>,
+    pub depth: usize,
+    pub quote: usize,
+    pub code_block: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -66,6 +81,14 @@ pub trait Schema: Send + Sync {
 
     fn tools(&self) -> &[Tool] {
         &[]
+    }
+
+    fn line_looks(&self, _formats: &Formats) -> Vec<LineLook> {
+        Vec::new()
+    }
+
+    fn check(&self, _checked: bool) -> Option<(Name, Option<Value>)> {
+        None
     }
 }
 

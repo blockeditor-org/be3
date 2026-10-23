@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use text_editor_core::{
-    MarkSet, MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
-    TextLanguage, TextRun, VOID,
+    LineLook, ListMarker, MarkSet, MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily,
+    SynHlStyle, SynHlTextSize, TextLanguage, TextRun, VOID,
 };
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
@@ -21,6 +21,7 @@ pub const CODE_SIZE: f32 = BODY_SIZE;
 pub const CHECKBOX_WIDTH: f32 = 18.0;
 pub const BULLET_WIDTH: f32 = 10.0;
 pub const BULLET_SIZE: f32 = 6.0;
+pub const LIST_INDENT: f32 = 24.0;
 pub const INLINE_WIDGET_HEIGHT: f32 = 24.0;
 pub const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
 pub const RUN_CHIP_HEIGHT: f32 = 16.0;
@@ -675,6 +676,7 @@ pub struct RowKey {
     composition: Option<Range<usize>>,
     placeholder: Option<String>,
     props: MarkSet,
+    look: LineLook,
     voids: Vec<(MarkSet, [u32; 2])>,
 }
 
@@ -743,6 +745,7 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
             .and_then(|formats| formats.block_at(start))
             .map(|block| block.props.clone())
             .unwrap_or_default(),
+        look: look_at(snapshot, start),
         voids: snapshot
             .formats
             .as_deref()
@@ -816,6 +819,39 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.push(placeholder, start..start, false, style, SpanKind::Text);
         builder.row.placeholder = true;
         return finish(builder, body);
+    }
+    let look = look_at(snapshot, start);
+    builder.row.quote = look.quote;
+    builder.row.code_block = look.code_block;
+    if let Some(marker) = look.list {
+        builder.gap(look.depth as f32 * LIST_INDENT, body);
+        match marker {
+            ListMarker::Bullet => builder.inline(Inline::Bullet, start..start, body, String::new()),
+            ListMarker::Number(ordinal) => {
+                let style = SpanStyle {
+                    color: inputs.colors.syntax.scope(SynHlColorScope::MarkdownSymbol),
+                    ..body
+                };
+                builder.push(
+                    &format!("{ordinal}."),
+                    start..start,
+                    false,
+                    style,
+                    SpanKind::Text,
+                );
+            }
+            ListMarker::Check(checked) => builder.inline(
+                Inline::Checkbox {
+                    line_start: start,
+                    checked,
+                },
+                start..start,
+                body,
+                String::new(),
+            ),
+        }
+        builder.push(" ", start..start, false, body, SpanKind::Text);
+        builder.row.hang = builder.row.display.len();
     }
     let trailing_from = bytes[start..end]
         .iter()
@@ -1011,6 +1047,14 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     finish(builder, body)
 }
 
+fn look_at(snapshot: &Snapshot, start: usize) -> LineLook {
+    snapshot
+        .looks
+        .get(line_of(&snapshot.starts, start))
+        .copied()
+        .unwrap_or_default()
+}
+
 fn after_markers(
     snapshot: &Snapshot,
     start: usize,
@@ -1065,7 +1109,8 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     builder.row.line_height = height + padding.0 + padding.1;
     let highlight = builder.inputs.snapshot.highlight();
     let (start, end) = (builder.row.start, builder.row.end);
-    builder.row.code_block = !builder.row.placeholder && highlight.in_code_block(start..end);
+    builder.row.code_block =
+        !builder.row.placeholder && (builder.row.code_block || highlight.in_code_block(start..end));
     if builder.row.code_block {
         return builder.row;
     }
