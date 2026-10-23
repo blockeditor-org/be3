@@ -265,8 +265,8 @@ mod a_plugin_tree_that_is_not_a_tree_is_cut_into_one;
 mod a_plugin_tree_update_sends_only_what_changed;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
-mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
 mod a_pointer_that_leaves_while_pressed_and_comes_back_is_not_gone_after_the_release;
+mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
@@ -2752,7 +2752,12 @@ impl beui_core::renderer::Renderer for SpaceScreen {
         Some(SPACE_SCREEN)
     }
 
-    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        _output: &crate::WindowOutput,
+        _scale: f32,
+        _background: Color32,
+    ) -> bool {
         false
     }
 
@@ -2862,7 +2867,11 @@ impl InSpace {
         )
     }
 
-    pub(crate) fn tab(&self, dock: NodeId, title: &str) -> (crate::WindowId, crate::geometry::Rect) {
+    pub(crate) fn tab(
+        &self,
+        dock: NodeId,
+        title: &str,
+    ) -> (crate::WindowId, crate::geometry::Rect) {
         let document = self.document.borrow();
         let tab = dock_tab(&document, dock, title);
         let rect = document.node_rect(tab).expect("the tab is laid out");

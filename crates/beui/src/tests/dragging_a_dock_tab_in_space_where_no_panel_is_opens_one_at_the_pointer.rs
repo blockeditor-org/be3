@@ -24,7 +24,10 @@ fn dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer() {
         "into a panel of its own"
     );
     let state = space.document.borrow().api::<DockApi>(dock).state();
-    let surface = state.find(TabId::new(1)).expect("tab 1 is in the dock").surface;
+    let surface = state
+        .find(TabId::new(1))
+        .expect("tab 1 is in the dock")
+        .surface;
     assert_eq!(state.surface_tabs(surface), vec![TabId::new(1)]);
     let grabbed = space.on_screen(window, beui_adapter_space::OPEN_GRAB);
     assert!(

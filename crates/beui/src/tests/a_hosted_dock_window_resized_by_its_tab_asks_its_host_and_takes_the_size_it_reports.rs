@@ -84,5 +84,7 @@ fn a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_r
 #[component]
 fn Grabbing(control: StoredCell<Option<DockTabControl>>) -> NodeId {
     control.set(use_dock_tab());
-    view! { <Frame /> }
+    view! {
+        <Frame />
+    }
 }
