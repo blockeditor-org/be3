@@ -2092,7 +2092,7 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/beui:beui",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:portable-pty-0.9.0",
@@ -2103,7 +2103,7 @@ crates = {
                 },
                 "deps": [
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:portable-pty-0.9.0",
@@ -2122,7 +2122,7 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/beui:beui",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:portable-pty-0.9.0",
@@ -2133,7 +2133,7 @@ crates = {
                 },
                 "deps": [
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:portable-pty-0.9.0",
@@ -2152,7 +2152,7 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/beui:beui",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:portable-pty-0.9.0",
@@ -2163,7 +2163,7 @@ crates = {
                 },
                 "deps": [
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:portable-pty-0.9.0",
@@ -2182,7 +2182,7 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/beui:beui",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:portable-pty-0.9.0",
@@ -2193,7 +2193,7 @@ crates = {
                 },
                 "deps": [
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:portable-pty-0.9.0",
@@ -2212,7 +2212,7 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/beui:beui",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:portable-pty-0.9.0",
@@ -2223,7 +2223,7 @@ crates = {
                 },
                 "deps": [
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:portable-pty-0.9.0",
@@ -2242,7 +2242,7 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/beui:beui",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:portable-pty-0.9.0",
@@ -2253,7 +2253,7 @@ crates = {
                 },
                 "deps": [
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:portable-pty-0.9.0",
@@ -7548,6 +7548,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
@@ -7643,6 +7644,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
@@ -7720,6 +7722,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
@@ -7797,6 +7800,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
@@ -7906,6 +7910,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
@@ -7981,6 +7986,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
@@ -11223,6 +11229,37 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/editors/terminal": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "terminal",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "terminal",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/terminal-view:terminal-view",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/editors/text-block": {
         "binaries": [],
         "edition": "2024",
@@ -11685,6 +11722,14 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:serde_json-1.0.150",
                 ],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -15341,6 +15386,109 @@ crates = {
                     "//crates/tabletop-games/host:game-host",
                     "//third-party/rust:bincode-1.3.3",
                 ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/terminal-view": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "terminal_view",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "terminal-view",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },

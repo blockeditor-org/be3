@@ -24,6 +24,8 @@ mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
+#[cfg(not(target_os = "android"))]
+mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod an_account_unlocks_with_its_recovery_phrase;
@@ -150,21 +152,28 @@ impl Harness {
         self.phrase.secret().to_bytes()
     }
 
-    async fn outside_peer(&self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+    fn outside_config(&self) -> be_client::PeerConfig {
         let config = self.config(self.directory.join("outside"));
-        let peer = be_client::Peer::connect(
-            be_client::PeerConfig::new(
-                config.socket_url(),
-                be_keys::RecoverySecret::from_bytes(config.identity),
-                be_client::Credentials::Token(self.token.clone()),
-            )
-            .organization(Some(self.organization)),
-            be_store::MemoryStore::new(),
+        be_client::PeerConfig::new(
+            config.socket_url(),
+            be_keys::RecoverySecret::from_bytes(config.identity),
+            be_client::Credentials::Token(self.token.clone()),
         )
+        .organization(Some(self.organization))
+    }
+
+    async fn outside_peer(&self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+        outside_peer(self.outside_config()).await
+    }
+}
+
+async fn outside_peer(
+    config: be_client::PeerConfig,
+) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+    let peer = be_client::Peer::connect(config, be_store::MemoryStore::new())
         .await
         .expect("a second peer joins the organization");
-        std::sync::Arc::new(peer)
-    }
+    std::sync::Arc::new(peer)
 }
 
 impl Drop for Harness {
