@@ -35,8 +35,8 @@ fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
     let mut session = session::<NestingApp>(Uuid::new_v4());
     frame(&mut session, None, TopBar::Hidden);
 
-    session.run(EditorRegion::Frame, 1, 0);
-    session.run(EditorRegion::Frame, 2, 0);
+    session.run(EditorRegion::Frame, 0);
+    session.run(EditorRegion::Frame, 0);
 
     let children = session.placed_children(EditorRegion::Frame);
     let child = children.first().expect("the app placed no child block");

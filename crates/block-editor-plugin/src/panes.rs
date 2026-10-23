@@ -4,11 +4,10 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::plugin::PaintTarget;
-use crate::screens::{Dirty, Screens};
+use crate::screens::Screens;
 
 #[derive(Default)]
 pub(crate) struct Panes {
-    generation: Option<u64>,
     repainting: HashSet<EditorInstanceId>,
     unpainted: HashSet<EditorInstanceId>,
 }
@@ -29,15 +28,7 @@ impl Panes {
     ) -> Ran {
         let mut repaint = Duration::MAX;
         let mut animating = false;
-        let moved = self.generation != Some(layout.generation);
-        self.generation = Some(layout.generation);
-        let dirty = match moved {
-            true => {
-                screens.take_dirty();
-                Dirty::Everything
-            }
-            false => screens.take_dirty(),
-        };
+        let dirty = screens.take_dirty();
         let repainting = std::mem::take(&mut self.repainting);
         let unpainted = match seen {
             true => std::mem::take(&mut self.unpainted),
@@ -55,7 +46,7 @@ impl Panes {
                 || unpainted.contains(&placement.instance)
             {
                 let age = block_gpu_guest::surface_age(placement.surface);
-                let frame = session.run(placement.region, layout.generation, age);
+                let frame = session.run(placement.region, age);
                 screens.ran(placement.instance);
                 changed |= frame.changed;
                 animating |= frame.animating;

@@ -10,7 +10,7 @@ use crate::{
 pub struct HeadlessPlugin {
     session: ClientSession,
     screens: Screens,
-    generation: u64,
+    drawn: bool,
 }
 
 impl HeadlessPlugin {
@@ -19,7 +19,7 @@ impl HeadlessPlugin {
         Self {
             session: ClientSession::new(id, name, version),
             screens: Screens::new(Vec::new(), Waker::default()),
-            generation: 0,
+            drawn: false,
         }
     }
 
@@ -36,7 +36,6 @@ impl HeadlessPlugin {
         if matches!(self.session.state(), State::Closed | State::Failed) {
             return Vec::new();
         }
-        let before = self.screens.layout().clone();
         self.screens.receive(&message);
         let painting = matches!(
             &message,
@@ -45,11 +44,6 @@ impl HeadlessPlugin {
         let mut replies = self.session.receive(message);
         if painting {
             replies.push(self.screens.paintings());
-        }
-        let layout = self.screens.layout();
-        if !layout.is_empty() && !layout.same_placements(&before) {
-            self.generation += 1;
-            self.screens.set_generation(self.generation);
         }
         replies
     }
@@ -61,17 +55,20 @@ impl HeadlessPlugin {
             let Some(session) = self.screens.session(placement.instance) else {
                 continue;
             };
-            frames.push((
-                *placement,
-                session.run(placement.region, layout.generation, 0),
-            ));
+            frames.push((*placement, session.run(placement.region, 0)));
             self.screens.ran(placement.instance);
         }
+        self.drawn = true;
         frames
     }
 
     pub fn outbound(&mut self) -> Vec<Message> {
-        self.screens.outbound()
+        let mut messages = Vec::new();
+        if std::mem::take(&mut self.drawn) {
+            messages.push(Message::Frame(self.screens.commit()));
+        }
+        messages.extend(self.screens.outbound());
+        messages
     }
 
     pub fn layout(&self) -> &ScreenLayout {

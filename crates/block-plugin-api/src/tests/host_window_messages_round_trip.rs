@@ -39,14 +39,9 @@ fn host_window_messages_round_trip() {
         host_action_round_trips(action);
     }
     {
-        let message = Message::Children(ChildPlacements {
+        let message = committed(ChildPlacements {
             instance: EditorInstanceId(3),
             region: EditorRegion::Frame,
-            generation: 2,
-            size: Size {
-                width: 800.0,
-                height: 600.0,
-            },
             children: vec![ChildPlacement {
                 child: ChildId(1),
                 content: ChildContent::Window(window.id),
@@ -60,10 +55,9 @@ fn host_window_messages_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
             }],
             occluders: Vec::new(),
-            camera: None,
         });
         assert_eq!(
             decode_frame(&encode_frame(&message).unwrap()).unwrap(),

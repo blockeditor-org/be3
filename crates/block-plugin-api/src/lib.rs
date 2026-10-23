@@ -217,7 +217,6 @@ pub struct RegionSize {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScreenLayout {
-    pub generation: u64,
     pub screens: Vec<ScreenPlacement>,
 }
 
@@ -231,7 +230,6 @@ impl ScreenLayout {
     pub fn placed(screens: &[ScreenRequest], surface: impl FnMut(ScreenId) -> u32) -> Self {
         let mut surface = surface;
         Self {
-            generation: 0,
             screens: screens
                 .iter()
                 .filter(|request| {
@@ -361,14 +359,7 @@ pub struct ChildPlacement {
     pub intrinsic: Option<Size>,
     pub rotation: f32,
     pub opacity: f32,
-    pub follows_camera: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Camera {
-    pub x: f32,
-    pub y: f32,
-    pub scale: f32,
+    pub follows_view: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -381,11 +372,8 @@ pub struct Occluder {
 pub struct ChildPlacements {
     pub instance: EditorInstanceId,
     pub region: EditorRegion,
-    pub generation: u64,
-    pub size: Size,
     pub children: Vec<ChildPlacement>,
     pub occluders: Vec<Occluder>,
-    pub camera: Option<Camera>,
 }
 
 impl ChildPlacements {
@@ -1131,11 +1119,6 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         states: Vec<HistoryState>,
     },
-    Window {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        window: WindowRequests,
-    },
     Presence {
         instance: EditorInstanceId,
         visible: bool,
@@ -1299,7 +1282,6 @@ impl EditorMessage {
             | Self::ArtifactStates { instance, .. }
             | Self::WatchHistory { instance, .. }
             | Self::HistoryStates { instance, .. }
-            | Self::Window { instance, .. }
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
@@ -1750,16 +1732,17 @@ pub enum Message {
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
     Screens(ScreenSet),
+    Configure {
+        serial: u64,
+    },
     Layout(ScreenLayout),
-    RegionSizes(Vec<RegionSize>),
-    Frames(Vec<FrameReport>),
     Input(InputBatch),
     DrawFrame {
         now_micros: u64,
         seen: bool,
     },
     FrameNeeded,
-    FrameReady(FrameReady),
+    Frame(FrameCommit),
     Acknowledged {
         request_id: u64,
     },
@@ -1768,7 +1751,6 @@ pub enum Message {
     ShutdownAcknowledged,
     Editor(EditorMessage),
     BlockTypes(Catalog),
-    Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
     Describe(bool),
     RunAction {
@@ -1815,6 +1797,7 @@ impl Message {
             | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::Screens(_)
+            | Self::Configure { .. }
             | Self::Input(_)
             | Self::DrawFrame { .. }
             | Self::Shutdown
@@ -1828,11 +1811,8 @@ impl Message {
             | Self::ShutdownAcknowledged
             | Self::Layout(_)
             | Self::MissingCharacters(_)
-            | Self::RegionSizes(_)
-            | Self::Frames(_)
             | Self::FrameNeeded
-            | Self::FrameReady(_)
-            | Self::Children(_) => Direction::ToHost,
+            | Self::Frame(_) => Direction::ToHost,
             Self::Error(_) | Self::Extension { .. } => Direction::Either,
             Self::Editor(editor) => editor.direction(),
         }
@@ -1904,7 +1884,6 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
-            | Self::Window { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
             | Self::CopyImage { .. }
@@ -2072,12 +2051,22 @@ impl From<Input> for TimedInput {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FrameReady {
-    pub generation: u64,
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FrameCommit {
+    pub serial: u64,
+    pub sizes: Vec<RegionSize>,
+    pub reports: Vec<FrameReport>,
+    pub windows: Vec<ScreenWindow>,
+    pub children: Vec<ChildPlacements>,
     pub repaint_after_micros: Option<u64>,
     pub animating: bool,
     pub presented: Option<PresentedFrame>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ScreenWindow {
+    pub screen: ScreenId,
+    pub window: WindowRequests,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2203,9 +2192,21 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             Ok(())
         }
         Message::Screens(value) => collection(value.screens.len()),
-        Message::Frames(value) => {
-            collection(value.len())?;
-            for report in value {
+        Message::Frame(value) => {
+            collection(value.sizes.len())?;
+            collection(value.reports.len())?;
+            collection(value.windows.len())?;
+            collection(value.children.len())?;
+            if let Some(presented) = &value.presented {
+                collection(presented.damage.len())?;
+            }
+            for screen in &value.windows {
+                window(&screen.window)?;
+            }
+            for placements in &value.children {
+                validate_children(placements)?;
+            }
+            for report in &value.reports {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
                 collection(report.drawing.len())?;
@@ -2222,11 +2223,6 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             Ok(())
         }
         Message::Layout(value) => collection(value.screens.len()),
-        Message::FrameReady(value) => value
-            .presented
-            .as_ref()
-            .map_or(Ok(()), |presented| collection(presented.damage.len())),
-        Message::RegionSizes(value) => collection(value.len()),
         Message::Fonts(value) => {
             collection(value.faces.len())?;
             for face in &value.faces {
@@ -2255,7 +2251,6 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        Message::Children(value) => validate_children(value),
         Message::RunAction { id, .. } => string(id),
         Message::Extension { payload, .. } => blob(payload),
         Message::NodeAction { request, .. } => match &request.data {
@@ -2282,6 +2277,18 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             }
             Ok(())
         }
+        _ => Ok(()),
+    }
+}
+
+fn window(window: &WindowRequests) -> Result<(), DecodeError> {
+    collection(window.intercepted_keys.len())?;
+    collection(window.pastes.len())?;
+    match &window.ime {
+        Some(ImeArea {
+            text: Some(surrounding),
+            ..
+        }) => text(&surrounding.text),
         _ => Ok(()),
     }
 }
@@ -2353,17 +2360,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             RegenerationOutcome::Failed(message) => string(message),
         },
         EditorMessage::OpenCreation { template, .. } => string(template),
-        EditorMessage::Window { window, .. } => {
-            collection(window.intercepted_keys.len())?;
-            collection(window.pastes.len())?;
-            match &window.ime {
-                Some(ImeArea {
-                    text: Some(surrounding),
-                    ..
-                }) => text(&surrounding.text),
-                _ => Ok(()),
-            }
-        }
         EditorMessage::OpenArtifact { data, .. }
         | EditorMessage::ArtifactSettings { data, .. }
         | EditorMessage::ArtifactEdited { data, .. }

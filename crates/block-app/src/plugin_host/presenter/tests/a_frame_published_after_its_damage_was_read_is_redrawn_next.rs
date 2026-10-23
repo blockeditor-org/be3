@@ -14,7 +14,6 @@ fn frame(presents: u64, rect: SurfaceRect) -> Frame {
 #[test]
 fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
     let layout = ScreenLayout {
-        generation: 1,
         screens: vec![ScreenPlacement {
             screen: ScreenId(1),
             instance: EditorInstanceId(1),

@@ -2,12 +2,13 @@ use be_block::BlockContent as _;
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, Camera, ChildContent,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, DataListing,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, ChildContent, ChildId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport, FrameSpec,
     HostPanel, HostReply, HostRequest, Message, Monitor, Occluder, PerformanceMeasurement,
-    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
-    Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
+    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
+    ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent,
+    WebViewId,
 };
 use block_plugin_api::{ByteBuf, DescribedAction, WindowRequests};
 use std::{
@@ -23,6 +24,7 @@ use super::{
     host_values::{Published, Watched},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
+    sent::Sent,
 };
 use crate::{
     editors::plugin::discovery,
@@ -68,6 +70,7 @@ pub(super) struct Instances {
     shell: Option<EditorInstanceId>,
     waiting: HashMap<EditorInstanceId, Vec<Message>>,
     gone: HashSet<EditorInstanceId>,
+    serial: u64,
 }
 
 struct AudioChanges {
@@ -134,6 +137,7 @@ struct Instance {
     child_commits: Vec<ChildCommit>,
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
+    views: Sent<EditorView>,
     view_changes: Vec<ViewChange>,
     bar_actions: Vec<block_plugin_api::BarAction>,
     menu: Vec<block_plugin_api::MenuEntry>,
@@ -315,6 +319,7 @@ impl Instance {
             child_commits: Vec::new(),
             view: None,
             reported_view: None,
+            views: Sent::default(),
             view_changes: Vec::new(),
             bar_actions: Vec::new(),
             menu: Vec::new(),
@@ -581,9 +586,24 @@ struct Screen {
     reported_statuses: HashMap<ChildId, ChildStatus>,
     revoked: HashSet<ChildId>,
     frame_revoked: HashSet<ChildId>,
+    scales: Sent<f32>,
+    serial: u64,
 }
 
 impl Screen {
+    fn shown_scale(&self, rect: Rect) -> Vec2 {
+        let metrics = &self.request.metrics;
+        let painted = self
+            .scales
+            .at(self.serial)
+            .copied()
+            .unwrap_or(metrics.scale_factor);
+        vec2(
+            ratio(rect.width(), metrics.logical.width),
+            ratio(rect.height(), metrics.logical.height),
+        ) * ratio(painted, metrics.scale_factor)
+    }
+
     fn unplace(&mut self) {
         self.placement = None;
         self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, Vec::new());
@@ -592,11 +612,8 @@ impl Screen {
 
 #[derive(Default, PartialEq)]
 struct ChildTable {
-    generation: u64,
-    size: Vec2,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
-    camera: Option<Camera>,
 }
 
 struct Hole {
@@ -876,6 +893,8 @@ impl Instances {
                 reported_statuses: HashMap::new(),
                 revoked: HashSet::new(),
                 frame_revoked: HashSet::new(),
+                scales: Sent::default(),
+                serial: 0,
             }
         });
         let monitors = std::mem::take(&mut screen.request.metrics.monitors);
@@ -1555,19 +1574,112 @@ impl Instances {
         NextScreens { opened, screens }
     }
 
+    pub(super) fn configure(&mut self, messages: &[Message]) -> Option<Message> {
+        let configures = messages.iter().any(|message| {
+            matches!(
+                message,
+                Message::Screens(_) | Message::Editor(EditorMessage::ViewChanged { .. })
+            )
+        });
+        if !configures {
+            return None;
+        }
+        self.serial += 1;
+        let serial = self.serial;
+        for message in messages {
+            match message {
+                Message::Screens(set) => {
+                    for request in &set.screens {
+                        if let Some(screen) = self.screen_by_id(request.screen) {
+                            screen.scales.push(serial, request.metrics.scale_factor);
+                        }
+                    }
+                }
+                Message::Editor(EditorMessage::ViewChanged {
+                    instance,
+                    view,
+                    scale,
+                }) => {
+                    if let Some(entry) = self.entries.get_mut(instance) {
+                        entry.views.push(
+                            serial,
+                            EditorView {
+                                rect: *view,
+                                scale: *scale,
+                            },
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+        Some(Message::Configure { serial })
+    }
+
+    pub(super) fn serial(&self) -> u64 {
+        self.serial
+    }
+
+    fn screen_by_id(&mut self, screen: ScreenId) -> Option<&mut Screen> {
+        self.entries
+            .values_mut()
+            .flat_map(|entry| entry.screens.values_mut())
+            .find(|placed| placed.request.screen == screen)
+    }
+
+    pub(super) fn confirm(&mut self, serial: u64, held: &HashSet<ScreenId>) -> bool {
+        let mut changed = false;
+        for entry in self.entries.values_mut() {
+            for screen in entry.screens.values_mut() {
+                if !held.contains(&screen.request.screen) && screen.serial != serial {
+                    changed = true;
+                    screen.serial = serial;
+                }
+            }
+        }
+        self.forget_confirmed();
+        changed
+    }
+
+    pub(super) fn laid(&mut self, serial: u64, screens: &HashSet<ScreenId>) {
+        for screen in screens {
+            if let Some(screen) = self.screen_by_id(*screen) {
+                screen.serial = screen.serial.max(serial);
+            }
+        }
+        self.forget_confirmed();
+    }
+
+    fn forget_confirmed(&mut self) {
+        for entry in self.entries.values_mut() {
+            let oldest = entry.screens.values().map(|screen| screen.serial).min();
+            for screen in entry.screens.values_mut() {
+                screen.scales.confirm(screen.serial);
+            }
+            if let Some(oldest) = oldest {
+                entry.views.confirm(oldest);
+            }
+        }
+    }
+
     pub(super) fn set_region_sizes(&mut self, sizes: Vec<RegionSize>) -> bool {
         let mut changed = false;
         for size in sizes {
-            for entry in self.entries.values_mut() {
-                if let Some(screen) = entry
-                    .screens
-                    .values_mut()
-                    .find(|screen| screen.request.screen == size.screen)
-                {
-                    let used = vec2(size.logical.width, size.logical.height);
-                    changed |= screen.used != Some(used);
-                    screen.used = Some(used);
-                }
+            if let Some(screen) = self.screen_by_id(size.screen) {
+                let used = vec2(size.logical.width, size.logical.height);
+                changed |= screen.used != Some(used);
+                screen.used = Some(used);
+            }
+        }
+        changed
+    }
+
+    pub(super) fn set_windows(&mut self, windows: Vec<ScreenWindow>) -> bool {
+        let mut changed = false;
+        for ScreenWindow { screen, window } in windows {
+            if let Some(screen) = self.screen_by_id(screen) {
+                changed |= screen.window != window;
+                screen.window = window;
             }
         }
         changed
@@ -1653,22 +1765,19 @@ impl Instances {
             .is_some_and(|entry| entry.drag_accepted)
     }
 
-    pub(super) fn set_children(&mut self, placements: ChildPlacements) -> (Vec<Message>, bool) {
+    pub(super) fn set_children(&mut self, placements: ChildPlacements) -> bool {
         let ChildPlacements {
             instance,
             region,
-            generation,
-            size,
             children,
             occluders,
-            camera,
         } = placements;
         let Some(screen) = self
             .entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))
         else {
-            return (Vec::new(), false);
+            return false;
         };
         screen.revoked.retain(|child| {
             children
@@ -1682,15 +1791,12 @@ impl Instances {
             })
         });
         let table = ChildTable {
-            generation,
-            size: vec2(size.width, size.height),
             children,
             occluders,
-            camera,
         };
         let changed = screen.children != table;
         screen.children = table;
-        (Vec::new(), changed)
+        changed
     }
 
     pub(super) fn only_moves(&self, placements: &ChildPlacements) -> bool {
@@ -1733,19 +1839,21 @@ impl Instances {
         clip: Rect,
         view: Option<EditorView>,
     ) -> (Vec<HostChild>, Holes) {
-        let Some(screen) = self
+        let Some((entry, screen)) = self
             .entries
             .get(&instance)
-            .and_then(|entry| entry.screens.get(&region))
+            .and_then(|entry| Some((entry, entry.screens.get(&region)?)))
         else {
             return (Vec::new(), Holes::default());
         };
         let table = &screen.children;
         let origin = rect.min.to_vec2();
-        let stretch = vec2(
-            ratio(rect.width(), table.size.x),
-            ratio(rect.height(), table.size.y),
-        );
+        let scale = screen.shown_scale(rect);
+        let laid_view = entry
+            .views
+            .at(screen.serial)
+            .copied()
+            .filter(|_| region == EditorRegion::Frame);
         let mut children = Vec::new();
         let mut holes = Holes::default();
         let mut live = 0;
@@ -1753,7 +1861,7 @@ impl Instances {
             let painted: Vec<Rect> = report
                 .painted
                 .iter()
-                .map(|painted| host_rect(*painted, origin, stretch))
+                .map(|painted| host_rect(*painted, origin, scale))
                 .collect();
             if !painted.is_empty() {
                 for piece in pieces::subtract(rect.intersect(clip), &painted) {
@@ -1838,20 +1946,20 @@ impl Instances {
                     }
                 }
             };
-            let child_rect = host_rect(child.rect, origin, stretch);
-            let (view_rect, child_clip) = match (child.follows_camera, table.camera, view) {
-                (true, Some(camera), Some(view)) => (
-                    host_rect(through(child.rect, camera, view), origin, stretch),
-                    host_rect(followed_clip(child, camera, view), origin, stretch),
+            let child_rect = host_rect(child.rect, origin, scale);
+            let (view_rect, child_clip) = match (child.follows_view, laid_view, view) {
+                (true, Some(laid_view), Some(view)) => (
+                    host_rect(through(child.rect, laid_view, view), origin, scale),
+                    host_rect(followed_clip(child, laid_view, view), origin, scale),
                 ),
-                _ => (child_rect, host_rect(child.clip, origin, stretch)),
+                _ => (child_rect, host_rect(child.clip, origin, scale)),
             };
             let child_clip = child_clip.intersect(clip);
             let occluders: Vec<Rect> = table
                 .occluders
                 .iter()
                 .filter(|occluder| occluder.after as usize > index)
-                .map(|occluder| host_rect(occluder.rect, origin, stretch))
+                .map(|occluder| host_rect(occluder.rect, origin, scale))
                 .collect();
             if matches!(
                 mode,
@@ -2090,7 +2198,7 @@ impl Instances {
                             placement,
                             drawn: screen.mounted > 0 || screen.last_seen >= pass,
                             children: screen.children.children.len(),
-                            child_generation: screen.children.generation,
+                            serial: screen.serial,
                         }
                     })
                     .collect();
@@ -2345,13 +2453,10 @@ impl Instances {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         let area = screen.window.ime.as_ref()?;
         let origin = rect.min.to_vec2();
-        let stretch = vec2(
-            ratio(rect.width(), screen.request.metrics.logical.width),
-            ratio(rect.height(), screen.request.metrics.logical.height),
-        );
+        let scale = screen.shown_scale(rect);
         Some(ImeArea {
-            rect: host_rect(area.rect, origin, stretch),
-            cursor: host_rect(area.cursor, origin, stretch),
+            rect: host_rect(area.rect, origin, scale),
+            cursor: host_rect(area.cursor, origin, scale),
             text: area.text.clone(),
             keyboard: area.keyboard,
         })
@@ -2615,7 +2720,6 @@ impl Instances {
                     | EditorMessage::WatchHistory { .. }
                     | EditorMessage::WatchArtifacts { .. }
                     | EditorMessage::WatchHostValue { .. }
-                    | EditorMessage::Window { .. }
                     | EditorMessage::Focused { .. }
                     | EditorMessage::Menu { .. }
                     | EditorMessage::ChangeView { .. }
@@ -3030,22 +3134,6 @@ impl Instances {
                 });
                 true
             }
-            EditorMessage::Window {
-                instance,
-                region,
-                window,
-            } => {
-                let Some(screen) = self
-                    .entries
-                    .get_mut(&instance)
-                    .and_then(|entry| entry.screens.get_mut(&region))
-                else {
-                    return false;
-                };
-                let changed = screen.window != window;
-                screen.window = window;
-                changed
-            }
             EditorMessage::CopyText { instance, text } => {
                 if !self.entries.contains_key(&instance) {
                     return false;
@@ -3365,18 +3453,18 @@ impl Instances {
     }
 }
 
-fn through(rect: Rect, camera: Camera, view: EditorView) -> Rect {
-    if (camera.x, camera.y, camera.scale) == (view.rect.min.x, view.rect.min.y, view.scale) {
+fn through(rect: Rect, laid_view: EditorView, view: EditorView) -> Rect {
+    if (laid_view.rect.min, laid_view.scale) == (view.rect.min, view.scale) {
         return rect;
     }
-    let scale = ratio(view.scale, camera.scale);
+    let scale = ratio(view.scale, laid_view.scale);
     Rect::from_min_size(
-        view.rect.min + (rect.min - pos2(camera.x, camera.y)) * scale,
+        view.rect.min + (rect.min - laid_view.rect.min) * scale,
         rect.size() * scale,
     )
 }
 
-fn followed_clip(child: &ChildPlacement, camera: Camera, view: EditorView) -> Rect {
+fn followed_clip(child: &ChildPlacement, laid_view: EditorView, view: EditorView) -> Rect {
     let clip = child.clip;
     let swept = beui::Rotation::new(child.rect.center(), child.rotation).bounds(child.rect);
     let held = |clipped: f32, own: f32, open: f32| match (clipped - own).abs() > 0.01 {
@@ -3393,13 +3481,13 @@ fn followed_clip(child: &ChildPlacement, camera: Camera, view: EditorView) -> Re
             held(clip.max.y, swept.max.y, f32::MAX),
         ),
     );
-    through(swept, camera, view).intersect(held)
+    through(swept, laid_view, view).intersect(held)
 }
 
-fn host_rect(rect: Rect, origin: Vec2, stretch: Vec2) -> Rect {
+fn host_rect(rect: Rect, origin: Vec2, scale: Vec2) -> Rect {
     Rect::from_min_size(
-        pos2(rect.min.x * stretch.x, rect.min.y * stretch.y) + origin,
-        vec2(rect.width() * stretch.x, rect.height() * stretch.y),
+        pos2(rect.min.x * scale.x, rect.min.y * scale.y) + origin,
+        vec2(rect.width() * scale.x, rect.height() * scale.y),
     )
 }
 

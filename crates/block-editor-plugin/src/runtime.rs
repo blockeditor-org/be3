@@ -16,7 +16,6 @@ pub(crate) struct Runtime {
     session: ClientSession,
     screens: Screens,
     surfaces: Option<Surfaces>,
-    generation: u64,
     asked: bool,
     told: bool,
 }
@@ -33,7 +32,6 @@ impl Runtime {
             session: ClientSession::new(id, name, version),
             screens: Screens::new(apps, waker),
             surfaces: None,
-            generation: 0,
             asked: false,
             told: false,
         }
@@ -98,10 +96,6 @@ impl Runtime {
         if surfaces.layout().same_placements(&layout) {
             return Ok(false);
         }
-        self.generation += 1;
-        self.screens.set_generation(self.generation);
-        let mut layout = layout;
-        layout.generation = self.generation;
         surfaces.place(layout.clone());
         outbound.push(Message::Layout(layout));
         Ok(true)

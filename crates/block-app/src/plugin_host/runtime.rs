@@ -9,10 +9,11 @@ use std::{
 use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
-    HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message, Monitor,
-    PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
-    SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
+    ArtifactDescription, BlockPick, ChildPlacements, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameCommit, FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES,
+    Message, Monitor, PluginManifest, PresentedFrame, RegionSize, ScreenDamage, ScreenId,
+    ScreenLayout, ScreenRequest, ScreenWindow, SessionState, SurfaceFormat, SurfaceSpec,
+    ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 
@@ -128,7 +129,7 @@ pub(super) struct Runtime {
     pub(super) backend: Backend,
     session: HostSession,
     queued: Vec<Message>,
-    held: Vec<Message>,
+    held: Vec<Answer>,
     taking_in: bool,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
@@ -152,6 +153,36 @@ pub(super) struct Runtime {
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
+}
+
+enum Answer {
+    Message(Message),
+    Frame(FrameCommit),
+    Laid(Laid),
+}
+
+struct Laid {
+    serial: u64,
+    sizes: Vec<RegionSize>,
+    windows: Vec<ScreenWindow>,
+    children: Vec<ChildPlacements>,
+}
+
+impl Laid {
+    fn is_empty(&self) -> bool {
+        self.sizes.is_empty() && self.windows.is_empty() && self.children.is_empty()
+    }
+
+    fn screens(&self, instances: &Instances) -> std::collections::HashSet<ScreenId> {
+        self.sizes
+            .iter()
+            .map(|size| size.screen)
+            .chain(self.windows.iter().map(|window| window.screen))
+            .chain(self.children.iter().filter_map(|placements| {
+                instances.screen_id(placements.instance, placements.region)
+            }))
+            .collect()
+    }
 }
 
 pub(super) struct Placed {
@@ -345,6 +376,7 @@ impl Runtime {
             messages.push(self.instances.screen_set(next.screens));
         }
         messages.extend(self.instances.pending());
+        messages.extend(self.instances.configure(&messages));
         let awaited = messages.iter().any(|message| {
             matches!(
                 message,
@@ -590,18 +622,28 @@ impl Runtime {
         let forwarded = match self.taking_in {
             true => {
                 let mut taken = std::mem::take(&mut self.held);
-                taken.extend(forwarded);
+                taken.extend(forwarded.into_iter().map(Answer::Message));
                 taken
             }
             false => {
                 let mut drawing = Vec::with_capacity(forwarded.len());
                 let mut held = false;
                 for message in forwarded {
-                    match self.draws_the_frame(&message) {
-                        true => drawing.push(message),
-                        false => {
+                    match message {
+                        Message::Frame(commit) => {
+                            let (now, later) = self.split(commit);
+                            drawing.push(Answer::Frame(now));
+                            if let Some(later) = later {
+                                held = true;
+                                self.held.push(Answer::Laid(later));
+                            }
+                        }
+                        message if self.draws_the_frame(&message) => {
+                            drawing.push(Answer::Message(message));
+                        }
+                        message => {
                             held = true;
-                            self.held.push(message);
+                            self.held.push(Answer::Message(message));
                         }
                     }
                 }
@@ -641,29 +683,78 @@ impl Runtime {
 
     fn draws_the_frame(&self, message: &Message) -> bool {
         match message {
-            Message::Layout(_)
-            | Message::Frames(_)
-            | Message::FrameNeeded
-            | Message::FrameReady(_) => true,
-            Message::Children(placements) => {
-                !self.held.iter().any(|held| {
-                    matches!(held, Message::Children(earlier)
-                        if (earlier.instance, earlier.region) == (placements.instance, placements.region))
-                }) && self.instances.only_moves(placements)
-            }
+            Message::Layout(_) | Message::FrameNeeded => true,
             Message::Extension { key, .. } => *key == beui::painting::PAINTING_EXTENSION,
             _ => false,
         }
     }
 
-    pub(super) fn apply(&mut self, messages: Vec<Message>) {
-        if messages.is_empty() {
+    fn split(&self, commit: FrameCommit) -> (FrameCommit, Option<Laid>) {
+        let mut message = Message::Frame(commit);
+        self.instances.translate(&mut message, true);
+        let Message::Frame(mut commit) = message else {
+            unreachable!("translating a frame leaves it a frame")
+        };
+        let (moving, coming) = std::mem::take(&mut commit.children)
+            .into_iter()
+            .partition(|placements| {
+                !self.held.iter().any(|held| {
+                    matches!(held, Answer::Laid(laid) if laid.children.iter().any(|earlier| {
+                        (earlier.instance, earlier.region) == (placements.instance, placements.region)
+                    }))
+                }) && self.instances.only_moves(placements)
+            });
+        commit.children = moving;
+        let later = Laid {
+            serial: commit.serial,
+            sizes: std::mem::take(&mut commit.sizes),
+            windows: std::mem::take(&mut commit.windows),
+            children: coming,
+        };
+        (commit, (!later.is_empty()).then_some(later))
+    }
+
+    fn held_screens(&self) -> std::collections::HashSet<ScreenId> {
+        self.held
+            .iter()
+            .filter_map(|held| match held {
+                Answer::Laid(laid) => Some(laid.screens(&self.instances)),
+                Answer::Message(_) | Answer::Frame(_) => None,
+            })
+            .flatten()
+            .collect()
+    }
+
+    fn lay(&mut self, laid: Laid) -> bool {
+        let screens = laid.screens(&self.instances);
+        let mut changed = self.instances.set_region_sizes(laid.sizes);
+        changed |= self.instances.set_windows(laid.windows);
+        for placements in laid.children {
+            changed |= self.instances.set_children(placements);
+        }
+        self.instances.laid(laid.serial, &screens);
+        changed
+    }
+
+    fn apply(&mut self, answers: Vec<Answer>) {
+        if answers.is_empty() {
             return;
         }
-        let mut answers = Vec::new();
+        let mut replies = Vec::new();
         let mut changed = false;
         mark(&self.plugin.identity.id);
-        for mut message in messages {
+        for answer in answers {
+            let mut message = match answer {
+                Answer::Message(message) => message,
+                Answer::Frame(commit) => {
+                    changed |= self.commit(commit);
+                    continue;
+                }
+                Answer::Laid(laid) => {
+                    changed |= self.lay(laid);
+                    continue;
+                }
+            };
             self.instances.translate(&mut message, true);
             changed |= match message {
                 Message::Layout(layout) => {
@@ -675,24 +766,10 @@ impl Runtime {
                     self.pacing.needed = true;
                     true
                 }
-                Message::FrameReady(frame) => {
-                    self.pacing.animating = frame.animating;
-                    self.await_next_frame(frame.repaint_after_micros);
-                    if let Some(presented) = frame.presented {
-                        self.presents.report(presented);
-                    }
-                    false
-                }
-                Message::RegionSizes(sizes) => self.instances.set_region_sizes(sizes),
+                Message::Frame(commit) => self.commit(commit),
                 Message::MissingCharacters(missing) => {
-                    answers.extend(self.fallbacks.answer(&missing).map(Message::Fonts));
+                    replies.extend(self.fallbacks.answer(&missing).map(Message::Fonts));
                     false
-                }
-                Message::Frames(reports) => self.instances.set_frame_reports(reports),
-                Message::Children(placements) => {
-                    let (answered, changed) = self.instances.set_children(placements);
-                    answers.extend(answered);
-                    changed
                 }
                 Message::Extension { key, payload }
                     if key == beui::painting::PAINTING_EXTENSION =>
@@ -703,10 +780,38 @@ impl Runtime {
                 _ => false,
             };
         }
-        self.send(answers);
+        self.send(replies);
         if changed {
             host::request_repaint();
         }
+    }
+
+    fn commit(&mut self, commit: FrameCommit) -> bool {
+        let FrameCommit {
+            serial,
+            sizes,
+            reports,
+            windows,
+            children,
+            repaint_after_micros,
+            animating,
+            presented,
+        } = commit;
+        self.pacing.animating = animating;
+        self.await_next_frame(repaint_after_micros);
+        if let Some(presented) = presented {
+            self.presents.report(presented);
+        }
+        let held = self.held_screens();
+        let mut changed = self.instances.confirm(serial, &held);
+        changed |= self.instances.set_frame_reports(reports);
+        changed |= self.lay(Laid {
+            serial,
+            sizes,
+            windows,
+            children,
+        });
+        changed
     }
 
     fn await_next_frame(&mut self, repaint_after_micros: Option<u64>) {
@@ -1607,7 +1712,7 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
                 state: runtime.state(),
                 surface: SurfaceStatus {
                     index: runtime.surface,
-                    generation: runtime.layout.generation,
+                    serial: runtime.instances.serial(),
                     pixels: runtime
                         .layout
                         .screens

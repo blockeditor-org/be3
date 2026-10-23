@@ -40,41 +40,44 @@ fn frame_screens_and_reports_round_trip() {
         screens
     );
 
-    let frames = Message::Frames(vec![FrameReport {
-        screen: ScreenId(1),
-        content: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(640.0, 440.0)),
-        painted: vec![Rect::from_min_size(
-            Pos2::new(0.0, 0.0),
-            Vec2::new(640.0, 40.0),
-        )],
-        floating: vec![Rect::from_min_size(
-            Pos2::new(8.0, 44.0),
-            Vec2::new(120.0, 90.0),
-        )],
-        drawing: vec![Rect::from_min_size(
-            Pos2::new(0.0, 0.0),
-            Vec2::new(640.0, 400.0),
-        )],
-        every_sample: true,
-        claims: vec![PressClaim {
-            modifiers: Modifiers {
-                logo: true,
-                ..Modifiers::default()
-            },
-            rect: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(320.0, 440.0)),
-        }],
-        description: Some(Description {
-            tree: Some(checklist_tree()),
-            actions: vec![DescribedAction {
-                id: "checklist.clear".to_owned(),
-                label: "Clear completed".to_owned(),
-                shortcut: Some("Ctrl+Shift+K".to_owned()),
-                enabled: false,
-                checked: None,
-                live: true,
+    let frames = Message::Frame(FrameCommit {
+        reports: vec![FrameReport {
+            screen: ScreenId(1),
+            content: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(640.0, 440.0)),
+            painted: vec![Rect::from_min_size(
+                Pos2::new(0.0, 0.0),
+                Vec2::new(640.0, 40.0),
+            )],
+            floating: vec![Rect::from_min_size(
+                Pos2::new(8.0, 44.0),
+                Vec2::new(120.0, 90.0),
+            )],
+            drawing: vec![Rect::from_min_size(
+                Pos2::new(0.0, 0.0),
+                Vec2::new(640.0, 400.0),
+            )],
+            every_sample: true,
+            claims: vec![PressClaim {
+                modifiers: Modifiers {
+                    logo: true,
+                    ..Modifiers::default()
+                },
+                rect: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(320.0, 440.0)),
             }],
-        }),
-    }]);
+            description: Some(Description {
+                tree: Some(checklist_tree()),
+                actions: vec![DescribedAction {
+                    id: "checklist.clear".to_owned(),
+                    label: "Clear completed".to_owned(),
+                    shortcut: Some("Ctrl+Shift+K".to_owned()),
+                    enabled: false,
+                    checked: None,
+                    live: true,
+                }],
+            }),
+        }],
+        ..frame(1)
+    });
     let encoded = encode_frame(&frames).unwrap();
     assert_eq!(
         encode_frame(&decode_frame(&encoded).unwrap()).unwrap(),

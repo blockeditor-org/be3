@@ -344,10 +344,10 @@ instance told it owns the chrome and given no content rectangle fills its own
 content band, which is what a tab of its own means.
 
 A frame surface is transparent wherever its owner does not paint, so whatever
-the host draws beneath shows through there. The plugin publishes, once per
-frame, the content rectangle it laid out, the rectangles it painted and the
-rectangles its floating layers took, all in the frame's own logical
-coordinates. The host works out the view it hands a pan-and-zoom editor
+the host draws beneath shows through there. The plugin publishes, with every
+frame that laid it out again, the content rectangle it laid out, the
+rectangles it painted and the rectangles its floating layers took, all in the
+frame's own logical coordinates. The host works out the view it hands a pan-and-zoom editor
 against the content it was told about, delivers no pointer input over the
 parts of the frame the instance did not paint, and composites the frames of
 one tab bottom-up: every frame's painted area first, then every frame's
@@ -403,9 +403,9 @@ instance at any size, and falls back to its own default until an instance
 reports one.
 
 An editor instance may embed other blocks' editors inside one of its screens.
-Once per frame the instance publishes, for that screen, the frame generation
-it drew, an ordered list of the children it placed and the occluder rectangles
-declared between them, all in the screen's own logical coordinates. A child
+A frame that changes them carries, for that screen, an ordered list of the
+children it placed and the occluder rectangles declared between them, all in
+the screen's own logical coordinates. A child
 carries its own identifier, what it shows - a block and its block type, one
 of the instance's web views, a panel the host draws itself, or a window of a
 program the host runs - the rectangle
@@ -421,9 +421,16 @@ cleared transparent, so the host composites the child's editor under the
 instance and anything the instance draws after the child covers it again. A
 child placed above composites against the instance's pixels instead and cannot
 be drawn over. The host draws the children below a region, then the region,
-then the children above it, at the placements belonging to the generation it
-is presenting; a placement published for a generation the host is not
-presenting is stretched into the region it is showing rather than dropped.
+then the children above it. A painting is never stretched: the host shows each
+frame at the size it was painted, from the region's top-left corner, so while
+a region is resizing ahead of the plugin the painting is cropped or falls
+short at the right and bottom, and the children, occluders and input method
+area that frame carried are placed in its own coordinates from that corner,
+unscaled. Only a zoom the host renders a region at - a pixel density sent with
+its screen - scales them, and then by the one sent at the frame's serial. A
+child the placement says follows the view is moved from the view sent at that
+serial to the one the host is showing, so a child keeps up with a pan the
+plugin has not drawn yet.
 
 A child the user has selected, or one an instance declares as the whole of
 what it shows, becomes a frame owner of its own: it is handed the same frame
@@ -558,6 +565,23 @@ Neither peer polls the other: a plugin runs beside the host - a thread of its
 own under wasmtime, a worker of its own in the browser - and either side may
 send at any time.
 
+Every host message that changes what a plugin lays out against - a screen set,
+which carries each screen's size, scale and frame, and a view - is followed by
+a configure carrying a serial, one higher each time, which says the host has
+sent everything up to it. A plugin answers no configure: each frame it commits
+names the last serial it had received when it laid out, so the host knows
+which of the states it sent the frame was built from. The host keeps the
+states it sent by serial and forgets each once a frame names a later one.
+
+A frame is one commit of everything a plugin laid out together: the serial,
+the size each region used, its frame report, its window requests - cursor,
+input method area, intercepted keys and the rest - and its child placements
+and occluders, along with how long it wants to wait before being drawn again
+and the surfaces it presented. Each part is present only for a screen it
+changed; one a frame leaves out still holds at the frame's serial, since a
+plugin lays out again every instance whose host state changed. A frame may
+move children without painting anything, and may paint without moving any.
+
 The host decides when a plugin draws. A plugin paints only when the host asks
 it for a frame, and never on its own: when a message changes what it shows, or
 something inside it wakes it, it says a frame is needed and waits to be asked.
@@ -574,7 +598,7 @@ without any delay is drawn once per host frame rather than as fast as its
 process can run. A request left unanswered for a second is asked again. A
 plugin the host is not drawing is asked for nothing.
 
-The host shows whatever the plugin has published by the time it finishes
+The host shows whatever the plugin has committed by the time it finishes
 building its own frame. Which surface each region is drawn from is settled then
 as well, against the layout that arrived with the frame being shown, so a
 plugin that republishes its layout mid-frame is never drawn through the
@@ -590,7 +614,10 @@ each rectangle falls on.
 
 A plugin never learns where its pixels live. It asks its host for a render
 target and draws into an opaque texture, which is the host's own under
-wasmtime and the worker's offscreen canvas in the browser; the frame it
-publishes names the generation of the layout it drew, and the host shows each
-screen's texture until another frame presents it. No pixels and no native
+wasmtime and the worker's offscreen canvas in the browser. Which surface each
+screen is drawn into is the layout the plugin sends whenever its screens
+change, and the host shows each screen's texture until another frame presents
+it. A frame that presented anything counts its presents, which is how the host
+matches the damage it reports to the textures it took in, even when it skipped
+some of them. No pixels and no native
 graphics resources cross the connection.
