@@ -7,7 +7,7 @@ use crate::context_menu::menu_style;
 use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
-use beui_core::icons::{ICON_CLOSE, ICON_CONTENT_COPY};
+use beui_core::icons::{ICON_COPY, ICON_X};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -148,7 +148,7 @@ fn TextInputFrame(
                     <Show condition={clearable}>
                         <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
                             <IconButton
-                                glyph={ICON_CLOSE.to_owned()}
+                                glyph={ICON_X.to_owned()}
                                 label="Clear"
                                 size=IconButtonSize::Compact
                                 press_focus=false
@@ -159,7 +159,7 @@ fn TextInputFrame(
                     <Show condition={copyable}>
                         <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
                             <IconButton
-                                glyph={ICON_CONTENT_COPY.to_owned()}
+                                glyph={ICON_COPY.to_owned()}
                                 label={copy_label}
                                 size=IconButtonSize::Compact
                                 press_focus=false

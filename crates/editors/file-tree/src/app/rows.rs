@@ -3,11 +3,10 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::{
-    ViewState,
-    metadata::{ICON, ICON_COLOR},
+use block_editor_beui::be_block::{ViewState, metadata::ICON_COLOR};
+use block_editor_beui::beui::icons::{
+    ICON_BOXES, ICON_DATABASE, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
-use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 pub(crate) use block_editor_beui::sections::{
@@ -504,7 +503,7 @@ impl Builder<'_> {
         self.rows.push(Row {
             key: RowKey::Orphans,
             label: "Recently Deleted".to_owned(),
-            glyph: ICON_HISTORY.to_owned(),
+            glyph: ICON_ROTATE_CCW_CLOCK.to_owned(),
             section: true,
             expandable: true,
             expanded: open,
@@ -572,7 +571,7 @@ impl Builder<'_> {
         );
         row.section = true;
         if row.glyph.is_empty() {
-            ICON_WORKSPACES.clone_into(&mut row.glyph);
+            ICON_BOXES.clone_into(&mut row.glyph);
         }
         row.expandable = true;
         row.expanded = open;
@@ -602,7 +601,7 @@ impl Builder<'_> {
             section: true,
             expandable: true,
             expanded: open,
-            glyph: ICON_PEOPLE.to_owned(),
+            glyph: ICON_USERS.to_owned(),
             ..Row::note_at(RowKey::Shared, 0, "Shared with me")
         });
         if !open {
@@ -731,8 +730,9 @@ pub(crate) fn describe(
         (
             reference
                 .metadata
-                .get(&ICON)
-                .map_or(default_glyph, |icon| icon.to_string()),
+                .icon()
+                .and_then(|icon| named(&icon))
+                .map_or(default_glyph, str::to_owned),
             reference
                 .metadata
                 .get(&ICON_COLOR)
@@ -893,7 +893,7 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
 pub(crate) fn access_marker(access: AccessLevel) -> Option<&'static str> {
     match access {
         AccessLevel::Edit => None,
-        AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_VISIBILITY),
+        AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_EYE),
         AccessLevel::KnowExists | AccessLevel::None => {
             Some(block_editor_beui::beui::icons::ICON_LOCK)
         }

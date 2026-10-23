@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
-use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
+use block_editor_beui::beui::icons::ICON_ARROW_RIGHT;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
@@ -433,7 +433,7 @@ pub(crate) fn HoverLabel(tools: Tools, hovered: ReadSignal<Option<(u16, u16)>>) 
         };
         match source.get() {
             Some(source) => format!(
-                "{x}, {y} · {} {ICON_ARROW_FORWARD} {}",
+                "{x}, {y} · {} {ICON_ARROW_RIGHT} {}",
                 format_hex_color(source),
                 format_hex_color(color.get())
             ),

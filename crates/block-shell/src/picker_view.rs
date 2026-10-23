@@ -1,6 +1,6 @@
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_FOLDER, ICON_LINK, ICON_SEARCH, ICON_UPLOAD_FILE,
-    ICON_WIDGETS,
+    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LINK,
+    ICON_SEARCH,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -236,7 +236,7 @@ fn MoreItem(act: Act, label: &'static str) -> unstyled::MenuItem {
     view! {
         <unstyled::MenuItem
             label
-            glyph=ICON_WIDGETS
+            glyph=ICON_BLOCKS
             separated=true
             then=MenuThen::Stay
             row_test_id="picker.more"
@@ -343,7 +343,7 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> unstyled::MenuItem {
     view! {
         <unstyled::MenuItem
             label
-            glyph=ICON_UPLOAD_FILE
+            glyph=ICON_FILE_UP
             disabled={importing}
             then=MenuThen::Stay
             row_test_id="picker.import"
@@ -552,7 +552,7 @@ fn SurfaceHeader(
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
                     <IconButton
                         @test_id={"picker.back"}
-                        glyph={ICON_ARROW_BACK.to_owned()}
+                        glyph={ICON_ARROW_LEFT.to_owned()}
                         label="Back to the menu"
                         variant=ButtonVariant::Ghost
                         on_click={move || act.call(PickAction::Stage(Stage::Menu))}

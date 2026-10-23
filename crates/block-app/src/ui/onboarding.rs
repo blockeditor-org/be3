@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_ADD, ICON_CHECK, ICON_CLOUD, ICON_COMPUTER, ICON_CONTENT_COPY, ICON_GROUP_ADD,
-    ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
+    ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_ELLIPSIS, ICON_MONITOR,
+    ICON_PLUS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -166,7 +166,7 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
             </Show>
             <Button
                 label="Add account"
-                glyph={ICON_ADD.to_owned()}
+                glyph={ICON_PLUS.to_owned()}
                 variant=ButtonVariant::Secondary
                 on_click={|| send(UiCommand::OpenAddAccount)}
             />
@@ -190,7 +190,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                     <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{name}</Text>
                     <MenuButton
                         label="Account options"
-                        glyph={ICON_MORE_HORIZ.to_owned()}
+                        glyph={ICON_ELLIPSIS.to_owned()}
                         icon_only=true
                         arrow=false
                         on_select={move |_path: Vec<usize>| {
@@ -218,7 +218,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                         />
                     </Tooltip>
                     <IconButton
-                        glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
+                        glyph={ICON_CHEVRON_DOWN.to_owned()}
                         label="Open a different organization"
                         on_click={move || send(UiCommand::ChooseOrganization(key.get_untracked()))}
                     />
@@ -233,7 +233,7 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
     let email = create_memo(move || account.get().email);
     let server = create_memo(move || account.get().server);
     let glyph = create_memo(move || match account.get().local {
-        true => ICON_COMPUTER.to_owned(),
+        true => ICON_MONITOR.to_owned(),
         false => ICON_CLOUD.to_owned(),
     });
     view! {
@@ -434,7 +434,7 @@ pub(super) fn AddAccountDialog(
                                     <ActionRow
                                         label="On this device"
                                         detail="A local account, stored on this device"
-                                        glyph={ICON_COMPUTER.to_owned()}
+                                        glyph={ICON_MONITOR.to_owned()}
                                         @test_id="account.local"
                                         on_click={move || selection.set(Some(1))}
                                     />
@@ -442,7 +442,7 @@ pub(super) fn AddAccountDialog(
                                 <ActionRow
                                     label="Another server"
                                     detail="Connect using a server address"
-                                    glyph={ICON_ADD.to_owned()}
+                                    glyph={ICON_PLUS.to_owned()}
                                     @test_id="account.custom"
                                     on_click={move || selection.set(Some(2))}
                                 />
@@ -533,7 +533,7 @@ pub(super) fn AddAccountDialog(
                                         </SelectableText>
                                         <IconButton
                                             label="Copy code"
-                                            glyph={ICON_CONTENT_COPY.to_owned()}
+                                            glyph={ICON_COPY.to_owned()}
                                             variant=ButtonVariant::Ghost
                                             @test_id="account.copy-code"
                                             on_click={move || copy_text(browser_code.get_untracked())}
@@ -562,7 +562,7 @@ pub(super) fn AddAccountDialog(
                                         </SelectableText>
                                         <IconButton
                                             label="Copy link"
-                                            glyph={ICON_CONTENT_COPY.to_owned()}
+                                            glyph={ICON_COPY.to_owned()}
                                             variant=ButtonVariant::Ghost
                                             @test_id="account.copy-link"
                                             on_click={move || copy_text(browser_url.get_untracked())}
@@ -611,7 +611,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                 <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0)>"Organizations"</Text>
                 <MenuButton
                     label="Account options"
-                    glyph={ICON_MORE_HORIZ.to_owned()}
+                    glyph={ICON_ELLIPSIS.to_owned()}
                     icon_only=true
                     arrow=false
                     on_select={|_path: Vec<usize>| send(UiCommand::LogOutCurrent)}
@@ -620,7 +620,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                     }}
                 />
                 <IconButton
-                    glyph={ICON_REFRESH.to_owned()}
+                    glyph={ICON_REFRESH_CW.to_owned()}
                     label="Reload organizations"
                     disabled={busy}
                     on_click={|| send(UiCommand::ReloadOrganizations)}
@@ -634,7 +634,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                     </List>
                     <Button
                         label="Switch account"
-                        glyph={ICON_SWITCH_ACCOUNT.to_owned()}
+                        glyph={ICON_USERS_ROUND.to_owned()}
                         variant=ButtonVariant::Secondary
                         on_click={|| send(UiCommand::SwitchAccount)}
                     />
@@ -655,12 +655,12 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                         <Button
                             @sizing=ItemSize::Percent(100.0)
                             label={label}
-                            glyph={ICON_WORKSPACES.to_owned()}
+                            glyph={ICON_BOXES.to_owned()}
                             variant=ButtonVariant::Secondary
                             on_click={move || send(UiCommand::OpenOrganization(id))}
                         />
                         <IconButton
-                            glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
+                            glyph={ICON_CHEVRON_DOWN.to_owned()}
                             label="Choose a session or profile"
                             on_click={move || send(UiCommand::ChooseSession(id))}
                         />
@@ -674,7 +674,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Text align=TextAlign::Center>
-                    <Icon glyph={ICON_GROUP_ADD.to_owned()} />
+                    <Icon glyph={ICON_USER_PLUS.to_owned()} />
                 </Text>
                 <Text style=TextStyle::HEADING>"Join an organization"</Text>
             </List>
@@ -827,7 +827,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
             }</ForEach>
             <Button
                 label="New settings profile"
-                glyph={ICON_ADD.to_owned()}
+                glyph={ICON_PLUS.to_owned()}
                 variant=ButtonVariant::Ghost
                 disabled={loading}
                 @test_id={"sessions.new-profile"}
@@ -869,7 +869,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
             }</ForEach>
             <SplitButton
                 label={new_label}
-                glyph={ICON_ADD.to_owned()}
+                glyph={ICON_PLUS.to_owned()}
                 variant=ButtonVariant::Secondary
                 menu_label="New session of another type"
                 disabled={loading}

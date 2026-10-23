@@ -1,8 +1,6 @@
 use block_editor_beui::be_block::metadata::MAX_NAME_BYTES;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{
-    ICON_ADD_LINK, ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD,
-};
+use block_editor_beui::beui::icons::{ICON_LINK, ICON_LOCK, ICON_USER, ICON_USER_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -386,7 +384,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                     >
                                         <Chip label={name} />
                                         <IconButton
-                                            glyph={ICON_CLOSE.to_owned()}
+                                            glyph={ICON_X.to_owned()}
                                             label="Do not add"
                                             size=IconButtonSize::Compact
                                             on_click={move || act.call(ShareAction::Unpick(id))}
@@ -412,7 +410,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                             <Button
                                 label="Add"
-                                glyph={ICON_PERSON_ADD.to_owned()}
+                                glyph={ICON_USER_PLUS.to_owned()}
                                 variant=ButtonVariant::Primary
                                 @test_id={"share.add"}
                                 on_click={move || act.call(ShareAction::AddPending)}
@@ -423,7 +421,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
                         label="Invite someone new"
-                        glyph={ICON_ADD_LINK.to_owned()}
+                        glyph={ICON_LINK.to_owned()}
                         variant=ButtonVariant::Secondary
                         disabled={inviting}
                         @test_id={"share.invite"}
@@ -484,7 +482,7 @@ fn SuggestionButton(person: Memo<Option<Person>>, act: ShareAct) -> NodeId {
     view! {
         <Button
             label={label}
-            glyph={ICON_PERSON.to_owned()}
+            glyph={ICON_USER.to_owned()}
             variant=ButtonVariant::Ghost
             on_click={move || {
                 if let Some(person) = person.get_untracked() {
@@ -525,7 +523,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                             <Text align=TextAlign::Center>
-                                <Icon glyph={ICON_PERSON.to_owned()} />
+                                <Icon glyph={ICON_USER.to_owned()} />
                             </Text>
                             <Text style=TextStyle::HEADING>{name}</Text>
                         </List>
@@ -573,7 +571,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                     </Show>
                     <Show condition={removable}>
                         <IconButton
-                            glyph={ICON_CLOSE.to_owned()}
+                            glyph={ICON_X.to_owned()}
                             label="Remove access"
                             size=IconButtonSize::Compact
                             on_click={move || {

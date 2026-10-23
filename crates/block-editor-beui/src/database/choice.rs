@@ -1,9 +1,9 @@
 use be_block::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 use beui::TextAlign;
 use beui::icons::{
-    ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_FLAG, ICON_INCOMPLETE_CIRCLE, ICON_PENDING, ICON_PRIORITY,
-    ICON_RADIO_BUTTON_PARTIAL, ICON_RADIO_BUTTON_UNCHECKED, ICON_SIGNAL_CELLULAR_ALT,
-    ICON_SIGNAL_CELLULAR_ALT_1_BAR, ICON_SIGNAL_CELLULAR_ALT_2_BAR, ICON_STAR,
+    ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CIRCLE_DASHED, ICON_CIRCLE_DOT_DASHED,
+    ICON_CIRCLE_ELLIPSIS, ICON_CIRCLE_X, ICON_FLAG, ICON_OCTAGON_ALERT, ICON_SIGNAL_HIGH,
+    ICON_SIGNAL_LOW, ICON_SIGNAL_MEDIUM, ICON_STAR,
 };
 use beui::reactive::*;
 use beui::styled::theme::ThemeKind;
@@ -13,16 +13,16 @@ use beui::{Color32, NodeId};
 pub fn choice_glyph(icon: ChoiceIcon) -> &'static str {
     match icon {
         ChoiceIcon::None => "",
-        ChoiceIcon::Backlog => ICON_PENDING,
-        ChoiceIcon::Todo => ICON_RADIO_BUTTON_UNCHECKED,
-        ChoiceIcon::Started => ICON_RADIO_BUTTON_PARTIAL,
-        ChoiceIcon::Review => ICON_INCOMPLETE_CIRCLE,
-        ChoiceIcon::Done => ICON_CHECK_CIRCLE,
-        ChoiceIcon::Canceled => ICON_CANCEL,
-        ChoiceIcon::Low => ICON_SIGNAL_CELLULAR_ALT_1_BAR,
-        ChoiceIcon::Medium => ICON_SIGNAL_CELLULAR_ALT_2_BAR,
-        ChoiceIcon::High => ICON_SIGNAL_CELLULAR_ALT,
-        ChoiceIcon::Urgent => ICON_PRIORITY,
+        ChoiceIcon::Backlog => ICON_CIRCLE_ELLIPSIS,
+        ChoiceIcon::Todo => ICON_CIRCLE,
+        ChoiceIcon::Started => ICON_CIRCLE_DOT_DASHED,
+        ChoiceIcon::Review => ICON_CIRCLE_DASHED,
+        ChoiceIcon::Done => ICON_CIRCLE_CHECK,
+        ChoiceIcon::Canceled => ICON_CIRCLE_X,
+        ChoiceIcon::Low => ICON_SIGNAL_LOW,
+        ChoiceIcon::Medium => ICON_SIGNAL_MEDIUM,
+        ChoiceIcon::High => ICON_SIGNAL_HIGH,
+        ChoiceIcon::Urgent => ICON_OCTAGON_ALERT,
         ChoiceIcon::Flag => ICON_FLAG,
         ChoiceIcon::Star => ICON_STAR,
     }
@@ -105,7 +105,7 @@ pub fn ChoiceMark(
         option
             .with(|option| match option {
                 Some(option) => choice_glyph(option.icon),
-                None => ICON_RADIO_BUTTON_UNCHECKED,
+                None => ICON_CIRCLE,
             })
             .to_owned()
     });

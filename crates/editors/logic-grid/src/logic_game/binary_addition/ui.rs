@@ -1,6 +1,6 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::logic_game::QuizRow;
-use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
+use block_editor_beui::beui::icons::ICON_CIRCLE_CHECK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
@@ -138,7 +138,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                 </Show>
                 <Show condition={done}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
-                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                        <Icon glyph={ICON_CIRCLE_CHECK.to_owned()} />
                         "Every problem is correct."
                     </Text>
                 </Show>

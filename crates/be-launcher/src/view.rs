@@ -1,8 +1,8 @@
 #[cfg(target_os = "android")]
-use beui::icons::ICON_ARROW_BACK;
+use beui::icons::ICON_ARROW_LEFT;
 use beui::icons::{
-    ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_FRAME_INSPECT, ICON_MERGE, ICON_REFRESH,
-    ICON_SEARCH,
+    ICON_CIRCLE_X, ICON_FILE, ICON_MERGE, ICON_REFRESH_CW, ICON_SCAN_SEARCH, ICON_SEARCH,
+    ICON_SPLIT,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -72,7 +72,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                         <List spacing=0.0>
                             <Frame padding={Sides::symmetric(8.0, 4.0)}>
                                 <IconButton
-                                    glyph=ICON_ARROW_BACK
+                                    glyph=ICON_ARROW_LEFT
                                     label="Back to the pull requests"
                                     on_click={back}
                                 />
@@ -181,11 +181,11 @@ fn Sidebar(model: Model) -> NodeId {
                             <Text style=TextStyle::CAPTION>{repository}</Text>
                         </List>
                         <IconButton
-                            glyph=ICON_FRAME_INSPECT
+                            glyph=ICON_SCAN_SEARCH
                             label="Open the inspector"
                             on_click={|| with_document(Document::open_inspector)}
                         />
-                        <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
+                        <IconButton glyph=ICON_REFRESH_CW label="Refresh" on_click={refresh} />
                     </List>
                     <MainActions model={model} />
                     <Tabs
@@ -306,10 +306,10 @@ pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
 
 pub(crate) fn state_glyph(state: State) -> &'static str {
     match state {
-        State::Open => ICON_CALL_SPLIT,
-        State::Draft => ICON_DRAFT,
+        State::Open => ICON_SPLIT,
+        State::Draft => ICON_FILE,
         State::Merged => ICON_MERGE,
-        State::Closed => ICON_CANCEL,
+        State::Closed => ICON_CIRCLE_X,
     }
 }
 

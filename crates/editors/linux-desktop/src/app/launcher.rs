@@ -1,7 +1,7 @@
 use beui::KeyAt;
 use std::rc::Rc;
 
-use block_editor_beui::beui::icons::ICON_APPS;
+use block_editor_beui::beui::icons::ICON_LAYOUT_GRID;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, Key, NodeId};
@@ -81,7 +81,7 @@ pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
     Action::new("desktop.launcher.toggle", "Programs", move || {
         launcher.toggle();
     })
-    .glyph(ICON_APPS)
+    .glyph(ICON_LAYOUT_GRID)
     .shortcut(Chord::tap(Key::Logo))
     .at(KeyAt::Window)
     .capture()

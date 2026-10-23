@@ -4,8 +4,7 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::WorkspaceContent;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
-    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_FILE_DOWNLOAD, ICON_OPEN_WITH,
-    ICON_WORKSPACES,
+    ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SPARKLES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -189,7 +188,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Toolbar shown={toolbar}>
                 <IconButton
-                    glyph={ICON_WORKSPACES.to_owned()}
+                    glyph={ICON_BOXES.to_owned()}
                     label="New workspace"
                     @test_id={"file-tree.new-workspace"}
                     on_click={new_workspace}
@@ -197,7 +196,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <IconButton
                     @node_ref={&desktop_menu}
-                    glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                    glyph={ICON_CIRCLE_USER_ROUND.to_owned()}
                     label="Account and settings"
                     @test_id={"file-tree.desktop-app-menu"}
                     on_click={app_menu(desktop_menu)}
@@ -299,14 +298,14 @@ fn PhoneTitle(
                 </Frame>
                 <IconButton
                     @test_id={"file-tree.new-workspace"}
-                    glyph={ICON_WORKSPACES.to_owned()}
+                    glyph={ICON_BOXES.to_owned()}
                     label="New workspace"
                     on_click={on_new_workspace}
                 />
                 <IconButton
                     @node_ref={&menu_button}
                     @test_id={"file-tree.app-menu"}
-                    glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                    glyph={ICON_CIRCLE_USER_ROUND.to_owned()}
                     label="Account and settings"
                     on_click={on_menu}
                 />
@@ -503,7 +502,7 @@ fn TreeRow(
             <Show condition={generated}>
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
+                        <Icon glyph={ICON_SPARKLES.to_owned()} />
                     </Text>
                 </Tooltip>
             </Show>
@@ -648,7 +647,7 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     view! {
         <MenuItem
             label="Open with"
-            glyph={ICON_OPEN_WITH.to_owned()}
+            glyph={ICON_MOVE.to_owned()}
             disabled={none}
             row_test_id={"file-tree.open-with".to_owned()}
         >
@@ -702,7 +701,7 @@ pub(crate) fn ExportAs(
     view! {
         <MenuItem
             label="Export as"
-            glyph={ICON_FILE_DOWNLOAD.to_owned()}
+            glyph={ICON_DOWNLOAD.to_owned()}
             disabled={none}
             row_test_id={row_test_id}
         >
@@ -799,7 +798,7 @@ fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) ->
                 radius={Radius::custom(3.0)}
             >
                 <Text size=TextSize::Xs color={color} align=TextAlign::Center>
-                    <Icon glyph={ICON_ADD.to_owned()} />
+                    <Icon glyph={ICON_PLUS.to_owned()} />
                 </Text>
             </Frame>
         </Tooltip>

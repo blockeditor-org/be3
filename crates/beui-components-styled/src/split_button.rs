@@ -10,7 +10,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuButtonHandle, MenuItem};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::icons::ICON_ARROW_DROP_DOWN;
+use beui_core::icons::ICON_CHEVRON_DOWN;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -131,7 +131,7 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                         <Text color={ink} align=TextAlign::Center>
-                            <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} />
+                            <Icon glyph={ICON_CHEVRON_DOWN.to_owned()} />
                         </Text>
                     </List>
                 </HalfFace>

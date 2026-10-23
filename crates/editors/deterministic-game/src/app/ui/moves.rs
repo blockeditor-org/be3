@@ -1,5 +1,5 @@
 use block_editor_beui::beui::icons::{
-    ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIRST_PAGE, ICON_LAST_PAGE,
+    ICON_CHEVRON_FIRST, ICON_CHEVRON_LAST, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -76,7 +76,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                 <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>"Moves"</Text>
                 <IconButton
-                    glyph={ICON_FIRST_PAGE.to_owned()}
+                    glyph={ICON_CHEVRON_FIRST.to_owned()}
                     label="First move"
                     size=IconButtonSize::Compact
                     disabled={at_start}
@@ -100,7 +100,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     on_click={move || steps.next()}
                 />
                 <IconButton
-                    glyph={ICON_LAST_PAGE.to_owned()}
+                    glyph={ICON_CHEVRON_LAST.to_owned()}
                     label="Latest move"
                     size=IconButtonSize::Compact
                     disabled={at_end}

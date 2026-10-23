@@ -9,7 +9,7 @@ use beui_core::base::{Align, ItemSize};
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId, TextAlign};
 use beui_core::geometry::Vec2;
-use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
+use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_view::components::overlay::Overlay;
@@ -987,8 +987,8 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
             .iter()
             .find(|section| section.line_start == start)
             .map(|section| match section.collapsed || section.revealed {
-                true => ICON_KEYBOARD_ARROW_RIGHT,
-                false => ICON_KEYBOARD_ARROW_DOWN,
+                true => ICON_CHEVRON_RIGHT,
+                false => ICON_CHEVRON_DOWN,
             })
             .unwrap_or("")
             .to_owned()

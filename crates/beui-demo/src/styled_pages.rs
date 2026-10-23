@@ -2,9 +2,9 @@ use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::{
-    ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_CLOSE, ICON_FOLDER, ICON_FORMAT_QUOTE,
-    ICON_FORMAT_SIZE, ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT,
-    ICON_TABLE_CHART, ICON_UNDO, ICON_UPLOAD_FILE, ICON_WARNING,
+    ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_FILE_UP, ICON_FOLDER, ICON_IMAGE,
+    ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE, ICON_TEXT_ALIGN_START,
+    ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_X,
 };
 use beui::unstyled::MenuThen;
 
@@ -283,7 +283,7 @@ pub(crate) fn AttachedCard() -> NodeId {
                     </Text>
                     <IconButton
                         @test_id={format!("demo.card.{id}.close")}
-                        glyph=ICON_CLOSE
+                        glyph=ICON_X
                         label="Close"
                         variant=ButtonVariant::Ghost
                         on_click={close}
@@ -355,7 +355,7 @@ fn EditCounter() -> NodeId {
     let edit = Action::new("demo.edit", "Edit", move || {
         count.update(|count| *count += 1)
     })
-    .glyph(ICON_EDIT)
+    .glyph(ICON_PENCIL)
     .pin(Pin::Icon)
     .detached();
     let pinned = edit.clone();
@@ -482,7 +482,7 @@ fn TextSizes() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ForEach keys={TextSize::ALL.to_vec()}>|size: TextSize|
                 <Text size wrap=true>
-                    <Icon glyph=ICON_TEXT_FIELDS />
+                    <Icon glyph=ICON_TYPE />
                     {format!("{} {}", size.name(), size.px())}
                 </Text>
             </ForEach>
@@ -521,22 +521,22 @@ fn InlineIcons() -> NodeId {
                 "Save"
             </Text>
             <Text style=TextStyle::CAPTION>
-                <Icon glyph=ICON_SCHEDULE />
+                <Icon glyph=ICON_CLOCK />
                 "Edited five minutes ago"
             </Text>
             <Text size=TextSize::Lg color=TextColor::Success>
-                <Icon glyph=ICON_CHECK_CIRCLE />
+                <Icon glyph=ICON_CIRCLE_CHECK />
                 "Every check passed"
             </Text>
             <Text>
                 "Open"
-                <Icon glyph=ICON_OPEN_IN_NEW color=TextColor::Accent />
+                <Icon glyph=ICON_EXTERNAL_LINK color=TextColor::Accent />
             </Text>
             <Text wrap=true>
                 "An icon sits in a sentence like a word: the "
                 <Icon glyph=ICON_FOLDER />
                 "folder and the "
-                <Icon glyph=ICON_ATTACH_FILE color=TextColor::Muted />
+                <Icon glyph=ICON_PAPERCLIP color=TextColor::Muted />
                 "attachment keep their room from the text, and a selection never takes them."
             </Text>
         </List>
@@ -552,7 +552,7 @@ fn InheritedStyle() -> NodeId {
                 <Text>"Small and muted, from the provider around it."</Text>
                 <Text weight=Weight::Bold>"Still small and muted, but bold."</Text>
                 <Text color=TextColor::Danger>
-                    <Icon glyph=ICON_WARNING />
+                    <Icon glyph=ICON_TRIANGLE_ALERT />
                     "Its own colour wins over the provider's."
                 </Text>
             </List>
@@ -601,7 +601,7 @@ fn Links() -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=16.0 wrap=true>
                 <Link
                     label="Open the grid"
-                    glyph=ICON_GRID_VIEW
+                    glyph=ICON_LAYOUT_GRID
                     on_click={move || followed.set("Followed: Open the grid".to_owned())}
                 />
                 <Link
@@ -709,7 +709,7 @@ fn ButtonVariants() -> NodeId {
                 />
                 <Button
                     label="With an icon"
-                    glyph=ICON_PLAY_ARROW
+                    glyph=ICON_PLAY
                     variant=ButtonVariant::Secondary
                     on_click={move || clicked.set("Clicked With an icon".to_owned())}
                 />
@@ -729,31 +729,31 @@ fn IconButtons() -> NodeId {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
                 <IconButton
-                    glyph=ICON_CONTENT_COPY
+                    glyph=ICON_COPY
                     label="Copy"
                     variant=ButtonVariant::Primary
                     on_click={move || clicked.set("Clicked Copy".to_owned())}
                 />
                 <IconButton
-                    glyph=ICON_SHARE
+                    glyph=ICON_SHARE_2
                     label="Share"
                     on_click={move || clicked.set("Clicked Share".to_owned())}
                 />
                 <IconButton
-                    glyph=ICON_DELETE
+                    glyph=ICON_TRASH
                     label="Delete"
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
                     on_click={move || clicked.set("Clicked Delete".to_owned())}
                 />
                 <IconButton
-                    glyph=ICON_UNDO
+                    glyph=ICON_UNDO_2
                     label="Undo"
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Toolbar
                     on_click={move || clicked.set("Clicked Undo".to_owned())}
                 />
-                <IconButton glyph=ICON_EDIT label="Edit" disabled=true />
+                <IconButton glyph=ICON_PENCIL label="Edit" disabled=true />
             </List>
             <Text style=TextStyle::CAPTION>
                 "Hover an icon button to see its label as a tooltip."
@@ -1511,7 +1511,7 @@ fn ActionMenu() -> NodeId {
     let copy = Action::new("demo.menu.copy", "Copy", move || {
         copies.update(|copies| *copies += 1)
     })
-    .glyph(ICON_CONTENT_COPY)
+    .glyph(ICON_COPY)
     .shortcut(Chord::ctrl(Key::C))
     .register();
     let wrap = Action::new("demo.menu.wrap", "Wrap lines", move || {
@@ -1539,7 +1539,7 @@ fn ActionMenu() -> NodeId {
         MenuNode::submenu(
             "demo.menu.size",
             "Text size",
-            ICON_FORMAT_SIZE,
+            ICON_A_LARGE_SMALL,
             [
                 sized("demo.menu.small", "Small", 12),
                 sized("demo.menu.medium", "Medium", 14),
@@ -1589,24 +1589,20 @@ fn CardMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <unstyled::MenuItem
-                        label="Copy"
-                        glyph={ICON_CONTENT_COPY.to_owned()}
-                        detail="Ctrl+C"
-                    />
+                    <unstyled::MenuItem label="Copy" glyph={ICON_COPY.to_owned()} detail="Ctrl+C" />
                     <unstyled::MenuItem
                         label="Paste"
-                        glyph={ICON_CONTENT_PASTE.to_owned()}
+                        glyph={ICON_CLIPBOARD.to_owned()}
                         detail="Ctrl+V"
                         disabled={nothing_copied}
                     />
-                    <unstyled::MenuItem label="Share" glyph={ICON_SHARE.to_owned()}>
+                    <unstyled::MenuItem label="Share" glyph={ICON_SHARE_2.to_owned()}>
                         <unstyled::MenuItem label="Email" glyph={ICON_MAIL.to_owned()} />
                         <unstyled::MenuItem label="Link" glyph={ICON_LINK.to_owned()} />
                     </unstyled::MenuItem>
                     <unstyled::MenuItem
                         label="Delete"
-                        glyph={ICON_DELETE.to_owned()}
+                        glyph={ICON_TRASH.to_owned()}
                         danger=true
                         separated=true
                     />
@@ -1695,7 +1691,7 @@ fn TrayIcons() -> NodeId {
                     label="Sync"
                     open={sync_open}
                     image={None}
-                    glyph=ICON_WIDGETS
+                    glyph=ICON_BLOCKS
                     items={view! {
                         <unstyled::MenuItem label="Pause syncing" />
                     }}
@@ -1789,12 +1785,12 @@ const MORE_BLOCKS: [&str; 24] = [
     "Whiteboard",
 ];
 const SLIDE_LAYOUTS: [(&str, &str); 6] = [
-    ("Title", ICON_TITLE),
-    ("Title and body", ICON_SUBJECT),
-    ("Two columns", ICON_VIEW_COLUMN),
+    ("Title", ICON_HEADING),
+    ("Title and body", ICON_TEXT_ALIGN_START),
+    ("Two columns", ICON_COLUMNS_3),
     ("Picture", ICON_IMAGE),
-    ("Quote", ICON_FORMAT_QUOTE),
-    ("Blank", ICON_CROP_SQUARE),
+    ("Quote", ICON_QUOTE),
+    ("Blank", ICON_SQUARE),
 ];
 
 #[sample]
@@ -1863,7 +1859,7 @@ fn NewBlockMenu() -> NodeId {
                 <MenuButton
                     @test_id="demo.new"
                     label="Add block"
-                    glyph=ICON_ADD
+                    glyph=ICON_PLUS
                     items={view! {
                         <unstyled::MenuItem
                             lead="New in"
@@ -1878,16 +1874,16 @@ fn NewBlockMenu() -> NodeId {
                         </unstyled::MenuItem>
                         <unstyled::MenuItem
                             label="Text"
-                            glyph=ICON_NOTES
+                            glyph=ICON_TEXT_ALIGN_START
                             glyph_color={text_icon_color}
                             separated=true
                         />
-                        <unstyled::MenuItem label="Canvas" glyph=ICON_DRAW />
+                        <unstyled::MenuItem label="Canvas" glyph=ICON_PEN_TOOL />
                         <unstyled::MenuItem label="Folder" glyph=ICON_FOLDER />
-                        <unstyled::MenuItem label="Database" glyph=ICON_TABLE_CHART />
+                        <unstyled::MenuItem label="Database" glyph=ICON_TABLE />
                         <unstyled::MenuItem
                             label="More blocks…"
-                            glyph=ICON_WIDGETS
+                            glyph=ICON_BLOCKS
                             separated=true
                             page=true
                             row_test_id="demo.new.more"
@@ -1897,7 +1893,7 @@ fn NewBlockMenu() -> NodeId {
                             </ForEach>
                         </unstyled::MenuItem>
                         <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
-                        <unstyled::MenuItem label="Import a .block file…" glyph=ICON_UPLOAD_FILE />
+                        <unstyled::MenuItem label="Import a .block file…" glyph=ICON_FILE_UP />
                     }}
                     on_select={move |path: Vec<usize>| {
                         let kind = match path.as_slice() {
@@ -1975,7 +1971,7 @@ fn NewSlideMenu() -> NodeId {
                 <MenuButton
                     @test_id="demo.slide"
                     label="New slide"
-                    glyph=ICON_ADD
+                    glyph=ICON_PLUS
                     items={view! {
                         <unstyled::MenuCaption label="New slide" />
                         <unstyled::MenuGrid columns=2>
@@ -2021,7 +2017,7 @@ fn RunButtons() -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
                 <SplitButton
                     label="Run the app"
-                    glyph=ICON_PLAY_ARROW
+                    glyph=ICON_PLAY
                     variant=ButtonVariant::Primary
                     menu_label="More ways to run it"
                     items={view! {
@@ -2314,7 +2310,7 @@ fn ScreenLock() -> NodeId {
                 error={error}
                 actions={vec![LockAction {
                     label: "Power off".to_owned(),
-                    glyph: ICON_POWER_SETTINGS_NEW.to_owned(),
+                    glyph: ICON_POWER.to_owned(),
                 }]}
                 id="demo.lock"
                 on_submit={move |typed: String| match typed == "beui" {
@@ -2451,7 +2447,7 @@ fn LongSheet() -> NodeId {
                     <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
-                            glyph=ICON_EDIT
+                            glyph=ICON_PENCIL
                             on_click={move || {
                                 picked.set(format!("Picked row {row}"));
                                 sheet.set(false);
@@ -2474,12 +2470,12 @@ fn ActionsSheet() -> NodeId {
                 <MenuButton
                     label="Show actions"
                     items={view! {
-                        <unstyled::MenuItem label="Duplicate" glyph=ICON_CONTENT_COPY />
-                        <unstyled::MenuItem label="Rename" glyph=ICON_EDIT detail="Ctrl+R" />
-                        <unstyled::MenuItem label="Share" glyph=ICON_SHARE disabled=true />
+                        <unstyled::MenuItem label="Duplicate" glyph=ICON_COPY />
+                        <unstyled::MenuItem label="Rename" glyph=ICON_PENCIL detail="Ctrl+R" />
+                        <unstyled::MenuItem label="Share" glyph=ICON_SHARE_2 disabled=true />
                         <unstyled::MenuItem
                             label="Delete"
-                            glyph=ICON_DELETE
+                            glyph=ICON_TRASH
                             danger=true
                             separated=true
                         />
@@ -2608,9 +2604,9 @@ fn VolumeDisplay() -> NodeId {
     let level = create_memo(move || {
         let (volume, muted) = (volume.get(), muted.get());
         let glyph = match volume {
-            _ if muted || volume == 0.0 => ICON_VOLUME_OFF,
-            volume if volume < 0.5 => ICON_VOLUME_DOWN,
-            _ => ICON_VOLUME_UP,
+            _ if muted || volume == 0.0 => ICON_VOLUME_X,
+            volume if volume < 0.5 => ICON_VOLUME_1,
+            _ => ICON_VOLUME_2,
         };
         Some(OsdLevel {
             glyph: glyph.to_owned(),
@@ -2625,7 +2621,7 @@ fn VolumeDisplay() -> NodeId {
     };
     view! {
         <List spacing=0.0>
-            <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Start wrap=true spacing=8.0>
                 <Button
                     @test_id={"demo.osd.down"}
                     label="Volume down"
@@ -2968,12 +2964,12 @@ fn ProjectTree() -> NodeId {
                     items: view! {
                         <unstyled::MenuItem
                             label="Rename"
-                            glyph={ICON_EDIT.to_owned()}
+                            glyph={ICON_PENCIL.to_owned()}
                             row_test_id={"demo.tree.rename".to_owned()}
                         />
                         <unstyled::MenuItem
                             label="Delete"
-                            glyph={ICON_DELETE.to_owned()}
+                            glyph={ICON_TRASH.to_owned()}
                             danger=true
                         />
                     },
@@ -3286,7 +3282,7 @@ fn SettingsSections() -> NodeId {
                     menu={view! {
                         <unstyled::MenuItem
                             label="Reset to default"
-                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
                             on_click={move || volume.set(DEFAULT_VOLUME)}
                         />
                     }}
@@ -3306,7 +3302,7 @@ fn SettingsSections() -> NodeId {
                     menu={view! {
                         <unstyled::MenuItem
                             label="Reset to default"
-                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
                             on_click={move || size.set(Some(1))}
                         />
                     }}
@@ -3332,13 +3328,13 @@ fn SettingsSections() -> NodeId {
                     menu={view! {
                         <unstyled::MenuItem
                             label="Keep on this device"
-                            glyph={beui::icons::ICON_KEEP.to_owned()}
+                            glyph={beui::icons::ICON_PIN.to_owned()}
                             checked={pinned}
                             on_click={move || haptics_pinned.update(|on| *on = !*on)}
                         />
                         <unstyled::MenuItem
                             label="Reset to default"
-                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
                             on_click={move || haptics.set(false)}
                         />
                     }}

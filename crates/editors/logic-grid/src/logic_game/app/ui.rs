@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use block_editor_beui::Editor;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
+use block_editor_beui::beui::icons::{ICON_BLOCKS, ICON_CIRCLE_CHECK, ICON_PLUS, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -69,7 +69,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                     <Text style=TextStyle::HEADING>"Levels"</Text>
                     <Show condition={has_hotbar}>
                         <IconButton
-                            glyph={ICON_WIDGETS.to_owned()}
+                            glyph={ICON_BLOCKS.to_owned()}
                             label="Hotbar"
                             @test_id={"logic-game.hotbar"}
                             on_click={open_hotbar}
@@ -136,7 +136,7 @@ fn LevelRow(
                     <Text>{challenge.name()}</Text>
                     <Show condition={completed}>
                         <Text color=TextColor::Success align=TextAlign::Center>
-                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                            <Icon glyph={ICON_CIRCLE_CHECK.to_owned()} />
                         </Text>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -205,7 +205,7 @@ fn Solutions(
             }</ForEach>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button
-                    glyph={ICON_ADD.to_owned()}
+                    glyph={ICON_PLUS.to_owned()}
                     label="New attempt"
                     variant=ButtonVariant::Secondary
                     disabled={read_only}
@@ -244,12 +244,12 @@ fn SolutionRow(
             <Link label={name} disabled={missing} on_click={open} />
             <Show condition={passed}>
                 <Text color=TextColor::Success align=TextAlign::Center>
-                    <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                    <Icon glyph={ICON_CIRCLE_CHECK.to_owned()} />
                 </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
-                glyph={ICON_DELETE.to_owned()}
+                glyph={ICON_TRASH.to_owned()}
                 label="Remove from this level"
                 on_click={remove}
             />

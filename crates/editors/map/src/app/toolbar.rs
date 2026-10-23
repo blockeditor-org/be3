@@ -1,5 +1,5 @@
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_PLUS, ICON_REFRESH_CW, ICON_SCAN, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -23,7 +23,7 @@ pub(crate) fn MapToolbar(
         <Toolbar shown={shown}>
             <IconButton
                 @node_ref={&add}
-                glyph={ICON_ADD.to_owned()}
+                glyph={ICON_PLUS.to_owned()}
                 label="Add a point of interest at the centre of the view"
                 @test_id={"map.add-point"}
                 on_click={move || state.open_picker(None, node_anchor(&add))}
@@ -47,14 +47,14 @@ pub(crate) fn MapToolbar(
                 on_click={move || fitting.fit()}
             />
             <IconButton
-                glyph={ICON_CROP_FREE.to_owned()}
+                glyph={ICON_SCAN.to_owned()}
                 label="Zoom to the preview region"
                 disabled={regionless}
                 @test_id={"map.zoom-region"}
                 on_click={move || state.request_fit()}
             />
             <IconButton
-                glyph={ICON_REFRESH.to_owned()}
+                glyph={ICON_REFRESH_CW.to_owned()}
                 label="Reload tiles"
                 @test_id={"map.reload"}
                 on_click={move || state.reload_tiles()}

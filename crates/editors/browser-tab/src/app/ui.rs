@@ -1,5 +1,5 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
+use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
@@ -47,21 +47,21 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
                 <IconButton
-                    glyph={ICON_ARROW_BACK.to_owned()}
+                    glyph={ICON_ARROW_LEFT.to_owned()}
                     label="Back"
                     disabled={no_back}
                     @test_id={"browser.back"}
                     on_click={go_back}
                 />
                 <IconButton
-                    glyph={ICON_ARROW_FORWARD.to_owned()}
+                    glyph={ICON_ARROW_RIGHT.to_owned()}
                     label="Forward"
                     disabled={no_forward}
                     @test_id={"browser.forward"}
                     on_click={go_forward}
                 />
                 <IconButton
-                    glyph={ICON_REFRESH.to_owned()}
+                    glyph={ICON_REFRESH_CW.to_owned()}
                     label="Reload"
                     @test_id={"browser.reload"}
                     on_click={reload}

@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::DisplaySettings;
-use block_editor_beui::beui::icons::ICON_DO_NOT_TOUCH;
+use block_editor_beui::beui::icons::ICON_POINTER_OFF;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{CanvasTouch, NodeId};
@@ -29,7 +29,7 @@ impl TouchChoice {
                 write.call(flipped);
             }
         })
-        .glyph(ICON_DO_NOT_TOUCH)
+        .glyph(ICON_POINTER_OFF)
         .checked(create_memo(move || chosen.get() == CanvasTouch::Off))
         .enabled(create_memo(move || write.with(Option::is_some)))
         .register()

@@ -1,6 +1,6 @@
 use be_protocol::OrganizationRole;
 use beui::NodeId;
-use beui::icons::{ICON_DELETE, ICON_PERSON_REMOVE};
+use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
@@ -163,7 +163,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                                 on_click={move || send(UiCommand::SetMemberRole(account, next_role()))}
                             />
                             <IconButton
-                                glyph={ICON_PERSON_REMOVE.to_owned()}
+                                glyph={ICON_USER_MINUS.to_owned()}
                                 label="Remove member"
                                 disabled={unremovable}
                                 @test_id={format!("app.members.remove.{account}")}
@@ -274,7 +274,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                                 <Text style=TextStyle::CAPTION>{detail}</Text>
                             </List>
                             <IconButton
-                                glyph={ICON_DELETE.to_owned()}
+                                glyph={ICON_TRASH.to_owned()}
                                 label="Remove contact"
                                 @test_id={format!("app.contacts.remove.{account}")}
                                 on_click={move || send(UiCommand::RemoveContact(account))}
@@ -431,7 +431,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                                 >
                                     <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
                                     <IconButton
-                                        glyph={ICON_DELETE.to_owned()}
+                                        glyph={ICON_TRASH.to_owned()}
                                         label="Remove agent"
                                         @test_id={format!("app.agents.remove.{account}")}
                                         on_click={move || send(UiCommand::RemoveAgent(account))}

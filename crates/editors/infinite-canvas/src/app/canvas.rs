@@ -124,7 +124,7 @@ const REVEAL_STEP: f32 = 0.35;
 
 fn reveal_by(editor: block_editor_beui::Editor) -> Callback<Vec2> {
     Callback::new(move |delta: Vec2| {
-        let step = match motion().animates() && delta.length() > 1.0 {
+        let step = match motion().animates() && (delta * REVEAL_STEP).length() >= 1.0 {
             true => delta * REVEAL_STEP,
             false => delta,
         };

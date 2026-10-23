@@ -1,4 +1,4 @@
-use beui::icons::{ICON_ADD_CIRCLE, ICON_BROKEN_IMAGE, ICON_DIFFERENCE, ICON_REMOVE_CIRCLE};
+use beui::icons::{ICON_CIRCLE_MINUS, ICON_CIRCLE_PLUS, ICON_DIFF, ICON_IMAGE_OFF};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{NodeId, TextAlign};
@@ -22,10 +22,10 @@ pub(crate) fn label(status: Status) -> &'static str {
 
 pub(crate) fn glyph(status: Status) -> &'static str {
     match status {
-        Status::Changed => ICON_DIFFERENCE,
-        Status::Added => ICON_ADD_CIRCLE,
-        Status::Removed => ICON_REMOVE_CIRCLE,
-        Status::Unreadable => ICON_BROKEN_IMAGE,
+        Status::Changed => ICON_DIFF,
+        Status::Added => ICON_CIRCLE_PLUS,
+        Status::Removed => ICON_CIRCLE_MINUS,
+        Status::Unreadable => ICON_IMAGE_OFF,
     }
 }
 

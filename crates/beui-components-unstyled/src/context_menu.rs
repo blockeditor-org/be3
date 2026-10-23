@@ -9,7 +9,7 @@ use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::{Pos2, Rect, pos2};
-use beui_core::icons::ICON_MORE_HORIZ;
+use beui_core::icons::ICON_ELLIPSIS;
 use beui_core::input::PointerPress;
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
@@ -221,7 +221,7 @@ fn Toolbar(
                     <unstyled::Button
                         @node_ref=&more
                         label="More"
-                        glyph=ICON_MORE_HORIZ
+                        glyph=ICON_ELLIPSIS
                         tab_stop=false
                         press_focus=false
                         on_click_at={move |press: PointerPress| on_more.call(press.pos)}

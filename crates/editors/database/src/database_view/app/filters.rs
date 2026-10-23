@@ -7,7 +7,7 @@ use block_editor_beui::be_block::database_schema::{
 };
 use block_editor_beui::be_block::database_view::{DatabaseView, FilterCondition, ViewFilter};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_CLOSE, ICON_FILTER_LIST};
+use block_editor_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PopoverPanel;
 use block_editor_beui::beui::styled::*;
@@ -238,7 +238,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                     </PopoverPanel>
                 </unstyled::Popover>
                 <IconButton
-                    glyph={ICON_CLOSE.to_owned()}
+                    glyph={ICON_X.to_owned()}
                     label="Remove filter"
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -275,7 +275,7 @@ fn AddFilter(data: Data) -> NodeId {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
-                            <Icon glyph={ICON_FILTER_LIST.to_owned()} />
+                            <Icon glyph={ICON_LIST_FILTER.to_owned()} />
                         </Text>
                         <Text style=TextStyle::CAPTION>"Filter"</Text>
                     </List>
@@ -691,7 +691,7 @@ pub fn FilterList(data: Data) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                         <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
                         <IconButton
-                            glyph={ICON_CLOSE.to_owned()}
+                            glyph={ICON_X.to_owned()}
                             label="Remove filter"
                             variant=ButtonVariant::Ghost
                             disabled={read_only}
@@ -703,7 +703,7 @@ pub fn FilterList(data: Data) -> NodeId {
             }</ForEach>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={ICON_ADD.to_owned()} />
+                    <Icon glyph={ICON_PLUS.to_owned()} />
                 </Text>
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <Select

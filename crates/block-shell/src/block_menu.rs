@@ -1,4 +1,4 @@
-use block_editor_beui::beui::icons::{ICON_CALL_MADE, ICON_CALL_RECEIVED, ICON_VISIBILITY};
+use block_editor_beui::beui::icons::{ICON_ARROW_DOWN_LEFT, ICON_ARROW_UP_RIGHT, ICON_EYE};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockParent, label_glyph};
 
@@ -18,14 +18,14 @@ pub(crate) fn with_block_menu(
         workspace,
         "workspace.references",
         "References",
-        ICON_CALL_MADE,
+        ICON_ARROW_UP_RIGHT,
         &info.references,
     ));
     added.extend(related(
         workspace,
         "workspace.backrefs",
         "Referenced by",
-        ICON_CALL_RECEIVED,
+        ICON_ARROW_DOWN_LEFT,
         &info.backrefs,
     ));
     added.push(access(workspace, info));
@@ -96,7 +96,7 @@ fn access(workspace: Workspace, info: &Info) -> MenuNode {
     MenuNode::submenu(
         "workspace.access",
         format!("Access: {}", wording(info.access)),
-        ICON_VISIBILITY,
+        ICON_EYE,
         items,
     )
 }

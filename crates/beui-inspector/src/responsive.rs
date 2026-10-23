@@ -2,7 +2,7 @@ use beui_components_styled::*;
 use beui_components_unstyled::ChoiceOption;
 use beui_core::document::Document;
 use beui_core::geometry::{Vec2, vec2};
-use beui_core::icons::{ICON_CLOSE, ICON_SCREEN_ROTATION};
+use beui_core::icons::{ICON_ROTATE_CW_SQUARE, ICON_X};
 use beui_core::node::NodeId;
 use beui_core::screen_simulation::{MAXIMUM_SIZE, MINIMUM_SIZE, ScreenSimulation};
 use beui_view::reactive::*;
@@ -161,7 +161,7 @@ fn ResponsiveToolbar(
                     </Frame>
                     <IconButton
                         @test_id={"inspector.responsive.rotate"}
-                        glyph={ICON_SCREEN_ROTATION.to_owned()}
+                        glyph={ICON_ROTATE_CW_SQUARE.to_owned()}
                         label="Rotate"
                         variant=ButtonVariant::Ghost
                         on_click={move || state.value().update_screen(ScreenSimulation::rotated)}
@@ -189,7 +189,7 @@ fn ResponsiveToolbar(
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <IconButton
                         @test_id={"inspector.responsive.close"}
-                        glyph={ICON_CLOSE.to_owned()}
+                        glyph={ICON_X.to_owned()}
                         label="Close responsive design mode"
                         variant=ButtonVariant::Ghost
                         on_click={move || state.value().simulate_screen(None)}

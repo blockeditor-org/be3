@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use block_editor_beui::be_block::{BlockContent, EditorViewContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_HISTORY, ICON_SETTINGS};
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
@@ -83,7 +83,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
                                 <SettingsPanel workspace />
                             </DockTab>
-                            <DockTab id=REVISIONS title="History" icon=ICON_HISTORY>
+                            <DockTab id=REVISIONS title="History" icon=ICON_ROTATE_CCW_CLOCK>
                                 <RevisionHistoryPanel workspace />
                             </DockTab>
                         </DockPane>

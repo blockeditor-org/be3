@@ -8,7 +8,7 @@ use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
-use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
+use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -78,9 +78,9 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
 
 fn glyph(open: bool) -> &'static str {
     if open {
-        ICON_EXPAND_LESS
+        ICON_CHEVRON_UP
     } else {
-        ICON_EXPAND_MORE
+        ICON_CHEVRON_DOWN
     }
 }
 

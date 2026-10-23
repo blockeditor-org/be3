@@ -4,7 +4,7 @@ use std::rc::Rc;
 use be_block::be_model::Document;
 use be_block::{BlockContent, Layered, Layers, LiveEdit, Setting, SettingsLayer};
 use beui::NodeId;
-use beui::icons::{ICON_KEEP, ICON_KEEP_OFF, ICON_SETTINGS_BACKUP_RESTORE};
+use beui::icons::{ICON_PIN, ICON_PIN_OFF, ICON_ROTATE_CCW};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::MenuItem;
@@ -524,7 +524,7 @@ pub fn LayeredSettingsRow(
                 view! {
                     <MenuItem
                         label="Keep on this device"
-                        glyph={ICON_KEEP.to_owned()}
+                        glyph={ICON_PIN.to_owned()}
                         checked={checked}
                         disabled={unkeepable}
                         row_test_id={format!("{id}.keep")}
@@ -535,7 +535,7 @@ pub fn LayeredSettingsRow(
             let resetting = view! {
                 <MenuItem
                     label="Reset to default"
-                    glyph={ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                    glyph={ICON_ROTATE_CCW.to_owned()}
                     disabled={unresettable}
                     row_test_id={format!("{id}.reset")}
                     on_click={move || reset.call(())}
@@ -546,7 +546,7 @@ pub fn LayeredSettingsRow(
         false => [view! {
             <MenuItem
                 label="Stop keeping in this profile"
-                glyph={ICON_KEEP_OFF.to_owned()}
+                glyph={ICON_PIN_OFF.to_owned()}
                 disabled={unresettable}
                 row_test_id={format!("{id}.reset")}
                 on_click={move || reset.call(())}

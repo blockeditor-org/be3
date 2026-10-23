@@ -1,6 +1,5 @@
 use block_editor_beui::beui::icons::{
-    ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK, ICON_RADIO_BUTTON_CHECKED,
-    ICON_RADIO_BUTTON_UNCHECKED, ICON_WIDGETS,
+    ICON_BLOCKS, ICON_CIRCLE, ICON_CIRCLE_DOT, ICON_SQUARE, ICON_SQUARE_CHECK,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -23,10 +22,10 @@ fn picture(icon: &HostImage) -> Option<Image> {
 fn toggle_glyph(toggle: TrayToggle) -> &'static str {
     match toggle {
         TrayToggle::None => "",
-        TrayToggle::Check(true) => ICON_CHECK_BOX,
-        TrayToggle::Check(false) => ICON_CHECK_BOX_OUTLINE_BLANK,
-        TrayToggle::Radio(true) => ICON_RADIO_BUTTON_CHECKED,
-        TrayToggle::Radio(false) => ICON_RADIO_BUTTON_UNCHECKED,
+        TrayToggle::Check(true) => ICON_SQUARE_CHECK,
+        TrayToggle::Check(false) => ICON_SQUARE,
+        TrayToggle::Radio(true) => ICON_CIRCLE_DOT,
+        TrayToggle::Radio(false) => ICON_CIRCLE,
     }
 }
 
@@ -126,7 +125,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
         <PictureMenuButton
             label
             image
-            glyph=ICON_WIDGETS
+            glyph=ICON_BLOCKS
             click_opens
             secondary_opens={has_menu}
             @test_id={prefix.clone()}

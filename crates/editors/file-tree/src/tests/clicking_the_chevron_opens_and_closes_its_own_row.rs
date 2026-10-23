@@ -1,4 +1,4 @@
-use block_editor_beui::beui::icons::{ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
+use block_editor_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
 
 use super::*;
 
@@ -8,10 +8,7 @@ fn clicking_the_chevron_opens_and_closes_its_own_row() {
     let row = fixture.test.rect_of("file-tree.orphans.row");
     assert_eq!(
         chevron(&fixture),
-        (
-            ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
-            Some("Expand".to_owned())
-        ),
+        (ICON_CHEVRON_RIGHT.to_owned(), Some("Expand".to_owned())),
         "a closed row shows a chevron that says what it does"
     );
 
@@ -20,10 +17,7 @@ fn clicking_the_chevron_opens_and_closes_its_own_row() {
 
     assert_eq!(
         chevron(&fixture),
-        (
-            ICON_KEYBOARD_ARROW_DOWN.to_owned(),
-            Some("Collapse".to_owned())
-        ),
+        (ICON_CHEVRON_DOWN.to_owned(), Some("Collapse".to_owned())),
         "the chevron must expand the row it belongs to"
     );
     assert!(
@@ -41,10 +35,7 @@ fn clicking_the_chevron_opens_and_closes_its_own_row() {
 
     assert_eq!(
         chevron(&fixture),
-        (
-            ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
-            Some("Expand".to_owned())
-        ),
+        (ICON_CHEVRON_RIGHT.to_owned(), Some("Expand".to_owned())),
         "the chevron must collapse the row again"
     );
 }

@@ -3,8 +3,8 @@ use block_editor_beui::be_block::VideoContent;
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::video::{VideoFrameRate, VideoOperation};
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_CONTENT_CUT, ICON_DELETE, ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW,
-    ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SUBDIRECTORY_ARROW_RIGHT, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_CORNER_DOWN_RIGHT, ICON_PAUSE, ICON_PLAY, ICON_PLUS, ICON_SCAN, ICON_SCISSORS,
+    ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_TRASH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -154,7 +154,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
     let empty = create_memo(move || state.duration.get() == 0);
     let glyph = create_memo(move || match playing.get() {
         true => ICON_PAUSE.to_owned(),
-        false => ICON_PLAY_ARROW.to_owned(),
+        false => ICON_PLAY.to_owned(),
     });
     let playhead = state.playhead;
     let duration = state.duration;
@@ -170,7 +170,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
         <Frame padding={Sides::symmetric(10.0, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_SKIP_PREVIOUS.to_owned()}
+                    glyph={ICON_SKIP_BACK.to_owned()}
                     label="Go to the start"
                     on_click={move || state.seek(0)}
                 />
@@ -182,7 +182,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
                     on_click={move || state.toggle_playback()}
                 />
                 <IconButton
-                    glyph={ICON_SKIP_NEXT.to_owned()}
+                    glyph={ICON_SKIP_FORWARD.to_owned()}
                     label="Go to the end"
                     on_click={move || state.seek(state.duration.get_untracked())}
                 />
@@ -199,13 +199,13 @@ fn TimelineTools(state: VideoState) -> NodeId {
         <Frame padding={Sides::symmetric(10.0, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_ADD.to_owned()}
+                    glyph={ICON_PLUS.to_owned()}
                     label="Add a clip to the end of the base track"
                     @test_id={"video.add-clip"}
                     on_click={move || state.open_picker(None)}
                 />
                 <IconButton
-                    glyph={ICON_SUBDIRECTORY_ARROW_RIGHT.to_owned()}
+                    glyph={ICON_CORNER_DOWN_RIGHT.to_owned()}
                     label="Attach a clip to the selected clip at the playhead"
                     disabled={none}
                     on_click={move || {
@@ -214,14 +214,14 @@ fn TimelineTools(state: VideoState) -> NodeId {
                     }}
                 />
                 <IconButton
-                    glyph={ICON_CONTENT_CUT.to_owned()}
+                    glyph={ICON_SCISSORS.to_owned()}
                     label="Split the selected clip in two at the playhead"
                     disabled={none}
                     @test_id={"video.split"}
                     on_click={move || state.split_selected()}
                 />
                 <IconButton
-                    glyph={ICON_DELETE.to_owned()}
+                    glyph={ICON_TRASH.to_owned()}
                     label="Delete the selected clip and everything attached to it"
                     disabled={none}
                     @test_id={"video.delete"}
@@ -239,7 +239,7 @@ fn TimelineTools(state: VideoState) -> NodeId {
                     on_click={move || state.zoom_timeline(ZOOM_STEP)}
                 />
                 <IconButton
-                    glyph={ICON_FIT_SCREEN.to_owned()}
+                    glyph={ICON_SCAN.to_owned()}
                     label="Fit the whole video in the timeline"
                     on_click={move || state.request_fit()}
                 />

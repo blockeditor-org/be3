@@ -15,9 +15,9 @@ use block_editor_beui::database::{
 
 use crate::database_view::app::controls::ControlFace;
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_DROP_DOWN_CIRCLE, ICON_ARROW_UPWARD,
-    ICON_CALENDAR_TODAY, ICON_CHECK_BOX, ICON_DELETE, ICON_LINK, ICON_NUMBERS, ICON_PALETTE,
-    ICON_SHORT_TEXT, ICON_WIDGETS,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_BLOCKS, ICON_CALENDAR, ICON_CIRCLE_CHEVRON_DOWN,
+    ICON_HASH, ICON_LINK, ICON_PALETTE, ICON_PLUS, ICON_SQUARE_CHECK, ICON_TEXT_ALIGN_START,
+    ICON_TRASH,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -56,21 +56,13 @@ const INTRINSIC_WIDTH: f32 = 600.0;
 const ROW_HEIGHT: f32 = 40.0;
 
 const FIELD_TYPES: [(DatabaseFieldType, &str, &str); 8] = [
-    (DatabaseFieldType::String, "Text", ICON_SHORT_TEXT),
-    (DatabaseFieldType::Number, "Number", ICON_NUMBERS),
-    (
-        DatabaseFieldType::Enum,
-        "Choice",
-        ICON_ARROW_DROP_DOWN_CIRCLE,
-    ),
-    (DatabaseFieldType::Block, "Block", ICON_WIDGETS),
-    (DatabaseFieldType::Boolean, "Checkbox", ICON_CHECK_BOX),
+    (DatabaseFieldType::String, "Text", ICON_TEXT_ALIGN_START),
+    (DatabaseFieldType::Number, "Number", ICON_HASH),
+    (DatabaseFieldType::Enum, "Choice", ICON_CIRCLE_CHEVRON_DOWN),
+    (DatabaseFieldType::Block, "Block", ICON_BLOCKS),
+    (DatabaseFieldType::Boolean, "Checkbox", ICON_SQUARE_CHECK),
     (DatabaseFieldType::Color, "Color", ICON_PALETTE),
-    (
-        DatabaseFieldType::Datetime,
-        "Date and time",
-        ICON_CALENDAR_TODAY,
-    ),
+    (DatabaseFieldType::Datetime, "Date and time", ICON_CALENDAR),
     (DatabaseFieldType::Relation, "Link to rows", ICON_LINK),
 ];
 
@@ -243,7 +235,7 @@ fn FieldRow(
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <IconButton
-                    glyph={ICON_ARROW_UPWARD.to_owned()}
+                    glyph={ICON_ARROW_UP.to_owned()}
                     label="Move up"
                     variant=ButtonVariant::Ghost
                     disabled={read_only}
@@ -251,7 +243,7 @@ fn FieldRow(
                     on_click={move || mover(-1)}
                 />
                 <IconButton
-                    glyph={ICON_ARROW_DOWNWARD.to_owned()}
+                    glyph={ICON_ARROW_DOWN.to_owned()}
                     label="Move down"
                     variant=ButtonVariant::Ghost
                     disabled={read_only}
@@ -259,7 +251,7 @@ fn FieldRow(
                     on_click={move || mover(1)}
                 />
                 <IconButton
-                    glyph={ICON_DELETE.to_owned()}
+                    glyph={ICON_TRASH.to_owned()}
                     label="Delete field"
                     disabled={read_only}
                     @test_id={format!("database-schema.delete.{id}")}
@@ -505,7 +497,7 @@ fn EnumOptions(
                 </ForEach>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <IconButton
-                        glyph={ICON_ADD.to_owned()}
+                        glyph={ICON_PLUS.to_owned()}
                         label="Add option"
                         disabled={read_only}
                         @test_id={format!("database-schema.enum.{id}.add")}
@@ -672,7 +664,7 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
             />
             <IconButton
-                glyph={ICON_ARROW_UPWARD.to_owned()}
+                glyph={ICON_ARROW_UP.to_owned()}
                 label="Move up"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}
@@ -680,7 +672,7 @@ fn EnumOptionRow(
                 on_click={move || mover(-1)}
             />
             <IconButton
-                glyph={ICON_ARROW_DOWNWARD.to_owned()}
+                glyph={ICON_ARROW_DOWN.to_owned()}
                 label="Move down"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}
@@ -688,7 +680,7 @@ fn EnumOptionRow(
                 on_click={move || mover(1)}
             />
             <IconButton
-                glyph={ICON_DELETE.to_owned()}
+                glyph={ICON_TRASH.to_owned()}
                 label="Delete option"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}

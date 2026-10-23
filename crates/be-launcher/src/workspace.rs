@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::icons::{
-    ICON_BUILD, ICON_DOWNLOAD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
-    ICON_TERMINAL,
+    ICON_DOWNLOAD, ICON_FLASK_CONICAL, ICON_PLAY, ICON_REFRESH_CW, ICON_SEARCH, ICON_SQUARE,
+    ICON_TERMINAL, ICON_WRENCH,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -49,7 +49,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                     <Show condition={running}>
                         <Button
                             label="Stop"
-                            glyph=ICON_STOP
+                            glyph=ICON_SQUARE
                             variant=ButtonVariant::Secondary
                             on_click={stop}
                         />
@@ -57,7 +57,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                     <Show condition={idle}>
                         <Button
                             label="Run"
-                            glyph=ICON_PLAY_ARROW
+                            glyph=ICON_PLAY
                             variant=ButtonVariant::Primary
                             on_click={run}
                         />
@@ -66,7 +66,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
             </Frame>
             <Docking @sizing=ItemSize::Percent(100.0) layout={model.layout}>
                 <DockPane id="workspace" active={Some(Tab::Log)}>
-                    <DockTab id=Tab::Targets title="Targets" icon=ICON_BUILD>
+                    <DockTab id=Tab::Targets title="Targets" icon=ICON_WRENCH>
                         <TargetList model />
                     </DockTab>
                     <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
@@ -158,7 +158,7 @@ fn TargetList(model: Model) -> NodeId {
                             label="Filter targets"
                         />
                         <IconButton
-                            glyph=ICON_REFRESH
+                            glyph=ICON_REFRESH_CW
                             label="List the targets again"
                             on_click={refresh}
                         />
@@ -208,9 +208,9 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
     });
     let glyph = create_memo(move || {
         match action.get() {
-            Action::Run => ICON_PLAY_ARROW,
-            Action::Test => ICON_SCIENCE,
-            Action::Build => ICON_BUILD,
+            Action::Run => ICON_PLAY,
+            Action::Test => ICON_FLASK_CONICAL,
+            Action::Build => ICON_WRENCH,
         }
         .to_owned()
     });
@@ -234,7 +234,7 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
                 <Show condition={buildable}>
                     <Button
                         label="Build"
-                        glyph=ICON_BUILD
+                        glyph=ICON_WRENCH
                         variant=ButtonVariant::Ghost
                         disabled={busy}
                         on_click={build}
@@ -285,7 +285,7 @@ pub(crate) fn Actions(
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <SplitButton
                 label={run_label}
-                glyph=ICON_PLAY_ARROW
+                glyph=ICON_PLAY
                 variant=ButtonVariant::Primary
                 menu_label="Pick what to run"
                 disabled={busy}
@@ -355,7 +355,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     view! {
         <SplitButton
             label={run_label}
-            glyph=ICON_PLAY_ARROW
+            glyph=ICON_PLAY
             variant=ButtonVariant::Secondary
             menu_label="Pick what to run on main"
             disabled={busy}

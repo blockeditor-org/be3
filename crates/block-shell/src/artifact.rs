@@ -1,6 +1,4 @@
-use block_editor_beui::beui::icons::{
-    ICON_AUTO_AWESOME, ICON_LINK_OFF, ICON_REFRESH, ICON_SETTINGS,
-};
+use block_editor_beui::beui::icons::{ICON_REFRESH_CW, ICON_SETTINGS, ICON_SPARKLES, ICON_UNLINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use uuid::Uuid;
@@ -100,7 +98,7 @@ pub(crate) fn ArtifactBar(
                 <List spacing=PADDING_VERTICAL>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
-                            <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
+                            <Icon glyph={ICON_SPARKLES.to_owned()} />
                         </Text>
                         <Text>"Dynamic artifact"</Text>
                         <Show condition={waiting}>
@@ -139,14 +137,14 @@ pub(crate) fn ArtifactBar(
                         />
                         <IconButton
                             @test_id={"workspace.artifact.regenerate"}
-                            glyph={ICON_REFRESH.to_owned()}
+                            glyph={ICON_REFRESH_CW.to_owned()}
                             label="Regenerate"
                             disabled={regenerate_off}
                             on_click={regenerate}
                         />
                         <IconButton
                             @test_id={"workspace.artifact.unlink"}
-                            glyph={ICON_LINK_OFF.to_owned()}
+                            glyph={ICON_UNLINK.to_owned()}
                             label="Unlink from the source block"
                             disabled={unlink_off}
                             on_click={unlink}

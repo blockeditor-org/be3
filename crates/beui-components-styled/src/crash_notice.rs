@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonVariant};
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_ERROR, ICON_REFRESH};
+use beui_core::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -32,7 +32,7 @@ pub fn CrashNotice(
         <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
                 <Text size=TextSize::Xl color=TextColor::Danger align=TextAlign::Center>
-                    <Icon glyph={ICON_ERROR.to_owned()} />
+                    <Icon glyph={ICON_CIRCLE_ALERT.to_owned()} />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
                 <Show condition={has_detail}>
@@ -50,7 +50,7 @@ pub fn CrashNotice(
                         <Button
                             @test_id={reload_id}
                             label={reload_label}
-                            glyph={ICON_REFRESH.to_owned()}
+                            glyph={ICON_REFRESH_CW.to_owned()}
                             variant=ButtonVariant::Secondary
                             on_click={on_reload}
                         />

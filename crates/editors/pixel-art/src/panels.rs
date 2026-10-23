@@ -4,11 +4,11 @@ use block_editor_beui::be_block::pixel_art::{
 };
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_DOWNWARD, ICON_ARROW_FORWARD, ICON_ARROW_UPWARD,
-    ICON_CIRCLE, ICON_COLORIZE, ICON_CROP_SQUARE, ICON_DELETE, ICON_DIAGONAL_LINE, ICON_DOWNLOAD,
-    ICON_DRAW, ICON_FIND_REPLACE, ICON_FIT_SCREEN, ICON_FORMAT_COLOR_FILL, ICON_INK_ERASER,
-    ICON_NORTH_EAST, ICON_NORTH_WEST, ICON_RESIZE, ICON_SOUTH_EAST, ICON_SOUTH_WEST, ICON_SQUARE,
-    ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_ARROW_DOWN, ICON_ARROW_DOWN_LEFT, ICON_ARROW_DOWN_RIGHT, ICON_ARROW_LEFT,
+    ICON_ARROW_RIGHT, ICON_ARROW_UP, ICON_ARROW_UP_LEFT, ICON_ARROW_UP_RIGHT, ICON_CIRCLE,
+    ICON_DOWNLOAD, ICON_ERASER, ICON_PAINT_BUCKET, ICON_PEN_TOOL, ICON_PIPETTE, ICON_PLUS,
+    ICON_REPLACE, ICON_SCALING, ICON_SCAN, ICON_SLASH, ICON_SQUARE, ICON_TRASH, ICON_ZOOM_IN,
+    ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Dialog as Modal;
@@ -27,26 +27,34 @@ const TOOL_WIDTH: f32 = 76.0;
 const DIALOG_WIDTH: f32 = 300.0;
 
 const TOOLS: [(PixelTool, &str, &str); 8] = [
-    (PixelTool::Pencil, ICON_DRAW, "B or P"),
-    (PixelTool::Eraser, ICON_INK_ERASER, "E"),
-    (PixelTool::Fill, ICON_FORMAT_COLOR_FILL, "G"),
-    (PixelTool::Eyedropper, ICON_COLORIZE, "I"),
-    (PixelTool::Line, ICON_DIAGONAL_LINE, "L"),
-    (PixelTool::ReplaceColor, ICON_FIND_REPLACE, "C"),
-    (PixelTool::Rectangle, ICON_CROP_SQUARE, "R"),
+    (PixelTool::Pencil, ICON_PEN_TOOL, "B or P"),
+    (PixelTool::Eraser, ICON_ERASER, "E"),
+    (PixelTool::Fill, ICON_PAINT_BUCKET, "G"),
+    (PixelTool::Eyedropper, ICON_PIPETTE, "I"),
+    (PixelTool::Line, ICON_SLASH, "L"),
+    (PixelTool::ReplaceColor, ICON_REPLACE, "C"),
+    (PixelTool::Rectangle, ICON_SQUARE, "R"),
     (PixelTool::Ellipse, ICON_CIRCLE, "O"),
 ];
 
 const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
-    (PixelArtAnchor::TopLeft, ICON_NORTH_WEST, "Top left"),
-    (PixelArtAnchor::Top, ICON_ARROW_UPWARD, "Top"),
-    (PixelArtAnchor::TopRight, ICON_NORTH_EAST, "Top right"),
-    (PixelArtAnchor::Left, ICON_ARROW_BACK, "Left"),
+    (PixelArtAnchor::TopLeft, ICON_ARROW_UP_LEFT, "Top left"),
+    (PixelArtAnchor::Top, ICON_ARROW_UP, "Top"),
+    (PixelArtAnchor::TopRight, ICON_ARROW_UP_RIGHT, "Top right"),
+    (PixelArtAnchor::Left, ICON_ARROW_LEFT, "Left"),
     (PixelArtAnchor::Center, ICON_CIRCLE, "Centre"),
-    (PixelArtAnchor::Right, ICON_ARROW_FORWARD, "Right"),
-    (PixelArtAnchor::BottomLeft, ICON_SOUTH_WEST, "Bottom left"),
-    (PixelArtAnchor::Bottom, ICON_ARROW_DOWNWARD, "Bottom"),
-    (PixelArtAnchor::BottomRight, ICON_SOUTH_EAST, "Bottom right"),
+    (PixelArtAnchor::Right, ICON_ARROW_RIGHT, "Right"),
+    (
+        PixelArtAnchor::BottomLeft,
+        ICON_ARROW_DOWN_LEFT,
+        "Bottom left",
+    ),
+    (PixelArtAnchor::Bottom, ICON_ARROW_DOWN, "Bottom"),
+    (
+        PixelArtAnchor::BottomRight,
+        ICON_ARROW_DOWN_RIGHT,
+        "Bottom right",
+    ),
 ];
 
 #[component]
@@ -111,7 +119,7 @@ pub(crate) fn TopBar(
                 on_click={zoom_in}
             />
             <IconButton
-                glyph={ICON_FIT_SCREEN.to_owned()}
+                glyph={ICON_SCAN.to_owned()}
                 label="Fit the canvas to the viewport"
                 @test_id={"pixel-art.fit"}
                 on_click={fit}
@@ -122,14 +130,14 @@ pub(crate) fn TopBar(
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
-                glyph={ICON_RESIZE.to_owned()}
+                glyph={ICON_SCALING.to_owned()}
                 label="Resize"
                 disabled={read_only}
                 @test_id={"pixel-art.resize"}
                 on_click={resize}
             />
             <IconButton
-                glyph={ICON_DELETE.to_owned()}
+                glyph={ICON_TRASH.to_owned()}
                 label="Clear"
                 disabled={read_only}
                 @test_id={"pixel-art.clear"}
@@ -204,7 +212,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <ToggleButton
-                glyph={ICON_FORMAT_COLOR_FILL.to_owned()}
+                glyph={ICON_PAINT_BUCKET.to_owned()}
                 label="Filled shapes"
                 pressed={filled}
                 disabled={shapes}
@@ -300,14 +308,14 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <IconButton
-                    glyph={ICON_ADD.to_owned()}
+                    glyph={ICON_PLUS.to_owned()}
                     label="Add the active colour to the palette"
                     disabled={can_add}
                     @test_id={"pixel-art.palette-add"}
                     on_click={add}
                 />
                 <IconButton
-                    glyph={ICON_DELETE.to_owned()}
+                    glyph={ICON_TRASH.to_owned()}
                     label="Remove the active colour from the palette"
                     disabled={can_remove}
                     @test_id={"pixel-art.palette-remove"}
