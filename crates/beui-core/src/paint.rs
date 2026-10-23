@@ -245,14 +245,9 @@ impl PaintCache {
         false
     }
 
-    pub fn painting(&self) -> Vec<(Rc<Display>, Vec2)> {
-        self.roots
-            .iter()
-            .filter_map(|(root, _)| {
-                let painted = self.entries.get(root)?;
-                Some((Rc::clone(&painted.display), painted.at))
-            })
-            .collect()
+    pub fn painting_of(&self, root: NodeId) -> Option<(Rc<Display>, Vec2)> {
+        let painted = self.entries.get(&root)?;
+        Some((Rc::clone(&painted.display), painted.at))
     }
 
     fn visit(&mut self, id: NodeId, placement: Placement, at: Vec2, rects: &Rects) -> Visit {

@@ -42,6 +42,14 @@ struct KnownWindow {
     placement: Option<HostPlacement>,
 }
 
+struct ShownWindow {
+    id: WindowId,
+    size: Vec2,
+    layers: Vec<Layer>,
+    damage: Region,
+    title: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct Context {
     inner: Rc<Inner>,
@@ -67,6 +75,9 @@ struct Inner {
     window: RefCell<WindowState>,
     window_requests: RefCell<Vec<WindowRequest>>,
     windows: RefCell<foldhash::HashMap<WindowId, KnownWindow>>,
+    window_reports: RefCell<Vec<WindowReport>>,
+    shown_windows: RefCell<Vec<ShownWindow>>,
+    keyboard_window: Cell<WindowId>,
     opens_windows: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
@@ -329,6 +340,9 @@ impl Context {
                 window: RefCell::new(WindowState::default()),
                 window_requests: RefCell::new(Vec::new()),
                 windows: RefCell::new(foldhash::HashMap::default()),
+                window_reports: RefCell::new(Vec::new()),
+                shown_windows: RefCell::new(Vec::new()),
+                keyboard_window: Cell::new(WindowId::MAIN),
                 opens_windows: Cell::new(false),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
@@ -614,6 +628,8 @@ impl Context {
         self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
         self.inner.window_requests.borrow_mut().clear();
+        self.inner.shown_windows.borrow_mut().clear();
+        self.inner.keyboard_window.set(WindowId::MAIN);
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
@@ -637,10 +653,14 @@ impl Context {
         let scale = self.pixels_per_point();
         let filters = crate::display::filters(&layers);
         let moved = self.settle_moves(&layers, scale);
+        self.inner.window_reports.borrow_mut().clear();
         let previous = self.inner.previous.replace(Some(Previous {
             pixels_per_point: scale,
             filters: filters.clone(),
         }));
+        let rescaled = previous
+            .as_ref()
+            .is_none_or(|old| old.pixels_per_point != scale);
         if let Some(old) = &previous {
             for index in 0..old.filters.len().max(filters.len()) {
                 let (was, now) = (old.filters.get(index), filters.get(index));
@@ -680,16 +700,34 @@ impl Context {
             }
             None => None,
         };
-        FrameOutput {
-            windows: vec![WindowOutput {
-                id: WindowId::MAIN,
-                size: self.window_size(WindowId::MAIN).unwrap_or(Vec2::ZERO),
-                layers,
-                window: self.shown_window(),
-                changed,
+        let (main, others) = self.window_states(self.shown_window());
+        let mut windows = vec![WindowOutput {
+            id: WindowId::MAIN,
+            size: self.window_size(WindowId::MAIN).unwrap_or(Vec2::ZERO),
+            layers,
+            window: main,
+            changed,
+            damage,
+            moved,
+        }];
+        let shown = std::mem::take(&mut *self.inner.shown_windows.borrow_mut());
+        for (shown, window) in shown.into_iter().zip(others) {
+            let damage = match rescaled {
+                true => Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)),
+                false => shown.damage,
+            };
+            windows.push(WindowOutput {
+                id: shown.id,
+                size: shown.size,
+                layers: Rc::new(shown.layers),
+                window,
+                changed: !damage.is_empty(),
                 damage,
-                moved,
-            }],
+                moved: None,
+            });
+        }
+        FrameOutput {
+            windows,
             window_requests: std::mem::take(&mut *self.inner.window_requests.borrow_mut()),
             dump,
             copied_text,
@@ -892,17 +930,80 @@ impl Context {
 
     pub fn window_reported(&self, report: WindowReport) {
         let mut windows = self.inner.windows.borrow_mut();
-        match report {
+        let changed = match &report {
             WindowReport::Resized { window, size } => {
-                windows.entry(window).or_default().size = Some(size);
+                let known = &mut windows.entry(*window).or_default().size;
+                known.replace(*size) != Some(*size)
             }
             WindowReport::Placed { window, placement } => {
-                windows.entry(window).or_default().placement = Some(placement);
+                let known = &mut windows.entry(*window).or_default().placement;
+                known.replace(placement.clone()).as_ref() != Some(placement)
             }
             WindowReport::Closed(window) => {
-                windows.remove(&window);
+                windows.remove(window);
+                true
             }
+        };
+        if changed {
+            self.inner.window_reports.borrow_mut().push(report);
         }
+    }
+
+    pub fn take_window_reports(&self) -> Vec<WindowReport> {
+        std::mem::take(&mut *self.inner.window_reports.borrow_mut())
+    }
+
+    pub fn set_keyboard_window(&self, window: WindowId) {
+        self.inner.keyboard_window.set(window);
+    }
+
+    pub fn show_window(
+        &self,
+        id: WindowId,
+        size: Vec2,
+        painting: &[(Rc<Display>, Vec2)],
+        damage: Region,
+        title: Option<String>,
+    ) {
+        let layers = painting
+            .iter()
+            .map(|(display, at)| Layer::Display(*at, Rc::clone(display)))
+            .collect();
+        self.inner.shown_windows.borrow_mut().push(ShownWindow {
+            id,
+            size,
+            layers,
+            damage,
+            title,
+        });
+    }
+
+    fn window_states(&self, mut main: WindowState) -> (WindowState, Vec<WindowState>) {
+        let pointer = self.inner.input.borrow().pointer.window;
+        let keyboard = self.inner.keyboard_window.get();
+        let shown = self.inner.shown_windows.borrow();
+        let mut others = Vec::with_capacity(shown.len());
+        for window in shown.iter() {
+            let mut state = WindowState {
+                typed: main.typed,
+                ..WindowState::default()
+            };
+            state.appearance.clear_color = main.appearance.clear_color;
+            state.appearance.system_bars = main.appearance.system_bars;
+            state.appearance.title.clone_from(&window.title);
+            if pointer == window.id {
+                state.requests.cursor = main.requests.cursor;
+                state.requests.pointer_locked = main.requests.pointer_locked;
+            }
+            if keyboard == window.id {
+                state.requests.ime = main.requests.ime.take();
+            }
+            others.push(state);
+        }
+        if shown.iter().any(|window| window.id == pointer) {
+            main.requests.cursor = CursorIcon::default();
+        }
+        (main, others)
     }
 
     fn shown_window(&self) -> WindowState {

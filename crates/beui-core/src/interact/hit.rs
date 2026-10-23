@@ -8,6 +8,7 @@ use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::Modifiers;
 use crate::layer::LayerPolicy;
 use crate::node::{NodeId, NodeOf, Rects};
+use crate::window::WindowId;
 
 use super::TOUCH_REACH;
 
@@ -33,8 +34,13 @@ pub fn interactive(doc: &Document, id: NodeId) -> Option<&InteractiveNode> {
     doc.arena.get(id).as_any().downcast_ref::<InteractiveNode>()
 }
 
-pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bool) -> Hit {
-    let layers = doc.layers();
+pub fn hit(doc: &mut Document, rects: &Rects, window: WindowId, pos: Pos2, touch: bool) -> Hit {
+    let Some((layers, root)) = window_layers(doc, window) else {
+        return Hit {
+            blocked: true,
+            ..Hit::default()
+        };
+    };
     let mut outside = Vec::new();
     let mut blocking = false;
     let settle =
@@ -125,13 +131,20 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
     }
 }
 
+fn window_layers(doc: &Document, window: WindowId) -> Option<(crate::layer::Layers, NodeId)> {
+    let layers = doc.window_layers(window)?;
+    let root = layers[0].content?;
+    Some((layers, root))
+}
+
 pub fn claimant(
     doc: &mut Document,
     rects: &Rects,
-    root: NodeId,
+    window: WindowId,
     pos: Pos2,
     held: Modifiers,
 ) -> Option<NodeId> {
+    let (layers, root) = window_layers(doc, window)?;
     let mut lines = HashSet::default();
     for claimant in doc.press_claimants.iter().copied() {
         let mut next = Some(claimant);
@@ -142,7 +155,6 @@ pub fn claimant(
             next = doc.arena.parent(id);
         }
     }
-    let layers = doc.layers();
     for index in (0..layers.len()).rev() {
         let layer = &layers[index];
         if layer.policy == LayerPolicy::Inert {
@@ -366,8 +378,8 @@ fn nearest_press(
     }
 }
 
-pub fn describe(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, scale: f32) -> String {
-    let found = hit(doc, rects, root, pos, false);
+pub fn describe(doc: &mut Document, rects: &Rects, pos: Pos2, scale: f32) -> String {
+    let found = hit(doc, rects, WindowId::MAIN, pos, false);
     let mut text = String::new();
     if found.blocked {
         text.push_str("blocked by a layer that takes every press\n");

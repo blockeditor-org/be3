@@ -9,6 +9,7 @@ use crate::input::{
     ScrollDelta, TouchPhase,
 };
 use crate::node::{Element, NodeId, Rects};
+use crate::window::WindowId;
 
 use super::hit;
 use super::pointer::Routed;
@@ -234,8 +235,8 @@ pub fn wants_forward(element: &dyn Element) -> bool {
         .is_some_and(InteractiveNode::forwards)
 }
 
-fn sink_at(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
-    let hit = super::pointer::hit(doc, rects, root, pos, false);
+fn sink_at(doc: &mut Document, rects: &Rects, window: WindowId, pos: Pos2) -> Option<NodeId> {
+    let hit = super::pointer::hit(doc, rects, window, pos, false);
     hit::sink(doc, rects, &hit.path, pos)
 }
 
@@ -282,7 +283,6 @@ pub(super) fn route(
     doc: &mut Document,
     ctx: &Context,
     rects: &Rects,
-    root: NodeId,
     events: &[Event],
     keep: &[bool],
 ) {
@@ -293,13 +293,15 @@ pub(super) fn route(
         id.filter(|id| doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)))
     };
     let focused = alive(doc, doc.focused_node());
-    let hovered = position.and_then(|pos| sink_at(doc, rects, root, pos));
+    let window = ctx.input(|input| input.pointer.window);
+    let hovered = position.and_then(|pos| sink_at(doc, rects, window, pos));
     let pointer_events = ctx.input(|input| input.pointer_events.clone());
     let routed = std::mem::take(&mut doc.pointers.routed);
-    let layers = doc.layers();
     let reachable = |doc: &Document, sink: NodeId| {
-        doc.layer_of(&layers, sink)
-            .is_some_and(|layer| layers.reachable(layer))
+        doc.window_layers(doc.window_of(sink)).is_some_and(|layers| {
+            doc.layer_of(&layers, sink)
+                .is_some_and(|layer| layers.reachable(layer))
+        })
     };
     let mut deliveries: Vec<(NodeId, Vec<Forwarded>)> = Vec::new();
     let mut deliver = |to: Option<NodeId>, event: Forwarded| {

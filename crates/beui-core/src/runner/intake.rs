@@ -78,6 +78,7 @@ pub(crate) struct Intake {
     pub(crate) reports: Vec<WindowReport>,
     modifiers: Modifiers,
     pointer: Pos2,
+    window: WindowId,
     held: u8,
     left: bool,
     emulated_touch: bool,
@@ -90,6 +91,7 @@ impl Default for Intake {
             reports: Vec::new(),
             modifiers: Modifiers::NONE,
             pointer: Pos2::ZERO,
+            window: WindowId::MAIN,
             held: 0,
             left: false,
             emulated_touch: false,
@@ -131,9 +133,13 @@ impl Intake {
                 Incoming::Window(report) => self.reports.push(report),
                 Incoming::Input {
                     units,
-                    window: _,
+                    window,
                     input,
                 } => {
+                    if window != self.window && points_into_window(&input) {
+                        self.window = window;
+                        events.push(Event::PointerWindow(window));
+                    }
                     let scale = match units {
                         Units::Physical => drain.pixels_per_point,
                         Units::Logical => drain.pixels_per_point / drain.native_pixels_per_point,
@@ -307,6 +313,22 @@ impl Intake {
             force: None,
         }
     }
+}
+
+fn points_into_window(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::PointerMoved(_)
+            | Input::PointerButton { .. }
+            | Input::PointerLeft
+            | Input::Touch { .. }
+            | Input::Pen { .. }
+            | Input::Predicted(_)
+            | Input::Scroll(_)
+            | Input::ScrollStarted
+            | Input::ScrollEnded
+            | Input::Zoom(_)
+    )
 }
 
 pub fn scrolled(delta: ScrollDelta, scale: f32) -> Vec2 {

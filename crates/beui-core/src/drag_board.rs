@@ -44,6 +44,10 @@ impl DragPoint {
         }
     }
 
+    pub fn in_window(self, window: WindowId) -> Self {
+        Self { window, ..self }
+    }
+
     pub fn within(self, rect: Rect) -> Self {
         let press = crate::base::interactive::press_at(
             rect,
@@ -89,6 +93,7 @@ pub struct Board {
     carried: RefCell<Option<Carried>>,
     targets: RefCell<Vec<Target>>,
     painted: RefCell<HashMap<u64, Vec<usize>>>,
+    windows: RefCell<HashMap<u64, WindowId>>,
     next: Cell<u64>,
 }
 
@@ -100,6 +105,7 @@ impl Board {
             carried: RefCell::default(),
             targets: RefCell::default(),
             painted: RefCell::default(),
+            windows: RefCell::default(),
             next: Cell::default(),
         }
     }
@@ -128,6 +134,7 @@ impl Board {
     pub fn unregister(&self, id: u64) {
         self.targets.borrow_mut().retain(|target| target.id != id);
         self.painted.borrow_mut().remove(&id);
+        self.windows.borrow_mut().remove(&id);
         if let Some(carried) = self.carried.borrow_mut().as_mut()
             && carried.over == Some(id)
         {
@@ -178,6 +185,13 @@ impl Board {
             .filter_map(|target| Some((target.id, doc.paint_order(target.node.try_get()?))))
             .collect();
         *self.painted.borrow_mut() = painted;
+        let windows = self
+            .targets
+            .borrow()
+            .iter()
+            .filter_map(|target| Some((target.id, doc.window_of(target.node.try_get()?))))
+            .collect();
+        *self.windows.borrow_mut() = windows;
     }
 
     pub fn track(&self, point: DragPoint) {
@@ -212,13 +226,17 @@ impl Board {
         self.end(last);
     }
 
-    pub fn under(&self, pos: Pos2) -> Option<(u64, Rect, Over)> {
+    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, Rect, Over)> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.payload.as_ref();
+        let windows = self.windows.borrow();
         self.targets
             .borrow()
             .iter()
             .filter_map(|target| Some((self.rect_of(target)?, target)))
+            .filter(|(_, target)| {
+                windows.get(&target.id).copied().unwrap_or(WindowId::MAIN) == window
+            })
             .filter(|(_, target)| {
                 target
                     .node
@@ -254,7 +272,7 @@ impl Board {
         if !self.carrying() {
             return;
         }
-        let under = self.under(point.pos);
+        let under = self.under(point.window, point.pos);
         let previous = self.carried.borrow_mut().as_mut().and_then(|carried| {
             std::mem::replace(&mut carried.over, under.as_ref().map(|(id, _, _)| *id))
         });

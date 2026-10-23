@@ -60,6 +60,7 @@ fn moved(pos: Pos2) -> beui::Forwarded {
     beui::Forwarded::Pointer {
         event: beui::PointerEvent {
             pointer: beui::PointerId::Mouse,
+            window: beui::WindowId::MAIN,
             phase: beui::PointerPhase::Move,
             pos,
             modifiers: beui::Modifiers::NONE,

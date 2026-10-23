@@ -403,6 +403,11 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
+mod a_window_shows_as_an_overlay_where_nothing_opens_windows;
+mod a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own;
+mod a_press_in_one_window_dragged_into_another_drops_on_a_target_there;
+mod a_hosts_report_of_a_windows_size_and_place_reaches_the_app;
+mod closing_a_window_asks_its_host_and_a_close_by_the_host_reaches_the_app;
 mod a_window_host_sizes_the_main_window_and_shows_what_it_composes;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
@@ -965,6 +970,22 @@ impl Harness {
             crate::testing::Showing(document),
             window,
             None,
+        );
+        stepped.settle_after_gestures(false);
+        Self(stepped)
+    }
+
+    pub(crate) fn hosting_windows(mut document: Document) -> Self {
+        crate::verify_paint(true);
+        crate::inspector::install(&mut document);
+        let window = beui_core::app::automation::WindowSize {
+            size: VIEWPORT,
+            scale: 1.0,
+        };
+        let mut stepped = crate::testing::Stepped::hosting_windows(
+            context(),
+            crate::testing::Showing(document),
+            window,
         );
         stepped.settle_after_gestures(false);
         Self(stepped)

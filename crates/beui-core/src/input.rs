@@ -145,6 +145,7 @@ pub enum Event {
     Back(BackGesture),
     InterceptedKey(KeyPress),
     InterceptedTap(Key),
+    PointerWindow(crate::window::WindowId),
 }
 
 impl Event {
@@ -179,6 +180,7 @@ impl Event {
                 | Self::Predicted(_)
                 | Self::Time(_)
                 | Self::Zoom(_)
+                | Self::PointerWindow(_)
         )
     }
 
@@ -236,6 +238,7 @@ pub enum PointerPhase {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerEvent {
     pub pointer: PointerId,
+    pub window: crate::window::WindowId,
     pub phase: PointerPhase,
     pub pos: Pos2,
     pub modifiers: Modifiers,
@@ -254,6 +257,7 @@ pub struct InputState {
     pub pointer: Pointer,
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
+    pub window: crate::window::WindowId,
     touches: Vec<(TouchId, Pos2)>,
     touched: Vec<Pos2>,
     source: usize,
@@ -272,6 +276,7 @@ impl Default for InputState {
             pointer: Pointer::default(),
             modifiers: Modifiers::default(),
             long_press_delay: LONG_PRESS_DELAY,
+            window: crate::window::WindowId::MAIN,
             touches: Vec::new(),
             touched: Vec::new(),
             source: 0,
@@ -411,8 +416,9 @@ impl InputState {
                 self.modifiers = modifiers;
             }
             match event {
+                Event::PointerWindow(window) => self.window = *window,
                 Event::PointerMoved(pos) if !self.on_finger(*pos) => {
-                    self.pointer.place_mouse(*pos);
+                    self.pointer.place_mouse(*pos, self.window);
                     self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
                 }
                 Event::PointerMotion(delta) => {
@@ -433,7 +439,7 @@ impl InputState {
                     pressed,
                     ..
                 } if !self.on_finger(*pos) => {
-                    self.pointer.place_mouse(*pos);
+                    self.pointer.place_mouse(*pos, self.window);
                     if *pressed && *button == PointerButton::Primary {
                         self.pointer.count_click(*pos, now);
                     }
@@ -508,6 +514,7 @@ impl InputState {
     fn emit(&mut self, pointer: PointerId, phase: PointerPhase, pos: Pos2) {
         self.pointer_events.push(PointerEvent {
             pointer,
+            window: self.window,
             phase,
             pos,
             modifiers: self.modifiers,
@@ -552,7 +559,7 @@ impl InputState {
             PenPhase::Up(button) => PointerPhase::Up(button),
         };
         self.pen_at = Some(pos);
-        self.pointer.place_mouse(pos);
+        self.pointer.place_mouse(pos, self.window);
         self.emit(PointerId::Pen, phase, pos);
     }
 
@@ -571,6 +578,7 @@ impl InputState {
                 if self.touches.is_empty() {
                     let pointer = &mut self.pointer;
                     pointer.pos = Some(pos);
+                    pointer.window = self.window;
                     pointer.from_touch = true;
                     pointer.count_click(pos, now);
                 }
@@ -585,6 +593,7 @@ impl InputState {
                 self.touches[index].1 = pos;
                 if first == Some(id) {
                     self.pointer.pos = Some(pos);
+                    self.pointer.window = self.window;
                 }
                 self.emit(PointerId::Touch(id), PointerPhase::Move, pos);
             }
@@ -627,6 +636,7 @@ impl InputState {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
+    pub window: crate::window::WindowId,
     pub motion: Vec2,
     clicks: u32,
     last_click: Option<(Instant, Pos2)>,
@@ -663,8 +673,9 @@ impl Pointer {
         self.pos.filter(|_| !self.from_touch)
     }
 
-    fn place_mouse(&mut self, pos: Pos2) {
+    fn place_mouse(&mut self, pos: Pos2, window: crate::window::WindowId) {
         self.pos = Some(pos);
+        self.window = window;
         self.from_touch = false;
     }
 

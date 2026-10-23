@@ -1,3 +1,5 @@
+pub(crate) mod hosted;
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::color::Color32;
