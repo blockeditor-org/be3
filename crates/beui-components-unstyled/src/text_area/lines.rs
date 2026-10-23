@@ -27,9 +27,8 @@ use super::rows::{
     RowKey, RowOptions, SpanKind, build_row, galley, line_range, row_key,
 };
 use super::{
-    CARET_WIDTH, CODE_OUTSET, CODE_RADIUS, Context, GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT,
-    GUTTER_PADDING_RIGHT, GeometryCell, INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA,
-    RUN_CHIP_RADIUS, RowEntry,
+    CARET_WIDTH, Context, GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT,
+    GeometryCell, INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS, RowEntry,
 };
 
 const INLINE_WIDGET_HEIGHT: f32 = 24.0;
@@ -512,16 +511,7 @@ fn RowText(
     let marks = create_memo(move || {
         let row = model.get();
         let colors = cx.colors.get();
-        let mut marks: Vec<TextMark> = row
-            .code
-            .iter()
-            .map(|range| TextMark {
-                range: range.clone(),
-                color: colors.code_background,
-                radius: CODE_RADIUS,
-                outset: CODE_OUTSET,
-            })
-            .collect();
+        let mut marks = Vec::new();
         for range in &cursors.get().selection {
             marks.push(TextMark::new(row.display_range(range), colors.selection));
         }
@@ -721,32 +711,36 @@ fn RowPiece(
             let font = FontId::new(f32::from_bits(size), family)
                 .bold(bold)
                 .italic(italic);
-            if let Some(syntax) = leaf {
-                return cx
+            let color = match invisible {
+                Some(byte) => Prop::dynamic(move || match cursors.get().selects(byte) {
+                    true => cx.colors.get().syntax.scope(SynHlColorScope::Invisible),
+                    false => color,
+                }),
+                None => Prop::Static(color),
+            };
+            let style = color.map(move |color| SpanStyle {
+                font,
+                color,
+                underline,
+                strikethrough,
+            });
+            match leaf {
+                Some(syntax) => cx
                     .leaf
                     .call(TextLeaf {
                         text,
-                        style: SpanStyle {
-                            font,
-                            color,
-                            underline,
-                            strikethrough,
-                        },
+                        style,
                         syntax,
                         break_after,
                     })
-                    .into_child();
-            }
-            let color = create_memo(move || match invisible {
-                Some(byte) if cursors.get().selects(byte) => {
-                    cx.colors.get().syntax.scope(SynHlColorScope::Invisible)
+                    .into_child(),
+                None => view! {
+                    <Span font color={color.map(Some)} underline strikethrough break_after>
+                        {text}
+                    </Span>
                 }
-                _ => color,
-            });
-            view! {
-                <Span font color underline strikethrough break_after>{text}</Span>
+                .into_child(),
             }
-            .into_child()
         }
         PieceKey::Space(width) => view! {
             <Gap width={f32::from_bits(width)} />

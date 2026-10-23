@@ -18,7 +18,7 @@ use beui_components_unstyled::{
 use beui_core::base::{Direction, ItemSize};
 use beui_core::color::Color32;
 use beui_core::file_picker::PickedFile;
-use beui_core::geometry::Rect;
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::node::NodeId;
 use beui_view::primitives::{self, *};
 use beui_view::reactive::*;
@@ -70,7 +70,7 @@ pub fn TextArea(
     let leaf = leaf.unwrap_or_else(|| {
         RenderFn::new(|leaf: TextLeaf| {
             view! {
-                <unstyled::LeafSpan leaf />
+                <DocumentLeaf leaf />
             }
         })
     });
@@ -132,6 +132,25 @@ pub fn TextArea(
 }
 
 const CODE_INSET: f32 = 3.0;
+const CODE_RADIUS: Radius = Radius::Sm;
+
+#[component]
+pub fn DocumentLeaf(leaf: TextLeaf) -> Span {
+    let theme = use_theme();
+    let background = match leaf.syntax.code {
+        true => Prop::dynamic(move || {
+            Some(SpanBackground {
+                color: ColorRole::SurfaceRaised.resolve(&theme),
+                radius: CODE_RADIUS.px(),
+                outset: Vec2::new(CODE_INSET, -1.0),
+            })
+        }),
+        false => Prop::Static(None),
+    };
+    view! {
+        <unstyled::LeafSpan leaf background />
+    }
+}
 
 #[component]
 pub fn DocumentMarker(marker: TextMarker) -> NodeId {

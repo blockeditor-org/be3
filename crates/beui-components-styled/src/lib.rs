@@ -123,7 +123,7 @@ pub use text::{
 };
 pub use text_area::emoji::emoji_menu;
 pub use text_area::format_bar::FormatBar;
-pub use text_area::{DocumentLine, DocumentMarker, TextArea, TextAreaSurfaceApi};
+pub use text_area::{DocumentLeaf, DocumentLine, DocumentMarker, TextArea, TextAreaSurfaceApi};
 pub use text_input::TextInput;
 pub use theme::{
     Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,

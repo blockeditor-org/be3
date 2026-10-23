@@ -120,6 +120,7 @@ impl Schema for Plain {
             italic: false,
             underline: false,
             strikethrough: false,
+            code: false,
         })
     }
 }

@@ -148,7 +148,6 @@ pub struct Row {
     pub inline: Vec<InlineItem>,
     pub line_height: f32,
     pub block: Option<(usize, Vec2)>,
-    pub code: Vec<Range<usize>>,
     pub look: LineLook,
     pub hang: usize,
     pub placeholder: bool,
@@ -819,6 +818,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             };
             let style = SpanStyle { color, ..base };
             builder.push_breaking(marker, index..index + 1, false, style, SpanKind::Text, true);
+            builder.leaf(style_at(index));
             builder.invisible(index, trailing);
             index += 1;
             continue;
@@ -895,33 +895,5 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
         }
     }
     builder.row.line_height = height + padding.0 + padding.1;
-    let highlight = builder.inputs.snapshot.highlight();
-    if builder.row.look.code_block {
-        return builder.row;
-    }
-    let code = |byte: usize| highlight.style_at(byte).color == SynHlColorScope::MarkdownCode;
-    let mut ranges: Vec<Range<usize>> = Vec::new();
-    let mut extend = |display: Range<usize>| match ranges.last_mut() {
-        Some(last) if last.end == display.start => last.end = display.end,
-        _ => ranges.push(display),
-    };
-    for segment in &builder.row.segments {
-        if segment.source.is_empty() {
-            continue;
-        }
-        if !segment.mapped {
-            if segment.source.clone().all(code) {
-                extend(segment.display.clone());
-            }
-            continue;
-        }
-        for byte in segment.source.clone() {
-            if code(byte) {
-                let display = segment.display.start + (byte - segment.source.start);
-                extend(display..display + 1);
-            }
-        }
-    }
-    builder.row.code = ranges;
     builder.row
 }

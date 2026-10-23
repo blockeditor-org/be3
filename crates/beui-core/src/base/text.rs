@@ -15,8 +15,8 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
-    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanStyle, TextCaret, TextMark,
-    handle_shape,
+    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
+    TextCaret, TextMark, handle_shape,
 };
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
@@ -66,6 +66,7 @@ pub struct SpanContent {
     pub color: Option<Color32>,
     pub underline: Option<bool>,
     pub strikethrough: Option<bool>,
+    pub background: Option<SpanBackground>,
     pub break_after: bool,
     pub icon: Option<IconSpan>,
 }
@@ -140,6 +141,7 @@ struct Placed {
     origin: Pos2,
     layout: Rc<RichLayout>,
     spans: Vec<Option<SpanHandle>>,
+    ranges: Vec<Range<usize>>,
 }
 
 #[derive(Clone)]
@@ -617,6 +619,23 @@ impl TextNode {
                 Entry::Inline(..) | Entry::Gap(_) => None,
             })
             .collect();
+        let mut at = 0;
+        let ranges: Vec<Range<usize>> = self
+            .shaped
+            .borrow()
+            .iter()
+            .flat_map(|shaped| &shaped.entries)
+            .map(|entry| {
+                let len = match entry {
+                    Entry::Span(span, _) if span.content().icon.is_some() => 0,
+                    Entry::Span(span, _) => span.content().text.len(),
+                    Entry::Inline(_, text) => text.as_deref().unwrap_or(OBJECT).len(),
+                    Entry::Gap(_) => 0,
+                };
+                at += len;
+                at - len..at
+            })
+            .collect();
         let changed = previous.is_none_or(|previous| {
             previous.rect != rect
                 || previous.origin != origin
@@ -633,6 +652,7 @@ impl TextNode {
             origin,
             layout,
             spans,
+            ranges,
         });
         if changed && let Some(id) = doc.laying_out() {
             doc.arena.note_relaid(id);
@@ -656,19 +676,46 @@ impl TextNode {
             }
             None => (self.color, self.underline, false),
         };
-        for mark in &self.marks {
-            for area in layout.selection_rects(mark.range.clone()) {
+        let fill = |range: Range<usize>, background: SpanBackground| {
+            for area in layout.selection_rects(range) {
                 painter.rect_filled(
-                    area.expand2(mark.outset).translate(origin),
-                    mark.radius,
-                    mark.color,
+                    area.expand2(background.outset).translate(origin),
+                    background.radius,
+                    background.color,
                 );
             }
+        };
+        let mut run: Option<(Range<usize>, SpanBackground)> = None;
+        for (span, range) in placed.spans.iter().zip(&placed.ranges) {
+            let background = span.as_ref().and_then(|span| span.content().background);
+            if let (Some((held, same)), Some(background)) = (&mut run, background)
+                && *same == background
+                && held.end == range.start
+            {
+                held.end = range.end;
+                continue;
+            }
+            if background.is_none() && range.is_empty() {
+                continue;
+            }
+            if let Some((held, background)) = run.take() {
+                fill(held, background);
+            }
+            run = background.map(|background| (range.clone(), background));
+        }
+        if let Some((held, background)) = run {
+            fill(held, background);
+        }
+        let plain = |color: Color32| SpanBackground {
+            color,
+            radius: 0.0,
+            outset: Vec2::ZERO,
+        };
+        for mark in &self.marks {
+            fill(mark.range.clone(), plain(mark.color));
         }
         if let Some((range, color)) = &self.selection {
-            for area in layout.selection_rects(range.clone()) {
-                painter.rect_filled(area.translate(origin), 0.0, *color);
-            }
+            fill(range.clone(), plain(*color));
         }
         layout.paint_runs(painter, origin, |run| paint_of(run.piece));
         for item in self.parts.nodes() {
@@ -913,6 +960,7 @@ impl Document {
             color: content.color,
             underline: content.underline,
             strikethrough: content.strikethrough,
+            background: content.background,
             ..span.content().clone()
         } == content;
         *span.0.content.borrow_mut() = content;

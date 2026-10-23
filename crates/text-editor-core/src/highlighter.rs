@@ -117,6 +117,7 @@ pub struct SynHlStyle {
     pub italic: bool,
     pub underline: bool,
     pub strikethrough: bool,
+    pub code: bool,
 }
 
 impl SynHlStyle {
@@ -129,6 +130,7 @@ impl SynHlStyle {
             italic: false,
             underline: false,
             strikethrough: false,
+            code: false,
         }
     }
 }

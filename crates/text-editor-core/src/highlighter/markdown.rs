@@ -258,6 +258,7 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
                 style.size = SynHlTextSize::Body;
                 style.bold = false;
                 style.italic = false;
+                style.code = kind == "code_span";
             }
         }
         "info_string" => {

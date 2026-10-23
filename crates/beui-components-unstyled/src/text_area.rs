@@ -63,8 +63,6 @@ const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
 const INLINE_WIDGET_RADIUS: f32 = 5.0;
 const RUN_CHIP_RADIUS: f32 = 3.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
-const CODE_OUTSET: Vec2 = Vec2::new(hooks::CODE_OUTSET, -1.0);
-const CODE_RADIUS: f32 = 3.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -1263,7 +1261,7 @@ pub fn TextArea(
                     text_extent,
                     block,
                     selected_widget,
-                    leaf: leaf.unwrap_or_else(hooks::default_leaf),
+                    leaf: leaf.unwrap_or_else(|| hooks::default_leaf(colors)),
                     marker: marker.unwrap_or_else(|| hooks::default_marker(colors)),
                     line: line.unwrap_or_else(|| hooks::default_line(colors)),
                     rights: create_signal(BTreeMap::new()),

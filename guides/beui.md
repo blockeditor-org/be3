@@ -591,8 +591,9 @@ alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`
 and `carets`. Its content is its children: string literals and
 `Prop<String>`s in its own style, `Span`s - value children with no node, each
 overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
-`italic`, and its `color`, `underline` or `strikethrough`, and marking a wrap
-opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
+`italic`, and its `color`, `underline` or `strikethrough`, giving it a
+`background` (a `SpanBackground`: a colour, a corner radius and an outset), and
+marking a wrap opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
 inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
 given width that holds no bytes, so the indices on either side of one are the
 same. An unset span prop takes its Text's. A Text whose only child is a
@@ -617,8 +618,11 @@ with `line_padding` above and below each line, and aligns, truncates with an
 ellipsis and spaces lines by `line_height` whatever its content. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
 line breaking resumes from the line that span is on; a colour or decoration
-change only repaints. It also paints `marks` behind the text (a selection, a
-code background) and `carets` in front of it, blinking ones included - byte
+change only repaints. It paints each span's `background` behind the span's
+range on every line the span is laid out on, so it follows wrapping, as one
+shape where neighbouring spans have the same background (an inline code span
+split by its styles). Over that it paints `marks` (selections, flat) and
+`carets` in front of the text, blinking ones included - byte
 ranges over the joined content - and a `TextItem` given `at` is placed at that
 index as if it were a caret instead of in the flow, which is how something
 floats beside a position in the text. `Document::text_geometry` answers where an index is and which index is
@@ -847,8 +851,12 @@ makes an area for one, `TextAreaState::selected` is the selection's marks and bl
 and `styled::FormatBar` shows the tools it is given glyphs for. The area draws rich text with no
 gutter or whitespace markers. How a document looks is three render hooks, the way Slate's are,
 each keyed by the line description (`LineLook`) that markdown and rich text both give: `leaf`
-(`RenderFn<TextLeaf, Span>`) turns a run of text and its resolved style into a `Span`, so every
-run stays in the line's one `Text` and wraps and carries the caret across style changes; `marker`
+(`RenderFn<TextLeaf, Span>`) turns a run of text, its resolved style (a `Prop<SpanStyle>`, which
+changes only for a whitespace marker shown while it is selected) and its `SynHlStyle` into a
+`Span`, so every run stays in the line's one `Text` and wraps and carries the caret across style
+changes; the leaf draws an inline code span's background (`SynHlStyle::code`, which the markdown
+highlighter sets for a code span and `schema::basic` for the code mark, never for a code block)
+as the span's `background`, and `LeafSpan` is the span with a given background; `marker`
 (`RenderFn<TextMarker>`) draws a list marker (bullet, number, checkbox with a `checked` binding
 that toggles it) or a void (`MarkerKind`) as the content of a `TextItem`; and `line`
 (`RenderFn<TextLine>`) wraps a line's text node in whatever goes around it (quote bars, a code
@@ -863,8 +871,8 @@ aligned so numbers line up on the dot (a wider marker widens only its own line),
 `QUOTE_INDENT_EM` per quote, whatever the source's spaces. A markdown line that continues a list
 item (`LineLook::continues`) hides its indentation the same way and is indented to its item's
 text. The
-unstyled defaults draw from `TextAreaColors`; `styled::TextArea` draws with `DocumentMarker` and
-`DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
+unstyled defaults draw from `TextAreaColors`; `styled::TextArea` draws with `DocumentLeaf`,
+`DocumentMarker` and `DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
 and hands every other marker to `DocumentMarker`. Copying and pasting
 carries the text without its marks. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the

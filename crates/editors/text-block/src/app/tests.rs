@@ -25,6 +25,7 @@ mod code_is_painted_on_its_background;
 mod foreign_organization_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;
+mod inline_code_keeps_its_background_where_it_wraps;
 mod lists_and_quotes_are_painted_with_bullets_and_bars;
 mod markdown_is_painted_with_its_styles;
 mod peers_carets_follow_their_presence_and_go_when_it_is_hidden;

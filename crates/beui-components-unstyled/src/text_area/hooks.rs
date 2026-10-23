@@ -3,9 +3,10 @@ use beui_macros::{component, view};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
+use beui_core::geometry::Vec2;
 use beui_core::icons::ICON_CHECK;
 use beui_core::node::NodeId;
-use beui_core::rich::SpanStyle;
+use beui_core::rich::{SpanBackground, SpanStyle};
 use beui_view::components::text::Span;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -26,11 +27,12 @@ const CHECKBOX_SIZE: f32 = 18.0;
 const CHECKBOX_RADIUS: f32 = 3.0;
 const CHECKBOX_OUTLINE: f32 = 1.5;
 pub const CODE_OUTSET: f32 = 3.0;
+const CODE_RADIUS: f32 = 3.0;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone)]
 pub struct TextLeaf {
     pub text: String,
-    pub style: SpanStyle,
+    pub style: Prop<SpanStyle>,
     pub syntax: SynHlStyle,
     pub break_after: bool,
 }
@@ -129,7 +131,10 @@ impl TextLine {
 }
 
 #[component]
-pub fn LeafSpan(leaf: TextLeaf) -> Span {
+pub fn LeafSpan(
+    leaf: TextLeaf,
+    #[prop(default = None)] background: Prop<Option<SpanBackground>>,
+) -> Span {
     let TextLeaf {
         text,
         style,
@@ -138,10 +143,11 @@ pub fn LeafSpan(leaf: TextLeaf) -> Span {
     } = leaf;
     view! {
         <Span
-            font={style.font}
-            color={style.color}
-            underline={style.underline}
-            strikethrough={style.strikethrough}
+            font={style.map(|style| Some(style.font))}
+            color={style.map(|style| Some(style.color))}
+            underline={style.map(|style| Some(style.underline))}
+            strikethrough={style.map(|style| Some(style.strikethrough))}
+            background
             break_after
         >
             {text}
@@ -149,10 +155,20 @@ pub fn LeafSpan(leaf: TextLeaf) -> Span {
     }
 }
 
-pub fn default_leaf() -> RenderFn<TextLeaf, Span> {
-    RenderFn::new(|leaf: TextLeaf| {
+pub fn default_leaf(colors: Memo<TextAreaColors>) -> RenderFn<TextLeaf, Span> {
+    RenderFn::new(move |leaf: TextLeaf| {
+        let background = match leaf.syntax.code {
+            true => Prop::dynamic(move || {
+                Some(SpanBackground {
+                    color: colors.get().code_background,
+                    radius: CODE_RADIUS,
+                    outset: Vec2::new(CODE_OUTSET, -1.0),
+                })
+            }),
+            false => Prop::Static(None),
+        };
         view! {
-            <LeafSpan leaf />
+            <LeafSpan leaf background />
         }
     })
 }

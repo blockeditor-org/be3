@@ -264,6 +264,7 @@ impl Schema for Basic {
             italic: on(marks, ITALIC),
             underline: on(marks, UNDERLINE) || link,
             strikethrough: on(marks, STRIKETHROUGH) || checked,
+            code: code && !code_block,
         }
     }
 

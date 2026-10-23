@@ -104,19 +104,19 @@ struct TextSpan {
 pub struct TextMark {
     pub range: Range<usize>,
     pub color: Color32,
-    pub radius: f32,
-    pub outset: Vec2,
 }
 
 impl TextMark {
     pub fn new(range: Range<usize>, color: Color32) -> Self {
-        Self {
-            range,
-            color,
-            radius: 0.0,
-            outset: Vec2::ZERO,
-        }
+        Self { range, color }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SpanBackground {
+    pub color: Color32,
+    pub radius: f32,
+    pub outset: Vec2,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
