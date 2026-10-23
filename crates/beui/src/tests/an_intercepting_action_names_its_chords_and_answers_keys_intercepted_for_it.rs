@@ -41,13 +41,23 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
     let escape = Chord::key(Key::Escape).alt().key_chord();
 
     assert_eq!(
-        harness.frame(Vec::new()).main().window.requests.intercepted_keys,
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .intercepted_keys,
         [tab],
         "only enabled intercepting actions name their chords, and never a chord that types"
     );
     open.set(true);
     assert_eq!(
-        harness.frame(Vec::new()).main().window.requests.intercepted_keys,
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .intercepted_keys,
         [tab, escape],
         "a chord is named once its action is enabled"
     );

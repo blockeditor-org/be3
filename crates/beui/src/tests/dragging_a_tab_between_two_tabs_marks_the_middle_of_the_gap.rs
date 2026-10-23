@@ -23,7 +23,8 @@ fn dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap() {
     let output = harness.frame(Vec::new());
 
     let marker = output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .find_map(|shape| match shape {
             Shape::Rect { rect, color, .. }

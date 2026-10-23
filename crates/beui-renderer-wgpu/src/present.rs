@@ -8,7 +8,7 @@ use crate::Repainting;
 use crate::renderer_info;
 use crate::wgpu_color_in;
 use beui_core::color::Color32;
-use beui_core::context::{WindowOutput, Moved, RendererInfo};
+use beui_core::context::{Moved, RendererInfo, WindowOutput};
 use beui_core::geometry::{Vec2, vec2};
 
 pub type OpenDevice = Arc<

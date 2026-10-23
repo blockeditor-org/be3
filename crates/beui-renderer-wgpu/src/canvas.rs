@@ -2,7 +2,7 @@ use std::error::Error;
 
 use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{WindowOutput, RendererInfo};
+use beui_core::context::{RendererInfo, WindowOutput};
 use beui_core::geometry::Vec2;
 use beui_core::renderer;
 

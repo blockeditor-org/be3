@@ -390,7 +390,13 @@ pub(crate) fn png(
             draw(&painter, scene, entity, camera, &decoded);
         }
     });
-    let painted = painting(output.main(), size, scale, Color32::TRANSPARENT, Punches::Shown)?;
+    let painted = painting(
+        output.main(),
+        size,
+        scale,
+        Color32::TRANSPARENT,
+        Punches::Shown,
+    )?;
     let raster = rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
     encode_png(raster.size, raster.rgba.into_iter().flatten().collect())
 }

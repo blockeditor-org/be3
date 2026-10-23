@@ -1,4 +1,4 @@
-use beui::{WindowOutput, Rect, Renderer, Repaint, Vec2, vec2};
+use beui::{Rect, Renderer, Repaint, Vec2, WindowOutput, vec2};
 use smithay::utils::{Physical, Rectangle};
 
 use crate::gpu::{Gpu, Sprite};

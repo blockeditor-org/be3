@@ -4,28 +4,29 @@ const RED: [u8; 4] = [0, 0, 255, 255];
 const BLUE: [u8; 4] = [255, 0, 0, 255];
 
 fn paint(context: &beui::Context, square: bool) -> beui::WindowOutput {
-    context.run(|context| {
-        let painter = context.painter();
-        painter.rect_filled(
-            Rect::from_min_size(pos2(0.0, 0.0), vec2(24.0, 32.0)),
-            0.0,
-            Color32::from_rgb(255, 0, 0),
-        );
-        painter.rect_filled(
-            Rect::from_min_size(pos2(0.0, 0.0), vec2(4.0, 4.0)),
-            0.0,
-            Color32::from_rgb(0, 0, 255),
-        );
-        if square {
+    context
+        .run(|context| {
+            let painter = context.painter();
             painter.rect_filled(
-                Rect::from_min_size(pos2(16.0, 10.0), vec2(4.0, 4.0)),
+                Rect::from_min_size(pos2(0.0, 0.0), vec2(24.0, 32.0)),
+                0.0,
+                Color32::from_rgb(255, 0, 0),
+            );
+            painter.rect_filled(
+                Rect::from_min_size(pos2(0.0, 0.0), vec2(4.0, 4.0)),
                 0.0,
                 Color32::from_rgb(0, 0, 255),
             );
-        }
-    })
-    .main()
-    .clone()
+            if square {
+                painter.rect_filled(
+                    Rect::from_min_size(pos2(16.0, 10.0), vec2(4.0, 4.0)),
+                    0.0,
+                    Color32::from_rgb(0, 0, 255),
+                );
+            }
+        })
+        .main()
+        .clone()
 }
 
 #[test]

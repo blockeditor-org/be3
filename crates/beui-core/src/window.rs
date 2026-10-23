@@ -191,7 +191,10 @@ impl WindowRequest {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum WindowReport {
-    Resized { window: WindowId, size: Vec2 },
+    Resized {
+        window: WindowId,
+        size: Vec2,
+    },
     Placed {
         window: WindowId,
         placement: HostPlacement,

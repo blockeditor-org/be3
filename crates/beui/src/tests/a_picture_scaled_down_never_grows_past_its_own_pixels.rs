@@ -16,7 +16,8 @@ fn drawn(width: f32, height: f32) -> Rect {
     let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .find_map(|shape| match shape {
             crate::painter::Shape::Image { rect, .. } => Some(*rect),

@@ -38,7 +38,8 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
     );
     assert_eq!(output.main().shapes().len(), first);
     let moved = output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .any(|shape| matches!(shape, Shape::Rect { rect, .. } if rect.min == pos2(35.0, 55.0)));
     assert!(moved, "the framed item is painted where the pan moved it");

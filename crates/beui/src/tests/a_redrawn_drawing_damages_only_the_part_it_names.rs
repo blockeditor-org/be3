@@ -44,7 +44,8 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
     show(redrawn.clone(), &mut harness);
     let damage = harness
         .frame(Vec::new())
-        .main().damage()
+        .main()
+        .damage()
         .expect("a redrawn drawing damages what it names");
     assert_eq!(damage, changed.translate(origin));
 
@@ -58,7 +59,8 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
     );
     let damage = harness
         .frame(Vec::new())
-        .main().damage()
+        .main()
+        .damage()
         .expect("both redraws since the last paint are damaged");
     assert_eq!(
         damage,
@@ -68,7 +70,8 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
     show(crate::renderer::drawing(Blank), &mut harness);
     let damage = harness
         .frame(Vec::new())
-        .main().damage()
+        .main()
+        .damage()
         .expect("a different drawing damages its whole rectangle");
     assert_eq!(damage, harness.rect(viewport));
 }

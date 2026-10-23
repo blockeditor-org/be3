@@ -18,7 +18,8 @@ fn a_baseline_row_lines_up_text_of_different_sizes() {
     let mut harness = Harness::sized(document, vec2(300.0, 80.0));
     let output = harness.frame(Vec::new());
     let lines: Vec<(f32, f32)> = output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::Shape::Text { origin, galley, .. } => {

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use beui_core::color::Color32;
-use beui_core::context::{WindowOutput, RendererInfo};
+use beui_core::context::{RendererInfo, WindowOutput};
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::geometry::Vec2;
 use beui_core::image::{Image, ImageId};

@@ -403,6 +403,7 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
+mod a_window_host_sizes_the_main_window_and_shows_what_it_composes;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
@@ -804,7 +805,6 @@ mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_top_layer_takes_a_click_over_the_layer_below;
-mod a_window_host_sizes_the_main_window_and_shows_what_it_composes;
 mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
 mod the_window_is_shown_the_ime_again_after_typing_into_it;
@@ -1724,7 +1724,8 @@ pub(crate) fn thumb_painted(output: &crate::FrameOutput, track: Rect) -> bool {
 
 pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
     output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::painter::Shape::Rect { rect, .. }
@@ -2542,14 +2543,18 @@ fn open_anchored_in(
 }
 
 fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
-    output.main().shapes().into_iter().find_map(|shape| match shape {
-        crate::painter::Shape::Rect { rotation, .. }
-            if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
-        {
-            Some(rotation.pivot)
-        }
-        _ => None,
-    })
+    output
+        .main()
+        .shapes()
+        .into_iter()
+        .find_map(|shape| match shape {
+            crate::painter::Shape::Rect { rotation, .. }
+                if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
+            {
+                Some(rotation.pivot)
+            }
+            _ => None,
+        })
 }
 
 fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {

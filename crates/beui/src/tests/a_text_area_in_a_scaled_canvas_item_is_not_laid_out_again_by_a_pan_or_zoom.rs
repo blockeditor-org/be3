@@ -8,7 +8,8 @@ use text_editor_core::{Document, TextBuffer};
 
 fn tallest_glyph(output: &FrameOutput) -> u32 {
     output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::painter::Shape::Text { galley, .. } => Some(galley.clone()),

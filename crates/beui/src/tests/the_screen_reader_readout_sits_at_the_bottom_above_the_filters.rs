@@ -24,7 +24,8 @@ fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
     );
 
     let filtered = output
-        .main().layers
+        .main()
+        .layers
         .iter()
         .find_map(|layer| match layer {
             Layer::Group(Group::Filter(_), inner) => Some(beui_core::display::flatten(inner)),

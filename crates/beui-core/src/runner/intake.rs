@@ -1,11 +1,11 @@
 use std::time::Instant;
 
 use crate::geometry::{Pos2, Vec2};
-use crate::window::{WindowId, WindowReport};
 use crate::input::{
     Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta,
     TouchId, TouchPhase,
 };
+use crate::window::{WindowId, WindowReport};
 
 pub const SCROLL_LINE: f32 = 40.0;
 pub const SCROLL_PAGE: f32 = 800.0;

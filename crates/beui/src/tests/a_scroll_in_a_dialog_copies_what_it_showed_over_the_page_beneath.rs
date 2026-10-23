@@ -44,7 +44,8 @@ fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {
         0.0, -40.0,
     )))]);
     let moved = output
-        .main().moved()
+        .main()
+        .moved()
         .expect("the dialog's panel hides the page, so the scroll copies what it showed");
     assert_eq!(moved.by, Vec2::new(0.0, -40.0));
 }

@@ -39,13 +39,15 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     assert!(
         harness
             .frame(vec![Input::PointerMoved(pos2(10.0, 10.0))])
-            .main().changed
+            .main()
+            .changed
     );
     let before = (layouts.get_untracked(), paints.get_untracked());
     assert!(
         !harness
             .frame(vec![Input::PointerMoved(pos2(20.0, 20.0))])
-            .main().changed
+            .main()
+            .changed
     );
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), before);
     assert!(harness.frame(vec![Input::PointerLeft]).main().changed);

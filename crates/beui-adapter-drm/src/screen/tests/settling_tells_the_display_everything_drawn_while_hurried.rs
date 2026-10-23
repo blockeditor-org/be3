@@ -1,19 +1,20 @@
 use super::*;
 
 fn paint(context: &beui::Context, squares: &[Rect]) -> beui::WindowOutput {
-    context.run(|context| {
-        let painter = context.painter();
-        painter.rect_filled(
-            Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0)),
-            0.0,
-            Color32::from_rgb(255, 0, 0),
-        );
-        for square in squares {
-            painter.rect_filled(*square, 0.0, Color32::from_rgb(0, 0, 255));
-        }
-    })
-    .main()
-    .clone()
+    context
+        .run(|context| {
+            let painter = context.painter();
+            painter.rect_filled(
+                Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0)),
+                0.0,
+                Color32::from_rgb(255, 0, 0),
+            );
+            for square in squares {
+                painter.rect_filled(*square, 0.0, Color32::from_rgb(0, 0, 255));
+            }
+        })
+        .main()
+        .clone()
 }
 
 #[test]

@@ -7,7 +7,7 @@ use std::rc::Rc;
 use bytemuck::{Pod, Zeroable};
 
 use beui_core::color::Color32;
-use beui_core::context::{WindowOutput, Moved};
+use beui_core::context::{Moved, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::draw::{Quad, Turn, push_quads};

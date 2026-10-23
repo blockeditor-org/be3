@@ -15,7 +15,10 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
 
     let gap = pos2(middle, right.center().y);
     let output = harness.frame(vec![Input::PointerMoved(gap)]);
-    assert_eq!(output.main().window.requests.cursor, CursorIcon::ResizeHorizontal);
+    assert_eq!(
+        output.main().window.requests.cursor,
+        CursorIcon::ResizeHorizontal
+    );
     harness.drag(gap, gap + vec2(50.0, 0.0));
     harness.frame(Vec::new());
     let moved = harness.rect(harness.find("content.1"));

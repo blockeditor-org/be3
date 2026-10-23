@@ -5,7 +5,8 @@ use crate::reactive::*;
 
 fn tallest_glyph(output: &FrameOutput) -> u32 {
     output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             Shape::Text { galley, .. } => Some(galley.clone()),
@@ -63,7 +64,8 @@ fn zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles() {
     assert_eq!(output.main().shapes().len(), shapes);
     let framed = Rect::from_min_size(pos2(45.0, 95.0), Vec2::new(160.0, 40.0));
     let moved = output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .any(|shape| matches!(shape, Shape::Rect { rect, .. } if *rect == framed));
     assert!(moved, "the framed item is painted where the zoom put it");
@@ -88,7 +90,8 @@ fn zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles() {
     );
     assert!(
         settled
-            .main().shapes()
+            .main()
+            .shapes()
             .iter()
             .any(|shape| matches!(shape, Shape::Rect { rect, .. } if *rect == framed))
     );

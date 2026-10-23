@@ -27,7 +27,12 @@ impl Renderer for Screen {
         Some(vec2(20.0, 10.0))
     }
 
-    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        _output: &crate::WindowOutput,
+        _scale: f32,
+        _background: Color32,
+    ) -> bool {
         self.prepared.set(self.prepared.get() + 1);
         true
     }

@@ -5,7 +5,8 @@ use crate::reactive::*;
 
 fn fill_clip(output: &FrameOutput) -> Rect {
     output
-        .main().shapes()
+        .main()
+        .shapes()
         .iter()
         .find_map(|shape| match shape {
             Shape::Rect { color, clip, .. } if *color == Color32::from_rgb(200, 30, 30) => {

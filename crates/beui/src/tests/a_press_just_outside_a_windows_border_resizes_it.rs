@@ -17,7 +17,10 @@ fn a_press_just_outside_a_windows_border_resizes_it() {
 
     let beside = pos2(before.right() + 3.0, before.center().y);
     let output = harness.frame(vec![Input::PointerMoved(beside)]);
-    assert_eq!(output.main().window.requests.cursor, CursorIcon::ResizeHorizontal);
+    assert_eq!(
+        output.main().window.requests.cursor,
+        CursorIcon::ResizeHorizontal
+    );
     let corner = before.max + vec2(3.0, 3.0);
     let output = harness.frame(vec![Input::PointerMoved(corner)]);
     assert_eq!(output.main().window.requests.cursor, CursorIcon::ResizeNwSe);
@@ -35,7 +38,10 @@ fn a_press_just_outside_a_windows_border_resizes_it() {
 
     let far = pos2(widened.right() + 12.0, widened.center().y);
     let output = harness.frame(vec![Input::PointerMoved(far)]);
-    assert_ne!(output.main().window.requests.cursor, CursorIcon::ResizeHorizontal);
+    assert_ne!(
+        output.main().window.requests.cursor,
+        CursorIcon::ResizeHorizontal
+    );
     harness.drag(far, far + vec2(40.0, 0.0));
     assert_eq!(
         rect(&harness),

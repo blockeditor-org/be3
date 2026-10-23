@@ -31,7 +31,8 @@ fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
 
     let highlights = |output: &crate::FrameOutput| {
         output
-            .main().shapes()
+            .main()
+            .shapes()
             .iter()
             .filter(|shape| {
                 matches!(shape, crate::Shape::Rect { color, stroke_width, .. }

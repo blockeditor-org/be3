@@ -525,9 +525,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn wants_another_frame(&self) -> bool {
-        self.output
-            .as_ref()
-            .is_some_and(|output| output.main().changed || output.repaint_after < std::time::Duration::MAX)
+        self.output.as_ref().is_some_and(|output| {
+            output.main().changed || output.repaint_after < std::time::Duration::MAX
+        })
     }
 
     pub fn drawn(&self) -> Option<&beui::FrameOutput> {

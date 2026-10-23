@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{WindowOutput, RendererInfo};
+use beui_core::context::{RendererInfo, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::geometry::{Rect, Vec2, vec2};
 use beui_core::renderer::Renderer;

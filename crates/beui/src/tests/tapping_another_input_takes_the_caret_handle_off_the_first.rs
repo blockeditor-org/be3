@@ -30,7 +30,8 @@ fn tapping_another_input_takes_the_caret_handle_off_the_first() {
     };
     let handles = |harness: &Harness, output: &crate::FrameOutput| -> Vec<NodeId> {
         output
-            .main().shapes()
+            .main()
+            .shapes()
             .iter()
             .filter_map(|shape| match shape {
                 crate::Shape::Rect { rect, .. }

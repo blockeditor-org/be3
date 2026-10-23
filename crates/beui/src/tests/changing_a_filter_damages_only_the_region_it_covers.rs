@@ -23,7 +23,10 @@ fn changing_a_filter_damages_only_the_region_it_covers() {
     assert_eq!(still.main().damaged(), None);
 
     let wider = frame(8.0);
-    assert!(wider.main().changed, "a filter that changed changes the frame");
+    assert!(
+        wider.main().changed,
+        "a filter that changed changes the frame"
+    );
     assert_eq!(
         wider.main().damage.rects(),
         &[region],
