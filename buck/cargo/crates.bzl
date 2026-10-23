@@ -12312,8 +12312,9 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12323,8 +12324,9 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12334,8 +12336,9 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12345,8 +12348,9 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12356,8 +12360,9 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12367,8 +12372,9 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12378,8 +12384,9 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12389,8 +12396,9 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12400,8 +12408,9 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
@@ -12705,10 +12714,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12716,10 +12725,10 @@ crates = {
                     "changed": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12728,10 +12737,10 @@ crates = {
                     "dump": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12746,10 +12755,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12757,10 +12766,10 @@ crates = {
                     "changed": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12769,10 +12778,10 @@ crates = {
                     "dump": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12787,10 +12796,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12798,10 +12807,10 @@ crates = {
                     "changed": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12810,10 +12819,10 @@ crates = {
                     "dump": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12828,10 +12837,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12839,10 +12848,10 @@ crates = {
                     "changed": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12851,10 +12860,10 @@ crates = {
                     "dump": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12869,10 +12878,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12880,10 +12889,10 @@ crates = {
                     "changed": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12892,10 +12901,10 @@ crates = {
                     "dump": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12910,10 +12919,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12926,10 +12935,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12937,10 +12946,10 @@ crates = {
                     "changed": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12949,10 +12958,10 @@ crates = {
                     "dump": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12967,10 +12976,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/paint-format:paint-format",
-                    "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
@@ -12978,10 +12987,10 @@ crates = {
                     "changed": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
@@ -12990,10 +12999,10 @@ crates = {
                     "dump": {
                         "deps": [
                             "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_bytes-0.11.19",
                             "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],

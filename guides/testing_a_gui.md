@@ -223,6 +223,13 @@ way for the test to fail.
 - ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.
+- A painting is paint-format's types as CBOR (`paint_format::encode`), deflated behind a
+  version number (`VERSION` in paint-snapshot's format.rs). Accepting compares the CBOR before
+  deflating it, so a painting passes or fails on what it holds. Grow the format the way
+  guides/frozen_formats.md grows CBOR values - a new enum variant, or a new field with
+  `#[serde(default, skip_serializing_if = ...)]` that skips its default - so the paintings that
+  do not use it keep their bytes. Only renaming, removing or reshaping a field bumps the
+  version, and then ./scripts/verify rewrites every painting.
 - Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so
   you do not need to review or explain changed paintings. They show up on the pull request,
   and a person reviews them there before merging. Leave the images alone.

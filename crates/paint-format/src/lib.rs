@@ -1,12 +1,23 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 mod raster;
 
 pub use raster::rasterize;
 
 pub type TextureKey = u64;
+
+pub fn encode<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    ciborium::into_writer(value, &mut bytes).map_err(|error| error.to_string())?;
+    Ok(bytes)
+}
+
+pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
+    ciborium::from_reader(bytes).map_err(|error| error.to_string())
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Frame {
@@ -19,6 +30,7 @@ pub struct Frame {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Primitive {
     pub clip: [f32; 4],
+    #[serde(default, skip_serializing_if = "Fade::is_none")]
     pub fade: Fade,
     pub content: Content,
 }
@@ -35,7 +47,7 @@ impl Fade {
         widths: [0.0; 4],
     };
 
-    pub fn is_none(self) -> bool {
+    pub fn is_none(&self) -> bool {
         self.widths == [0.0; 4]
     }
 
@@ -185,7 +197,22 @@ pub struct Vertex {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Pixels {
     pub size: [u32; 2],
+    #[serde(serialize_with = "flat", deserialize_with = "unflat")]
     pub rgba: Vec<[u8; 4]>,
+}
+
+fn flat<S: Serializer>(rgba: &[[u8; 4]], serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_bytes(rgba.as_flattened())
+}
+
+fn unflat<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<[u8; 4]>, D::Error> {
+    let bytes = serde_bytes::ByteBuf::deserialize(deserializer)?;
+    match bytes.as_chunks::<4>() {
+        (rgba, []) => Ok(rgba.to_vec()),
+        _ => Err(serde::de::Error::custom(
+            "pixels are not a whole number of rgba values",
+        )),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -205,16 +232,12 @@ pub struct ScreenPaintings {
 }
 
 impl ScreenPaintings {
-    pub fn encoded_len(&self) -> usize {
-        bincode::serialized_size(self).map_or(usize::MAX, |size| size as usize)
-    }
-
     pub fn encode(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap_or_default()
+        encode(self).unwrap_or_default()
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
-        bincode::deserialize(bytes).map_err(|error| error.to_string())
+        decode(bytes)
     }
 }
 
@@ -395,11 +418,11 @@ impl Painting {
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap_or_default()
+        encode(self).unwrap_or_default()
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
-        bincode::deserialize(bytes).map_err(|error| error.to_string())
+        decode(bytes)
     }
 
     pub fn placed(&self, placement: Placement) -> Vec<Primitive> {
