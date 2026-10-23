@@ -1921,7 +1921,7 @@ another's bar or pane lands there. A tab or pane dropped where no window is (a
 
 `floating_only` on `Docking` floats every pane of the base into a window of
 its own, its tabs staying together, whenever one has tabs, and no drop tiles
-into the base; beui-demo turns it on under a window host (`opens_windows()`,
+into the base, which shows nothing; beui-demo turns it on under a window host (`opens_windows()`,
 from `beui::primitives` and `beui::styled`, the document's `opens_windows` as a signal).
 
 How the windows stack is the document's layer order alone (`Document::layers()`),
