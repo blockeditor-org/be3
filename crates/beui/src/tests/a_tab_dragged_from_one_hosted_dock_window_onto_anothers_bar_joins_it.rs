@@ -4,7 +4,7 @@ use crate::unstyled::{DockApi, TabId};
 #[test]
 fn a_tab_dragged_from_one_hosted_dock_window_onto_anothers_bar_joins_it() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false);
+    let (document, dock) = windowed_dock(false, None);
     let mut harness = Harness::hosting_windows(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

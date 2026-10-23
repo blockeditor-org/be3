@@ -2760,7 +2760,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         }
     });
     let claimed = dock.drag_modifier;
-    let resized = Callback::new(modifier_resize(dock, Resized::Window(surface)));
     let view = view! {
         <Window
             @node_ref=&overlay
@@ -2771,6 +2770,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             on_report={move |report: WindowReport| dock.window_reported(surface, report)}
         >|handle: WindowHandle| {
             let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
+            let resized = Callback::new(modifier_resize(dock, Resized::Window(surface, handle)));
             view! {
                 <DropTarget
                     on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}

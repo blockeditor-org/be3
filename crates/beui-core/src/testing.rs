@@ -155,6 +155,14 @@ impl Windows {
         self.outputs.iter().find(|output| output.id == id)
     }
 
+    fn resized(&mut self, id: WindowId, size: Vec2) {
+        if let Some(window) = self.open.iter_mut().find(|window| window.id == id) {
+            window.size = size;
+            self.reports
+                .push(WindowReport::Resized { window: id, size });
+        }
+    }
+
     fn opened(&mut self, id: WindowId, placement: &WindowPlacement, size: Vec2) {
         let placement = match placement {
             WindowPlacement::Host(placement) => placement.clone(),
@@ -209,6 +217,7 @@ impl WindowHost for TestHost {
                     windows.open.retain(|open| open.id != *window);
                     windows.outputs.retain(|output| output.id != *window);
                 }
+                WindowRequest::Resize { window, size } => windows.resized(*window, *size),
                 WindowRequest::BeginMove(_) | WindowRequest::BeginResize(..) => {}
             }
         }

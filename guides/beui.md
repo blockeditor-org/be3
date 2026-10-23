@@ -1903,8 +1903,11 @@ A dock window is a `Window` (see "Windows and window hosts") sized to its rect
 plus the reach of its resize grips, which lie around it. Where nothing opens
 windows it is that `Window`'s overlay and the dock moves, clamps, springs back
 and resizes it itself. Where a host opens windows each dock window is a real
-window: a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`,
-so the host moves and resizes it; the dock writes the size of the host's
+window: a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
+(as does a secondary drag with `drag_modifier`, from the nearest edge or
+corner), so the host moves and resizes it. A size set from inside, such as
+`DockTabControl::resize_window`, changes the rect and so the `Window`'s `size`,
+which asks the host with `WindowRequest::Resize`; either way the dock writes the size of the host's
 `Resized` reports into the window's rect (less the grips) and keeps each
 `Placed` report's `HostPlacement` in memory, handing it back as
 `WindowPlacement::Host` when the window opens again (after the dock was
@@ -2582,7 +2585,8 @@ The app asks its host for windows with `Context::request_window`, which
 collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
 placement, size }`, `BeginMove(window)`, `BeginResize(window, WindowEdge)`
 (the host then moves or resizes it, as an OS does after winit's
-`drag_window`) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
+`drag_window`), `Resize { window, size }` (the app wants another size; the
+host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
 `Beside(window)`, or `Host(HostPlacement)`: a value only the host
 understands (a screen position, a 3D pose), which the app stores and hands
 back unchanged. The host answers with `WindowReport`s pushed as
@@ -2615,7 +2619,10 @@ Where a host opens windows it is one: its content is laid out from its own
 corner, `(0, 0)`, at its size (the size the host last reported, else `size`)
 and painted into its own `WindowOutput`. The document asks the host to `Open`
 it, with `placement` and `size`, when it opens and to `Close` it when it
-closes or leaves the tree; `on_report` hears the host's `Resized`, `Placed`
+closes or leaves the tree. When `size` changes while it is open, to something
+other than the size the host last reported, the document asks for it with
+`Resize`; the window keeps the reported size until the host answers, so an
+app that follows `Resized` reports in its `size` never fights the host; `on_report` hears the host's `Resized`, `Placed`
 (the `HostPlacement` to store and hand back as `placement` next time) and
 `Closed`, after which the window stays shut until the app closes and opens it
 again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
@@ -2725,8 +2732,9 @@ all its 3D (`glam`) stays in the crate.
   of that panel, tops level, `BESIDE_GAP` apart, and `AtPointer` puts the
   point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
   in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
-  none, turned to face the viewer (yaw only). `Close` removes the panel and
-  its texture; the main window's panel never closes.
+  none, turned to face the viewer (yaw only). `Resize` sets the panel's size,
+  keeping its top-left corner, and reports `Resized` the next frame. `Close`
+  removes the panel and its texture; the main window's panel never closes.
 - Pointer: input in physical or logical pixels is the platform's; a ray from
   the eye through the cursor picks the nearest panel's front (`panel::pick`) and
   the app gets the input as that window's, in its points. Moving onto another

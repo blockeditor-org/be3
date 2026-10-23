@@ -5,7 +5,7 @@ use crate::{WindowId, WindowPlacement, WindowRequest};
 #[test]
 fn a_floating_only_dock_floats_each_pane_of_its_base_into_a_window() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(true);
+    let (document, dock) = windowed_dock(true, None);
     let mut harness = Harness::hosting_windows(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

@@ -179,13 +179,17 @@ pub enum WindowRequest {
     },
     BeginMove(WindowId),
     BeginResize(WindowId, WindowEdge),
+    Resize {
+        window: WindowId,
+        size: Vec2,
+    },
     Close(WindowId),
 }
 
 impl WindowRequest {
     pub fn window(&self) -> WindowId {
         match self {
-            Self::Open { window, .. } => *window,
+            Self::Open { window, .. } | Self::Resize { window, .. } => *window,
             Self::BeginMove(window) | Self::BeginResize(window, _) | Self::Close(window) => *window,
         }
     }

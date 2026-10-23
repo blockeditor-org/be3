@@ -192,6 +192,7 @@ mod a_headless_window_fills_its_screen_when_the_app_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there;
+mod a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_reports;
 mod a_hosted_dock_windows_grip_asks_its_host_to_resize_it;
 mod a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own;
 mod a_hosts_report_of_a_windows_size_and_place_reaches_the_app;
@@ -313,6 +314,7 @@ mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_second_swipe_during_a_fling_keeps_scrolling;
 mod a_secondary_drag_carried_over_a_floating_window_keeps_moving_the_split;
 mod a_secondary_drag_released_as_the_pointer_leaves_still_ends;
+mod a_secondary_drag_with_the_dock_drag_modifier_hands_a_hosted_windows_resize_to_its_host;
 mod a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split;
 mod a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner;
 mod a_select_following_its_prop_does_not_report_a_change;
@@ -1850,12 +1852,15 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     (document, dock.get())
 }
 
-pub(crate) fn windowed_dock(floating_only: bool) -> (Document, NodeId) {
+pub(crate) fn windowed_dock(
+    floating_only: bool,
+    drag_modifier: Option<Modifiers>,
+) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout floating_only>
+            <styled::Docking @node_ref=&dock layout floating_only drag_modifier>
                 <unstyled::DockSplit id="split">
                     <unstyled::DockPane id="left">
                         <unstyled::DockTab id=1u64 title="Tab 1">

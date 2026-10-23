@@ -20,6 +20,7 @@ pub(crate) struct Windows {
     nodes: Vec<(WindowId, NodeOf<OverlayNode>)>,
     opens: ::reactive::OwnedSignal<bool>,
     asked: Vec<WindowId>,
+    wanted: HashMap<WindowId, Vec2>,
     closed_by_host: HashSet<WindowId>,
     requests: Vec<WindowRequest>,
     shown: HashMap<WindowId, Vec2>,
@@ -33,6 +34,7 @@ impl Default for Windows {
             nodes: Vec::new(),
             opens: ::reactive::OwnedSignal::new(false),
             asked: Vec::new(),
+            wanted: HashMap::default(),
             closed_by_host: HashSet::default(),
             requests: Vec::new(),
             shown: HashMap::default(),
@@ -217,22 +219,35 @@ impl Document {
                 }
             }
         }
+        let asked = self.windows.asked.clone();
+        self.windows
+            .wanted
+            .retain(|window, _| asked.contains(window));
         for window in &open {
-            if self.windows.asked.contains(window) {
-                continue;
-            }
             let Some(spec) = self
                 .window_node(*window)
                 .and_then(|node| self.overlay_window(node))
             else {
                 continue;
             };
-            ctx.request_window(WindowRequest::Open {
-                window: *window,
-                placement: spec.placement.clone(),
-                size: spec.size,
-            });
-            self.windows.asked.push(*window);
+            let size = spec.size;
+            if !self.windows.asked.contains(window) {
+                ctx.request_window(WindowRequest::Open {
+                    window: *window,
+                    placement: spec.placement.clone(),
+                    size,
+                });
+                self.windows.asked.push(*window);
+                self.windows.wanted.insert(*window, size);
+                continue;
+            }
+            let wanted = self.windows.wanted.insert(*window, size);
+            if wanted != Some(size) && ctx.window_size(*window) != Some(size) {
+                ctx.request_window(WindowRequest::Resize {
+                    window: *window,
+                    size,
+                });
+            }
         }
         for request in std::mem::take(&mut self.windows.requests) {
             if self.windows.asked.contains(&request.window()) {

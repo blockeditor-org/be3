@@ -576,6 +576,7 @@ impl Space {
             } => self.open(*window, placement, *size),
             WindowRequest::BeginMove(window) => self.begin_carry(*window),
             WindowRequest::BeginResize(window, edge) => self.begin_resize(*window, *edge),
+            WindowRequest::Resize { window, size } => self.resize_window(*window, *size),
             WindowRequest::Close(window) => self.close(*window),
         }
     }
@@ -604,6 +605,20 @@ impl Space {
             },
         ];
         self.reports.extend(reports.map(Incoming::Window));
+    }
+
+    pub fn resize_window(&mut self, window: WindowId, size: Vec2) {
+        if self.resize.is_some_and(|resize| resize.window == window) {
+            return;
+        }
+        let Some(panel) = self.panel_mut(window) else {
+            return;
+        };
+        let corner = panel.world(Pos2::ZERO);
+        panel.size = size;
+        panel.pose.position = corner - panel.pose.rotation * panel.offset(Pos2::ZERO);
+        self.reports
+            .push(Incoming::Window(WindowReport::Resized { window, size }));
     }
 
     fn at_pointer(&self, size: Vec2) -> Pose {
