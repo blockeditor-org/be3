@@ -247,7 +247,9 @@ impl Space {
                 self.cursor = Some(Cursor::Platform(at));
                 let ray = self.head.ray(self.platform, at.to_vec2());
                 match (&mut self.carry, self.resize) {
-                    (Some(carry), _) => carry.aim(Head::direction(self.platform, at.to_vec2())),
+                    (Some(carry), _) => {
+                        carry.aim(&self.head, Head::direction(self.platform, at.to_vec2()));
+                    }
                     (None, Some(_)) => self.resize_to(ray, out),
                     (None, None) => self.point(Input::PointerMoved(at), at, out),
                 }

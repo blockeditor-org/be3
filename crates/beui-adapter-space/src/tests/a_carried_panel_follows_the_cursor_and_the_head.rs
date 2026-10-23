@@ -15,6 +15,15 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
     space.begin_carry(WindowId::MAIN);
     let distance = space.carry.unwrap().distance;
 
+    let facing = |space: &Space, at: Pos2| {
+        let panel = main(space);
+        let hit = panel.hit(space.head.ray(PLATFORM, at.to_vec2())).unwrap();
+        let toward = space.head.position - hit.point;
+        let normal = panel.normal();
+        normal.x.atan2(normal.z) - toward.x.atan2(toward.z)
+    };
+    let before = facing(&space, grab);
+
     let moved = centre() + vec2(150.0, -50.0);
     assert_eq!(
         delivered(&send(&mut space, now, [Input::PointerMoved(moved)])),
@@ -33,6 +42,13 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
     assert!(
         (under.distance - distance).abs() < 1e-3,
         "at the same distance"
+    );
+    let normal = main(&space).normal();
+    assert!(normal.x < -0.1, "swung right, it turns: {normal:?}");
+    assert!(
+        (facing(&space, moved) - before).abs() < 1e-3,
+        "turning about the grabbed point to face the viewer as before: {before} then {}",
+        facing(&space, moved)
     );
 
     send(&mut space, now, steer(true));

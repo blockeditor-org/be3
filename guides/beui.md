@@ -2761,7 +2761,10 @@ all its 3D (`glam`) stays in the crate.
   and `drive motion 200 0` while Ctrl and Shift are held turns the head.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
-  moving the mouse or steering carries it. Scroll changes the distance and does
+  moving the mouse or steering carries it. As the mouse swings the ray around
+  the viewer the panel turns with it, by the ray's change of yaw about the
+  grabbed point, so a panel that faced the viewer goes on facing them
+  (`Carry::aim`); steering turns it with the head instead. Scroll changes the distance and does
   not reach the app; the app sees no pointer moves meanwhile. Letting go of the
   button that was down when it began (or, if none was, the next click) ends it:
   the app gets that release where it grabbed, the panel turns to face the viewer

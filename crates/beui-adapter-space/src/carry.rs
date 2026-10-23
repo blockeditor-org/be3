@@ -30,8 +30,16 @@ impl Carry {
         }
     }
 
-    pub fn aim(&mut self, direction: Vec3) {
-        self.direction = direction.normalize_or(self.direction);
+    pub fn aim(&mut self, head: &Head, direction: Vec3) {
+        let direction = direction.normalize_or(self.direction);
+        let turned = head.rotation();
+        let yaw = |toward: Vec3| {
+            let toward = turned * toward;
+            toward.x.atan2(toward.z)
+        };
+        let swing = Quat::from_rotation_y(yaw(direction) - yaw(self.direction));
+        self.rotation = turned.inverse() * swing * turned * self.rotation;
+        self.direction = direction;
     }
 
     pub fn scroll(&mut self, lines: f32) {

@@ -26,9 +26,13 @@ impl Pose {
         }
         let numbers: Vec<f32> = words.map(str::parse).collect::<Result<_, _>>().ok()?;
         let [x, y, z, qx, qy, qz, qw] = numbers.try_into().ok()?;
+        let rotation = Quat::from_xyzw(qx, qy, qz, qw);
         Some(Self {
             position: Vec3::new(x, y, z),
-            rotation: Quat::from_xyzw(qx, qy, qz, qw).normalize(),
+            rotation: match rotation.is_normalized() {
+                true => rotation,
+                false => rotation.normalize(),
+            },
         })
     }
 }
