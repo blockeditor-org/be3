@@ -137,7 +137,7 @@ host's did.
 A key has two names. `Key` is what shortcuts match, and one rule names it on
 every platform, `Key::from_typed`: if the key's character under the person's
 layout is an ASCII letter or digit, `Key` is that letter or digit; otherwise it
-is the key at that place on a US keyboard. Named keys (Enter, arrows, F-keys,
+is the key at that place on a US keyboard. Named keys (Space, Enter, arrows, F-keys,
 modifiers, media keys) are named by what they are. So Ctrl+Z is the key that
 types `z` wherever the layout puts it, a Cyrillic or accented letter (`с`, `ą`)
 is the key it sits on, and punctuation is positional: AZERTY's comma key is

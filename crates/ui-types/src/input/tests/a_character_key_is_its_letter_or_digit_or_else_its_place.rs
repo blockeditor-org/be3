@@ -35,6 +35,11 @@ fn a_character_key_is_its_letter_or_digit_or_else_its_place() {
     }
     assert_eq!(Key::from_typed(None, Some(Key::Comma)), Some(Key::Comma));
     assert_eq!(Key::from_typed(Some('a'), None), Some(Key::A));
+    assert_eq!(
+        Key::from_value(" ", None, false),
+        Some(Key::Space),
+        "a space is Space even with no physical code"
+    );
     assert_eq!(Key::from_value("ф", None, false), None);
     assert_eq!(Key::from_value("CapsLock", Some(Key::A), false), None);
     for (value, key) in [

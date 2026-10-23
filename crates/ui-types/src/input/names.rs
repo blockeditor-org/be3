@@ -10,6 +10,7 @@ impl Key {
 
     pub fn from_typed(character: Option<char>, physical: Option<Self>) -> Option<Self> {
         match character {
+            Some(' ') => Some(Self::Space),
             Some(character) if character.is_ascii_alphanumeric() => {
                 Self::unshifted(character.to_ascii_lowercase())
             }
