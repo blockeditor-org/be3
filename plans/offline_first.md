@@ -73,12 +73,16 @@ same way: as their own frozen record in the refs database (below), not as
 protocol messages, since the protocol is not frozen and an old build cannot
 talk to a new server.
 
-## 1. Decide before anything is frozen
+## 1. Land the settings break first
 
-1. **The settings block's shape.** Settle BE-AB9TMP (whether `Settings` stays
-   as it is) and land section 1 of `plans/settings.md` with its one server
-   wipe. This must come before any device holds unsent offline edits, which a
-   wipe would strand.
+Land section 1 of `plans/settings.md` with its one server wipe before step 5
+turns this on: a wipe would strand unsent edits held on devices. Steps 2 to 4
+can go on alongside it.
+
+`Settings` and `SettingsProfile` keep their shape: nothing in
+`plans/settings.md` needs more than additions to them. A block's or an
+organization's settings is a new type, and tags, the prefix registry and the
+offline choice are new kinds.
 
 ## 2. Freeze `app.sqlite3`
 
