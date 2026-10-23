@@ -651,22 +651,53 @@ or write between runs.
 Version control is two content types and a peer-side operation set, not a
 store of its own: history is be-store objects and be-commit commits.
 
-- A **repository** (`be_block::Repository`) holds branch heads and an optional
-  upstream repository in the same organization. It holds its history with
-  `Peer::hold` (`HoldObjects`): a block that holds objects keeps them alive
-  whatever its own commits' retention does, until it is collected.
-- A **snapshot** is a `be_commit::Commit` of kind `Snapshot(message)` whose
+The model is jj's (Jujutsu's): the working copy is a commit, a change keeps its
+identity when it is rewritten, conflicts are data, and every operation can be
+undone.
+
+- A **repository** (`be_block::Repository`) holds branch heads, an optional
+  upstream repository in the same organization, and the operation log. It
+  holds its history with `Peer::hold` (`HoldObjects`): a block that holds
+  objects keeps them alive whatever its own commits' retention does, until it
+  is collected.
+- A **snapshot** is a `be_commit::Commit` of kind `Snapshot(description)` whose
   manifest is a `be_vcs::Tree`: one entry per block of the versioned subtree,
   keyed by local id, with its content type, parent, metadata, references and
-  content manifest. The manifest is the block's own, so a snapshot of unchanged
-  content stores nothing new, and a checkout publishes a block's first commit
-  with that manifest without downloading it.
+  content manifest, and the tree's unresolved conflicts. The manifest is the
+  block's own, so a snapshot of unchanged content stores nothing new, and a
+  checkout publishes a block's first commit with that manifest without
+  downloading it.
+- A **change** is the line of snapshots that share a `ChangeId`
+  (`Commit::change`). Rewriting a change (new edits, bringing the branch in,
+  resolving) writes a new commit with the same change id; the commit id is the
+  hash of the stored bytes and differs. A commit saved before change ids has
+  none and is its own change (`Commit::change_id`).
 - A **checkout** (`be_block::Checkout`) is the parent of a working tree of
   ordinary blocks, which every editor opens and every session edits as usual.
   Sharing the checkout block is how two people work on one tree; two checkouts
-  are two people working apart. It records its repository, branch, base commit,
-  root, the head each block had at the base (so status is a comparison against
-  the mirror rather than a download) and any conflicts.
+  are two people working apart. It records its repository, the branch it
+  follows, `working` (the latest snapshot of the working change), root, the
+  head each block had at that snapshot (so status is a comparison against the
+  mirror rather than a download), and a view of each conflict (copies of its
+  sides to look at). There is no staging area and no uncommitted state: edits
+  are the working change, and every operation first snapshots it (amends it).
+  Saving a change (`Finish`) describes the working change, moves the branch to
+  it with a compare-and-swap, and starts a new empty working change on top.
+- **Conflicts are data.** `be_vcs::merge` records every conflict in the merged
+  tree's `conflicts` with the entry each side had, and carries conflicts the
+  sides already recorded until one side resolves them. Bringing changes in,
+  switching branch (the working change is rebased onto the other branch) and
+  combining a branch (the working change gains a second parent) never refuse
+  because of conflicts and never leave anything in progress: the result is
+  the new working change, conflicts and all, which can be saved as it is.
+  Resolving (`Tree::resolve`) is an ordinary rewrite of the working change.
+- **The operation log** (`Repository::operations`, the latest
+  `OPERATION_LIMIT`) records every operation: its action, the checkout it ran
+  in, and the view before and after (the branches, and that checkout's working
+  change and branch). Undoing one is itself an operation: it puts back the
+  branches it moved, where they have not moved since, and reverts its effect
+  on the checkout's working change by a three-way merge (the after view as
+  base), so edits made since stay. Undoing an undo redoes.
 - **Scopes.** A block's content stores the ids of the blocks it names, and
   those have to mean the same thing in every checkout, so they are *local* ids.
   A block copied into a checkout is created as `masked(local, scope_mask(checkout))`
@@ -680,11 +711,11 @@ store of its own: history is be-store objects and be-commit commits.
   and falls back to the block with that id, which is how a reference out of the
   tree keeps working.
 - `crates/block-app/src/be/version.rs` runs the operations in the worker:
-  adopting a block into a new checkout, committing (a compare-and-swap on the
-  branch), making a checkout, switching, branching, bringing the branch's
-  changes in (`be_vcs::merge` over the trees, then each content type's
-  `Merge::merge3` for a block both sides changed, with `base`, `yours` and
-  `theirs` copies of a conflicted block left under the checkout), resolving,
+  adopting a block into a new checkout, saving a change, making a checkout,
+  switching, branching, combining a branch, bringing the branch's changes in
+  (`be_vcs::merge` over the trees, then each content type's `Merge::merge3`
+  for a block both sides changed, with `before`, `yours` and `incoming` copies
+  of a conflicted block left under the checkout), resolving, undoing,
   forking, pulling and pushing. It pushes a `VersionStatus` for every
   repository and checkout an editor is showing, recomputed when the mirror
   changes; it watches the checkout's blocks and holds each followed checkout's

@@ -21,7 +21,7 @@ fn both_sides_naming_a_block_is_a_name_conflict_and_derived_names_are_not() {
     }
 
     let plan = merge(&base, &ours, &theirs);
-    assert!(plan.conflicts.is_empty(), "{:?}", plan.conflicts);
+    assert!(plan.tree.conflicts.is_empty(), "{:?}", plan.tree.conflicts);
 
     ours.entries
         .get_mut(&note)
@@ -36,13 +36,7 @@ fn both_sides_naming_a_block_is_a_name_conflict_and_derived_names_are_not() {
         .insert(&NAME, &"Their note".to_owned());
 
     let plan = merge(&base, &ours, &theirs);
-    assert_eq!(
-        plan.conflicts,
-        vec![Conflict {
-            block: note,
-            kind: ConflictKind::Name,
-        }]
-    );
+    assert_eq!(kinds(&plan.tree), vec![(note, ConflictKind::Name)]);
 
     let mut content = theirs.clone();
     content.entries.get_mut(&note).unwrap().metadata = ours.entries[&note].metadata.clone();

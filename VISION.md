@@ -184,10 +184,30 @@ point (see Extension). Search, history, trash and export (`plans/daily_driver.md
 ### Version control
 
 Version control is a powerful tool that only programmers get. The aim is to
-make it good and easy enough for anyone. Because collaboration is already
-offline merges plus live edits, a third-party editor shouldn't need special
-support to get it. It isn't there yet. **Open:** how it relates to a file's
-revision history; to a user they should probably be one concept.
+make it good and easy enough for anyone, and good enough that this repository
+could keep its source in block-app instead of git. Because collaboration is
+already offline merges plus live edits, a third-party editor shouldn't need
+special support to get it.
+
+The model follows jj (Jujutsu) because its ideas are also the friendly ones.
+There is nothing to stage and nothing "uncommitted": your edits are the current
+change, kept as you make them, and saving it is giving it a description, after
+which a new change starts on top. A change keeps its identity when it is
+rewritten. A clash between two sets of edits is recorded in the change rather
+than blocking you: you can keep working, save, and sort it out later. Every
+step is in a log, and any of them can be undone, so nothing a person does in
+it is a trap.
+
+Revision history and version control are one concept, seen at two sizes. A
+block's revision history is its line of changes: each autosave is a revision,
+and naming one (a bookmark) marks a point worth keeping. A saved change is the
+same thing across many blocks: a named snapshot of every block in a versioned
+tree, made of the revisions those blocks went through since the last one. The
+current change is simply the newest, unnamed end of that line. Still to do:
+autosaves of a block inside a checkout should carry the current change's id
+(commits already have the field), so a block's History panel can group its
+revisions by the change they belong to and show its description, and a block
+outside any repository keeps the plain line it has now.
 
 ### Database
 
@@ -266,7 +286,8 @@ pixel ray tracer editors are examples, tests and experiments, not apps.
 
 ## Open questions
 
-- How version control and revision history become one concept.
+- How far the version control UI can go for someone who has never used git:
+  whether branches need a plainer name, and how the change graph is drawn.
 - Whether beui on the web keeps its own layout but swaps some leaf elements for
   real DOM ones: text inputs first, then selection, links, video and web plugins
   in iframes. That is what Flutter's platform views do, and it costs the same: a

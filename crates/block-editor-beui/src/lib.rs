@@ -47,7 +47,7 @@ pub use loading::{FailedPane, Loaded, LoadingPane};
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
 pub use shared_caret::{SharedCaret, remote_carets};
-pub use version_control::{VersionHistory, short_id};
+pub use version_control::{VersionHistory, VersionSteps, short_id};
 
 pub trait BeuiApp: 'static {
     fn view(editor: Editor) -> beui::styled::Root;
