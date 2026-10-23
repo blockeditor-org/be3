@@ -22,7 +22,17 @@ fn a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag() {
     );
 
     let released = delivered(&send(&mut space, now, [button(corner, false)]));
-    let [(to, Input::PointerButton { pos, pressed: false, .. })] = released.as_slice() else {
+    let [
+        (
+            to,
+            Input::PointerButton {
+                pos,
+                pressed: false,
+                ..
+            },
+        ),
+    ] = released.as_slice()
+    else {
         panic!("the release still reaches the app, not {released:?}");
     };
     assert_eq!(*to, window);

@@ -36,7 +36,13 @@ fn moving_a_window_carries_its_panel() {
         [window]
     );
     let reports = placed(&released);
-    let [WindowReport::Placed { window: placed, placement }] = reports.as_slice() else {
+    let [
+        WindowReport::Placed {
+            window: placed,
+            placement,
+        },
+    ] = reports.as_slice()
+    else {
         panic!("the new place is reported, not {reports:?}");
     };
     assert_eq!(*placed, window);

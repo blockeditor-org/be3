@@ -17,7 +17,11 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
 
     let dragged = grip + vec2(60.0, 30.0);
     let sent = send(&mut space, now, [Input::PointerMoved(dragged)]);
-    assert_eq!(delivered(&sent), [], "the app sees no moves while it resizes");
+    assert_eq!(
+        delivered(&sent),
+        [],
+        "the app sees no moves while it resizes"
+    );
     let panel = space.panel(window).unwrap().clone();
     let along = start
         .intersect(space.head.ray(PLATFORM, dragged.to_vec2()))
@@ -25,10 +29,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
         .pos
         - gripped;
     assert!(along.x > 50.0 && along.y > 20.0, "{along:?}");
-    let size = vec2(
-        (SMALL.x + along.x).round(),
-        (SMALL.y + along.y).round(),
-    );
+    let size = vec2((SMALL.x + along.x).round(), (SMALL.y + along.y).round());
     assert_eq!(panel.size, size, "the corner follows the cursor");
     assert_eq!(
         reports(&sent),
@@ -51,7 +52,11 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert_eq!(placed(&released).len(), 1, "and the panel's new place");
 
     space.request(&WindowRequest::BeginResize(window, WindowEdge::Left));
-    let shrunk = send(&mut space, now, [Input::PointerMoved(centre() + vec2(500.0, 0.0))]);
+    let shrunk = send(
+        &mut space,
+        now,
+        [Input::PointerMoved(centre() + vec2(500.0, 0.0))],
+    );
     assert_eq!(
         reports(&shrunk),
         [WindowReport::Resized {

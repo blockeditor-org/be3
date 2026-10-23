@@ -1,9 +1,9 @@
 use std::time::{Duration, Instant};
 
+use beui_core::geometry::Rect;
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{Input, Key, Keystroke, PointerButton, ScrollDelta};
 use beui_core::runner::{HostView, Incoming, Units, WindowHost};
-use beui_core::geometry::Rect;
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
 };
@@ -23,10 +23,10 @@ mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
 mod a_window_opened_beside_another_sits_to_its_right;
 mod closing_a_window_removes_its_panel;
+mod holding_right_ctrl_and_right_shift_steers_the_head;
 mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
 mod moving_a_window_carries_its_panel;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
-mod holding_right_ctrl_and_right_shift_steers_the_head;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 
 const PLATFORM: Vec2 = vec2(800.0, 600.0);

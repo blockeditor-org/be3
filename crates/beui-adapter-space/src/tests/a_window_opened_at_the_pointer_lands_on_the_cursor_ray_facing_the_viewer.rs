@@ -7,7 +7,9 @@ fn a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer() {
     let at = centre() + vec2(150.0, -80.0);
     send(&mut space, now, [Input::PointerMoved(at)]);
     let ray = space.head.ray(PLATFORM, at.to_vec2());
-    let under = main(&space).hit(ray).expect("the cursor is on the main window");
+    let under = main(&space)
+        .hit(ray)
+        .expect("the cursor is on the main window");
 
     let (window, sent) = open(&mut space, now, WindowPlacement::AtPointer);
     let panel = space.panel(window).expect("the window has a panel").clone();
@@ -48,7 +50,10 @@ fn a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer() {
     let (far, _) = open(&mut space, now, WindowPlacement::AtPointer);
     let ray = space.head.ray(PLATFORM, corner.to_vec2());
     assert!(
-        close(space.panel(far).unwrap().world(OPEN_GRAB), ray.at(OPEN_DISTANCE)),
+        close(
+            space.panel(far).unwrap().world(OPEN_GRAB),
+            ray.at(OPEN_DISTANCE)
+        ),
         "where the ray hits nothing it opens at a default distance"
     );
 }
