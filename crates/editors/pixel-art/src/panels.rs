@@ -6,7 +6,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_DOWN_LEFT, ICON_ARROW_DOWN_RIGHT, ICON_ARROW_LEFT,
     ICON_ARROW_RIGHT, ICON_ARROW_UP, ICON_ARROW_UP_LEFT, ICON_ARROW_UP_RIGHT, ICON_CIRCLE,
-    ICON_DOWNLOAD, ICON_ERASER, ICON_PAINT_BUCKET, ICON_PEN_TOOL, ICON_PIPETTE, ICON_PLUS,
+    ICON_DOWNLOAD, ICON_ERASER, ICON_PAINT_BUCKET, ICON_PENCIL, ICON_PIPETTE, ICON_PLUS,
     ICON_REPLACE, ICON_SCALING, ICON_SCAN, ICON_SLASH, ICON_SQUARE, ICON_TRASH, ICON_ZOOM_IN,
     ICON_ZOOM_OUT,
 };
@@ -27,7 +27,7 @@ const TOOL_WIDTH: f32 = 76.0;
 const DIALOG_WIDTH: f32 = 300.0;
 
 const TOOLS: [(PixelTool, &str, &str); 8] = [
-    (PixelTool::Pencil, ICON_PEN_TOOL, "B or P"),
+    (PixelTool::Pencil, ICON_PENCIL, "B or P"),
     (PixelTool::Eraser, ICON_ERASER, "E"),
     (PixelTool::Fill, ICON_PAINT_BUCKET, "G"),
     (PixelTool::Eyedropper, ICON_PIPETTE, "I"),

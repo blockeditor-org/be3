@@ -13,7 +13,7 @@ use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_view::components::overlay::Overlay;
-use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
+use text_editor_core::SynHlColorScope;
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::primitives::*;
@@ -27,7 +27,7 @@ use super::rows::{
     row_key,
 };
 use super::{
-    BlockView, CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
+    CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
     GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GeometryCell,
     INLINE_WIDGET_RADIUS, QUOTE_BAR_WIDTH, QUOTE_INDENT, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS,
     RowEntry, TextCheckbox, VoidView,
@@ -133,6 +133,15 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     let quotes = create_memo(move || (0..model.get().quote).collect::<Vec<usize>>());
+    let inner = create_memo(move || {
+        let inset = inset.get();
+        Sides::new(
+            inset + model.get().quote as f32 * QUOTE_INDENT,
+            0.0,
+            inset,
+            0.0,
+        )
+    });
     let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
     let shown_block = create_memo(move || block.get().filter(|_| renders).map(|(index, _)| index));
@@ -158,17 +167,6 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             }</Dynamic>
         </List>
     };
-    let content = match cx.render_block {
-        Some(render) => render.call(BlockView {
-            state: cx.state,
-            line,
-            start: create_memo(move || model.get().start),
-            props: create_memo(move || model.get().props.clone()),
-            line_height: create_memo(move || model.get().line_height),
-            text: lines,
-        }),
-        None => lines,
-    };
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
@@ -181,18 +179,14 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     padding={create_memo(move || Sides::horizontal(padding.get()))}
                 >
-                    <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                        <ForEach keys={quotes}>|_: usize|
-                            <QuoteBar cx />
-                        </ForEach>
-                        <Frame
-                            @sizing=ItemSize::Percent(100.0)
-                            fill=code
-                            padding={create_memo(move || Sides::horizontal(inset.get()))}
-                        >
-                            {content}
-                        </Frame>
-                    </List>
+                    <Layers>
+                        <Frame fill=code padding=inner>{lines}</Frame>
+                        <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+                            <ForEach keys={quotes}>|_: usize|
+                                <QuoteBar cx />
+                            </ForEach>
+                        </List>
+                    </Layers>
                 </Frame>
             </List>
         </Frame>
@@ -724,7 +718,7 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
-                <InlineCheckbox cx={cx} item={item} />
+                <InlineCheckbox cx={cx} item={item} line={model.get_untracked().line} />
             </Show>
             <Show condition={widget}>
                 <WidgetPill cx={cx} item={item} />
@@ -801,7 +795,7 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 }
 
 #[component]
-fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
+fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>, line: usize) -> NodeId {
     let shown = create_memo(move || {
         matches!(
             item.get().map(|item| item.inline),
@@ -814,15 +808,15 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         else {
             return;
         };
-        let position = cx.state.with_core(|core| core.position(line_start));
-        cx.state
-            .execute(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
-                position,
-            )));
+        cx.state.set_checked(line_start, !shown.get_untracked());
     });
     let disabled = cx.disabled;
     if let Some(render) = &cx.checkbox {
-        return render.call(TextCheckbox { checked, disabled });
+        return render.call(TextCheckbox {
+            checked,
+            disabled,
+            line,
+        });
     }
     view! {
         <Toggle

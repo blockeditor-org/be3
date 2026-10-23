@@ -3282,7 +3282,13 @@ generated from that package: one `ICON_*` constant per icon named in
 `icon-nodes.json` (its aliases are left out), holding the codepoint
 `font/codepoints.json` gives it, and `named` for the same icons by Lucide name,
 which is what anything saved holds, since Lucide renumbers an icon now and
-then. Regenerate both from the new package whenever the font is updated. Text
+then. A comment after each constant lists its tags from `tags.json` and the
+older names (aliases) it shares a codepoint with: search them for what an icon
+is for ("duplicate" finds `ICON_COPY_PLUS`) rather than guessing from names.
+The file's `@yeskeepfile` comment stops `./scripts/verify` deleting them; a
+comment holding that marker keeps every comment in its file, as `@yeskeep`
+keeps the one comment holding it. Regenerate all of it from the new package
+whenever the font is updated. Text
 is Inter Regular (`Inter-Regular.ttf` from Inter's release, unmodified), with
 Hack for monospace and Noto Emoji as the fallback.
 

@@ -15,9 +15,8 @@ use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_UP_RIGHT, ICON_CIRCLE, ICON_DIAMOND, ICON_ERASER, ICON_LASSO_SELECT,
-    ICON_MOUSE_POINTER_2, ICON_PEN_TOOL, ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SLASH,
-    ICON_TYPE,
+    ICON_BRUSH, ICON_CIRCLE, ICON_DIAMOND, ICON_ERASER, ICON_LASSO_SELECT, ICON_MOUSE_POINTER_2,
+    ICON_MOVE_UP_RIGHT, ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SLASH, ICON_TYPE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
@@ -103,12 +102,12 @@ impl Tool {
             Tool::Lasso => ICON_LASSO_SELECT,
             Tool::Frame => ICON_SCAN,
             Tool::Line => ICON_SLASH,
-            Tool::Arrow => ICON_ARROW_UP_RIGHT,
+            Tool::Arrow => ICON_MOVE_UP_RIGHT,
             Tool::Rectangle => ICON_RECTANGLE_HORIZONTAL,
             Tool::Ellipse => ICON_CIRCLE,
             Tool::Diamond => ICON_DIAMOND,
             Tool::Text => ICON_TYPE,
-            Tool::Pen => ICON_PEN_TOOL,
+            Tool::Pen => ICON_BRUSH,
             Tool::Eraser => ICON_ERASER,
         }
     }

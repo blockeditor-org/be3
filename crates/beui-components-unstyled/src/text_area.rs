@@ -52,16 +52,6 @@ pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
 pub use state::{TextAreaLayout, TextAreaState};
 
 #[derive(Clone, Copy)]
-pub struct BlockView {
-    pub state: TextAreaState,
-    pub line: ReadSignal<usize>,
-    pub start: Memo<usize>,
-    pub props: Memo<text_editor_core::MarkSet>,
-    pub line_height: Memo<f32>,
-    pub text: NodeId,
-}
-
-#[derive(Clone, Copy)]
 pub struct VoidView {
     pub state: TextAreaState,
     pub props: Memo<text_editor_core::MarkSet>,
@@ -71,6 +61,7 @@ pub struct VoidView {
 pub struct TextCheckbox {
     pub checked: Binding<bool>,
     pub disabled: Memo<bool>,
+    pub line: usize,
 }
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
@@ -173,7 +164,6 @@ struct Surface {
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
-    render_block: Option<RenderFn<BlockView>>,
     render_void: Option<RenderFn<VoidView>>,
     void_size: Option<VoidSize>,
     completion: Memo<Option<Query>>,
@@ -1085,7 +1075,6 @@ pub fn TextArea(
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
-    render_block: Option<RenderFn<BlockView>>,
     render_void: Option<RenderFn<VoidView>>,
     #[prop(default = None)] void_size: Option<VoidSize>,
     #[prop(default = Completer::none())] completer: Completer,
@@ -1324,7 +1313,6 @@ pub fn TextArea(
                     block,
                     selected_widget,
                     checkbox,
-                    render_block,
                     render_void,
                     void_size,
                     completion,

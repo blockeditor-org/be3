@@ -15,7 +15,7 @@ use text_editor_core::schema::basic::{self, Basic};
 use text_editor_core::{CursorPosition, EditorCommand, MarkSet, TextLanguage, Value};
 
 use super::{Caret, Side, SideDocument, Simulation};
-use crate::rich_text::{GLYPHS, mention_size, render_block, render_void};
+use crate::rich_text::{GLYPHS, mention_size, render_void};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
 
@@ -388,7 +388,6 @@ fn EditorPane(
                     (Side::Left.client(), LEFT_COLOR),
                     (Side::Right.client(), RIGHT_COLOR),
                 ]}
-                render_block={render_block()}
                 render_void={render_void()}
                 void_size={Some(mention_size as fn(&MarkSet) -> beui::Vec2)}
             />

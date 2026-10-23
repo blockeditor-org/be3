@@ -2,9 +2,9 @@ use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::{
-    ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_FILE_UP, ICON_FOLDER, ICON_IMAGE,
-    ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE, ICON_TEXT_ALIGN_START,
-    ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_X,
+    ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
+    ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE,
+    ICON_TEXT_ALIGN_START, ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_X,
 };
 use beui::unstyled::MenuThen;
 
@@ -2470,7 +2470,7 @@ fn ActionsSheet() -> NodeId {
                 <MenuButton
                     label="Show actions"
                     items={view! {
-                        <unstyled::MenuItem label="Duplicate" glyph=ICON_COPY />
+                        <unstyled::MenuItem label="Duplicate" glyph=ICON_COPY_PLUS />
                         <unstyled::MenuItem label="Rename" glyph=ICON_PENCIL detail="Ctrl+R" />
                         <unstyled::MenuItem label="Share" glyph=ICON_SHARE_2 disabled=true />
                         <unstyled::MenuItem

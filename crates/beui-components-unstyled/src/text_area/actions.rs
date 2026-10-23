@@ -1,6 +1,6 @@
 use beui_core::icons::{
-    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRONS_DOWN_UP, ICON_COPY, ICON_REPLACE, ICON_SEARCH,
-    ICON_SQUARE_DASHED_MOUSE_POINTER,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRONS_DOWN_UP, ICON_COPY_PLUS, ICON_REPLACE,
+    ICON_SEARCH, ICON_SQUARE_DASHED_MOUSE_POINTER,
 };
 use beui_core::input::Key;
 use beui_view::reactive::*;
@@ -37,7 +37,7 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
     Action::new("text.duplicate-line", "Duplicate the line", move || {
         edit(state, EditorCommand::DuplicateLine(UDDirection::Down))
     })
-    .glyph(ICON_COPY)
+    .glyph(ICON_COPY_PLUS)
     .shortcut(Chord::ctrl(Key::D).shift())
     .enabled(editable)
     .register();
