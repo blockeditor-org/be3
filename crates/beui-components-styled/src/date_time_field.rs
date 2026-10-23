@@ -20,7 +20,7 @@ use beui_components_unstyled::{
 };
 use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
+use beui_core::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -206,8 +206,8 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
         false => TextColor::Default,
     });
     let glyph = match parts {
-        DateTimeParts::Time => ICON_SCHEDULE,
-        DateTimeParts::Date | DateTimeParts::DateTime => ICON_CALENDAR_MONTH,
+        DateTimeParts::Time => ICON_CLOCK,
+        DateTimeParts::Date | DateTimeParts::DateTime => ICON_CALENDAR_DAYS,
     };
     view! {
         <Tooltip label disabled={open}>

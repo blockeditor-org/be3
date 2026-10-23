@@ -12,9 +12,7 @@ use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{
-    ICON_ARROW_DROP_DOWN, ICON_ARROW_DROP_UP, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT,
-};
+use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CHEVRON_UP};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -137,8 +135,8 @@ fn HeaderToggle(
     on_click: ClickCallback,
 ) -> NodeId {
     let glyph = create_memo(move || match open.get() {
-        true => ICON_ARROW_DROP_UP.to_owned(),
-        false => ICON_ARROW_DROP_DOWN.to_owned(),
+        true => ICON_CHEVRON_UP.to_owned(),
+        false => ICON_CHEVRON_DOWN.to_owned(),
     });
     view! {
         <unstyled::Button label accessibility on_click={on_click}>|button: unstyled::ButtonHandle|

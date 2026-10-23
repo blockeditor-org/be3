@@ -23,8 +23,8 @@ use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::icons::{
-    ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_FULLSCREEN, ICON_FULLSCREEN_EXIT, ICON_MORE_VERT,
-    ICON_TAB_GROUP,
+    ICON_APP_WINDOW, ICON_ELLIPSIS_VERTICAL, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE,
+    ICON_X,
 };
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
@@ -161,12 +161,12 @@ fn DockAwayFace(handle: DockAwayHandle) -> NodeId {
         >
             <List align=Align::Center spacing=AWAY_SPACING>
                 <Text size=TextSize::Xl3 color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph=ICON_FULLSCREEN />
+                    <Icon glyph=ICON_MAXIMIZE />
                 </Text>
                 <Text align=TextAlign::Center>{message}</Text>
                 <Button
                     label="Leave full screen"
-                    glyph=ICON_FULLSCREEN_EXIT
+                    glyph=ICON_MINIMIZE
                     variant=ButtonVariant::Secondary
                     @test_id="dock.away.leave"
                     on_click={move || leave.call()}
@@ -264,7 +264,7 @@ fn DockTabChrome(
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
                     <Text color={label} align=TextAlign::Center>
-                        <Icon glyph=ICON_TAB_GROUP />
+                        <Icon glyph=ICON_APP_WINDOW />
                     </Text>
                 </Show>
                 <Show condition={pictured}>
@@ -288,7 +288,7 @@ fn DockTabChrome(
                 <Show condition={closable}>
                     <IconButton
                         @test_id={close_test_id.clone()}
-                        glyph=ICON_CLOSE
+                        glyph=ICON_X
                         label="Close tab"
                         size=IconButtonSize::Compact
                         variant=ButtonVariant::Ghost
@@ -445,7 +445,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                         <Show condition={closable}>
                             <IconButton
                                 @test_id={format!("dock.dialog.{}.close", tab.value())}
-                                glyph=ICON_CLOSE
+                                glyph=ICON_X
                                 label="Close"
                                 size=IconButtonSize::Compact
                                 variant=ButtonVariant::Ghost
@@ -646,7 +646,7 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
                 <IconMenuButton
                     @test_id={"dock.menu"}
                     label="More"
-                    glyph=ICON_MORE_VERT
+                    glyph=ICON_ELLIPSIS_VERTICAL
                     size={room.button()}
                     items={view! {
                         <MenuNodes nodes={rest} test_prefix={"dock.menu".to_owned()} />
@@ -717,7 +717,7 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListC
     view! {
         <Show condition={closable}>
             <IconButton
-                glyph=ICON_CLOSE
+                glyph=ICON_X
                 label="Close pane"
                 size=IconButtonSize::Toolbar
                 variant=ButtonVariant::Ghost
@@ -738,7 +738,7 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
     view! {
         <Frame width=GRIP_WIDTH padding={Sides::vertical(CONTROL_PADDING)}>
             <Text size=TextSize::Sm color={color} align=TextAlign::Center>
-                <Icon glyph=ICON_DRAG_INDICATOR />
+                <Icon glyph=ICON_GRIP_VERTICAL />
             </Text>
         </Frame>
     }
@@ -807,7 +807,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
                     <Text size=TextSize::Sm align=TextAlign::Center>
-                        <Icon glyph=ICON_TAB_GROUP />
+                        <Icon glyph=ICON_APP_WINDOW />
                     </Text>
                 </Show>
                 <Show condition={pictured}>

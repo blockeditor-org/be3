@@ -1,6 +1,6 @@
 use beui_core::icons::{
-    ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CONTENT_COPY, ICON_FIND_REPLACE, ICON_SEARCH,
-    ICON_SELECT_ALL, ICON_UNFOLD_LESS,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRONS_DOWN_UP, ICON_COPY_PLUS, ICON_REPLACE,
+    ICON_SEARCH, ICON_SQUARE_DASHED_MOUSE_POINTER,
 };
 use beui_core::input::Key;
 use beui_view::reactive::*;
@@ -17,7 +17,7 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
     let replace = Action::new("text.replace", "Find and replace", move || {
         state.open_find(true)
     })
-    .glyph(ICON_FIND_REPLACE)
+    .glyph(ICON_REPLACE)
     .shortcut(Chord::ctrl(Key::H))
     .enabled(editable)
     .register();
@@ -25,19 +25,19 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
     Action::new("text.find-next", "Find the next match", move || {
         state.find_step(FindDirection::Next);
     })
-    .glyph(ICON_ARROW_DOWNWARD)
+    .glyph(ICON_ARROW_DOWN)
     .shortcut(Chord::ctrl(Key::G))
     .register();
     Action::new("text.find-previous", "Find the previous match", move || {
         state.find_step(FindDirection::Previous);
     })
-    .glyph(ICON_ARROW_UPWARD)
+    .glyph(ICON_ARROW_UP)
     .shortcut(Chord::ctrl(Key::G).shift())
     .register();
     Action::new("text.duplicate-line", "Duplicate the line", move || {
         edit(state, EditorCommand::DuplicateLine(UDDirection::Down))
     })
-    .glyph(ICON_CONTENT_COPY)
+    .glyph(ICON_COPY_PLUS)
     .shortcut(Chord::ctrl(Key::D).shift())
     .enabled(editable)
     .register();
@@ -46,7 +46,7 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
         "Select the next occurrence",
         move || edit(state, EditorCommand::DuplicateCursor(LRDirection::Right)),
     )
-    .glyph(ICON_SELECT_ALL)
+    .glyph(ICON_SQUARE_DASHED_MOUSE_POINTER)
     .shortcut(Chord::ctrl(Key::D))
     .register();
     Action::new("text.fold", "Fold or unfold the line", move || {
@@ -56,7 +56,7 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
         };
         edit(state, command);
     })
-    .glyph(ICON_UNFOLD_LESS)
+    .glyph(ICON_CHEVRONS_DOWN_UP)
     .shortcut(Chord::ctrl(Key::BracketLeft).shift())
     .register();
 }

@@ -36,9 +36,9 @@ const BUTTONS: [PointerButton; 3] = [
     PointerButton::Secondary,
 ];
 const BUTTON_ICONS: [&str; 4] = [
-    icons::ICON_LEFT_CLICK,
+    icons::ICON_MOUSE_LEFT,
     icons::ICON_MOUSE,
-    icons::ICON_RIGHT_CLICK,
+    icons::ICON_MOUSE_RIGHT,
     icons::ICON_KEYBOARD,
 ];
 
@@ -647,41 +647,41 @@ fn cursor_glyph(icon: CursorIcon) -> (&'static str, Vec2, f32) {
     let diagonal = std::f32::consts::FRAC_PI_4;
     match icon {
         CursorIcon::Default | CursorIcon::None | CursorIcon::Text => {
-            (icons::ICON_ARROW_SELECTOR_TOOL, vec2(0.23, 0.19), 0.0)
+            (icons::ICON_MOUSE_POINTER_2, vec2(0.23, 0.19), 0.0)
         }
-        CursorIcon::PointingHand => (icons::ICON_PAN_TOOL_ALT, vec2(0.29, 0.15), 0.0),
-        CursorIcon::Crosshair | CursorIcon::Touch => (icons::ICON_ADD, center, 0.0),
-        CursorIcon::Grab => (icons::ICON_PAN_TOOL, center, 0.0),
-        CursorIcon::Grabbing => (icons::ICON_BACK_HAND, center, 0.0),
-        CursorIcon::NotAllowed => (icons::ICON_BLOCK, center, 0.0),
-        CursorIcon::ResizeHorizontal => (icons::ICON_WIDTH, center, 0.0),
-        CursorIcon::ResizeVertical => (icons::ICON_HEIGHT, center, 0.0),
-        CursorIcon::ResizeNwSe => (icons::ICON_WIDTH, center, diagonal),
-        CursorIcon::ResizeNeSw => (icons::ICON_WIDTH, center, -diagonal),
+        CursorIcon::PointingHand => (icons::ICON_POINTER, vec2(0.29, 0.15), 0.0),
+        CursorIcon::Crosshair | CursorIcon::Touch => (icons::ICON_PLUS, center, 0.0),
+        CursorIcon::Grab => (icons::ICON_HAND, center, 0.0),
+        CursorIcon::Grabbing => (icons::ICON_HAND, center, 0.0),
+        CursorIcon::NotAllowed => (icons::ICON_BAN, center, 0.0),
+        CursorIcon::ResizeHorizontal => (icons::ICON_MOVE_HORIZONTAL, center, 0.0),
+        CursorIcon::ResizeVertical => (icons::ICON_MOVE_VERTICAL, center, 0.0),
+        CursorIcon::ResizeNwSe => (icons::ICON_MOVE_HORIZONTAL, center, diagonal),
+        CursorIcon::ResizeNeSw => (icons::ICON_MOVE_HORIZONTAL, center, -diagonal),
         CursorIcon::Wait => (icons::ICON_HOURGLASS, center, 0.0),
-        CursorIcon::Progress => (icons::ICON_PROGRESS_ACTIVITY, center, 0.0),
-        CursorIcon::Move => (icons::ICON_OPEN_WITH, center, 0.0),
-        CursorIcon::Help => (icons::ICON_HELP, center, 0.0),
-        CursorIcon::Alias => (icons::ICON_SHORTCUT, center, 0.0),
+        CursorIcon::Progress => (icons::ICON_LOADER_CIRCLE, center, 0.0),
+        CursorIcon::Move => (icons::ICON_MOVE, center, 0.0),
+        CursorIcon::Help => (icons::ICON_CIRCLE_QUESTION_MARK, center, 0.0),
+        CursorIcon::Alias => (icons::ICON_CORNER_UP_RIGHT, center, 0.0),
         CursorIcon::ContextMenu => (icons::ICON_MENU, center, 0.0),
-        CursorIcon::Cell => (icons::ICON_GRID_ON, center, 0.0),
-        CursorIcon::VerticalText => (icons::ICON_TEXT_ROTATE_VERTICAL, center, 0.0),
-        CursorIcon::Copy => (icons::ICON_CONTENT_COPY, center, 0.0),
-        CursorIcon::NoDrop => (icons::ICON_DO_NOT_DISTURB_ON, center, 0.0),
-        CursorIcon::AllScroll => (icons::ICON_ALL_OUT, center, 0.0),
+        CursorIcon::Cell => (icons::ICON_GRID_3X3, center, 0.0),
+        CursorIcon::VerticalText => (icons::ICON_ARROW_DOWN_A_Z, center, 0.0),
+        CursorIcon::Copy => (icons::ICON_COPY, center, 0.0),
+        CursorIcon::NoDrop => (icons::ICON_CIRCLE_MINUS, center, 0.0),
+        CursorIcon::AllScroll => (icons::ICON_MOVE, center, 0.0),
         CursorIcon::ZoomIn => (icons::ICON_ZOOM_IN, center, 0.0),
         CursorIcon::ZoomOut => (icons::ICON_ZOOM_OUT, center, 0.0),
         CursorIcon::ResizeColumn | CursorIcon::ResizeEast | CursorIcon::ResizeWest => {
-            (icons::ICON_WIDTH, center, 0.0)
+            (icons::ICON_MOVE_HORIZONTAL, center, 0.0)
         }
         CursorIcon::ResizeRow | CursorIcon::ResizeNorth | CursorIcon::ResizeSouth => {
-            (icons::ICON_HEIGHT, center, 0.0)
+            (icons::ICON_MOVE_VERTICAL, center, 0.0)
         }
         CursorIcon::ResizeNorthWest | CursorIcon::ResizeSouthEast => {
-            (icons::ICON_WIDTH, center, diagonal)
+            (icons::ICON_MOVE_HORIZONTAL, center, diagonal)
         }
         CursorIcon::ResizeNorthEast | CursorIcon::ResizeSouthWest => {
-            (icons::ICON_WIDTH, center, -diagonal)
+            (icons::ICON_MOVE_HORIZONTAL, center, -diagonal)
         }
     }
 }

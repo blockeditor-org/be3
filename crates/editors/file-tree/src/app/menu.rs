@@ -1,8 +1,8 @@
 use block_editor_beui::BlockParent;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{
-    ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_INFO, ICON_LINK_OFF, ICON_LOGOUT,
-    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_RESTORE, ICON_SHARE, ICON_ZOOM_IN,
+    ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK,
+    ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -116,25 +116,25 @@ fn SectionMenu<F: Fn() + 'static>(
             <ZoomIn disabled={unzoomable} />
             <MenuItem
                 label="Add"
-                glyph={ICON_NOTE_ADD.to_owned()}
+                glyph={ICON_FILE_PLUS.to_owned()}
                 disabled={unaddable}
                 row_test_id={"file-tree.section.add".to_owned()}
             />
             <MenuItem
                 label="Rename"
-                glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
+                glyph={ICON_PENCIL_LINE.to_owned()}
                 disabled={edit}
                 row_test_id={"file-tree.section.rename".to_owned()}
             />
             <MenuItem
                 label="Share"
-                glyph={ICON_SHARE.to_owned()}
+                glyph={ICON_SHARE_2.to_owned()}
                 disabled={edit}
                 row_test_id={"file-tree.section.share".to_owned()}
             />
             <MenuItem
                 label="Delete"
-                glyph={ICON_DELETE.to_owned()}
+                glyph={ICON_TRASH.to_owned()}
                 disabled={deletable}
                 danger=true
                 row_test_id={"file-tree.section.delete".to_owned()}
@@ -143,7 +143,7 @@ fn SectionMenu<F: Fn() + 'static>(
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
-                    glyph={ICON_LOGOUT.to_owned()}
+                    glyph={ICON_LOG_OUT.to_owned()}
                     danger=true
                     row_test_id={"file-tree.section.leave".to_owned()}
                     on_click={leave}
@@ -252,7 +252,7 @@ fn BlockMenu<F: Fn() + 'static>(
         items: view! {
             <ZoomIn disabled={unzoomable} />
             <OpenWith editor={editor} row={row} />
-            <MenuItem label="Add" glyph={ICON_NOTE_ADD.to_owned()} disabled={add} />
+            <MenuItem label="Add" glyph={ICON_FILE_PLUS.to_owned()} disabled={add} />
             <MenuItem
                 label="Move to"
                 glyph={ICON_MOVE_UP.to_owned()}
@@ -299,16 +299,12 @@ fn BlockMenu<F: Fn() + 'static>(
                     }}
                 />
             </MenuItem>
-            <MenuItem
-                label="Rename"
-                glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
-                disabled={edit}
-            />
-            <MenuItem label="Share" glyph={ICON_SHARE.to_owned()} disabled={edit} />
-            <MenuItem label="Unlink" glyph={ICON_LINK_OFF.to_owned()} disabled={unlinkable} />
+            <MenuItem label="Rename" glyph={ICON_PENCIL_LINE.to_owned()} disabled={edit} />
+            <MenuItem label="Share" glyph={ICON_SHARE_2.to_owned()} disabled={edit} />
+            <MenuItem label="Unlink" glyph={ICON_UNLINK.to_owned()} disabled={unlinkable} />
             <MenuItem
                 label={delete_label}
-                glyph={ICON_DELETE.to_owned()}
+                glyph={ICON_TRASH.to_owned()}
                 disabled={deletable}
                 danger=true
             />
@@ -317,7 +313,7 @@ fn BlockMenu<F: Fn() + 'static>(
             <Show condition={restorable}>
                 <MenuItem
                     label="Restore"
-                    glyph={ICON_RESTORE.to_owned()}
+                    glyph={ICON_ROTATE_CCW_CLOCK.to_owned()}
                     row_test_id={"file-tree.restore".to_owned()}
                     on_click={restore}
                 />
@@ -326,7 +322,7 @@ fn BlockMenu<F: Fn() + 'static>(
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
-                    glyph={ICON_LOGOUT.to_owned()}
+                    glyph={ICON_LOG_OUT.to_owned()}
                     danger=true
                     row_test_id={"file-tree.leave".to_owned()}
                     on_click={leave}
@@ -339,15 +335,17 @@ fn BlockMenu<F: Fn() + 'static>(
 
 #[component]
 fn Appearance(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
-    use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR};
+    use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON};
     use block_editor_beui::beui::Color32;
-    use block_editor_beui::beui::icons::*;
+    use block_editor_beui::beui::icons::{ICON_CIRCLE, ICON_PALETTE, named};
     let disabled = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
-    let set_icon = move |icon: Option<char>| {
+    let set_icon = move |icon: Option<&'static str>| {
         if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
             && let Some(id) = shown.id
         {
-            editor.blocks().define(id, ICON.definition(icon.as_ref()));
+            let blocks = editor.blocks();
+            blocks.define(id, ICON.definition(icon.map(str::to_owned).as_ref()));
+            blocks.define(id, MATERIAL_ICON.definition(None));
         }
     };
     let set_color = move |color: Option<[u8; 3]>| {
@@ -360,22 +358,22 @@ fn Appearance(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         }
     };
     let icons = [
-        ("Document", ICON_DESCRIPTION),
-        ("Folder", ICON_FOLDER),
-        ("Star", ICON_STAR),
-        ("Favorite", ICON_FAVORITE),
-        ("Home", ICON_HOME),
-        ("Work", ICON_WORK),
-        ("School", ICON_SCHOOL),
-        ("Book", ICON_BOOK),
-        ("Code", ICON_CODE),
-        ("Idea", ICON_LIGHTBULB),
-        ("Flag", ICON_FLAG),
-        ("Calendar", ICON_CALENDAR_MONTH),
-        ("Checklist", ICON_CHECKLIST),
-        ("Image", ICON_IMAGE),
-        ("Music", ICON_MUSIC_NOTE),
-        ("Public", ICON_PUBLIC),
+        ("Document", "file-text"),
+        ("Folder", "folder"),
+        ("Star", "star"),
+        ("Favorite", "heart"),
+        ("Home", "house"),
+        ("Work", "briefcase"),
+        ("School", "graduation-cap"),
+        ("Book", "book"),
+        ("Code", "code"),
+        ("Idea", "lightbulb"),
+        ("Flag", "flag"),
+        ("Calendar", "calendar-days"),
+        ("Checklist", "list-checks"),
+        ("Image", "image"),
+        ("Music", "eighth-note"),
+        ("Public", "globe"),
     ];
     let colors = [
         ("Blue", [65, 145, 210]),
@@ -394,8 +392,8 @@ fn Appearance(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                 <ForEach keys={icons.to_vec()}>|(name, icon): (&'static str, &'static str)|
                     <MenuItem
                         label={name}
-                        glyph={icon}
-                        on_click={move || set_icon(icon.chars().next())}
+                        glyph={named(icon).unwrap_or_default()}
+                        on_click={move || set_icon(Some(icon))}
                     />
                 </ForEach>
             </MenuItem>

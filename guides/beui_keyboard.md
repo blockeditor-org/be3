@@ -170,7 +170,7 @@ its own:
 
 ```rust
 let group = Action::new("canvas.group", "Group", move || state.run(Group))
-    .glyph(ICON_GROUP_WORK)
+    .glyph(ICON_COMPONENT)
     .shortcut(Chord::ctrl(Key::G))
     .enabled(can_group)
     .register();

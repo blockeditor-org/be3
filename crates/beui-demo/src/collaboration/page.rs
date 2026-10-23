@@ -3,9 +3,8 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use beui::icons::{
-    ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_LEFT, ICON_KEYBOARD_ARROW_RIGHT,
-    ICON_KEYBOARD_ARROW_UP, ICON_KEYBOARD_DOUBLE_ARROW_DOWN, ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
-    ICON_KEYBOARD_DOUBLE_ARROW_RIGHT, ICON_KEYBOARD_DOUBLE_ARROW_UP, ICON_PAUSE, ICON_PLAY_ARROW,
+    ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CHEVRON_UP, ICON_CHEVRONS_DOWN,
+    ICON_CHEVRONS_LEFT, ICON_CHEVRONS_RIGHT, ICON_CHEVRONS_UP, ICON_PAUSE, ICON_PLAY,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -216,7 +215,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         ((right, left), false) => format!("In flight: {right} to the right, {left} to the left."),
     });
     let network = create_memo(move || match paused.get() {
-        true => ICON_PLAY_ARROW.to_owned(),
+        true => ICON_PLAY.to_owned(),
         false => ICON_PAUSE.to_owned(),
     });
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
@@ -305,16 +304,16 @@ fn SendButtons(
     };
     let glyphs = arrows(
         [
-            ICON_KEYBOARD_DOUBLE_ARROW_RIGHT,
-            ICON_KEYBOARD_ARROW_RIGHT,
-            ICON_KEYBOARD_ARROW_LEFT,
-            ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
+            ICON_CHEVRONS_RIGHT,
+            ICON_CHEVRON_RIGHT,
+            ICON_CHEVRON_LEFT,
+            ICON_CHEVRONS_LEFT,
         ],
         [
-            ICON_KEYBOARD_DOUBLE_ARROW_DOWN,
-            ICON_KEYBOARD_ARROW_DOWN,
-            ICON_KEYBOARD_ARROW_UP,
-            ICON_KEYBOARD_DOUBLE_ARROW_UP,
+            ICON_CHEVRONS_DOWN,
+            ICON_CHEVRON_DOWN,
+            ICON_CHEVRON_UP,
+            ICON_CHEVRONS_UP,
         ],
     );
     let held = |from: Side| {

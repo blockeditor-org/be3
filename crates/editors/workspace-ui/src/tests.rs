@@ -291,17 +291,17 @@ fn catalog() -> block_editor_beui::Catalog {
     };
     block_editor_beui::Catalog {
         types: vec![
-            kind(FolderContent::CONTENT_TYPE, "Folder", "\u{e2c7}"),
-            kind(WorkspaceContent::CONTENT_TYPE, "Workspace", "\u{ea0f}"),
-            kind(SHOWN_TYPE, "Text", "\u{e873}"),
-            kind(TEMPLATE_TYPE, "Note", "\u{e26c}"),
+            kind(FolderContent::CONTENT_TYPE, "Folder", "\u{e0d7}"),
+            kind(WorkspaceContent::CONTENT_TYPE, "Workspace", "\u{e2d0}"),
+            kind(SHOWN_TYPE, "Text", "\u{e0cc}"),
+            kind(TEMPLATE_TYPE, "Note", "\u{e185}"),
         ],
         templates: vec![block_editor_beui::TemplateDescriptor {
             editor: TEMPLATE_EDITOR.into_bytes(),
             template: "main".to_owned(),
             block_type: TEMPLATE_TYPE.into_bytes(),
             name: "Note".to_owned(),
-            icon_codepoint: "\u{e26c}".to_owned(),
+            icon_codepoint: "\u{e185}".to_owned(),
             category: block_editor_beui::TemplateCategory::Important,
             dialog: false,
         }],

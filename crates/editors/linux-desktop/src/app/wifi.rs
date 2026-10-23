@@ -1,9 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_NETWORK_WIFI_1_BAR, ICON_NETWORK_WIFI_1_BAR_LOCKED, ICON_NETWORK_WIFI_2_BAR,
-    ICON_NETWORK_WIFI_2_BAR_LOCKED, ICON_NETWORK_WIFI_3_BAR, ICON_NETWORK_WIFI_3_BAR_LOCKED,
-    ICON_SIGNAL_WIFI_0_BAR, ICON_SIGNAL_WIFI_4_BAR, ICON_SIGNAL_WIFI_4_BAR_LOCK,
-    ICON_SIGNAL_WIFI_OFF, ICON_SIGNAL_WIFI_STATUSBAR_NOT_CONNECTED, ICON_WIFI_FIND, ICON_WIFI_LOCK,
+    ICON_WIFI, ICON_WIFI_HIGH, ICON_WIFI_LOCK, ICON_WIFI_LOW, ICON_WIFI_OFF, ICON_WIFI_SYNC,
+    ICON_WIFI_ZERO,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -21,15 +19,15 @@ const MIN_PASSWORD: usize = 8;
 fn bars(strength: u8, locked: bool) -> &'static str {
     match (strength, locked) {
         (0..=5, true) => ICON_WIFI_LOCK,
-        (0..=5, false) => ICON_SIGNAL_WIFI_0_BAR,
-        (6..=30, true) => ICON_NETWORK_WIFI_1_BAR_LOCKED,
-        (6..=30, false) => ICON_NETWORK_WIFI_1_BAR,
-        (31..=55, true) => ICON_NETWORK_WIFI_2_BAR_LOCKED,
-        (31..=55, false) => ICON_NETWORK_WIFI_2_BAR,
-        (56..=80, true) => ICON_NETWORK_WIFI_3_BAR_LOCKED,
-        (56..=80, false) => ICON_NETWORK_WIFI_3_BAR,
-        (_, true) => ICON_SIGNAL_WIFI_4_BAR_LOCK,
-        (_, false) => ICON_SIGNAL_WIFI_4_BAR,
+        (0..=5, false) => ICON_WIFI_ZERO,
+        (6..=30, true) => ICON_WIFI_LOCK,
+        (6..=30, false) => ICON_WIFI_LOW,
+        (31..=55, true) => ICON_WIFI_LOCK,
+        (31..=55, false) => ICON_WIFI_HIGH,
+        (56..=80, true) => ICON_WIFI_LOCK,
+        (56..=80, false) => ICON_WIFI,
+        (_, true) => ICON_WIFI_LOCK,
+        (_, false) => ICON_WIFI,
     }
 }
 
@@ -43,12 +41,12 @@ fn strength_of(status: &WifiStatus, ssid: &str) -> u8 {
 
 fn glyph(status: &WifiStatus) -> &'static str {
     if !status.enabled {
-        return ICON_SIGNAL_WIFI_OFF;
+        return ICON_WIFI_OFF;
     }
     match &status.link {
         WifiLink::Connected(ssid) => bars(strength_of(status, ssid), false),
-        WifiLink::Connecting(_) => ICON_WIFI_FIND,
-        WifiLink::Disconnected => ICON_SIGNAL_WIFI_STATUSBAR_NOT_CONNECTED,
+        WifiLink::Connecting(_) => ICON_WIFI_SYNC,
+        WifiLink::Disconnected => ICON_WIFI_OFF,
     }
 }
 

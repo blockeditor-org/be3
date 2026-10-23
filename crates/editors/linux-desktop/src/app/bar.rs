@@ -4,7 +4,7 @@ use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_REFRESH, ICON_WORKSPACES,
+    ICON_BOXES, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MENU, ICON_PLUS, ICON_REFRESH_CW,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -124,7 +124,7 @@ pub(crate) fn DesktopBar(
                     />
                     <Show condition={launchable}>
                         <IconButton
-                            glyph={ICON_APPS.to_owned()}
+                            glyph={ICON_LAYOUT_GRID.to_owned()}
                             label="Programs"
                             @test_id={"desktop.launcher"}
                             on_click={launcher}
@@ -132,7 +132,7 @@ pub(crate) fn DesktopBar(
                     </Show>
                     <MenuButton
                         label="Sessions"
-                        glyph={ICON_WORKSPACES.to_owned()}
+                        glyph={ICON_BOXES.to_owned()}
                         disabled={unready}
                         @test_id={"desktop.sessions"}
                         items={view! {
@@ -153,7 +153,7 @@ pub(crate) fn DesktopBar(
                             <MenuItem
                                 row_test_id={"desktop.sessions.new".to_owned()}
                                 label="New session"
-                                glyph={ICON_ADD.to_owned()}
+                                glyph={ICON_PLUS.to_owned()}
                                 separated={listing}
                                 on_click={move || sessions.create()}
                             />
@@ -176,7 +176,7 @@ pub(crate) fn DesktopBar(
                     </Show>
                     <Show condition={epaper}>
                         <IconButton
-                            glyph={ICON_REFRESH.to_owned()}
+                            glyph={ICON_REFRESH_CW.to_owned()}
                             label="Refresh the screen"
                             @test_id={"desktop.refresh"}
                             press_focus=false

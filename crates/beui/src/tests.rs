@@ -2047,7 +2047,7 @@ pub(crate) fn grip_nearest(harness: &Harness, dock: NodeId, near: Pos2) -> Pos2 
         if document
             .text_icons(node)
             .iter()
-            .any(|shown| shown == crate::icons::ICON_DRAG_INDICATOR)
+            .any(|shown| shown == crate::icons::ICON_GRIP_VERTICAL)
             && document.node_rect(node).is_some()
         {
             found.push(node);

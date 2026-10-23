@@ -11,7 +11,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition, Sides};
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
+use beui_core::icons::{ICON_MOVE_HORIZONTAL, ICON_MOVE_VERTICAL};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -137,8 +137,8 @@ pub fn scrollbar_style() -> ScrollbarStyle {
 fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
     let glyph = axis.map(|axis| {
         match axis {
-            Direction::Vertical => ICON_HEIGHT,
-            Direction::Horizontal => ICON_WIDTH,
+            Direction::Vertical => ICON_MOVE_VERTICAL,
+            Direction::Horizontal => ICON_MOVE_HORIZONTAL,
         }
         .to_string()
     });

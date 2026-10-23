@@ -9,7 +9,7 @@ use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_CLOSE, ICON_ERROR, ICON_INFO};
+use beui_core::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -134,7 +134,7 @@ fn ToastCard(
         expiry.start(duration);
     }
     let (glyph, tint) = match danger {
-        true => (ICON_ERROR, TextColor::Danger),
+        true => (ICON_CIRCLE_ALERT, TextColor::Danger),
         false => (ICON_INFO, TextColor::Accent),
     };
     let pictured = image.is_some();
@@ -194,7 +194,7 @@ fn ToastCard(
                     <Frame @sizing=ItemSize::Percent(100.0)>{body}</Frame>
                     <IconButton
                         @test_id={format!("toast.{id}.dismiss")}
-                        glyph={ICON_CLOSE.to_owned()}
+                        glyph={ICON_X.to_owned()}
                         label="Dismiss"
                         size=IconButtonSize::Compact
                         press_focus=false

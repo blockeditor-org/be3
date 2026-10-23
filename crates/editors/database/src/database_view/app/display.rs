@@ -4,8 +4,8 @@ use block_editor_beui::be_block::database_view::{
 };
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA,
-    ICON_VIEW_KANBAN, ICON_VIEW_LIST,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN, ICON_LIST,
+    ICON_TABLE_PROPERTIES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -18,10 +18,10 @@ use crate::database_view::groups::groupable;
 const SPACING: f32 = 10.0;
 const LABEL_WIDTH: f32 = 96.0;
 pub const KINDS: [(DatabaseViewKind, &str, &str); 4] = [
-    (DatabaseViewKind::List, "List", ICON_VIEW_LIST),
-    (DatabaseViewKind::Kanban, "Board", ICON_VIEW_KANBAN),
-    (DatabaseViewKind::Spreadsheet, "Table", ICON_GRID_ON),
-    (DatabaseViewKind::Scatter, "Scatter", ICON_SCATTER_PLOT),
+    (DatabaseViewKind::List, "List", ICON_LIST),
+    (DatabaseViewKind::Kanban, "Board", ICON_KANBAN),
+    (DatabaseViewKind::Spreadsheet, "Table", ICON_GRID_3X3),
+    (DatabaseViewKind::Scatter, "Scatter", ICON_CHART_SCATTER),
 ];
 
 #[component]
@@ -76,7 +76,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </List>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button
-                    glyph={ICON_SCHEMA.to_owned()}
+                    glyph={ICON_TABLE_PROPERTIES.to_owned()}
                     label="Edit fields"
                     variant=ButtonVariant::Secondary
                     @test_id={"database-view.columns"}
@@ -189,8 +189,8 @@ fn OrderPicker(data: Data) -> NodeId {
     let sorted = create_memo(move || data.sort.get().is_some());
     let glyph = create_memo(move || {
         match data.sort.get().map(|sort| sort.direction) {
-            Some(SortDirection::Descending) => ICON_ARROW_DOWNWARD,
-            _ => ICON_ARROW_UPWARD,
+            Some(SortDirection::Descending) => ICON_ARROW_DOWN,
+            _ => ICON_ARROW_UP,
         }
         .to_owned()
     });

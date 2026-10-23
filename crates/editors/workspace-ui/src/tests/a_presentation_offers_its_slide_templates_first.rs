@@ -8,9 +8,9 @@ fn a_presentation_offers_its_slide_templates_first() {
     let (mut fixture, _) = editor();
     let mut slides = catalog();
     for (template, name, icon) in [
-        ("title", "Title page", "\u{e264}"),
-        ("regular", "Regular page", "\u{e8d2}"),
-        ("blank", "Blank page", "\u{e3c6}"),
+        ("title", "Title page", "\u{e384}"),
+        ("regular", "Regular page", "\u{e185}"),
+        ("blank", "Blank page", "\u{e167}"),
     ] {
         slides
             .templates

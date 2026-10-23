@@ -11,7 +11,7 @@ use beui_components_unstyled::{
 };
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::icons::ICON_ARROW_DROP_DOWN;
+use beui_core::icons::ICON_CHEVRON_DOWN;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -121,7 +121,7 @@ fn SelectTrigger(
                         {label_text}
                     </Text>
                     <Text color={arrow_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} />
+                        <Icon glyph={ICON_CHEVRON_DOWN.to_owned()} />
                     </Text>
                 </List>
             </Frame>

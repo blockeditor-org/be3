@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::AudioContent;
-use block_editor_beui::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
+use block_editor_beui::beui::icons::{ICON_FILE_HEADPHONE, ICON_PAUSE, ICON_PLAY};
 use std::time::Duration;
 
 use block_editor_beui::beui::reactive::*;
@@ -33,7 +33,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let playing = create_memo(move || status.with(|status| status.playing));
     let glyph = create_memo(move || match playing.get() {
         true => ICON_PAUSE.to_owned(),
-        false => ICON_PLAY_ARROW.to_owned(),
+        false => ICON_PLAY.to_owned(),
     });
     let action = create_memo(move || match playing.get() {
         true => "Pause".to_owned(),
@@ -92,7 +92,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                 <List spacing=SPACING>
                     <Text size=TextSize::Xl4 align=TextAlign::Center>
-                        <Icon glyph={ICON_AUDIO_FILE.to_owned()} />
+                        <Icon glyph={ICON_FILE_HEADPHONE.to_owned()} />
                     </Text>
                     <Text align=TextAlign::Center>{source}</Text>
                     <IconButton

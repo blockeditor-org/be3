@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use block_editor_beui::Fit;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
+use block_editor_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption};
@@ -474,7 +474,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                             on_click={move || game.value().choose(effect.clone())}
                         />
                         <IconButton
-                            glyph={ICON_CLOSE.to_owned()}
+                            glyph={ICON_X.to_owned()}
                             label="Cancel"
                             @test_id={format!("game.control.{index}.cancel")}
                             on_click={move || confirming.set(false)}
@@ -521,7 +521,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                         <Text size=TextSize::Lg weight=Weight::Bold color={color}>{text}</Text>
                         <IconButton
-                            glyph={ICON_CLOSE.to_owned()}
+                            glyph={ICON_X.to_owned()}
                             label="Close"
                             size=IconButtonSize::Compact
                             capture_presses=true

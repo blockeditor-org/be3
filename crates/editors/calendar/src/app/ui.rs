@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::{Calendar, CalendarContent};
 use block_editor_beui::beui::datetime::DateTime;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
+use block_editor_beui::beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -128,7 +128,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
-                    glyph={ICON_ADD.to_owned()}
+                    glyph={ICON_PLUS.to_owned()}
                     label="Event"
                     variant=ButtonVariant::Primary
                     disabled={read_only}

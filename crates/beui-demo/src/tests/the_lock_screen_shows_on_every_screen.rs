@@ -1,4 +1,4 @@
-use beui::icons::ICON_BEDTIME;
+use beui::icons::ICON_MOON;
 use beui::{Rect, Screen};
 
 use super::*;
@@ -17,7 +17,7 @@ fn the_lock_screen_shows_on_every_screen() {
                     user="Ada Lovelace"
                     actions={vec![LockAction {
                         label: "Suspend".to_owned(),
-                        glyph: ICON_BEDTIME.to_owned(),
+                        glyph: ICON_MOON.to_owned(),
                     }]}
                 />
             </Root>

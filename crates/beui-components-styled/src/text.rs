@@ -79,7 +79,7 @@ impl std::hash::Hash for TextSize {
     }
 }
 
-pub const ICON_SCALE: f32 = 18.0 / 14.0;
+pub const ICON_SCALE: f32 = 16.0 / 14.0;
 pub const ICON_SPACING_EM: f32 = 2.0 / 9.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

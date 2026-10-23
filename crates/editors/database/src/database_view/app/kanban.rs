@@ -2,7 +2,7 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::database::{DatabaseValue, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
+use block_editor_beui::beui::icons::{ICON_CHEVRONS_UP_DOWN, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
@@ -114,7 +114,7 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
                 <ChoiceMark option={option} size=MARK />
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <IconButton
-                    glyph={ICON_UNFOLD_MORE.to_owned()}
+                    glyph={ICON_CHEVRONS_UP_DOWN.to_owned()}
                     label={name}
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -196,7 +196,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 <Text style=TextStyle::CAPTION>{count}</Text>
                                 <Frame @sizing=ItemSize::Percent(100.0) />
                                 <IconButton
-                                    glyph={ICON_ADD.to_owned()}
+                                    glyph={ICON_PLUS.to_owned()}
                                     label="Add card"
                                     variant=ButtonVariant::Ghost
                                     size=IconButtonSize::Compact

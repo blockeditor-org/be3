@@ -7,7 +7,7 @@ fn block_types_round_trip() {
             block_type: [7; 16],
             display_name: "Folder".into(),
             color: Some([65, 145, 210]),
-            icon_codepoint: "\u{e2c7}".into(),
+            icon_codepoint: "\u{e0d7}".into(),
             children: ChildOperations {
                 add: true,
                 delete: true,
@@ -19,7 +19,7 @@ fn block_types_round_trip() {
             template: "main".into(),
             block_type: [7; 16],
             name: "Folder".into(),
-            icon_codepoint: "\u{e2c7}".into(),
+            icon_codepoint: "\u{e0d7}".into(),
             category: TemplateCategory::Important,
             dialog: false,
         }],
@@ -27,7 +27,7 @@ fn block_types_round_trip() {
             editor: [8; 16],
             edits: Edits::Any,
             name: "Debug view".into(),
-            icon_codepoint: "\u{e86f}".into(),
+            icon_codepoint: "\u{e093}".into(),
         }],
     });
     assert_eq!(

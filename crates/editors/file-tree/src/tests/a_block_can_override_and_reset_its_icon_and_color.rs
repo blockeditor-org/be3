@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR};
-use block_editor_beui::beui::icons::{ICON_DESCRIPTION, ICON_STAR};
+use block_editor_beui::beui::icons::ICON_FILE_TEXT;
 use block_editor_beui::{BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations};
 
 use super::*;
@@ -14,7 +14,7 @@ fn a_block_can_override_and_reset_its_icon_and_color() {
             block_type: kind.into_bytes(),
             display_name: "Note".to_owned(),
             color: Some([65, 145, 210]),
-            icon_codepoint: ICON_DESCRIPTION.to_owned(),
+            icon_codepoint: ICON_FILE_TEXT.to_owned(),
             children: ChildOperations::default(),
         }],
         ..Catalog::default()
@@ -40,8 +40,9 @@ fn a_block_can_override_and_reset_its_icon_and_color() {
             .block(block)
             .unwrap()
             .metadata
-            .get(&ICON),
-        ICON_STAR.chars().next()
+            .get(&ICON)
+            .as_deref(),
+        Some("star")
     );
 
     fixture.choose(block, "Appearance");
@@ -50,7 +51,7 @@ fn a_block_can_override_and_reset_its_icon_and_color() {
     fixture.click_item("Pink");
     let saved = fixture.test.store().block(block).unwrap().metadata;
     assert_eq!(saved.get(&ICON_COLOR), Some([203, 91, 125]));
-    assert_eq!(saved.get(&ICON), ICON_STAR.chars().next());
+    assert_eq!(saved.get(&ICON).as_deref(), Some("star"));
     fixture.test.snapshot("a_block_has_a_custom_icon_and_color");
 
     fixture.choose(block, "Appearance");

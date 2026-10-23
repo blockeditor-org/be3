@@ -8,7 +8,7 @@ use be_block::database_schema::{
     DatabaseSchemaContent,
 };
 use beui::datetime::DateTime;
-use beui::icons::ICON_CLEAR;
+use beui::icons::ICON_X;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
@@ -117,7 +117,7 @@ fn DatabaseValueRow(
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
                     <IconButton
-                        glyph={ICON_CLEAR.to_owned()}
+                        glyph={ICON_X.to_owned()}
                         label="Clear"
                         @test_id={format!("{id}.clear")}
                         on_click={clear}
@@ -691,7 +691,7 @@ fn LinksValue(
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
                         <IconButton
-                            glyph={ICON_CLEAR.to_owned()}
+                            glyph={ICON_X.to_owned()}
                             label="Remove link"
                             disabled={disabled}
                             @test_id={remove_id}

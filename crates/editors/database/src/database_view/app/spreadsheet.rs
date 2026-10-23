@@ -2,7 +2,7 @@ use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_SQUARE, ICON_SQUARE_CHECK,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -161,8 +161,8 @@ fn HeaderCell(
 ) -> NodeId {
     let sorted = create_memo(move || sorted.get());
     let glyph = create_memo(move || match sorted.get() {
-        Some(SortDirection::Ascending) => ICON_ARROW_UPWARD.to_owned(),
-        Some(SortDirection::Descending) => ICON_ARROW_DOWNWARD.to_owned(),
+        Some(SortDirection::Ascending) => ICON_ARROW_UP.to_owned(),
+        Some(SortDirection::Descending) => ICON_ARROW_DOWN.to_owned(),
         None => String::new(),
     });
     let marked = create_memo(move || sorted.get().is_some());
@@ -288,8 +288,8 @@ fn Cell(
     });
     let checked = create_memo(move || matches!(value.get(), Some(DatabaseValue::Boolean(true))));
     let check_glyph = create_memo(move || match checked.get() {
-        true => ICON_CHECK_BOX.to_owned(),
-        false => ICON_CHECK_BOX_OUTLINE_BLANK.to_owned(),
+        true => ICON_SQUARE_CHECK.to_owned(),
+        false => ICON_SQUARE.to_owned(),
     });
     let colored = create_memo(move || matches!(value.get(), Some(DatabaseValue::Color(_))));
     let swatch = create_memo(move || match value.get() {

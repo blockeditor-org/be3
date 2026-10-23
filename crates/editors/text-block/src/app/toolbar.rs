@@ -1,9 +1,9 @@
 use beui::Key;
 use beui::NodeId;
 use beui::icons::{
-    ICON_ADD_BOX, ICON_CHECKLIST, ICON_CODE, ICON_DATA_ARRAY, ICON_FORMAT_BOLD, ICON_FORMAT_ITALIC,
-    ICON_FORMAT_LIST_BULLETED, ICON_FORMAT_LIST_NUMBERED, ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE,
-    ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
+    ICON_BOLD, ICON_BRACKETS, ICON_CODE, ICON_HEADING, ICON_IMAGE, ICON_ITALIC, ICON_KEYBOARD_OFF,
+    ICON_LINK, ICON_LIST, ICON_LIST_CHECKS, ICON_LIST_ORDERED, ICON_SETTINGS, ICON_SQUARE_PLUS,
+    ICON_STRIKETHROUGH,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -45,13 +45,13 @@ fn menu_actions(state: State, settings: Signal<bool>) {
     let hex = state.hex_view;
     let in_text = create_memo(move || !hex.get());
     let hex_view = Action::new("text.hex", "Hex view", move || state.toggle_hex_view())
-        .glyph(ICON_DATA_ARRAY)
+        .glyph(ICON_BRACKETS)
         .checked(create_memo(move || hex.get()))
         .register();
     let insert = Action::new("text.insert-block", "Insert a block", move || {
         pick_block(state)
     })
-    .glyph(ICON_ADD_BOX)
+    .glyph(ICON_SQUARE_PLUS)
     .enabled(in_text)
     .register();
     let settings = Action::new("text.settings", "Text settings", move || settings.set(true))
@@ -68,35 +68,35 @@ const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.heading",
         "Heading",
-        ICON_TITLE,
+        ICON_HEADING,
         MarkdownCommand::Heading(2),
         None,
     ),
     (
         "text.format.bold",
         "Bold",
-        ICON_FORMAT_BOLD,
+        ICON_BOLD,
         MarkdownCommand::Bold,
         Some(Chord::ctrl(Key::B)),
     ),
     (
         "text.format.italic",
         "Italic",
-        ICON_FORMAT_ITALIC,
+        ICON_ITALIC,
         MarkdownCommand::Italic,
         Some(Chord::ctrl(Key::I)),
     ),
     (
         "text.format.bulleted-list",
         "Bulleted list",
-        ICON_FORMAT_LIST_BULLETED,
+        ICON_LIST,
         MarkdownCommand::BulletedList,
         None,
     ),
     (
         "text.format.checklist",
         "Checklist",
-        ICON_CHECKLIST,
+        ICON_LIST_CHECKS,
         MarkdownCommand::Checklist,
         None,
     ),
@@ -110,7 +110,7 @@ const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.strikethrough",
         "Strikethrough",
-        ICON_FORMAT_STRIKETHROUGH,
+        ICON_STRIKETHROUGH,
         MarkdownCommand::Strikethrough,
         None,
     ),
@@ -124,7 +124,7 @@ const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.numbered-list",
         "Numbered list",
-        ICON_FORMAT_LIST_NUMBERED,
+        ICON_LIST_ORDERED,
         MarkdownCommand::NumberedList,
         None,
     ),
@@ -203,7 +203,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                             <Show condition={keyboard}>
                                 <Frame padding=FORMAT_PADDING>
                                     <IconButton
-                                        glyph=ICON_KEYBOARD_HIDE
+                                        glyph=ICON_KEYBOARD_OFF
                                         label="Done"
                                         @test_id={"text.format.done"}
                                         on_click={|| with_document(|document| document.update_focus(None))}

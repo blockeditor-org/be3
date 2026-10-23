@@ -4,7 +4,7 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_FORMAT_COLOR_RESET, ICON_PALETTE};
+use block_editor_beui::beui::icons::{ICON_DROPLET_OFF, ICON_PALETTE};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
@@ -256,7 +256,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                     <StyleRow label="Background">
                         <ToggleButton
                             label="Transparent"
-                            glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
+                            glyph={ICON_DROPLET_OFF.to_owned()}
                             icon_only=true
                             pressed={Binding::new(transparent, move |_: bool| pick_background(None))}
                             @test_id={"infinite-canvas.background.none"}

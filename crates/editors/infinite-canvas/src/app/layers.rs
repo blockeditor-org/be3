@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasShape};
-use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
+use block_editor_beui::beui::icons::{ICON_EYE, ICON_EYE_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
@@ -49,8 +49,8 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
     let selected = create_memo(move || state.selection.get().contains(&id));
     let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.hidden));
     let glyph = create_memo(move || match hidden.get() {
-        true => ICON_VISIBILITY_OFF.to_owned(),
-        false => ICON_VISIBILITY.to_owned(),
+        true => ICON_EYE_OFF.to_owned(),
+        false => ICON_EYE.to_owned(),
     });
     let toggle_label = create_memo(move || match hidden.get() {
         true => "Show".to_owned(),
