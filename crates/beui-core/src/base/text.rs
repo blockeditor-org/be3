@@ -16,7 +16,7 @@ use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
     CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
-    TextCaret, TextMark, handle_shape,
+    TextCaret, TextGlyph, TextMark, handle_shape,
 };
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
@@ -304,6 +304,7 @@ pub struct TextNode {
     padding: (f32, f32),
     hang: usize,
     marks: Vec<TextMark>,
+    glyphs: Vec<TextGlyph>,
     carets: Vec<TextCaret>,
     since: Cell<Instant>,
     selection: Option<(Range<usize>, Color32)>,
@@ -718,6 +719,16 @@ impl TextNode {
             fill(range.clone(), plain(*color));
         }
         layout.paint_runs(painter, origin, |run| paint_of(run.piece));
+        for glyph in &self.glyphs {
+            let shaped = painter.layout_text(&glyph.glyph, glyph.font, TextLayout::DEFAULT);
+            for (area, baseline) in layout.range_boxes(glyph.range.clone()) {
+                let at = pos2(
+                    area.center().x - shaped.size().x / 2.0,
+                    baseline - shaped.baseline(),
+                );
+                painter.galley(at + origin, shaped.clone(), glyph.color);
+            }
+        }
         for item in self.parts.nodes() {
             if rects.contains_key(&item) {
                 crate::paint::paint(doc, painter, rects, item);
@@ -926,6 +937,7 @@ impl Document {
             padding: (0.0, 0.0),
             hang: 0,
             marks: Vec::new(),
+            glyphs: Vec::new(),
             carets: Vec::new(),
             since,
             selection: None,
@@ -1194,6 +1206,16 @@ impl Document {
         let node = self.arena.paint_mut_as::<TextNode>(text);
         node.carets = carets;
         node.since.set(now);
+    }
+
+    pub fn set_text_glyphs(&mut self, text: NodeOf<TextNode>, glyphs: Vec<TextGlyph>) {
+        if self.arena.get_as::<TextNode>(text).glyphs != glyphs {
+            self.arena.paint_mut_as::<TextNode>(text).glyphs = glyphs;
+        }
+    }
+
+    pub fn text_glyphs(&self, text: NodeOf<TextNode>) -> &[TextGlyph] {
+        &self.arena.get_as::<TextNode>(text).glyphs
     }
 
     pub fn text_marks(&self, text: NodeOf<TextNode>) -> &[TextMark] {

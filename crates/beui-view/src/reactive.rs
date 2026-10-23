@@ -336,5 +336,6 @@ pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::rich::{
-    CaretHandle, Piece, RichLayout, SpanBackground, SpanKind, SpanStyle, TextCaret, TextMark,
+    CaretHandle, Piece, RichLayout, SpanBackground, SpanKind, SpanStyle, TextCaret, TextGlyph,
+    TextMark,
 };

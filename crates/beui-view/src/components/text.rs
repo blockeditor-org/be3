@@ -11,7 +11,7 @@ use beui_core::base::text::{
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId};
 use beui_core::node::{NodeId, NodeOf};
-use beui_core::rich::{SpanBackground, TextCaret, TextMark};
+use beui_core::rich::{SpanBackground, TextCaret, TextGlyph, TextMark};
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::font::TextAlign;
@@ -31,6 +31,7 @@ pub fn Text(
     #[prop(default = (0.0, 0.0))] line_padding: Prop<(f32, f32)>,
     #[prop(default = 0)] hang: Prop<usize>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
+    #[prop(default = Vec::new())] glyphs: Prop<Vec<TextGlyph>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
 ) -> NodeId {
@@ -77,6 +78,10 @@ pub fn Text(
     create_binding(move || {
         let marks = marks.get();
         with_document(|document| document.set_text_marks(node, marks))
+    });
+    create_binding(move || {
+        let glyphs = glyphs.get();
+        with_document(|document| document.set_text_glyphs(node, glyphs))
     });
     create_binding(move || {
         let carets = carets.get();

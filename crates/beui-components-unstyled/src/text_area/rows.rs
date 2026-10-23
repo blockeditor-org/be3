@@ -24,6 +24,8 @@ pub const LINE_PADDING: (f32, f32) = (3.0, 4.0);
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
+const NEWLINE_SLOT: &str = " ";
+const CARRIAGE_RETURN: &str = "\u{200b}";
 const ELLIPSIS: &str = "...";
 const ELLIPSIS_GAP: f32 = 6.0;
 const DELETED_PREVIEW: usize = 48;
@@ -133,8 +135,15 @@ pub struct RowSpan {
     pub style: SpanStyle,
     pub leaf: Option<SynHlStyle>,
     pub kind: SpanKind,
-    pub break_after: bool,
-    pub invisible: Option<usize>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Invisible {
+    pub source: usize,
+    pub display: Range<usize>,
+    pub glyph: &'static str,
+    pub font: FontId,
+    pub trailing: bool,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -152,6 +161,7 @@ pub struct Row {
     pub hang: usize,
     pub placeholder: bool,
     pub props: MarkSet,
+    pub invisibles: Vec<Invisible>,
 }
 
 impl Row {
@@ -171,6 +181,14 @@ impl Row {
                 .map(|segment| Segment {
                     source: shift(segment.source.start)..shift(segment.source.end),
                     ..segment.clone()
+                })
+                .collect(),
+            invisibles: self
+                .invisibles
+                .iter()
+                .map(|invisible| Invisible {
+                    source: shift(invisible.source),
+                    ..invisible.clone()
                 })
                 .collect(),
             ..self.clone()
@@ -263,11 +281,7 @@ impl Row {
             .map(|span| {
                 let text = self.display.get(span.range.clone()).unwrap_or_default();
                 match span.kind {
-                    SpanKind::Text => Piece::Text {
-                        text,
-                        style: span.style,
-                        break_after: span.break_after,
-                    },
+                    SpanKind::Text => Piece::text(text, span.style),
                     SpanKind::Space(width) => Piece::Gap(width),
                     SpanKind::Inline(_) => {
                         flow += 1;
@@ -381,6 +395,45 @@ fn invisible_marker(byte: u8) -> Option<&'static str> {
     }
 }
 
+fn invisibles_of(
+    row: &Row,
+    bytes: &[u8],
+    skip: &Range<usize>,
+    trailing_from: usize,
+) -> Vec<Invisible> {
+    let mut found = Vec::new();
+    for (at, byte) in bytes.iter().enumerate().take(row.end).skip(row.start) {
+        let Some(glyph) = invisible_marker(*byte) else {
+            continue;
+        };
+        if skip.contains(&at) {
+            continue;
+        }
+        let display = row.to_display(at)..row.to_display(at + 1);
+        let shown = row.display.get(display.clone()).unwrap_or_default();
+        let real = match byte {
+            b'\r' => shown == CARRIAGE_RETURN,
+            _ => shown.as_bytes() == [*byte],
+        };
+        let Some(span) = row
+            .spans
+            .iter()
+            .find(|span| span.kind == SpanKind::Text && span.range.contains(&display.start))
+            .filter(|_| real)
+        else {
+            continue;
+        };
+        found.push(Invisible {
+            source: at,
+            display,
+            glyph,
+            font: span.style.font,
+            trailing: at >= trailing_from,
+        });
+    }
+    found
+}
+
 struct Builder<'a> {
     inputs: &'a RowInputs<'a>,
     row: Row,
@@ -406,18 +459,6 @@ impl Builder<'_> {
         style: SpanStyle,
         kind: SpanKind,
     ) {
-        self.push_breaking(text, source, mapped, style, kind, false);
-    }
-
-    fn push_breaking(
-        &mut self,
-        text: &str,
-        source: Range<usize>,
-        mapped: bool,
-        style: SpanStyle,
-        kind: SpanKind,
-        break_after: bool,
-    ) {
         let start = self.row.display.len();
         self.row.display.push_str(text);
         let display = start..self.row.display.len();
@@ -429,8 +470,6 @@ impl Builder<'_> {
                 if kind == SpanKind::Text
                     && last.kind == SpanKind::Text
                     && last.style == style
-                    && last.break_after == break_after
-                    && last.invisible.is_none()
                     && last.leaf.is_none()
                     && last.range.end == start =>
             {
@@ -441,8 +480,6 @@ impl Builder<'_> {
                 style,
                 leaf: None,
                 kind,
-                break_after,
-                invisible: None,
             }),
         }
         match self.row.segments.last_mut() {
@@ -469,14 +506,6 @@ impl Builder<'_> {
         }
     }
 
-    fn invisible(&mut self, byte: usize, trailing: bool) {
-        if let Some(last) = self.row.spans.last_mut()
-            && !trailing
-        {
-            last.invisible = Some(byte);
-        }
-    }
-
     fn marker(&mut self, look: &LineLook, source: Range<usize>, body: SpanStyle) {
         let shown =
             String::from_utf8_lossy(&self.inputs.snapshot.bytes[source.clone()]).into_owned();
@@ -500,8 +529,6 @@ impl Builder<'_> {
             style,
             leaf: None,
             kind: SpanKind::Space(width),
-            break_after: false,
-            invisible: None,
         });
     }
 
@@ -747,7 +774,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .iter()
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
         .map_or(start, |index| start + index + 1);
-    let invisible = inputs.colors.syntax.scope(SynHlColorScope::Invisible);
     let runs = match options.mask {
         true => &[][..],
         false => snapshot.runs_in(start, end),
@@ -810,16 +836,15 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             continue;
         }
         let byte = bytes[index];
-        if invisibles && let Some(marker) = invisible_marker(byte) {
-            let trailing = index >= trailing_from;
-            let color = match trailing {
-                true => invisible,
-                false => Color32::TRANSPARENT,
-            };
-            let style = SpanStyle { color, ..base };
-            builder.push_breaking(marker, index..index + 1, false, style, SpanKind::Text, true);
+        if invisibles && byte == b'\r' {
+            builder.push(
+                CARRIAGE_RETURN,
+                index..index + 1,
+                false,
+                base,
+                SpanKind::Text,
+            );
             builder.leaf(style_at(index));
-            builder.invisible(index, trailing);
             index += 1;
             continue;
         }
@@ -841,7 +866,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 || style_at(stop) != style
                 || run_starts(stop)
                 || (formats.is_some() && bytes[stop..end].starts_with(VOID.as_bytes()))
-                || (invisibles && invisible_marker(bytes[stop]).is_some())
+                || (invisibles && bytes[stop] == b'\r')
             {
                 break;
             }
@@ -864,6 +889,9 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     if !builder.fonts.contains(&ending) {
         builder.fonts.push(ending);
     }
+    if invisibles {
+        builder.row.invisibles = invisibles_of(&builder.row, bytes, &marker, trailing_from);
+    }
     if newline && invisibles {
         let style = SpanStyle {
             color: Color32::TRANSPARENT,
@@ -871,8 +899,15 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             strikethrough: false,
             ..builder.span_style(style_at(end))
         };
-        builder.push(NEWLINE_MARKER, end..end + 1, false, style, SpanKind::Text);
-        builder.invisible(end, false);
+        let at = builder.row.display.len();
+        builder.push(NEWLINE_SLOT, end..end + 1, false, style, SpanKind::Text);
+        builder.row.invisibles.push(Invisible {
+            source: end,
+            display: at..builder.row.display.len(),
+            glyph: NEWLINE_MARKER,
+            font: style.font,
+            trailing: false,
+        });
     }
     if snapshot
         .sections

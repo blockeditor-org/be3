@@ -587,8 +587,8 @@ as the demo's Paths page does) rather than spilling past it.
 Text is never one of those. A base `Text` takes concrete values and knows
 nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
 given), a `color` and `underline`, and the props that shape the paragraph -
-alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`
-and `carets`. Its content is its children: string literals and
+alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`,
+`glyphs` and `carets`. Its content is its children: string literals and
 `Prop<String>`s in its own style, `Span`s - value children with no node, each
 overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 `italic`, and its `color`, `underline` or `strikethrough`, giving it a
@@ -596,7 +596,9 @@ overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 marking a wrap opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
 inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
 given width that holds no bytes, so the indices on either side of one are the
-same. An unset span prop takes its Text's. A Text whose only child is a
+same. A tab in a span's text is laid out as its own run that reaches the next
+tab stop, every `TAB_COLUMNS` (4) spaces of its span's font from the start of
+its line. An unset span prop takes its Text's. A Text whose only child is a
 string or `Prop<String>` keeps it as its own content rather than as a span,
 which costs no more than a node made with `Document::create_text`.
 
@@ -618,11 +620,14 @@ with `line_padding` above and below each line, and aligns, truncates with an
 ellipsis and spaces lines by `line_height` whatever its content. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
 line breaking resumes from the line that span is on; a colour or decoration
-change only repaints. It paints each span's `background` behind the span's
+change, and any change to `marks`, `glyphs` or `carets`, only repaints. It paints each span's `background` behind the span's
 range on every line the span is laid out on, so it follows wrapping, as one
 shape where neighbouring spans have the same background (an inline code span
-split by its styles). Over that it paints `marks` (selections, flat) and
-`carets` in front of the text, blinking ones included - byte
+split by its styles). Over that it paints `marks` (selections, flat), then the
+text, then `glyphs` (`TextGlyph`: a string in a font and colour, centred across
+the laid-out box of a byte range on every line it is on and set on that line's
+baseline, taking no room, the way a text area shows a whitespace marker over a
+real space) and `carets` in front of the text, blinking ones included - byte
 ranges over the joined content - and a `TextItem` given `at` is placed at that
 index as if it were a caret instead of in the flow, which is how something
 floats beside a position in the text. `Document::text_geometry` answers where an index is and which index is
@@ -812,7 +817,8 @@ rows reach through `on_content_size` (padding included, read from the rows'
 `text_bounds`), and a caller sizes a box from that. The infinite canvas grows a
 text entity this way while it is edited, and draws each text and label as a
 read-only rich `TextArea` over a `LiveText`, the same area whether or not it is
-being edited. Its export is the one place text is laid out away from the tree
+being edited, with `styled::DocumentMarker` as its marker hook, so a checklist shows the styled
+`Checkbox` at the size of its text (a `Checkbox`'s `size` is the `TextSize` it sits beside). Its export is the one place text is laid out away from the tree
 (`TextAreaState::lay_out_prose`): it gives every marker a square the height of
 a line and paints it, and each quote's bar, as a pink box, since export does
 not draw them yet. A `TextArea` takes its view size
@@ -849,10 +855,14 @@ which blocks a highlighter decorates (a code block's language). `schema::basic` 
 with the usual marks, headings, lists, checklists, quotes and code blocks. `TextAreaState::with_schema`
 makes an area for one, `TextAreaState::selected` is the selection's marks and block props,
 and `styled::FormatBar` shows the tools it is given glyphs for. The area draws rich text with no
-gutter or whitespace markers. How a document looks is three render hooks, the way Slate's are,
+gutter or whitespace markers. In markdown and plain text, whitespace stays real text (a space
+and a tab take their own advance in their own font, a `\r` none) and the area shows its markers
+as the row `Text`'s `glyphs`: trailing whitespace always, any other only while selected, so
+selecting never moves the text. A line's newline takes a space's width of the line's font after
+its text (the caret at the line's end sits before it), so a selection over it shows, and its
+marker is drawn there while it is selected. How a document looks is three render hooks, the way Slate's are,
 each keyed by the line description (`LineLook`) that markdown and rich text both give: `leaf`
-(`RenderFn<TextLeaf, Span>`) turns a run of text, its resolved style (a `Prop<SpanStyle>`, which
-changes only for a whitespace marker shown while it is selected) and its `SynHlStyle` into a
+(`RenderFn<TextLeaf, Span>`) turns a run of text, its resolved `SpanStyle` and its `SynHlStyle` into a
 `Span`, so every run stays in the line's one `Text` and wraps and carries the caret across style
 changes; the leaf draws an inline code span's background (`SynHlStyle::code`, which the markdown
 highlighter sets for a code span and `schema::basic` for the code mark, never for a code block)

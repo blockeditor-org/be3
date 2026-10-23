@@ -13,7 +13,7 @@ use beui_core::geometry::{Rect, Vec2};
 use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_core::rich::{SpanStyle, TextCaret, TextMark, handle_shape};
+use beui_core::rich::{SpanStyle, TextCaret, TextGlyph, TextMark, handle_shape};
 use beui_view::components::overlay::Overlay;
 use text_editor_core::{SynHlColorScope, SynHlStyle};
 
@@ -526,6 +526,23 @@ fn RowText(
         }
         marks
     });
+    let glyphs = create_memo(move || {
+        let row = model.get();
+        let cursors = cursors.get();
+        let color = cx.colors.get().syntax.scope(SynHlColorScope::Invisible);
+        row.invisibles
+            .iter()
+            .filter(|invisible| invisible.trailing || cursors.selects(invisible.source))
+            .map(|invisible| {
+                TextGlyph::new(
+                    invisible.display.clone(),
+                    invisible.glyph,
+                    invisible.font,
+                    color,
+                )
+            })
+            .collect::<Vec<_>>()
+    });
     let carets = create_memo(move || {
         let row = model.get();
         let colors = cx.colors.get();
@@ -589,10 +606,11 @@ fn RowText(
             font={font}
             color={color}
             marks={marks}
+            glyphs={glyphs}
             carets={carets}
         >
             <ForEach keys={keys}>|(key, _): (PieceKey, usize)|
-                <RowPiece cx model={model} cursors key />
+                <RowPiece cx model={model} key />
             </ForEach>
             <Show condition={anchored}>
                 <TextItem at={anchor_position}>
@@ -639,8 +657,6 @@ enum PieceKey {
         color: Color32,
         underline: bool,
         strikethrough: bool,
-        break_after: bool,
-        invisible: Option<usize>,
         leaf: Option<SynHlStyle>,
     },
     Space(u32),
@@ -670,8 +686,6 @@ fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
                         color: style.color,
                         underline: style.underline,
                         strikethrough: style.strikethrough,
-                        break_after: span.break_after,
-                        invisible: span.invisible,
                         leaf: span.leaf,
                     }
                 }
@@ -691,12 +705,7 @@ fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
 }
 
 #[component]
-fn RowPiece(
-    cx: Context,
-    model: Memo<Rc<Row>>,
-    cursors: Memo<RowCursors>,
-    key: PieceKey,
-) -> TextChild {
+fn RowPiece(cx: Context, model: Memo<Rc<Row>>, key: PieceKey) -> TextChild {
     match key {
         PieceKey::Text {
             text,
@@ -704,26 +713,17 @@ fn RowPiece(
             color,
             underline,
             strikethrough,
-            break_after,
-            invisible,
             leaf,
         } => {
             let font = FontId::new(f32::from_bits(size), family)
                 .bold(bold)
                 .italic(italic);
-            let color = match invisible {
-                Some(byte) => Prop::dynamic(move || match cursors.get().selects(byte) {
-                    true => cx.colors.get().syntax.scope(SynHlColorScope::Invisible),
-                    false => color,
-                }),
-                None => Prop::Static(color),
-            };
-            let style = color.map(move |color| SpanStyle {
+            let style = SpanStyle {
                 font,
                 color,
                 underline,
                 strikethrough,
-            });
+            };
             match leaf {
                 Some(syntax) => cx
                     .leaf
@@ -731,13 +731,10 @@ fn RowPiece(
                         text,
                         style,
                         syntax,
-                        break_after,
                     })
                     .into_child(),
                 None => view! {
-                    <Span font color={color.map(Some)} underline strikethrough break_after>
-                        {text}
-                    </Span>
+                    <Span font color={Some(color)} underline strikethrough>{text}</Span>
                 }
                 .into_child(),
             }

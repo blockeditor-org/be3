@@ -32,6 +32,7 @@ mod peers_carets_follow_their_presence_and_go_when_it_is_hidden;
 mod pressing_the_format_bar_keeps_the_focus_and_the_selection_in_the_text;
 mod replacing_a_referenced_block_rewrites_its_url;
 mod selecting_a_grapheme_keeps_prepend_with_ascii;
+mod selecting_text_does_not_move_it;
 mod switching_to_hex_view_shows_the_bytes;
 mod the_caret_is_shown_to_peers_in_a_color_they_are_not_using;
 mod the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows;
@@ -41,6 +42,7 @@ mod typing_continues_at_the_caret_after_a_peer_edits_around_it;
 mod typing_continues_where_a_peer_deleted_the_text_around_the_caret;
 mod typing_follows_a_replacement_of_the_carets_byte;
 mod typing_inserts_text_into_the_document;
+mod whitespace_markers_sit_over_real_spaces;
 
 fn editor(text: &str) -> BeuiTest<TextApp> {
     let block = Uuid::new_v4();

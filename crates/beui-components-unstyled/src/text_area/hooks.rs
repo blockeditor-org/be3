@@ -32,9 +32,8 @@ const CODE_RADIUS: f32 = 3.0;
 #[derive(Clone)]
 pub struct TextLeaf {
     pub text: String,
-    pub style: Prop<SpanStyle>,
+    pub style: SpanStyle,
     pub syntax: SynHlStyle,
-    pub break_after: bool,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -135,20 +134,14 @@ pub fn LeafSpan(
     leaf: TextLeaf,
     #[prop(default = None)] background: Prop<Option<SpanBackground>>,
 ) -> Span {
-    let TextLeaf {
-        text,
-        style,
-        break_after,
-        ..
-    } = leaf;
+    let TextLeaf { text, style, .. } = leaf;
     view! {
         <Span
-            font={style.map(|style| Some(style.font))}
-            color={style.map(|style| Some(style.color))}
-            underline={style.map(|style| Some(style.underline))}
-            strikethrough={style.map(|style| Some(style.strikethrough))}
+            font={Some(style.font)}
+            color={Some(style.color)}
+            underline={Some(style.underline)}
+            strikethrough={Some(style.strikethrough)}
             background
-            break_after
         >
             {text}
         </Span>
