@@ -12,7 +12,7 @@ fn a_click_on_beui_dismisses_a_grabbed_popup() {
 
     let menu = harness
         .client
-        .grabbing_popup(harness.app.server(), &window, (0, 10), (40, 30));
+        .grabbing_popup(harness.stepped.app_mut().compositor.server(), &window, (0, 10), (40, 30));
     harness.settle();
     assert_eq!(
         harness.client.received.keyboard_surface.as_ref(),

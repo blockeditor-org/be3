@@ -7,7 +7,7 @@ fn a_pen_over_a_window_that_takes_no_tablets_moves_and_presses_its_pointer() {
     let _pointer = harness.client.pointer();
     let (_window, id) = harness.open();
     let at = harness.window(id).center();
-    let pen = |phase, pressure| Event::Pen {
+    let pen = |phase, pressure| Input::Pen {
         phase,
         pos: at,
         pen: Pen {

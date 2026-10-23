@@ -7,7 +7,6 @@ const KEY_B: u32 = 48;
 #[test]
 fn a_window_no_shell_owns_gets_no_input_and_is_still_pinged() {
     let mut harness = Harness::new();
-    harness.context.stop_clock();
     let _keyboard = harness.client.keyboard();
     let _pointer = harness.client.pointer();
     let (_window, id) = harness.open();
@@ -17,7 +16,7 @@ fn a_window_no_shell_owns_gets_no_input_and_is_still_pinged() {
     assert!(harness.client.received.keyboard_entered);
     assert!(harness.client.received.pointer_surface.is_some());
 
-    harness.app.set_owned(false);
+    harness.compositor().set_owned(false);
     harness.settle();
     assert!(
         !harness.client.received.keyboard_entered,
@@ -32,7 +31,7 @@ fn a_window_no_shell_owns_gets_no_input_and_is_still_pinged() {
     let buttons = harness.client.received.buttons.len();
     harness.click(&window);
     harness.key(KEY_B);
-    harness.app.windows().activate(id);
+    harness.compositor().windows().activate(id);
     harness.settle();
     assert_eq!(
         harness.client.received.keys,
@@ -44,7 +43,7 @@ fn a_window_no_shell_owns_gets_no_input_and_is_still_pinged() {
 
     harness.client.received.ignores_pings = true;
     harness.client.received.pings.clear();
-    harness.context.advance_clock(PING_TIMEOUT);
+    harness.context().advance_clock(PING_TIMEOUT);
     harness.settle();
     assert!(
         !harness.client.received.pings.is_empty(),
@@ -54,7 +53,7 @@ fn a_window_no_shell_owns_gets_no_input_and_is_still_pinged() {
         harness.output.as_ref().unwrap().repaint_after <= PING_TIMEOUT,
         "the compositor wakes for the next ping"
     );
-    harness.context.advance_clock(PING_TIMEOUT);
+    harness.context().advance_clock(PING_TIMEOUT);
     harness.settle();
     assert!(
         !harness.responding(id),
@@ -65,11 +64,11 @@ fn a_window_no_shell_owns_gets_no_input_and_is_still_pinged() {
     harness.settle();
     assert!(harness.responding(id));
     assert!(
-        harness.app.server().state.windows().contains(&id),
+        harness.compositor().server().state.windows().contains(&id),
         "the window stays open the whole time"
     );
 
-    harness.app.set_owned(true);
+    harness.compositor().set_owned(true);
     harness.click(&window);
     harness.key(KEY_B);
     assert!(harness.client.received.keyboard_entered);

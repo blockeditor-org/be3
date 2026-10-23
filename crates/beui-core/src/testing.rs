@@ -17,7 +17,7 @@ use crate::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
 use crate::runner::{Incoming, Launch, Platform, RunOptions, Runner};
 
-const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
+pub const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 const ANSWER_FRAMES: usize = 600;
 
 pub struct Screen(pub Vec2);

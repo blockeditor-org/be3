@@ -6,7 +6,7 @@ fn a_launched_program_is_given_a_token_that_brings_a_window_forward() {
     let _keyboard = harness.client.keyboard();
     let (window, id) = harness.open();
     harness.click("test.input");
-    assert_eq!(harness.app.windows().focused(), None);
+    assert_eq!(harness.compositor().windows().focused(), None);
 
     let fifo = std::env::temp_dir().join(format!("be-wayland-token-{}", std::process::id()));
     let _ = std::fs::remove_file(&fifo);
@@ -18,7 +18,7 @@ fn a_launched_program_is_given_a_token_that_brings_a_window_forward() {
         0,
     )
     .expect("a fifo is made");
-    harness.app.windows().run(Launch {
+    harness.compositor().windows().run(Launch {
         arguments: vec![
             "sh".to_owned(),
             "-c".to_owned(),
@@ -43,7 +43,7 @@ fn a_launched_program_is_given_a_token_that_brings_a_window_forward() {
     harness.client.activate(token, &window.surface);
     harness.settle();
     assert_eq!(
-        harness.app.windows().focused(),
+        harness.compositor().windows().focused(),
         Some(id),
         "the token the host made for the launch brings a window forward"
     );

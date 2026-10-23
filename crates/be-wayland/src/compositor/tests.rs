@@ -73,7 +73,9 @@ mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::styled::*;
-use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
+use beui::automation::WindowSize;
+use beui::testing::Stepped;
+use beui::{FrameOutput, Input, Key, Keystroke, NodeId, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
@@ -81,10 +83,25 @@ use crate::view::WindowView;
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
 
-struct Harness {
-    app: Compositor,
+struct Shell {
+    compositor: Compositor,
     document: Document,
-    context: Context,
+    copy: Option<String>,
+}
+
+impl beui::App for Shell {
+    fn update(&mut self, context: &Context, rect: Rect) {
+        self.compositor.before(context, rect);
+        self.document.show(context, rect);
+        if let Some(text) = self.copy.take() {
+            context.copy_text(text);
+        }
+        self.compositor.after(context, &mut self.document);
+    }
+}
+
+struct Harness {
+    stepped: Stepped<Shell>,
     client: TestClient,
     output: Option<FrameOutput>,
 }
@@ -211,41 +228,53 @@ impl Harness {
                 <Root>{content}</Root>
             }
         });
-        let mut app = Compositor::new(
+        let mut compositor = Compositor::new(
             Server::headless().expect("a headless display starts"),
             windows.expect("the windows are made while the document is built"),
         );
         if let Some((device, queue)) = gpu {
-            app.start(
+            compositor.start(
                 device,
                 queue,
                 wgpu::TextureFormat::Bgra8Unorm,
                 Waker::new(|| {}),
             );
         }
-        let client = TestClient::connect(app.server());
-        let context = beui::context();
-        Self {
-            app,
+        let client = TestClient::connect(compositor.server());
+        let shell = Shell {
+            compositor,
             document,
-            context,
+            copy: None,
+        };
+        let window = WindowSize {
+            size: SCREEN,
+            scale: 1.0,
+        };
+        Self {
+            stepped: Stepped::new(beui::context(), shell, window, None),
             client,
             output: None,
         }
     }
 
-    fn frame(&mut self, events: Vec<Event>) {
+    fn compositor(&mut self) -> &mut Compositor {
+        &mut self.stepped.app_mut().compositor
+    }
+
+    fn context(&self) -> &Context {
+        self.stepped.context()
+    }
+
+    fn frame(&mut self, inputs: Vec<Input>) {
         self.client.flush();
-        let app = &mut self.app;
-        let document = &mut self.document;
-        let output = self.context.run(RawInput { events }, |context| {
-            let rect = Rect::from_min_size(Pos2::ZERO, SCREEN);
-            app.before(context, rect);
-            document.show(context, rect);
-            app.after(context, document);
-        });
-        self.output = Some(output);
+        self.output = Some(self.stepped.frame(inputs));
         self.client.receive();
+    }
+
+    fn frame_at(&mut self, at: std::time::Instant) {
+        let next = self.context().now() + beui::testing::FRAME_INTERVAL;
+        self.context().advance_clock(at - next);
+        self.frame(Vec::new());
     }
 
     fn lock(&mut self, locked: bool) {
@@ -253,7 +282,7 @@ impl Harness {
             .with(|lock| *lock.borrow())
             .expect("the harness has a lock");
         set.set(locked);
-        self.app.set_locked(locked);
+        self.compositor().set_locked(locked);
         self.settle();
     }
 
@@ -275,7 +304,7 @@ impl Harness {
         let window = self.client.toplevel();
         self.settle();
         let id = *self
-            .app
+            .compositor()
             .server()
             .state
             .windows()
@@ -322,18 +351,16 @@ impl Harness {
 
     fn click_at(&mut self, center: Pos2) {
         self.frame(vec![
-            Event::PointerMoved(center),
-            Event::PointerButton {
+            Input::PointerMoved(center),
+            Input::PointerButton {
                 pos: center,
                 button: PointerButton::Primary,
                 pressed: true,
-                modifiers: beui::Modifiers::NONE,
             },
-            Event::PointerButton {
+            Input::PointerButton {
                 pos: center,
                 button: PointerButton::Primary,
                 pressed: false,
-                modifiers: beui::Modifiers::NONE,
             },
         ]);
         self.settle();
@@ -344,8 +371,8 @@ impl Harness {
         self.settle();
     }
 
-    fn responding(&self, id: WindowId) -> bool {
-        self.app
+    fn responding(&mut self, id: WindowId) -> bool {
+        self.compositor()
             .windows()
             .list()
             .get_untracked()
@@ -437,36 +464,33 @@ thread_local! {
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
-fn stroke(key: Key, code: u32, pressed: bool, modifiers: beui::Modifiers) -> Event {
-    Event::Key {
-        press: beui::KeyPress {
-            key,
-            pressed,
-            repeat: false,
-            modifiers,
-        },
+fn stroke(key: Option<Key>, code: u32, pressed: bool) -> Input {
+    Input::Key(Keystroke {
+        key,
+        pressed,
+        repeat: false,
         evdev: Some(code),
         text: None,
-    }
+    })
 }
 
-fn physical(code: u32, pressed: bool) -> Event {
-    stroke(Key::Unidentified, code, pressed, beui::Modifiers::NONE)
+fn physical(code: u32, pressed: bool) -> Input {
+    stroke(None, code, pressed)
 }
 
-fn super_key(pressed: bool) -> Vec<Event> {
+fn super_key(pressed: bool) -> Vec<Input> {
     let held = match pressed {
         true => beui::Modifiers::LOGO,
         false => beui::Modifiers::NONE,
     };
     vec![
-        stroke(Key::Logo, KEY_LEFTMETA, pressed, held),
-        Event::Modifiers(held),
+        stroke(Some(Key::Logo), KEY_LEFTMETA, pressed),
+        Input::Modifiers(held),
     ]
 }
 
-fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
-    vec![stroke(Key::F, KEY_F, pressed, modifiers)]
+fn f_key(pressed: bool) -> Vec<Input> {
+    vec![stroke(Some(Key::F), KEY_F, pressed)]
 }
 
 fn outside() -> Pos2 {

@@ -14,7 +14,7 @@ fn each_screen_shows_its_own_part_of_the_desktop() {
         &crate::arrow::pixels(),
     );
     let context = beui::context();
-    let output = context.run(RawInput::default(), |context| {
+    let output = context.run(|context| {
         let painter = context.painter();
         painter.rect_filled(
             Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0)),

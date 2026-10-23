@@ -15,7 +15,7 @@ fn a_window_whose_first_focus_was_refused_gets_the_keyboard_when_raised() {
         "the window opened under a dialog did not get the keyboard"
     );
 
-    harness.app.windows().activate(id);
+    harness.compositor().windows().activate(id);
     harness.settle();
     assert!(
         harness.client.received.keyboard_entered,

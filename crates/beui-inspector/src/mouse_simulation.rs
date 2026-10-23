@@ -9,7 +9,7 @@ use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::icons;
 use beui_core::input::{
-    CursorIcon, Event, Modifiers, PointerButton, RawInput, TouchId, TouchPhase,
+    CursorIcon, Event, Modifiers, PointerButton, TouchId, TouchPhase,
 };
 use beui_core::painter::Painter;
 
@@ -168,20 +168,20 @@ impl MouseSimulation {
         };
     }
 
-    fn translated(&mut self, raw: RawInput) -> (RawInput, Option<Duration>) {
+    fn translated(&mut self, events: Vec<Event>) -> (Vec<Event>, Option<Duration>) {
         if !self.enabled && !self.active {
-            return (raw, None);
+            return (events, None);
         }
-        let mut out = Vec::with_capacity(raw.events.len() + 8);
+        let mut out = Vec::with_capacity(events.len() + 8);
         if !self.enabled {
             self.stop(&mut out);
-            out.extend(raw.events);
-            return (RawInput { events: out }, None);
+            out.extend(events);
+            return (out, None);
         }
         if !self.active {
             self.start();
         }
-        for event in raw.events {
+        for event in events {
             match event.clone() {
                 Event::Touch { id, phase, pos, .. } if self.passes(id, phase, pos) => {
                     out.push(event);
@@ -196,7 +196,7 @@ impl MouseSimulation {
         }
         let wake = self.settle();
         self.flush(&mut out);
-        (RawInput { events: out }, wake)
+        (out, wake)
     }
 
     fn start(&mut self) {
@@ -717,9 +717,9 @@ impl InputSimulation for MouseSimulation {
         self.enable(enabled);
     }
 
-    fn translate(&mut self, raw: RawInput, now: Instant) -> (RawInput, Option<Duration>) {
+    fn translate(&mut self, events: Vec<Event>, now: Instant) -> (Vec<Event>, Option<Duration>) {
         self.now = now;
-        self.translated(raw)
+        self.translated(events)
     }
 
     fn measure(&mut self, viewport: Rect, scale: f32) {

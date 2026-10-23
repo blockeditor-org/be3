@@ -22,12 +22,11 @@ fn a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks() {
     let end = harness.window(second).center();
 
     harness.frame(vec![
-        Event::PointerMoved(start),
-        Event::PointerButton {
+        Input::PointerMoved(start),
+        Input::PointerButton {
             pos: start,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: beui::Modifiers::NONE,
         },
     ]);
     harness.settle();
@@ -39,7 +38,7 @@ fn a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks() {
     harness.client.start_drag(&device, &from.surface, serial);
     harness.settle();
 
-    harness.frame(vec![Event::PointerMoved(end)]);
+    harness.frame(vec![Input::PointerMoved(end)]);
     harness.settle();
     assert_ne!(
         client::drop_target().as_ref(),
@@ -47,11 +46,10 @@ fn a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks() {
         "a window behind a modal dialog takes no drag"
     );
 
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos: end,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: beui::Modifiers::NONE,
     }]);
     harness.settle();
     assert_eq!(client::dropped_on(), None);

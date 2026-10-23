@@ -66,7 +66,7 @@ fn hiding_the_tab_of_the_window_with_the_keyboard_takes_the_keyboard_from_it() {
 
     show(&mut harness, 2);
     assert_eq!(
-        harness.app.windows().focused(),
+        harness.compositor().windows().focused(),
         None,
         "the window whose tab was hidden no longer has the focus"
     );
@@ -78,7 +78,7 @@ fn hiding_the_tab_of_the_window_with_the_keyboard_takes_the_keyboard_from_it() {
 
     show(&mut harness, 1);
     assert_eq!(
-        harness.app.windows().focused(),
+        harness.compositor().windows().focused(),
         Some(id),
         "showing the window's tab again gives it the keyboard back"
     );

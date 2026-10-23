@@ -15,7 +15,7 @@ fn a_process_the_compositor_launched_can_be_ended() {
     )
     .expect("a fifo is made");
 
-    harness.app.windows().run(Launch {
+    harness.compositor().windows().run(Launch {
         arguments: vec![
             "sh".to_owned(),
             "-c".to_owned(),
@@ -30,19 +30,19 @@ fn a_process_the_compositor_launched_can_be_ended() {
     let program = Pid::from_raw(told.trim().parse().expect("a pid")).expect("the pid is not zero");
 
     assert!(
-        harness.app.launched(program),
+        harness.compositor().launched(program),
         "a descendant of a launched process counts as launched"
     );
     assert!(
         !harness
-            .app
+            .compositor()
             .launched(Pid::from_raw(std::process::id() as i32).unwrap()),
         "a process the compositor did not launch does not"
     );
 
-    assert!(harness.app.end_launched(program));
+    assert!(harness.compositor().end_launched(program));
     harness
-        .app
+        .compositor()
         .exited
         .1
         .recv_timeout(std::time::Duration::from_secs(60))

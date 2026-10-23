@@ -3521,7 +3521,9 @@ they go through the runner's intake, so a test sends what a platform would: an
 `Input::Modifiers` before a key or a press it means to be held with (`Harness`'s
 `pressed_with` sends a chord that way), `Input::PointerLeft` for the pointer leaving, and
 `Input::Scroll(ScrollDelta::Pixels(..))` for a scroll in points. There is no way to hand the
-runner an `Event` directly. A test that stamps samples with times pushes `Incoming::Time`
+runner an `Event` directly, and input reaches a `Context` only through a `Runner`:
+`Context::run(frame)` paints one frame with no input, for drawing offscreen (the canvas's
+export) or a test of painting alone. A test that stamps samples with times pushes `Incoming::Time`
 through `runner().push` and then paints `frame(Vec::new())`. A failure prints the steps so far as `drive`
 commands (guides/running/drive.md), which replay against a `:dev` app.
 

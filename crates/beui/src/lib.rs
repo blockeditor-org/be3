@@ -45,7 +45,7 @@ pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
 pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
     ImeText, Input, InputState, Key, KeyChord, KeyPress, Keyboard, Keystroke, Modifiers, Pen,
-    PenPhase, PointerButton, PointerEvent, PointerId, PointerPhase, PointerPress, RawInput,
+    PenPhase, PointerButton, PointerEvent, PointerId, PointerPhase, PointerPress,
     ScrollDelta, ScrollGesture, SecondaryDrag, TouchId, TouchPhase, ZoomGesture,
 };
 pub use beui_core::interact::forward::{Forwarded, ForwardedInput, Replay, Replayed};

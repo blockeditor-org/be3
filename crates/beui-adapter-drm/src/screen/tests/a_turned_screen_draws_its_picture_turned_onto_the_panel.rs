@@ -4,7 +4,7 @@ const RED: [u8; 4] = [0, 0, 255, 255];
 const BLUE: [u8; 4] = [255, 0, 0, 255];
 
 fn paint(context: &beui::Context, square: bool) -> FrameOutput {
-    context.run(RawInput::default(), |context| {
+    context.run(|context| {
         let painter = context.painter();
         painter.rect_filled(
             Rect::from_min_size(pos2(0.0, 0.0), vec2(24.0, 32.0)),

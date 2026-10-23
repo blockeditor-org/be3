@@ -39,7 +39,7 @@ fn a_window_whose_text_field_is_enabled_asks_for_the_keyboard_and_takes_typed_te
         "enabling it again asks again, as a tap on a field does"
     );
 
-    harness.frame(vec![Event::Text("é".to_owned())]);
+    harness.frame(vec![Input::Text("é".to_owned())]);
     harness.settle();
     assert_eq!(
         harness.client.received.protocols.text_committed,

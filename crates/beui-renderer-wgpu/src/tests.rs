@@ -54,7 +54,6 @@ use beui_core::document::Document;
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
-use beui_core::input::RawInput;
 use beui_core::painter::Painter;
 
 const SIZE: u32 = 64;
@@ -188,7 +187,7 @@ impl Target {
         background: Color32,
         paint: impl FnOnce(&Painter),
     ) -> Option<beui_core::context::Moved> {
-        let output = context.run(RawInput::default(), |context| paint(&context.painter()));
+        let output = context.run(|context| paint(&context.painter()));
         let (repaint, moved) = output.repaint_moving(background);
         let effective = self.renderer.prepare(
             &self.device,
@@ -232,7 +231,7 @@ impl Target {
         repaint: impl FnOnce(&beui_core::context::FrameOutput) -> Repaint,
         paint: impl FnOnce(&Painter),
     ) {
-        let output = context.run(RawInput::default(), |context| paint(&context.painter()));
+        let output = context.run(|context| paint(&context.painter()));
         let repaint = repaint(&output);
         let effective = self.renderer.prepare(
             &self.device,

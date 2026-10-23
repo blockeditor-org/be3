@@ -16,7 +16,7 @@ use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
-use crate::input::{Event, Input, RawInput};
+use crate::input::{Event, Input};
 use crate::renderer::{Loaded, Renderers};
 use crate::window::{WindowReports, WindowState};
 
@@ -494,9 +494,7 @@ impl Runner {
             }
             None => {}
         }
-        let raw = RawInput {
-            events: next_batch(&mut self.events),
-        };
+        let events = next_batch(&mut self.events);
         let seen = !self.occluded
             || self
                 .automation
@@ -505,7 +503,7 @@ impl Runner {
         self.context.set_seen(seen);
         self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;
-        let mut output = self.context.run(raw, |context| {
+        let mut output = self.context.run_with(events, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
         if self.publishing_accessibility {

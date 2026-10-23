@@ -113,7 +113,7 @@ fn opened(harness: &mut Harness, screen: &mut Screen, color: [u8; 4]) -> (TestWi
     let window = harness.client.toplevel();
     screen.settle(harness);
     let id = *harness
-        .app
+        .compositor()
         .server()
         .state
         .windows()

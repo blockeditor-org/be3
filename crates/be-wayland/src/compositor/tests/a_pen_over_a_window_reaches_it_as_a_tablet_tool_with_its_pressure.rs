@@ -8,7 +8,7 @@ fn a_pen_over_a_window_reaches_it_as_a_tablet_tool_with_its_pressure() {
     let _tablets = harness.client.tablet_seat();
     let (_window, id) = harness.open();
     let at = harness.window(id).center();
-    let pen = |phase, pos, pressure| Event::Pen {
+    let pen = |phase, pos, pressure| Input::Pen {
         phase,
         pos,
         pen: Pen {

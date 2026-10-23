@@ -850,7 +850,7 @@ use std::rc::Rc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Pos2, Vec2, pos2, vec2};
-use crate::input::{Event, Input, Key, Modifiers, PointerButton, RawInput, ScrollDelta};
+use crate::input::{Event, Input, Key, Modifiers, PointerButton, ScrollDelta};
 use crate::input::{TouchId, TouchPhase};
 
 use crate::base::frame::FrameNode;

@@ -202,11 +202,6 @@ impl Event {
     }
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct RawInput {
-    pub events: Vec<Event>,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum PointerId {
     Mouse,
@@ -391,7 +386,7 @@ impl InputState {
         !self.touches.is_empty()
     }
 
-    pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
+    pub(crate) fn begin_frame(&mut self, events: Vec<Event>, now: Instant) {
         self.pointer.motion = Vec2::ZERO;
         if self.touches.is_empty() {
             self.pointer.lift_finger();
@@ -399,13 +394,13 @@ impl InputState {
         self.pointer_events.clear();
         self.touched = self.touches.iter().map(|(_, pos)| *pos).collect();
         self.touched
-            .extend(raw.events.iter().filter_map(|event| match event {
+            .extend(events.iter().filter_map(|event| match event {
                 Event::Touch { pos, .. } => Some(*pos),
                 _ => None,
             }));
-        for (source, event) in raw.events.iter().enumerate() {
+        for (source, event) in events.iter().enumerate() {
             self.source = source;
-            self.time = match raw.events.get(source + 1) {
+            self.time = match events.get(source + 1) {
                 Some(Event::Time(at)) => Some(*at),
                 _ => Some(now),
             };
@@ -477,7 +472,7 @@ impl InputState {
                     self.pen_event(*phase, *pos, now);
                 }
                 Event::Predicted(pos) => {
-                    let stamped = raw.events[..source]
+                    let stamped = events[..source]
                         .iter()
                         .rev()
                         .take_while(|event| matches!(event, Event::Time(_)))
@@ -487,7 +482,7 @@ impl InputState {
                 _ => {}
             }
         }
-        self.events = raw.events;
+        self.events = events;
         while self
             .scroll_samples
             .front()
