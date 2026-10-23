@@ -7,10 +7,10 @@ use super::*;
 use crate::platform;
 
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
-mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
+mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_commit_in_one_checkout_is_brought_into_another;
