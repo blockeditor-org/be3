@@ -598,6 +598,7 @@ pub enum Input {
     Ime(ImeEvent),
     PointerMoved(Pos2),
     PointerLeft,
+    PointersCancelled,
     PointerMotion(Vec2),
     PointerButton {
         pos: Pos2,

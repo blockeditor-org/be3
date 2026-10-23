@@ -1030,6 +1030,9 @@ fn listen(
     })?;
     let window_target: &web_sys::EventTarget = window.as_ref();
     on(window_target, "resize", |_event: web_sys::Event| schedule())?;
+    on(window_target, "blur", |_event: web_sys::FocusEvent| {
+        push(Input::PointersCancelled);
+    })?;
     on(window_target, "beforeunload", |event: web_sys::Event| {
         close_requested(&event);
     })?;

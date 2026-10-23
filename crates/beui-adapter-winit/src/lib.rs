@@ -101,6 +101,8 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         load: Some(load),
         surface: None,
         pointer: Pos2::ZERO,
+        pressed: 0,
+        wayland: false,
         fingers: Vec::new(),
         wheel: Wheel::new(cfg!(target_os = "macos")),
         dropping: None,
@@ -132,6 +134,8 @@ struct Runner {
     load: Option<Load>,
     surface: Option<Surface>,
     pointer: Pos2,
+    pressed: u32,
+    wayland: bool,
     fingers: Vec<TouchId>,
     wheel: Wheel,
     dropping: Option<AsyncRequestSerial>,
@@ -416,7 +420,12 @@ impl Runner {
                 PointerKind::TabletTool(kind) => {
                     self.pen(PenPhase::Gone, position, kind, TabletToolData::default());
                 }
-                _ => self.push(Input::PointerLeft),
+                _ => {
+                    self.push(Input::PointerLeft);
+                    if self.wayland && std::mem::take(&mut self.pressed) > 0 {
+                        self.push(Input::PointersCancelled);
+                    }
+                }
             },
             WindowEvent::PointerButton {
                 device_id,
@@ -444,6 +453,10 @@ impl Runner {
                     }
                     ButtonSource::Mouse(button) => {
                         self.pointer = physical(position);
+                        self.pressed = match pressed {
+                            true => self.pressed.saturating_add(1),
+                            false => self.pressed.saturating_sub(1),
+                        };
                         if let Some(button) = pointer_button(button) {
                             self.push(Input::PointerButton {
                                 pos: self.pointer,
@@ -454,6 +467,10 @@ impl Runner {
                     }
                     ButtonSource::Unknown(code) if code >= BUTTON_EVDEV_FIRST => {
                         self.pointer = physical(position);
+                        self.pressed = match pressed {
+                            true => self.pressed.saturating_add(1),
+                            false => self.pressed.saturating_sub(1),
+                        };
                         let button = PointerButton::Other(code);
                         self.push(Input::PointerButton {
                             pos: self.pointer,
@@ -487,6 +504,11 @@ impl ApplicationHandler for Runner {
     }
 
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            use winit::platform::wayland::ActiveEventLoopExtWayland;
+            self.wayland = event_loop.is_wayland();
+        }
         if self.surface.is_some() {
             if let Err(error) = self.attach() {
                 self.fail(event_loop, error);
@@ -620,7 +642,13 @@ impl ApplicationHandler for Runner {
                 self.runner.reports().scaled(scale_factor as f32);
                 self.request_redraw();
             }
-            WindowEvent::Focused(focused) => self.push(Input::Focus(focused)),
+            WindowEvent::Focused(focused) => {
+                if !focused {
+                    self.pressed = 0;
+                    self.push(Input::PointersCancelled);
+                }
+                self.push(Input::Focus(focused));
+            }
             WindowEvent::ThemeChanged(theme) => {
                 self.preferences.window_theme(Some(theme));
                 self.runner

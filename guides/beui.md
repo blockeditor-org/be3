@@ -434,8 +434,19 @@ hooks the higher crates fill in:
   intercepted keys with the modifiers held, and drops a held modifier's
   repeats and the text of a shortcut. It turns the primary mouse button into
   a finger while `Context::touch_emulation` is on, holds `PointerGone` back
-  while a button is held, and lets go of the modifiers, buttons and emulated
-  touch when focus is lost.
+  while a button is held, and lets go of the modifiers when the keyboard is
+  lost (`Input::Focus(false)` means only the keyboard). `Input::PointersCancelled`
+  says every press, touch and pen session is over and its release will not
+  come: the runner lets go of its buttons and emulated touch, and the
+  document cancels the touches, ends the pen and the mouse
+  (`Event::PointersCancelled`) and stops autoscrolling. Only the adapters
+  whose platform can lose a release send it: winit and the web when their
+  window loses focus (alt-tab mid-press, a broken capture on Windows, a grab
+  by another X11 client), and winit on Wayland also when the pointer leaves
+  with a button held, since a compositor grab sends `wl_pointer.leave` and no
+  release (`ActiveEventLoopExtWayland::is_wayland`). Android reports
+  `ACTION_CANCEL`, the web `pointercancel` for touches and pens, DRM reads
+  libinput, and a plugin's host ends each pointer through `Replay`.
 - `Platform::pick_file` gets a `FilePickAnswer`, which can be sent from any
   thread and wakes the runner; the pick reaches the app at the next frame.
   Accessibility trees are published only between

@@ -1,20 +1,25 @@
-use beui_core::input::{PointerButton as Button, PointerPhase};
-use block_editor_plugin::{Input, PointerButton, TimedInput};
+use beui_core::input::{
+    Pen, PenPhase, PointerButton, PointerId, PointerPhase, TouchId, TouchPhase,
+};
+use block_editor_plugin::TimedInput;
 
 use super::*;
 
 struct Watching(
     Rc<std::cell::RefCell<Vec<Event>>>,
-    Rc<std::cell::RefCell<Vec<PointerPhase>>>,
+    Rc<std::cell::RefCell<Vec<(PointerId, PointerPhase)>>>,
 );
 
 impl App for Watching {
     fn update(&mut self, context: &Context, _rect: Rect) {
         context.input(|input| {
             self.0.borrow_mut().extend(input.events.iter().cloned());
-            self.1
-                .borrow_mut()
-                .extend(input.pointer_events.iter().map(|event| event.phase));
+            self.1.borrow_mut().extend(
+                input
+                    .pointer_events
+                    .iter()
+                    .map(|event| (event.pointer, event.phase)),
+            );
         });
     }
 }
@@ -30,71 +35,76 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
         beui::context(),
         Watching(events.clone(), phases.clone()),
     );
+    let finger = TouchId {
+        device: 1,
+        finger: 2,
+    };
+    let pen = |phase: PenPhase, pos| Input::Pen {
+        phase,
+        pos,
+        pressure: 0.5,
+        pen: Pen::default(),
+    };
+    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
+    send(Input::Focus(true));
+    send(Input::PointerMoved(pos2(10.0, 10.0)));
+    send(Input::PointerButton {
+        pos: pos2(10.0, 10.0),
+        button: PointerButton::Primary,
+        pressed: true,
+    });
+    send(Input::Touch {
+        id: finger,
+        phase: TouchPhase::Start,
+        pos: pos2(50.0, 10.0),
+        force: None,
+    });
+    send(pen(PenPhase::Down(PointerButton::Primary), pos2(30.0, 40.0)));
     surface.update(&shown);
-    surface.input(&shown, &TimedInput::from(Input::Focus(true)));
-    surface.input(
-        &shown,
-        &TimedInput::from(Input::PointerMoved(pos2(10.0, 10.0))),
-    );
-    surface.input(
-        &shown,
-        &TimedInput::from(Input::PointerButton {
-            pos: pos2(10.0, 10.0),
-            button: PointerButton::Primary,
-            pressed: true,
-        }),
-    );
+
+    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
+    send(Input::Focus(false));
+    send(Input::PointerMoved(pos2(40.0, 30.0)));
+    send(Input::Touch {
+        id: finger,
+        phase: TouchPhase::Move,
+        pos: pos2(55.0, 15.0),
+        force: None,
+    });
+    send(pen(PenPhase::Move, pos2(35.0, 45.0)));
     surface.update(&shown);
-    surface.input(&shown, &TimedInput::from(Input::Focus(false)));
-    surface.input(
-        &shown,
-        &TimedInput::from(Input::PointerMoved(pos2(40.0, 30.0))),
+    assert!(
+        events.borrow().contains(&Event::Focus(false)),
+        "the lost keyboard is reported at once"
     );
-    surface.update(&shown);
     assert!(
         !phases
             .borrow()
             .iter()
-            .any(|phase| matches!(phase, PointerPhase::Gone | PointerPhase::Cancel)),
-        "the press the host still forwards goes on: {:?}",
+            .any(|(_, phase)| matches!(phase, PointerPhase::Gone | PointerPhase::Cancel)),
+        "the presses the host still forwards go on: {:?}",
         phases.borrow()
     );
-    assert!(!events.borrow().contains(&Event::Focus(false)));
 
-    surface.input(
-        &shown,
-        &TimedInput::from(Input::PointerButton {
-            pos: pos2(40.0, 30.0),
-            button: PointerButton::Primary,
-            pressed: false,
-        }),
-    );
+    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
+    send(Input::PointerButton {
+        pos: pos2(40.0, 30.0),
+        button: PointerButton::Primary,
+        pressed: false,
+    });
+    send(Input::Touch {
+        id: finger,
+        phase: TouchPhase::End,
+        pos: pos2(55.0, 15.0),
+        force: None,
+    });
+    send(pen(PenPhase::Up(PointerButton::Primary), pos2(35.0, 45.0)));
     surface.update(&shown);
-    assert!(
-        phases.borrow().contains(&PointerPhase::Up(Button::Primary)),
-        "{:?}",
-        phases.borrow()
-    );
-    assert!(
-        events.borrow().contains(&Event::Focus(false)),
-        "the lost keyboard is reported once the press is let go"
-    );
-
-    events.borrow_mut().clear();
-    surface.input(&shown, &TimedInput::from(Input::Focus(true)));
-    surface.input(
-        &shown,
-        &TimedInput::from(Input::PointerButton {
-            pos: pos2(10.0, 10.0),
-            button: PointerButton::Primary,
-            pressed: true,
-        }),
-    );
-    surface.input(&shown, &TimedInput::from(Input::Focus(false)));
-    surface.input(&shown, &TimedInput::from(Input::PointerLeft));
-    surface.update(&shown);
-    assert!(
-        events.borrow().contains(&Event::Focus(false)),
-        "a press the host stopped forwarding no longer holds the lost keyboard back"
-    );
+    let phases = phases.borrow();
+    for pointer in [PointerId::Mouse, PointerId::Touch(finger), PointerId::Pen] {
+        assert!(
+            phases.contains(&(pointer, PointerPhase::Up(PointerButton::Primary))),
+            "{pointer:?} is let go where the host says: {phases:?}"
+        );
+    }
 }

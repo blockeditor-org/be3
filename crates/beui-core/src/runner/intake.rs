@@ -190,12 +190,15 @@ impl Intake {
                 pen,
             }),
             Input::Predicted(pos) => events.push(Event::Predicted(points(pos))),
-            Input::Focus(false) => {
+            Input::PointersCancelled => {
                 self.held = 0;
                 self.left = false;
                 if std::mem::take(&mut self.emulated_touch) {
                     events.push(self.touch(TouchPhase::Cancel));
                 }
+                events.push(Event::PointersCancelled);
+            }
+            Input::Focus(false) => {
                 self.set_modifiers(Modifiers::NONE, events);
                 events.push(Event::Focus(false));
             }

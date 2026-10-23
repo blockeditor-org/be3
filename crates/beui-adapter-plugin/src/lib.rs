@@ -15,7 +15,7 @@ use beui_core::screens::Screen;
 use beui_core::window::WindowState;
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 use block_editor_plugin::{
-    DescribedAction, Description, EditorHost, Frame, Input, Region, TimedInput,
+    DescribedAction, Description, EditorHost, Frame, Region, TimedInput,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -54,8 +54,6 @@ pub struct PluginSurface {
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
     described: Option<u64>,
-    pressed: u8,
-    blurred: bool,
 }
 
 impl PluginSurface {
@@ -89,8 +87,6 @@ impl PluginSurface {
             platform: HostPlatform::new(host),
             surface,
             described: None,
-            pressed: 0,
-            blurred: false,
         }
     }
 
@@ -113,27 +109,9 @@ impl PluginSurface {
     }
 
     pub fn input(&mut self, region: &Region, event: &TimedInput) {
-        match event.input {
-            Input::Focus(false) if self.pressed > 0 => {
-                self.blurred = true;
-                return;
-            }
-            Input::Focus(true) => self.blurred = false,
-            Input::PointerButton { pressed: true, .. } => {
-                self.pressed = self.pressed.saturating_add(1);
-            }
-            Input::PointerButton { pressed: false, .. } => {
-                self.pressed = self.pressed.saturating_sub(1);
-            }
-            Input::PointerLeft => self.pressed = 0,
-            _ => {}
-        }
         self.runner.push(input::translate(region, event));
         if let Some(at) = input::time(event) {
             self.runner.push(Incoming::Time(at));
-        }
-        if self.pressed == 0 && std::mem::take(&mut self.blurred) {
-            self.runner.push(Input::Focus(false));
         }
     }
 

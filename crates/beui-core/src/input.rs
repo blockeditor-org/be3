@@ -103,6 +103,7 @@ pub enum Event {
         modifiers: Modifiers,
     },
     PointerGone,
+    PointersCancelled,
     PointerMotion(Vec2),
     PointerMoved(Pos2),
     ScrollStarted,
@@ -155,6 +156,7 @@ impl Event {
             self,
             Self::PointerButton { .. }
                 | Self::PointerGone
+                | Self::PointersCancelled
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
                 | Self::ScrollStarted
@@ -410,7 +412,7 @@ impl InputState {
                     self.pointer.motion += *delta;
                 }
                 Event::PointerGone if self.touched.is_empty() => self.mouse_gone(),
-                Event::Focus(false) => {
+                Event::PointersCancelled => {
                     for (id, pos) in std::mem::take(&mut self.touches) {
                         self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
                     }

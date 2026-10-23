@@ -187,9 +187,9 @@ impl MouseSimulation {
                     out.push(event);
                 }
                 Event::Touch { id, phase, pos, .. } => self.touch(id, phase, pos),
-                Event::Focus(false) => {
+                Event::PointersCancelled => {
                     self.cancel();
-                    out.push(Event::Focus(false));
+                    out.push(Event::PointersCancelled);
                 }
                 other => out.push(other),
             }
