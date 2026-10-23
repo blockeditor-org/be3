@@ -1728,7 +1728,10 @@ fn closing_switcher(nodes: Vec<MenuNode>, switching: Signal<bool>) -> Vec<MenuNo
 #[component]
 fn DockTiles(dock: State) -> NodeId {
     let current = dock.state;
-    let main = create_memo(move || current.with(DockState::main));
+    let floating_only = dock.floating_only;
+    let main = create_memo(move || {
+        (!floating_only.get()).then(|| current.with(DockState::main))
+    });
     let windows = create_memo(move || current.with(DockState::windows));
     view! {
         <DropTarget
@@ -1736,14 +1739,17 @@ fn DockTiles(dock: State) -> NodeId {
             on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
         >|_: DropHandle|
             <List spacing=0.0>
-                <Dynamic value={main}>|surface: SurfaceId| {
+                <Dynamic value={main}>|surface: Option<SurfaceId>| {
                     let dock = dock;
-                    view! {
-                        <DockTreeView
-                            dock
-                            tree={Tree::Surface(surface)}
-                            @sizing=ItemSize::Percent(100.0)
-                        />
+                    match surface {
+                        Some(surface) => view! {
+                            <DockTreeView
+                                dock
+                                tree={Tree::Surface(surface)}
+                                @sizing=ItemSize::Percent(100.0)
+                            />
+                        },
+                        None => view! { <Frame @sizing=ItemSize::Percent(100.0) /> },
                     }
                 }</Dynamic>
                 <ForEach keys={windows}>|surface: SurfaceId| {
