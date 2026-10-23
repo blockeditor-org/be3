@@ -153,12 +153,10 @@ re-import once, and say so in `guides/frozen_formats.md`.
     default organization has none. It holds policies and defaults.
 16. **Offline-first.** Add the setting now, and say in its description that
     offline-first doesn't exist yet. The organization's policy is required,
-    allowed or blocked. Each user chooses per workspace in their this-device
-    layer; blocks shared with them resolve from their own settings, since
-    "Shared with me" is not a workspace. When offline-first is built: on
-    losing access, unsent edits move to a local "unsent" area, stashed the way
-    `Peer::stash` keeps the losing side of a merge, and are offered back if
-    access returns. Personal accounts never delete anything automatically.
+    allowed or blocked. Each user chooses yes, lazy or no per block tree in
+    their this-device layer (`plans/offline_first.md`); blocks shared with
+    them resolve from their own settings. Personal accounts never delete
+    anything automatically.
     For organization accounts, policy decides what happens to cached content,
     with a grace period for unsent edits. Enforcement on lost machines is for
     MDM, out of scope.
