@@ -39,6 +39,7 @@ pub struct LineLook {
     pub marker: std::ops::Range<usize>,
     pub list: Option<ListMarker>,
     pub depth: usize,
+    pub continues: bool,
     pub quote: usize,
     pub code_block: bool,
 }

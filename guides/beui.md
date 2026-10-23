@@ -857,7 +857,9 @@ caret still steps through them) rather than shown as text. Both kinds of list lo
 `MarkerColumn` puts a list marker in a column `MARKER_COLUMN_EM` of the text size wide, right
 aligned so numbers line up on the dot (a wider marker widens only its own line), and
 `TextLine::indent` indents a line by a fixed `LIST_INDENT_EM` per nesting level and
-`QUOTE_INDENT_EM` per quote, whatever the source's spaces. The
+`QUOTE_INDENT_EM` per quote, whatever the source's spaces. A markdown line that continues a list
+item (`LineLook::continues`) hides its indentation the same way and is indented to its item's
+text. The
 unstyled defaults draw from `TextAreaColors`; `styled::TextArea` draws with `DocumentMarker` and
 `DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
 and hands every other marker to `DocumentMarker`. Copying and pasting

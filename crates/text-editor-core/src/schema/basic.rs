@@ -98,6 +98,7 @@ pub fn line_looks(formats: &Formats) -> Vec<LineLook> {
                     Some(_) => level.max(0) as usize,
                     None => 0,
                 },
+                continues: false,
                 quote: usize::from(on(props, QUOTE)),
                 code_block: props.get(CODE_BLOCK).is_some(),
             }

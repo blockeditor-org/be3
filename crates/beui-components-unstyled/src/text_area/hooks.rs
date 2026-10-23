@@ -118,9 +118,10 @@ impl TextLine {
         let (look, size) = (self.look, self.size);
         create_memo(move || {
             let look = look.get();
-            let nested = match look.list {
-                Some(_) => look.depth as f32 * LIST_INDENT_EM,
-                None => 0.0,
+            let nested = match (look.list, look.continues) {
+                (Some(_), _) => look.depth as f32 * LIST_INDENT_EM,
+                (None, true) => (look.depth + 1) as f32 * LIST_INDENT_EM,
+                (None, false) => 0.0,
             };
             (look.quote as f32 * QUOTE_INDENT_EM + nested) * size.get()
         })

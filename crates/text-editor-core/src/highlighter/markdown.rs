@@ -103,23 +103,25 @@ fn line_look(
     let list = (node.start_byte() <= first && first < node.end_byte())
         .then(|| list_marker(node, source))
         .flatten();
+    let continues = list.is_none() && lists > 0 && !code_block;
     if let Some((_, marker_end)) = list {
         content = marker_end.min(end);
     }
-    let content = match content > lead {
+    let content = match content > lead || continues {
         true => skip_spaces(source, content, end),
         false => content,
     };
     LineLook {
-        marker: match content > lead {
+        marker: match content > lead || (continues && content > start) {
             true => start..content,
             false => start..start,
         },
         list: list.map(|(list, _)| list),
-        depth: match list {
-            Some(_) => lists.saturating_sub(1),
-            None => 0,
+        depth: match list.is_some() || continues {
+            true => lists.saturating_sub(1),
+            false => 0,
         },
+        continues,
         quote,
         code_block,
     }
