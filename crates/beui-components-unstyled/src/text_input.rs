@@ -141,7 +141,6 @@ pub fn TextInput(
     });
 
     let colors = create_memo(move || TextAreaColors {
-        surface: Color32::TRANSPARENT,
         selection: selection_color.get(),
         caret: caret_color.get(),
         placeholder: placeholder_color.get(),

@@ -1018,7 +1018,6 @@ struct Field {
     described: Memo<Node>,
     frame: Stored<RefCell<Option<Render<Child>>>>,
     inner: NodeRef,
-    surface_color: Memo<Color32>,
     field_placed: Signal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
     hover_cursor: Signal<CursorIcon>,
@@ -1351,16 +1350,10 @@ pub fn TextArea(
                     false => hover_cursor.get(),
                 });
                 let tab_stop = create_memo(move || !disabled.get());
-                let surface_color = create_memo(move || colors.get().surface);
-                let outer_color = create_memo(move || match single_line {
-                    true => Color32::TRANSPARENT,
-                    false => surface_color.get(),
-                });
                 let field = Field {
                     described,
                     frame: store(RefCell::new(frame)),
                     inner,
-                    surface_color,
                     field_placed,
                     cx,
                     cursor,
@@ -1376,10 +1369,8 @@ pub fn TextArea(
                     on_image_paste,
                 };
                 let multi_line = !single_line;
-                let strip_width = create_memo(move || gutter.get());
                 let width = create_memo(move || size.get().x);
                 let height = create_memo(move || size.get().y);
-                let gutter_color = create_memo(move || colors.get().gutter);
                 let border_color = create_memo(move || colors.get().gutter_border);
                 let border_x = create_memo(move || gutter.get() - 1.0);
                 let border_width = create_memo(move || match gutter.get() > 0.0 {
@@ -1394,7 +1385,7 @@ pub fn TextArea(
                 }
 
                 view! {
-                    <Frame @node_ref=&outer fill=outer_color>
+                    <Frame @node_ref=&outer>
                         <List spacing=0.0>
                             <Show condition={single_line}>
                                 <Editing @sizing=ItemSize::Percent(100.0) field={field} />
@@ -1405,9 +1396,6 @@ pub fn TextArea(
                                     width={width}
                                     height={height}
                                 >
-                                    <CanvasItem x=0.0 y=0.0 width={strip_width} height={height}>
-                                        <Frame fill=gutter_color />
-                                    </CanvasItem>
                                     <CanvasItem
                                         x={border_x}
                                         y=0.0
@@ -1450,7 +1438,6 @@ fn Editing(field: Field) -> NodeId {
         described,
         frame,
         inner,
-        surface_color,
         field_placed,
         cursor,
         hover_cursor: pointer_cursor,
@@ -1524,11 +1511,7 @@ fn Editing(field: Field) -> NodeId {
                     },
                     true => {
                         let field = view! {
-                            <FieldFrame
-                                @node_ref=&inner
-                                color={surface_color}
-                                report={field_placed}
-                            >
+                            <FieldFrame @node_ref=&inner report={field_placed}>
                                 <SingleLine cx={cx} />
                             </FieldFrame>
                         };
@@ -1559,16 +1542,12 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
 }
 
 #[component]
-fn FieldFrame(
-    color: Memo<Color32>,
-    report: Signal<Option<ReadSignal<Rect>>>,
-    children: Child,
-) -> NodeId {
+fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> NodeId {
     view! {
         <PlacementBuilder>|placed: ReadSignal<Rect>| {
             report.set_unconditionally(Some(placed));
             view! {
-                <Frame fill=color>{children}</Frame>
+                <Frame>{children}</Frame>
             }
         }</PlacementBuilder>
     }

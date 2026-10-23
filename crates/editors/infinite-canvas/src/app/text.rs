@@ -214,7 +214,6 @@ pub(crate) fn EntityText(
     });
     let inset = create_memo(move || Vec2::splat(TEXT_INSET * unit.get()));
     let colors = create_memo(move || TextAreaColors {
-        surface: Color32::TRANSPARENT,
         selection: theme.accent_soft.get(),
         caret: theme.accent.get(),
         placeholder: with_opacity(color.get(), PLACEHOLDER_OPACITY),

@@ -51,8 +51,6 @@ pub fn TextArea(
 ) -> NodeId {
     let theme = use_theme();
     let colors = create_memo(move || TextAreaColors {
-        surface: theme.background.get(),
-        gutter: theme.surface.get(),
         gutter_border: theme.border.get(),
         gutter_text: theme.text_muted.get(),
         gutter_arrow: theme.text_muted.get(),

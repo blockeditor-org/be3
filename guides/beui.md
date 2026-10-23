@@ -782,7 +782,8 @@ under the pointer. The unstyled module contains
 `text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
 handle owned by the scope that made it; `with_core` and `with_core_mut` reach
 the `Core`), lays the
-document out with a gutter, wrapping, collapsible sections and markdown
+document out with a gutter (line numbers and a border line, no fill: the area paints no
+background, so it shows whatever is behind it), wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
 names - `block` builds what goes under a block widget's line, and
 `selected_widget` what floats under an inline one while it is selected - which
@@ -858,9 +859,9 @@ and `styled::FormatBar` shows the tools it is given glyphs for. The area draws r
 gutter or whitespace markers. In markdown and plain text, whitespace stays real text (a space
 and a tab take their own advance in their own font, a `\r` none) and the area shows its markers
 as the row `Text`'s `glyphs`: trailing whitespace always, any other only while selected, so
-selecting never moves the text. A line's newline takes a space's width of the line's font after
-its text (the caret at the line's end sits before it), so a selection over it shows, and its
-marker is drawn there while it is selected. How a document looks is three render hooks, the way Slate's are,
+selecting never moves the text. A line's newline takes the width of an invisible `mm` in the line's font
+after its text (the caret at the line's end sits before it), so a selection over it shows, and its
+marker is drawn centred there while it is selected. How a document looks is three render hooks, the way Slate's are,
 each keyed by the line description (`LineLook`) that markdown and rich text both give: `leaf`
 (`RenderFn<TextLeaf, Span>`) turns a run of text, its resolved `SpanStyle` and its `SynHlStyle` into a
 `Span`, so every run stays in the line's one `Text` and wraps and carries the caret across style

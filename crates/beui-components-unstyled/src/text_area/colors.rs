@@ -109,8 +109,6 @@ impl Default for SyntaxColors {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TextAreaColors {
-    pub surface: Color32,
-    pub gutter: Color32,
     pub gutter_border: Color32,
     pub gutter_text: Color32,
     pub gutter_arrow: Color32,
@@ -125,8 +123,6 @@ pub struct TextAreaColors {
 
 impl TextAreaColors {
     pub const DEFAULT: Self = Self {
-        surface: rgb(0x1d252c),
-        gutter: rgb(0x181f25),
         gutter_border: rgb(0x28333c),
         gutter_text: rgb(0x718ca1),
         gutter_arrow: rgb(0x8fa8ba),
