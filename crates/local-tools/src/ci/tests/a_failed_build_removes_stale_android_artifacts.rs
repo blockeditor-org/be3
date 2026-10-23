@@ -9,8 +9,7 @@ fn a_failed_build_removes_stale_android_artifacts() {
         fs::write(directory.join(apk), b"previous signed build").unwrap();
     }
     let mut run = super::super::Run {
-        options: super::super::parse(["manifest".into(), "--build-failed".into()].into_iter())
-            .unwrap(),
+        options: super::super::parse(["--build-failed".into()].into_iter()).unwrap(),
         built: Vec::new(),
         failed: true,
     };

@@ -34,11 +34,10 @@ nsc_version='0.0.587'
 nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
 nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
 
-# crates/bootstrap, which every script runs. bootstrap_source is the SHA-256 of
-# the crate's files that the binaries were built from; CI builds, uploads and
-# pins a new release when they change (guides/bootstrap.md), each at
-# https://be3-ci.b-cdn.net/bootstrap/<sha256>.
-bootstrap_source='4b896614a5b01276c168e9a61cb9ab870262eb3d84eff7880426ffac645c8f2b'
+# crates/bootstrap, which every script runs: the SHA-256 of each platform's
+# binary, which is also its name at https://be3-ci.b-cdn.net/bootstrap/<sha256>.
+# CI uploads and pins a new release when the binaries built from the checkout
+# are not these (guides/bootstrap.md).
 bootstrap_sha256_x86_64_unknown_linux_gnu='d46421d22a2358ab2e7f1f53796ab7cab711425288d3f87be9d4fe022bdf9c9b'
 bootstrap_sha256_aarch64_unknown_linux_gnu='afa6fe8f7eb3eca157821da339bd543b2751c2af414d112649f0fd5ea5a77257'
 bootstrap_sha256_x86_64_apple_darwin='167753fd278aa9912eae2534677f95fe98ef40aec4064ec02402249e120bace4'

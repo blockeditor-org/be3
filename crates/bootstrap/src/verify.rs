@@ -122,7 +122,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         .next_back();
     let Some(verify) = verify.filter(|path| std::path::Path::new(path).exists()) else {
         println!();
-        println!("Verification failed: crates/local-tools did not build.");
+        println!("Verification failed: crates/verify did not build.");
         return Ok(ExitCode::FAILURE);
     };
     let mut command = Command::new(verify);

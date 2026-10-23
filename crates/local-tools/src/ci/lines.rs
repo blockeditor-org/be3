@@ -19,8 +19,9 @@ const KINDS: [(Kind, &str); 6] = [
     (Kind::Other, "everything else"),
 ];
 
-const TOOLING: [&str; 3] = [
+const TOOLING: [&str; 4] = [
     "crates/local-tools",
+    "crates/verify",
     "crates/fix-rust-source",
     "crates/buck-tools",
 ];

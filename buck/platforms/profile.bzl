@@ -25,3 +25,24 @@ def dev_only(flags):
         "DEFAULT": flags,
         "root//buck/constraints:release": [],
     })
+
+# A binary in cargo's release profile whatever the command asked for, for a
+# tool a command downloads to run here: crates/verify is a few hundred
+# kilobytes so, rather than megabytes of debug information.
+def _release_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    release = refs.release[ConstraintValueInfo]
+    if platform.configuration.constraints.get(release.setting.label) == release:
+        return platform
+    constraints = dict(platform.configuration.constraints)
+    constraints[release.setting.label] = release
+    return PlatformInfo(
+        configuration = ConfigurationInfo(constraints = constraints, values = platform.configuration.values),
+        label = platform.label + "_release",
+    )
+
+_release = transition(impl = _release_impl, refs = PROFILE_REFS)
+
+released_binary = rule(
+    attrs = {"actual": attrs.transition_dep(cfg = _release, providers = [RunInfo])},
+    impl = lambda ctx: [ctx.attrs.actual[DefaultInfo], ctx.attrs.actual[RunInfo]],
+)

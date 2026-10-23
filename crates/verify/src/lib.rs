@@ -4,7 +4,7 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-const USAGE: &str = "usage: local-tools verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]";
+const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]";
 
 struct Options {
     manifest: PathBuf,
@@ -23,7 +23,15 @@ struct Run {
     failed: bool,
 }
 
-pub fn main(arguments: Vec<String>) -> ExitCode {
+pub fn run() -> ExitCode {
+    let mut arguments: Vec<String> = std::env::args().skip(1).collect();
+    if arguments.first().is_some_and(|first| first == "verify") {
+        arguments.remove(0);
+    }
+    main(arguments)
+}
+
+fn main(arguments: Vec<String>) -> ExitCode {
     let options = match parse(arguments.into_iter()) {
         Ok(options) => options,
         Err(message) => {
@@ -115,13 +123,31 @@ impl Run {
             self.paintings();
             self.unpainted();
         }
-        if let Some(directory) = self.options.android.clone() {
-            self.android(&directory);
+        if self.options.android.is_some() || self.options.previews.is_some() {
+            self.local_tools();
         }
-        if let Some((base, out)) = self.options.previews.clone()
-            && let Err(message) = self.previews(&base, &out)
-        {
-            println!("Could not render the paint previews: {message}");
+    }
+
+    fn local_tools(&mut self) {
+        let Some(tool) = self.built("local-tools").into_iter().next() else {
+            println!(
+                "crates/local-tools did not build, so the Android builds and the paint previews were not made."
+            );
+            self.failed = true;
+            return;
+        };
+        let mut command = Command::new(tool);
+        command.arg("ci").arg(&self.options.manifest);
+        if self.options.build_failed {
+            command.arg("--build-failed");
+        }
+        if let Some(directory) = &self.options.android {
+            command.arg("--android").arg(directory);
+        }
+        if let Some((base, out)) = &self.options.previews {
+            command.arg("--previews").arg(base).arg(out);
+        }
+        if !command.status().is_ok_and(|status| status.success()) {
             self.failed = true;
         }
     }
@@ -206,8 +232,8 @@ impl Run {
             }
             Ok(bootstrap::Outcome::Stale) => {
                 println!(
-                    "crates/bootstrap changed since the release scripts/internal/pins names was built; \
-                     CI on a pull request builds, uploads and pins a new one (guides/bootstrap.md)."
+                    "crates/bootstrap built from this checkout is not the release scripts/internal/pins names; \
+                     CI on a pull request uploads and pins it (guides/bootstrap.md)."
                 );
                 self.failed |= self.options.check;
             }
@@ -357,10 +383,11 @@ impl Run {
         for directory in &directories {
             for painting in paint_files(&directory.join("changed")) {
                 let name = painting.file_name().unwrap_or_default();
-                let compared = fs::read(directory.join("used").join(name)).unwrap_or_default();
+                let compared =
+                    fs::read_to_string(directory.join("used").join(name)).unwrap_or_default();
                 let accepted = fs::read(Path::new("snapshots").join(name)).unwrap_or_default();
-                if compared == accepted {
-                    changed.push((painting, directory.join("used")));
+                if compared.trim() == bootstrap::sha256(&accepted) {
+                    changed.push(painting);
                 } else {
                     stale.push(painting);
                 }
@@ -384,7 +411,7 @@ impl Run {
             } else {
                 println!("Accepting the paintings that changed:");
             }
-            for (painting, _) in &changed {
+            for painting in &changed {
                 let name = painting.file_name().unwrap_or_default().to_string_lossy();
                 let mut why = painting.as_os_str().to_owned();
                 why.push(".why");
@@ -397,16 +424,7 @@ impl Run {
                     self.failed = true;
                 }
             }
-            if self.options.check {
-                self.failed = true;
-            } else {
-                let previous: BTreeSet<PathBuf> =
-                    changed.iter().map(|(_, used)| used.clone()).collect();
-                println!(
-                    "Until the next ./scripts/verify, the paintings as they were before are under {}, missing where there was none",
-                    one_pattern(&previous)
-                );
-            }
+            self.failed |= self.options.check;
         }
         if expected == 0 || directories.len() != expected || self.options.build_failed {
             return;
@@ -471,131 +489,6 @@ impl Run {
         }
         self.failed = true;
     }
-
-    fn android(&mut self, directory: &Path) {
-        if fs::create_dir_all(directory).is_err() {
-            self.failed = true;
-            return;
-        }
-        for apk in ["block-app.apk", "be-launcher.apk"] {
-            let output = directory.join(apk);
-            if let Err(error) = fs::remove_file(&output)
-                && error.kind() != io::ErrorKind::NotFound
-            {
-                eprintln!("{}: {error}", output.display());
-                self.failed = true;
-                return;
-            }
-        }
-        if self.options.build_failed {
-            return;
-        }
-        let finalize = || -> Result<(), String> {
-            let metadata = self
-                .built("apk-metadata")
-                .into_iter()
-                .next()
-                .ok_or("no APK metadata was built")?;
-            let key = crate::apk_sign::ci_key();
-            for apk in ["block-app.apk", "be-launcher.apk"] {
-                let template = self
-                    .built(apk)
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| format!("no {apk} template was built"))?;
-                crate::apk_sign::finalize(&template, &directory.join(apk), &key, &metadata)?;
-            }
-            Ok(())
-        };
-        if let Err(error) = finalize() {
-            eprintln!("Could not finalize Android APKs: {error}");
-            for apk in ["block-app.apk", "be-launcher.apk"] {
-                let _ = fs::remove_file(directory.join(apk));
-            }
-            self.failed = true;
-        }
-    }
-
-    fn previews(&self, base: &str, out: &Path) -> Result<(), String> {
-        let from = git(&["merge-base", base, "HEAD"]).ok_or("no merge base")?;
-        let from = from.trim();
-        let previews = Path::new("target/previews");
-        let (before, after) = (previews.join("before"), previews.join("after"));
-        for directory in [&before, &after] {
-            let _ = fs::remove_dir_all(directory);
-            fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-        }
-        let changed = git(&[
-            "diff",
-            "--name-only",
-            "--no-renames",
-            from,
-            "HEAD",
-            "--",
-            "snapshots/*.paint",
-        ])
-        .ok_or("could not list the paintings that changed")?;
-        for path in changed.lines().filter(|line| !line.is_empty()) {
-            let name = Path::new(path)
-                .file_name()
-                .ok_or("a painting with no name")?;
-            for (commit, directory) in [(from, &before), ("HEAD", &after)] {
-                if let Some(contents) = git_bytes(&["show", &format!("{commit}:{path}")]) {
-                    fs::write(directory.join(name), contents).map_err(|error| error.to_string())?;
-                }
-            }
-        }
-        let numstat = git(&["diff", "--numstat", "--no-renames", from, "HEAD"])
-            .ok_or("could not count the lines that changed")?;
-        let added = git(&[
-            "diff",
-            "--name-only",
-            "--no-renames",
-            "--diff-filter=A",
-            from,
-            "HEAD",
-        ])
-        .ok_or("could not list the files that were added")?;
-        let added: Vec<&str> = added.lines().collect();
-        let mut comment = "## Lines of code\n\n".to_owned();
-        comment.push_str(&lines::summary(&numstat, &added));
-        comment.push_str(&unsafe_counts::summary(
-            &unsafe_at(from)?,
-            &unsafe_at("HEAD")?,
-        ));
-        let renderers = self.built("browser-rasterizer");
-        let site = self.built("paint-review-site");
-        comment.push_str(&crate::previews::generate(
-            &before,
-            &after,
-            out,
-            renderers.first().map(PathBuf::as_path),
-            site.first().map(PathBuf::as_path),
-        )?);
-        let path = out.join("comment.md");
-        fs::write(path, comment).map_err(|error| error.to_string())?;
-        Ok(())
-    }
-}
-
-fn unsafe_at(commit: &str) -> Result<unsafe_counts::Counts, String> {
-    let listed = git(&[
-        "grep",
-        "-l",
-        "-w",
-        "unsafe",
-        commit,
-        "--",
-        ":(glob)crates/**/*.rs",
-    ])
-    .unwrap_or_default();
-    let mut sources = Vec::new();
-    for line in listed.lines() {
-        let source = git(&["show", line])
-            .ok_or_else(|| format!("could not read {line} to count its unsafe sites"))?;
-        sources.push(source);
-    }
-    Ok(unsafe_counts::count(sources.iter().map(String::as_str)))
 }
 
 fn git(arguments: &[&str]) -> Option<String> {
@@ -774,8 +667,6 @@ fn clear_executable(_: &Path) -> io::Result<()> {
 }
 
 mod bootstrap;
-mod lines;
-mod unsafe_counts;
 
 #[cfg(test)]
 mod tests;

@@ -118,6 +118,7 @@ members = [
     "crates/tabletop-games/rules/tic-tac-toe",
     "crates/text-editor-core",
     "crates/ui-types",
+    "crates/verify",
     "crates/wasi-threads",
     "crates/wasm-dylink",
     "crates/wasm-link",

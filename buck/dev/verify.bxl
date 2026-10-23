@@ -3,14 +3,16 @@ load(":workspace.bxl", "rust_targets")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
-# (fix.sh) and every test, plugin test, and on request the Android builds,
-# the paint preview renderer and crates/bootstrap's release; and local-tools verify, for the machine that asked
-# (--host, a platform in buck/platforms), which reads the rest afterwards. It
-# prints what that reads, "kind<TAB>path" a line; with --keep-going it prints
-# them all even when some fail to build, and local-tools verify reads what was
-# built. A path whose action failed can still hold an earlier run's output, so
-# local-tools verify writes a fix or a painting only where the checkout still holds
-# what it was made from.
+# (fix.sh), every test and plugin test, which of crates/bootstrap's binaries
+# scripts/internal/pins does not name (and with --bootstrap those binaries),
+# and on request the Android builds and the paint preview renderer; and
+# crates/verify, for the machine that asked (--host, a platform in
+# buck/platforms), which reads the rest afterwards, running crates/local-tools
+# for the Android builds and the previews. It prints what that reads,
+# "kind<TAB>path" a line; with --keep-going it prints them all even when some
+# fail to build, and crates/verify reads what was built. A path whose action
+# failed can still hold an earlier run's output, so crates/verify writes a fix
+# or a painting only where the checkout still holds what it was made from.
 #
 #   ./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --lint true --tests true
 
@@ -104,13 +106,49 @@ def _starlark_fix(ctx, actions) -> Artifact:
     )
     return out
 
+# The binaries of crates/bootstrap's release, compared on a worker with the ones
+# scripts/internal/pins names, so that nothing is downloaded while they match.
+# unpinned lists "<pin>=<sha256>" for each that does not, and with publish each
+# such binary is beside it, named by its SHA-256, for CI to upload and pin.
+def _bootstrap_unpinned(ctx, actions, publish: bool) -> Artifact:
+    out = actions.declare_output("bootstrap", dir = True)
+    actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            """
+            set -eu
+            out="$1" dist="$2" pins="$3" publish="$4"
+            mkdir -p "$out"
+            : > "$out/unpinned"
+            for binary in "$dist"/*/bootstrap "$dist"/*/bootstrap.exe; do
+                [ -f "$binary" ] || continue
+                triple="$(basename "$(dirname "$binary")")"
+                name="bootstrap_sha256_$(echo "$triple" | tr - _)"
+                sha256="$(sha256sum "$binary" | cut -c1-64)"
+                grep -qx "$name='$sha256'" "$pins" && continue
+                echo "$name=$sha256" >> "$out/unpinned"
+                if [ "$publish" = true ]; then cp "$binary" "$out/$sha256"; fi
+            done
+            """,
+            "sh",
+            out.as_output(),
+            _output(ctx, "root//crates/bootstrap:dist"),
+            ctx.fs.source("scripts/internal/pins"),
+            "true" if publish else "false",
+        ),
+        category = "bootstrap_unpinned",
+    )
+    return out
+
 def _impl(ctx: bxl.Context):
     args = ctx.cli_args
     actions = ctx.bxl_actions().actions
     printed = [
-        ("verify", _host_output(ctx, "root//crates/local-tools:bin", args.host)),
+        ("verify", _host_output(ctx, "root//crates/verify:release", args.host)),
         ("buckify", buckify(ctx, actions)),
         ("sysroot", _output(ctx, "root//buck/sysroot:lock")),
+        ("bootstrap", _bootstrap_unpinned(ctx, actions, args.bootstrap)),
     ]
     built = []
     if args.lint:
@@ -120,6 +158,8 @@ def _impl(ctx: bxl.Context):
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
     if args.plugin_tests:
         printed.extend([("paintings", paintings) for paintings in _outputs(ctx, "^(plugin_test_run|painting_test_run)$", "//crates/...")])
+    if args.previews or args.android:
+        printed.append(("local-tools", _host_output(ctx, "root//crates/local-tools:bin", args.host)))
     if args.previews:
         printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/browser-rasterizer:bin", args.host)))
         printed.append(("paint-review-site", _output(ctx, "root//crates/paint-review-web:web")))
@@ -127,8 +167,6 @@ def _impl(ctx: bxl.Context):
         printed.append(("apk-metadata", actions.copy_file("android-build-info.json", _output(ctx, "root//buck/app:build-info.json"))))
         printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
         printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))
-    if args.bootstrap:
-        printed.append(("bootstrap", _output(ctx, "root//crates/bootstrap:dist")))
     paths = ctx.output.ensure_multiple([artifact for _, artifact in printed])
     ctx.output.ensure_multiple(built)
     for (kind, _), path in zip(printed, paths):

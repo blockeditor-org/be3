@@ -134,8 +134,9 @@ It also lets `test` put tests on the workers (below).
   sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
 - `crates/bootstrap`: what every script runs, a prebuilt release
   (guides/bootstrap.md).
-- `crates/local-tools`: what runs on this machine after a buck2 command,
-  built for it in that command: `verify`, `deploy` and `fuzz`.
+- `crates/verify`, `crates/local-tools`: what runs on this machine after a
+  buck2 command, built for it in that command: `verify` for `./scripts/verify`,
+  and local-tools' `ci`, `deploy` and `fuzz`.
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
 - `buck/app`, `buck/android`: how the app, the web bundle and the APK are
   laid out.
@@ -377,13 +378,15 @@ extension ships: the toolchain's panics on this workspace.
   without it buck2 sends a HEAD request per download on every new daemon.
 - **`./scripts/verify`** is one `buck2 bxl` of `buck/dev/verify.bxl`, which
   builds everything with `--keep-going` and prints what is read after: the
-  generated files, the paintings, each crate's fixes, and
-  `crates/local-tools`, built for this machine, whose `verify` the script then
-  runs to read the rest and write it into the checkout. Anything that runs on
-  this machine after a buck2 command belongs in `crates/local-tools`, as a
-  subcommand, rather than in shell or a crate of its own, so it works the same
-  on Linux, macOS and Windows and builds once (what runs before one is
-  `crates/bootstrap`): `verify`, `deploy`
+  generated files, the paintings, each crate's fixes, and `crates/verify`,
+  built for this machine in the release profile, which the script then runs
+  to read the rest and write it into the checkout. It depends on nothing but
+  sha2, since every run downloads it; for CI's Android builds and paint
+  previews it runs `crates/local-tools ci`, built only then. Anything else
+  that runs on this machine after a buck2 command belongs in
+  `crates/local-tools`, as a subcommand, rather than in shell or a crate of
+  its own, so it works the same on Linux, macOS and Windows and builds once
+  (what runs before one is `crates/bootstrap`): `ci`, `deploy`
   (`./scripts/deploy`) and `fuzz` (a fuzz target's runner). The autofixes are actions (`buck/dev/fix.sh`), one
   a crate: clippy's machine-applicable suggestions from every target's
   `[clippy.json]` (none if the crate failed to compile, since a `view!` that

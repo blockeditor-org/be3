@@ -18,7 +18,7 @@ that build on it. VISION.md says why each part exists.
 - `be-cli` (`be`): reads and changes the tracker (guides/tracker.md).
 - `ghostty-vt`: the terminal core be-launcher shows build output with, kept
   building for a terminal in the desktop session.
-- The build and test tools: `buck-tools`, `local-tools`, `bootstrap`,
+- The build and test tools: `buck-tools`, `local-tools`, `verify`, `bootstrap`,
   `be-drive`, `app-tests`, `paint-snapshot` and the rest.
 
 ## Debug and example editors

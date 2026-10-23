@@ -83,8 +83,16 @@ fn record_use(accepted: &Path) {
     let Some(used) = std::env::var_os("USED_PAINTINGS") else {
         return;
     };
+    use sha2::{Digest as _, Sha256};
     let compared = std::fs::read(accepted).unwrap_or_default();
-    write(&PathBuf::from(used).join(file_name(accepted)), &compared);
+    let hash: String = Sha256::digest(&compared)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    write(
+        &PathBuf::from(used).join(file_name(accepted)),
+        hash.as_bytes(),
+    );
 }
 
 fn accepted_path(name: &str) -> PathBuf {

@@ -332,10 +332,11 @@ wasi_test = rule(
 # The plugin tests as an action, which is how ./scripts/verify runs them: on a worker,
 # and answered from the cache when nothing they read has changed, which a test
 # never is. They read the accepted paintings from snapshots/ and accept every
-# painting, writing the ones that changed or are new to changed/ and each
-# accepted painting they compared, as they read it, to used/ (empty when there
-# was none); ./scripts/verify copies into snapshots/ the paintings in changed/
-# whose accepted painting still reads the same, or under --check fails on them.
+# painting, writing the ones that changed or are new to changed/ and, for each
+# accepted painting they compared, the SHA-256 of what they read to used/ (that
+# of nothing when there was none), so that the paintings themselves are never
+# downloaded; ./scripts/verify copies into snapshots/ the paintings in changed/
+# whose accepted painting still has that hash, or under --check fails on them.
 def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
     paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
