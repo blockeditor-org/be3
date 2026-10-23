@@ -7,7 +7,9 @@ fn a_key_is_named_by_its_layout_and_placed_by_its_evdev_code() {
     assert_eq!(evdev(PhysicalKey::Code(KeyCode::ShiftRight)), Some(54));
     assert_eq!(evdev(PhysicalKey::Code(KeyCode::Numpad1)), Some(79));
     assert_eq!(
-        evdev(PhysicalKey::Unidentified(NativeKeyCode::Xkb(EVDEV_BACK + 8))),
+        evdev(PhysicalKey::Unidentified(NativeKeyCode::Xkb(
+            EVDEV_BACK + 8
+        ))),
         Some(EVDEV_BACK),
         "an xkb keycode is the evdev code plus eight"
     );

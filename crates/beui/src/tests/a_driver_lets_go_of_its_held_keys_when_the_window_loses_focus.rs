@@ -14,7 +14,9 @@ fn a_driver_lets_go_of_its_held_keys_when_the_window_loses_focus() {
     driven
         .ask(&["click", "#field"])
         .expect("the field is focused");
-    driven.ask(&["keydown", "ctrl", "a"]).expect("keys are held");
+    driven
+        .ask(&["keydown", "ctrl", "a"])
+        .expect("keys are held");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.contains("keys down ctrl, A"), "{state}");
 

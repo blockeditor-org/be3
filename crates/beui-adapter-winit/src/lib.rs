@@ -702,9 +702,9 @@ impl ApplicationHandler for Runner {
                     Logical::Ignored => None,
                     Logical::Unknown => match event.physical_key {
                         PhysicalKey::Code(code) => Key::from_code(&code.to_string()),
-                        PhysicalKey::Unidentified(_) => {
-                            evdev.filter(|code| *code == EVDEV_BACK).map(|_| Key::BrowserBack)
-                        }
+                        PhysicalKey::Unidentified(_) => evdev
+                            .filter(|code| *code == EVDEV_BACK)
+                            .map(|_| Key::BrowserBack),
                     },
                 };
                 self.push(Input::Key(Keystroke {
