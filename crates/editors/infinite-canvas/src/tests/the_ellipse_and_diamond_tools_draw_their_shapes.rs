@@ -7,7 +7,7 @@ fn the_ellipse_and_diamond_tools_draw_their_shapes() {
     let canvas = editor.rect_of("infinite-canvas.canvas");
 
     for (tool, offset) in [("Ellipse", -150.0), ("Diamond", 30.0)] {
-        editor.click(&format!("infinite-canvas.dock.tool.{tool}"));
+        editor.click(format!("infinite-canvas.dock.tool.{tool}"));
         editor.run();
         let from = canvas.center() + Vec2::new(offset, -40.0);
         editor.drag(from, from + Vec2::new(120.0, 80.0));

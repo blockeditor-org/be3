@@ -15,7 +15,7 @@ fn clicking_an_entity_selects_it_and_shows_its_handles() {
     };
     let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
 
     assert_eq!(

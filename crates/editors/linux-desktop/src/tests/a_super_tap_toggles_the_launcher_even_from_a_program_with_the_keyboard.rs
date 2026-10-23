@@ -24,7 +24,7 @@ fn a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard() {
     fixture.settle();
     assert!(!fixture.test.shown("launcher"), "a second tap closes it");
 
-    fixture.test.key_press(Key::Logo);
+    fixture.test.key(Key::Logo, Modifiers::NONE);
     fixture.settle();
     assert!(
         fixture.test.shown("launcher"),

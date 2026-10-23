@@ -13,7 +13,7 @@ fn expanding_a_folder_shows_its_children_without_more_input() {
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
 
-    fixture.test.click(&format!("file-tree.{folder}.chevron"));
+    fixture.test.click(format!("file-tree.{folder}.chevron"));
     fixture.test.run();
     assert!(
         fixture

@@ -12,7 +12,7 @@ fn typing_a_prefix_puts_it_in_front_of_every_row_id() {
     fixture.settle();
     fixture.harness.click("database-view.prefix");
     fixture.run();
-    fixture.harness.text("BE");
+    fixture.harness.type_text("BE");
     fixture.settle();
 
     let database = fixture.database();

@@ -5,7 +5,7 @@ struct Still;
 impl Instance for Still {
     fn connect(&mut self, _block_id: Uuid) {}
 
-    fn input(&mut self, _region: &Region, _event: &InputEvent) {}
+    fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
     fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
         Frame {

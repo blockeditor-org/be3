@@ -32,7 +32,7 @@ fn a_phone_reaches_the_account_s_system_blocks() {
         .test
         .snapshot("a_phone_reaches_the_account_s_system_blocks");
 
-    fixture.test.click(&format!("file-tree.{mine}.row"));
+    fixture.test.click(format!("file-tree.{mine}.row"));
     fixture.settle();
     assert_eq!(
         fixture.opened(),

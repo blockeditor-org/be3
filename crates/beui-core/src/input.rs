@@ -4,9 +4,11 @@ use std::time::{Duration, Instant};
 use crate::geometry::{Pos2, Vec2};
 
 pub use ui_types::input::{
-    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Key, KeyChord, KeyPress, Keyboard,
-    Modifiers, PenPhase, PointerButton, TouchPhase,
+    BackEdge, BackGesture, CursorIcon, DroppedFile, ImeEvent, ImeText, Input, Key, KeyChord,
+    KeyPress, Keyboard, Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId,
+    TouchPhase,
 };
+pub use ui_types::window::ImeArea;
 
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
@@ -83,18 +85,6 @@ pub struct ZoomGesture {
     pub pos: Pos2,
     pub local: Pos2,
     pub size: Vec2,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct TouchId {
-    pub device: u64,
-    pub finger: u64,
-}
-
-#[derive(Clone, Copy, PartialEq, Default, Debug)]
-pub struct Pen {
-    pub tilt: Vec2,
-    pub eraser: bool,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -197,21 +187,6 @@ impl Event {
             _ => None,
         }
     }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DroppedFile {
-    pub name: String,
-    pub path: Option<std::path::PathBuf>,
-    pub bytes: Option<std::sync::Arc<[u8]>>,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct ImeArea {
-    pub rect: crate::geometry::Rect,
-    pub cursor: crate::geometry::Rect,
-    pub text: Option<ImeText>,
-    pub keyboard: Keyboard,
 }
 
 #[derive(Clone, Default, Debug)]

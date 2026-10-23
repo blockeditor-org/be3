@@ -29,7 +29,7 @@ fn ctrl_z_in_a_text_field_is_left_to_the_field() {
     test.click("field");
     test.run();
 
-    test.key_press_modifiers(Modifiers::CTRL, Key::Z);
+    test.key(Key::Z, Modifiers::CTRL);
     test.run();
 
     assert!(

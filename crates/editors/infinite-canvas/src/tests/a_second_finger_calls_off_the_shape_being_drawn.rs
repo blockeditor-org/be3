@@ -6,20 +6,20 @@ fn a_second_finger_calls_off_the_shape_being_drawn() {
     for tool in ["Rectangle", "Pen"] {
         let mut editor = phone(&[]);
 
-        editor.click(&format!("infinite-canvas.dock.tool.{tool}"));
+        editor.click(format!("infinite-canvas.dock.tool.{tool}"));
         editor.run();
         let from = editor.rect_of("infinite-canvas.canvas").center();
-        editor.finger(1, TouchPhase::Start, from);
+        editor.fingers(TouchPhase::Start, &[(1, from)]);
         editor.run();
-        editor.finger(1, TouchPhase::Move, from + Vec2::new(80.0, 80.0));
+        editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(80.0, 80.0))]);
         editor.run();
-        editor.finger(2, TouchPhase::Start, from + Vec2::new(-60.0, -60.0));
+        editor.fingers(TouchPhase::Start, &[(2, from + Vec2::new(-60.0, -60.0))]);
         editor.run();
-        editor.finger(2, TouchPhase::Move, from + Vec2::new(-90.0, -90.0));
+        editor.fingers(TouchPhase::Move, &[(2, from + Vec2::new(-90.0, -90.0))]);
         editor.run();
-        editor.finger(1, TouchPhase::End, from + Vec2::new(80.0, 80.0));
+        editor.fingers(TouchPhase::End, &[(1, from + Vec2::new(80.0, 80.0))]);
         editor.run();
-        editor.finger(2, TouchPhase::End, from + Vec2::new(-90.0, -90.0));
+        editor.fingers(TouchPhase::End, &[(2, from + Vec2::new(-90.0, -90.0))]);
         editor.run();
 
         assert!(

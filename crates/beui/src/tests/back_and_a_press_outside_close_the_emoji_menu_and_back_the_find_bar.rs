@@ -32,7 +32,7 @@ fn back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar() {
     harness.type_text(":hea");
     harness.frame(Vec::new());
     assert!(offered(&harness));
-    assert!(harness.frame(Vec::new()).window.handles_back);
+    assert!(harness.frame(Vec::new()).window.requests.handles_back);
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     harness.frame(Vec::new());
     assert!(!offered(&harness), "back closes the menu");

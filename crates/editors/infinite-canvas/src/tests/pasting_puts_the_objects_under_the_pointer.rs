@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Event, Pasted};
+use block_editor_beui::beui::{Input, Pasted};
 
 #[test]
 fn pasting_puts_the_objects_under_the_pointer() {
@@ -12,10 +12,10 @@ fn pasting_puts_the_objects_under_the_pointer() {
     let pointer = editor.point_of(&format!("infinite-canvas.entity.{}", card().id));
     let payload = serde_json::json!({ "entities": [first, second] });
 
-    editor.click_at(pointer);
+    editor.click(pointer);
     editor.run();
     let applied = editor.applied(None);
-    editor.step(vec![Event::Paste(Pasted::Text(format!(
+    editor.step(vec![Input::Paste(Pasted::Text(format!(
         "be3-infinite-canvas:{payload}"
     )))]);
     editor.run();

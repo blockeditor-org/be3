@@ -3,7 +3,7 @@ use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent, SettingsProfile,
     SettingsProfileContent, ThemeKind,
 };
-use block_editor_beui::beui::{Document, Key, NodeId, TurnNode, Vec2};
+use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
     BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, OwnedEditor, Power,
     PowerAvailability,
@@ -169,19 +169,19 @@ impl Harness {
     }
 
     fn open_menu(&mut self, row: &str) {
-        self.editor.click(&format!("{row}.menu"));
+        self.editor.click(format!("{row}.menu"));
         self.run();
     }
 
     fn keep(&mut self, row: &str) {
         self.open_menu(row);
-        self.editor.click(&format!("{row}.keep"));
+        self.editor.click(format!("{row}.keep"));
         self.run();
     }
 
     fn reset(&mut self, row: &str) {
         self.open_menu(row);
-        self.editor.click(&format!("{row}.reset"));
+        self.editor.click(format!("{row}.reset"));
         self.run();
     }
 
@@ -196,13 +196,13 @@ impl Harness {
     fn choose(&mut self, select: &str, index: usize) {
         self.editor.click(select);
         self.run();
-        self.editor.key_press(Key::Home);
+        self.editor.key(Key::Home, Modifiers::NONE);
         self.run();
         for _ in 0..index {
-            self.editor.key_press(Key::ArrowDown);
+            self.editor.key(Key::ArrowDown, Modifiers::NONE);
             self.run();
         }
-        self.editor.key_press(Key::Enter);
+        self.editor.key(Key::Enter, Modifiers::NONE);
         self.run();
     }
 

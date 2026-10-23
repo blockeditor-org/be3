@@ -3,7 +3,7 @@ use block_editor_beui::be_block::{
     BlockContent, DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettingsContent,
     SettingsProfileContent,
 };
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::{Key, Modifiers, Vec2};
 use block_editor_beui::{BlockInfo, BlockParent};
 
 use block_editor_beui::be_block::SettingsContent;
@@ -141,13 +141,13 @@ impl SetUp {
             .expect("every class is offered");
         self.editor.click("setup.kind");
         self.editor.run();
-        self.editor.key_press(Key::Home);
+        self.editor.key(Key::Home, Modifiers::NONE);
         self.editor.run();
         for _ in 0..index {
-            self.editor.key_press(Key::ArrowDown);
+            self.editor.key(Key::ArrowDown, Modifiers::NONE);
             self.editor.run();
         }
-        self.editor.key_press(Key::Enter);
+        self.editor.key(Key::Enter, Modifiers::NONE);
         self.editor.run();
     }
 }

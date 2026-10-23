@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use beui_core::app::automation::keys;
 use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::{Event, Key, Modifiers, PointerId};
+use beui_core::input::{Input, Key, Modifiers, PointerId};
 
 use super::compose::{Composed, compose};
 use super::layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Slider, Slot, Value, layout};
@@ -259,7 +259,7 @@ pub struct Engine {
     pointers: Vec<Pointer>,
     latched: Vec<(Modifier, bool)>,
     compose: Option<String>,
-    events: Vec<Event>,
+    events: Vec<Input>,
     paste: bool,
     swipe: f32,
     step: f32,
@@ -353,7 +353,7 @@ impl Engine {
         modify(value, mods)
     }
 
-    pub fn take_events(&mut self) -> Vec<Event> {
+    pub fn take_events(&mut self) -> Vec<Input> {
         std::mem::take(&mut self.events)
     }
 

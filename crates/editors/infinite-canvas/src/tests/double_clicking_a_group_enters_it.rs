@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Key, Pos2};
+use block_editor_beui::beui::{Key, Modifiers, Pos2};
 
 #[test]
 fn double_clicking_a_group_enters_it() {
@@ -24,7 +24,7 @@ fn double_clicking_a_group_enters_it() {
     let scale = anchor.width() / 104.0;
     let at = |x: f32, y: f32| -> Pos2 { anchor.center() + Vec2::new(x + 80.0, y) * scale };
 
-    editor.click_at(at(80.0, 0.0));
+    editor.click(at(80.0, 0.0));
     editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
@@ -32,7 +32,7 @@ fn double_clicking_a_group_enters_it() {
         "a click selects the whole group"
     );
 
-    editor.double_click_at(at(80.0, 0.0));
+    editor.double_click(at(80.0, 0.0));
     editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
@@ -41,7 +41,7 @@ fn double_clicking_a_group_enters_it() {
     );
     editor.snapshot("double_clicking_a_group_enters_it");
 
-    editor.click_at(at(-80.0, 0.0));
+    editor.click(at(-80.0, 0.0));
     editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
@@ -64,7 +64,7 @@ fn double_clicking_a_group_enters_it() {
         "dragging a member moves only it"
     );
 
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
@@ -72,11 +72,11 @@ fn double_clicking_a_group_enters_it() {
         "Escape leaves the group and selects all of it"
     );
 
-    editor.double_click_at(at(80.0, 0.0));
+    editor.double_click(at(80.0, 0.0));
     editor.run();
-    editor.click_at(at(0.0, 140.0));
+    editor.click(at(0.0, 140.0));
     editor.run();
-    editor.click_at(at(80.0, 0.0));
+    editor.click(at(80.0, 0.0));
     editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),

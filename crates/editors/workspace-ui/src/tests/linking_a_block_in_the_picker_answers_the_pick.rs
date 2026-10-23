@@ -23,7 +23,7 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     fixture.settle();
     fixture
         .test
-        .double_click(&format!("picker.link.{linked}.row"));
+        .double_click(format!("picker.link.{linked}.row"));
     fixture.settle();
 
     assert_eq!(

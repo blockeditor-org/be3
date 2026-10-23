@@ -22,7 +22,7 @@ fn switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show() {
     fixture.test.click("dock.switch");
     fixture.settle();
     fixture.test.settle();
-    fixture.test.click(&format!("dock.switcher.tab.{}", 2));
+    fixture.test.click(format!("dock.switcher.tab.{}", 2));
     fixture.settle();
     fixture.test.settle();
     assert_eq!(fixture.shown(), vec![opened], "the block is back on show");
@@ -30,7 +30,7 @@ fn switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show() {
     fixture.test.click("dock.switch");
     fixture.settle();
     fixture.test.settle();
-    fixture.test.click(&format!("dock.switcher.tab.{panel}"));
+    fixture.test.click(format!("dock.switcher.tab.{panel}"));
     fixture.settle();
     fixture.settle();
     fixture.settle();

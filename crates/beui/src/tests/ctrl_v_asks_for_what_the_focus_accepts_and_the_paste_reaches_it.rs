@@ -45,14 +45,14 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     let output = harness.frame(Vec::new());
     assert_eq!(output.paste, None);
     assert!(
-        output.window.paste_kinds.is_empty(),
+        output.window.requests.pastes.is_empty(),
         "nothing is focused yet"
     );
 
     harness.click(pos2(50.0, 50.0));
     let output = harness.frame(vec![ctrl_v()]);
     assert_eq!(output.paste, Some(PasteRequest::Shortcut));
-    assert_eq!(output.window.paste_kinds, [PasteKind::Image]);
+    assert_eq!(output.window.requests.pastes, [PasteKind::Image]);
 
     let image = PickedFile {
         name: "Pasted Image.png".to_owned(),
@@ -76,7 +76,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
         "a forwarding focus pastes through its host"
     );
     assert_eq!(
-        output.window.paste_kinds,
+        output.window.requests.pastes,
         [PasteKind::Text, PasteKind::Image]
     );
     forwarded.update(|forwarded| forwarded.clear());

@@ -8,10 +8,10 @@ fn a_phone_opens_a_context_submenu_as_a_page_of_its_sheet() {
     let center = editor
         .rect_of(&format!("infinite-canvas.entity.{}", rectangle.id))
         .center();
-    editor.finger(1, TouchPhase::Start, center);
+    editor.fingers(TouchPhase::Start, &[(1, center)]);
     editor.run();
     editor.advance(std::time::Duration::from_secs(1));
-    editor.finger(1, TouchPhase::End, center);
+    editor.fingers(TouchPhase::End, &[(1, center)]);
     editor.run();
     assert!(editor.shown("infinite-canvas.menu.canvas.grid-menu"));
 

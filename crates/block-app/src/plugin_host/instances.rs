@@ -1017,7 +1017,7 @@ impl Instances {
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
-            events: vec![screen.input.back(gesture)],
+            events: vec![block_plugin_api::Input::Back(gesture).into()],
         })]
     }
 
@@ -1070,7 +1070,7 @@ impl Instances {
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
-            events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
+            events: vec![block_plugin_api::Input::InterceptedTap(key).into()],
         })]
     }
 
@@ -2352,9 +2352,15 @@ impl Instances {
             ratio(rect.width(), screen.request.metrics.logical_width),
             ratio(rect.height(), screen.request.metrics.logical_height),
         );
+        let place = |rect: Rect| {
+            Rect::from_min_size(
+                pos2(rect.min.x * stretch.x, rect.min.y * stretch.y) + origin,
+                vec2(rect.width() * stretch.x, rect.height() * stretch.y),
+            )
+        };
         Some(ImeArea {
-            rect: host_rect(area.rect, origin, stretch),
-            cursor: host_rect(area.cursor, origin, stretch),
+            rect: place(area.rect),
+            cursor: place(area.cursor),
             text: area.text.clone(),
             keyboard: area.keyboard,
         })

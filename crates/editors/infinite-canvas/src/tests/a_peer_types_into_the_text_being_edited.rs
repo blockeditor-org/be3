@@ -29,12 +29,12 @@ fn a_peer_types_into_the_text_being_edited() {
     let mut editor = editor(&[note.clone(), other.clone()]);
     let field = format!("infinite-canvas.text.{}", note.id);
     let resting = editor.rect_of(&field);
-    editor.double_click_at(pos2(resting.right() - 2.0, resting.center().y));
+    editor.double_click(pos2(resting.right() - 2.0, resting.center().y));
     editor.run();
 
     peer_types(&mut editor, note.id, 0, "Oh, ");
     editor.run();
-    editor.text("!");
+    editor.type_text("!");
     editor.run();
     peer_types(&mut editor, other.id, 5, "s");
     editor.run();

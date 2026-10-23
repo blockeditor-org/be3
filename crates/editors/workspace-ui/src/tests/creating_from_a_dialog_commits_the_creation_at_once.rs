@@ -15,7 +15,7 @@ fn creating_from_a_dialog_commits_the_creation_at_once() {
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/main"));
+        .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
     fixture.settle();
     report_creation(&mut fixture, CreationProgress::Options { ready: true });

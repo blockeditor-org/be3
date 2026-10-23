@@ -11,7 +11,7 @@ fn typing_follows_a_replacement_of_the_carets_byte() {
     assert_eq!(text(&editor), "hello big world");
     editor.record();
 
-    editor.text("wide ");
+    editor.type_text("wide ");
     editor.run();
     assert_eq!(text(&editor), "hello big wide world");
     editor.record();

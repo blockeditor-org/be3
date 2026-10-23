@@ -1,7 +1,7 @@
 use super::*;
 use crate::plugin_host::EditorBlock;
 use beui::Pos2;
-use block_plugin_api::InputEvent;
+use block_plugin_api::Input;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: EditorRegion = EditorRegion::Frame;
@@ -74,11 +74,11 @@ fn moved(pos: Pos2) -> beui::Forwarded {
     }
 }
 
-fn input_events(messages: &[Message]) -> Vec<InputEvent> {
+fn input_events(messages: &[Message]) -> Vec<Input> {
     messages
         .iter()
         .filter_map(|message| match message {
-            Message::Input(batch) => Some(batch.events.clone()),
+            Message::Input(batch) => Some(batch.events.iter().map(|event| event.input.clone())),
             _ => None,
         })
         .flatten()

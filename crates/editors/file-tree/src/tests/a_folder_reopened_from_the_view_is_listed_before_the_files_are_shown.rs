@@ -13,7 +13,7 @@ fn a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown() {
     listed.references = vec![child];
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
-    fixture.test.click(&format!("file-tree.{folder}.chevron"));
+    fixture.test.click(format!("file-tree.{folder}.chevron"));
     fixture.settle();
     let saved = fixture.test.content::<EditorViewContent>(None);
 

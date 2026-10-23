@@ -16,7 +16,7 @@ fn a_windows_tab_menu_makes_it_full_screen() {
             .expect("the title is laid out")
             .center()
     };
-    fixture.test.click_button_at(tab, PointerButton::Secondary);
+    fixture.test.click_with(tab, PointerButton::Secondary);
     fixture.settle();
     assert!(
         fixture.says("Full screen"),

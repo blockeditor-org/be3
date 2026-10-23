@@ -127,10 +127,12 @@ report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
 is never reported. `Key` also has the volume, mic mute, brightness and media
 transport keys, mapped wherever the platform reports them. `Key`, `Modifiers`,
 `KeyChord` and the rest of the input vocabulary (pointer buttons, touch, pen and
-back phases, IME events, `CursorIcon`, pastes and picked files) live in the
-framework-free `ui-types` crate, which the plugin protocol (`block-plugin-api`)
-uses too, so nothing converts between a host's events and a plugin's. A host
-sends a key named `Key::Unidentified` to a plugin only as the text it typed.
+back phases, IME events, `CursorIcon`, pastes and picked files, and the raw
+`Input` a platform produces) live in the framework-free `ui-types` crate, which
+the plugin protocol (`block-plugin-api`) uses too, so nothing converts between a
+host's events and a plugin's. A host passes a key on to a plugin as the platform
+reported it, scan code and text included, so the plugin's runner sees what the
+host's did.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 
@@ -204,7 +206,7 @@ window (see guides/linux_desktop.md).
 A document that runs inside a host - a plugin's - intercepts the same way. The
 chords of its enabled capturing host and window actions (never one that types) are
 `Document::intercepted_keys`, which reach the runner as
-`WindowState::intercepted_keys`, handed to `Platform::show_window`; a host
+`WindowRequests::intercepted_keys`, handed to `Platform::show_window`; a host
 offers the chords it was handed to its own window listeners ahead of the focused
 app, and hands each press it takes, its repeats and its release back as an
 `Event::InterceptedKey`, which the document offers to its host and window
@@ -213,12 +215,12 @@ modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
 released while a Wayland program has the keyboard; that is how linux-desktop's
 Alt+Tab works over any window. block-app takes intercepted keys only from the
 shell's frame, and only chords with Ctrl, Alt or Super, or media keys. A tap
-chord goes the same way as `InputEvent::InterceptedTap`, but only while the
+chord goes the same way as `Input::InterceptedTap`, but only while the
 region does not have the keyboard itself, since it then hears the key and
 counts the tap on its own; the release still reaches whatever had the focus.
 
 A document with a layer open that traps focus
-(`Layers::takes_keyboard`, such as a dialog, a popover or the launcher) reports `WindowState::wants_keyboard`, which the
+(`Layers::takes_keyboard`, such as a dialog, a popover or the launcher) reports `WindowRequests::wants_keyboard`, which the
 runner hands to `Platform::show_window`. A plugin passes it on as
 `WindowRequests::wants_keyboard` (guides/adding_a_plugin_editor.md), and block-app's region then takes the focus from
 whatever had it (a program's window, another editor) and gives it back when
@@ -256,7 +258,13 @@ of the editor behind it beyond turning those into its own protocol
 (`plugin_host::forward_region` for a plugin, `be_wayland::Compositor` for a
 window) and keeps no capture or hover of its own, so press capture, hover,
 claims, overlays, focus, intercepting actions and the lock apply to both by
-the same rules.
+the same rules. For a surface that runs beui or takes its input,
+`beui_core::interact::forward::Replay` turns a `ForwardedInput` back into the
+raw `Input` a platform would have pushed: positions relative to the catcher
+and divided by its zoom, modifier changes as their own `Input::Modifiers`, a
+focus change only when it changes, and the time each pointer sample happened.
+The plugin host fills its `InputBatch` with it, so a plugin's runner normalizes
+the same input a window's runner does.
 
 What one event goes through, in order:
 
@@ -389,13 +397,13 @@ Use `@node_ref=&a_node_ref` on any tag when an enclosing component needs the
 `NodeId` of something nested inside its tree; `NodeRef::get` reads it back once
 the tree is built.
 
-A host sends `Event::Focus(false)` when its window or editor region loses focus. Text arrives through `Event::Text`, and a paste through `Event::Paste`. An input method's edits arrive as `Event::Ime`, a few operations every platform's input method maps onto: set the composing text, commit text, finish composing, mark existing text as the composition, replace a range (an autocorrect suggestion), delete around the selection, and set the selection, with ranges in UTF-8 bytes of the field's text. A focusable's `on_ime` receives them; one without it gets committed and finished compositions through `on_text`. A text area hands them to text-editor-core as `EditorCommand::Ime`, which writes the composition into the document and tracks its range (`Core::composition`, drawn underlined); any other command ends it. The text area leaves keys to the input method while a composition lasts, and reports its caret through `Interactive`'s `ime_cursor` and the text around it through `ime_text`, so `WindowState::ime` places the candidate window beside the caret and the runner can show the input method the field's real text (`beui_core::app::ime_mirror::ImeMirror` keeps a platform text field such as the web's hidden textarea in step with it and turns its edits back into these operations). `ImeArea::keyboard` says whether the runner should show an on-screen keyboard: `Keyboard::Held` for a focusable with `keyboard_on_focus=false` (a select's search box) focused while the last press was a finger's or a pen's (`Document::touched`), which takes text from a hardware keyboard as soon as it is focused but holds the on-screen keyboard back until it is tapped or a key other than a media key is pressed, and `Keyboard::Shown { asks }` otherwise: a mouse press or a key is taken as a sign of a hardware keyboard, so the field asks for an input method at once. `asks` is the document's count of taps on a focused field that wants the keyboard (any press on it, from a mouse), so a tap changes the window state even though nothing else about the field did, and a user who closed the on-screen keyboard gets it back by tapping the field: The winit adapter turns on the platform's input method (Wayland's text input, which a compositor's keyboard such as sway's opens for) only while the keyboard is `Shown`, so a held field composes nothing through an input method until it is tapped or typed into, and the key that ends the hold reaches it before the input method is on. Android opens its keyboard whenever the keyboard turns `Shown` or `asks` changes, as beui's own on-screen keyboard does while no keyboard is attached (guides/beui.md, The on-screen keyboard), and the web adapter refocuses its hidden textarea within the press itself, since a browser opens its keyboard only during the user's gesture. A plugin's region passes its editor's answer on whole: `ime_keyboard` for whether it is held, and `Interactive`'s `keyboard_asks` for the editor's count, which a focusable shows in place of the document's and keeps its own taps from counting, so a tap on the plugin asks only when the editor's own document decided it should. Copy and cut return text in `FrameOutput::copied_text`; the host writes this to its clipboard. Both the desktop runner and the block editor integration handle these outputs. Clipboard access for other custom hosts belongs to their platform integration.
+A host sends `Input::Focus(false)` when its window or editor region loses focus. Text arrives through `Input::Text`, and a paste through `Input::Paste`. An input method's edits arrive as `Input::Ime`, a few operations every platform's input method maps onto: set the composing text, commit text, finish composing, mark existing text as the composition, replace a range (an autocorrect suggestion), delete around the selection, and set the selection, with ranges in UTF-8 bytes of the field's text. A focusable's `on_ime` receives them; one without it gets committed and finished compositions through `on_text`. A text area hands them to text-editor-core as `EditorCommand::Ime`, which writes the composition into the document and tracks its range (`Core::composition`, drawn underlined); any other command ends it. The text area leaves keys to the input method while a composition lasts, and reports its caret through `Interactive`'s `ime_cursor` and the text around it through `ime_text`, so `WindowRequests::ime` places the candidate window beside the caret and the runner can show the input method the field's real text (`beui_core::app::ime_mirror::ImeMirror` keeps a platform text field such as the web's hidden textarea in step with it and turns its edits back into these operations). `ImeArea::keyboard` says whether the runner should show an on-screen keyboard: `Keyboard::Held` for a focusable with `keyboard_on_focus=false` (a select's search box) focused while the last press was a finger's or a pen's (`Document::touched`), which takes text from a hardware keyboard as soon as it is focused but holds the on-screen keyboard back until it is tapped or a key other than a media key is pressed, and `Keyboard::Shown { asks }` otherwise: a mouse press or a key is taken as a sign of a hardware keyboard, so the field asks for an input method at once. `asks` is the document's count of taps on a focused field that wants the keyboard (any press on it, from a mouse), so a tap changes the window state even though nothing else about the field did, and a user who closed the on-screen keyboard gets it back by tapping the field: The winit adapter turns on the platform's input method (Wayland's text input, which a compositor's keyboard such as sway's opens for) only while the keyboard is `Shown`, so a held field composes nothing through an input method until it is tapped or typed into, and the key that ends the hold reaches it before the input method is on. Android opens its keyboard whenever the keyboard turns `Shown` or `asks` changes, as beui's own on-screen keyboard does while no keyboard is attached (guides/beui.md, The on-screen keyboard), and the web adapter refocuses its hidden textarea within the press itself, since a browser opens its keyboard only during the user's gesture. A plugin's region passes its editor's answer on whole: `ime_keyboard` for whether it is held, and `Interactive`'s `keyboard_asks` for the editor's count, which a focusable shows in place of the document's and keeps its own taps from counting, so a tap on the plugin asks only when the editor's own document decided it should. Copy and cut return text in `FrameOutput::copied_text`; the host writes this to its clipboard. Both the desktop runner and the block editor integration handle these outputs. Clipboard access for other custom hosts belongs to their platform integration.
 
 Keyboard regression tests run without a window. `./scripts/buck test //crates/beui:test` runs the tests that drive whole documents, each `beui-*` crate has its own `:test`, and `./scripts/verify` runs the whole workspace's.
 
 ## Touch behavior
 
-Beui accepts `Event::Touch` with a stable device and finger id, lifecycle
+Beui accepts `Input::Touch` with a stable device and finger id, lifecycle
 phase, logical position, and optional normalized pressure. It tracks every
 active contact in `InputState::touch`; the first contact drives the primary
 pointer so existing pressable controls, sliders, text selection, focus, and
@@ -427,6 +435,5 @@ Standalone apps receive winit touch events automatically. Open the inspector
 with Ctrl+Shift+I and enable “Emulate touch with mouse” to turn the primary
 mouse button into a touch contact. Embedded beui plugins receive the same touch
 data over the block plugin input protocol. `block_ui_test::BeuiTest` provides
-`touch_start`, `touch_move`, `touch_end`, and `touch_cancel` for headless
-gesture tests, `finger` for a gesture of more than one finger, and
-`secondary_drag` for a right-button drag.
+`tap`, and `fingers` (as beui's `testing::Harness` does) for a gesture of one
+finger or more, and `secondary_drag` for a right-button drag.

@@ -30,9 +30,9 @@ fn a_new_workspace_is_made_at_the_top_and_named_in_place() {
         fixture.test.shown(&field),
         "the new workspace's name is edited in place once its row is shown"
     );
-    fixture.test.text("Team");
+    fixture.test.type_text("Team");
     fixture.settle();
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
         fixture.test.take_renames(),

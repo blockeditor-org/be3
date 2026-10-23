@@ -11372,7 +11372,9 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11380,7 +11382,9 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11388,7 +11392,9 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11396,7 +11402,9 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11404,7 +11412,9 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11412,7 +11422,9 @@ crates = {
             },
             "wasi": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11420,7 +11432,9 @@ crates = {
             },
             "wasi-guest": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11428,7 +11442,9 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11436,7 +11452,9 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -15349,6 +15367,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15360,6 +15379,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15371,6 +15391,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15382,6 +15403,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15393,6 +15415,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15404,6 +15427,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15415,6 +15439,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15426,6 +15451,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -15437,6 +15463,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
@@ -52722,6 +52749,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52735,6 +52763,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52748,6 +52777,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52761,6 +52791,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52774,6 +52805,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52787,6 +52819,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52800,6 +52833,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52825,6 +52859,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52838,6 +52873,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -52982,6 +53018,7 @@ third_party = {
             "android-arm64": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -52989,6 +53026,7 @@ third_party = {
             "linux-arm64": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -52996,6 +53034,7 @@ third_party = {
             "linux-x86_64": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -53003,6 +53042,7 @@ third_party = {
             "macos-arm64": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -53010,6 +53050,7 @@ third_party = {
             "macos-x86_64": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -53017,6 +53058,7 @@ third_party = {
             "wasi": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -53024,6 +53066,7 @@ third_party = {
             "wasi-guest": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -53038,6 +53081,7 @@ third_party = {
             "windows-arm64": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -53045,6 +53089,7 @@ third_party = {
             "windows-x86_64": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],

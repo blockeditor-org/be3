@@ -17,12 +17,12 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, Pen, PenPhase,
+    CursorIcon, DroppedFile, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
     PointerButton, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running};
+use beui_core::runner::{Adapter, Incoming, Launch, Platform, Running};
 use beui_core::window::{Appearance, WindowReports, WindowState};
 
 use crate::wheel::{Pinch, wheel};
@@ -62,7 +62,7 @@ impl Adapter for Web {
 }
 
 struct Pending {
-    inputs: RefCell<Vec<Input>>,
+    inputs: RefCell<Vec<Incoming>>,
     locked: Cell<bool>,
     scheduled: Cell<bool>,
 }
@@ -93,7 +93,7 @@ fn paste_from(data: &web_sys::DataTransfer) {
         match kind {
             PasteKind::Text => {
                 if let Some(text) = data.get_data("text").ok().filter(|text| !text.is_empty()) {
-                    push(Event::Paste(Pasted::Text(text)));
+                    push(Input::Paste(Pasted::Text(text)));
                     return;
                 }
             }
@@ -114,7 +114,7 @@ fn paste_from(data: &web_sys::DataTransfer) {
                         let name = Some(file.name())
                             .filter(|name| !name.is_empty())
                             .unwrap_or_else(|| PASTED_NAME.to_owned());
-                        push(Event::Paste(Pasted::Image(PickedFile {
+                        push(Input::Paste(Pasted::Image(PickedFile {
                             name,
                             data: js_sys::Uint8Array::new(&buffer).to_vec(),
                         })));
@@ -126,18 +126,18 @@ fn paste_from(data: &web_sys::DataTransfer) {
     }
 }
 
-fn push(input: impl Into<Input>) {
+fn push(input: impl Into<Incoming>) {
     INPUT.with(|pending| pending.inputs.borrow_mut().push(input.into()));
     schedule();
 }
 
 fn push_logical(input: impl Into<Input>) {
-    push(Input::logical(input));
+    push(Incoming::logical(input));
 }
 
-fn push_sample(input: Event, sample: &web_sys::Event) {
+fn push_sample(input: Input, sample: &web_sys::Event) {
     push_logical(input);
-    push(Event::Time(happened(sample)));
+    push(Incoming::Time(happened(sample)));
 }
 
 fn happened(event: &web_sys::Event) -> Instant {
@@ -271,18 +271,18 @@ impl Platform for WebPlatform {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
-        if window.paste_kinds != shown.paste_kinds {
-            PASTE_KINDS.with(|pastes| pastes.borrow_mut().clone_from(&window.paste_kinds));
+        if window.requests.pastes != shown.requests.pastes {
+            PASTE_KINDS.with(|pastes| pastes.borrow_mut().clone_from(&window.requests.pastes));
         }
-        if window.cursor != shown.cursor {
-            let cursor = match window.cursor {
+        if window.requests.cursor != shown.requests.cursor {
+            let cursor = match window.requests.cursor {
                 CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.name()),
                 cursor => cursor.name().to_owned(),
             };
             let _ = self.surface.style().set_property("cursor", &cursor);
         }
-        if window.pointer_locked != shown.pointer_locked {
-            match window.pointer_locked {
+        if window.requests.pointer_locked != shown.requests.pointer_locked {
+            match window.requests.pointer_locked {
                 true => self.surface.request_pointer_lock(),
                 false => {
                     if let Some(document) = web_sys::window().and_then(|window| window.document()) {
@@ -291,11 +291,11 @@ impl Platform for WebPlatform {
                 }
             }
         }
-        self.mirror(window.ime.as_ref());
-        if window.ime != shown.ime {
-            self.show_ime(window.ime.as_ref());
+        self.mirror(window.requests.ime.as_ref());
+        if window.requests.ime != shown.requests.ime {
+            self.show_ime(window.requests.ime.as_ref());
         }
-        if window.keyboard_toggles != shown.keyboard_toggles {
+        if window.requests.keyboard_toggles != shown.requests.keyboard_toggles {
             self.toggle_keyboard();
         }
         if window.appearance != shown.appearance {
@@ -697,7 +697,7 @@ fn apple() -> bool {
 
 fn modifiers_of(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
     let modifiers = Modifiers::with_meta(alt, ctrl, shift, meta, apple());
-    push(Event::Modifiers(modifiers));
+    push(Input::Modifiers(modifiers));
     modifiers
 }
 
@@ -759,7 +759,7 @@ fn listen(
         let surface = surface.clone();
         move |event: web_sys::PointerEvent| {
             if INPUT.with(|input| input.locked.get()) {
-                push_logical(Event::PointerMotion(vec2(
+                push_logical(Input::PointerMotion(vec2(
                     event.movement_x() as f32,
                     event.movement_y() as f32,
                 )));
@@ -775,14 +775,14 @@ fn listen(
                 let moved = match event.pointer_type().as_str() {
                     "touch" => touch(sample, TouchPhase::Move, pos),
                     "pen" => pen(sample, PenPhase::Move, pos),
-                    _ => Event::PointerMoved(pos),
+                    _ => Input::PointerMoved(pos),
                 };
                 push_sample(moved, sample);
             }
             if event.buttons() != 0
                 && let Some(predicted) = pointer_list(&event, "getPredictedEvents").last()
             {
-                push_logical(Event::Predicted(within(&bounds, predicted)));
+                push_logical(Input::Predicted(within(&bounds, predicted)));
             }
         }
     })?;
@@ -830,7 +830,7 @@ fn listen(
                 let pos = position(&surface, &event);
                 push_logical(pen(&event, PenPhase::Gone, pos));
             }
-            _ => push(Event::PointerGone),
+            _ => push(Input::PointerLeft),
         }
     })?;
     on(surface_target, "wheel", |event: web_sys::WheelEvent| {
@@ -848,7 +848,7 @@ fn listen(
             event.prevent_default();
             PINCH.with(|pinch| pinch.borrow_mut().start());
             if TOUCHES.with(|touches| touches.borrow().is_empty()) {
-                push_logical(Event::PointerMoved(position(&surface, &event)));
+                push_logical(Input::PointerMoved(position(&surface, &event)));
             }
         }
     })?;
@@ -857,7 +857,7 @@ fn listen(
         let scale = client(&event, "scale").unwrap_or(1.0) as f32;
         let touching = TOUCHES.with(|touches| !touches.borrow().is_empty());
         if let Some(factor) = PINCH.with(|pinch| pinch.borrow_mut().change(scale, touching)) {
-            push_logical(Event::Zoom(factor));
+            push_logical(Input::Zoom(factor));
         }
     })?;
     on(surface_target, "gestureend", |event: web_sys::Event| {
@@ -873,19 +873,19 @@ fn listen(
     )?;
     on(surface_target, "dragover", |event: web_sys::DragEvent| {
         event.prevent_default();
-        push(Event::FileHovered);
+        push(Input::FileHovered);
     })?;
     on(surface_target, "dragleave", |_event: web_sys::DragEvent| {
-        push(Event::FileHoverCancelled);
+        push(Input::FileHoverCancelled);
     })?;
     on(surface_target, "drop", |event: web_sys::DragEvent| {
         event.prevent_default();
         let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
-            push(Event::FileHoverCancelled);
+            push(Input::FileHoverCancelled);
             return;
         };
         if files.length() == 0 {
-            push(Event::FileHoverCancelled);
+            push(Input::FileHoverCancelled);
         }
         for index in 0..files.length() {
             let Some(file) = files.get(index) else {
@@ -896,7 +896,7 @@ fn listen(
                     .await
                     .ok()
                     .map(|buffer| js_sys::Uint8Array::new(&buffer).to_vec());
-                push(Event::FileDropped(DroppedFile {
+                push(Input::FileDropped(DroppedFile {
                     name: file.name(),
                     path: None,
                     bytes: bytes.map(Arc::from),
@@ -962,7 +962,7 @@ fn listen(
         "compositionstart",
         |_event: web_sys::CompositionEvent| {
             MIRROR.with(|mirror| mirror.borrow_mut().start_composition());
-            push(Event::Ime(ImeEvent::Enabled));
+            push(Input::Ime(ImeEvent::Enabled));
         },
     )?;
     on(
@@ -971,7 +971,7 @@ fn listen(
         |_event: web_sys::CompositionEvent| {
             mirror_events(|mirror, events| {
                 mirror.end_composition(events);
-                events.push(Event::Ime(ImeEvent::Disabled));
+                events.push(Input::Ime(ImeEvent::Disabled));
             });
         },
     )?;
@@ -998,14 +998,14 @@ fn listen(
     })?;
     on(agent_target, "focus", |_event: web_sys::FocusEvent| {
         if !REFOCUSING.get() {
-            push(Event::Focus(true));
+            push(Input::Focus(true));
         }
     })?;
     on(agent_target, "blur", |_event: web_sys::FocusEvent| {
         if REFOCUSING.get() {
             return;
         }
-        push(Event::Focus(false));
+        push(Input::Focus(false));
     })?;
 
     let document_target: &web_sys::EventTarget = document.as_ref();
@@ -1050,7 +1050,7 @@ fn agent_selection(agent: &web_sys::HtmlTextAreaElement) -> (u32, u32) {
     (start, end)
 }
 
-fn mirror_events(change: impl FnOnce(&mut ImeMirror, &mut Vec<Event>)) {
+fn mirror_events(change: impl FnOnce(&mut ImeMirror, &mut Vec<Input>)) {
     let mut events = Vec::new();
     MIRROR.with(|mirror| change(&mut mirror.borrow_mut(), &mut events));
     for event in events {
@@ -1058,8 +1058,8 @@ fn mirror_events(change: impl FnOnce(&mut ImeMirror, &mut Vec<Event>)) {
     }
 }
 
-fn touch(event: &web_sys::PointerEvent, phase: TouchPhase, pos: Pos2) -> Event {
-    Event::Touch {
+fn touch(event: &web_sys::PointerEvent, phase: TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
         id: TouchId {
             device: 0,
             finger: event.pointer_id() as u64,
@@ -1070,8 +1070,8 @@ fn touch(event: &web_sys::PointerEvent, phase: TouchPhase, pos: Pos2) -> Event {
     }
 }
 
-fn pen(event: &web_sys::PointerEvent, phase: PenPhase, pos: Pos2) -> Event {
-    Event::Pen {
+fn pen(event: &web_sys::PointerEvent, phase: PenPhase, pos: Pos2) -> Input {
+    Input::Pen {
         phase,
         pos,
         pressure: event.pressure(),
@@ -1110,11 +1110,10 @@ fn key(event: &web_sys::KeyboardEvent) -> Option<Key> {
     }
 }
 
-fn button_event(pos: Pos2, button: PointerButton, pressed: bool) -> Event {
-    Event::PointerButton {
+fn button_event(pos: Pos2, button: PointerButton, pressed: bool) -> Input {
+    Input::PointerButton {
         pos,
         button,
         pressed,
-        modifiers: Modifiers::NONE,
     }
 }

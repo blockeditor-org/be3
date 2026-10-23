@@ -15,7 +15,7 @@ fn a_plain_wheel_scrolls_and_a_ctrl_wheel_pinches() {
     );
     assert_eq!(
         wheel(vec2(0.0, 5.0), 0, true, &pinch),
-        Some(Input::Pinch(ScrollDelta::Pixels(vec2(0.0, -5.0)))),
+        Some(Input::Zoom((-5.0 * PINCH_SPEED).exp())),
         "browsers report a trackpad pinch as a wheel with ctrlKey"
     );
 }

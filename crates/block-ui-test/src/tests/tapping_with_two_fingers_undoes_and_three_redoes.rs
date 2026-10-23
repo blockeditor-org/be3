@@ -19,11 +19,11 @@ fn tapping_with_two_fingers_undoes_and_three_redoes() {
 
     for fingers in [2, 3] {
         for (finger, spot) in spots.iter().take(fingers).enumerate() {
-            test.finger(finger as u64 + 1, TouchPhase::Start, *spot);
+            test.fingers(TouchPhase::Start, &[(finger as u64 + 1, *spot)]);
         }
         test.next_frame();
         for (finger, spot) in spots.iter().take(fingers).enumerate() {
-            test.finger(finger as u64 + 1, TouchPhase::End, *spot);
+            test.fingers(TouchPhase::End, &[(finger as u64 + 1, *spot)]);
         }
         test.run();
     }

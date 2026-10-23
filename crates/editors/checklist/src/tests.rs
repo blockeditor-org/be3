@@ -51,7 +51,7 @@ impl Harness {
     }
 
     fn type_text(&mut self, text: &str) {
-        self.editor.text(text);
+        self.editor.type_text(text);
         self.run();
     }
 

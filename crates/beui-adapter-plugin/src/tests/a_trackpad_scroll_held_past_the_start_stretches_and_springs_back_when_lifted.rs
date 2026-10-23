@@ -6,7 +6,7 @@ use beui::styled;
 use beui::styled::*;
 use beui::unstyled::Scroll;
 use beui_core::document::Document;
-use block_editor_plugin::WheelUnit;
+use block_editor_plugin::{Input, ScrollDelta, TimedInput};
 
 use super::*;
 
@@ -52,31 +52,23 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
     surface.update(&shown);
     surface.input(
         &shown,
-        &InputEvent::PointerMoved {
-            x: 50.0,
-            y: 50.0,
-            time_micros: 0,
-        },
+        &TimedInput::from(Input::PointerMoved(pos2(50.0, 50.0))),
     );
-    let frame = |surface: &mut PluginSurface, events: &[InputEvent]| {
+    let frame = |surface: &mut PluginSurface, events: &[TimedInput]| {
         surface.context().advance_clock(Duration::from_millis(16));
         for event in events {
             surface.input(&shown, event);
         }
         surface.update(&shown);
     };
-    let wheel = InputEvent::Wheel {
-        x: 0.0,
-        y: 30.0,
-        unit: WheelUnit::Pixels,
-    };
+    let wheel = TimedInput::from(Input::Scroll(ScrollDelta::Pixels(vec2(0.0, 30.0))));
     let overscroll = || document.borrow().scroll_overscroll(scroll);
     for _ in 0..3 {
         frame(&mut surface, std::slice::from_ref(&wheel));
     }
     assert_eq!(overscroll(), 0.0, "a mouse wheel stops at the start");
 
-    frame(&mut surface, &[InputEvent::WheelStarted]);
+    frame(&mut surface, &[TimedInput::from(Input::ScrollStarted)]);
     for _ in 0..5 {
         frame(&mut surface, std::slice::from_ref(&wheel));
     }
@@ -94,7 +86,7 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         "the list stays stretched while the fingers rest"
     );
 
-    frame(&mut surface, &[InputEvent::WheelEnded]);
+    frame(&mut surface, &[TimedInput::from(Input::ScrollEnded)]);
     for _ in 0..120 {
         frame(&mut surface, &[]);
     }

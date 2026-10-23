@@ -20,7 +20,7 @@ fn new_type_cells_render_and_a_boolean_cell_toggles() {
 
     fixture
         .harness
-        .click(&format!("database-view.cell.0.{boolean_id}"));
+        .click(format!("database-view.cell.0.{boolean_id}"));
     fixture.run();
 
     assert_eq!(

@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::EditorViewContent;
-use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2};
+use block_editor_beui::beui::{Document, Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -56,7 +56,7 @@ impl Fixture {
             .root()
             .and_then(|root| open_item(document, root, label, false))
             .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
-        self.test.click_at(item);
+        self.test.click(item);
         self.settle();
     }
 
@@ -65,18 +65,16 @@ impl Fixture {
             .test
             .rect_of(&format!("file-tree.{block}.row"))
             .center();
-        self.test.step(vec![Event::PointerMoved(pos)]);
-        self.test.step(vec![Event::PointerButton {
+        self.test.step(vec![Input::PointerMoved(pos)]);
+        self.test.step(vec![Input::PointerButton {
             pos,
             button: PointerButton::Secondary,
             pressed: true,
-            modifiers: Modifiers::NONE,
         }]);
-        self.test.step(vec![Event::PointerButton {
+        self.test.step(vec![Input::PointerButton {
             pos,
             button: PointerButton::Secondary,
             pressed: false,
-            modifiers: Modifiers::NONE,
         }]);
         self.settle();
     }
@@ -87,7 +85,7 @@ impl Fixture {
             .root()
             .and_then(|root| open_item(document, root, label, false))
             .unwrap_or_else(|| panic!("an open menu offers {label}"));
-        self.test.click_at(item);
+        self.test.click(item);
         self.settle();
     }
 

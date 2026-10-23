@@ -20,7 +20,7 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
     editor.presence_visible(true);
     editor.run();
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
 
     let shown = editor.take_shown_presence();

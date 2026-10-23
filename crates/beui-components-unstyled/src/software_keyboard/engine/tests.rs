@@ -1,6 +1,6 @@
 use super::*;
 use beui_core::geometry::vec2;
-use beui_core::input::TouchId;
+use beui_core::input::{Keystroke, TouchId};
 
 mod a_circle_on_a_letter_types_it_capital;
 mod a_held_key_repeats_until_it_is_let_go;
@@ -86,18 +86,23 @@ impl Typist {
     }
 }
 
-fn summary(events: &[Event]) -> String {
+fn summary(events: &[Input]) -> String {
     let mut out = String::new();
+    let mut modifiers = Modifiers::NONE;
     for event in events {
         match event {
-            Event::Text(text) => out.push_str(text),
-            Event::Key {
-                press,
+            Input::Modifiers(held) => modifiers = *held,
+            Input::Text(text) => out.push_str(text),
+            Input::Key(Keystroke {
+                pressed: true,
                 text: Some(text),
                 ..
-            } if press.pressed && !press.modifiers.command() => out.push_str(text),
-            Event::Key { press, .. } if press.pressed && !press.key.is_modifier() => {
-                let modifiers = press.modifiers;
+            }) if !modifiers.command() => out.push_str(text),
+            Input::Key(Keystroke {
+                key: Some(key),
+                pressed: true,
+                ..
+            }) if !key.is_modifier() => {
                 let mut chord = String::new();
                 for (held, name) in [
                     (modifiers.ctrl, "ctrl+"),
@@ -109,7 +114,7 @@ fn summary(events: &[Event]) -> String {
                         chord.push_str(name);
                     }
                 }
-                out.push_str(&format!("[{chord}{:?}]", press.key));
+                out.push_str(&format!("[{chord}{key:?}]"));
             }
             _ => {}
         }

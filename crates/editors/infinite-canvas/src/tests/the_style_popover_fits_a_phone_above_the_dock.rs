@@ -6,7 +6,7 @@ fn the_style_popover_fits_a_phone_above_the_dock() {
     let rectangle = card();
     let mut editor = phone(std::slice::from_ref(&rectangle));
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.click("infinite-canvas.style");
     editor.run();

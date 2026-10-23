@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Event, Modifiers, PointerButton};
+use block_editor_beui::beui::{Input, PointerButton};
 
 #[test]
 fn a_dragged_hotbar_slot_follows_the_pointer() {
@@ -7,14 +7,13 @@ fn a_dragged_hotbar_slot_follows_the_pointer() {
     let from = editor.rect_of("logic-grid.slot.0").center();
     let to = editor.rect_of("logic-grid.canvas").center();
 
-    editor.step(vec![Event::PointerMoved(from)]);
-    editor.step(vec![Event::PointerButton {
+    editor.step(vec![Input::PointerMoved(from)]);
+    editor.step(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    editor.step(vec![Event::PointerMoved(to)]);
+    editor.step(vec![Input::PointerMoved(to)]);
     editor.run();
     let ghost = editor.rect_of("logic-grid.slot-ghost");
     assert!(
@@ -23,11 +22,10 @@ fn a_dragged_hotbar_slot_follows_the_pointer() {
     );
     assert!(editor.label("logic-grid.slot-ghost").contains("Wire"));
 
-    editor.step(vec![Event::PointerButton {
+    editor.step(vec![Input::PointerButton {
         pos: to,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
     editor.run();
     assert!(

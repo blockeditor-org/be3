@@ -19,7 +19,7 @@ fn a_frame_background_is_picked_in_the_sidebar() {
             .and_then(|entity| entity.style.filled())
     };
 
-    editor.click(&format!("infinite-canvas.layer.{id}"));
+    editor.click(format!("infinite-canvas.layer.{id}"));
     editor.run();
     assert_eq!(
         fill(&editor),

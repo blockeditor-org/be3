@@ -1,5 +1,6 @@
 use beui_core::geometry::Vec2;
-use beui_core::runner::{Input, ScrollDelta};
+use beui_core::input::{Input, ScrollDelta};
+use beui_core::runner::{PINCH_SPEED, scrolled};
 
 const DOM_DELTA_LINE: u32 = 1;
 const DOM_DELTA_PAGE: u32 = 2;
@@ -12,7 +13,10 @@ pub(crate) fn wheel(delta: Vec2, mode: u32, ctrl: bool, pinch: &Pinch) -> Option
     };
     match (ctrl, pinch.active()) {
         (true, true) => None,
-        (true, false) => Some(Input::Pinch(delta)),
+        (true, false) => {
+            let pinched = scrolled(delta, 1.0).y;
+            (pinched != 0.0).then(|| Input::Zoom((pinched * PINCH_SPEED).exp()))
+        }
         (false, _) => Some(Input::Scroll(delta)),
     }
 }

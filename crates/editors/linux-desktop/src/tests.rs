@@ -341,7 +341,7 @@ impl Fixture {
             .node_rect(node)
             .expect("the text is laid out")
             .center();
-        self.test.click_at(center);
+        self.test.click(center);
         self.settle();
     }
 
@@ -381,7 +381,7 @@ impl Fixture {
             .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
             .find_map(|close| document.node_rect(close))
             .expect("an open tab can be closed");
-        self.test.click_at(cross.center());
+        self.test.click(cross.center());
         self.settle();
     }
 }

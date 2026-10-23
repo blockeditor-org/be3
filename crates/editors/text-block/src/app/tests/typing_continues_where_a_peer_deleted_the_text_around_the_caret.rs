@@ -9,7 +9,7 @@ fn typing_continues_where_a_peer_deleted_the_text_around_the_caret() {
     editor.run();
     assert_eq!(text(&editor), "hello world");
 
-    editor.text("big ");
+    editor.type_text("big ");
     editor.run();
 
     assert_eq!(text(&editor), "hello big world");

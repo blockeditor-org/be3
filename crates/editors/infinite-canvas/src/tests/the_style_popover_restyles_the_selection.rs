@@ -12,7 +12,7 @@ fn the_style_popover_restyles_the_selection() {
         "prototyping has no inspector"
     );
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.click("infinite-canvas.style");
     editor.run();

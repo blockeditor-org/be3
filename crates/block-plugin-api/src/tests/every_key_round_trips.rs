@@ -10,12 +10,14 @@ fn every_key_round_trips() {
         let message = Message::Input(InputBatch {
             screen: ScreenId(1),
             every_sample: false,
-            events: vec![InputEvent::Key {
-                key,
-                pressed: true,
-                repeat: false,
-                text: None,
-            }],
+            events: vec![
+                Input::Key(Keystroke {
+                    key: Some(key),
+                    pressed: true,
+                    ..Keystroke::default()
+                })
+                .into(),
+            ],
         });
         assert_eq!(
             decode_frame(&encode_frame(&message).unwrap()).unwrap(),

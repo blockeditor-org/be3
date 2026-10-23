@@ -23,7 +23,7 @@ use crate::window::{WindowReports, WindowState};
 mod intake;
 
 use intake::{Drain, Intake};
-pub use intake::{Input, Keystroke, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
+pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
 
 type Answered = (FilePickId, FilePick);
 
@@ -179,10 +179,16 @@ pub struct Runner {
     failure: Option<String>,
 }
 
-fn type_pastes(pastes: &Receiver<Pasted>, held: crate::input::Modifiers, events: &mut Vec<Event>) {
+fn type_pastes(
+    pastes: &Receiver<Pasted>,
+    held: crate::input::Modifiers,
+    incoming: &mut Vec<Incoming>,
+) {
     while let Ok(pasted) = pastes.try_recv() {
         if let Pasted::Text(text) = pasted {
-            crate::app::automation::keys::typed(&text, held, events);
+            let mut typed = Vec::new();
+            crate::app::automation::keys::typed(&text, held, &mut typed);
+            incoming.extend(typed.into_iter().map(Incoming::from));
         }
     }
 }
@@ -260,26 +266,12 @@ impl Runner {
         self.renderers.as_mut()
     }
 
-    pub fn push(&mut self, input: impl Into<Input>) {
+    pub fn push(&mut self, input: impl Into<Incoming>) {
         self.intake.incoming.push(input.into());
     }
 
     pub fn send(&mut self, events: impl IntoIterator<Item = Event>) {
         self.events.extend(events);
-    }
-
-    pub fn pointer_button(
-        &mut self,
-        pos: crate::geometry::Pos2,
-        button: crate::input::PointerButton,
-        pressed: bool,
-    ) {
-        self.push(Event::PointerButton {
-            pos,
-            button,
-            pressed,
-            modifiers: crate::input::Modifiers::NONE,
-        });
     }
 
     pub fn modifiers(&self) -> crate::input::Modifiers {
@@ -415,11 +407,8 @@ impl Runner {
         while let Ok(pasted) = self.pastes.1.try_recv() {
             self.events.push(Event::Paste(pasted));
         }
-        type_pastes(
-            &self.typed_pastes.1,
-            self.intake.modifiers(),
-            &mut self.events,
-        );
+        let held = self.intake.modifiers();
+        type_pastes(&self.typed_pastes.1, held, &mut self.intake.incoming);
         if !std::mem::replace(&mut self.keyboard_chosen, true) && !platform.shows_keyboard() {
             self.context.enable_keyboard();
         }
@@ -444,7 +433,7 @@ impl Runner {
                 environment: &|| self.app.environment(),
             };
             let mut world = World {
-                events: &mut self.events,
+                events: &mut self.intake.incoming,
                 platform: &mut *platform,
                 context: &self.context,
             };
@@ -548,15 +537,14 @@ impl Runner {
                 _ => platform.pick_file(request, answer),
             }
         }
-        self.events.append(&mut output.typed);
+        self.intake
+            .incoming
+            .extend(output.typed.drain(..).map(Incoming::from));
         if output.paste == Some(PasteRequest::Typed) {
             let answer = PasteAnswer::new(self.typed_pastes.0.clone(), self.waker.clone());
             platform.paste(&[crate::clipboard::PasteKind::Text], answer);
-            type_pastes(
-                &self.typed_pastes.1,
-                self.intake.modifiers(),
-                &mut self.events,
-            );
+            let held = self.intake.modifiers();
+            type_pastes(&self.typed_pastes.1, held, &mut self.intake.incoming);
         }
         let delivered =
             output.paste == Some(PasteRequest::Shortcut) && platform.delivers_paste_shortcut();
@@ -564,10 +552,10 @@ impl Runner {
             .paste
             .is_some_and(|paste| paste != PasteRequest::Typed)
             && !delivered
-            && !output.window.paste_kinds.is_empty()
+            && !output.window.requests.pastes.is_empty()
         {
             let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
-            platform.paste(&output.window.paste_kinds, answer);
+            platform.paste(&output.window.requests.pastes, answer);
             while let Ok(pasted) = self.pastes.1.try_recv() {
                 self.events.push(Event::Paste(pasted));
             }

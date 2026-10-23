@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Key, Pos2};
+use block_editor_beui::beui::{Key, Modifiers, Pos2};
 use std::f32::consts::PI;
 
 fn draw_strokes(editor: &mut BeuiTest<CanvasApp>) {
@@ -40,7 +40,7 @@ fn draw_strokes(editor: &mut BeuiTest<CanvasApp>) {
     editor.next_frame();
     editor.pen(PenPhase::Up(PointerButton::Primary), pressed(1.0), 0.0);
     editor.run();
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
 }
 

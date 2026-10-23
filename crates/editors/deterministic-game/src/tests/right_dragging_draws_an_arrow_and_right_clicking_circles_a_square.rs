@@ -15,7 +15,7 @@ fn right_dragging_draws_an_arrow_and_right_clicking_circles_a_square() {
     assert!(moves(&editor).is_empty());
     editor.record();
 
-    editor.click_at(d5);
+    editor.click(d5);
     editor.run();
     editor.record();
     editor.snapshot("right_dragging_draws_an_arrow_and_right_clicking_circles_a_square");

@@ -31,7 +31,7 @@ fn a_phone_lists_what_is_shared_with_it() {
         .test
         .snapshot("a_phone_lists_what_is_shared_with_it");
 
-    fixture.test.click(&format!("file-tree.{plan}.row"));
+    fixture.test.click(format!("file-tree.{plan}.row"));
     fixture.settle();
     assert_eq!(
         fixture.opened(),

@@ -29,14 +29,17 @@ pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
+pub use ui_types::geometry::{Pos2, Rect, Vec2};
 pub use ui_types::{
-    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Key, KeyChord,
-    Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
+    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Input, Key,
+    KeyChord, Keyboard, Keystroke, Modifiers, PasteKind, Pasted, Pen, PenPhase, PickedFile,
+    PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
+pub use ui_types::{ImeArea, WindowRequests};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
@@ -165,18 +168,6 @@ pub struct FrameReport {
     pub every_sample: bool,
     pub claims: Vec<PressClaim>,
     pub description: Option<Description>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct WindowRequests {
-    pub cursor: CursorIcon,
-    pub pointer_locked: bool,
-    pub ime: Option<ImeArea>,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub pastes: Vec<PasteKind>,
-    pub keyboard_toggles: u32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -2147,97 +2138,23 @@ pub struct Monitor {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InputBatch {
     pub screen: ScreenId,
-    pub events: Vec<InputEvent>,
+    pub events: Vec<TimedInput>,
     pub every_sample: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum InputEvent {
-    PointerMoved {
-        x: f32,
-        y: f32,
-        time_micros: u64,
-    },
-    PointerLeft,
-    PointerMotion {
-        x: f32,
-        y: f32,
-    },
-    PointerButton {
-        button: PointerButton,
-        pressed: bool,
-        x: f32,
-        y: f32,
-        time_micros: u64,
-    },
-    Wheel {
-        x: f32,
-        y: f32,
-        unit: WheelUnit,
-    },
-    WheelStarted,
-    WheelEnded,
-    Zoom {
-        factor: f32,
-    },
-    Touch {
-        device: u64,
-        finger: u64,
-        phase: TouchPhase,
-        x: f32,
-        y: f32,
-        force: Option<f32>,
-        time_micros: u64,
-    },
-    Key {
-        key: Key,
-        pressed: bool,
-        repeat: bool,
-        text: Option<String>,
-    },
-    Text(String),
-    Paste(Pasted),
-    Ime(ImeEvent),
-    Modifiers(Modifiers),
-    Focus(bool),
-    Back(BackGesture),
-    InterceptedKey {
-        key: Key,
-        pressed: bool,
-        repeat: bool,
-    },
-    InterceptedTap {
-        key: Key,
-    },
-    Pen {
-        phase: PenPhase,
-        x: f32,
-        y: f32,
-        pressure: f32,
-        tilt_x: f32,
-        tilt_y: f32,
-        eraser: bool,
-        time_micros: u64,
-    },
-    Predicted {
-        x: f32,
-        y: f32,
-    },
+pub struct TimedInput {
+    pub input: Input,
+    pub time_micros: Option<u64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ImeArea {
-    pub rect: ChildRect,
-    pub cursor: ChildRect,
-    pub text: Option<ImeText>,
-    pub keyboard: Keyboard,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WheelUnit {
-    Pixels,
-    Lines,
-    Pages,
+impl From<Input> for TimedInput {
+    fn from(input: Input) -> Self {
+        Self {
+            input,
+            time_micros: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2350,14 +2267,23 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         Message::Input(value) => {
             collection(value.events.len())?;
             for event in &value.events {
-                match event {
-                    InputEvent::Paste(Pasted::Image(file)) => {
+                match &event.input {
+                    Input::Paste(Pasted::Image(file)) => {
                         string(&file.name)?;
                         blob(&file.data)?;
                     }
-                    InputEvent::Text(value)
-                    | InputEvent::Paste(Pasted::Text(value))
-                    | InputEvent::Ime(
+                    Input::FileDropped(file) => {
+                        string(&file.name)?;
+                        if let Some(bytes) = &file.bytes {
+                            blob(bytes)?;
+                        }
+                    }
+                    Input::Text(value)
+                    | Input::Key(Keystroke {
+                        text: Some(value), ..
+                    })
+                    | Input::Paste(Pasted::Text(value))
+                    | Input::Ime(
                         ImeEvent::SetComposingText(value)
                         | ImeEvent::CommitText(value)
                         | ImeEvent::ReplaceText { text: value, .. },
@@ -2796,10 +2722,10 @@ fn string(value: &str) -> Result<(), DecodeError> {
     }
 }
 
-pub fn paste_events(text: &str) -> Vec<InputEvent> {
+pub fn paste_events(text: &str) -> Vec<Input> {
     text_pieces(text, MAX_TEXT_BYTES)
         .into_iter()
-        .map(|piece| InputEvent::Paste(Pasted::Text(piece)))
+        .map(|piece| Input::Paste(Pasted::Text(piece)))
         .collect()
 }
 

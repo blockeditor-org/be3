@@ -16,7 +16,7 @@ fn a_stopped_region_and_pointer_motion_round_trip() {
         Message::Input(InputBatch {
             screen: ScreenId(1),
             every_sample: false,
-            events: vec![InputEvent::PointerMotion { x: -3.5, y: 7.25 }],
+            events: vec![Input::PointerMotion(Vec2::new(-3.5, 7.25)).into()],
         }),
     ] {
         assert_eq!(

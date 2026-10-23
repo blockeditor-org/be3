@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Event, Pos2, TouchPhase, pos2};
+use block_editor_beui::beui::{Input, Pos2, TouchPhase, pos2};
 
 #[test]
 fn text_left_empty_leaves_nothing_behind() {
@@ -9,13 +9,13 @@ fn text_left_empty_leaves_nothing_behind() {
         let spot = |x: f32, y: f32| pos2(canvas.left() + x, canvas.top() + y);
         let tap = |editor: &mut BeuiTest<CanvasApp>, at: Pos2| match finger {
             true => {
-                editor.finger(1, TouchPhase::Start, at);
+                editor.fingers(TouchPhase::Start, &[(1, at)]);
                 editor.run();
-                editor.finger(1, TouchPhase::End, at);
+                editor.fingers(TouchPhase::End, &[(1, at)]);
                 editor.run();
             }
             false => {
-                editor.click_at(at);
+                editor.click(at);
                 editor.run();
             }
         };
@@ -29,7 +29,7 @@ fn text_left_empty_leaves_nothing_behind() {
         };
 
         write(&mut editor, spot(60.0, 120.0));
-        editor.step(vec![Event::Text("Kept".to_owned())]);
+        editor.step(vec![Input::Text("Kept".to_owned())]);
         editor.run();
         write(&mut editor, spot(60.0, 260.0));
         write(&mut editor, spot(60.0, 400.0));

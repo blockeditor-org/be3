@@ -19,7 +19,7 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     });
 
     let mut harness = Harness::new(document);
-    assert!(harness.frame(Vec::new()).window.handles_back);
+    assert!(harness.frame(Vec::new()).window.requests.handles_back);
     let resting = harness.rect(page.get());
 
     harness.frame(vec![
@@ -73,5 +73,5 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     assert!(harness.rect(page.get()).left() > resting.left());
     harness.settle();
     assert_eq!(depth.get_untracked(), 0, "and goes back once it is gone");
-    assert!(!harness.frame(Vec::new()).window.handles_back);
+    assert!(!harness.frame(Vec::new()).window.requests.handles_back);
 }

@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::PointerButton;
 
 #[test]
 fn a_trim_keeps_following_the_pointer_once_its_first_edit_lands() {
@@ -10,18 +11,18 @@ fn a_trim_keeps_following_the_pointer_once_its_first_edit_lands() {
         .editor
         .rect_of(&format!("video.trim.{clip}"))
         .center();
-    fixture.editor.press_at(from);
+    fixture.editor.down(from, PointerButton::Primary);
     fixture.editor.run();
     fixture
         .editor
-        .hover_at(Pos2::new(from.x + 10.0 * scale, from.y));
+        .hover(Pos2::new(from.x + 10.0 * scale, from.y));
     fixture.editor.run();
     assert_eq!(fixture.video().clips()[0].length, 40);
 
     let to = Pos2::new(from.x + 20.0 * scale, from.y);
-    fixture.editor.hover_at(to);
+    fixture.editor.hover(to);
     fixture.editor.run();
-    fixture.editor.release_at(to);
+    fixture.editor.up(to, PointerButton::Primary);
     fixture.editor.run();
 
     assert_eq!(

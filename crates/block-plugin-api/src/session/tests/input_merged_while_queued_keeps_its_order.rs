@@ -11,12 +11,11 @@ fn input_merged_while_queued_keeps_its_order() {
         .collect();
     for key in &keys {
         session
-            .enqueue(input(InputEvent::Key {
-                key: *key,
+            .enqueue(input(Input::Key(crate::Keystroke {
+                key: Some(*key),
                 pressed: true,
-                repeat: false,
-                text: None,
-            }))
+                ..crate::Keystroke::default()
+            })))
             .unwrap();
     }
     assert_eq!(session.queued_message_count(), 1);
@@ -26,8 +25,8 @@ fn input_merged_while_queued_keeps_its_order() {
     let merged: Vec<_> = batch
         .events
         .iter()
-        .map(|event| match event {
-            InputEvent::Key { key, .. } => *key,
+        .map(|event| match &event.input {
+            Input::Key(stroke) => stroke.key.unwrap(),
             _ => panic!(),
         })
         .collect();

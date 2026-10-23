@@ -35,17 +35,17 @@ pub(super) fn palette_runs(editor: &mut BeuiTest<CanvasApp>, typed: &str) {
         ctrl: true,
         ..Modifiers::NONE
     };
-    editor.key_press_modifiers(
+    editor.key(
+        Key::P,
         Modifiers {
             shift: true,
             ..ctrl
         },
-        Key::P,
     );
     editor.run();
-    editor.text(typed);
+    editor.type_text(typed);
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
 }
 
@@ -83,12 +83,12 @@ fn copying_as_svg_writes_every_shape_kind() {
     );
     let mut editor = editor(&[rectangle, ellipse, diamond, arrow, freehand, text]);
 
-    editor.key_press_modifiers(
+    editor.key(
+        Key::A,
         Modifiers {
             ctrl: true,
             ..Modifiers::NONE
         },
-        Key::A,
     );
     editor.run();
     palette_runs(&mut editor, "copy as svg");

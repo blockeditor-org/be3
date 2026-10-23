@@ -11,7 +11,7 @@ fn a_folder_that_could_not_be_listed_says_why() {
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
 
-    fixture.test.click(&format!("file-tree.{folder}.chevron"));
+    fixture.test.click(format!("file-tree.{folder}.chevron"));
     fixture.settle();
     fixture.host.fail_blocks(
         BlockQuery::References(folder),

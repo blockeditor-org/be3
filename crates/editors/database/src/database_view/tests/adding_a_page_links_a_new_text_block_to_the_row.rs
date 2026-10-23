@@ -11,7 +11,7 @@ fn adding_a_page_links_a_new_text_block_to_the_row() {
     let row = fixture.database().rows.get_index(0).unwrap().id;
     fixture
         .harness
-        .click(&format!("database-view.list.row.{}", row.as_uuid()));
+        .click(format!("database-view.list.row.{}", row.as_uuid()));
     fixture.settle();
     fixture.harness.click("database-view.detail.add-page");
     fixture.settle();

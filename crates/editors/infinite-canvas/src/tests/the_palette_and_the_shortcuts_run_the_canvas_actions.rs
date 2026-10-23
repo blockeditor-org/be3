@@ -10,19 +10,19 @@ fn the_palette_and_the_shortcuts_run_the_canvas_actions() {
         ..Modifiers::NONE
     };
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
-    editor.key_press_modifiers(
+    editor.key(
+        Key::P,
         Modifiers {
             shift: true,
             ..ctrl
         },
-        Key::P,
     );
     editor.run();
-    editor.text("duplicate");
+    editor.type_text("duplicate");
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
     assert_eq!(
         entities(&editor).len(),
@@ -30,8 +30,8 @@ fn the_palette_and_the_shortcuts_run_the_canvas_actions() {
         "the palette duplicates the selection"
     );
 
-    editor.key_press_modifiers(ctrl, Key::A);
-    editor.key_press_modifiers(ctrl, Key::G);
+    editor.key(Key::A, ctrl);
+    editor.key(Key::G, ctrl);
     editor.run();
     let groups: HashSet<_> = entities(&editor)
         .iter()

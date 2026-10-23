@@ -24,7 +24,7 @@ fn an_opened_folder_is_kept_open_in_the_view_and_reopens_open() {
     with_folder(&mut fixture, folder);
     assert!(!asks_for_children(&fixture, folder));
 
-    fixture.test.click(&format!("file-tree.{folder}.chevron"));
+    fixture.test.click(format!("file-tree.{folder}.chevron"));
     fixture.settle();
     let saved = fixture.test.content::<EditorViewContent>(None);
 

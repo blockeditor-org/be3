@@ -22,12 +22,12 @@ fn the_color_areas_thumb_shows_a_grab_cursor() {
 
     harness.frame(vec![Event::PointerMoved(thumb)]);
     let over = harness.frame(Vec::new());
-    assert_eq!(over.window.cursor, CursorIcon::Grab);
+    assert_eq!(over.window.requests.cursor, CursorIcon::Grab);
 
     harness.frame(vec![Event::PointerMoved(pos2(
         area.left() + 10.0,
         area.top() + 10.0,
     ))]);
     let beside = harness.frame(Vec::new());
-    assert_eq!(beside.window.cursor, CursorIcon::Crosshair);
+    assert_eq!(beside.window.requests.cursor, CursorIcon::Crosshair);
 }

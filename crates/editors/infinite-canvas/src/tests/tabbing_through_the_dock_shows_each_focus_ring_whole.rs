@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::beui::Key;
 use block_editor_beui::beui::overflow::OverflowKind;
+use block_editor_beui::beui::{Key, Modifiers};
 
 const MOST_STOPS: usize = 80;
 
@@ -10,7 +10,7 @@ fn tabbing_through_the_dock_shows_each_focus_ring_whole() {
         let mut visited = Vec::new();
         let mut shown = false;
         for _ in 0..MOST_STOPS {
-            editor.key_press(Key::Tab);
+            editor.key(Key::Tab, Modifiers::NONE);
             editor.run();
             let Some(focused) = editor.document().focused_node() else {
                 break;

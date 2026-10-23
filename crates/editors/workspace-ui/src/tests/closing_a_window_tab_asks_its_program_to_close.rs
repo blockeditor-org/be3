@@ -9,7 +9,7 @@ fn closing_a_window_tab_asks_its_program_to_close() {
     fixture.settle();
 
     let tab = (1u64 << 41) + 3;
-    fixture.test.click(&format!("dock.tab.{tab}.close"));
+    fixture.test.click(format!("dock.tab.{tab}.close"));
     fixture.settle();
 
     assert!(

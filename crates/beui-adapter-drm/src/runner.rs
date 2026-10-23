@@ -9,14 +9,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use beui::{
-    Event, Launch, Modifiers, Pen, PenPhase, Platform, PointerButton, Pos2, ScrollDelta, Setup,
+    Keystroke, Launch, Modifiers, Pen, PenPhase, Platform, PointerButton, Pos2, ScrollDelta, Setup,
     TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Keystroke, Runner, panic_message};
+use beui_core::runner::{Runner, panic_message};
 use beui_core::window::WindowState;
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{
@@ -130,10 +130,10 @@ impl Platform for Seat {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
-        if window.cursor != shown.cursor {
-            self.displays.borrow_mut().icon = window.cursor;
+        if window.requests.cursor != shown.requests.cursor {
+            self.displays.borrow_mut().icon = window.requests.cursor;
         }
-        self.locked = window.pointer_locked;
+        self.locked = window.requests.pointer_locked;
     }
 }
 
@@ -814,15 +814,15 @@ impl Session {
         }
     }
 
-    fn push(&mut self, input: impl Into<beui::Input>) {
+    fn push(&mut self, input: impl Into<beui::Incoming>) {
         self.runner.push(input);
         self.pacer.ask();
     }
 
-    fn push_sample(&mut self, event: Event) {
+    fn push_sample(&mut self, event: beui::Input) {
         self.push(event);
         if let Some(at) = self.sampled {
-            self.push(Event::Time(at));
+            self.push(beui::Incoming::Time(at));
         }
     }
 
@@ -833,7 +833,7 @@ impl Session {
 
     fn point(&mut self, pointer: Pos2) {
         self.place_pointer(pointer);
-        self.push_sample(Event::PointerMoved(self.physical(pointer)));
+        self.push_sample(beui::Input::PointerMoved(self.physical(pointer)));
     }
 
     fn place_pointer(&mut self, pointer: Pos2) {
@@ -982,7 +982,7 @@ impl Session {
                 let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
                 if self.platform.locked {
                     let scale = self.displays.borrow().scale;
-                    self.push(Event::PointerMotion(delta * scale));
+                    self.push(beui::Input::PointerMotion(delta * scale));
                     return;
                 }
                 self.point(moved(self.pointer(), delta, &self.rects()));
@@ -1089,7 +1089,7 @@ impl Session {
         let (_, rotation) = self.absolute_area();
         let tilt =
             rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
-        self.push_sample(Event::Pen {
+        self.push_sample(beui::Input::Pen {
             phase,
             pos: self.physical(position),
             pressure: event.pressure() as f32,
@@ -1119,7 +1119,7 @@ impl Session {
     ) {
         let finger: i32 = slot.into();
         let pos = self.physical(position);
-        self.push_sample(Event::Touch {
+        self.push_sample(beui::Input::Touch {
             id: TouchId {
                 device: 0,
                 finger: u64::from(finger.max(0).unsigned_abs()),
@@ -1199,8 +1199,11 @@ impl Session {
                     return;
                 };
                 let pos = self.physical(self.pointer());
-                self.runner.pointer_button(pos, button, pressed);
-                self.pacer.ask();
+                self.push(beui::Input::PointerButton {
+                    pos,
+                    button,
+                    pressed,
+                });
             }
             RawInput::Wheel { x, y } => {
                 let notches = |v120: i32| -v120 as f32 / 120.0;
@@ -1296,7 +1299,7 @@ impl Card for Session {
         }
         if let Some(keyboard) = Keyboard::new(&self.input) {
             if self.keyboard.modifiers() != Modifiers::NONE {
-                self.push(Event::Modifiers(Modifiers::NONE));
+                self.push(beui::Input::Modifiers(Modifiers::NONE));
             }
             self.keyboard = keyboard;
         }

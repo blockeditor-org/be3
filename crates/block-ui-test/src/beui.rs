@@ -1,5 +1,6 @@
+use beui::testing::{Target, button_name};
 use beui::{
-    Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
+    Document, Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
     TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
@@ -12,14 +13,13 @@ use block_editor_beui::{
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FitArea,
     FrameChrome, FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
-    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TopBar, ViewportMetrics,
+    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
 use crate::document::FRAME_INTERVAL;
-use crate::input::Input;
 use crate::{ContentStore, overflow, snapshot};
 use beui::automation::gestures::{Frames, Gestures};
 
@@ -46,9 +46,9 @@ pub struct BeuiTest<A: BeuiApp> {
     scale_factor: f32,
     monitors: Vec<block_plugin_api::Monitor>,
     frame: Option<block_plugin_api::FrameSpec>,
-    input: Input,
     gestures: Gestures,
-    frames: Vec<Vec<Event>>,
+    steps: Vec<String>,
+    frames: Vec<Vec<Input>>,
     inbox: Vec<Message>,
     sent: Vec<EditorMessage>,
     menu: Vec<MenuEntry>,
@@ -217,7 +217,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             scale_factor: 1.0,
             monitors: Vec::new(),
             frame,
-            input: Input::default(),
+            steps: Vec::new(),
             gestures: Gestures::default(),
             frames: Vec::new(),
             inbox: Vec::new(),
@@ -804,10 +804,13 @@ impl<A: BeuiApp> BeuiTest<A> {
             let left = SETTLE_DEADLINE.saturating_sub(started.elapsed());
             self.wakes.wait_past(seen, left);
         }
-        panic!("the editor was still waiting for {what} after {SETTLE_DEADLINE:?}");
+        panic!(
+            "the editor was still waiting for {what} after {SETTLE_DEADLINE:?}\n{}",
+            self.replay()
+        );
     }
 
-    pub fn step(&mut self, events: Vec<Event>) {
+    pub fn step(&mut self, events: Vec<Input>) {
         let mut inbox = std::mem::take(&mut self.inbox);
         inbox.extend(self.store.outgoing(INSTANCE));
         let rect = self.rect();
@@ -821,8 +824,24 @@ impl<A: BeuiApp> BeuiTest<A> {
             inbox.push(message);
         }
         self.clock += FRAME_INTERVAL;
-        let events = self.input.normalize(events, self.clock.as_micros() as u64);
         if !events.is_empty() {
+            let now = self.clock.as_micros() as u64;
+            let events = events
+                .into_iter()
+                .map(|input| {
+                    let sampled = matches!(
+                        input,
+                        Input::PointerMoved(_)
+                            | Input::PointerButton { .. }
+                            | Input::Touch { .. }
+                            | Input::Pen { .. }
+                    );
+                    TimedInput {
+                        input,
+                        time_micros: sampled.then_some(now),
+                    }
+                })
+                .collect();
             inbox.push(Message::Input(InputBatch {
                 screen: SCREEN,
                 every_sample: false,
@@ -1149,7 +1168,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pointer_motion(&mut self, delta: Vec2) {
-        self.push(Event::PointerMotion(delta));
+        self.push(Input::PointerMotion(delta));
     }
 
     pub fn intrinsic_size(&self) -> Option<Vec2> {
@@ -1164,7 +1183,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
-    fn push(&mut self, event: Event) {
+    fn push(&mut self, event: Input) {
         match self.frames.last_mut() {
             Some(frame) => frame.push(event),
             None => self.frames.push(vec![event]),
@@ -1225,12 +1244,11 @@ impl<A: BeuiApp> BeuiTest<A> {
             .chain(std::iter::repeat_n((true, true), repeats))
             .chain(std::iter::once((false, false)));
         for (pressed, repeat) in presses {
-            self.push(Event::InterceptedKey(KeyPress {
+            self.push(Input::InterceptedKey {
                 key,
                 pressed,
                 repeat,
-                modifiers,
-            }));
+            });
         }
         true
     }
@@ -1239,17 +1257,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
             return false;
         }
-        self.push(Event::InterceptedTap(key));
+        self.push(Input::InterceptedTap(key));
         true
     }
 
     pub fn hold_modifiers(&mut self, modifiers: Modifiers) {
         let frames = self.gestures.hold(modifiers);
-        self.perform(frames);
-    }
-
-    pub fn hover_at(&mut self, pos: Pos2) {
-        let frames = self.gestures.hover(pos);
         self.perform(frames);
     }
 
@@ -1288,11 +1301,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .as_ref()
             .expect("the editor has not drawn a frame yet")
             .test_id_rect(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"))
-    }
-
-    pub fn hover(&mut self, test_id: &str) {
-        self.hover_at(self.point_of(test_id));
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}\n{}", self.replay()))
     }
 
     pub fn point_of(&self, test_id: &str) -> Pos2 {
@@ -1302,11 +1311,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             true => shown.center(),
             false => rect.center(),
         }
-    }
-
-    pub fn click(&mut self, test_id: &str) {
-        self.reveal(test_id);
-        self.click_at(self.point_of(test_id));
     }
 
     pub fn reveal(&mut self, test_id: &str) {
@@ -1325,98 +1329,14 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.run();
     }
 
-    pub fn tap(&mut self, test_id: &str) {
-        self.reveal(test_id);
-        let frames = self.gestures.tap(self.point_of(test_id), 1);
-        self.perform(frames);
-    }
-
-    pub fn double_click(&mut self, test_id: &str) {
-        self.double_click_at(self.point_of(test_id));
-    }
-
-    pub fn double_click_at(&mut self, pos: Pos2) {
-        let frames = self.gestures.click(pos, PointerButton::Primary, 2);
-        self.perform(frames);
-    }
-
-    pub fn click_at(&mut self, pos: Pos2) {
-        self.click_button_at(pos, PointerButton::Primary);
-    }
-
-    pub fn click_button(&mut self, test_id: &str, button: PointerButton) {
-        self.click_button_at(self.point_of(test_id), button);
-    }
-
-    pub fn click_button_at(&mut self, pos: Pos2, button: PointerButton) {
-        let frames = self.gestures.click(pos, button, 1);
-        self.perform(frames);
-    }
-
-    pub fn scroll(&mut self, test_id: &str, delta: Vec2) {
-        let frames = self.gestures.scroll(self.point_of(test_id), -delta);
-        self.perform(frames);
-    }
-
-    pub fn drag(&mut self, from: Pos2, to: Pos2) {
-        let frames = self.gestures.drag(from, to, 2);
-        self.perform(frames);
-    }
-
-    pub fn drag_along(&mut self, points: &[Pos2]) {
-        let (Some(&from), Some(&to)) = (points.first(), points.last()) else {
-            return;
-        };
-        self.press_at(from);
-        for &at in &points[1..] {
-            self.next_frame();
-            self.hover_at(at);
-        }
-        self.next_frame();
-        self.release_at(to);
-    }
-
-    pub fn press_at(&mut self, pos: Pos2) {
-        let frames = self.gestures.down(pos, PointerButton::Primary);
-        self.perform(frames);
-    }
-
-    pub fn release_at(&mut self, pos: Pos2) {
-        let frames = self.gestures.up(Some(pos), PointerButton::Primary);
-        self.perform(frames);
-    }
-
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
+        self.steps.push(format!(
+            "drive down {} right; drive up {} right",
+            Target::point(from).word(1.0),
+            Target::point(to).word(1.0)
+        ));
         let mut frames = self.gestures.down(from, PointerButton::Secondary);
         frames.extend(self.gestures.up(Some(to), PointerButton::Secondary));
-        self.perform(frames);
-    }
-
-    pub fn touch_start(&mut self, pos: Pos2) {
-        self.touch(TouchPhase::Start, pos);
-    }
-
-    pub fn touch_move(&mut self, pos: Pos2) {
-        self.touch(TouchPhase::Move, pos);
-    }
-
-    pub fn touch_end(&mut self, pos: Pos2) {
-        self.touch(TouchPhase::End, pos);
-    }
-
-    pub fn touch_cancel(&mut self, pos: Pos2) {
-        self.touch(TouchPhase::Cancel, pos);
-    }
-
-    fn touch(&mut self, phase: TouchPhase, pos: Pos2) {
-        self.finger(1, phase, pos);
-    }
-
-    pub fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) {
-        let frames = self
-            .gestures
-            .touch(phase, &[(finger, Some(pos))])
-            .unwrap_or_else(|error| panic!("{error}"));
         self.perform(frames);
     }
 
@@ -1449,21 +1369,186 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn predict(&mut self, pos: Pos2) {
-        self.push(Event::Predicted(pos));
+        self.push(Input::Predicted(pos));
     }
 
-    pub fn key_press(&mut self, key: Key) {
-        self.key_press_modifiers(Modifiers::NONE, key);
+    pub fn hover(&mut self, target: impl Into<Target>) {
+        let at = self.locate("move", &[target.into()], &[]);
+        let frames = self.gestures.hover(at[0]);
+        self.perform(frames);
     }
 
-    pub fn key_press_modifiers(&mut self, modifiers: Modifiers, key: Key) {
+    pub fn click(&mut self, target: impl Into<Target>) {
+        let at = self.locate("click", &[target.into()], &[]);
+        let frames = self.gestures.click(at[0], PointerButton::Primary, 1);
+        self.perform(frames);
+    }
+
+    pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) {
+        let at = self.locate("click", &[target.into()], &[button_name(button)]);
+        let frames = self.gestures.click(at[0], button, 1);
+        self.perform(frames);
+    }
+
+    pub fn double_click(&mut self, target: impl Into<Target>) {
+        let at = self.locate("click", &[target.into()], &["double".to_owned()]);
+        let frames = self.gestures.click(at[0], PointerButton::Primary, 2);
+        self.perform(frames);
+    }
+
+    pub fn tap(&mut self, target: impl Into<Target>) {
+        let at = self.locate("tap", &[target.into()], &[]);
+        let frames = self.gestures.tap(at[0], 1);
+        self.perform(frames);
+    }
+
+    pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) {
+        let at = self.locate("down", &[target.into()], &[button_name(button)]);
+        let frames = self.gestures.down(at[0], button);
+        self.perform(frames);
+    }
+
+    pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) {
+        let at = self.locate("up", &[target.into()], &[button_name(button)]);
+        let frames = self.gestures.up(Some(at[0]), button);
+        self.perform(frames);
+    }
+
+    pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
+        let at = self.locate("drag", &[from.into(), to.into()], &[]);
+        let frames = self.gestures.drag(at[0], at[1], 2);
+        self.perform(frames);
+    }
+
+    pub fn drag_along(&mut self, points: &[Pos2]) {
+        let (Some(&from), Some(&to)) = (points.first(), points.last()) else {
+            return;
+        };
+        self.down(from, PointerButton::Primary);
+        for &at in &points[1..] {
+            self.next_frame();
+            self.hover(at);
+        }
+        self.next_frame();
+        self.up(to, PointerButton::Primary);
+    }
+
+    pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
+        let rest = [by.y.to_string(), by.x.to_string()];
+        let at = self.locate("scroll", &[target.into()], &rest);
+        let frames = self.gestures.scroll(at[0], by);
+        self.perform(frames);
+    }
+
+    pub fn fingers<T: Into<Target> + Clone>(&mut self, phase: TouchPhase, fingers: &[(u64, T)]) {
+        let targets: Vec<Target> = fingers
+            .iter()
+            .map(|(_, target)| target.clone().into())
+            .collect();
+        let named: Vec<String> = fingers
+            .iter()
+            .zip(&targets)
+            .map(|((finger, _), target)| format!("{finger}={}", target.word(1.0)))
+            .collect();
+        let phase_name = match phase {
+            TouchPhase::Start => "down",
+            TouchPhase::Move => "move",
+            TouchPhase::End => "up",
+            TouchPhase::Cancel => "cancel",
+        };
+        self.steps
+            .push(format!("drive touch {phase_name} {}", named.join(" ")));
+        let at: Vec<(u64, Option<Pos2>)> = fingers
+            .iter()
+            .zip(targets)
+            .map(|((finger, _), target)| (*finger, Some(self.point(target))))
+            .collect();
+        let frames = self
+            .gestures
+            .touch(phase, &at)
+            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
+        self.perform(frames);
+    }
+
+    pub fn type_text(&mut self, text: &str) {
+        self.steps.push(format!("drive type {text:?}"));
+        let frames = self.gestures.type_text(text);
+        self.perform(frames);
+    }
+
+    pub fn key(&mut self, key: Key, modifiers: Modifiers) {
+        let chord = beui::automation::keys::chord_name(key, modifiers)
+            .unwrap_or_else(|| format!("{modifiers:?}+{key:?}"));
+        self.steps.push(format!("drive key {chord}"));
         let frames = self.gestures.chord(key, modifiers);
         self.perform(frames);
     }
 
-    pub fn text(&mut self, text: impl Into<String>) {
-        let frames = self.gestures.type_text(&text.into());
+    pub fn key_down(&mut self, key: Key) {
+        self.held_key(key, true);
+    }
+
+    pub fn key_up(&mut self, key: Key) {
+        self.held_key(key, false);
+    }
+
+    fn held_key(&mut self, key: Key, pressed: bool) {
+        let command = if pressed { "keydown" } else { "keyup" };
+        let name = key.name().unwrap_or_else(|| format!("{key:?}"));
+        self.steps.push(format!("drive {command} {name}"));
+        let frames = self
+            .gestures
+            .key(key, pressed)
+            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
         self.perform(frames);
+    }
+
+    pub fn steps(&self) -> &[String] {
+        &self.steps
+    }
+
+    fn locate(&mut self, command: &str, targets: &[Target], rest: &[String]) -> Vec<Pos2> {
+        let mut step = format!("drive {command}");
+        for word in targets
+            .iter()
+            .map(|target| target.word(1.0))
+            .chain(rest.iter().cloned())
+        {
+            step.push(' ');
+            step.push_str(&word);
+        }
+        self.steps.push(step);
+        targets
+            .iter()
+            .map(|target| self.point(target.clone()))
+            .collect()
+    }
+
+    fn point(&mut self, target: Target) -> Pos2 {
+        match target {
+            Target::Id(id, offset) => {
+                self.reveal(&id);
+                match offset {
+                    Some(offset) => self.rect_of(&id).min + offset,
+                    None => self.point_of(&id),
+                }
+            }
+            Target::Point(at) => at,
+            Target::Text(text) => panic!(
+                "a plugin test finds a target by its test id or a point, not by text: {text:?}\n{}",
+                self.replay()
+            ),
+        }
+    }
+
+    fn replay(&self) -> String {
+        let mut replay = String::from("the steps so far, as drive commands:\n");
+        for step in &self.steps {
+            replay.push_str("  ");
+            replay.push_str(step);
+            replay.push('\n');
+        }
+        replay
     }
 
     pub fn record(&mut self) {

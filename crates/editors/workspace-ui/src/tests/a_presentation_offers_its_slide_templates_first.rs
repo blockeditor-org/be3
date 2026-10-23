@@ -61,7 +61,7 @@ fn a_presentation_offers_its_slide_templates_first() {
 
     fixture
         .test
-        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/title"));
+        .click(format!("picker.menu.{TEMPLATE_EDITOR}/title"));
     fixture.settle();
     fixture.settle();
     let created = Uuid::new_v4();

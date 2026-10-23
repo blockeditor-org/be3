@@ -2,7 +2,6 @@ use std::cell::Cell;
 
 use beui_core::geometry::{pos2, vec2};
 use beui_core::input::Event;
-use beui_core::runner::Input;
 use block_editor_plugin::{EditorRegion, FrameSpec};
 
 use super::*;

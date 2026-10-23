@@ -44,11 +44,11 @@ pub use beui_core::icons;
 pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
 pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
-    ImeText, InputState, Key, KeyChord, KeyPress, Keyboard, Modifiers, Pen, PenPhase,
-    PointerButton, PointerEvent, PointerId, PointerPhase, PointerPress, RawInput, ScrollGesture,
-    SecondaryDrag, TouchId, TouchPhase, ZoomGesture,
+    ImeText, Input, InputState, Key, KeyChord, KeyPress, Keyboard, Keystroke, Modifiers, Pen,
+    PenPhase, PointerButton, PointerEvent, PointerId, PointerPhase, PointerPress, RawInput,
+    ScrollDelta, ScrollGesture, SecondaryDrag, TouchId, TouchPhase, ZoomGesture,
 };
-pub use beui_core::interact::forward::{Forwarded, ForwardedInput};
+pub use beui_core::interact::forward::{Forwarded, ForwardedInput, Replay, Replayed};
 pub use beui_core::keys::{KeyAt, KeyEvent, KeyInput, KeyPhase, KeyTarget};
 pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
@@ -90,7 +90,7 @@ pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::winit;
 pub use beui_core::runner::{
-    Adapter, Input, Keystroke, Launch, Platform, RunOptions, Running, ScrollDelta, panic_message,
+    Adapter, Incoming, Launch, Platform, RunOptions, Running, Units, panic_message,
 };
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_adapter};

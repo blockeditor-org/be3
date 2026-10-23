@@ -7,15 +7,12 @@ use beui_core::app::automation::keys::typed;
 fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
     let mut events = Vec::new();
     typed("aB!é", Modifiers::default(), &mut events);
-    let pressed: Vec<(Key, bool, Option<u32>, Option<String>)> = events
-        .iter()
-        .filter_map(|event| match event {
-            Event::Key { press, code, text } if press.pressed => {
-                Some((press.key, press.modifiers.shift, *code, text.clone()))
-            }
-            _ => None,
-        })
-        .collect();
+    let pressed: Vec<(Key, bool, Option<u32>, Option<String>)> =
+        strokes(&events, Modifiers::default())
+            .into_iter()
+            .filter(|stroke| stroke.1)
+            .map(|(key, _, shift, code, text)| (key, shift, code, text))
+            .collect();
     let code = |code: u32| cfg!(target_os = "linux").then_some(code);
     assert_eq!(
         pressed,
@@ -31,7 +28,7 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
     );
     assert_eq!(
         events.last(),
-        Some(&Event::Text("é".to_owned())),
+        Some(&Input::Text("é".to_owned())),
         "a character no key makes arrives as text"
     );
 
@@ -41,12 +38,9 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
         ..Modifiers::default()
     };
     typed("a", shift, &mut held);
-    let shifts: Vec<(Key, bool, bool)> = held
-        .iter()
-        .filter_map(|event| match event {
-            Event::Key { press, .. } => Some((press.key, press.pressed, press.modifiers.shift)),
-            _ => None,
-        })
+    let shifts: Vec<(Key, bool, bool)> = strokes(&held, shift)
+        .into_iter()
+        .map(|(key, pressed, shift, _, _)| (key, pressed, shift))
         .collect();
     assert_eq!(
         shifts,
@@ -76,4 +70,32 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
         changed.contains("value=\"Hi, Ada! (é) {x}\""),
         "the field reads what was typed, keys and text alike:\n{changed}"
     );
+}
+
+type Stroke = (Key, bool, bool, Option<u32>, Option<String>);
+
+fn strokes(events: &[Input], held: Modifiers) -> Vec<Stroke> {
+    let mut shift = held.shift;
+    events
+        .iter()
+        .filter_map(|event| match event {
+            Input::Modifiers(modifiers) => {
+                shift = modifiers.shift;
+                None
+            }
+            Input::Key(Keystroke {
+                key: Some(key),
+                pressed,
+                code,
+                text,
+                ..
+            }) => {
+                if *key == Key::Shift {
+                    shift = *pressed;
+                }
+                Some((*key, *pressed, shift, *code, text.clone()))
+            }
+            _ => None,
+        })
+        .collect()
 }

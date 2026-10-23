@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Event, Pen, PenPhase, PointerButton, Pos2};
+use block_editor_beui::beui::{Input, Pen, PenPhase, PointerButton, Pos2};
 
 fn grid(count: usize) -> Vec<CanvasEntity> {
     (0..count)
@@ -17,7 +17,7 @@ fn grid(count: usize) -> Vec<CanvasEntity> {
 }
 
 fn pen(editor: &mut BeuiTest<CanvasApp>, phase: PenPhase, pos: Pos2) -> (usize, usize) {
-    editor.step(vec![Event::Pen {
+    editor.step(vec![Input::Pen {
         phase,
         pos,
         pressure: 0.5,

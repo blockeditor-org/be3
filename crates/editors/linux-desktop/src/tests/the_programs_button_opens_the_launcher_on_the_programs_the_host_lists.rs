@@ -25,13 +25,13 @@ fn the_programs_button_opens_the_launcher_on_the_programs_the_host_lists() {
     assert!(fixture.test.shown("launcher.item.files.desktop"));
     fixture.test.snapshot("the_program_launcher");
 
-    fixture.test.text("shell");
+    fixture.test.type_text("shell");
     fixture.settle();
     assert!(
         !fixture.test.shown("launcher.item.files.desktop"),
         "searching narrows the programs by their keywords"
     );
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<ProgramAction>(),

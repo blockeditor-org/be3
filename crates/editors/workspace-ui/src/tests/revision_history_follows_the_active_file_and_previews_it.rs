@@ -41,7 +41,7 @@ fn revision_history_follows_the_active_file_and_previews_it() {
         .snapshot("revision_history_lists_the_active_files_revisions");
     fixture
         .test
-        .click(&format!("workspace.revision.{}", "01".repeat(32)));
+        .click(format!("workspace.revision.{}", "01".repeat(32)));
     fixture.settle();
     let request = fixture
         .test

@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::InputSettingsContent;
 use block_editor_beui::be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{EditorHost, HostInputDevice, InputDevices, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -36,22 +36,22 @@ fn content(editor: &BeuiTest<InputSettingsApp>) -> InputSettingsContent {
 }
 
 fn reset(editor: &mut BeuiTest<InputSettingsApp>, row: &str) {
-    editor.click(&format!("{row}.menu"));
+    editor.click(format!("{row}.menu"));
     editor.run();
-    editor.click(&format!("{row}.reset"));
+    editor.click(format!("{row}.reset"));
     editor.run();
 }
 
 fn choose_pointer(editor: &mut BeuiTest<InputSettingsApp>, index: usize) {
     editor.click("input.pointer");
     editor.run();
-    editor.key_press(Key::Home);
+    editor.key(Key::Home, Modifiers::NONE);
     editor.run();
     for _ in 0..index {
-        editor.key_press(Key::ArrowDown);
+        editor.key(Key::ArrowDown, Modifiers::NONE);
         editor.run();
     }
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
 }
 

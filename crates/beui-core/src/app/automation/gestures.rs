@@ -1,13 +1,13 @@
 use crate::geometry::{Pos2, Vec2, vec2};
 use crate::input::{
-    BackEdge, BackGesture, Event, ImeEvent, Key, Modifiers, Pen, PenPhase, PointerButton, TouchId,
-    TouchPhase,
+    BackEdge, BackGesture, ImeEvent, Input, Key, Modifiers, Pen, PenPhase, PointerButton,
+    ScrollDelta, TouchId, TouchPhase,
 };
 use crate::runner::SCROLL_LINE as WHEEL_LINE;
 
 use super::keys;
 
-pub type Frames = Vec<Vec<Event>>;
+pub type Frames = Vec<Vec<Input>>;
 
 const GESTURE_STEPS: usize = 4;
 const PINCH_SPAN: f32 = 100.0;
@@ -39,7 +39,7 @@ impl Gestures {
         let mut frames = self.arrive(at);
         frames.extend((0..count).map(|_| {
             vec![
-                Event::PointerMoved(at),
+                Input::PointerMoved(at),
                 self.button(at, button, true),
                 self.button(at, button, false),
             ]
@@ -50,18 +50,18 @@ impl Gestures {
     pub fn hover(&mut self, at: Pos2) -> Frames {
         self.pointer = at;
         self.hovering = true;
-        vec![vec![Event::PointerMoved(at)]]
+        vec![vec![Input::PointerMoved(at)]]
     }
 
     pub fn leave(&mut self) -> Frames {
         self.hovering = false;
-        vec![vec![Event::PointerGone]]
+        vec![vec![Input::PointerLeft]]
     }
 
     pub fn down(&mut self, at: Pos2, button: PointerButton) -> Frames {
         let mut frames = self.arrive(at);
         self.buttons.push(button);
-        frames.push(vec![Event::PointerMoved(at), self.button(at, button, true)]);
+        frames.push(vec![Input::PointerMoved(at), self.button(at, button, true)]);
         frames
     }
 
@@ -71,7 +71,7 @@ impl Gestures {
         self.hovering = true;
         self.buttons.retain(|held| *held != button);
         vec![vec![
-            Event::PointerMoved(at),
+            Input::PointerMoved(at),
             self.button(at, button, false),
         ]]
     }
@@ -80,16 +80,16 @@ impl Gestures {
         let mut frames = self.arrive(from);
         self.pointer = to;
         frames.push(vec![
-            Event::PointerMoved(from),
+            Input::PointerMoved(from),
             self.button(from, PointerButton::Primary, true),
         ]);
         for step in 1..steps.max(1) {
-            frames.push(vec![Event::PointerMoved(
+            frames.push(vec![Input::PointerMoved(
                 from + (to - from) * (step as f32 / steps as f32),
             )]);
         }
         frames.push(vec![
-            Event::PointerMoved(to),
+            Input::PointerMoved(to),
             self.button(to, PointerButton::Primary, false),
         ]);
         frames
@@ -105,8 +105,8 @@ impl Gestures {
                     false => 0.0,
                 };
                 vec![
-                    Event::PointerMoved(at),
-                    Event::Scroll(vec2(along(right), along(down))),
+                    Input::PointerMoved(at),
+                    Input::Scroll(ScrollDelta::Pixels(vec2(along(right), along(down)))),
                 ]
             })
             .collect()
@@ -116,7 +116,7 @@ impl Gestures {
         self.pointer = at;
         let step = factor.powf(1.0 / GESTURE_STEPS as f32);
         (0..GESTURE_STEPS)
-            .map(|_| vec![Event::PointerMoved(at), Event::Zoom(step)])
+            .map(|_| vec![Input::PointerMoved(at), Input::Zoom(step)])
             .collect()
     }
 
@@ -141,9 +141,9 @@ impl Gestures {
     pub fn scroll(&mut self, at: Pos2, by: Vec2) -> Frames {
         self.pointer = at;
         vec![vec![
-            Event::PointerMoved(at),
-            Event::Scroll(-by),
-            Event::ScrollEnded,
+            Input::PointerMoved(at),
+            Input::Scroll(ScrollDelta::Pixels(-by)),
+            Input::ScrollEnded,
         ]]
     }
 
@@ -284,7 +284,7 @@ impl Gestures {
             PenPhase::Up(_) => Some((pos, false)),
             PenPhase::Move => Some((pos, self.pen.is_some_and(|(_, down)| down))),
         };
-        vec![vec![Event::Pen {
+        vec![vec![Input::Pen {
             phase,
             pos,
             pressure,
@@ -313,9 +313,9 @@ impl Gestures {
         self.start_back(BackEdge::Left, &mut events);
         let mut frames = vec![events];
         for progress in [0.5, 1.0] {
-            frames.push(vec![Event::Back(BackGesture::Progressed(progress))]);
+            frames.push(vec![Input::Back(BackGesture::Progressed(progress))]);
         }
-        frames.push(vec![Event::Back(BackGesture::Invoked)]);
+        frames.push(vec![Input::Back(BackGesture::Invoked)]);
         self.back = None;
         frames
     }
@@ -333,7 +333,7 @@ impl Gestures {
         let mut events = Vec::new();
         self.start_back(BackEdge::Left, &mut events);
         self.back = Some(progress);
-        events.push(Event::Back(BackGesture::Progressed(progress)));
+        events.push(Input::Back(BackGesture::Progressed(progress)));
         vec![events]
     }
 
@@ -341,7 +341,7 @@ impl Gestures {
         if self.back.take().is_none() {
             return Err("no back gesture is under way".to_owned());
         }
-        Ok(vec![vec![Event::Back(match commit {
+        Ok(vec![vec![Input::Back(match commit {
             true => BackGesture::Invoked,
             false => BackGesture::Cancelled,
         })]])
@@ -388,22 +388,22 @@ impl Gestures {
     pub fn compose(&mut self, text: String) -> Frames {
         let mut events = self.enable_ime();
         self.composing = Some(text.clone());
-        events.push(Event::Ime(ImeEvent::SetComposingText(text)));
+        events.push(Input::Ime(ImeEvent::SetComposingText(text)));
         vec![events]
     }
 
     pub fn commit(&mut self, text: Option<String>) -> Frames {
         let mut events = self.enable_ime();
         let composed = self.composing.take().unwrap_or_default();
-        events.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
-        events.push(Event::Ime(ImeEvent::CommitText(text.unwrap_or(composed))));
+        events.push(Input::Ime(ImeEvent::SetComposingText(String::new())));
+        events.push(Input::Ime(ImeEvent::CommitText(text.unwrap_or(composed))));
         vec![events]
     }
 
     pub fn cancel_composing(&mut self) -> Frames {
         let mut events = self.enable_ime();
         self.composing = None;
-        events.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
+        events.push(Input::Ime(ImeEvent::SetComposingText(String::new())));
         vec![events]
     }
 
@@ -413,36 +413,35 @@ impl Gestures {
         self.hovering = true;
         match arrived {
             true => Vec::new(),
-            false => vec![vec![Event::PointerMoved(at)]],
+            false => vec![vec![Input::PointerMoved(at)]],
         }
     }
 
-    pub(crate) fn button(&self, pos: Pos2, button: PointerButton, pressed: bool) -> Event {
-        Event::PointerButton {
+    pub(crate) fn button(&self, pos: Pos2, button: PointerButton, pressed: bool) -> Input {
+        Input::PointerButton {
             pos,
             button,
             pressed,
-            modifiers: self.held,
         }
     }
 
-    fn enable_ime(&mut self) -> Vec<Event> {
+    fn enable_ime(&mut self) -> Vec<Input> {
         match std::mem::replace(&mut self.ime, true) {
             true => Vec::new(),
-            false => vec![Event::Ime(ImeEvent::Enabled)],
+            false => vec![Input::Ime(ImeEvent::Enabled)],
         }
     }
 
-    fn start_back(&mut self, edge: BackEdge, events: &mut Vec<Event>) {
+    fn start_back(&mut self, edge: BackEdge, events: &mut Vec<Input>) {
         if self.back.is_none() {
             self.back = Some(0.0);
-            events.push(Event::Back(BackGesture::Started { edge }));
+            events.push(Input::Back(BackGesture::Started { edge }));
         }
     }
 }
 
-fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Event {
-    Event::Pen {
+fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Input {
+    Input::Pen {
         phase,
         pos,
         pressure,
@@ -450,8 +449,8 @@ fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Event {
     }
 }
 
-fn touch(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
-    Event::Touch {
+fn touch(finger: u64, phase: TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
         id: TouchId { device: 0, finger },
         phase,
         pos,

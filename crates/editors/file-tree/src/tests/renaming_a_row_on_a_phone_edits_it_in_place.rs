@@ -13,7 +13,7 @@ fn renaming_a_row_on_a_phone_edits_it_in_place() {
     fixture.settle();
     let field = format!("file-tree.{notes}.rename");
 
-    fixture.test.click(&format!("file-tree.{notes}.more"));
+    fixture.test.click(format!("file-tree.{notes}.more"));
     fixture.settle();
     fixture.click_item("Rename");
     fixture.test.settle();
@@ -32,9 +32,9 @@ fn renaming_a_row_on_a_phone_edits_it_in_place() {
     fixture
         .test
         .snapshot("renaming_a_row_on_a_phone_edits_it_in_place");
-    fixture.test.text("Plans");
+    fixture.test.type_text("Plans");
     fixture.settle();
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
         fixture.test.take_renames(),

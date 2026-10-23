@@ -2,7 +2,12 @@ use super::*;
 use crate::styled::*;
 
 fn keyboard(output: &crate::FrameOutput) -> Option<Keyboard> {
-    output.window.ime.as_ref().map(|area| area.keyboard)
+    output
+        .window
+        .requests
+        .ime
+        .as_ref()
+        .map(|area| area.keyboard)
 }
 
 #[test]

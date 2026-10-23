@@ -260,7 +260,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde: `Key`, `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
+| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, and its evdev code, `Key::evdev`), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform adapter, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -303,9 +303,11 @@ hooks the higher crates fill in:
   `beui_core::runner::Runner::frame`, shared by all of them: it runs the
   app, publishes accessibility, and tells the adapter's `Platform` (another
   trait object) what the app asked of the window. Everything the window
-  shows for the app is one `beui_core::window::WindowState` (the cursor,
-  pointer lock, back handling, wanting the keyboard, intercepted keys, the
-  paste kinds the focus takes, the IME area, and `typed`), which the
+  shows for the app is one `beui_core::window::WindowState`: its `requests`
+  (`ui_types::WindowRequests`: the cursor, pointer lock, back handling, wanting
+  the keyboard, intercepted keys, the paste kinds the focus takes, the IME
+  area and keyboard toggles, the same type a plugin sends its host), `typed`
+  and `appearance`, which the
   `Context` fills during a frame and `FrameOutput::window` carries. While
   `Context::touch_emulation` is on its cursor is `CursorIcon::Touch`
   whatever the app asked: a finger-sized circle, defined once in
@@ -366,20 +368,26 @@ hooks the higher crates fill in:
   platform implements only what it has.
   A new platform implements those two traits and hands its window or element
   to the renderer loader the facade gives it.
-- An adapter only translates: it hands `Runner::push` a `runner::Input`, which
-  is an `Event` with its positions and deltas in physical pixels, a
-  `Keystroke` (the key, its text and scancode, with no modifiers), a
-  `ScrollDelta` in pixels, lines (`SCROLL_LINE` points) or pages
-  (`SCROLL_PAGE`), or a `Pinch` (a Ctrl-wheel, as a `ScrollDelta`, which
-  becomes `Event::Zoom` at `PINCH_SPEED` per point). A trackpad's two-finger
+- An adapter only translates: it hands `Runner::push` an `Incoming`, which is
+  a `ui_types::Input` with its positions and deltas in physical pixels
+  (`Incoming::from`), in the window's logical pixels (`Incoming::logical`) or
+  in points (`Incoming::points`), or `Incoming::Time`, below. An `Input` is
+  what any platform reports: pointer moves and buttons, a `Keystroke` (the
+  key, its text and scancode, with no modifiers), a `ScrollDelta` in pixels,
+  lines (`SCROLL_LINE` points) or pages (`SCROLL_PAGE`), touches, pen samples,
+  text, IME edits, a paste, file drops, the modifiers held and the window's
+  focus. The runner's intake is the one place it becomes `Event`s, and drive's
+  gestures, the on-screen keyboard and typed pastes push `Input` there too, so
+  they are normalized as a window's input is. A trackpad's two-finger
   scroll is a scroll and its pinch an `Event::Zoom` on every platform: winit's
   `PinchGesture`, and in the browser a Ctrl-wheel (how Chrome and Firefox
-  report a pinch) or Safari's `gesturechange`, whose scale over the last one's
+  report a pinch, which the web adapter turns into `Input::Zoom` at
+  `PINCH_SPEED` per pixel) or Safari's `gesturechange`, whose scale over the last one's
   is the factor; the web adapter ignores a gesture while fingers are down,
   since those touches pinch already, and prevents the default of all of them
   so the browser never zooms the page. Fingers touching a trackpad push
-  `Event::ScrollStarted` and lifting them `Event::ScrollEnded`; a plugin's host
-  forwards them as `InputEvent::WheelStarted` and `WheelEnded`. Between the two,
+  `Input::ScrollStarted` and lifting them `Input::ScrollEnded`, which a plugin's
+  host forwards unchanged. Between the two,
   `ScrollGesture::held` is set and a `Scroll` follows the fingers as a touch drag
   does, stretching past an end; the lift springs it back, or flings it at the
   speed of its last samples and bands it if that carries it past an end. A wheel
@@ -392,15 +400,15 @@ hooks the higher crates fill in:
   own: the web adapter pushes each of a `pointermove`'s
   `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
   per sample, so a stroke keeps every point the device reported between two
-  frames. After a pressed move it pushes `Event::Predicted` with the last of
+  frames. After a pressed move it pushes `Input::Predicted` with the last of
   `getPredictedEvents()`, where the pointer is expected to be by the next
   frame; the runner attaches it to the move just before it as
   `PointerEvent::predicted`, and the drag it makes carries it as
   `PointerPress::predicted`. A prediction is only good until the next sample
   replaces it, so a component draws it as a transient tail (the canvas's pen
   tool does) and never keeps it; the other platforms report none, and a
-  plugin's host forwards it as `InputEvent::Predicted`. Each sample also has
-  the time it happened: an adapter pushes `Event::Time(Instant)` just after
+  plugin's host forwards it too. Each sample also has
+  the time it happened: an adapter pushes `Incoming::Time(Instant)` just after
   the event it stamps, and the runner gives it to that event's
   `PointerEvent::time`, the session it moves and the `PointerPress::time` its
   catchers hear (touch fling velocity is measured with it too). The web
@@ -414,12 +422,12 @@ hooks the higher crates fill in:
   where a host would otherwise coalesce them: `Document::wants_every_sample`
   is true while one is in the document, and a plugin reports it to its host
   (`FrameReport::every_sample`). Within beui itself every sample always reaches
-  `on_drag`. `Input::logical` wraps
-  any of them whose pixels are the window's logical ones (physical pixels
+  `on_drag`. `Incoming::logical` marks
+  input whose pixels are the window's logical ones (physical pixels
   over the scale it last reported: the browser's CSS pixels), so the runner
   converts them with the same scale the frame lays out at and no adapter
   reads its scale at event time. Text is passed as the platform gives it;
-  the runner drops control characters. It may send `Event::Modifiers` on every event; the runner
+  the runner drops control characters. It may send `Input::Modifiers` on every event; the runner
   passes it on only when it changes. At the start of each frame the runner
   turns its input into points. It stamps keys, pointer buttons and
   intercepted keys with the modifiers held, and drops a held modifier's
@@ -2228,7 +2236,7 @@ keyboard binds.
 
 Beui does not hold the pointer itself - it asks. `PointerLock` sets
 `pointer_locked` on its `Interactive`, the document publishes whether any
-`Interactive` in it asks as `WindowState::pointer_locked`, and whoever is showing the document does
+`Interactive` in it asks as `WindowRequests::pointer_locked`, and whoever is showing the document does
 it: the winit runner locks the cursor and hides it, and a plugin region passes
 it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). An
 adapter reads raw motion only while `Runner::window()`, the state it was
@@ -2563,7 +2571,7 @@ It is three pieces:
 
 There is one way to ask for an on-screen keyboard whatever shows it:
 `toggle_keyboard()` (or `Context::toggle_keyboard`) counts up
-`WindowState::keyboard_toggles`. Where beui's keyboard is enabled it opens it
+`WindowRequests::keyboard_toggles`. Where beui's keyboard is enabled it opens it
 until it is closed; otherwise the platform answers the change in
 `Platform::show_window`: Android shows or hides its keyboard, the web focuses
 or blurs its hidden textarea, and a plugin passes it to its host as
@@ -2576,11 +2584,11 @@ it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
 `asks` changes, and closes when the focus leaves for something that types
 nothing. Its close button (`close_keyboard()`) closes it until a field asks
 again, so tapping a field brings it back. Its keys reach the app as a keyboard
-would: the engine makes `Event::Key`s with evdev codes and real modifier
+would: the engine makes `Input::Key`s with evdev codes and real modifier
 presses (`beui_core::app::automation::keys`, which `drive type` and `drive key`
-use too) and `Event::Text` for what no key types, `Context::type_events` puts
-them in `FrameOutput::typed`, and the runner feeds them back in as the next
-frame's input, so a beui field, a plugin and a Wayland program all take them
+use too) and `Input::Text` for what no key types, `Context::type_events` puts
+them in `FrameOutput::typed`, and the runner pushes them as the next frame's
+input, so a beui field, a plugin and a Wayland program all take them
 the same way. Paste as plain text asks for a `PasteRequest::Typed`, whose
 answer the runner types out key by key. The Inputs page of beui-demo shows it in place, and the
 inspector's Sim tab has a button that opens it over the inspected app.

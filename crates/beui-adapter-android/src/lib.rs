@@ -31,12 +31,12 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Keyboard, Modifiers, Pen,
-    PenPhase, PointerButton, TouchId, TouchPhase,
+    BackEdge, BackGesture, ImeArea, ImeEvent, ImeText, Input, Key, Keyboard, Keystroke, Modifiers,
+    Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
+use beui_core::runner::{Adapter, Incoming, Launch, Platform, Running};
 use beui_core::window::{SystemBars, WindowState};
 use clipboard::Clipboard;
 
@@ -250,19 +250,19 @@ impl Platform for AndroidPlatform {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
-        if window.handles_back != shown.handles_back {
-            self.set_back_handled(window.handles_back);
+        if window.requests.handles_back != shown.requests.handles_back {
+            self.set_back_handled(window.requests.handles_back);
         }
-        self.sync_ime(window.ime.as_ref());
-        let asked = shown.ime.as_ref().map(|area| area.keyboard);
-        let wanted = window.ime.as_ref().map(|area| area.keyboard);
+        self.sync_ime(window.requests.ime.as_ref());
+        let asked = shown.requests.ime.as_ref().map(|area| area.keyboard);
+        let wanted = window.requests.ime.as_ref().map(|area| area.keyboard);
         match wanted {
             Some(Keyboard::Shown { .. }) if wanted != asked => self.set_keyboard(true),
             Some(Keyboard::Shown { .. }) => {}
             _ if asked.is_some_and(Keyboard::shown) => self.set_keyboard(false),
             _ => {}
         }
-        if window.keyboard_toggles != shown.keyboard_toggles {
+        if window.requests.keyboard_toggles != shown.requests.keyboard_toggles {
             self.set_keyboard(!self.keyboard_shown.get());
         }
     }
@@ -514,15 +514,16 @@ impl Runner {
                 platform.sent_ime = None;
                 platform.light_bars = None;
                 let window = self.runner.window();
-                platform.sync_ime(window.ime.as_ref());
+                platform.sync_ime(window.requests.ime.as_ref());
                 if window
+                    .requests
                     .ime
                     .as_ref()
                     .is_some_and(|area| area.keyboard.shown())
                 {
                     platform.set_keyboard(true);
                 }
-                if window.handles_back {
+                if window.requests.handles_back {
                     platform.set_back_handled(true);
                 }
             }
@@ -547,7 +548,7 @@ impl Runner {
                 self.runner.reports().system_preferences(preferences);
                 self.redraw = true;
             }
-            Message::Focus(focused) => self.runner.push(Event::Focus(focused)),
+            Message::Focus(focused) => self.runner.push(Input::Focus(focused)),
             Message::Touch {
                 device,
                 id,
@@ -558,7 +559,7 @@ impl Runner {
                 at,
             } => {
                 let pos = pos2(x, y);
-                self.runner.push(Event::Touch {
+                self.runner.push(Input::Touch {
                     id: TouchId {
                         device: u64::from(device.cast_unsigned()),
                         finger: u64::from(id.cast_unsigned()),
@@ -567,7 +568,7 @@ impl Runner {
                     pos,
                     force: Some(force),
                 });
-                self.runner.push(Event::Time(at));
+                self.runner.push(Incoming::Time(at));
             }
             Message::Pen {
                 phase,
@@ -577,13 +578,13 @@ impl Runner {
                 pen,
                 at,
             } => {
-                self.runner.push(Event::Pen {
+                self.runner.push(Input::Pen {
                     phase,
                     pos: pos2(x, y),
                     pressure,
                     pen,
                 });
-                self.runner.push(Event::Time(at));
+                self.runner.push(Incoming::Time(at));
             }
             Message::Scroll(delta) => self.runner.push(ScrollDelta::Lines(delta)),
             Message::Key {
@@ -593,7 +594,7 @@ impl Runner {
                 modifiers,
                 text,
             } => {
-                self.runner.push(Event::Modifiers(modifiers));
+                self.runner.push(Input::Modifiers(modifiers));
                 self.runner.push(Keystroke {
                     key,
                     pressed,
@@ -604,9 +605,9 @@ impl Runner {
             }
             Message::Ime { event, serial } => {
                 self.platform.ime_serial = self.platform.ime_serial.max(serial);
-                self.runner.push(Event::Ime(event));
+                self.runner.push(Input::Ime(event));
             }
-            Message::Back(gesture) => self.runner.push(Event::Back(gesture)),
+            Message::Back(gesture) => self.runner.push(Input::Back(gesture)),
             Message::InitialTreeRequested => {
                 self.runner.accessibility_requested();
                 self.redraw = true;

@@ -6,7 +6,7 @@ fn typing_a_layout_stores_it() {
 
     editor.click("input.layout");
     editor.run();
-    editor.text("de");
+    editor.type_text("de");
     editor.run();
 
     assert_eq!(

@@ -34,7 +34,7 @@ fn the_wifi_popup_asks_the_host_to_connect() {
         "a protected network asks for its password first"
     );
     assert!(fixture.test.shown("desktop.wifi.network.Flat.password"));
-    fixture.test.text("hunter2");
+    fixture.test.type_text("hunter2");
     fixture.settle();
     fixture.test.click("desktop.wifi.network.Flat.connect");
     fixture.settle();
@@ -44,8 +44,8 @@ fn the_wifi_popup_asks_the_host_to_connect() {
     );
     fixture.test.click("desktop.wifi.network.Flat.password");
     fixture.settle();
-    fixture.test.text("2");
-    fixture.test.key_press(Key::Enter);
+    fixture.test.type_text("2");
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<WifiRequest>(),

@@ -36,7 +36,7 @@ pub(crate) struct KeyboardState {
     pressed: Vec<PointerId>,
     elsewhere: Vec<PointerId>,
     owns: bool,
-    typed: Vec<Event>,
+    typed: Vec<crate::input::Input>,
 }
 
 impl Default for KeyboardState {
@@ -95,11 +95,11 @@ impl KeyboardState {
         self.rect
     }
 
-    pub(crate) fn type_events(&mut self, events: impl IntoIterator<Item = Event>) {
+    pub(crate) fn type_events(&mut self, events: impl IntoIterator<Item = crate::input::Input>) {
         self.typed.extend(events);
     }
 
-    pub(crate) fn take_typed(&mut self) -> Vec<Event> {
+    pub(crate) fn take_typed(&mut self) -> Vec<crate::input::Input> {
         std::mem::take(&mut self.typed)
     }
 

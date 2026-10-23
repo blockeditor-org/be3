@@ -38,7 +38,7 @@ fn the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files() {
 
     fixture.test.click("file-tree.system.chevron");
     fixture.settle();
-    fixture.test.click(&format!("file-tree.{mine}.chevron"));
+    fixture.test.click(format!("file-tree.{mine}.chevron"));
     fixture.settle();
     fixture
         .host
@@ -57,7 +57,7 @@ fn the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files() {
         .test
         .snapshot("the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files");
 
-    fixture.test.click(&format!("file-tree.{mine}.row"));
+    fixture.test.click(format!("file-tree.{mine}.row"));
     fixture.settle();
     assert_eq!(
         fixture.opened(),

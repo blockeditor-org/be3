@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Key, pos2};
+use block_editor_beui::beui::{Key, Modifiers, pos2};
 
 #[test]
 fn text_is_edited_where_it_is_drawn() {
@@ -13,7 +13,7 @@ fn text_is_edited_where_it_is_drawn() {
     let resting = editor.rect_of(&field);
     let node = editor.document().find_test_id(&field);
 
-    editor.double_click_at(pos2(resting.right() - 2.0, resting.center().y));
+    editor.double_click(pos2(resting.right() - 2.0, resting.center().y));
     editor.run();
     assert_eq!(
         editor.document().find_test_id(&field),
@@ -22,12 +22,12 @@ fn text_is_edited_where_it_is_drawn() {
     );
     assert_eq!(editor.rect_of(&field), resting, "nothing moves to edit");
 
-    editor.text("!");
+    editor.type_text("!");
     editor.run();
     editor.snapshot("editing");
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
-    editor.text("?");
+    editor.type_text("?");
     editor.run();
 
     assert_eq!(
