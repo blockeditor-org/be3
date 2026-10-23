@@ -59,13 +59,10 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
     }
     editor.snapshot("turned_text_is_drawn_turned_as_it_is_exported");
 
-    editor.key_press_modifiers(
-        Modifiers {
+    editor.key(Key::A, Modifiers {
             ctrl: true,
             ..Modifiers::NONE
-        },
-        Key::A,
-    );
+        });
     editor.run();
     palette_runs(&mut editor, "copy as svg");
     let copied = editor.take_copied_text();

@@ -11,15 +11,15 @@ fn holding_a_square_and_drawing_with_another_finger_draws_an_arrow() {
     let f3 = editor.rect_of("game.tile.5.5").center();
     editor.take_view_changes();
 
-    editor.finger(1, TouchPhase::Start, held);
+    editor.fingers(TouchPhase::Start, &[(1, held)]);
     editor.run();
-    editor.finger(2, TouchPhase::Start, g1);
+    editor.fingers(TouchPhase::Start, &[(2, g1)]);
     editor.run();
-    editor.finger(2, TouchPhase::Move, f3);
+    editor.fingers(TouchPhase::Move, &[(2, f3)]);
     editor.run();
-    editor.finger(2, TouchPhase::End, f3);
+    editor.fingers(TouchPhase::End, &[(2, f3)]);
     editor.run();
-    editor.finger(1, TouchPhase::End, held);
+    editor.fingers(TouchPhase::End, &[(1, held)]);
     editor.run();
 
     assert!(moves(&editor).is_empty());

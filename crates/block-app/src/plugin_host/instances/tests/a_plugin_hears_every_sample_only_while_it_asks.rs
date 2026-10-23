@@ -17,7 +17,7 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
         input_events(messages)
             .iter()
             .filter_map(|event| match event {
-                InputEvent::PointerMoved { x, .. } => Some(*x),
+                Input::PointerMoved(pos) => Some(pos.x),
                 _ => None,
             })
             .collect()

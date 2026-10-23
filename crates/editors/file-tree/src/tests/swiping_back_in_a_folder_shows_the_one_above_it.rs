@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::{BlockContent, FolderContent};
-use block_editor_beui::beui::{BackEdge, BackGesture, Event};
+use block_editor_beui::beui::{BackEdge, BackGesture, Input};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;
@@ -37,12 +37,12 @@ fn swiping_back_in_a_folder_shows_the_one_above_it() {
     assert!(!fixture.test.shown(&format!("file-tree.{notes}.row")));
 
     fixture.test.step(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
-    fixture.test.step(vec![Event::Back(BackGesture::Invoked)]);
+    fixture.test.step(vec![Input::Back(BackGesture::Invoked)]);
     fixture.test.settle();
     assert!(
         fixture.test.shown(&format!("file-tree.{notes}.row")),

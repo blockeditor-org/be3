@@ -206,7 +206,7 @@ pub struct FrameOutput {
     pub hits: Option<Vec<String>>,
     pub comps: Option<Vec<String>>,
     pub overflows: Vec<String>,
-    pub typed: Vec<Event>,
+    pub typed: Vec<crate::input::Input>,
     pixels_per_point: f32,
 }
 
@@ -686,11 +686,11 @@ impl Context {
     }
 
     pub fn set_ime_area(&self, area: Option<ImeArea>) {
-        self.inner.window.borrow_mut().ime = area;
+        self.inner.window.borrow_mut().requests.ime = area;
     }
 
     pub fn ime_area(&self) -> Option<ImeArea> {
-        self.inner.window.borrow().ime.clone()
+        self.inner.window.borrow().requests.ime.clone()
     }
 
     pub fn set_fullscreen(&self, fullscreen: bool) {
@@ -712,18 +712,18 @@ impl Context {
     }
 
     pub fn handle_back(&self) {
-        self.inner.window.borrow_mut().handles_back = true;
+        self.inner.window.borrow_mut().requests.handles_back = true;
     }
 
     pub fn want_keyboard(&self) {
-        self.inner.window.borrow_mut().wants_keyboard = true;
+        self.inner.window.borrow_mut().requests.wants_keyboard = true;
     }
 
     pub fn intercept_keys(&self, chords: &[KeyChord]) {
         let mut window = self.inner.window.borrow_mut();
         for chord in chords {
-            if !window.intercepted_keys.contains(chord) {
-                window.intercepted_keys.push(*chord);
+            if !window.requests.intercepted_keys.contains(chord) {
+                window.requests.intercepted_keys.push(*chord);
             }
         }
     }
@@ -757,7 +757,7 @@ impl Context {
     }
 
     pub fn accept_pastes(&self, kinds: &[PasteKind]) {
-        self.inner.window.borrow_mut().paste_kinds = kinds.to_vec();
+        self.inner.window.borrow_mut().requests.pastes = kinds.to_vec();
     }
 
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
@@ -786,18 +786,18 @@ impl Context {
 
     pub fn set_pointer_locked(&self, locked: bool) {
         let changed =
-            std::mem::replace(&mut self.inner.window.borrow_mut().pointer_locked, locked) != locked;
+            std::mem::replace(&mut self.inner.window.borrow_mut().requests.pointer_locked, locked) != locked;
         if changed {
             self.request_repaint();
         }
     }
 
     pub fn pointer_locked(&self) -> bool {
-        self.inner.window.borrow().pointer_locked
+        self.inner.window.borrow().requests.pointer_locked
     }
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
-        self.inner.window.borrow_mut().cursor = cursor_icon;
+        self.inner.window.borrow_mut().requests.cursor = cursor_icon;
     }
 
     pub fn set_appearance(&self, appearance: &Appearance) {
@@ -808,14 +808,14 @@ impl Context {
     }
 
     pub fn cursor_icon(&self) -> CursorIcon {
-        self.inner.window.borrow().cursor
+        self.inner.window.borrow().requests.cursor
     }
 
     fn shown_window(&self) -> WindowState {
         let mut window = self.inner.window.borrow().clone();
-        window.keyboard_toggles = self.inner.keyboard.borrow().toggles();
+        window.requests.keyboard_toggles = self.inner.keyboard.borrow().toggles();
         if self.touch_emulation() {
-            window.cursor = CursorIcon::Touch;
+            window.requests.cursor = CursorIcon::Touch;
         }
         window
     }
@@ -888,7 +888,7 @@ impl Context {
         self.inner.keyboard.borrow().rect()
     }
 
-    pub fn type_events(&self, events: impl IntoIterator<Item = Event>) {
+    pub fn type_events(&self, events: impl IntoIterator<Item = crate::input::Input>) {
         self.inner.keyboard.borrow_mut().type_events(events);
         self.request_repaint();
     }
@@ -1300,12 +1300,12 @@ impl Context {
         let damage = self.inner.damage.borrow().len();
         let moves = self.inner.moves.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
-        let ime = self.inner.window.borrow_mut().ime.take();
+        let ime = self.inner.window.borrow_mut().requests.ime.take();
         let result = self.grouping(layers, content);
         self.unmove(moves);
-        let scaled_ime = std::mem::replace(&mut self.inner.window.borrow_mut().ime, ime);
+        let scaled_ime = std::mem::replace(&mut self.inner.window.borrow_mut().requests.ime, ime);
         if let Some(area) = scaled_ime {
-            self.inner.window.borrow_mut().ime = Some(ImeArea {
+            self.inner.window.borrow_mut().requests.ime = Some(ImeArea {
                 rect: area.rect.scaled(scale),
                 cursor: area.cursor.scaled(scale),
                 ..area

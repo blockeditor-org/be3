@@ -8,7 +8,7 @@ struct Window(Vec<Option<Rect>>);
 
 impl Platform for Window {
     fn show_window(&mut self, window: &WindowState, _shown: &WindowState) {
-        self.0.push(window.ime.as_ref().map(|area| area.cursor));
+        self.0.push(window.requests.ime.as_ref().map(|area| area.cursor));
     }
 }
 

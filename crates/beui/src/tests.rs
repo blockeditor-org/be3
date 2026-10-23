@@ -848,7 +848,7 @@ use std::rc::Rc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Pos2, Vec2, pos2, vec2};
-use crate::input::{Event, Key, Modifiers, PointerButton, RawInput};
+use crate::input::{Event, Input, Key, Modifiers, PointerButton, RawInput};
 use crate::input::{TouchId, TouchPhase};
 
 use crate::base::frame::FrameNode;
@@ -2431,7 +2431,7 @@ impl Intaken {
     pub(crate) fn frame(
         &mut self,
         pixels_per_point: f32,
-        inputs: impl IntoIterator<Item = beui_core::runner::Input>,
+        inputs: impl IntoIterator<Item = beui_core::runner::Incoming>,
     ) -> Vec<Event> {
         self.runner.reports().scaled(pixels_per_point);
         for input in inputs {

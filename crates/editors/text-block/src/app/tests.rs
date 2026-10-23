@@ -1,3 +1,4 @@
+use block_editor_beui::beui::Modifiers;
 use beui::Key;
 use block_editor_beui::PeerPresence;
 use block_editor_beui::be_block::block_url::block_url;
@@ -79,10 +80,10 @@ const ORGANIZATION_ID: Uuid = Uuid::from_u128(0x7a20_a314_e4aa_4ca7_b7ae_d68c_32
 fn caret_at(editor: &mut BeuiTest<TextApp>, index: usize) {
     editor.click("text.surface");
     editor.run();
-    editor.key_press(Key::Home);
+    editor.key(Key::Home, Modifiers::NONE);
     editor.run();
     for _ in 0..index {
-        editor.key_press(Key::ArrowRight);
+        editor.key(Key::ArrowRight, Modifiers::NONE);
         editor.run();
     }
 }

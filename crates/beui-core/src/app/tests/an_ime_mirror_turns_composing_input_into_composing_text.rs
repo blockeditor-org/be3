@@ -1,6 +1,5 @@
-use super::*;
 use crate::app::ime_mirror::{ImeInput, ImeMirror};
-use crate::input::{ImeEvent, ImeText};
+use crate::input::{ImeEvent, ImeText, Input};
 
 #[test]
 fn an_ime_mirror_turns_composing_input_into_composing_text() {
@@ -31,10 +30,10 @@ fn an_ime_mirror_turns_composing_input_into_composing_text() {
     assert_eq!(
         events,
         vec![
-            Event::Ime(ImeEvent::SetComposingText("h".to_owned())),
-            Event::Ime(ImeEvent::SetComposingText("he".to_owned())),
-            Event::Ime(ImeEvent::SetComposingText("你".to_owned())),
-            Event::Ime(ImeEvent::FinishComposing),
+            Input::Ime(ImeEvent::SetComposingText("h".to_owned())),
+            Input::Ime(ImeEvent::SetComposingText("he".to_owned())),
+            Input::Ime(ImeEvent::SetComposingText("你".to_owned())),
+            Input::Ime(ImeEvent::FinishComposing),
         ]
     );
 }

@@ -6,15 +6,15 @@ use std::time::{Duration, Instant};
 use super::gestures::Gestures;
 use super::target::{describe, locate, node, point, scaled};
 use super::window::{Resize, WindowSize};
-use super::{Capture, Inbox, Reply, Request, changes, keys};
+use super::{Capture, Inbox, Reply, Request, changes};
 use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::Keyboard;
-use crate::input::{BackEdge, DroppedFile, Event, PointerButton, TouchPhase};
-use crate::runner::Platform;
+use crate::input::{BackEdge, DroppedFile, Input, Key, PointerButton, TouchPhase};
+use crate::runner::{Incoming, Platform};
 use crate::window::WindowState;
 
 const CHANGES: usize = 60;
@@ -116,7 +116,7 @@ pub struct View<'a> {
 }
 
 pub struct World<'a> {
-    pub events: &'a mut Vec<Event>,
+    pub events: &'a mut Vec<Incoming>,
     pub platform: &'a mut dyn Platform,
     pub context: &'a Context,
 }
@@ -130,7 +130,7 @@ pub struct Settled {
 
 enum Phase {
     Input {
-        steps: VecDeque<Vec<Event>>,
+        steps: VecDeque<Vec<Input>>,
         before: String,
         then: Option<Box<Phase>>,
     },
@@ -227,7 +227,9 @@ impl Automation {
             && let Some(active) = self.active.take()
             && let Phase::Input { steps, .. } = active.phase
         {
-            world.events.extend(steps.into_iter().flatten());
+            world
+                .events
+                .extend(steps.into_iter().flatten().map(Incoming::points));
         }
         while self.active.is_none() {
             let Some(request) = self.inbox.take() else {
@@ -293,11 +295,11 @@ impl Automation {
             && let Some(step) = steps.pop_front()
         {
             for event in &step {
-                if let Event::Focus(focused) = event {
+                if let Input::Focus(focused) = event {
                     self.focused = *focused;
                 }
             }
-            world.events.extend(step);
+            world.events.extend(step.into_iter().map(Incoming::points));
         }
     }
 
@@ -581,7 +583,7 @@ impl Automation {
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
         let at = |target: &str| point(target, view.lines, view.pixels_per_point);
-        let input = |steps: Vec<Vec<Event>>| {
+        let input = |steps: Vec<Vec<Input>>| {
             Ok(Started::Phase(Phase::Input {
                 steps: steps.into(),
                 before: view.tree.to_owned(),
@@ -821,7 +823,7 @@ impl Automation {
                 }
                 let mut events = Vec::new();
                 for name in arguments {
-                    let key = keys::named(name)
+                    let key = Key::from_name(name)
                         .ok_or_else(|| format!("{name:?} is not a key beui knows"))?;
                     events.extend(self.gestures.key(key, pressed)?.into_iter().flatten());
                 }
@@ -840,7 +842,7 @@ impl Automation {
                 };
                 input(frames)
             }
-            "focus" | "blur" => input(vec![vec![Event::Focus(command == "focus")]]),
+            "focus" | "blur" => input(vec![vec![Input::Focus(command == "focus")]]),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(
@@ -918,8 +920,8 @@ impl Automation {
                     })
                     .collect();
                 input(vec![vec![
-                    Event::PointerMoved(self.gestures.pointer),
-                    Event::FileHovered,
+                    Input::PointerMoved(self.gestures.pointer),
+                    Input::FileHovered,
                 ]])
             }
             "drop" => {
@@ -931,15 +933,15 @@ impl Automation {
                 }
                 let files = std::mem::take(&mut self.grabbed);
                 input(vec![
-                    vec![Event::PointerMoved(self.gestures.pointer)],
-                    files.into_iter().map(Event::FileDropped).collect(),
+                    vec![Input::PointerMoved(self.gestures.pointer)],
+                    files.into_iter().map(Input::FileDropped).collect(),
                 ])
             }
             "ungrab" => {
                 if std::mem::take(&mut self.grabbed).is_empty() {
                     return Err("nothing is grabbed".to_owned());
                 }
-                input(vec![vec![Event::FileHoverCancelled]])
+                input(vec![vec![Input::FileHoverCancelled]])
             }
             "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
             "close" => {
@@ -1080,7 +1082,7 @@ impl Automation {
             yes(view.fullscreen),
             yes(self.focused),
         ));
-        text.push_str(&format!("cursor {:?}\n", view.window.cursor));
+        text.push_str(&format!("cursor {:?}\n", view.window.requests.cursor));
         let held: Vec<String> = self
             .gestures
             .buttons
@@ -1129,7 +1131,7 @@ impl Automation {
         if !keys.is_empty() {
             text.push_str(&format!("keys down {}\n", keys.join(", ")));
         }
-        match (&self.gestures.composing, view.window.ime.as_ref()) {
+        match (&self.gestures.composing, view.window.requests.ime.as_ref()) {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
             (None, Some(area)) => text.push_str(&format!(
                 "the app asks for an input method, its caret {}, {}\n",
@@ -1156,8 +1158,8 @@ impl Automation {
         }
         text.push_str(&format!(
             "wants the keyboard {}, pointer locked {}\n",
-            yes(view.window.wants_keyboard),
-            yes(view.window.pointer_locked)
+            yes(view.window.requests.wants_keyboard),
+            yes(view.window.requests.pointer_locked)
         ));
         for (pick, _) in &self.picks {
             let filter = &pick.filter;

@@ -8,11 +8,11 @@ fn a_short_finger_stroke_keeps_every_point() {
     editor.click("infinite-canvas.dock.tool.Pen");
     editor.run();
     let from = editor.rect_of("infinite-canvas.canvas").center();
-    editor.finger(1, TouchPhase::Start, from);
-    editor.finger(1, TouchPhase::Move, from + Vec2::new(3.0, 0.0));
+    editor.fingers(TouchPhase::Start, &[(1, from)]);
+    editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(3.0, 0.0))]);
     editor.run();
-    editor.finger(1, TouchPhase::Move, from + Vec2::new(3.0, 3.0));
-    editor.finger(1, TouchPhase::End, from + Vec2::new(3.0, 3.0));
+    editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(3.0, 3.0))]);
+    editor.fingers(TouchPhase::End, &[(1, from + Vec2::new(3.0, 3.0))]);
     editor.run();
 
     let entities = entities(&editor);

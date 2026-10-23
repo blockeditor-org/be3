@@ -1,6 +1,5 @@
-use super::*;
 use crate::app::ime_mirror::{ImeInput, ImeMirror};
-use crate::input::{ImeEvent, ImeText};
+use crate::input::{ImeEvent, ImeText, Input};
 
 #[test]
 fn an_ime_mirror_turns_a_backspace_into_a_surrounding_delete() {
@@ -25,7 +24,7 @@ fn an_ime_mirror_turns_a_backspace_into_a_surrounding_delete() {
 
     assert_eq!(
         events,
-        vec![Event::Ime(ImeEvent::DeleteSurrounding {
+        vec![Input::Ime(ImeEvent::DeleteSurrounding {
             before: 2,
             after: 0,
         })]

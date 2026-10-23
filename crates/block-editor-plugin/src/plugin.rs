@@ -2,7 +2,7 @@ use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
-use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent, KeyChord};
+use block_plugin_api::{EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowRequests};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -49,7 +49,7 @@ pub trait Instance: std::any::Any {
         false
     }
 
-    fn input(&mut self, region: &Region, event: &InputEvent);
+    fn input(&mut self, region: &Region, event: &TimedInput);
 
     fn run_action(&mut self, _region: &Region, _id: &str) {}
 
@@ -116,30 +116,10 @@ pub struct Frame {
     pub stopped: Option<block_plugin_api::Stopped>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct WindowRequests {
-    pub cursor: CursorIcon,
-    pub pointer_locked: bool,
-    pub ime: Option<Ime>,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub pastes: Vec<block_plugin_api::PasteKind>,
-    pub keyboard_toggles: u32,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Claim {
     pub modifiers: block_plugin_api::Modifiers,
     pub rect: Rect,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Ime {
-    pub rect: Rect,
-    pub cursor: Rect,
-    pub text: Option<block_plugin_api::ImeText>,
-    pub keyboard: block_plugin_api::Keyboard,
 }
 
 #[cfg(target_arch = "wasm32")]

@@ -1,4 +1,4 @@
-use beui::{Event, Input, Key, Keystroke, Modifiers};
+use beui::{Input, Key, Keystroke, Modifiers};
 use smithay::input::keyboard::{keysyms, xkb};
 
 use super::input::InputConfig;
@@ -59,7 +59,7 @@ impl Keyboard {
         };
         if modifiers != self.modifiers {
             self.modifiers = modifiers;
-            out.inputs.push(Event::Modifiers(modifiers).into());
+            out.inputs.push(Input::Modifiers(modifiers));
         }
         let held = self.modifiers;
         if pressed {

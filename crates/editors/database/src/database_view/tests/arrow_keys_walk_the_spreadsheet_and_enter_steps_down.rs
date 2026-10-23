@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
@@ -21,7 +22,7 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
         "A1"
     );
 
-    fixture.harness.key_press(Key::ArrowDown);
+    fixture.harness.key(Key::ArrowDown, Modifiers::NONE);
     fixture.settle();
 
     assert_eq!(
@@ -30,7 +31,7 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
         "the down arrow must move the selection rather than scroll"
     );
 
-    fixture.harness.key_press(Key::ArrowRight);
+    fixture.harness.key(Key::ArrowRight, Modifiers::NONE);
     fixture.settle();
 
     assert_eq!(
@@ -43,7 +44,7 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
         fixture.fields[1]
     ));
     fixture.settle();
-    fixture.harness.key_press(Key::Enter);
+    fixture.harness.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
 
     assert_eq!(

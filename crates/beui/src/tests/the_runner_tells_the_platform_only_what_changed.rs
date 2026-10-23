@@ -24,9 +24,9 @@ impl Platform for Recording {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
-        if window.cursor != shown.cursor {
+        if window.requests.cursor != shown.requests.cursor {
             self.0
-                .update(|log| log.push(format!("cursor {:?}", window.cursor)));
+                .update(|log| log.push(format!("cursor {:?}", window.requests.cursor)));
         }
     }
 }

@@ -21,5 +21,5 @@ fn hovering_a_text_input_shows_the_text_cursor() {
 
     let output = harness.frame(vec![Event::PointerMoved(text.center())]);
 
-    assert_eq!(output.window.cursor, CursorIcon::Text);
+    assert_eq!(output.window.requests.cursor, CursorIcon::Text);
 }

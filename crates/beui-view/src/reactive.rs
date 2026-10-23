@@ -87,7 +87,7 @@ pub fn request_paste() {
     with_document(Document::request_paste);
 }
 
-pub fn type_events(events: Vec<beui_core::input::Event>) {
+pub fn type_events(events: Vec<beui_core::input::Input>) {
     with_document(|document| {
         if let Some(context) = document.context() {
             context.type_events(events);

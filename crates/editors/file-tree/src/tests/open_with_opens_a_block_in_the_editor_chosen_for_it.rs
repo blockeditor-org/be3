@@ -49,7 +49,7 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
         .root()
         .and_then(|root| open_item(document, root, "Debug view", false))
         .expect("Open with offers every editor of the block's type");
-    fixture.test.click_at(item);
+    fixture.test.click(item);
     fixture.settle();
 
     let opens = fixture.test.take_opens();

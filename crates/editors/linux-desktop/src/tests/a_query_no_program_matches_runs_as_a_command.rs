@@ -7,10 +7,10 @@ fn a_query_no_program_matches_runs_as_a_command() {
     fixture.test.set_host_value::<Programs>(&programs());
     fixture.test.click("desktop.launcher");
     fixture.settle();
-    fixture.test.text("weston-simple-shm");
+    fixture.test.type_text("weston-simple-shm");
     fixture.settle();
     assert!(fixture.test.shown("launcher.run"));
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<ProgramAction>().last(),

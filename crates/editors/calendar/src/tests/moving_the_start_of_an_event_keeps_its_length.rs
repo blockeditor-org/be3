@@ -1,4 +1,4 @@
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 
 use super::*;
 
@@ -10,13 +10,13 @@ fn moving_the_start_of_an_event_keeps_its_length() {
     calendar.run();
     calendar.editor.click("calendar.form.title");
     calendar.run();
-    calendar.editor.text("Stand up");
+    calendar.editor.type_text("Stand up");
     calendar.run();
     for _ in 0..4 {
-        calendar.editor.key_press(Key::Tab);
+        calendar.editor.key(Key::Tab, Modifiers::NONE);
         calendar.run();
     }
-    calendar.editor.key_press(Key::ArrowUp);
+    calendar.editor.key(Key::ArrowUp, Modifiers::NONE);
     calendar.run();
     calendar.editor.click("calendar.form.confirm");
     calendar.run();

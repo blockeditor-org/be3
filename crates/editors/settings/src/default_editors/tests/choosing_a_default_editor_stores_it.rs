@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::EditorSettingsContent;
 use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
 
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -45,13 +45,13 @@ fn choosing_a_default_editor_stores_it() {
     let choose = |editor: &mut BeuiTest<DefaultEditorsApp>, index: usize| {
         editor.click(&picker);
         editor.run();
-        editor.key_press(Key::Home);
+        editor.key(Key::Home, Modifiers::NONE);
         editor.run();
         for _ in 0..index {
-            editor.key_press(Key::ArrowDown);
+            editor.key(Key::ArrowDown, Modifiers::NONE);
             editor.run();
         }
-        editor.key_press(Key::Enter);
+        editor.key(Key::Enter, Modifiers::NONE);
         editor.run();
     };
     let stored = |editor: &BeuiTest<DefaultEditorsApp>| {

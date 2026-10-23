@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn clicking_the_scene_grabs_the_cursor_and_escape_releases_it() {
@@ -10,7 +11,7 @@ fn clicking_the_scene_grabs_the_cursor_and_escape_releases_it() {
     editor.run();
     assert!(editor.pointer_locked());
 
-    editor.key_press(beui::Key::Escape);
+    editor.key(beui::Key::Escape, Modifiers::NONE);
     editor.run();
     assert!(!editor.pointer_locked());
 }

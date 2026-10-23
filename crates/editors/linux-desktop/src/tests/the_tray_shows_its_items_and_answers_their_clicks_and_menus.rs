@@ -117,9 +117,9 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     fixture.settle();
     fixture
         .test
-        .click_button(&item(CHAT), PointerButton::Middle);
+        .click_with(&item(CHAT), PointerButton::Middle);
     fixture.settle();
-    fixture.test.scroll(&item(CHAT), Vec2::new(0.0, 40.0));
+    fixture.test.scroll(&item(CHAT), Vec2::new(0.0, -40.0));
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<TrayRequest>(),
@@ -138,7 +138,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
 
     fixture
         .test
-        .click_button(&item(CHAT), PointerButton::Secondary);
+        .click_with(&item(CHAT), PointerButton::Secondary);
     fixture.settle();
     fixture.test.settle();
     assert!(
@@ -174,7 +174,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     fixture.settle();
     fixture
         .test
-        .click_button(&item(SYNC), PointerButton::Secondary);
+        .click_with(&item(SYNC), PointerButton::Secondary);
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<TrayRequest>(),

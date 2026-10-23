@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn presenting_hides_the_filmstrip_and_the_toolbar() {
@@ -25,7 +26,7 @@ fn presenting_hides_the_filmstrip_and_the_toolbar() {
     test.run();
     assert_eq!(detail(&test, "presentation.playback.position"), "1 / 3");
 
-    test.key_press(Key::ArrowRight);
+    test.key(Key::ArrowRight, Modifiers::NONE);
     test.run();
     assert_eq!(detail(&test, "presentation.playback.position"), "2 / 3");
 }

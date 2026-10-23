@@ -10,11 +10,13 @@ use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
+use beui_core::runner::{Adapter, Incoming, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
 use beui_core::window::WindowState;
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
-use block_editor_plugin::{DescribedAction, Description, EditorHost, Frame, InputEvent, Region};
+use block_editor_plugin::{
+    DescribedAction, Description, EditorHost, Frame, Input, Region, TimedInput,
+};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
@@ -110,30 +112,28 @@ impl PluginSurface {
         self.runner.context().request_action(id.to_owned());
     }
 
-    pub fn input(&mut self, region: &Region, event: &InputEvent) {
-        match event {
-            InputEvent::Focus(false) if self.pressed > 0 => {
+    pub fn input(&mut self, region: &Region, event: &TimedInput) {
+        match event.input {
+            Input::Focus(false) if self.pressed > 0 => {
                 self.blurred = true;
                 return;
             }
-            InputEvent::Focus(true) => self.blurred = false,
-            InputEvent::PointerButton { pressed: true, .. } => {
+            Input::Focus(true) => self.blurred = false,
+            Input::PointerButton { pressed: true, .. } => {
                 self.pressed = self.pressed.saturating_add(1);
             }
-            InputEvent::PointerButton { pressed: false, .. } => {
+            Input::PointerButton { pressed: false, .. } => {
                 self.pressed = self.pressed.saturating_sub(1);
             }
-            InputEvent::PointerLeft => self.pressed = 0,
+            Input::PointerLeft => self.pressed = 0,
             _ => {}
         }
         self.runner.push(input::translate(region, event));
         if let Some(at) = input::time(event) {
-            self.runner.push(beui_core::input::Event::Time(at));
+            self.runner.push(Incoming::Time(at));
         }
         if self.pressed == 0 && std::mem::take(&mut self.blurred) {
-            self.runner.push(beui_core::runner::Input::from(
-                beui_core::input::Event::Focus(false),
-            ));
+            self.runner.push(Input::Focus(false));
         }
     }
 
@@ -301,21 +301,7 @@ fn frame_for(
         drawing: Vec::new(),
         every_sample: false,
         claims: Vec::new(),
-        window: block_editor_plugin::WindowRequests {
-            cursor: window.cursor,
-            pointer_locked: window.pointer_locked,
-            ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
-                rect: area.rect,
-                cursor: area.cursor,
-                text: area.text.clone(),
-                keyboard: area.keyboard,
-            }),
-            handles_back: window.handles_back,
-            wants_keyboard: window.wants_keyboard,
-            intercepted_keys: window.intercepted_keys.clone(),
-            pastes: window.paste_kinds.clone(),
-            keyboard_toggles: window.keyboard_toggles,
-        },
+        window: window.requests.clone(),
         description,
         stopped: None,
     }

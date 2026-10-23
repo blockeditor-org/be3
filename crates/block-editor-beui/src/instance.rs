@@ -11,7 +11,7 @@ use block_editor_plugin::{
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
-use block_plugin_api::InputEvent;
+use block_plugin_api::TimedInput;
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
@@ -504,7 +504,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         }
     }
 
-    fn input(&mut self, region: &Region, event: &InputEvent) {
+    fn input(&mut self, region: &Region, event: &TimedInput) {
         self.surface(region.region).input(region, event);
     }
 

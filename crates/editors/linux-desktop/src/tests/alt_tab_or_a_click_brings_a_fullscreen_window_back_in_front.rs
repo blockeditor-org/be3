@@ -87,7 +87,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
     fixture.test.take_sent();
     fixture
         .test
-        .click_at(pos2(SCREEN.width - 10.0, SCREEN.height - 10.0));
+        .click(pos2(SCREEN.width - 10.0, SCREEN.height - 10.0));
     fixture.settle();
     assert_eq!(
         fixture.focused_windows(),

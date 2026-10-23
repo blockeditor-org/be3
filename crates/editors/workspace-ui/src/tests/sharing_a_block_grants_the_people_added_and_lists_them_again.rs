@@ -1,4 +1,4 @@
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{
     AccessGrant, AccessLevel, AccessListing, HostReply, HostRequest, ShellDialog,
 };
@@ -57,8 +57,8 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
 
     fixture.test.click("share.query");
     fixture.settle();
-    fixture.test.text("fri");
-    fixture.test.key_press(Key::Enter);
+    fixture.test.type_text("fri");
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     fixture.test.click("share.add");
     fixture.settle();

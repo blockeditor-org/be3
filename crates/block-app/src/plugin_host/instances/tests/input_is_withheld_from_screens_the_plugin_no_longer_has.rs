@@ -13,11 +13,11 @@ fn input_is_withheld_from_screens_the_plugin_no_longer_has() {
         REGION,
         &forwarded(vec![beui::Forwarded::Focus(true)], None, true),
     );
-    assert_eq!(input_events(&messages), [InputEvent::Focus(true)]);
+    assert_eq!(input_events(&messages), [Input::Focus(true)]);
     let messages = instances.back(INSTANCE, REGION, beui::BackGesture::Invoked);
     assert_eq!(
         input_events(&messages),
-        [InputEvent::Back(BackGesture::Invoked)]
+        [Input::Back(BackGesture::Invoked)]
     );
 
     instances.screen_set(Vec::new());

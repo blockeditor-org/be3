@@ -24,11 +24,11 @@ fn a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place() {
     editor.pen(PenPhase::Move, left, 0.5);
     editor.run();
     editor.pen(PenPhase::Up(PointerButton::Primary), left, 0.5);
-    editor.finger(1, TouchPhase::Start, left);
+    editor.fingers(TouchPhase::Start, &[(1, left)]);
     editor.run();
-    editor.finger(1, TouchPhase::Move, right);
+    editor.fingers(TouchPhase::Move, &[(1, right)]);
     editor.run();
-    editor.finger(1, TouchPhase::End, right);
+    editor.fingers(TouchPhase::End, &[(1, right)]);
     editor.run();
     assert_eq!(
         entities(&editor)[0].transform,
@@ -39,7 +39,7 @@ fn a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place() {
     editor.advance(Duration::from_secs(1));
     editor.drag(left, right);
     editor.run();
-    editor.text("Bye");
+    editor.type_text("Bye");
     editor.run();
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),

@@ -27,7 +27,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
         harness
             .frame(Vec::new())
             .window
-            .ime
+            .requests.ime
             .and_then(|area| area.text),
         Some(ImeText {
             start: 0,
@@ -45,7 +45,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
 
     assert_eq!(String::from_utf8_lossy(&state.bytes()), "say hello ");
     assert_eq!(
-        after.window.ime.and_then(|area| area.text),
+        after.window.requests.ime.and_then(|area| area.text),
         Some(ImeText {
             start: 0,
             text: "say hello ".to_owned(),

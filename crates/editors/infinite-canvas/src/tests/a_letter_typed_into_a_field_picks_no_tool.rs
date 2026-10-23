@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::{Key, Modifiers, Vec2};
 
 #[test]
 fn a_letter_typed_into_a_field_picks_no_tool() {
@@ -10,10 +10,10 @@ fn a_letter_typed_into_a_field_picks_no_tool() {
     editor.run();
     editor.click("infinite-canvas.transform.x");
     editor.run();
-    editor.key_press(Key::R);
-    editor.text("r");
+    editor.key(Key::R, Modifiers::NONE);
+    editor.type_text("r");
     editor.run();
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
 
     let canvas = editor.rect_of("infinite-canvas.canvas");

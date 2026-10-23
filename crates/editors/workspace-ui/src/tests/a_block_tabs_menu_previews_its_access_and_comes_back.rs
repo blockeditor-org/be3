@@ -9,7 +9,7 @@ fn choose(fixture: &mut Fixture, words: &str) {
         .node_rect(row)
         .expect("the row is laid out")
         .center();
-    fixture.test.click_at(at);
+    fixture.test.click(at);
     fixture.settle();
 }
 

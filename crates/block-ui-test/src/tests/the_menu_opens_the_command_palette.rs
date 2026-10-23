@@ -1,3 +1,4 @@
+use block_editor_beui::beui::Modifiers;
 use beui::Vec2;
 use beui::styled::Root;
 
@@ -37,9 +38,9 @@ fn the_menu_opens_the_command_palette() {
     test.pick_menu("editor.palette");
     assert!(test.shown("command-palette.search"));
 
-    test.text("tidy");
+    test.type_text("tidy");
     test.run();
-    test.key_press(beui::Key::Enter);
+    test.key(beui::Key::Enter, Modifiers::NONE);
     test.run();
     let node = test
         .document()

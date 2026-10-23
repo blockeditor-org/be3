@@ -13,7 +13,7 @@ fn a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place() {
     let field = format!("infinite-canvas.text.{}", note.id);
     let rect = editor.rect_of(&field);
 
-    editor.double_click_at(pos2(rect.right() - 2.0, rect.center().y));
+    editor.double_click(pos2(rect.right() - 2.0, rect.center().y));
     editor.run();
     assert_eq!(
         entities(&editor)[0].transform,
@@ -31,7 +31,7 @@ fn a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place() {
         note.transform,
         "a drag in the text being edited leaves it where it is"
     );
-    editor.text("Hi there");
+    editor.type_text("Hi there");
     editor.run();
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),
@@ -41,9 +41,9 @@ fn a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place() {
 
     let rect = editor.rect_of(&field);
     editor.advance(Duration::from_secs(1));
-    editor.double_click_at(pos2(rect.left() + 12.0, rect.center().y));
+    editor.double_click(pos2(rect.left() + 12.0, rect.center().y));
     editor.run();
-    editor.text("you");
+    editor.type_text("you");
     editor.run();
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),
@@ -54,10 +54,10 @@ fn a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place() {
     let rect = editor.rect_of(&field);
     editor.advance(Duration::from_secs(1));
     for _ in 0..3 {
-        editor.click_at(pos2(rect.left() + 4.0, rect.center().y));
+        editor.click(pos2(rect.left() + 4.0, rect.center().y));
     }
     editor.run();
-    editor.text("All");
+    editor.type_text("All");
     editor.run();
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),
@@ -66,9 +66,9 @@ fn a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place() {
     );
 
     editor.advance(Duration::from_secs(1));
-    editor.click_at(rect.center() + Vec2::new(0.0, 200.0));
+    editor.click(rect.center() + Vec2::new(0.0, 200.0));
     editor.run();
-    editor.text("?");
+    editor.type_text("?");
     editor.run();
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),

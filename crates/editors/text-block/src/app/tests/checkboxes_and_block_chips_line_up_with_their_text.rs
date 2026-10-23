@@ -1,3 +1,4 @@
+use block_editor_beui::beui::Modifiers;
 use super::{
     BeuiTest, EditorHost, Key, ORGANIZATION_ID, OwnedEditor, TextApp, TextBlock, Uuid, block_url,
 };
@@ -25,7 +26,7 @@ fn checkboxes_and_block_chips_line_up_with_their_text() {
         .into_iter()
         .chain([Key::ArrowRight; 3])
     {
-        editor.key_press(key);
+        editor.key(key, Modifiers::NONE);
         editor.run();
     }
     editor.record();

@@ -1,6 +1,9 @@
 use std::ops::Range;
 
+use geometry::{Pos2, Vec2};
 use serde::{Deserialize, Serialize};
+
+use crate::clipboard::Pasted;
 
 mod names;
 
@@ -549,3 +552,109 @@ impl CursorIcon {
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+pub struct TouchId {
+    pub device: u64,
+    pub finger: u64,
+}
+
+#[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
+pub struct Pen {
+    pub tilt: Vec2,
+    pub eraser: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Keystroke {
+    pub key: Option<Key>,
+    pub pressed: bool,
+    pub repeat: bool,
+    pub code: Option<u32>,
+    pub text: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ScrollDelta {
+    Pixels(Vec2),
+    Lines(Vec2),
+    Pages(Vec2),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct DroppedFile {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum Input {
+    Focus(bool),
+    Modifiers(Modifiers),
+    Key(Keystroke),
+    Text(String),
+    Paste(Pasted),
+    Ime(ImeEvent),
+    PointerMoved(Pos2),
+    PointerLeft,
+    PointerMotion(Vec2),
+    PointerButton {
+        pos: Pos2,
+        button: PointerButton,
+        pressed: bool,
+    },
+    ScrollStarted,
+    Scroll(ScrollDelta),
+    ScrollEnded,
+    Zoom(f32),
+    Touch {
+        id: TouchId,
+        phase: TouchPhase,
+        pos: Pos2,
+        force: Option<f32>,
+    },
+    Pen {
+        phase: PenPhase,
+        pos: Pos2,
+        pressure: f32,
+        pen: Pen,
+    },
+    Predicted(Pos2),
+    Back(BackGesture),
+    InterceptedKey {
+        key: Key,
+        pressed: bool,
+        repeat: bool,
+    },
+    InterceptedTap(Key),
+    FileHovered,
+    FileHoverCancelled,
+    FileDropped(DroppedFile),
+}
+
+impl Input {
+    pub fn translated(mut self, by: Vec2) -> Self {
+        match &mut self {
+            Self::PointerMoved(pos)
+            | Self::Predicted(pos)
+            | Self::PointerButton { pos, .. }
+            | Self::Touch { pos, .. }
+            | Self::Pen { pos, .. } => *pos += by,
+            _ => {}
+        }
+        self
+    }
+}
+
+impl From<Keystroke> for Input {
+    fn from(stroke: Keystroke) -> Self {
+        Self::Key(stroke)
+    }
+}
+
+impl From<ScrollDelta> for Input {
+    fn from(delta: ScrollDelta) -> Self {
+        Self::Scroll(delta)
+    }
+}

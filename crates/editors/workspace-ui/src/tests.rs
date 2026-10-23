@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
-use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
+use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
 use block_editor_beui::{
     BlockParent, ChildContent, EditorHost, HostWindows, OwnedEditor, WindowAction,
 };
@@ -110,7 +110,7 @@ impl Fixture {
             .node_rect(node)
             .expect("the text is laid out")
             .center();
-        self.test.click_at(center);
+        self.test.click(center);
         self.settle();
     }
 
@@ -125,11 +125,11 @@ impl Fixture {
             .expect("the tab is laid out")
             .center();
         self.test.step(vec![
-            block_editor_beui::beui::Event::PointerMoved(at),
-            block_editor_beui::beui::Event::Scroll(Vec2::new(-200.0, 0.0)),
+            block_editor_beui::beui::Input::PointerMoved(at),
+            block_editor_beui::beui::Input::Scroll(ScrollDelta::Pixels(Vec2::new(-200.0, 0.0))),
         ]);
         self.test
-            .step(vec![block_editor_beui::beui::Event::ScrollEnded]);
+            .step(vec![block_editor_beui::beui::Input::ScrollEnded]);
         self.settle();
         self.click_text("History");
     }
@@ -144,7 +144,7 @@ impl Fixture {
             .first()
             .copied()
             .expect("an open tab can be closed");
-        self.test.click_at(cross.center());
+        self.test.click(cross.center());
         self.settle();
     }
 

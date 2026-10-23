@@ -85,9 +85,9 @@ fn a_workspace_header_adds_into_that_workspace() {
         fixture.test.click(&format!("file-tree.{files}.chevron"));
         fixture.settle();
     }
-    fixture.test.key_press(Key::Tab);
+    fixture.test.key(Key::Tab, Modifiers::NONE);
     fixture.settle();
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     let asked = fixture.test.take_requests();
     assert!(

@@ -1,3 +1,4 @@
+use block_editor_beui::beui::TouchPhase;
 use beui::Vec2;
 use block_editor_beui::be_block::TextBlock;
 use block_editor_beui::{EditorHost, OwnedEditor};
@@ -21,8 +22,8 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     assert!(!editor.shown("text.format.bold"));
 
     let surface = editor.point_of("text.surface");
-    editor.touch_start(surface);
-    editor.touch_end(surface);
+    editor.fingers(TouchPhase::Start, &[(1, surface)]);
+    editor.fingers(TouchPhase::End, &[(1, surface)]);
     editor.run();
     assert!(editor.shown("text.format.done"));
     assert!(editor.shown("text.format.bold"));

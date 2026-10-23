@@ -28,7 +28,7 @@ fn a_row_scrolled_into_a_reused_line_opens_the_row_it_shows() {
         let top = (0..ROWS)
             .find(|index| fixture.harness.shown(&line(*index)))
             .unwrap();
-        fixture.harness.scroll(&line(top), Vec2::new(0.0, -300.0));
+        fixture.harness.scroll(&line(top), Vec2::new(0.0, 300.0));
         fixture.settle();
     }
 

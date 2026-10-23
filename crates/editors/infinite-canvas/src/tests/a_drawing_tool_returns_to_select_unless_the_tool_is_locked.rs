@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::{Key, Modifiers, Vec2};
 
 #[test]
 fn a_drawing_tool_returns_to_select_unless_the_tool_is_locked() {
@@ -33,7 +33,7 @@ fn a_drawing_tool_returns_to_select_unless_the_tool_is_locked() {
     );
     editor.snapshot("a_drawing_tool_returns_to_select_unless_the_tool_is_locked");
 
-    editor.key_press(Key::Q);
+    editor.key(Key::Q, Modifiers::NONE);
     editor.run();
     assert_eq!(draw(&mut editor, at(2.0, 1.0)), 4);
     assert_eq!(

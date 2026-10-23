@@ -12,7 +12,7 @@ fn selected_row_string_edit_updates_the_database() {
     fixture
         .harness
         .click(&format!("database-view.cell-editor.field.{field_id}"));
-    fixture.harness.text("alpha");
+    fixture.harness.type_text("alpha");
     fixture.run();
 
     assert_eq!(

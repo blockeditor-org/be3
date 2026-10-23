@@ -1,5 +1,6 @@
 use crate::{
-    DecodeError, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES, Message,
+    DecodeError, HelloAccepted, Input, InputBatch, MAX_QUEUED_MESSAGES, Message, ScrollDelta,
+    TimedInput,
     REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport, decode_frame,
 };
 use std::collections::{HashMap, VecDeque};
@@ -289,14 +290,15 @@ impl InputBatch {
         }
     }
 
-    pub fn push(&mut self, event: InputEvent) {
+    pub fn push(&mut self, event: impl Into<TimedInput>) {
+        let event = event.into();
         if let Some(last) = self.events.last_mut()
-            && coalesce_input(last, &event)
+            && coalesce_input(&mut last.input, &event.input)
         {
             return;
         }
         if !self.every_sample
-            && let Some(mover) = mover(&event)
+            && let Some(mover) = mover(&event.input)
         {
             self.drop_move_of(mover);
         }
@@ -304,20 +306,29 @@ impl InputBatch {
     }
 
     fn drop_move_of(&mut self, pointer: Mover) {
+        let predicted = |event: Option<&TimedInput>| {
+            matches!(
+                event,
+                Some(TimedInput {
+                    input: Input::Predicted(_),
+                    ..
+                })
+            )
+        };
         for index in (0..self.events.len()).rev() {
-            match &self.events[index] {
-                InputEvent::Predicted { .. } => {}
-                event => match mover(event) {
-                    Some(held) if held == pointer => {
+            if predicted(self.events.get(index)) {
+                continue;
+            }
+            match mover(&self.events[index].input) {
+                Some(held) if held == pointer => {
+                    self.events.remove(index);
+                    if predicted(self.events.get(index)) {
                         self.events.remove(index);
-                        if matches!(self.events.get(index), Some(InputEvent::Predicted { .. })) {
-                            self.events.remove(index);
-                        }
-                        return;
                     }
-                    Some(_) => {}
-                    None => return,
-                },
+                    return;
+                }
+                Some(_) => {}
+                None => return,
             }
         }
     }
@@ -326,20 +337,19 @@ impl InputBatch {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mover {
     Mouse,
-    Finger(u64, u64),
+    Finger(crate::TouchId),
     Pen,
 }
 
-fn mover(event: &InputEvent) -> Option<Mover> {
-    match event {
-        InputEvent::PointerMoved { .. } => Some(Mover::Mouse),
-        InputEvent::Touch {
-            device,
-            finger,
+fn mover(input: &Input) -> Option<Mover> {
+    match input {
+        Input::PointerMoved(_) => Some(Mover::Mouse),
+        Input::Touch {
+            id,
             phase: crate::TouchPhase::Move,
             ..
-        } => Some(Mover::Finger(*device, *finger)),
-        InputEvent::Pen {
+        } => Some(Mover::Finger(*id)),
+        Input::Pen {
             phase: crate::PenPhase::Move,
             ..
         } => Some(Mover::Pen),
@@ -347,29 +357,22 @@ fn mover(event: &InputEvent) -> Option<Mover> {
     }
 }
 
-fn coalesce_input(current: &mut InputEvent, incoming: &InputEvent) -> bool {
+fn coalesce_input(current: &mut Input, incoming: &Input) -> bool {
     match (current, incoming) {
-        (
-            InputEvent::Wheel { x, y, unit },
-            InputEvent::Wheel {
-                x: new_x,
-                y: new_y,
-                unit: new_unit,
-            },
-        ) if unit == new_unit => {
-            *x += new_x;
-            *y += new_y;
-            true
-        }
-        (InputEvent::Zoom { factor }, InputEvent::Zoom { factor: incoming }) => {
+        (Input::Scroll(current), Input::Scroll(incoming)) => match (current, incoming) {
+            (ScrollDelta::Pixels(current), ScrollDelta::Pixels(incoming))
+            | (ScrollDelta::Lines(current), ScrollDelta::Lines(incoming))
+            | (ScrollDelta::Pages(current), ScrollDelta::Pages(incoming)) => {
+                *current += *incoming;
+                true
+            }
+            _ => false,
+        },
+        (Input::Zoom(factor), Input::Zoom(incoming)) => {
             *factor *= incoming;
             true
         }
-        (InputEvent::Modifiers(current), InputEvent::Modifiers(incoming))
-            if current == incoming =>
-        {
-            true
-        }
+        (Input::Modifiers(current), Input::Modifiers(incoming)) if current == incoming => true,
         _ => false,
     }
 }

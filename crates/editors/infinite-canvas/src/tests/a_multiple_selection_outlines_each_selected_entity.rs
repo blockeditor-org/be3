@@ -15,13 +15,10 @@ fn a_multiple_selection_outlines_each_selected_entity() {
 
     editor.click(&format!("infinite-canvas.entity.{}", left.id));
     editor.run();
-    editor.key_press_modifiers(
-        Modifiers {
+    editor.key(Key::A, Modifiers {
             ctrl: true,
             ..Modifiers::NONE
-        },
-        Key::A,
-    );
+        });
     editor.run();
 
     editor.snapshot("a_multiple_selection_outlines_each_selected_entity");

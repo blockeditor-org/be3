@@ -1,7 +1,6 @@
 mod beui;
 mod document;
 mod dom;
-mod input;
 mod overflow;
 mod snapshot;
 mod store;

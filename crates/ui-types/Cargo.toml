@@ -6,7 +6,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
+geometry = { path = "../geometry" }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_bytes = "0.11"
 
 [lints]

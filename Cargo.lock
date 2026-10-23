@@ -3365,6 +3365,9 @@ dependencies = [
 [[package]]
 name = "geometry"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "gethostname"
@@ -7534,6 +7537,7 @@ dependencies = [
 name = "ui-types"
 version = "0.1.0"
 dependencies = [
+ "geometry",
  "serde",
  "serde_bytes",
 ]

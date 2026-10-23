@@ -1,18 +1,11 @@
-use crate::clipboard::PasteKind;
 use crate::color::Color32;
-use crate::input::{CursorIcon, ImeArea, KeyChord};
+
+pub use ui_types::window::WindowRequests;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowState {
-    pub cursor: CursorIcon,
-    pub pointer_locked: bool,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub paste_kinds: Vec<PasteKind>,
-    pub ime: Option<ImeArea>,
+    pub requests: WindowRequests,
     pub typed: u64,
-    pub keyboard_toggles: u32,
     pub appearance: Appearance,
 }
 
@@ -43,7 +36,10 @@ impl Default for Appearance {
 impl WindowState {
     pub(crate) fn begin_frame(&mut self, typed: bool) {
         *self = Self {
-            pointer_locked: self.pointer_locked,
+            requests: WindowRequests {
+                pointer_locked: self.requests.pointer_locked,
+                ..WindowRequests::default()
+            },
             appearance: std::mem::take(&mut self.appearance),
             typed: self.typed.wrapping_add(u64::from(typed)),
             ..Self::default()
@@ -51,7 +47,7 @@ impl WindowState {
     }
 
     pub fn scaled(mut self, scale: f32) -> Self {
-        if let Some(area) = &mut self.ime {
+        if let Some(area) = &mut self.requests.ime {
             area.rect = area.rect.scaled(scale);
             area.cursor = area.cursor.scaled(scale);
         }

@@ -1,5 +1,5 @@
 use beui_core::input::{PointerButton as Button, PointerPhase};
-use block_editor_plugin::PointerButton;
+use block_editor_plugin::{Input, PointerButton, TimedInput};
 
 use super::*;
 
@@ -31,34 +31,24 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
         Watching(events.clone(), phases.clone()),
     );
     surface.update(&shown);
-    surface.input(&shown, &InputEvent::Focus(true));
+    surface.input(&shown, &TimedInput::from(Input::Focus(true)));
     surface.input(
         &shown,
-        &InputEvent::PointerMoved {
-            x: 10.0,
-            y: 10.0,
-            time_micros: 0,
-        },
+        &TimedInput::from(Input::PointerMoved(pos2(10.0, 10.0))),
     );
     surface.input(
         &shown,
-        &InputEvent::PointerButton {
+        &TimedInput::from(Input::PointerButton {
+            pos: pos2(10.0, 10.0),
             button: PointerButton::Primary,
             pressed: true,
-            x: 10.0,
-            y: 10.0,
-            time_micros: 0,
-        },
+        }),
     );
     surface.update(&shown);
-    surface.input(&shown, &InputEvent::Focus(false));
+    surface.input(&shown, &TimedInput::from(Input::Focus(false)));
     surface.input(
         &shown,
-        &InputEvent::PointerMoved {
-            x: 40.0,
-            y: 30.0,
-            time_micros: 0,
-        },
+        &TimedInput::from(Input::PointerMoved(pos2(40.0, 30.0))),
     );
     surface.update(&shown);
     assert!(
@@ -73,13 +63,11 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
 
     surface.input(
         &shown,
-        &InputEvent::PointerButton {
+        &TimedInput::from(Input::PointerButton {
+            pos: pos2(40.0, 30.0),
             button: PointerButton::Primary,
             pressed: false,
-            x: 40.0,
-            y: 30.0,
-            time_micros: 0,
-        },
+        }),
     );
     surface.update(&shown);
     assert!(
@@ -93,19 +81,17 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
     );
 
     events.borrow_mut().clear();
-    surface.input(&shown, &InputEvent::Focus(true));
+    surface.input(&shown, &TimedInput::from(Input::Focus(true)));
     surface.input(
         &shown,
-        &InputEvent::PointerButton {
+        &TimedInput::from(Input::PointerButton {
+            pos: pos2(10.0, 10.0),
             button: PointerButton::Primary,
             pressed: true,
-            x: 10.0,
-            y: 10.0,
-            time_micros: 0,
-        },
+        }),
     );
-    surface.input(&shown, &InputEvent::Focus(false));
-    surface.input(&shown, &InputEvent::PointerLeft);
+    surface.input(&shown, &TimedInput::from(Input::Focus(false)));
+    surface.input(&shown, &TimedInput::from(Input::PointerLeft));
     surface.update(&shown);
     assert!(
         events.borrow().contains(&Event::Focus(false)),

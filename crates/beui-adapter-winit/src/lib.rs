@@ -43,11 +43,11 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, Pen, PenPhase,
-    PointerButton, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
+    PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
+use beui_core::runner::{Adapter, Incoming, Launch, Platform, Running};
 use beui_core::window::WindowState;
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
@@ -187,10 +187,10 @@ impl Platform for WinitPlatform<'_> {
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         let surface = &*self.surface;
-        if window.pointer_locked != shown.pointer_locked {
-            lock_pointer(&*surface.window, window.pointer_locked);
+        if window.requests.pointer_locked != shown.requests.pointer_locked {
+            lock_pointer(&*surface.window, window.requests.pointer_locked);
         }
-        if (window.cursor, window.pointer_locked) != (shown.cursor, shown.pointer_locked) {
+        if (window.requests.cursor, window.requests.pointer_locked) != (shown.requests.cursor, shown.requests.pointer_locked) {
             show_cursor(surface, window);
         }
         if let Some(request) = ime_request(window, shown) {
@@ -216,7 +216,7 @@ impl Platform for WinitPlatform<'_> {
 
 fn ime_request(window: &WindowState, shown: &WindowState) -> Option<ImeRequest> {
     fn typed(state: &WindowState) -> Option<&ImeArea> {
-        state.ime.as_ref().filter(|area| area.keyboard.shown())
+        state.requests.ime.as_ref().filter(|area| area.keyboard.shown())
     }
     let (wanted, asked) = (typed(window), typed(shown));
     if wanted == asked {
@@ -247,7 +247,7 @@ impl Runner {
         event_loop.exit();
     }
 
-    fn push(&mut self, input: impl Into<Input>) {
+    fn push(&mut self, input: impl Into<Incoming>) {
         self.runner.push(input);
     }
 
@@ -323,7 +323,7 @@ impl Runner {
             _ => return,
         }
         let pos = position.map_or(self.pointer, physical);
-        self.push(Event::Touch {
+        self.push(Input::Touch {
             id,
             phase,
             pos,
@@ -347,7 +347,7 @@ impl Runner {
         let tilt = data.tilt().map_or(Vec2::ZERO, |tilt| {
             vec2(f32::from(tilt.x), f32::from(tilt.y))
         });
-        self.push(Event::Pen {
+        self.push(Input::Pen {
             phase,
             pos: self.pointer,
             pressure,
@@ -372,7 +372,7 @@ impl Runner {
                 PointerKind::Touch(_) => {}
                 _ => {
                     self.pointer = physical(position);
-                    self.push(Event::PointerMoved(self.pointer));
+                    self.push(Input::PointerMoved(self.pointer));
                 }
             },
             WindowEvent::PointerMoved {
@@ -395,7 +395,7 @@ impl Runner {
                 }
                 _ => {
                     self.pointer = physical(position);
-                    self.push(Event::PointerMoved(self.pointer));
+                    self.push(Input::PointerMoved(self.pointer));
                 }
             },
             WindowEvent::PointerLeft {
@@ -410,7 +410,7 @@ impl Runner {
                 PointerKind::TabletTool(kind) => {
                     self.pen(PenPhase::Gone, position, kind, TabletToolData::default());
                 }
-                _ => self.push(Event::PointerGone),
+                _ => self.push(Input::PointerLeft),
             },
             WindowEvent::PointerButton {
                 device_id,
@@ -439,13 +439,21 @@ impl Runner {
                     ButtonSource::Mouse(button) => {
                         self.pointer = physical(position);
                         if let Some(button) = pointer_button(button) {
-                            self.runner.pointer_button(self.pointer, button, pressed);
+                            self.push(Input::PointerButton {
+                                pos: self.pointer,
+                                button,
+                                pressed,
+                            });
                         }
                     }
                     ButtonSource::Unknown(code) if code >= BUTTON_EVDEV_FIRST => {
                         self.pointer = physical(position);
                         let button = PointerButton::Other(code);
-                        self.runner.pointer_button(self.pointer, button, pressed);
+                        self.push(Input::PointerButton {
+                                pos: self.pointer,
+                                button,
+                                pressed,
+                            });
                     }
                     _ => {}
                 }
@@ -606,7 +614,7 @@ impl ApplicationHandler for Runner {
                 self.runner.reports().scaled(scale_factor as f32);
                 self.request_redraw();
             }
-            WindowEvent::Focused(focused) => self.push(Event::Focus(focused)),
+            WindowEvent::Focused(focused) => self.push(Input::Focus(focused)),
             WindowEvent::ThemeChanged(theme) => {
                 self.preferences.window_theme(Some(theme));
                 self.runner
@@ -616,7 +624,7 @@ impl ApplicationHandler for Runner {
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();
-                self.push(Event::Modifiers(Modifiers::with_meta(
+                self.push(Input::Modifiers(Modifiers::with_meta(
                     state.alt_key(),
                     state.control_key(),
                     state.shift_key(),
@@ -629,7 +637,7 @@ impl ApplicationHandler for Runner {
             | WindowEvent::PointerLeft { .. }
             | WindowEvent::PointerButton { .. } => {
                 self.pointer_event(event);
-                self.push(Event::Time(Instant::now()));
+                self.push(Incoming::Time(Instant::now()));
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 let wheeled = self.wheel.event(phase, Instant::now());
@@ -637,7 +645,7 @@ impl ApplicationHandler for Runner {
                     return;
                 }
                 if wheeled == Wheeled::StartAndScroll {
-                    self.push(Event::ScrollStarted);
+                    self.push(Input::ScrollStarted);
                 }
                 self.push(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),
@@ -647,11 +655,11 @@ impl ApplicationHandler for Runner {
                     _ => return,
                 });
                 if wheeled == Wheeled::ScrollAndEnd {
-                    self.push(Event::ScrollEnded);
+                    self.push(Input::ScrollEnded);
                 }
             }
             WindowEvent::PinchGesture { delta, .. } => {
-                self.push(Event::Zoom(1.0 + delta as f32));
+                self.push(Input::Zoom(1.0 + delta as f32));
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 #[cfg(target_os = "linux")]
@@ -677,16 +685,16 @@ impl ApplicationHandler for Runner {
                     text: event.text.map(|text| text.to_string()),
                 });
             }
-            WindowEvent::Ime(Ime::Enabled) => self.push(Event::Ime(ImeEvent::Enabled)),
+            WindowEvent::Ime(Ime::Enabled) => self.push(Input::Ime(ImeEvent::Enabled)),
             WindowEvent::Ime(Ime::Preedit(text, _)) => {
-                self.push(Event::Ime(ImeEvent::SetComposingText(text)));
+                self.push(Input::Ime(ImeEvent::SetComposingText(text)));
             }
             WindowEvent::Ime(Ime::Commit(text)) => {
-                self.push(Event::Ime(ImeEvent::CommitText(text)))
+                self.push(Input::Ime(ImeEvent::CommitText(text)))
             }
             WindowEvent::Ime(Ime::Disabled) => {
-                self.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
-                self.push(Event::Ime(ImeEvent::Disabled));
+                self.push(Input::Ime(ImeEvent::SetComposingText(String::new())));
+                self.push(Input::Ime(ImeEvent::Disabled));
             }
             WindowEvent::DragEntered { id, .. } => {
                 let files = event_loop
@@ -697,17 +705,17 @@ impl ApplicationHandler for Runner {
                         .set_valid_dnd_actions(id, &[DndAction::Copy])
                         .is_ok()
                 {
-                    self.push(Event::FileHovered);
+                    self.push(Input::FileHovered);
                 }
             }
             WindowEvent::DragLeft { .. } => {
                 self.dropping = None;
-                self.push(Event::FileHoverCancelled);
+                self.push(Input::FileHoverCancelled);
             }
             WindowEvent::DragDropped { id, .. } => {
                 self.dropping = event_loop.fetch_data_transfer(id, &TypeHint::UriList).ok();
                 if self.dropping.is_none() {
-                    self.push(Event::FileHoverCancelled);
+                    self.push(Input::FileHoverCancelled);
                 }
             }
             WindowEvent::DataTransferReceived { serial, value, .. }
@@ -716,7 +724,7 @@ impl ApplicationHandler for Runner {
                 self.dropping = None;
                 let paths = value.try_as_file_paths().unwrap_or_default();
                 if paths.is_empty() {
-                    self.push(Event::FileHoverCancelled);
+                    self.push(Input::FileHoverCancelled);
                 }
                 for path in paths {
                     let name = path
@@ -724,7 +732,7 @@ impl ApplicationHandler for Runner {
                         .and_then(|name| name.to_str())
                         .unwrap_or_default()
                         .to_owned();
-                    self.push(Event::FileDropped(DroppedFile {
+                    self.push(Input::FileDropped(DroppedFile {
                         name,
                         path: Some(path),
                         bytes: None,
@@ -745,10 +753,10 @@ impl ApplicationHandler for Runner {
         let DeviceEvent::PointerMotion { delta } = event else {
             return;
         };
-        if !self.runner.window().pointer_locked {
+        if !self.runner.window().requests.pointer_locked {
             return;
         }
-        self.push(Event::PointerMotion(vec2(delta.0 as f32, delta.1 as f32)));
+        self.push(Input::PointerMotion(vec2(delta.0 as f32, delta.1 as f32)));
     }
 }
 
@@ -930,17 +938,17 @@ fn named_key(named: NamedKey) -> Option<Key> {
 
 fn show_cursor(surface: &Surface, state: &WindowState) {
     let window = &surface.window;
-    if state.cursor == CursorIcon::Touch
+    if state.requests.cursor == CursorIcon::Touch
         && let Some(touch) = &surface.touch_cursor
     {
         window.set_cursor(touch.clone().into());
-        window.set_cursor_visible(!state.pointer_locked);
+        window.set_cursor_visible(!state.requests.pointer_locked);
         return;
     }
-    match cursor(state.cursor) {
+    match cursor(state.requests.cursor) {
         Some(icon) => {
             window.set_cursor(icon.into());
-            window.set_cursor_visible(!state.pointer_locked);
+            window.set_cursor_visible(!state.requests.pointer_locked);
         }
         None => window.set_cursor_visible(false),
     }

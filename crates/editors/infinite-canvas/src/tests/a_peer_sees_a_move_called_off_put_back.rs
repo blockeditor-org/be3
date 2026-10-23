@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn a_peer_sees_a_move_called_off_put_back() {
@@ -16,7 +17,7 @@ fn a_peer_sees_a_move_called_off_put_back() {
     sync(&mut mover, &mut watcher);
     assert_ne!(watcher.rect_of(&item), resting);
 
-    mover.key_press(block_editor_beui::beui::Key::Escape);
+    mover.key(block_editor_beui::beui::Key::Escape, Modifiers::NONE);
     mover.run();
     sync(&mut mover, &mut watcher);
     assert_eq!(watcher.rect_of(&item), resting);

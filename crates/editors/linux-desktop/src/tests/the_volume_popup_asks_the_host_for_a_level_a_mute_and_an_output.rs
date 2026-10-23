@@ -21,7 +21,7 @@ fn the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output() {
     let track = fixture.test.rect_of("desktop.volume.level");
     fixture
         .test
-        .click_at(pos2(track.left() + track.width() * 0.9, track.center().y));
+        .click(pos2(track.left() + track.width() * 0.9, track.center().y));
     fixture.settle();
     let asked = fixture.test.take_actions::<MediaRequest>();
     assert!(

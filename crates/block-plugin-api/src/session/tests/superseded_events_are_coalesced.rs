@@ -3,19 +3,18 @@ use super::*;
 #[test]
 fn superseded_events_are_coalesced() {
     let mut session = running_session();
-    let moved = |x: f32, y: f32, time_micros: u64| InputEvent::PointerMoved { x, y, time_micros };
-    let pressed = InputEvent::PointerButton {
-        button: PointerButton::Primary,
-        pressed: true,
-        x: 3.0,
-        y: 4.0,
-        time_micros: 3,
-    };
-    let wheel = |x: f32, y: f32| InputEvent::Wheel {
-        x,
-        y,
-        unit: WheelUnit::Pixels,
-    };
+    let moved =
+        |x: f32, y: f32, time_micros: u64| timed(Input::PointerMoved(Pos2::new(x, y)), time_micros);
+    let pressed = timed(
+        Input::PointerButton {
+            pos: Pos2::new(3.0, 4.0),
+            button: PointerButton::Primary,
+            pressed: true,
+        },
+        3,
+    );
+    let wheel = |x: f32, y: f32| TimedInput::from(Input::Scroll(ScrollDelta::Pixels(Vec2::new(x, y))));
+    let held = || TimedInput::from(Input::Modifiers(Modifiers::default()));
     for event in [
         moved(1.0, 2.0, 1),
         moved(3.0, 4.0, 2),
@@ -24,8 +23,8 @@ fn superseded_events_are_coalesced() {
         moved(7.0, 8.0, 5),
         wheel(1.0, 2.0),
         wheel(3.0, 4.0),
-        InputEvent::Modifiers(Modifiers::default()),
-        InputEvent::Modifiers(Modifiers::default()),
+        held(),
+        held(),
     ] {
         session.enqueue(input(event)).unwrap();
     }
@@ -38,7 +37,7 @@ fn superseded_events_are_coalesced() {
                 pressed,
                 moved(7.0, 8.0, 5),
                 wheel(4.0, 6.0),
-                InputEvent::Modifiers(Modifiers::default()),
+                held(),
             ],
             false
         ))

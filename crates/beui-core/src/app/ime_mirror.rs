@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::input::{Event, ImeEvent, ImeText};
+use crate::input::{ImeEvent, ImeText, Input};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ImeMirror {
@@ -55,14 +55,14 @@ impl ImeMirror {
         self.composing = true;
     }
 
-    pub fn end_composition(&mut self, events: &mut Vec<Event>) {
+    pub fn end_composition(&mut self, events: &mut Vec<Input>) {
         self.composing = false;
         if self.composition.take().is_some() {
-            events.push(Event::Ime(ImeEvent::FinishComposing));
+            events.push(Input::Ime(ImeEvent::FinishComposing));
         }
     }
 
-    pub fn select(&mut self, selection: (u32, u32), events: &mut Vec<Event>) {
+    pub fn select(&mut self, selection: (u32, u32), events: &mut Vec<Input>) {
         if self.composing {
             return;
         }
@@ -71,11 +71,11 @@ impl ImeMirror {
         let selection = anchor.min(focus)..anchor.max(focus);
         if selection != self.selection {
             self.selection = selection;
-            events.push(Event::Ime(ImeEvent::SetSelection { anchor, focus }));
+            events.push(Input::Ime(ImeEvent::SetSelection { anchor, focus }));
         }
     }
 
-    pub fn input(&mut self, input: ImeInput<'_>, events: &mut Vec<Event>) {
+    pub fn input(&mut self, input: ImeInput<'_>, events: &mut Vec<Input>) {
         let held = [Some(self.selection.clone()), self.composition.clone()];
         let low = held
             .iter()
@@ -111,7 +111,7 @@ impl ImeMirror {
         };
         self.selection = anchor.min(focus)..anchor.max(focus);
         if self.selection != expected {
-            events.push(Event::Ime(ImeEvent::SetSelection { anchor, focus }));
+            events.push(Input::Ime(ImeEvent::SetSelection { anchor, focus }));
         }
     }
 
@@ -120,7 +120,7 @@ impl ImeMirror {
         range: Range<usize>,
         inserted: String,
         input: &ImeInput<'_>,
-        events: &mut Vec<Event>,
+        events: &mut Vec<Input>,
     ) {
         let end = range.start + inserted.len();
         if input.composing {
@@ -129,38 +129,38 @@ impl ImeMirror {
                 None if range == self.selection => {}
                 held if range.is_empty() => {
                     if held.is_some() {
-                        events.push(Event::Ime(ImeEvent::FinishComposing));
+                        events.push(Input::Ime(ImeEvent::FinishComposing));
                     }
-                    events.push(Event::Ime(ImeEvent::SetSelection {
+                    events.push(Input::Ime(ImeEvent::SetSelection {
                         anchor: range.start,
                         focus: range.start,
                     }));
                 }
-                _ => events.push(Event::Ime(ImeEvent::SetComposingRegion(range.clone()))),
+                _ => events.push(Input::Ime(ImeEvent::SetComposingRegion(range.clone()))),
             }
             self.composition = (!inserted.is_empty()).then_some(range.start..end);
-            events.push(Event::Ime(ImeEvent::SetComposingText(inserted)));
+            events.push(Input::Ime(ImeEvent::SetComposingText(inserted)));
         } else if input.replacement {
             self.composition = None;
-            events.push(Event::Ime(ImeEvent::ReplaceText {
+            events.push(Input::Ime(ImeEvent::ReplaceText {
                 range,
                 text: inserted,
             }));
         } else if self.composition.as_ref() == Some(&range) || range == self.selection {
             self.composition = None;
-            events.push(Event::Ime(ImeEvent::CommitText(inserted)));
+            events.push(Input::Ime(ImeEvent::CommitText(inserted)));
         } else if inserted.is_empty()
             && self.selection.is_empty()
             && range.start <= self.selection.start
             && self.selection.start <= range.end
         {
-            events.push(Event::Ime(ImeEvent::DeleteSurrounding {
+            events.push(Input::Ime(ImeEvent::DeleteSurrounding {
                 before: self.selection.start - range.start,
                 after: range.end - self.selection.start,
             }));
         } else {
             self.composition = None;
-            events.push(Event::Ime(ImeEvent::ReplaceText {
+            events.push(Input::Ime(ImeEvent::ReplaceText {
                 range,
                 text: inserted,
             }));

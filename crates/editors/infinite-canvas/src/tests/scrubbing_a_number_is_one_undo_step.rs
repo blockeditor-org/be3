@@ -15,13 +15,13 @@ fn scrubbing_a_number_is_one_undo_step() {
     let path: Vec<_> = (0..=6)
         .map(|step| field + Vec2::new(step as f32 * 10.0, 0.0))
         .collect();
-    editor.press_at(path[0]);
+    editor.down(path[0], PointerButton::Primary);
     for &at in &path[1..] {
         editor.wait(std::time::Duration::from_secs(1));
-        editor.hover_at(at);
+        editor.hover(at);
         editor.run();
     }
-    editor.release_at(path[6]);
+    editor.up(path[6], PointerButton::Primary);
     editor.run();
     assert_eq!(entities(&editor)[0].transform.center.x, 60.0);
 

@@ -10,7 +10,7 @@ fn a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard() {
     let messages = instances.intercepted_tap(INSTANCE, REGION, beui::Key::Logo);
     assert_eq!(
         input_events(&messages),
-        [InputEvent::InterceptedTap { key: Key::Logo }],
+        [Input::InterceptedTap(Key::Logo)],
         "a tap heard while something else has the keyboard is sent on"
     );
 

@@ -35,7 +35,7 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
         !fixture.test.shown(&toast(1)),
         "the toasts make way for the list of notifications"
     );
-    fixture.test.key_press(Key::Escape);
+    fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
     assert!(
         fixture.test.shown(&toast(1)),

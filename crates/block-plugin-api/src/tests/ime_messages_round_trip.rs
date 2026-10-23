@@ -8,18 +8,8 @@ fn ime_messages_round_trip() {
             region: EditorRegion::Frame,
             window: WindowRequests {
                 ime: Some(ImeArea {
-                    rect: ChildRect {
-                        x: 1.0,
-                        y: 2.0,
-                        width: 3.0,
-                        height: 4.0,
-                    },
-                    cursor: ChildRect {
-                        x: 5.0,
-                        y: 6.0,
-                        width: 1.0,
-                        height: 12.0,
-                    },
+                    rect: Rect::from_min_size(Pos2::new(1.0, 2.0), Vec2::new(3.0, 4.0)),
+                    cursor: Rect::from_min_size(Pos2::new(5.0, 6.0), Vec2::new(1.0, 12.0)),
                     text: Some(ImeText {
                         start: 4,
                         text: "say helo".into(),
@@ -35,24 +25,24 @@ fn ime_messages_round_trip() {
             screen: ScreenId(2),
             every_sample: false,
             events: vec![
-                InputEvent::Ime(ImeEvent::Enabled),
-                InputEvent::Ime(ImeEvent::SetComposingText("か".into())),
-                InputEvent::Ime(ImeEvent::CommitText("漢".into())),
-                InputEvent::Ime(ImeEvent::FinishComposing),
-                InputEvent::Ime(ImeEvent::SetComposingRegion(4..8)),
-                InputEvent::Ime(ImeEvent::ReplaceText {
+                Input::Ime(ImeEvent::Enabled).into(),
+                Input::Ime(ImeEvent::SetComposingText("か".into())).into(),
+                Input::Ime(ImeEvent::CommitText("漢".into())).into(),
+                Input::Ime(ImeEvent::FinishComposing).into(),
+                Input::Ime(ImeEvent::SetComposingRegion(4..8)).into(),
+                Input::Ime(ImeEvent::ReplaceText {
                     range: 4..8,
                     text: "hello".into(),
-                }),
-                InputEvent::Ime(ImeEvent::DeleteSurrounding {
+                }).into(),
+                Input::Ime(ImeEvent::DeleteSurrounding {
                     before: 1,
                     after: 2,
-                }),
-                InputEvent::Ime(ImeEvent::SetSelection {
+                }).into(),
+                Input::Ime(ImeEvent::SetSelection {
                     anchor: 3,
                     focus: 3,
-                }),
-                InputEvent::Ime(ImeEvent::Disabled),
+                }).into(),
+                Input::Ime(ImeEvent::Disabled).into(),
             ],
         }),
     ] {

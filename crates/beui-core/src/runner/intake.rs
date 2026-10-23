@@ -1,61 +1,58 @@
+use std::time::Instant;
+
 use crate::geometry::{Pos2, Vec2};
-use crate::input::{Event, Key, KeyPress, Modifiers, PointerButton, TouchId, TouchPhase};
+use crate::input::{
+    Event, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta, TouchId,
+    TouchPhase,
+};
 
 pub const SCROLL_LINE: f32 = 40.0;
 pub const SCROLL_PAGE: f32 = 800.0;
 pub const PINCH_SPEED: f32 = 0.01;
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Keystroke {
-    pub key: Option<Key>,
-    pub pressed: bool,
-    pub repeat: bool,
-    pub code: Option<u32>,
-    pub text: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ScrollDelta {
-    Pixels(Vec2),
-    Lines(Vec2),
-    Pages(Vec2),
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Units {
+    Physical,
+    Logical,
+    Points,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Input {
-    Event(Event),
-    Key(Keystroke),
-    Scroll(ScrollDelta),
-    Pinch(ScrollDelta),
-    Logical(Box<Input>),
+pub enum Incoming {
+    Input(Units, Input),
+    Time(Instant),
 }
 
-impl Input {
+impl Incoming {
     pub fn logical(input: impl Into<Input>) -> Self {
-        Self::Logical(Box::new(input.into()))
+        Self::Input(Units::Logical, input.into())
+    }
+
+    pub fn points(input: impl Into<Input>) -> Self {
+        Self::Input(Units::Points, input.into())
     }
 }
 
-impl From<Event> for Input {
-    fn from(event: Event) -> Self {
-        Self::Event(event)
+impl From<Input> for Incoming {
+    fn from(input: Input) -> Self {
+        Self::Input(Units::Physical, input)
     }
 }
 
-impl From<Keystroke> for Input {
+impl From<Keystroke> for Incoming {
     fn from(stroke: Keystroke) -> Self {
-        Self::Key(stroke)
+        Self::from(Input::Key(stroke))
     }
 }
 
-impl From<ScrollDelta> for Input {
+impl From<ScrollDelta> for Incoming {
     fn from(delta: ScrollDelta) -> Self {
-        Self::Scroll(delta)
+        Self::from(Input::Scroll(delta))
     }
 }
 
 pub(crate) struct Intake {
-    pub(crate) incoming: Vec<Input>,
+    pub(crate) incoming: Vec<Incoming>,
     modifiers: Modifiers,
     pointer: Pos2,
     held: u8,
@@ -93,43 +90,38 @@ impl Intake {
         }
         let mut produced = false;
         for incoming in std::mem::take(&mut self.incoming) {
-            if is_time(&incoming) && !produced {
-                continue;
+            match incoming {
+                Incoming::Time(at) => {
+                    if produced {
+                        events.push(Event::Time(at));
+                    }
+                }
+                Incoming::Input(units, input) => {
+                    let scale = match units {
+                        Units::Physical => drain.pixels_per_point,
+                        Units::Logical => drain.pixels_per_point / drain.native_pixels_per_point,
+                        Units::Points => 1.0,
+                    };
+                    let before = events.len();
+                    self.input(input, scale, drain, events);
+                    produced = events.len() > before;
+                }
             }
-            let before = events.len();
-            self.input(incoming, drain.pixels_per_point, drain, events);
-            produced = events.len() > before;
         }
     }
 
     fn input(&mut self, input: Input, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
+        let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
         match input {
-            Input::Event(event) => self.event(event, scale, drain, events),
             Input::Key(stroke) => self.key(stroke, events),
             Input::Scroll(delta) => {
-                let delta = points(delta, scale);
+                let delta = scrolled(delta, scale);
                 if delta != Vec2::ZERO {
                     events.push(Event::Scroll(delta));
                 }
             }
-            Input::Pinch(delta) => {
-                let pinched = points(delta, scale).y;
-                if pinched != 0.0 {
-                    events.push(Event::Zoom((pinched * PINCH_SPEED).exp()));
-                }
-            }
-            Input::Logical(input) => {
-                let logical = drain.pixels_per_point / drain.native_pixels_per_point;
-                self.input(*input, logical, drain, events);
-            }
-        }
-    }
-
-    fn event(&mut self, event: Event, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
-        let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
-        match event {
-            Event::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
-            Event::PointerMoved(pos) => {
+            Input::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
+            Input::PointerMoved(pos) => {
                 self.pointer = points(pos);
                 if !drain.touch_emulation {
                     events.push(Event::PointerMoved(self.pointer));
@@ -137,11 +129,10 @@ impl Intake {
                     events.push(self.touch(TouchPhase::Move));
                 }
             }
-            Event::PointerButton {
+            Input::PointerButton {
                 pos,
                 button,
                 pressed,
-                ..
             } => {
                 self.pointer = points(pos);
                 let bit = button_bit(button);
@@ -171,20 +162,12 @@ impl Intake {
                     events.push(Event::PointerGone);
                 }
             }
-            Event::PointerGone => match self.emulated_touch || self.held != 0 {
+            Input::PointerLeft => match self.emulated_touch || self.held != 0 {
                 true => self.left = true,
                 false => events.push(Event::PointerGone),
             },
-            Event::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
-            Event::Scroll(delta) => {
-                self.input(
-                    Input::Scroll(ScrollDelta::Pixels(delta)),
-                    scale,
-                    drain,
-                    events,
-                );
-            }
-            Event::Touch {
+            Input::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
+            Input::Touch {
                 id,
                 phase,
                 pos,
@@ -195,7 +178,7 @@ impl Intake {
                 pos: points(pos),
                 force,
             }),
-            Event::Pen {
+            Input::Pen {
                 phase,
                 pos,
                 pressure,
@@ -206,8 +189,8 @@ impl Intake {
                 pressure,
                 pen,
             }),
-            Event::Predicted(pos) => events.push(Event::Predicted(points(pos))),
-            Event::Focus(false) => {
+            Input::Predicted(pos) => events.push(Event::Predicted(points(pos))),
+            Input::Focus(false) => {
                 self.held = 0;
                 self.left = false;
                 if std::mem::take(&mut self.emulated_touch) {
@@ -216,11 +199,28 @@ impl Intake {
                 self.set_modifiers(Modifiers::NONE, events);
                 events.push(Event::Focus(false));
             }
-            Event::InterceptedKey(press) => events.push(Event::InterceptedKey(KeyPress {
+            Input::Focus(true) => events.push(Event::Focus(true)),
+            Input::InterceptedKey {
+                key,
+                pressed,
+                repeat,
+            } => events.push(Event::InterceptedKey(KeyPress {
+                key,
+                pressed,
+                repeat,
                 modifiers: self.modifiers,
-                ..press
             })),
-            event => events.push(event),
+            Input::InterceptedTap(key) => events.push(Event::InterceptedTap(key)),
+            Input::Text(text) => events.push(Event::Text(text)),
+            Input::Paste(pasted) => events.push(Event::Paste(pasted)),
+            Input::Ime(ime) => events.push(Event::Ime(ime)),
+            Input::ScrollStarted => events.push(Event::ScrollStarted),
+            Input::ScrollEnded => events.push(Event::ScrollEnded),
+            Input::Zoom(factor) => events.push(Event::Zoom(factor)),
+            Input::Back(gesture) => events.push(Event::Back(gesture)),
+            Input::FileHovered => events.push(Event::FileHovered),
+            Input::FileHoverCancelled => events.push(Event::FileHoverCancelled),
+            Input::FileDropped(file) => events.push(Event::FileDropped(file)),
         }
     }
 
@@ -278,15 +278,7 @@ impl Intake {
     }
 }
 
-fn is_time(input: &Input) -> bool {
-    match input {
-        Input::Event(Event::Time(_)) => true,
-        Input::Logical(input) => is_time(input),
-        _ => false,
-    }
-}
-
-fn points(delta: ScrollDelta, scale: f32) -> Vec2 {
+pub fn scrolled(delta: ScrollDelta, scale: f32) -> Vec2 {
     match delta {
         ScrollDelta::Pixels(delta) => delta / scale,
         ScrollDelta::Lines(delta) => delta * SCROLL_LINE,

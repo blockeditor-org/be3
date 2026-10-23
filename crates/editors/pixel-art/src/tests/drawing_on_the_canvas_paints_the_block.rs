@@ -12,7 +12,7 @@ fn drawing_on_the_canvas_paints_the_block() {
     );
 
     let cell = artwork.width() / f32::from(art_of(&editor).width());
-    editor.click_at(Pos2::new(
+    editor.click(Pos2::new(
         artwork.left() + cell * 2.5,
         artwork.top() + cell * 1.5,
     ));

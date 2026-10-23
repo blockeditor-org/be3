@@ -20,7 +20,7 @@ fn a_change_is_committed_with_its_message() {
     let mut editor = checkout(state, status);
 
     editor.click("checkout.message");
-    editor.text("Say more");
+    editor.type_text("Say more");
     editor.run();
     editor.click("checkout.commit");
     editor.run();

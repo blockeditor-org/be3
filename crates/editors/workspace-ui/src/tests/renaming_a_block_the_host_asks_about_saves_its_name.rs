@@ -1,5 +1,5 @@
 use block_editor_beui::ShellDialog;
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 
 use super::*;
 
@@ -12,8 +12,8 @@ fn renaming_a_block_the_host_asks_about_saves_its_name() {
 
     fixture.test.click("rename.name");
     fixture.settle();
-    fixture.test.text("Notes");
-    fixture.test.key_press(Key::Enter);
+    fixture.test.type_text("Notes");
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
 
     assert_eq!(

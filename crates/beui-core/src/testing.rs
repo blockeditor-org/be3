@@ -88,7 +88,7 @@ impl Target {
         }
     }
 
-    fn word(&self, pixels_per_point: f32) -> String {
+    pub fn word(&self, pixels_per_point: f32) -> String {
         let pixels = |points: f32| points * pixels_per_point;
         match self {
             Self::Id(id, None) => format!("#{id}"),
@@ -453,12 +453,12 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn key_down(&mut self, key: Key) -> String {
-        let name = keys::name(key).unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        let name = key.name().unwrap_or_else(|| panic!("drive has no name for {key:?}"));
         self.gesture(&["keydown"], &[], &[&name])
     }
 
     pub fn key_up(&mut self, key: Key) -> String {
-        let name = keys::name(key).unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        let name = key.name().unwrap_or_else(|| panic!("drive has no name for {key:?}"));
         self.gesture(&["keyup"], &[], &[&name])
     }
 
@@ -518,7 +518,7 @@ impl Stepped<Showing> {
     }
 }
 
-fn button_name(button: PointerButton) -> String {
+pub fn button_name(button: PointerButton) -> String {
     match button {
         PointerButton::Primary => "left".to_owned(),
         PointerButton::Secondary => "right".to_owned(),

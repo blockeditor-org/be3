@@ -69,5 +69,5 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
         "released, it slides on down from where it was, to {leaving} after {lowered}"
     );
     harness.settle();
-    assert!(!harness.frame(Vec::new()).window.handles_back);
+    assert!(!harness.frame(Vec::new()).window.requests.handles_back);
 }

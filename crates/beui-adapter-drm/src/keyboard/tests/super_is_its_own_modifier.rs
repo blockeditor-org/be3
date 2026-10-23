@@ -6,7 +6,7 @@ fn super_is_its_own_modifier() {
     let held = keyboard.key(LEFT_SUPER, true);
     assert!(
         held.inputs
-            .contains(&Input::Event(Event::Modifiers(Modifiers::LOGO)))
+            .contains(&Input::Modifiers(Modifiers::LOGO))
     );
     assert_eq!(held.repeat, None, "holding a modifier does not repeat it");
 
@@ -16,6 +16,6 @@ fn super_is_its_own_modifier() {
     assert!(
         released
             .inputs
-            .contains(&Input::Event(Event::Modifiers(Modifiers::NONE)))
+            .contains(&Input::Modifiers(Modifiers::NONE))
     );
 }

@@ -3,7 +3,7 @@ use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
     ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
+    FrameReport, HostPanel, HostReply, TimedInput, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
     MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size,
     ViewportMetrics, WebViewEvent, WebViewId,
 };
@@ -1007,21 +1007,13 @@ impl EditorSession {
             };
             state.occluders = occluders;
             state.camera = camera;
-            let window = &frame.window;
             state.window = block_plugin_api::WindowRequests {
-                cursor: window.cursor,
-                pointer_locked: window.pointer_locked,
-                ime: window.ime.as_ref().map(|ime| ImeArea {
-                    rect: reported(ime.rect),
-                    cursor: reported(ime.cursor),
-                    text: ime.text.clone(),
-                    keyboard: ime.keyboard,
-                }),
-                handles_back: window.handles_back,
-                wants_keyboard: window.wants_keyboard,
-                intercepted_keys: window.intercepted_keys.clone(),
-                pastes: window.pastes.clone(),
-                keyboard_toggles: window.keyboard_toggles,
+                ime: frame
+                    .window
+                    .ime
+                    .clone()
+                    .map(|ime| ime.translated(-origin)),
+                ..frame.window.clone()
             };
             let reports = matches!(region, EditorRegion::Frame);
             match frame.description.as_mut() {
@@ -1071,7 +1063,7 @@ impl EditorSession {
         self.app.paint(target)
     }
 
-    pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
+    pub(crate) fn input(&mut self, region: EditorRegion, event: &TimedInput) {
         let context = self.context(region);
         self.app.input(&context, event);
     }

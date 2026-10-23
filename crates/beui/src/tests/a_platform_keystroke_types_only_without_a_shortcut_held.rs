@@ -1,6 +1,6 @@
 use super::*;
 use beui_core::input::KeyPress;
-use beui_core::runner::Keystroke;
+use beui_core::input::Keystroke;
 
 #[test]
 fn a_platform_keystroke_types_only_without_a_shortcut_held() {
@@ -26,8 +26,8 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
     let seen = intaken.frame(
         1.0,
         [
-            Event::Modifiers(Modifiers::CTRL).into(),
-            Event::Modifiers(Modifiers::CTRL).into(),
+            Input::Modifiers(Modifiers::CTRL).into(),
+            Input::Modifiers(Modifiers::CTRL).into(),
             Keystroke {
                 repeat: true,
                 ..typed(Key::Ctrl, "")
@@ -52,7 +52,7 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
     let seen = intaken.frame(
         1.0,
         [
-            Event::Modifiers(Modifiers::NONE).into(),
+            Input::Modifiers(Modifiers::NONE).into(),
             Keystroke {
                 key: None,
                 ..typed(Key::A, "é")

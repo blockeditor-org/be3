@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
-    Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton, SurfaceFormat, SurfaceSpec,
-    SurfaceSupport, WheelUnit, encode_frame,
+    Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton, Pos2, SurfaceFormat, SurfaceSpec,
+    SurfaceSupport, Vec2, encode_frame,
 };
 
 fn session() -> HostSession {
@@ -40,11 +40,18 @@ fn screens(request_id: u64) -> Message {
     })
 }
 
-fn input(event: InputEvent) -> Message {
-    batch(vec![event], false)
+fn input(event: impl Into<TimedInput>) -> Message {
+    batch(vec![event.into()], false)
 }
 
-fn batch(events: Vec<InputEvent>, every_sample: bool) -> Message {
+fn timed(input: Input, time_micros: u64) -> TimedInput {
+    TimedInput {
+        input,
+        time_micros: Some(time_micros),
+    }
+}
+
+fn batch(events: Vec<TimedInput>, every_sample: bool) -> Message {
     Message::Input(InputBatch {
         screen: crate::ScreenId(7),
         events,
@@ -52,17 +59,16 @@ fn batch(events: Vec<InputEvent>, every_sample: bool) -> Message {
     })
 }
 
-fn pen(x: f32, time_micros: u64) -> InputEvent {
-    InputEvent::Pen {
-        phase: crate::PenPhase::Move,
-        x,
-        y: 0.0,
-        pressure: 0.5,
-        tilt_x: 0.0,
-        tilt_y: 0.0,
-        eraser: false,
+fn pen(x: f32, time_micros: u64) -> TimedInput {
+    timed(
+        Input::Pen {
+            phase: crate::PenPhase::Move,
+            pos: crate::Pos2::new(x, 0.0),
+            pressure: 0.5,
+            pen: crate::Pen::default(),
+        },
         time_micros,
-    }
+    )
 }
 
 mod a_plugin_that_draws_nothing_is_granted_no_surface;

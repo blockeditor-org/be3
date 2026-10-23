@@ -61,7 +61,7 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
     live(&mut editor, true);
     assert_eq!(mode(&editor), ChildMode::Passive);
     let rect = editor.children()[0].rect;
-    editor.click_at(Pos2::new(
+    editor.click(Pos2::new(
         rect.x + rect.width / 2.0,
         rect.y + rect.height / 2.0,
     ));

@@ -18,9 +18,9 @@ fn renaming_a_row_edits_its_name_in_place() {
     fixture
         .test
         .snapshot("renaming_a_row_edits_its_name_in_place");
-    fixture.test.text("Plans");
+    fixture.test.type_text("Plans");
     fixture.settle();
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert!(!fixture.test.shown(&field), "Enter ends the edit");
     assert_eq!(
@@ -29,15 +29,15 @@ fn renaming_a_row_edits_its_name_in_place() {
         "Enter names the block what was typed over its old name"
     );
 
-    fixture.test.key_press(Key::F2);
+    fixture.test.key(Key::F2, Modifiers::NONE);
     fixture.settle();
     assert!(
         fixture.test.shown(&field),
         "F2 on the row the keyboard is on edits it"
     );
-    fixture.test.text("Ideas");
+    fixture.test.type_text("Ideas");
     fixture.settle();
-    fixture.test.key_press(Key::Escape);
+    fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
     assert!(!fixture.test.shown(&field), "Escape ends the edit");
     assert!(
@@ -45,9 +45,9 @@ fn renaming_a_row_edits_its_name_in_place() {
         "Escape leaves the name alone"
     );
 
-    fixture.test.key_press(Key::F2);
+    fixture.test.key(Key::F2, Modifiers::NONE);
     fixture.settle();
-    fixture.test.text("Ideas");
+    fixture.test.type_text("Ideas");
     fixture.settle();
     fixture.test.click(&format!("file-tree.{files}.row"));
     fixture.settle();

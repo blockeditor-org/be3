@@ -140,7 +140,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         .node_rect(rename)
         .expect("the row is laid out")
         .center();
-    fixture.test.click_at(at);
+    fixture.test.click(at);
     fixture.settle();
     assert_eq!(
         fixture.test.take_child_menu_picks(),

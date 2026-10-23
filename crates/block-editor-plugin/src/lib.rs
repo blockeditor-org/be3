@@ -32,17 +32,17 @@ pub use block_plugin_api::{
     EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact,
     HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
     HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
-    IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, LinkBase,
+    ImeArea, IncomingNotification, Input, InputDevices, InteractionMode, Key, KeyChord, LinkBase,
     Media, MediaLevel, MediaLevels, MediaRequest, MenuCheck, MenuCommand, MenuEntry, MenuSubmenu,
     Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, Occluder, PenPhase, PlayerCommand,
     PointerButton, Power, PowerAction, PowerAvailability, ProgramAction, Programs, RemapState,
     Remaps, ResizeMode, Revision, Rotation, ScreenLocked, ScreenPlacement, SettingsProgress,
     ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar,
-    TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch,
+    ScrollDelta, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch,
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId, WheelUnit, Wifi, WifiLink, WifiNetwork, WifiRequest,
-    WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
+    TimedInput, WebViewCommand, WebViewEvent, WebViewId, Wifi, WifiLink, WifiNetwork, WifiRequest,
+    WifiSecurity, WifiStatus, WindowAction, WindowOrigin, WindowRequests,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
@@ -59,7 +59,7 @@ pub use host::{
     PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest, ShownPresence, Waker,
     child_rect,
 };
-pub use plugin::{Claim, Frame, Ime, Instance, Plugin, Region, RegionMonitor, WindowRequests};
+pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

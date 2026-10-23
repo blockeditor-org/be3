@@ -52,7 +52,7 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
         "an unchanged window is not shown again"
     );
 
-    runner.push(Event::Text("x".to_owned()));
+    runner.push(Input::Text("x".to_owned()));
     runner.frame(&mut window, SafeArea::default());
     assert_eq!(
         std::mem::take(&mut window.0),
@@ -62,7 +62,7 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
     runner.frame(&mut window, SafeArea::default());
     assert_eq!(std::mem::take(&mut window.0), 0);
 
-    runner.push(Event::Ime(ImeEvent::FinishComposing));
+    runner.push(Input::Ime(ImeEvent::FinishComposing));
     runner.frame(&mut window, SafeArea::default());
     assert_eq!(
         std::mem::take(&mut window.0),

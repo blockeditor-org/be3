@@ -8,14 +8,10 @@ fn a_pointer_lands_where_the_region_is_scrolled_to() {
     );
     let input = input::translate(
         &scrolled,
-        &InputEvent::PointerMoved {
-            x: 5.0,
-            y: 5.0,
-            time_micros: 0,
-        },
+        &Input::PointerMoved(pos2(5.0, 5.0)).into(),
     );
-    assert!(
-        matches!(input, Input::Event(Event::PointerMoved(at)) if at == pos2(-5.0, -15.0)),
-        "{input:?}"
+    assert_eq!(
+        input,
+        Incoming::logical(Input::PointerMoved(pos2(-5.0, -15.0)))
     );
 }

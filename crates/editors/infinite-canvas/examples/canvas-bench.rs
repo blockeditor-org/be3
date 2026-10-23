@@ -6,7 +6,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasTransform,
 };
 use block_editor_beui::beui::{
-    self, Event, FramePerformance, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
+    self, FramePerformance, Input, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
 };
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -90,7 +90,7 @@ struct Frame {
     latest: FramePerformance,
 }
 
-fn frame(test: &mut BeuiTest<CanvasApp>, events: Vec<Event>) -> Frame {
+fn frame(test: &mut BeuiTest<CanvasApp>, events: Vec<Input>) -> Frame {
     let started = Instant::now();
     test.step(events);
     let wall = started.elapsed();
@@ -191,8 +191,8 @@ fn zoom(count: usize) -> Vec<Frame> {
         .collect()
 }
 
-fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Event {
-    Event::Pen {
+fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Input {
+    Input::Pen {
         phase,
         pos,
         pressure,
@@ -281,12 +281,11 @@ fn ink(count: usize) -> Ink {
     ink
 }
 
-fn button(pos: Pos2, pressed: bool) -> Event {
-    Event::PointerButton {
+fn button(pos: Pos2, pressed: bool) -> Input {
+    Input::PointerButton {
         pos,
         button: PointerButton::Primary,
         pressed,
-        modifiers: Modifiers::default(),
     }
 }
 
@@ -308,12 +307,12 @@ fn drag(count: usize) -> Vec<Frame> {
             let grabbed = at(start);
             frame(
                 &mut test,
-                vec![Event::PointerMoved(grabbed), button(grabbed, true)],
+                vec![Input::PointerMoved(grabbed), button(grabbed, true)],
             );
             for step in 1..=STROKE_MOVES {
                 let along = step as f32 / STROKE_MOVES as f32;
                 let pointer = at(start + (end - start) * along);
-                moves.push(frame(&mut test, vec![Event::PointerMoved(pointer)]));
+                moves.push(frame(&mut test, vec![Input::PointerMoved(pointer)]));
             }
             frame(&mut test, vec![button(at(end), false)]);
             let moved = test
