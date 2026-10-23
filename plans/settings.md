@@ -65,17 +65,12 @@ re-import once, and say so in `guides/frozen_formats.md`.
    `be-client/src/transfer.rs` exports and imports it.
 2. **The access model.** In `be-graph` and `be-server`:
    - Add `Manage` above `Edit`. Manage shares and changes settings; Edit no
-     longer shares. Authors get Manage on what they create.
-   - The nearest grant on the path up wins for View and Edit, so a lower
-     grant can reduce them. Manage on any ancestor is Manage on the whole tree
-     below it and can't be reduced.
-   - Removing someone's View on a subtree rotates that subtree's keys, as
-     removing a reader does today.
+     longer shares. You get Manage on a workspace you create, blocks you create inside a tree inherit permissions from the tree.
    - Organization administrators keep Manage on everything in their
      organization.
 
-   Done: tests for reducing a grant below an inherited one, for Manage
-   surviving a lower grant, and for Edit no longer sharing.
+   Done: tests for Manage
+   surviving a lower grant and for Edit no longer sharing.
 3. **The settings block.** Any block can hold a child settings block with a
    `kinds` map, the same shape as the user's `Settings`. It never shows as an
    entry in the file tree. **(ask)** How editing it is restricted: either a
