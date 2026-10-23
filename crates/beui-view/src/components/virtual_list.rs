@@ -110,17 +110,20 @@ where
         }
     });
     create_effect(move || {
-        with_document(|document| document.set_virtual_list_direction::<K>(list, direction.get()))
+        let direction = direction.get();
+        with_document(|document| document.set_virtual_list_direction::<K>(list, direction))
     });
     create_effect(move || {
         let keys = keys.get();
         with_document(|document| document.set_virtual_list_keys(list, keys));
     });
     create_effect(move || {
-        with_document(|document| document.set_virtual_list_overscan::<K>(list, overscan.get()))
+        let overscan = overscan.get();
+        with_document(|document| document.set_virtual_list_overscan::<K>(list, overscan))
     });
     create_effect(move || {
-        with_document(|document| document.set_virtual_list_item_size::<K>(list, item_size.get()))
+        let item_size = item_size.get();
+        with_document(|document| document.set_virtual_list_item_size::<K>(list, item_size))
     });
     list.id()
 }

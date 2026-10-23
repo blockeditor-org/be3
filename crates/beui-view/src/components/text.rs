@@ -69,10 +69,19 @@ pub fn Text(
         with_document(|document| document.set_text_style(node, style));
     });
     if let Some(string) = string {
-        create_binding(move || with_document(|document| document.set_text(node, string.get())));
+        create_binding(move || {
+            let string = string.get();
+            with_document(|document| document.set_text(node, string))
+        });
     }
-    create_binding(move || with_document(|document| document.set_text_marks(node, marks.get())));
-    create_binding(move || with_document(|document| document.set_text_carets(node, carets.get())));
+    create_binding(move || {
+        let marks = marks.get();
+        with_document(|document| document.set_text_marks(node, marks))
+    });
+    create_binding(move || {
+        let carets = carets.get();
+        with_document(|document| document.set_text_carets(node, carets))
+    });
     children.mount(node);
     node.id()
 }
@@ -416,12 +425,16 @@ pub fn TextItem(
     });
     if let Some(text) = text {
         create_effect(move || {
-            with_document(|document| document.set_text_item_text(item, text.get()))
+            let text = text.get();
+            with_document(|document| document.set_text_item_text(item, text))
         });
     }
     let anchored = at.is_some();
     if let Some(at) = at {
-        create_effect(move || with_document(|document| document.set_text_item_at(item, at.get())));
+        create_effect(move || {
+            let at = at.get();
+            with_document(|document| document.set_text_item_at(item, at))
+        });
     }
     TextItem::new(item.id(), anchored)
 }

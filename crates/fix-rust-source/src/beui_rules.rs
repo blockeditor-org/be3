@@ -69,6 +69,37 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
             }
         }
     }
+    for call in tree.syntax().descendants().filter_map(ast::CallExpr::cast) {
+        if test_source || !(calls(&call, "with_document") || calls(&call, "try_with_document")) {
+            continue;
+        }
+        let Some(arguments) = call.arg_list() else {
+            continue;
+        };
+        for read in arguments
+            .syntax()
+            .descendants()
+            .filter_map(ast::MethodCallExpr::cast)
+        {
+            let closures = read
+                .syntax()
+                .ancestors()
+                .take_while(|node| node != arguments.syntax())
+                .filter(|node| ast::ClosureExpr::can_cast(node.kind()))
+                .count();
+            if closures <= 1
+                && read.name_ref().is_some_and(|name| name.text() == "get")
+                && read
+                    .arg_list()
+                    .is_some_and(|arguments| arguments.args().next().is_none())
+            {
+                violations.push(format!(
+                    "signal read under the document: {} read signals before with_document, since a memo they refresh may need the document itself",
+                    at(read.syntax())
+                ));
+            }
+        }
+    }
     if !PRIMITIVE_USERS
         .iter()
         .any(|allowed| relative.starts_with(allowed))

@@ -17,15 +17,24 @@ pub fn List(
 ) -> NodeId {
     let list = with_document(|document| document.create_list(direction.get_untracked(), 0.0));
     create_binding(move || {
-        with_document(|document| document.set_list_direction(list, direction.get()))
+        let direction = direction.get();
+        with_document(|document| document.set_list_direction(list, direction))
     });
-    create_binding(move || with_document(|document| document.set_list_align(list, align.get())));
     create_binding(move || {
-        with_document(|document| document.set_list_justify(list, justify.get()))
+        let align = align.get();
+        with_document(|document| document.set_list_align(list, align))
     });
-    create_binding(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
     create_binding(move || {
-        with_document(|document| document.set_list_spacing(list, spacing.get()))
+        let justify = justify.get();
+        with_document(|document| document.set_list_justify(list, justify))
+    });
+    create_binding(move || {
+        let wrap = wrap.get();
+        with_document(|document| document.set_list_wrap(list, wrap))
+    });
+    create_binding(move || {
+        let spacing = spacing.get();
+        with_document(|document| document.set_list_spacing(list, spacing))
     });
     children.mount(list);
     list.id()

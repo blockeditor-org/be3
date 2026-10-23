@@ -60,7 +60,8 @@ pub fn Overlay(
         overlay
     });
     create_binding(move || {
-        with_document(|document| document.set_overlay_anchor(overlay, anchor.get()))
+        let anchor = anchor.get();
+        with_document(|document| document.set_overlay_anchor(overlay, anchor))
     });
     create_binding(move || {
         let (placement, scrim, traps_focus) = (placement.get(), scrim.get(), traps_focus.get());
