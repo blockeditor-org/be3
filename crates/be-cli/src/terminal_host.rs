@@ -6,7 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
+use be_block::terminal::{
+    LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
+};
 use be_client::{ClientError, Live, Peer};
 use be_protocol::ClientId;
 use be_store::ObjectStore;
@@ -77,6 +79,7 @@ pub struct Host {
 
 enum Ended {
     Shutdown,
+    Refused(String),
     Disconnected(String),
 }
 
@@ -113,17 +116,23 @@ impl Host {
     ) -> Result<(), String> {
         let mut shutdown = std::pin::pin!(shutdown);
         let mut retry = Duration::from_secs(1);
+        let mut connected = false;
         loop {
             let ended = match connect().await {
                 Ok((peer, block)) => {
-                    retry = Duration::from_secs(1);
-                    eprintln!("be: hosting a terminal for block {block}");
+                    connected = true;
                     self.serve(peer, block, shutdown.as_mut()).await
                 }
-                Err(error) => Ended::Disconnected(error),
+                Err(error) if !connected => return Err(error),
+                Err(error) => Ended::Refused(error),
             };
-            let Ended::Disconnected(error) = ended else {
-                return Ok(());
+            let error = match ended {
+                Ended::Shutdown => return Ok(()),
+                Ended::Refused(error) => error,
+                Ended::Disconnected(error) => {
+                    retry = Duration::from_secs(1);
+                    error
+                }
             };
             eprintln!(
                 "be: {error}; connecting again in {}s, with the shell kept running",
@@ -153,7 +162,7 @@ impl Host {
         let shutdown = std::pin::pin!(shutdown);
         match self.serve(peer, block, shutdown).await {
             Ended::Shutdown => Ok(()),
-            Ended::Disconnected(error) => Err(error),
+            Ended::Refused(error) | Ended::Disconnected(error) => Err(error),
         }
     }
 
@@ -166,7 +175,7 @@ impl Host {
         let mut doorbell = peer.connection().subscribe();
         let mut live = match Live::<S, TerminalContent>::join(Arc::clone(&peer), block).await {
             Ok(live) => live,
-            Err(error) => return Ended::Disconnected(explain(error)),
+            Err(error) => return Ended::Refused(explain(error)),
         };
         let shown = TerminalHost {
             machine: self.options.machine.clone(),
@@ -174,8 +183,9 @@ impl Host {
         };
         let presence = serde_json::to_vec(&shown).unwrap_or_default();
         if let Err(error) = live.set_presence(TerminalHost::ID, Some(presence)).await {
-            return Ended::Disconnected(explain(error));
+            return Ended::Refused(explain(error));
         }
+        eprintln!("be: hosting a terminal for block {block}");
         let outcome = loop {
             tokio::select! {
                 () = shutdown.as_mut() => break Ok(true),
@@ -402,7 +412,6 @@ impl Host {
         });
         Ok(true)
     }
-
 }
 
 async fn send<S: ObjectStore>(
@@ -432,7 +441,11 @@ fn read(mut reader: Box<dyn Read + Send>, shell: u64, events: mpsc::UnboundedSen
     std::thread::spawn(move || {
         let mut buffer = vec![0u8; READ_CHUNK];
         while let Ok(read) = reader.read(&mut buffer) {
-            if read == 0 || events.send(Event::Output(shell, buffer[..read].to_vec())).is_err() {
+            if read == 0
+                || events
+                    .send(Event::Output(shell, buffer[..read].to_vec()))
+                    .is_err()
+            {
                 break;
             }
         }

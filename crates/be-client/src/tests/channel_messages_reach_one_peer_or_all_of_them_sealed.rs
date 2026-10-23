@@ -75,7 +75,10 @@ async fn channel_messages_reach_one_peer_or_all_of_them_sealed() {
     );
     assert_eq!(payloads(&tablet_heard), [b"to everyone".to_vec()]);
     on_phone.poll().await.unwrap();
-    assert!(on_phone.take_channel().is_empty(), "a peer never hears itself");
+    assert!(
+        on_phone.take_channel().is_empty(),
+        "a peer never hears itself"
+    );
 
     harness.stop().await;
 }

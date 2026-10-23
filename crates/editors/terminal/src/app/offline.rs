@@ -30,9 +30,13 @@ pub(crate) fn Offline(editor: Editor) -> NodeId {
                         "A terminal block's shell runs on a machine you choose, which stays connected through the server. Nothing is running it now. To start one:"
                     </Text>
                     <List spacing=8.0>
-                        <Text wrap=true>"1. Make an agent: open the app menu, choose Agents, and add one. Keep the credentials it shows."</Text>
+                        <Text wrap=true>
+                            "1. Make an agent: open the app menu, choose Agents, and add one. Keep the credentials it shows."
+                        </Text>
                         <Text wrap=true>"2. Share this terminal with the agent."</Text>
-                        <Text wrap=true>"3. On the machine that should run the shell, run this with the agent's credentials in place of the placeholder:"</Text>
+                        <Text wrap=true>
+                            "3. On the machine that should run the shell, run this with the agent's credentials in place of the placeholder:"
+                        </Text>
                     </List>
                     <Card>
                         <List direction=Direction::Horizontal align=Align::Center spacing=12.0>

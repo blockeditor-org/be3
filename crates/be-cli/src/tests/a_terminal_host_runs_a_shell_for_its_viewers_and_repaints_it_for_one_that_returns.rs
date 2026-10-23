@@ -62,7 +62,11 @@ impl Viewer {
             }
         })
         .await;
-        assert!(reached.is_ok(), "the viewer never {what}; it shows:\n{}", self.text());
+        assert!(
+            reached.is_ok(),
+            "the viewer never {what}; it shows:\n{}",
+            self.text()
+        );
     }
 
     fn take(&mut self) {
@@ -83,11 +87,9 @@ impl Viewer {
                     shell,
                     sequence,
                     bytes,
-                }) => {
-                    if self.shell == Some((shell, sequence - 1)) {
-                        self.screen.write(&bytes);
-                        self.shell = Some((shell, sequence));
-                    }
+                }) if self.shell == Some((shell, sequence - 1)) => {
+                    self.screen.write(&bytes);
+                    self.shell = Some((shell, sequence));
                 }
                 _ => {}
             }
@@ -151,7 +153,9 @@ async fn a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_th
                 .send(TerminalMessage::Input(b"echo hello-$((6*7))\r".to_vec()))
                 .await;
             viewer
-                .until("saw the shell answer", |viewer| viewer.text().contains("hello-42"))
+                .until("saw the shell answer", |viewer| {
+                    viewer.text().contains("hello-42")
+                })
                 .await;
 
             viewing.leave_session(block).await.unwrap();

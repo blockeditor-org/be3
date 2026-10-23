@@ -105,5 +105,7 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
         .join()
         .expect("the host's thread ends")
         .expect("the host stops cleanly");
-    wait_until("saw the host leave", |shared| host_of(shared, block).is_none());
+    wait_until("saw the host leave", |shared| {
+        host_of(shared, block).is_none()
+    });
 }

@@ -92,7 +92,11 @@ impl Screen {
                     wanted.write(&mut out);
                     style = Some(wanted);
                 }
-                let text = if cell.text.is_empty() { " " } else { &cell.text };
+                let text = if cell.text.is_empty() {
+                    " "
+                } else {
+                    &cell.text
+                };
                 out.extend_from_slice(text.as_bytes());
                 after_wide = !text.is_ascii();
                 at = (!after_wide).then_some(x + 1);

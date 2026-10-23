@@ -1304,11 +1304,11 @@ impl Ran<'_> {
                 false
             }
             Command::CreateAgent { name, reply } => {
-                reply(
-                    create_agent(self.peer, self.config, name)
-                        .await
-                        .map_err(|error| error.to_string()),
-                );
+                let created = create_agent(self.peer, self.config, name).await;
+                if created.is_ok() {
+                    sync_contacts(self.peer, self.shared).await;
+                }
+                reply(created.map_err(|error| error.to_string()));
                 crate::host::wake();
                 false
             }

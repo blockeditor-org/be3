@@ -90,10 +90,7 @@ impl Harness {
             .document()
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("nothing has the test id {test_id}"));
-        self.editor
-            .document()
-            .node_detail(node)
-            .unwrap_or_default()
+        self.editor.document().node_detail(node).unwrap_or_default()
     }
 }
 

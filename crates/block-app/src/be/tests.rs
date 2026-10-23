@@ -7,6 +7,7 @@ use super::*;
 use crate::platform;
 
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
+mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
@@ -24,10 +25,10 @@ mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
-#[cfg(not(target_os = "android"))]
-mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+#[cfg(not(target_os = "android"))]
+mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;

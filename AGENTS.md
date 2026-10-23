@@ -27,6 +27,7 @@ Guides:
 - guides/running/native.md
 - guides/running/web.md
 - guides/running/android.md
+- guides/terminal.md: the terminal block, whose shell runs on a machine `be TARGET terminal-host` signs in from
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md: the `be-*` crates every block lives in
 - guides/tracker.md: the issue tracker in block-app, and `be`, the command line tool agents use to read and change it

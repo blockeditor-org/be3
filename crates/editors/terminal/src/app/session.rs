@@ -35,7 +35,8 @@ impl Session {
             wanted: create_signal(FIRST_SIZE),
             cell: create_signal((1, 1)),
         };
-        let client = create_memo(move || host.with(|host| host.as_ref().map(|(client, _)| *client)));
+        let client =
+            create_memo(move || host.with(|host| host.as_ref().map(|(client, _)| *client)));
         create_effect(move || {
             let client = client.get();
             untrack(|| {
@@ -65,7 +66,11 @@ impl Session {
     }
 
     fn receive(&self, from: u64, message: TerminalMessage) {
-        if self.host.with_untracked(|host| host.as_ref().map(|(client, _)| *client)) != Some(from) {
+        if self
+            .host
+            .with_untracked(|host| host.as_ref().map(|(client, _)| *client))
+            != Some(from)
+        {
             return;
         }
         match message {

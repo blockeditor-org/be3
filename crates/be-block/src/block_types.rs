@@ -8,7 +8,8 @@ use crate::{
     ImageContent, InputRemapperContent, InputSettingsContent, LogicGameContent, LogicGridContent,
     MapContent, PanZoomContent, PdfContent, PixelArtContent, PixelRayTracerContent,
     PresentationContent, RepositoryContent, Scene3dContent, SettingsContent,
-    SettingsProfileContent, TerminalContent, TextContent, TriangleContent, VideoContent, WorkspaceContent,
+    SettingsProfileContent, TerminalContent, TextContent, TriangleContent, VideoContent,
+    WorkspaceContent,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

@@ -57,4 +57,3 @@ impl ChannelKind for TerminalMessage {
 }
 
 pub const LARGEST_OUTPUT: usize = 32 * 1024;
-

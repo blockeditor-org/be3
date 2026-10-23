@@ -89,7 +89,11 @@ fn private_directory() -> Result<std::path::PathBuf, String> {
     Ok(path)
 }
 
-async fn host_terminal(settings: &Settings, target: &str, command: &[String]) -> Result<String, String> {
+async fn host_terminal(
+    settings: &Settings,
+    target: &str,
+    command: &[String],
+) -> Result<String, String> {
     let mut host = Host::new(HostOptions::here(command.to_vec()))?;
     let connect = async || {
         let tracker = Tracker::new(connect_live(settings).await?);

@@ -47,7 +47,9 @@ fn Running(session: Session, editor: Editor) -> NodeId {
     let status = create_memo(move || {
         let read_only = editor.read_only().get();
         match (session.exited.get(), session.running.get(), read_only) {
-            (Some(Some(code)), _, false) => format!("The shell exited with status {code}. Type to start a new one."),
+            (Some(Some(code)), _, false) => {
+                format!("The shell exited with status {code}. Type to start a new one.")
+            }
             (Some(_), _, false) => "The shell exited. Type to start a new one.".to_owned(),
             (Some(_), _, true) => "The shell exited.".to_owned(),
             (None, None, _) => "Connecting…".to_owned(),
