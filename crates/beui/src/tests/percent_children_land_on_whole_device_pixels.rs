@@ -22,7 +22,7 @@ fn percent_children_land_on_whole_device_pixels() {
     });
 
     let mut harness = Harness::sized(document, Vec2::new(301.0, 200.0));
-    harness.context.set_pixels_per_point(SCALE);
+    harness.rescale(SCALE);
     harness.frame(Vec::new());
 
     let edges: Vec<(f32, f32)> = children

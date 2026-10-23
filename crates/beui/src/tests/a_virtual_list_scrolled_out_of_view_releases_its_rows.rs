@@ -40,16 +40,18 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let rows = harness.document.children(list);
+    let rows = harness.document().children(list);
     assert_eq!(rows.len(), ROWS);
 
     built.update(|built| built.clear());
-    harness.document.set_scroll_offset(scroll, BELOW / 2.0);
+    harness
+        .document_mut()
+        .set_scroll_offset(scroll, BELOW / 2.0);
     harness.frame(Vec::new());
-    assert!(harness.document.children(list).is_empty());
+    assert!(harness.document().children(list).is_empty());
 
-    harness.document.set_scroll_offset(scroll, 0.0);
+    harness.document_mut().set_scroll_offset(scroll, 0.0);
     harness.frame(Vec::new());
     assert!(built.with_untracked(|built| built.is_empty()));
-    assert_eq!(harness.document.children(list), rows);
+    assert_eq!(harness.document().children(list), rows);
 }

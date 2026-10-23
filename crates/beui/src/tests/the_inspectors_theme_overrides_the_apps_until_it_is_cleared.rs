@@ -19,7 +19,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
         ..PreferenceLayer::EMPTY
     };
     harness
-        .context
+        .context()
         .set_preference_layer(PreferenceSource::App, app);
     let captions = |output: &crate::FrameOutput, theme: Theme| {
         output
@@ -43,7 +43,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
     );
     assert_eq!(captions(&restyled, Theme::EPAPER), 1);
     assert_eq!(
-        harness.context.preference_layer(PreferenceSource::App),
+        harness.context().preference_layer(PreferenceSource::App),
         app,
         "the override is not the app's own preference"
     );

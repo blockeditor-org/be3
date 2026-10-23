@@ -36,7 +36,7 @@ fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
         let center = pos2(100.0, 100.0);
         harness.frame(vec![Event::PointerMoved(center)]);
     }
-    *harness.viewport_mut() = vec2(640.0, 240.0);
+    harness.resize(vec2(640.0, 240.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 }

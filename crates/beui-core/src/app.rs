@@ -26,7 +26,7 @@ pub fn safe_rect(screen: Vec2, area: SafeArea, scale: f32) -> Rect {
     Rect::from_min_max(min, pos2(max.x.max(min.x), max.y.max(min.y)))
 }
 
-pub trait App {
+pub trait App: std::any::Any {
     fn update(&mut self, context: &Context, rect: Rect);
 
     fn setup(&mut self, _setup: &Setup) {}

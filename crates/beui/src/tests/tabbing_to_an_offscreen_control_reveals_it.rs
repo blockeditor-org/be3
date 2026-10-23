@@ -35,7 +35,7 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
             .focused()
             .get()
     );
-    assert!(harness.document.scroll_offset(scroll) > 0.0);
+    assert!(harness.document().scroll_offset(scroll) > 0.0);
     let rect = harness.rect(buttons[4]);
     assert!(rect.top() >= 0.0 && rect.bottom() <= 100.0);
     for _ in 0..4 {
@@ -48,5 +48,5 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
             .focused()
             .get()
     );
-    assert_eq!(harness.document.scroll_offset(scroll), 0.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
 }

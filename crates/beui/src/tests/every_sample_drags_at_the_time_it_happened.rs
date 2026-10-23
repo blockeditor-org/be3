@@ -20,7 +20,7 @@ fn every_sample_drags_at_the_time_it_happened() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert!(harness.document.wants_every_sample());
+    assert!(harness.document().wants_every_sample());
     let pen = |phase, x| Event::Pen {
         phase,
         pos: pos2(x, 100.0),
@@ -30,7 +30,7 @@ fn every_sample_drags_at_the_time_it_happened() {
     harness.frame(vec![pen(PenPhase::Down(PointerButton::Primary), 100.0)]);
     drags.set(Vec::new());
 
-    let before = harness.context.now();
+    let before = harness.context().now();
     let early = before + Duration::from_millis(3);
     let later = before + Duration::from_millis(9);
     harness.frame(vec![
@@ -41,7 +41,7 @@ fn every_sample_drags_at_the_time_it_happened() {
         Event::Predicted(pos2(135.0, 100.0)),
         pen(PenPhase::Move, 130.0),
     ]);
-    let now = harness.context.now();
+    let now = harness.context().now();
     let seen: Vec<(f32, Instant, Option<Pos2>)> = drags
         .get_untracked()
         .iter()

@@ -18,7 +18,7 @@ fn a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go() {
     harness.finger(1, TouchPhase::End, handle);
     harness.settle();
 
-    harness.scroll(pos2(200.0, 400.0), vec2(0.0, -100.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 400.0), vec2(0.0, -100.0), Modifiers::NONE);
     assert_eq!(
         harness.document().scroll_offset(sheet),
         100.0,

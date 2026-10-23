@@ -14,6 +14,7 @@ use crate::base::offset::OffsetNode;
 use crate::base::overlay::OverlayNode;
 
 pub const LAYER_CLASS: &str = "beui-layer";
+pub const TEST_ID_SEPARATOR: char = '\u{1f}';
 use crate::base::text::TextNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Vec2};
@@ -724,7 +725,7 @@ impl Document {
         node.set_children(inner.children);
         let test_ids = self.node_test_ids(id);
         if !test_ids.is_empty() {
-            node.set_author_id(test_ids.join(" "));
+            node.set_author_id(test_ids.join(&TEST_ID_SEPARATOR.to_string()));
         }
 
         if explicit.is_some() {

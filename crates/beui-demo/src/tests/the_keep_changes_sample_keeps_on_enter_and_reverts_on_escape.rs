@@ -1,20 +1,8 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::{Key, Modifiers};
 
 fn press(test: &mut DocumentTest, key: Key) {
-    test.frame(
-        [true, false]
-            .into_iter()
-            .map(|pressed| {
-                Event::key(beui::KeyPress {
-                    key,
-                    pressed,
-                    repeat: false,
-                    modifiers: Modifiers::NONE,
-                })
-            })
-            .collect(),
-    );
+    test.key(key, Modifiers::NONE);
     test.frame(Vec::new());
 }
 

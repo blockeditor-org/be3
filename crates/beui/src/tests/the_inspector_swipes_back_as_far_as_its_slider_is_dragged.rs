@@ -31,7 +31,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     harness.frame(Vec::new());
     let resting = harness.rect(page.get());
     let panel = harness.inspector_panel_rect();
-    harness.scroll(panel.center(), vec2(0.0, -REVEAL), Modifiers::NONE);
+    harness.scroll_at(panel.center(), vec2(0.0, -REVEAL), Modifiers::NONE);
     harness.frame(Vec::new());
     let track = harness.inspector_rect("inspector.simulation.back");
     assert!(

@@ -40,7 +40,7 @@ fn holding_alt_moves_a_floating_demo_page_by_its_content() {
                 break;
             }
         }
-        test.scroll_at(inside, Vec2::new(0.0, -REVEAL_STEP / 4.0));
+        test.scroll(inside, Vec2::new(0.0, REVEAL_STEP / 4.0));
     }
     test.click("demo.drag_modifier");
     let before = test.rect_of("demo.drag_modifier");

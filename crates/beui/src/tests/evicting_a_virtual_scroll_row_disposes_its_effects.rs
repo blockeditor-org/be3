@@ -33,7 +33,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     let original = harness.document().children(list);
     assert!(!original.is_empty());
 
-    harness.document.set_scroll_offset(scroll, f32::MAX);
+    harness.document_mut().set_scroll_offset(scroll, f32::MAX);
     harness.frame(Vec::new());
     let rows = harness.document().children(list);
     let last = harness.document().children(*rows.last().unwrap())[0];

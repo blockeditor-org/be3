@@ -30,7 +30,7 @@ fn a_touch_fling_that_ends_without_moving_keeps_its_momentum() {
     harness.touch(TouchPhase::Start, start);
     harness.touch(TouchPhase::Move, pos2(x, 250.0));
     harness.touch(TouchPhase::Move, end);
-    let released = harness.frame(vec![touch_event(1, TouchPhase::End, end)]);
+    let released = harness.touch(TouchPhase::End, end);
 
     assert!(
         harness

@@ -39,7 +39,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     test.settle();
     assert_eq!(test.rect_of("sheet.handle").top(), 60.0);
     test.snapshot("sheet_fades_at_the_start");
-    test.scroll_at(pos2(200.0, 300.0), vec2(0.0, -300.0));
+    test.scroll(pos2(200.0, 300.0), vec2(0.0, 300.0));
     test.settle();
     test.snapshot("sheet_fades_in_the_middle");
     let top = test.rect_of("sheet.handle").top();
@@ -58,7 +58,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     }
     assert!(bounced);
     test.settle();
-    test.scroll_at(pos2(200.0, 300.0), vec2(0.0, -10000.0));
+    test.scroll(pos2(200.0, 300.0), vec2(0.0, 10000.0));
     test.settle();
     test.snapshot("sheet_fades_at_the_end");
     let from = test.rect_of("sheet.handle").center();

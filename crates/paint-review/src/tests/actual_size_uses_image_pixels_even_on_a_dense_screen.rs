@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn actual_size_uses_image_pixels_even_on_a_dense_screen() {
     let mut review = Review::sized(Some("sample"), Vec2::new(390.0, 844.0));
-    review.test.context().set_pixels_per_point(2.0);
+    review.test.rescale(2.0);
     review.load(Manifest {
         paintings: vec![changed("sample")],
     });

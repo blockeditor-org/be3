@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::app::VideoApp;
 use crate::timeline::timecode;
 
+mod a_trim_keeps_following_the_pointer_once_its_first_edit_lands;
 mod an_empty_video_has_nothing_at_the_playhead;
 mod clicking_a_clip_selects_it_for_the_effects_panel;
 mod dragging_a_clip_past_the_next_one_reorders_the_base_track;

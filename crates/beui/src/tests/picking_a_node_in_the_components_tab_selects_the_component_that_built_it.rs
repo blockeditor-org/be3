@@ -15,7 +15,7 @@ fn picking_a_node_in_the_components_tab_selects_the_component_that_built_it() {
 
     harness.toggle_picking();
     let face_rect = harness
-        .document
+        .document()
         .node_rect(face)
         .expect("the face was not laid out");
     harness.click(pos2(face_rect.left() + 2.0, face_rect.top() + 2.0));

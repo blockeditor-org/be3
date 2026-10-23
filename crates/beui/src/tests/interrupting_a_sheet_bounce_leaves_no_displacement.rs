@@ -26,7 +26,7 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
         }
         assert!(bounced);
         match interruption {
-            0 => harness.scroll(pos2(200.0, 300.0), vec2(0.0, -20.0), Modifiers::NONE),
+            0 => harness.scroll_at(pos2(200.0, 300.0), vec2(0.0, -20.0), Modifiers::NONE),
             1 => {
                 harness.frame(vec![Event::Back(BackGesture::Started {
                     edge: crate::input::BackEdge::Left,
@@ -39,7 +39,7 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
                 harness.touch(TouchPhase::Move, pos2(200.0, 310.0));
                 harness.touch(TouchPhase::Cancel, pos2(200.0, 310.0));
             }
-            _ => harness.context.set_preference_layer(
+            _ => harness.context().set_preference_layer(
                 PreferenceSource::System,
                 PreferenceLayer {
                     motion: Some(Motion::Instant),

@@ -25,7 +25,7 @@ fn instant_carets_do_not_request_blink_frames() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.advance(BLINK);
     harness.frame(Vec::new());
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Instant),
@@ -34,7 +34,7 @@ fn instant_carets_do_not_request_blink_frames() {
     );
     harness.frame(Vec::new());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Animated),

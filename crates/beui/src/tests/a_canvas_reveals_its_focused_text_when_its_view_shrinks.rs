@@ -39,7 +39,7 @@ fn a_canvas_reveals_its_focused_text_when_its_view_shrinks() {
         "text already in view is not moved when it takes the focus"
     );
 
-    *harness.viewport_mut() = Vec2::new(400.0, 300.0);
+    harness.resize(Vec2::new(400.0, 300.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let field = harness.rect(input.get());

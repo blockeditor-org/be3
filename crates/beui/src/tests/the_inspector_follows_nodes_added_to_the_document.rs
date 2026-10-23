@@ -12,15 +12,17 @@ fn the_inspector_follows_nodes_added_to_the_document() {
     harness.toggle_inspector();
     assert_eq!(harness.tree(), ["list", "  text"]);
 
-    let second = harness.document.create_text("Second", 14.0, Color32::WHITE);
+    let second = harness
+        .document_mut()
+        .create_text("Second", 14.0, Color32::WHITE);
     harness
-        .document
+        .document_mut()
         .append_child(column, second.id(), ItemSize::Intrinsic);
     harness.frame(Vec::new());
 
     assert_eq!(harness.tree(), ["list", "  text", "  text"]);
 
-    harness.document.remove_child(column, first.id());
+    harness.document_mut().remove_child(column, first.id());
     harness.frame(Vec::new());
 
     assert_eq!(harness.tree(), ["list", "  text"]);

@@ -55,16 +55,19 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     assert_eq!(harness.rect(list).top(), HEADER);
     assert_eq!(harness.rect(list).height(), rows);
     assert_eq!(
-        harness.rect(harness.document.children(list)[0]).top(),
+        harness.rect(harness.document().children(list)[0]).top(),
         HEADER
     );
 
-    harness.document.set_scroll_offset(scroll, f32::MAX);
+    harness.document_mut().set_scroll_offset(scroll, f32::MAX);
     harness.frame(Vec::new());
 
     let content = HEADER + rows + FOOTER;
-    assert_eq!(harness.document.scroll_offset(scroll), content - VIEWPORT.y);
-    let last = *harness.document.children(list).last().unwrap();
+    assert_eq!(
+        harness.document().scroll_offset(scroll),
+        content - VIEWPORT.y
+    );
+    let last = *harness.document().children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y - FOOTER);
     assert_eq!(built.get_untracked().last(), Some(&(ROWS - 1)));
 }

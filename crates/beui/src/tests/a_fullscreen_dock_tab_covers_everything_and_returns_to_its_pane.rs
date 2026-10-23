@@ -71,7 +71,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     );
 
     harness.frame(vec![Event::PointerMoved(over_bar)]);
-    harness.scroll(over_bar, Vec2::new(0.0, -30.0), Modifiers::NONE);
+    harness.scroll_at(over_bar, Vec2::new(0.0, -30.0), Modifiers::NONE);
     harness.settle();
     assert!(
         !bar.with_untracked(|bar| bar.hovered),

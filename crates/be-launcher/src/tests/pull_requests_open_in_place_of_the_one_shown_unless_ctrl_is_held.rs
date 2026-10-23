@@ -47,7 +47,7 @@ fn close(model: Model, number: u64) -> String {
 
 fn click(test: &mut DocumentTest, number: u64, modifiers: Modifiers) {
     test.frame(vec![Event::Modifiers(modifiers)]);
-    test.click(&format!("launcher.pull_request.{number}"));
+    test.click(format!("launcher.pull_request.{number}"));
     test.frame(vec![Event::Modifiers(Modifiers::NONE)]);
 }
 
@@ -105,7 +105,7 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
         "in the tab it had"
     );
 
-    test.click(&close(model, 3));
+    test.click(close(model, 3));
     test.frame(Vec::new());
     assert!(
         !is_open(&test, 3) && is_open(&test, 1),

@@ -5,7 +5,7 @@ fn the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button() {
     let mut test = alone(WIDE, Page::Tree);
     test.frame(Vec::new());
     let switch = test.rect_of("demo.tree.comfortable");
-    test.click_at(pos2(switch.left() + 12.0, switch.center().y));
+    test.click(pos2(switch.left() + 12.0, switch.center().y));
     test.frame(Vec::new());
     let comfortable = test.rect_of("demo.tree.1.row").height();
     assert!(
@@ -19,7 +19,7 @@ fn the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button() {
         toggle.left() < row.left() - 40.0,
         "the whole indent beside a row opens and closes it"
     );
-    test.click_at(pos2(toggle.left() + 2.0, row.center().y));
+    test.click(pos2(toggle.left() + 2.0, row.center().y));
     test.frame(Vec::new());
     assert!(
         !test.shows("demo.tree.2.row"),

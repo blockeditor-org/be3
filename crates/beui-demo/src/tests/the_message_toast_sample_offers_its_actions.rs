@@ -9,9 +9,9 @@ fn the_message_toast_sample_offers_its_actions() {
         if test.shows("toast.3") && test.rect_of("toast.3").bottom() <= bottom {
             break;
         }
-        test.scroll_at(
+        test.scroll(
             pos2(WIDE.x / 2.0, bottom / 2.0),
-            Vec2::new(0.0, -REVEAL_STEP),
+            Vec2::new(0.0, REVEAL_STEP),
         );
     }
     assert!(test.shows("toast.3.action.reply"));

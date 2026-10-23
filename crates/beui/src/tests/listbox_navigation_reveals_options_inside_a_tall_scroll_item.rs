@@ -37,9 +37,9 @@ fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
             .selected(),
         Some(5)
     );
-    let focused = harness.document.focused_node().unwrap();
+    let focused = harness.document().focused_node().unwrap();
     let rect = harness.rect(focused);
     assert!(rect.top() >= 0.0 && rect.bottom() <= 80.0);
     harness.key(Key::Home, Modifiers::NONE);
-    assert_eq!(harness.document.scroll_offset(scroll), 0.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
 }

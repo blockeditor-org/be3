@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
+use super::gestures::Gestures;
 use super::target::{describe, locate, node, point, scaled};
 use super::window::{Resize, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes, keys};
@@ -10,21 +11,15 @@ use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
-use crate::geometry::{Pos2, Rect, Vec2, vec2};
+use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::Keyboard;
-use crate::input::{
-    BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, Pen, PenPhase,
-    PointerButton, TouchId, TouchPhase,
-};
+use crate::input::{BackEdge, DroppedFile, Event, PointerButton, TouchPhase};
 use crate::runner::Platform;
 use crate::window::WindowState;
 
-use crate::runner::SCROLL_LINE as WHEEL_LINE;
 const CHANGES: usize = 60;
 const FRAME: Duration = Duration::from_micros(16_667);
 const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
-const GESTURE_STEPS: usize = 4;
-const PINCH_SPAN: f32 = 100.0;
 
 pub const USAGE: &str = "Reading:
   tree                      the accessibility tree, one node per line
@@ -58,8 +53,9 @@ Touch:
   tap TARGET [FINGER]
   swipe FROM TO [FINGER]
   pinch TARGET FACTOR       two fingers spreading (FACTOR > 1) or closing around TARGET
-  touch down|move|up [FINGER=]TARGET...   fingers 0, 1, ... step by step, all in one frame
-  touch up                  lift every finger
+  touch down|move|up|cancel [FINGER=]TARGET...   fingers 0, 1, ... step by step, all in one
+                            frame; cancel is the system taking a finger back, as for a gesture
+  touch up / touch cancel   lift or cancel every finger
 Pen:
   pen move TARGET [PRESSURE]   the pen hovers over TARGET, or moves there pressed down with PRESSURE
   pen down TARGET [PRESSURE]   the tip touches TARGET, PRESSURE from 0 to 1 (0.5)
@@ -191,16 +187,8 @@ enum Started {
 pub struct Automation {
     inbox: Inbox,
     active: Option<Active>,
-    held: Modifiers,
-    pointer: Pos2,
-    buttons: Vec<PointerButton>,
-    fingers: Vec<(u64, Pos2)>,
-    pen: Option<(Pos2, bool)>,
-    keys: Vec<Key>,
+    gestures: Gestures,
     grabbed: Vec<DroppedFile>,
-    composing: Option<String>,
-    ime: bool,
-    back: Option<f32>,
     clock_stopped: bool,
     unhurried: bool,
     closing: bool,
@@ -213,16 +201,8 @@ impl Automation {
         Self {
             inbox,
             active: None,
-            held: Modifiers::NONE,
-            pointer: Pos2::ZERO,
-            buttons: Vec::new(),
-            fingers: Vec::new(),
-            pen: None,
-            keys: Vec::new(),
+            gestures: Gestures::default(),
             grabbed: Vec::new(),
-            composing: None,
-            ime: false,
-            back: None,
             clock_stopped: false,
             unhurried: false,
             closing: false,
@@ -677,23 +657,9 @@ impl Automation {
                         return Err(format!("click takes right, middle or double, not {other}"));
                     }
                 };
-                self.pointer = at;
-                let steps = (0..count)
-                    .map(|_| {
-                        vec![
-                            Event::PointerMoved(at),
-                            self.button(at, button, true),
-                            self.button(at, button, false),
-                        ]
-                    })
-                    .collect();
-                input(steps)
+                input(self.gestures.click(at, button, count))
             }
-            "move" => {
-                let at = at(argument(0)?)?;
-                self.pointer = at;
-                input(vec![vec![Event::PointerMoved(at)]])
-            }
+            "move" => input(self.gestures.hover(at(argument(0)?)?)),
             "down" | "up" => {
                 let pressed = command == "down";
                 let (target, button) = match (arguments.first(), arguments.get(1)) {
@@ -703,23 +669,12 @@ impl Automation {
                     (target, button) => (target, button.and_then(|name| button_named(name))),
                 };
                 let button = button.unwrap_or(PointerButton::Primary);
-                if pressed && target.is_none() {
-                    return Err("down needs a TARGET".to_owned());
+                let target = target.map(|target| at(target)).transpose()?;
+                match (pressed, target) {
+                    (true, Some(at)) => input(self.gestures.down(at, button)),
+                    (true, None) => Err("down needs a TARGET".to_owned()),
+                    (false, at) => input(self.gestures.up(at, button)),
                 }
-                let at = match target {
-                    Some(target) => at(target)?,
-                    None => self.pointer,
-                };
-                self.pointer = at;
-                if pressed {
-                    self.buttons.push(button);
-                } else {
-                    self.buttons.retain(|held| *held != button);
-                }
-                input(vec![vec![
-                    Event::PointerMoved(at),
-                    self.button(at, button, pressed),
-                ]])
             }
             "drag" => {
                 let from = at(argument(0)?)?;
@@ -730,21 +685,7 @@ impl Automation {
                         .map_err(|_| format!("{steps} is not a number of steps"))?,
                     None => 2,
                 };
-                self.pointer = to;
-                let mut frames = vec![vec![
-                    Event::PointerMoved(from),
-                    self.button(from, PointerButton::Primary, true),
-                ]];
-                for step in 1..steps.max(1) {
-                    frames.push(vec![Event::PointerMoved(
-                        from + (to - from) * (step as f32 / steps as f32),
-                    )]);
-                }
-                frames.push(vec![
-                    Event::PointerMoved(to),
-                    self.button(to, PointerButton::Primary, false),
-                ]);
-                input(frames)
+                input(self.gestures.drag(from, to, steps))
             }
             "wheel" => {
                 let at = at(argument(0)?)?;
@@ -755,52 +696,15 @@ impl Automation {
                             .map_err(|_| format!("{ticks} is not a number of ticks"))
                     })
                 };
-                let (down, right) = (ticks(1)?, ticks(2)?);
-                self.pointer = at;
-                let count = down.unsigned_abs().max(right.unsigned_abs());
-                let frames = (0..count)
-                    .map(|tick| {
-                        let along = |ticks: i32| match tick < ticks.unsigned_abs() {
-                            true => -(ticks.signum() as f32) * WHEEL_LINE,
-                            false => 0.0,
-                        };
-                        vec![
-                            Event::PointerMoved(at),
-                            Event::Scroll(vec2(along(right), along(down))),
-                        ]
-                    })
-                    .collect();
-                input(frames)
+                input(self.gestures.wheel(at, ticks(1)?, ticks(2)?))
             }
             "zoom" => {
                 let at = at(argument(0)?)?;
-                let factor = factor(argument(1)?)?;
-                self.pointer = at;
-                let step = factor.powf(1.0 / GESTURE_STEPS as f32);
-                input(
-                    (0..GESTURE_STEPS)
-                        .map(|_| vec![Event::PointerMoved(at), Event::Zoom(step)])
-                        .collect(),
-                )
+                input(self.gestures.zoom(at, factor(argument(1)?)?))
             }
             "pinch" => {
                 let center = at(argument(0)?)?;
-                let factor = factor(argument(1)?)?;
-                let start = PINCH_SPAN / 2.0;
-                let end = start * factor;
-                let fingers = |half: f32, phase: TouchPhase| {
-                    vec![
-                        touch(0, phase, center - vec2(half, 0.0)),
-                        touch(1, phase, center + vec2(half, 0.0)),
-                    ]
-                };
-                let mut frames = vec![fingers(start, TouchPhase::Start)];
-                for step in 1..=GESTURE_STEPS {
-                    let half = start + (end - start) * (step as f32 / GESTURE_STEPS as f32);
-                    frames.push(fingers(half, TouchPhase::Move));
-                }
-                frames.push(fingers(end, TouchPhase::End));
-                input(frames)
+                input(self.gestures.pinch(center, factor(argument(1)?)?))
             }
             "scroll" => {
                 let at = at(argument(0)?)?;
@@ -813,84 +717,36 @@ impl Automation {
                             .map_err(|_| format!("{text} is not a number")),
                     }
                 };
-                let delta = vec2(-number(2)?, -number(1)?);
-                self.pointer = at;
-                input(vec![vec![
-                    Event::PointerMoved(at),
-                    Event::Scroll(delta),
-                    Event::ScrollEnded,
-                ]])
+                input(self.gestures.scroll(at, vec2(number(2)?, number(1)?)))
             }
-            "leave" => input(vec![vec![Event::PointerGone]]),
+            "leave" => input(self.gestures.leave()),
             "tap" => {
                 let at = at(argument(0)?)?;
-                let finger = finger(arguments.get(1))?;
-                input(vec![vec![
-                    touch(finger, TouchPhase::Start, at),
-                    touch(finger, TouchPhase::End, at),
-                ]])
+                input(self.gestures.tap(at, finger(arguments.get(1))?))
             }
             "swipe" => {
                 let from = at(argument(0)?)?;
                 let to = at(argument(1)?)?;
-                let finger = finger(arguments.get(2))?;
-                let steps = (0..=4)
-                    .map(|step| {
-                        let at = from + (to - from) * (step as f32 / 4.0);
-                        let phase = match step {
-                            0 => TouchPhase::Start,
-                            _ => TouchPhase::Move,
-                        };
-                        vec![touch(finger, phase, at)]
-                    })
-                    .chain(std::iter::once(vec![touch(finger, TouchPhase::End, to)]))
-                    .collect();
-                input(steps)
+                input(self.gestures.swipe(from, to, finger(arguments.get(2))?))
             }
             "pen" => {
-                let pressure = |index: usize, default: f32| {
-                    arguments.get(index).map_or(Ok(default), |text| {
-                        text.parse::<f32>()
-                            .ok()
-                            .filter(|pressure| (0.0..=1.0).contains(pressure))
-                            .ok_or_else(|| format!("{text} is not a pressure from 0 to 1"))
-                    })
+                let pressure = |index: usize| {
+                    arguments
+                        .get(index)
+                        .map(|text| {
+                            text.parse::<f32>()
+                                .ok()
+                                .filter(|pressure| (0.0..=1.0).contains(pressure))
+                                .ok_or_else(|| format!("{text} is not a pressure from 0 to 1"))
+                        })
+                        .transpose()
                 };
-                let held = self.pen;
-                let mut frames = Vec::new();
-                match argument(0)? {
-                    "move" => {
-                        let to = at(argument(1)?)?;
-                        let down = held.is_some_and(|(_, down)| down);
-                        let pressure = pressure(2, if down { 0.5 } else { 0.0 })?;
-                        frames.push(vec![pen(PenPhase::Move, to, pressure)]);
-                        self.pen = Some((to, down));
-                    }
-                    "down" => {
-                        let to = at(argument(1)?)?;
-                        if held.is_some_and(|(_, down)| down) {
-                            return Err("the pen is already down".to_owned());
-                        }
-                        let pressure = pressure(2, 0.5)?;
-                        frames.push(vec![
-                            pen(PenPhase::Move, to, 0.0),
-                            pen(PenPhase::Down(PointerButton::Primary), to, pressure),
-                        ]);
-                        self.pen = Some((to, true));
-                    }
+                let frames = match argument(0)? {
+                    "move" => self.gestures.pen_move(at(argument(1)?)?, pressure(2)?),
+                    "down" => self.gestures.pen_down(at(argument(1)?)?, pressure(2)?)?,
                     "up" => {
-                        let Some((last, true)) = held else {
-                            return Err("the pen is not down".to_owned());
-                        };
-                        let to = match arguments.get(1) {
-                            Some(target) => at(target)?,
-                            None => last,
-                        };
-                        frames.push(vec![
-                            pen(PenPhase::Move, to, 0.5),
-                            pen(PenPhase::Up(PointerButton::Primary), to, 0.0),
-                        ]);
-                        self.pen = Some((to, false));
+                        let to = arguments.get(1).map(|target| at(target)).transpose()?;
+                        self.gestures.pen_up(to)?
                     }
                     "draw" => {
                         let from = at(argument(1)?)?;
@@ -901,44 +757,15 @@ impl Automation {
                                 .map_err(|_| format!("{steps} is not a number of steps"))?,
                             None => 8,
                         };
-                        if held.is_some_and(|(_, down)| down) {
-                            return Err("the pen is already down".to_owned());
-                        }
-                        let steps = steps.max(1);
-                        let along = |step: usize| {
-                            let fraction = step as f32 / steps as f32;
-                            let pressure = 0.2 + 0.8 * (fraction * std::f32::consts::PI).sin();
-                            (from + (to - from) * fraction, pressure)
-                        };
-                        frames.push(vec![
-                            pen(PenPhase::Move, from, 0.0),
-                            pen(PenPhase::Down(PointerButton::Primary), from, 0.2),
-                        ]);
-                        for step in 1..=steps {
-                            let (at, pressure) = along(step);
-                            frames.push(vec![pen(PenPhase::Move, at, pressure)]);
-                        }
-                        frames.push(vec![pen(PenPhase::Up(PointerButton::Primary), to, 0.0)]);
-                        self.pen = Some((to, false));
+                        self.gestures.pen_draw(from, to, steps)?
                     }
-                    "leave" => {
-                        let Some((last, _)) = held else {
-                            return Err("the pen is not in range".to_owned());
-                        };
-                        let mut frame = Vec::new();
-                        if held.is_some_and(|(_, down)| down) {
-                            frame.push(pen(PenPhase::Up(PointerButton::Primary), last, 0.0));
-                        }
-                        frame.push(pen(PenPhase::Gone, last, 0.0));
-                        frames.push(frame);
-                        self.pen = None;
-                    }
+                    "leave" => self.gestures.pen_leave()?,
                     other => {
                         return Err(format!(
                             "pen takes move, down, up, draw or leave, not {other}"
                         ));
                     }
-                }
+                };
                 input(frames)
             }
             "touch" => {
@@ -946,81 +773,27 @@ impl Automation {
                     "down" => TouchPhase::Start,
                     "move" => TouchPhase::Move,
                     "up" => TouchPhase::End,
-                    other => return Err(format!("touch takes down, move or up, not {other}")),
+                    "cancel" => TouchPhase::Cancel,
+                    other => {
+                        return Err(format!("touch takes down, move, up or cancel, not {other}"));
+                    }
                 };
-                let mut events = Vec::new();
-                if arguments.len() == 1 {
-                    if phase != TouchPhase::End {
-                        return Err("touch down and touch move need a TARGET".to_owned());
-                    }
-                    for (finger, pos) in std::mem::take(&mut self.fingers) {
-                        events.push(touch(finger, phase, pos));
-                    }
-                }
-                for spec in &arguments[1..] {
-                    let (finger, target) = finger_target(spec);
-                    let held = self.fingers.iter().position(|(held, _)| *held == finger);
-                    let pos = match (target, held) {
-                        (Some(target), _) => at(target)?,
-                        (None, Some(index)) if phase == TouchPhase::End => self.fingers[index].1,
-                        (None, _) => return Err(format!("{spec} names no TARGET")),
-                    };
-                    match (phase, held) {
-                        (TouchPhase::Start, Some(_)) => {
-                            return Err(format!("finger {finger} is already down"));
-                        }
-                        (TouchPhase::Start, None) => self.fingers.push((finger, pos)),
-                        (_, None) => return Err(format!("finger {finger} is not down")),
-                        (TouchPhase::End, Some(index)) => {
-                            self.fingers.remove(index);
-                        }
-                        (_, Some(index)) => self.fingers[index].1 = pos,
-                    }
-                    events.push(touch(finger, phase, pos));
-                }
-                input(vec![events])
+                let fingers = arguments[1..]
+                    .iter()
+                    .map(|spec| {
+                        let (finger, target) = finger_target(spec);
+                        Ok((finger, target.map(&at).transpose()?))
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                input(self.gestures.touch(phase, &fingers)?)
             }
             "back" => {
-                let mut events = Vec::new();
-                let start = |edge: BackEdge, events: &mut Vec<Event>, back: &mut Option<f32>| {
-                    if back.is_none() {
-                        *back = Some(0.0);
-                        events.push(Event::Back(BackGesture::Started { edge }));
-                    }
-                };
-                match arguments.first().map(String::as_str) {
-                    None => {
-                        start(BackEdge::Left, &mut events, &mut self.back);
-                        let mut frames = vec![events];
-                        for progress in [0.5, 1.0] {
-                            frames.push(vec![Event::Back(BackGesture::Progressed(progress))]);
-                        }
-                        frames.push(vec![Event::Back(BackGesture::Invoked)]);
-                        self.back = None;
-                        return input(frames);
-                    }
-                    Some(edge @ ("left" | "right")) => {
-                        if self.back.is_some() {
-                            return Err("a back gesture is already under way".to_owned());
-                        }
-                        let edge = match edge {
-                            "left" => BackEdge::Left,
-                            _ => BackEdge::Right,
-                        };
-                        start(edge, &mut events, &mut self.back);
-                    }
-                    Some("commit") => {
-                        if self.back.take().is_none() {
-                            return Err("no back gesture is under way".to_owned());
-                        }
-                        events.push(Event::Back(BackGesture::Invoked));
-                    }
-                    Some("cancel") => {
-                        if self.back.take().is_none() {
-                            return Err("no back gesture is under way".to_owned());
-                        }
-                        events.push(Event::Back(BackGesture::Cancelled));
-                    }
+                let frames = match arguments.first().map(String::as_str) {
+                    None => self.gestures.back(),
+                    Some("left") => self.gestures.back_from(BackEdge::Left)?,
+                    Some("right") => self.gestures.back_from(BackEdge::Right)?,
+                    Some("commit") => self.gestures.back_end(true)?,
+                    Some("cancel") => self.gestures.back_end(false)?,
                     Some(progress) => {
                         let progress: f32 = progress
                             .parse()
@@ -1029,27 +802,17 @@ impl Automation {
                             .ok_or(
                                 "back takes left, right, a progress from 0 to 1, commit or cancel",
                             )?;
-                        start(BackEdge::Left, &mut events, &mut self.back);
-                        self.back = Some(progress);
-                        events.push(Event::Back(BackGesture::Progressed(progress)));
+                        self.gestures.back_to(progress)
                     }
-                }
-                input(vec![events])
+                };
+                input(frames)
             }
-            "type" => {
-                let mut events = Vec::new();
-                keys::typed(&arguments.join(" "), self.held, &mut events);
-                input(vec![events])
-            }
+            "type" => input(self.gestures.type_text(&arguments.join(" "))),
             "key" => {
                 if arguments.is_empty() {
                     return Err(format!("key needs a chord, such as ctrl+z\n{USAGE}"));
                 }
-                let mut events = Vec::new();
-                for chord in arguments {
-                    keys::chord(chord, self.held, &mut events)?;
-                }
-                input(vec![events])
+                input(self.gestures.chords(arguments)?)
             }
             "keydown" | "keyup" => {
                 let pressed = command == "keydown";
@@ -1060,56 +823,22 @@ impl Automation {
                 for name in arguments {
                     let key = keys::named(name)
                         .ok_or_else(|| format!("{name:?} is not a key beui knows"))?;
-                    if key.is_modifier() {
-                        keys::set_modifier(&mut self.held, key, pressed);
-                        keys::modifier_event(key, pressed, self.held, &mut events);
-                        continue;
-                    }
-                    let held = self.keys.contains(&key);
-                    match (pressed, held) {
-                        (true, false) => self.keys.push(key),
-                        (false, false) => return Err(format!("{name} is not held down")),
-                        (false, true) => self.keys.retain(|down| *down != key),
-                        (true, true) => {}
-                    }
-                    keys::key_event(key, pressed, pressed && held, self.held, &mut events);
+                    events.extend(self.gestures.key(key, pressed)?.into_iter().flatten());
                 }
                 input(vec![events])
             }
             "ime" => {
-                let mut events = Vec::new();
-                if !["compose", "commit", "cancel"].contains(&argument(0)?) {
-                    return Err(format!(
-                        "ime takes compose, commit or cancel, not {}",
-                        arguments[0]
-                    ));
-                }
-                if !self.ime {
-                    self.ime = true;
-                    events.push(Event::Ime(ImeEvent::Enabled));
-                }
-                match argument(0)? {
-                    "compose" => {
-                        let text = arguments[1..].join(" ");
-                        self.composing = Some(text.clone());
-                        events.push(Event::Ime(ImeEvent::SetComposingText(text)));
+                let frames = match argument(0)? {
+                    "compose" => self.gestures.compose(arguments[1..].join(" ")),
+                    "commit" => self
+                        .gestures
+                        .commit((arguments.len() > 1).then(|| arguments[1..].join(" "))),
+                    "cancel" => self.gestures.cancel_composing(),
+                    other => {
+                        return Err(format!("ime takes compose, commit or cancel, not {other}"));
                     }
-                    "commit" => {
-                        let composed = self.composing.take().unwrap_or_default();
-                        let text = match arguments.len() {
-                            1 => composed,
-                            _ => arguments[1..].join(" "),
-                        };
-                        events.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
-                        events.push(Event::Ime(ImeEvent::CommitText(text)));
-                    }
-                    "cancel" => {
-                        self.composing = None;
-                        events.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
-                    }
-                    _ => unreachable!("the sub-command was checked above"),
-                }
-                input(vec![events])
+                };
+                input(frames)
             }
             "focus" | "blur" => input(vec![vec![Event::Focus(command == "focus")]]),
             "resize" => {
@@ -1150,14 +879,8 @@ impl Automation {
                 match arguments.get(1) {
                     Some(target) => {
                         let at = at(target)?;
-                        self.pointer = at;
                         Ok(Started::Phase(Phase::Input {
-                            steps: vec![vec![
-                                Event::PointerMoved(at),
-                                self.button(at, PointerButton::Primary, true),
-                                self.button(at, PointerButton::Primary, false),
-                            ]]
-                            .into(),
+                            steps: self.gestures.click(at, PointerButton::Primary, 1).into(),
                             before: before.clone(),
                             then: Some(Box::new(Phase::Uploading { file, before })),
                         }))
@@ -1195,7 +918,7 @@ impl Automation {
                     })
                     .collect();
                 input(vec![vec![
-                    Event::PointerMoved(self.pointer),
+                    Event::PointerMoved(self.gestures.pointer),
                     Event::FileHovered,
                 ]])
             }
@@ -1204,11 +927,11 @@ impl Automation {
                     return Err("nothing is grabbed: grab FILE first".to_owned());
                 }
                 if let Some(target) = arguments.first() {
-                    self.pointer = at(target)?;
+                    self.gestures.pointer = at(target)?;
                 }
                 let files = std::mem::take(&mut self.grabbed);
                 input(vec![
-                    vec![Event::PointerMoved(self.pointer)],
+                    vec![Event::PointerMoved(self.gestures.pointer)],
                     files.into_iter().map(Event::FileDropped).collect(),
                 ])
             }
@@ -1346,15 +1069,6 @@ impl Automation {
         }
     }
 
-    fn button(&self, pos: Pos2, button: PointerButton, pressed: bool) -> Event {
-        Event::PointerButton {
-            pos,
-            button,
-            pressed,
-            modifiers: self.held,
-        }
-    }
-
     fn state(&self, view: &View<'_>) -> String {
         let yes = |value: bool| if value { "yes" } else { "no" };
         let mut text = String::new();
@@ -1368,17 +1082,18 @@ impl Automation {
         ));
         text.push_str(&format!("cursor {:?}\n", view.window.cursor));
         let held: Vec<String> = self
+            .gestures
             .buttons
             .iter()
             .map(|button| format!("{button:?}"))
-            .chain(self.fingers.iter().map(|(finger, pos)| {
+            .chain(self.gestures.fingers.iter().map(|(finger, pos)| {
                 format!(
                     "finger {finger} at {},{}",
                     (pos.x * scale).round(),
                     (pos.y * scale).round()
                 )
             }))
-            .chain(self.pen.map(|(pos, down)| {
+            .chain(self.gestures.pen.map(|(pos, down)| {
                 format!(
                     "the pen {} at {},{}",
                     if down { "down" } else { "in range" },
@@ -1389,18 +1104,18 @@ impl Automation {
             .collect();
         text.push_str(&format!(
             "pointer {},{}{}\n",
-            (self.pointer.x * scale).round(),
-            (self.pointer.y * scale).round(),
+            (self.gestures.pointer.x * scale).round(),
+            (self.gestures.pointer.y * scale).round(),
             match held.is_empty() {
                 true => String::new(),
                 false => format!(", holding {}", held.join(", ")),
             }
         ));
         let modifiers = [
-            ("shift", self.held.shift),
-            ("ctrl", self.held.ctrl),
-            ("alt", self.held.alt),
-            ("super", self.held.logo),
+            ("shift", self.gestures.held.shift),
+            ("ctrl", self.gestures.held.ctrl),
+            ("alt", self.gestures.held.alt),
+            ("super", self.gestures.held.logo),
         ]
         .into_iter()
         .filter(|(_, held)| *held)
@@ -1409,12 +1124,12 @@ impl Automation {
         let keys: Vec<String> = modifiers
             .iter()
             .map(|name| (*name).to_owned())
-            .chain(self.keys.iter().map(|key| format!("{key:?}")))
+            .chain(self.gestures.keys.iter().map(|key| format!("{key:?}")))
             .collect();
         if !keys.is_empty() {
             text.push_str(&format!("keys down {}\n", keys.join(", ")));
         }
-        match (&self.composing, view.window.ime.as_ref()) {
+        match (&self.gestures.composing, view.window.ime.as_ref()) {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
             (None, Some(area)) => text.push_str(&format!(
                 "the app asks for an input method, its caret {}, {}\n",
@@ -1436,7 +1151,7 @@ impl Automation {
         if self.unhurried {
             text.push_str("hurry off: the app waits as it does for a person\n");
         }
-        if let Some(progress) = self.back {
+        if let Some(progress) = self.gestures.back {
             text.push_str(&format!("back gesture at {progress}\n"));
         }
         text.push_str(&format!(
@@ -1562,24 +1277,6 @@ fn finger(argument: Option<&String>) -> Result<u64, String> {
             .parse()
             .map_err(|_| format!("{finger} is not a finger number"))
     })
-}
-
-fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Event {
-    Event::Pen {
-        phase,
-        pos,
-        pressure,
-        pen: Pen::default(),
-    }
-}
-
-fn touch(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
-    Event::Touch {
-        id: TouchId { device: 0, finger },
-        phase,
-        pos,
-        force: None,
-    }
 }
 
 fn actions(groups: &[ActionGroup], all: bool) -> String {

@@ -54,7 +54,7 @@ fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
     harness.settle();
     assert!(laid_out(&harness, "dock.switcher.tab.2"));
 
-    *harness.viewport_mut() = WIDE_VIEWPORT;
+    harness.resize(WIDE_VIEWPORT);
     harness.settle();
     assert!(
         !laid_out(&harness, "dock.switcher.tab.2"),
@@ -62,7 +62,7 @@ fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
     );
     assert!(laid_out(&harness, "content.2"));
 
-    *harness.viewport_mut() = PHONE;
+    harness.resize(PHONE);
     harness.settle();
     assert!(
         laid_out(&harness, "dock.pin.action.2"),

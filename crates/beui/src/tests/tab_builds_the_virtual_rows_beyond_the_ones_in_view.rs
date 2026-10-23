@@ -34,36 +34,36 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
     let rows = shown * 2;
     for row in 0..rows {
         harness.key(Key::Tab, Modifiers::NONE);
-        let focused = harness.document.focused.expect("Tab reaches every row");
+        let focused = harness.document().focused.expect("Tab reaches every row");
         assert!(
-            text_within(&harness.document, focused, &format!("Row {row}")).is_some(),
+            text_within(harness.document(), focused, &format!("Row {row}")).is_some(),
             "Tab number {} lands on row {row}",
             row + 1
         );
     }
     harness.settle();
     assert_eq!(
-        harness.document.scroll_offset(scroll),
+        harness.document().scroll_offset(scroll),
         rows as f32 * VIRTUAL_ITEM_HEIGHT - VIEWPORT.y
     );
 
-    harness.document.update_focus(None);
+    harness.document_mut().update_focus(None);
     harness.key(Key::Tab, Modifiers::SHIFT);
     harness.settle();
     let last = harness
-        .document
+        .document()
         .focused
         .expect("Shift+Tab reaches the last row");
     assert!(
         text_within(
-            &harness.document,
+            harness.document(),
             last,
             &format!("Row {}", VIRTUAL_ITEM_COUNT - 1)
         )
         .is_some()
     );
     assert_eq!(
-        harness.document.scroll_offset(scroll),
+        harness.document().scroll_offset(scroll),
         VIRTUAL_ITEM_COUNT as f32 * VIRTUAL_ITEM_HEIGHT - VIEWPORT.y
     );
 }

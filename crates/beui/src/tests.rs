@@ -110,12 +110,15 @@ mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
 mod a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated;
 mod a_driver_answers_a_file_dialog_with_a_file;
+mod a_driver_cancels_the_fingers_the_system_takes_back;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
 mod a_driver_closes_the_window_once_the_app_lets_it;
 mod a_driver_composes_with_an_input_method_and_holds_a_key;
+mod a_driver_finds_a_test_id_with_a_space_in_it;
 mod a_driver_holds_a_back_gesture_part_way_and_cancels_it;
 mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
+mod a_driver_hovers_before_it_presses_so_a_scrollbar_shown_on_hover_takes_its_click;
 mod a_driver_lists_and_runs_an_action;
 mod a_driver_lists_components_and_their_internals;
 mod a_driver_pastes_the_headless_clipboard_with_ctrl_v;
@@ -273,6 +276,8 @@ mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
+mod a_release_that_moves_the_inspectors_edge_resizes_the_panel_to_it;
+mod a_release_that_moves_the_simulated_screens_edge_resizes_it_to_it;
 mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would;
@@ -341,6 +346,7 @@ mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
 mod a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it;
+mod a_tab_dropped_in_the_frame_it_last_moved_lands_where_it_was_let_go;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
 mod a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
@@ -862,7 +868,6 @@ const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
 const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
-const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 fn flattened(input: crate::ForwardedInput) -> Vec<Event> {
     use crate::input::{PointerId, PointerPhase};
@@ -891,6 +896,18 @@ fn flattened(input: crate::ForwardedInput) -> Vec<Event> {
         .collect()
 }
 
+fn held_keys(modifiers: Modifiers) -> Vec<Key> {
+    [
+        (modifiers.ctrl, Key::Ctrl),
+        (modifiers.alt, Key::Alt),
+        (modifiers.shift, Key::Shift),
+        (modifiers.logo, Key::Logo),
+    ]
+    .into_iter()
+    .filter_map(|(held, key)| held.then_some(key))
+    .collect()
+}
+
 fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
     Event::Touch {
         id: TouchId { device: 1, finger },
@@ -911,32 +928,65 @@ pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
     })
 }
 
-pub(crate) struct Harness {
-    context: Context,
-    document: Document,
-    viewport: Vec2,
-    typed: Vec<Event>,
+pub(crate) struct Harness(crate::testing::Stepped);
+
+impl std::ops::Deref for Harness {
+    type Target = crate::testing::Stepped;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Harness {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl Harness {
-    pub(crate) fn new(mut document: Document) -> Self {
+    pub(crate) fn new(document: Document) -> Self {
+        Self::sized(document, VIEWPORT)
+    }
+
+    pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
-        let context = Context::new(crate::FreetypeFonts::default());
-        context.stop_clock();
-        Self {
-            context,
-            document,
-            viewport: VIEWPORT,
-            typed: Vec::new(),
-        }
+        let window = beui_core::app::automation::WindowSize {
+            size: viewport,
+            scale: 1.0,
+        };
+        let mut stepped = crate::testing::Stepped::new(
+            context(),
+            crate::testing::Showing(document),
+            window,
+            None,
+        );
+        stepped.settle_after_gestures(false);
+        Self(stepped)
     }
 
-    pub(crate) fn advance(&mut self, by: Duration) {
-        self.context.advance_clock(by);
+    pub(crate) fn frame(&mut self, events: Vec<Event>) -> crate::FrameOutput {
+        self.0.frame(events)
     }
 
-    pub(crate) fn settle(&mut self) -> usize {
+    pub(crate) fn click(&mut self, target: impl Into<crate::testing::Target>) {
+        self.0.click(target);
+    }
+
+    pub(crate) fn drag(
+        &mut self,
+        from: impl Into<crate::testing::Target>,
+        to: impl Into<crate::testing::Target>,
+    ) {
+        self.0.drag(from, to);
+    }
+
+    pub(crate) fn resize(&mut self, size: Vec2) {
+        self.0.resize(size);
+    }
+
+    pub(crate) fn frames_to_settle(&mut self) -> usize {
         const LIMIT: usize = 1200;
         for frames in 0..LIMIT {
             let output = self.frame(Vec::new());
@@ -947,85 +997,12 @@ impl Harness {
         panic!("still animating after {LIMIT} frames");
     }
 
-    pub(crate) fn sized(document: Document, viewport: Vec2) -> Self {
-        Self {
-            viewport,
-            ..Self::new(document)
-        }
-    }
-
-    pub(crate) fn viewport_mut(&mut self) -> &mut Vec2 {
-        &mut self.viewport
-    }
-
-    pub(crate) fn frame(&mut self, events: Vec<Event>) -> crate::FrameOutput {
-        let Self {
-            context,
-            document,
-            viewport,
-            typed,
-        } = self;
-        let mut held = std::mem::take(typed);
-        held.extend(events);
-        let input = RawInput { events: held };
-        context.advance_clock(FRAME_INTERVAL);
-        let mut output = context.run(input, |context| {
-            document.show(context, Rect::from_min_size(Pos2::ZERO, *viewport));
-        });
-        *typed = std::mem::take(&mut output.typed);
-        output
-    }
-
-    pub(crate) fn click(&mut self, pos: Pos2) {
-        self.frame(vec![Event::PointerMoved(pos)]);
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }]);
-    }
-
     pub(crate) fn press_at(&mut self, pos: Pos2) {
-        self.frame(vec![Event::PointerMoved(pos)]);
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
+        self.down(pos, PointerButton::Primary);
     }
 
-    pub(crate) fn release_at(&mut self, pos: Pos2) -> crate::FrameOutput {
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }])
-    }
-
-    pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
-        self.frame(vec![Event::PointerMoved(from)]);
-        self.frame(vec![Event::PointerButton {
-            pos: from,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerMoved(to)]);
-        self.frame(vec![Event::PointerButton {
-            pos: to,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }]);
+    pub(crate) fn release_at(&mut self, pos: Pos2) {
+        self.up(pos, PointerButton::Primary);
     }
 
     pub(crate) fn finger_drag(&mut self, path: &[Pos2]) {
@@ -1041,7 +1018,7 @@ impl Harness {
 
     pub(crate) fn finger_drag_and_hold(&mut self, from: Pos2, to: Pos2) {
         const STEP: f32 = 10.0;
-        const HOLD_FRAMES: usize = 12;
+        const HOLD: Duration = Duration::from_millis(200);
         self.touch(TouchPhase::Start, from);
         let steps = ((to - from).length() / STEP).ceil().max(1.0) as usize;
         for step in 1..=steps {
@@ -1050,74 +1027,50 @@ impl Harness {
                 from + (to - from) * (step as f32 / steps as f32),
             );
         }
-        for _ in 0..HOLD_FRAMES {
-            self.touch(TouchPhase::Move, to);
-        }
+        self.pause(HOLD);
         self.touch(TouchPhase::End, to);
     }
 
-    pub(crate) fn scroll(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
-        self.frame(vec![
-            Event::PointerMoved(pos),
-            Event::Modifiers(modifiers),
-            Event::Scroll(delta),
-        ]);
-    }
-
-    pub(crate) fn pinch(&mut self, pos: Pos2, factor: f32) {
-        self.frame(vec![Event::PointerMoved(pos), Event::Zoom(factor)]);
+    pub(crate) fn scroll_at(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
+        let held = held_keys(modifiers);
+        for key in &held {
+            self.key_down(*key);
+        }
+        self.scroll(pos, -delta);
+        for key in held.iter().rev() {
+            self.key_up(*key);
+        }
     }
 
     pub(crate) fn middle_button(&mut self, pos: Pos2, pressed: bool) {
-        self.frame(vec![Event::PointerButton {
-            pos,
-            button: PointerButton::Middle,
-            pressed,
-            modifiers: Modifiers::NONE,
-        }]);
+        match pressed {
+            true => self.down(pos, PointerButton::Middle),
+            false => self.up(pos, PointerButton::Middle),
+        };
     }
 
     pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {
-        self.frame(vec![Event::PointerMoved(from)]);
-        self.frame(vec![Event::PointerButton {
-            pos: from,
-            button: PointerButton::Middle,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerMoved(to)]);
-        self.frame(vec![Event::PointerButton {
-            pos: to,
-            button: PointerButton::Middle,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }]);
+        self.down(from, PointerButton::Middle);
+        self.hover(to);
+        self.up(to, PointerButton::Middle);
     }
 
     pub(crate) fn move_fingers(&mut self, first: Pos2, second: Pos2) {
-        self.frame(vec![
-            touch_event(1, TouchPhase::Move, first),
-            touch_event(2, TouchPhase::Move, second),
-        ]);
+        self.fingers(TouchPhase::Move, &[(1, first), (2, second)]);
     }
 
-    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) {
-        self.finger(1, phase, pos);
+    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
+        self.finger(1, phase, pos)
     }
 
-    pub(crate) fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) {
-        self.frame(vec![touch_event(finger, phase, pos)]);
-    }
-
-    pub(crate) fn key(&mut self, key: Key, modifiers: Modifiers) {
-        self.frame(vec![key_event(key, true, modifiers)]);
-        self.frame(vec![key_event(key, false, modifiers)]);
-    }
-
-    pub(crate) fn type_text(&mut self, text: &str) {
-        for letter in text.chars() {
-            self.frame(vec![Event::Text(letter.to_string())]);
-        }
+    pub(crate) fn finger(
+        &mut self,
+        finger: u64,
+        phase: TouchPhase,
+        pos: Pos2,
+    ) -> crate::FrameOutput {
+        self.fingers(phase, &[(finger, pos)]);
+        self.take_output()
     }
 
     pub(crate) fn toggle_inspector(&mut self) {
@@ -1133,7 +1086,7 @@ impl Harness {
     }
 
     pub(crate) fn shown_screen(&self) -> Rect {
-        self.document
+        self.document()
             .shown_screen()
             .expect("a screen is simulated")
             .shown()
@@ -1141,12 +1094,12 @@ impl Harness {
 
     pub(crate) fn assert_screen_size(&self, size: Vec2) {
         let simulation = self
-            .context
+            .context()
             .screen_simulation()
             .expect("a screen is simulated");
         assert_eq!(simulation.size, size);
-        let root = self.document.root().expect("the document has a root");
-        let pixel = (self.document.screen_scale() * self.context.pixels_per_point()).recip();
+        let root = self.document().root().expect("the document has a root");
+        let pixel = (self.document().screen_scale() * self.context().pixels_per_point()).recip();
         let laid_out = self.rect(root).size();
         assert!(
             (laid_out.x - size.x).abs() <= pixel && (laid_out.y - size.y).abs() <= pixel,
@@ -1158,14 +1111,14 @@ impl Harness {
         self.inspector()
             .toolbar_rect(test_id)
             .expect("the control was not laid out")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.context()))
     }
 
     pub(crate) fn toggle_inspector_focus(&mut self) {
         self.chord(Key::F);
     }
 
-    fn chord(&mut self, key: Key) {
+    pub(crate) fn chord(&mut self, key: Key) {
         self.key(
             key,
             Modifiers {
@@ -1178,36 +1131,22 @@ impl Harness {
 
     pub(crate) fn accessible(&self) -> Vec<accesskit::Node> {
         ::reactive::flush();
-        self.document
+        self.document()
             .accessibility_view()
             .map(|view| view.nodes().cloned().collect())
             .unwrap_or_default()
     }
 
-    pub(crate) fn document(&self) -> &Document {
-        ::reactive::flush();
-        &self.document
-    }
-
-    pub(crate) fn context(&self) -> &Context {
-        &self.context
-    }
-
-    pub(crate) fn document_mut(&mut self) -> &mut Document {
-        ::reactive::flush();
-        &mut self.document
-    }
-
     pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
         ::reactive::flush();
-        self.document
+        self.document()
             .node_rect(id)
             .expect("the node was not laid out")
     }
 
     pub(crate) fn find(&self, test_id: &str) -> NodeId {
         ::reactive::flush();
-        self.document
+        self.document()
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
     }
@@ -1218,14 +1157,14 @@ impl Harness {
 
     pub(crate) fn inspector_open(&self) -> bool {
         ::reactive::flush();
-        self.document
+        self.document()
             .tools::<InspectorTools>()
             .is_some_and(|tools| tools.inspector.is_some())
     }
 
     pub(crate) fn inspector(&self) -> &Inspector {
         ::reactive::flush();
-        self.document
+        self.document()
             .tools::<InspectorTools>()
             .and_then(|tools| tools.inspector.as_deref())
             .expect("the inspector is closed")
@@ -1240,7 +1179,7 @@ impl Harness {
     }
 
     pub(crate) fn selected_row(&self) -> Option<String> {
-        self.inspector().selected_row(&self.document)
+        self.inspector().selected_row(self.document())
     }
 
     pub(crate) fn row_center(&self, index: usize) -> Pos2 {
@@ -1280,7 +1219,7 @@ impl Harness {
     }
 
     fn click_in_inspector(&mut self, node: NodeId) {
-        self.document
+        self.document_mut()
             .tools_mut::<InspectorTools>()
             .and_then(|tools| tools.inspector.as_deref_mut())
             .expect("the inspector is closed")
@@ -1302,7 +1241,7 @@ impl Harness {
         self.inspector()
             .bar_rect("inspector.bar.close")
             .expect("the inspector's tab bar has no close button")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.context()))
     }
 
     pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
@@ -1313,36 +1252,36 @@ impl Harness {
         self.inspector()
             .bar_option_rect(index)
             .expect("the inspector has no tab bar")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.context()))
     }
 
     pub(crate) fn inspector_panel_rect(&self) -> Rect {
         self.inspector()
             .panel_rect()
             .expect("the inspector panel was not laid out")
-            .scaled(crate::inspector::scale(&self.context))
+            .scaled(crate::inspector::scale(self.context()))
     }
 
     pub(crate) fn mouse_simulation(&self) -> bool {
-        self.context.mouse_simulation()
+        self.context().mouse_simulation()
     }
 
-    fn simulation<R>(&self, read: impl FnOnce(&MouseSimulation) -> R) -> R {
-        self.context
+    fn mouse_simulated<R>(&self, read: impl FnOnce(&MouseSimulation) -> R) -> R {
+        self.context()
             .input_simulation_as(read)
             .expect("the mouse is simulated")
     }
 
     pub(crate) fn simulated_cursor(&self) -> Pos2 {
-        self.simulation(MouseSimulation::cursor)
+        self.mouse_simulated(MouseSimulation::cursor)
     }
 
     pub(crate) fn simulated_button(&self, index: usize) -> Pos2 {
-        self.simulation(|simulation| simulation.button_center(index))
+        self.mouse_simulated(|simulation| simulation.button_center(index))
     }
 
     pub(crate) fn simulated_trackpad(&self) -> Pos2 {
-        self.simulation(MouseSimulation::trackpad_center)
+        self.mouse_simulated(MouseSimulation::trackpad_center)
     }
 
     pub(crate) fn enable_mouse_simulation(&mut self) {
@@ -1384,7 +1323,7 @@ impl Harness {
     }
 
     pub(crate) fn simulated_left_held(&self) -> bool {
-        self.simulation(MouseSimulation::left_held)
+        self.mouse_simulated(MouseSimulation::left_held)
     }
 
     pub(crate) fn enable_screen_reader(&mut self) {
@@ -1422,9 +1361,9 @@ impl Harness {
     }
 
     pub(crate) fn document_bottom(&self) -> f32 {
-        self.document
+        self.document()
             .root()
-            .and_then(|root| self.document.node_rect(root))
+            .and_then(|root| self.document().node_rect(root))
             .expect("the document laid out no root")
             .bottom()
     }
@@ -1476,13 +1415,13 @@ impl Harness {
         self.drag(pos2(track.center().x, y), to);
     }
 
-    fn inspector_rect(&self, test_id: &str) -> Rect {
+    pub(crate) fn inspector_rect(&self, test_id: &str) -> Rect {
         let inspector = self.inspector();
         let rect = inspector
             .document
             .node_rect(inspector.find(test_id))
             .expect("the control was not laid out");
-        rect.scaled(crate::inspector::scale(&self.context))
+        rect.scaled(crate::inspector::scale(self.context()))
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {
@@ -1494,7 +1433,7 @@ impl Harness {
             .is_some()
     }
 
-    fn tab_node(&self, index: usize) -> NodeId {
+    pub(crate) fn tab_node(&self, index: usize) -> NodeId {
         self.inspector().option_node("inspector.tabs", index)
     }
 
@@ -1503,7 +1442,7 @@ impl Harness {
     }
 
     pub(crate) fn touch_emulation(&self) -> bool {
-        self.context.touch_emulation()
+        self.context().touch_emulation()
     }
 
     pub(crate) fn chevron_center(&self, index: usize) -> Pos2 {
@@ -1524,14 +1463,14 @@ impl Harness {
             .is_some()
     }
 
-    fn node_center(&self, id: NodeId) -> Pos2 {
+    pub(crate) fn node_center(&self, id: NodeId) -> Pos2 {
         let center = self
             .inspector()
             .document
             .node_rect(id)
             .expect("the row was not laid out")
             .center();
-        let scale = crate::inspector::scale(&self.context);
+        let scale = crate::inspector::scale(self.context());
         pos2(center.x * scale, center.y * scale)
     }
 }

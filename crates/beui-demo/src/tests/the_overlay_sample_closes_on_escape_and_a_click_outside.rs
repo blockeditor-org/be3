@@ -36,7 +36,7 @@ fn the_overlay_sample_closes_on_escape_and_a_click_outside() {
         test.shows("demo.overlay.panel"),
         "the trigger opens it again"
     );
-    test.click_at(over_the_page(WIDE));
+    test.click(over_the_page(WIDE));
     test.frame(Vec::new());
     assert!(
         !test.shows("demo.overlay.panel"),

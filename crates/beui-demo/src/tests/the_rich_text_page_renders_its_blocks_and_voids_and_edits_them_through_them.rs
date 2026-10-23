@@ -23,7 +23,7 @@ fn the_rich_text_page_renders_its_blocks_and_voids_and_edits_them_through_them()
         "numbered items count up"
     );
 
-    test.click_at(pos2(editor.left() + 200.0, editor.top() + 40.0));
+    test.click(pos2(editor.left() + 200.0, editor.top() + 40.0));
     test.frame(Vec::new());
     press_key(&mut test, beui::Key::End);
     test.click("demo.rich.mention");

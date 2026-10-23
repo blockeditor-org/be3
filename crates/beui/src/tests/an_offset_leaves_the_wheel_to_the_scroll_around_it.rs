@@ -27,7 +27,7 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
     harness.frame(Vec::new());
     let (offset, scroll) = (harness.find("offset"), harness.find("scroll"));
 
-    harness.scroll(pos2(200.0, 75.0), vec2(0.0, -20.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 75.0), vec2(0.0, -20.0), Modifiers::NONE);
     harness.frame(Vec::new());
 
     assert_eq!(

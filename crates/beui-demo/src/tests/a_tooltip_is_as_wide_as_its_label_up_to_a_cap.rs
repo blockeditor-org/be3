@@ -27,6 +27,7 @@ fn hovered_tooltip(test: &mut DocumentTest, chip: &str) -> beui::Rect {
     let at = test.rect_of(chip).center();
     test.frame(vec![beui::Event::PointerMoved(at)]);
     test.advance(std::time::Duration::from_secs(2));
+    test.frame(Vec::new());
     test.settle();
     test.rect_of("tooltip")
 }

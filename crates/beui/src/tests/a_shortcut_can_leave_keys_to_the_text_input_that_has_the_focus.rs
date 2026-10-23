@@ -38,7 +38,6 @@ fn a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus() {
 
     harness.click(harness.center(input));
     harness.key(Key::A, Modifiers::NONE);
-    harness.type_text("a");
     assert_eq!(
         taken.get_untracked(),
         1,

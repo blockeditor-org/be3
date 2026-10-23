@@ -37,7 +37,7 @@ fn a_screen_reader_reads_and_scrolls_a_horizontal_scroll_sideways() {
     assert!(view.supports_action(Action::ScrollLeft));
     assert!(!view.supports_action(Action::ScrollDown));
 
-    harness.context.accessibility_action(ActionRequest {
+    harness.context().accessibility_action(ActionRequest {
         action: Action::ScrollRight,
         target_tree: TreeId::ROOT,
         target_node: id,
@@ -46,7 +46,7 @@ fn a_screen_reader_reads_and_scrolls_a_horizontal_scroll_sideways() {
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(strip), 300.0);
 
-    harness.context.accessibility_action(ActionRequest {
+    harness.context().accessibility_action(ActionRequest {
         action: Action::SetScrollOffset,
         target_tree: TreeId::ROOT,
         target_node: id,

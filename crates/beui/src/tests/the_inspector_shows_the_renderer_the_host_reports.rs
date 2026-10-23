@@ -6,7 +6,7 @@ fn the_inspector_shows_the_renderer_the_host_reports() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
-    harness.context.set_renderer_info(renderer_info(
+    harness.context().set_renderer_info(renderer_info(
         &wgpu::AdapterInfo {
             name: "Test adapter".to_owned(),
             vendor: 0x10de,
@@ -25,7 +25,7 @@ fn the_inspector_shows_the_renderer_the_host_reports() {
     harness.toggle_inspector();
 
     harness.click(harness.performance_tab_center());
-    harness.context.reset_accessibility();
+    harness.context().reset_accessibility();
     let output = harness.frame(Vec::new());
 
     let tree = output.accessibility_tree("Test", TALL_VIEWPORT);

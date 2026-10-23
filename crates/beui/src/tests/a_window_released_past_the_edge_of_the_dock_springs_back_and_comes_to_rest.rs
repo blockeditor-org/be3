@@ -42,7 +42,7 @@ fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() 
         "one frame later the window has moved part of the way back: {released} -> {returning}"
     );
 
-    let frames = harness.settle();
+    let frames = harness.frames_to_settle();
     assert!(
         frames > 5 && frames < 120,
         "the spring takes a visible but short time: {frames} frames"

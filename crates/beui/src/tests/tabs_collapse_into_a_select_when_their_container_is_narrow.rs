@@ -42,7 +42,7 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
         1
     );
 
-    *harness.viewport_mut() = VIEWPORT;
+    harness.resize(VIEWPORT);
     harness.frame(Vec::new());
 
     let [narrow] = harness.document().children(tabs)[..] else {

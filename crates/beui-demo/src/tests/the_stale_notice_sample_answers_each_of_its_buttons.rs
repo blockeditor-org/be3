@@ -9,9 +9,9 @@ fn the_stale_notice_sample_answers_each_of_its_buttons() {
         if test.shows("stale-notice.try") && test.rect_of("stale-notice.try").bottom() <= bottom {
             break;
         }
-        test.scroll_at(
+        test.scroll(
             pos2(WIDE.x / 2.0, bottom / 2.0),
-            Vec2::new(0.0, -REVEAL_STEP),
+            Vec2::new(0.0, REVEAL_STEP),
         );
     }
     assert!(test.shows("stale-notice"));

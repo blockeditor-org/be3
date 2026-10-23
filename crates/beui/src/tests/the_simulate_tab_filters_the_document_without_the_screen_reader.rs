@@ -29,7 +29,7 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     assert_eq!(filter.vision, ColorVision::Protanopia);
 
     let panel = harness.inspector().panel_width(
-        &harness.context,
+        harness.context(),
         Rect::from_min_size(Pos2::ZERO, TALL_VIEWPORT),
     );
     assert!(

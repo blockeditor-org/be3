@@ -231,6 +231,14 @@ impl Runner {
         &self.context
     }
 
+    pub fn app(&self) -> &dyn App {
+        &*self.app
+    }
+
+    pub fn app_mut(&mut self) -> &mut dyn App {
+        &mut *self.app
+    }
+
     pub fn start(&mut self, loaded: Vec<Loaded>, mut setup: Setup) -> Result<(), Box<dyn Error>> {
         let renderers = Renderers::new(&self.context, loaded)?;
         renderers.provide(&mut setup);
@@ -254,6 +262,10 @@ impl Runner {
 
     pub fn push(&mut self, input: impl Into<Input>) {
         self.intake.incoming.push(input.into());
+    }
+
+    pub fn send(&mut self, events: impl IntoIterator<Item = Event>) {
+        self.events.extend(events);
     }
 
     pub fn pointer_button(

@@ -68,11 +68,11 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     );
     test.snapshot("software_keyboard");
 
-    test.click_at(key(&test, Layer::Text, Value::Modifier(Modifier::Shift)));
+    test.click(key(&test, Layer::Text, Value::Modifier(Modifier::Shift)));
     test.frame(Vec::new());
     test.snapshot("software_keyboard_shifted");
     for letter in ['h', 'i'] {
-        test.click_at(key(&test, Layer::Text, Value::Char(letter)));
+        test.click(key(&test, Layer::Text, Value::Char(letter)));
     }
     test.frame(Vec::new());
     assert_eq!(value_of(&test), "Hi", "shift lasts for one key");
@@ -99,7 +99,7 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
         keyboard.right() - PADDING - BAR_HEIGHT / 2.0,
         keyboard.top() + PADDING + BAR_HEIGHT / 2.0,
     );
-    test.click_at(close);
+    test.click(close);
     test.frame(Vec::new());
     assert!(
         test.context().keyboard_rect().is_none(),

@@ -28,7 +28,7 @@ fn returning_to_the_inspector_tab_repaints_the_whole_panel() {
         .inspector()
         .panel_rect()
         .expect("the inspector panel is shown")
-        .scaled(crate::inspector::scale(&harness.context));
+        .scaled(crate::inspector::scale(harness.context()));
     assert!(panel.top() >= harness.bar_option_rect(1).bottom());
     assert_eq!(panel.right(), VIEWPORT.x);
     let mut y = panel.top() + 0.5;
