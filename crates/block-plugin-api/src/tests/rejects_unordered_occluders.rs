@@ -1,14 +1,9 @@
 use super::*;
 
 fn placements(occluders: Vec<Occluder>) -> Message {
-    Message::Children(ChildPlacements {
+    committed(ChildPlacements {
         instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
-        generation: 1,
-        size: Size {
-            width: 100.0,
-            height: 100.0,
-        },
         children: vec![ChildPlacement {
             child: ChildId(1),
             content: ChildContent::Block {
@@ -27,10 +22,9 @@ fn placements(occluders: Vec<Occluder>) -> Message {
             intrinsic: None,
             rotation: 0.0,
             opacity: 1.0,
-            follows_camera: false,
+            follows_view: false,
         }],
         occluders,
-        camera: None,
     })
 }
 

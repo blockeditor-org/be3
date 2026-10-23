@@ -28,6 +28,26 @@ fn reply(instance: u64, request_id: u64, reply: HostReply) -> Message {
     })
 }
 
+fn frame(serial: u64) -> FrameCommit {
+    FrameCommit {
+        serial,
+        sizes: Vec::new(),
+        reports: Vec::new(),
+        windows: Vec::new(),
+        children: Vec::new(),
+        repaint_after_micros: None,
+        animating: false,
+        presented: None,
+    }
+}
+
+fn committed(children: ChildPlacements) -> Message {
+    Message::Frame(FrameCommit {
+        children: vec![children],
+        ..frame(1)
+    })
+}
+
 fn screen(
     screen: u64,
     instance: u64,
@@ -72,6 +92,7 @@ fn region_screen(
     }
 }
 
+mod a_frame_says_which_host_state_it_was_laid_out_against;
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_menu_nested_too_deeply_is_refused_while_decoding;
 mod a_paste_over_the_text_limit_arrives_in_pieces;

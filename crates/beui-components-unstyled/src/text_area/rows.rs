@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use text_editor_core::{
-    MarkSet, MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
-    TextLanguage, TextRun, VOID,
+    LineLook, ListMarker, MarkSet, MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily,
+    SynHlStyle, SynHlTextSize, TextLanguage, TextRun, VOID,
 };
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
@@ -19,6 +19,9 @@ use super::state::Snapshot;
 pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
 pub const CODE_SIZE: f32 = BODY_SIZE;
 pub const CHECKBOX_WIDTH: f32 = 18.0;
+pub const BULLET_WIDTH: f32 = 10.0;
+pub const BULLET_SIZE: f32 = 6.0;
+pub const LIST_INDENT: f32 = 24.0;
 pub const INLINE_WIDGET_HEIGHT: f32 = 24.0;
 pub const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
 pub const RUN_CHIP_HEIGHT: f32 = 16.0;
@@ -105,6 +108,8 @@ impl RowOptions {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Inline {
     Checkbox { line_start: usize, checked: bool },
+    Bullet,
+    Quote,
     Widget(usize),
     Run,
     Void,
@@ -155,6 +160,8 @@ pub struct Row {
     pub block: Option<(usize, Vec2)>,
     pub code: Vec<Range<usize>>,
     pub code_block: bool,
+    pub quote: usize,
+    pub hang: usize,
     pub placeholder: bool,
     pub props: MarkSet,
 }
@@ -628,6 +635,8 @@ fn deleted_preview(deleted: &[u8]) -> String {
 pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
     match inline {
         Inline::Checkbox { .. } => Vec2::splat(CHECKBOX_WIDTH),
+        Inline::Bullet => Vec2::new(BULLET_WIDTH, BULLET_SIZE),
+        Inline::Quote => Vec2::ZERO,
         Inline::Widget(_) => Vec2::new(
             galley(label, style.font).map_or(0.0, |galley| galley.size().x),
             INLINE_WIDGET_HEIGHT,
@@ -667,6 +676,7 @@ pub struct RowKey {
     composition: Option<Range<usize>>,
     placeholder: Option<String>,
     props: MarkSet,
+    look: LineLook,
     voids: Vec<(MarkSet, [u32; 2])>,
 }
 
@@ -735,6 +745,7 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
             .and_then(|formats| formats.block_at(start))
             .map(|block| block.props.clone())
             .unwrap_or_default(),
+        look: look_at(snapshot, start),
         voids: snapshot
             .formats
             .as_deref()
@@ -809,6 +820,39 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.row.placeholder = true;
         return finish(builder, body);
     }
+    let look = look_at(snapshot, start);
+    builder.row.quote = look.quote;
+    builder.row.code_block = look.code_block;
+    if let Some(marker) = look.list {
+        builder.gap(look.depth as f32 * LIST_INDENT, body);
+        match marker {
+            ListMarker::Bullet => builder.inline(Inline::Bullet, start..start, body, String::new()),
+            ListMarker::Number(ordinal) => {
+                let style = SpanStyle {
+                    color: inputs.colors.syntax.scope(SynHlColorScope::MarkdownSymbol),
+                    ..body
+                };
+                builder.push(
+                    &format!("{ordinal}."),
+                    start..start,
+                    false,
+                    style,
+                    SpanKind::Text,
+                );
+            }
+            ListMarker::Check(checked) => builder.inline(
+                Inline::Checkbox {
+                    line_start: start,
+                    checked,
+                },
+                start..start,
+                body,
+                String::new(),
+            ),
+        }
+        builder.push(" ", start..start, false, body, SpanKind::Text);
+        builder.row.hang = builder.row.display.len();
+    }
     let trailing_from = bytes[start..end]
         .iter()
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
@@ -848,6 +892,29 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 SpanKind::Inline(inline),
             );
             index = checkbox.marker.end;
+            continue;
+        }
+        let marker = match style_at(index).color {
+            SynHlColorScope::MarkdownBullet => Some(Inline::Bullet),
+            SynHlColorScope::MarkdownQuote => Some(Inline::Quote),
+            _ => None,
+        };
+        if let Some(inline) = marker
+            && !options.mask
+        {
+            if inline == Inline::Quote {
+                builder.row.quote += 1;
+            }
+            let inline = builder.push_inline(inline, base, String::new());
+            let text = char::from(bytes[index]).to_string();
+            builder.push(
+                &text,
+                index..index + 1,
+                true,
+                base,
+                SpanKind::Inline(inline),
+            );
+            index += 1;
             continue;
         }
         if let Some((widget_index, widget)) = inputs
@@ -946,6 +1013,12 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.push(&text, index..stop, true, base, SpanKind::Text);
         index = stop;
     }
+    if snapshot.language == TextLanguage::Markdown
+        && !options.mask
+        && let Some(content) = after_markers(snapshot, start, end, style_at)
+    {
+        builder.row.hang = builder.row.to_display(content);
+    }
     builder.spacers(end, body);
     builder.runs(runs, end, builder.span_style(style_at(end)));
     let ending = builder.span_style(style_at(end)).font;
@@ -974,6 +1047,57 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     finish(builder, body)
 }
 
+fn look_at(snapshot: &Snapshot, start: usize) -> LineLook {
+    snapshot
+        .looks
+        .get(line_of(&snapshot.starts, start))
+        .copied()
+        .unwrap_or_default()
+}
+
+fn after_markers(
+    snapshot: &Snapshot,
+    start: usize,
+    end: usize,
+    style_at: impl Fn(usize) -> SynHlStyle,
+) -> Option<usize> {
+    let bytes = &snapshot.bytes;
+    let mut at = start;
+    let mut marked = false;
+    loop {
+        while at < end && matches!(bytes[at], b' ' | b'\t') {
+            at += 1;
+        }
+        if at >= end {
+            break;
+        }
+        if let Some(checkbox) = snapshot
+            .checkboxes
+            .iter()
+            .find(|checkbox| checkbox.marker.start == at)
+        {
+            at = checkbox.marker.end;
+            marked = true;
+            continue;
+        }
+        match style_at(at).color {
+            SynHlColorScope::MarkdownQuote | SynHlColorScope::MarkdownBullet => at += 1,
+            SynHlColorScope::MarkdownSymbol if bytes[at].is_ascii_digit() => {
+                while at < end && bytes[at].is_ascii_digit() {
+                    at += 1;
+                }
+                if at >= end || !matches!(bytes[at], b'.' | b')') {
+                    break;
+                }
+                at += 1;
+            }
+            _ => break,
+        }
+        marked = true;
+    }
+    marked.then_some(at)
+}
+
 fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     let padding = builder.inputs.options.padding();
     let mut height = galley("", body.font).map_or(0.0, |galley| galley.line_height());
@@ -985,7 +1109,8 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     builder.row.line_height = height + padding.0 + padding.1;
     let highlight = builder.inputs.snapshot.highlight();
     let (start, end) = (builder.row.start, builder.row.end);
-    builder.row.code_block = !builder.row.placeholder && highlight.in_code_block(start..end);
+    builder.row.code_block =
+        !builder.row.placeholder && (builder.row.code_block || highlight.in_code_block(start..end));
     if builder.row.code_block {
         return builder.row;
     }
@@ -1026,6 +1151,7 @@ pub fn rich_layout(
         wrap_width,
         padding,
         style: SpanStyle::new(font, Color32::WHITE),
+        hang: row.hang,
     };
     beui_view::reactive::rich_layout(&row.pieces(), options)
 }

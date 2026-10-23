@@ -1,11 +1,11 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
-    ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
-    CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameReport,
-    HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder,
-    RegionSize, ScreenPlacement, ScreenRequest, Size, TimedInput, ViewportMetrics, WebViewEvent,
-    WebViewId,
+    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
+    CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit,
+    FrameReport, HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message,
+    Occluder, RegionSize, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput,
+    ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -41,7 +41,6 @@ pub struct EditorSession {
     created: Option<CreationOutcome>,
     artifact: Option<ArtifactState>,
     replacements: Vec<(u64, bool)>,
-    generation: u64,
     sent_menu: Vec<MenuEntry>,
 }
 
@@ -71,7 +70,7 @@ impl ArtifactState {
     }
 }
 
-type ReportedChildren = (Size, Vec<ChildPlacement>, Vec<Occluder>, Option<Camera>);
+type ReportedChildren = (Vec<ChildPlacement>, Vec<Occluder>);
 
 #[derive(Default)]
 struct RegionState {
@@ -90,8 +89,6 @@ struct RegionState {
     reported_stopped: bool,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
-    camera: Option<Camera>,
-    laid_out: Size,
     reported_children: Option<ReportedChildren>,
     age: u32,
 }
@@ -116,7 +113,6 @@ impl EditorSession {
             created: None,
             artifact: None,
             replacements: Vec::new(),
-            generation: 0,
             sent_menu: Vec::new(),
         }
     }
@@ -361,16 +357,16 @@ impl EditorSession {
         }
     }
 
+    pub fn commit(&mut self, commit: &mut FrameCommit) {
+        commit.sizes.extend(self.region_sizes());
+        commit.reports.extend(self.frame_reports());
+        commit.windows.extend(self.windows());
+        commit.children.extend(self.children());
+        self.retain_child_statuses();
+    }
+
     pub fn outbound(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
-        let sizes = self.region_sizes();
-        if !sizes.is_empty() {
-            messages.push(Message::RegionSizes(sizes));
-        }
-        let frames = self.frame_reports();
-        if !frames.is_empty() {
-            messages.push(Message::Frames(frames));
-        }
         let instance = self.instance;
         for (group, measurements) in self.host.take_performance() {
             messages.push(Message::Editor(EditorMessage::Performance {
@@ -379,7 +375,7 @@ impl EditorSession {
                 measurements,
             }));
         }
-        for message in self.window_messages() {
+        for message in self.stopped_messages() {
             messages.push(Message::Editor(message));
         }
         for command in self.host.take_graph_commands() {
@@ -651,10 +647,6 @@ impl EditorSession {
                 command,
             }));
         }
-        for placements in self.children() {
-            messages.push(Message::Children(placements));
-        }
-        self.retain_child_statuses();
         for presenting in self.host.take_present_requests() {
             messages.push(Message::Editor(EditorMessage::Present {
                 instance,
@@ -726,18 +718,27 @@ impl EditorSession {
         messages
     }
 
-    fn window_messages(&mut self) -> Vec<EditorMessage> {
-        let instance = self.instance;
-        let mut messages = Vec::new();
-        for (region, state) in &mut self.regions {
+    fn windows(&mut self) -> Vec<ScreenWindow> {
+        let mut windows = Vec::new();
+        for state in self.regions.values_mut() {
+            let Some(placement) = state.placement else {
+                continue;
+            };
             if state.reported_window.as_ref() != Some(&state.window) {
                 state.reported_window = Some(state.window.clone());
-                messages.push(EditorMessage::Window {
-                    instance,
-                    region: *region,
+                windows.push(ScreenWindow {
+                    screen: placement.screen,
                     window: state.window.clone(),
                 });
             }
+        }
+        windows
+    }
+
+    fn stopped_messages(&mut self) -> Vec<EditorMessage> {
+        let instance = self.instance;
+        let mut messages = Vec::new();
+        for (region, state) in &mut self.regions {
             if let Some(stopped) = &state.stopped
                 && !std::mem::replace(&mut state.reported_stopped, true)
             {
@@ -822,24 +823,19 @@ impl EditorSession {
 
     fn children(&mut self) -> Vec<ChildPlacements> {
         let instance = self.instance;
-        let generation = self.generation;
         let mut messages = Vec::new();
         for (region, state) in &mut self.regions {
-            let (children, occluders) = bounded(&state.children, &state.occluders);
-            let current = (state.laid_out, children, occluders, state.camera);
+            let current = bounded(&state.children, &state.occluders);
             if state.reported_children.as_ref() == Some(&current) {
                 continue;
             }
             state.reported_children = Some(current.clone());
-            let (size, children, occluders, camera) = current;
+            let (children, occluders) = current;
             messages.push(ChildPlacements {
                 instance,
                 region: *region,
-                generation,
-                size,
                 children,
                 occluders,
-                camera,
             });
         }
         messages
@@ -920,8 +916,7 @@ impl EditorSession {
         }
     }
 
-    pub fn run(&mut self, region: EditorRegion, generation: u64, age: u32) -> Frame {
-        self.generation = generation;
+    pub fn run(&mut self, region: EditorRegion, age: u32) -> Frame {
         if let Some(state) = self.regions.get_mut(&region) {
             state.age = age;
         }
@@ -968,7 +963,6 @@ impl EditorSession {
             artifact.edited |= artifact.draft != draft;
             artifact.draft = draft;
         }
-        let camera = self.host.camera();
         let (placed, occluders) = self.host.end_region(region);
         self.host.set_drag(None);
         self.host.set_files(None);
@@ -990,12 +984,7 @@ impl EditorSession {
             .unwrap_or(content);
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
             state.children = placed;
-            state.laid_out = Size {
-                width: host.width(),
-                height: host.height(),
-            };
             state.occluders = occluders;
-            state.camera = camera;
             state.window = block_plugin_api::WindowRequests {
                 ime: frame.window.ime.clone().map(|ime| ime.translated(-origin)),
                 ..frame.window.clone()
@@ -1103,9 +1092,6 @@ fn bounded(
             .collect(),
     )
 }
-
-#[cfg(test)]
-mod tests;
 
 fn merge_tree(held: &mut Option<TreeUpdate>, update: TreeUpdate) {
     let Some(held) = held else {

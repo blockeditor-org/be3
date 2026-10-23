@@ -13,7 +13,7 @@ use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_view::components::overlay::Overlay;
-use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
+use text_editor_core::SynHlColorScope;
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::primitives::*;
@@ -21,15 +21,16 @@ use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
 use super::rows::{
-    BODY_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
-    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowKey,
-    RowOptions, SpanKind, build_row, galley, line_range, rich_layout, row_key,
+    BODY_SIZE, BULLET_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT,
+    INLINE_WIDGET_ICON_INSET, Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE,
+    Row, RowInputs, RowKey, RowOptions, SpanKind, build_row, galley, line_range, rich_layout,
+    row_key,
 };
 use super::{
-    BlockView, CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
+    CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
     GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GeometryCell,
-    INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS, RowEntry, TextCheckbox,
-    VoidView,
+    INLINE_WIDGET_RADIUS, QUOTE_BAR_WIDTH, QUOTE_INDENT, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS,
+    RowEntry, TextCheckbox, VoidView,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -131,6 +132,16 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         true => cx.colors.get().code_background,
         false => Color32::TRANSPARENT,
     });
+    let quotes = create_memo(move || (0..model.get().quote).collect::<Vec<usize>>());
+    let inner = create_memo(move || {
+        let inset = inset.get();
+        Sides::new(
+            inset + model.get().quote as f32 * QUOTE_INDENT,
+            0.0,
+            inset,
+            0.0,
+        )
+    });
     let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
     let shown_block = create_memo(move || block.get().filter(|_| renders).map(|(index, _)| index));
@@ -156,17 +167,6 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             }</Dynamic>
         </List>
     };
-    let content = match cx.render_block {
-        Some(render) => render.call(BlockView {
-            state: cx.state,
-            line,
-            start: create_memo(move || model.get().start),
-            props: create_memo(move || model.get().props.clone()),
-            line_height: create_memo(move || model.get().line_height),
-            text: lines,
-        }),
-        None => lines,
-    };
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
@@ -179,11 +179,29 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     padding={create_memo(move || Sides::horizontal(padding.get()))}
                 >
-                    <Frame fill=code padding={create_memo(move || Sides::horizontal(inset.get()))}>
-                        {content}
-                    </Frame>
+                    <Layers>
+                        <Frame fill=code padding=inner>{lines}</Frame>
+                        <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+                            <ForEach keys={quotes}>|_: usize|
+                                <QuoteBar cx />
+                            </ForEach>
+                        </List>
+                    </Layers>
                 </Frame>
             </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn QuoteBar(cx: Context) -> NodeId {
+    let color = create_memo(move || cx.colors.get().syntax.markdown_symbol);
+    view! {
+        <Frame
+            width=QUOTE_INDENT
+            padding={Sides::new(0.0, 0.0, QUOTE_INDENT - QUOTE_BAR_WIDTH, 0.0)}
+        >
+            <Frame fill=color />
         </Frame>
     }
 }
@@ -434,6 +452,7 @@ fn RowText(
     });
     let wraps = create_memo(move || wrap && cx.prose.get().is_none_or(|prose| prose.wrap));
     let align = create_memo(move || cx.prose.get().map(|prose| prose.align));
+    let hang = create_memo(move || model.get().hang);
     let marks = create_memo(move || {
         if layer == Layer::Handles {
             return Vec::new();
@@ -526,6 +545,7 @@ fn RowText(
             align={align}
             vertical_align={Some(TextAlign::Start)}
             line_padding={padding}
+            hang={hang}
             font={font}
             color={color}
             marks={marks}
@@ -686,13 +706,19 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
         )
     });
     let run = create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Run)));
+    let bullet =
+        create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Bullet)));
+    let quote =
+        create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Quote)));
     let void =
         create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Void)));
-    let widget = create_memo(move || !checkbox.get() && !run.get() && !void.get());
+    let widget = create_memo(move || {
+        !checkbox.get() && !run.get() && !void.get() && !bullet.get() && !quote.get()
+    });
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
-                <InlineCheckbox cx={cx} item={item} />
+                <InlineCheckbox cx={cx} item={item} line={model.get_untracked().line} />
             </Show>
             <Show condition={widget}>
                 <WidgetPill cx={cx} item={item} />
@@ -702,6 +728,9 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
             </Show>
             <Show condition={void}>
                 <VoidSlot cx={cx} item={item} />
+            </Show>
+            <Show condition={bullet}>
+                <Bullet item={item} />
             </Show>
         </List>
     }
@@ -729,6 +758,23 @@ fn VoidSlot(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 }
 
 #[component]
+fn Bullet(item: Memo<Option<InlineItem>>) -> NodeId {
+    let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
+    let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
+    view! {
+        <Frame width=width height=BULLET_SIZE>
+            <List
+                direction=beui_core::base::Direction::Horizontal
+                justify=beui_core::base::Justify::Center
+                spacing=0.0
+            >
+                <Frame width=BULLET_SIZE fill=color radius={BULLET_SIZE / 2.0} />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
 fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let fill = create_memo(move || cx.colors.get().widget);
     let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
@@ -749,7 +795,7 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 }
 
 #[component]
-fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
+fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>, line: usize) -> NodeId {
     let shown = create_memo(move || {
         matches!(
             item.get().map(|item| item.inline),
@@ -762,15 +808,15 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         else {
             return;
         };
-        let position = cx.state.with_core(|core| core.position(line_start));
-        cx.state
-            .execute(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
-                position,
-            )));
+        cx.state.set_checked(line_start, !shown.get_untracked());
     });
     let disabled = cx.disabled;
     if let Some(render) = &cx.checkbox {
-        return render.call(TextCheckbox { checked, disabled });
+        return render.call(TextCheckbox {
+            checked,
+            disabled,
+            line,
+        });
     }
     view! {
         <Toggle

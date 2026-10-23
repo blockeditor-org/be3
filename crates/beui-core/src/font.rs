@@ -877,6 +877,7 @@ impl Fonts {
             wrap_width: layout.wrap_width,
             padding: (0.0, 0.0),
             style,
+            hang: 0,
         };
         let mut shaper = LineShaper {
             fonts: self,

@@ -43,7 +43,7 @@ lift starts (a fling) is drawn fast rather than settled first, it switches back 
 frame whose damage is everything drawn in black and white (`Screen::hurry` and
 `Screen::settle`), which the driver redraws in four greys. beui reports animating while an
 `Animation` runs (scroll flings included, `FrameOutput::animating`), and a plugin reports it
-in `FrameReady::animating`. A Wayland window counts as still.
+in `FrameCommit::animating`. A Wayland window counts as still.
 
 Fast waveforms leave ghosts. The adapter provides `beui_adapter_drm::Epaper`, whose `refresh()`
 runs the driver's global refresh, a full redraw that clears them. block-app publishes the

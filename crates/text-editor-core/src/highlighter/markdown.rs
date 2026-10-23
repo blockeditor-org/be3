@@ -23,10 +23,14 @@ pub struct MarkdownTable {
     pub alignments: Vec<MarkdownTableAlignment>,
 }
 
-pub(super) fn styles_in(tree: &MarkdownTree, window: Range<usize>) -> Vec<SynHlStyle> {
+pub(super) fn styles_in(
+    tree: &MarkdownTree,
+    source: &[u8],
+    window: Range<usize>,
+) -> Vec<SynHlStyle> {
     let mut styles = vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); window.len()];
     let mut cursor = tree.walk();
-    style_node(&mut cursor, &mut styles, window.start);
+    style_node(&mut cursor, source, &mut styles, window.start);
     styles
 }
 
@@ -149,7 +153,12 @@ fn table_alignment(cursor: &mut MarkdownCursor<'_>) -> MarkdownTableAlignment {
     }
 }
 
-fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset: usize) {
+fn style_node(
+    cursor: &mut MarkdownCursor<'_>,
+    source: &[u8],
+    styles: &mut [SynHlStyle],
+    offset: usize,
+) {
     let node = cursor.node();
     let window_end = offset + styles.len();
     if node.end_byte() < offset || node.start_byte() >= window_end {
@@ -220,11 +229,6 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
                 .unwrap_or(2);
             set_heading(&mut styles[range.clone()], level);
         }
-        "block_quote" => {
-            for style in &mut styles[range.clone()] {
-                style.italic = true;
-            }
-        }
         "pipe_table_header" => {
             for style in &mut styles[range.clone()] {
                 style.bold = true;
@@ -264,14 +268,29 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
                 set_symbol(style);
             }
         }
+        "block_quote_marker" | "block_continuation" => {
+            for (style, byte) in styles[range.clone()]
+                .iter_mut()
+                .zip(&source[node_bytes(&range, offset)])
+            {
+                set_symbol(style);
+                if *byte == b'>' {
+                    style.color = SynHlColorScope::MarkdownQuote;
+                }
+            }
+        }
+        "list_marker_plus" | "list_marker_minus" | "list_marker_star" => {
+            let bytes = &source[node_bytes(&range, offset)];
+            for (style, byte) in styles[range.clone()].iter_mut().zip(bytes) {
+                set_symbol(style);
+                if matches!(byte, b'-' | b'+' | b'*') {
+                    style.color = SynHlColorScope::MarkdownBullet;
+                }
+            }
+        }
         "emphasis_delimiter"
         | "code_span_delimiter"
         | "fenced_code_block_delimiter"
-        | "block_quote_marker"
-        | "block_continuation"
-        | "list_marker_plus"
-        | "list_marker_minus"
-        | "list_marker_star"
         | "list_marker_dot"
         | "list_marker_parenthesis"
         | "task_list_marker_checked"
@@ -299,13 +318,17 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
 
     if cursor.goto_first_child() {
         loop {
-            style_node(cursor, styles, offset);
+            style_node(cursor, source, styles, offset);
             if !cursor.goto_next_sibling() {
                 break;
             }
         }
         cursor.goto_parent();
     }
+}
+
+fn node_bytes(range: &Range<usize>, offset: usize) -> Range<usize> {
+    range.start + offset..range.end + offset
 }
 
 fn set_heading(styles: &mut [SynHlStyle], level: u8) {
@@ -552,7 +575,7 @@ pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
     };
     MarkdownWindow {
         len: source.len(),
-        styles: styles_in(&tree, 0..source.len()),
+        styles: styles_in(&tree, source, 0..source.len()),
         tables: tables(&tree),
         code_blocks: code_blocks(&tree),
     }

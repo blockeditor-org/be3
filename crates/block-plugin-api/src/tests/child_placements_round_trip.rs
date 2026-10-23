@@ -2,14 +2,9 @@ use super::*;
 
 #[test]
 fn child_placements_round_trip() {
-    let message = Message::Children(ChildPlacements {
+    let message = committed(ChildPlacements {
         instance: EditorInstanceId(4),
         region: EditorRegion::Frame,
-        generation: 9,
-        size: Size {
-            width: 640.0,
-            height: 480.0,
-        },
         children: vec![
             ChildPlacement {
                 child: ChildId(1),
@@ -29,7 +24,7 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: true,
+                follows_view: true,
             },
             ChildPlacement {
                 child: ChildId(2),
@@ -49,7 +44,7 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
             },
             ChildPlacement {
                 child: ChildId(3),
@@ -69,27 +64,23 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
             },
         ],
         occluders: vec![Occluder {
             after: 1,
             rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(64.0, 480.0)),
         }],
-        camera: Some(Camera {
-            x: -120.0,
-            y: 40.0,
-            scale: 1.5,
-        }),
     });
     assert_eq!(
         decode_frame(&encode_frame(&message).unwrap()).unwrap(),
         message
     );
 
-    let Message::Children(placements) = &message else {
-        panic!("the message is a child placement table");
+    let Message::Frame(FrameCommit { children, .. }) = &message else {
+        panic!("the message is a frame");
     };
+    let placements = &children[0];
     assert!(placements.occluded(0, Pos2::new(8.0, 8.0)));
     assert!(!placements.occluded(1, Pos2::new(8.0, 8.0)));
 }

@@ -127,6 +127,41 @@ fn take_actions<A: block_plugin_api::HostAction>(instances: &mut Instances) -> V
         .collect()
 }
 
+fn configure(instances: &mut Instances) -> Option<Message> {
+    let next = instances.next_screens(PASS);
+    let mut messages = next.opened;
+    messages.push(instances.screen_set(next.screens));
+    instances.configure(&messages)
+}
+
+fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
+    ChildPlacements {
+        instance: INSTANCE,
+        region: REGION,
+        children: vec![ChildPlacement {
+            child: ChildId(1),
+            content: ChildContent::Block {
+                block_id: [1; 16],
+                block_type: [0; 16],
+                view_block: None,
+                editor: None,
+            },
+            rect,
+            clip: Rect::from_min_size(pos2(-1000.0, -1000.0), vec2(2000.0, 2000.0)),
+            own_frame: false,
+            top_bar: block_plugin_api::TopBar::Hidden,
+            corner_radius: 0.0,
+            layer: block_plugin_api::ChildLayer::Below,
+            mode: ChildMode::Passive,
+            intrinsic: None,
+            rotation: 0.0,
+            opacity: 1.0,
+            follows_view,
+        }],
+        occluders: Vec::new(),
+    }
+}
+
 fn next_screens(instances: &mut Instances) -> NextScreens {
     instances.touch(&crate::be::take_touched());
     instances.next_screens(PASS)
@@ -145,23 +180,46 @@ mod a_plugin_hears_every_sample_only_while_it_asks;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
+mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_plugin_hears_its_childrens_statuses_again;
 mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
 mod a_restarted_plugin_no_longer_shows_its_regions_stopped;
 mod a_shell_only_host_value_reaches_only_the_shell;
 mod a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard;
+mod a_zoomed_region_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_plugin_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
-#[cfg(target_os = "linux")]
-#[cfg(target_os = "linux")]
-#[cfg(target_os = "linux")]
+mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod host_actions_reach_the_host_only_from_the_shell;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_view_a_screen_is_given_carries_its_scale;
+
+fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
+    let role = InstanceRole::Editor(
+        Uuid::nil(),
+        EditorBlock {
+            id: Uuid::nil(),
+            block_type: Uuid::nil(),
+            view_block: None,
+        },
+    );
+    instances.report(
+        INSTANCE,
+        REGION,
+        Uuid::nil(),
+        role,
+        &Arc::new(block_plugin_api::Catalog::default()),
+        Some(block_plugin_api::FrameSpec::default()),
+        size,
+        Rect::from_min_size(Pos2::ZERO, size),
+        scale_factor,
+        PASS,
+    );
+}

@@ -92,7 +92,7 @@ fn report(stage: &str, plugin: &mut Plugin) -> Report {
     for frame in &outbound {
         match decode_frame(frame) {
             Ok(message) => {
-                report.drawn |= matches!(message, Message::FrameReady(_));
+                report.drawn |= matches!(message, Message::Frame(_));
                 if let Message::Editor(EditorMessage::Request {
                     request_id,
                     request: block_plugin_api::HostRequest::Fetch(_),

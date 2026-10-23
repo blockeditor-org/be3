@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Formats, Position, Schema, Selected, SyntaxHighlight, TextChange, TextIndentation,
-    TextLanguage, TextRun, markdown_checkbox_marker,
+    Formats, LineLook, MarkdownCommand, Position, Schema, Selected, SyntaxHighlight, TextChange,
+    TextIndentation, TextLanguage, TextRun, markdown_checkbox_marker,
 };
 
 use beui_core::color::Color32;
@@ -51,6 +51,7 @@ pub struct Snapshot {
     pub highlight: Option<SyntaxHighlight>,
     pub runs: Option<Rc<Vec<TextRun>>>,
     pub formats: Option<Arc<Formats>>,
+    pub looks: Vec<LineLook>,
 }
 
 const MEASURED_BYTES: usize = 64 * 1024;
@@ -271,6 +272,25 @@ impl TextAreaState {
 
     pub fn schema(&self) -> Arc<dyn Schema> {
         self.with_core(Core::schema)
+    }
+
+    pub fn set_checked(&self, line_start: usize, checked: bool) {
+        let rich = self.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
+        let at = self.with_core(|core| core.position(line_start));
+        let command = match rich {
+            true => {
+                let Some((key, value)) = self.schema().check(checked) else {
+                    return;
+                };
+                EditorCommand::SetBlock {
+                    at: Some(at),
+                    key,
+                    value,
+                }
+            }
+            false => EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(at)),
+        };
+        self.execute(command);
     }
 
     fn sync_selected(&self) {
@@ -554,6 +574,8 @@ impl TextAreaState {
                 None => {
                     let row = build_row(&inputs, line, start, end, newline);
                     let font = FontId::proportional(options.body_size);
+                    let indent = row.quote as f32 * super::QUOTE_INDENT;
+                    let wrap = (wrap - indent).max(1.0);
                     let row_height = rich_layout(&row, font, options.padding(), wrap)?.size.y;
                     (row_height, row.block.map_or(0.0, |(_, size)| size.y))
                 }
@@ -635,9 +657,10 @@ impl TextAreaState {
             };
             let row = build_row(&inputs, line, start, end, newline);
             let options = RichOptions {
-                wrap_width: wrap,
+                wrap_width: (wrap - row.quote as f32 * super::QUOTE_INDENT).max(1.0),
                 padding: options.padding(),
                 style: SpanStyle::new(font, Color32::WHITE),
+                hang: row.hang,
             };
             lines.push(lay_out(&row.pieces(), options)?);
         }
@@ -864,6 +887,9 @@ impl TextAreaState {
                 core.document().read().and_then(|read| read.formats())
             })
             .flatten();
+        let looks = formats.as_deref().map_or_else(Vec::new, |formats| {
+            inner.core.borrow().schema().line_looks(formats)
+        });
         let runs = inner.show_runs.get().then(|| {
             let core = inner.core.borrow();
             Rc::new(
@@ -885,6 +911,7 @@ impl TextAreaState {
             highlight: Some(highlight),
             runs,
             formats,
+            looks,
         };
         inner.content_counter.set(inner.content_counter.get() + 1);
         inner.content.set(inner.content_counter.get());

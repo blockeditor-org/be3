@@ -7,11 +7,12 @@ use beui_macros::{component, view};
 
 use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
+use crate::scroll::scrollbar_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    BlockView, Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox,
-    TextWidget, VoidSize, VoidView,
+    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox, TextWidget, VoidSize,
+    VoidView,
 };
 use beui_core::base::ItemSize;
 use beui_core::color::Color32;
@@ -37,7 +38,6 @@ pub fn TextArea(
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    render_block: Option<RenderFn<BlockView>>,
     render_void: Option<RenderFn<VoidView>>,
     #[prop(default = None)] void_size: Option<VoidSize>,
     #[prop(default = true)] emoji: bool,
@@ -65,7 +65,6 @@ pub fn TextArea(
     api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
-    let render_block = render_block.unwrap_or_else(|| RenderFn::new(|block: BlockView| block.text));
     let render_void = render_void.unwrap_or_else(|| {
         RenderFn::new(|_: VoidView| {
             view! {
@@ -94,6 +93,7 @@ pub fn TextArea(
                     password
                     show_runs
                     client_colors
+                    scrollbar={scrollbar_style()}
                     on_widget_press={on_widget_press}
                     on_focus_change={on_focus_change}
                     pastes_images
@@ -101,7 +101,6 @@ pub fn TextArea(
                     on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
                     block={block}
                     selected_widget={selected_widget}
-                    render_block={render_block}
                     render_void={render_void}
                     void_size
                     checkbox={inline_checkbox()}
@@ -118,9 +117,20 @@ pub fn TextArea(
 
 fn inline_checkbox() -> RenderFn<TextCheckbox> {
     RenderFn::new(|checkbox: TextCheckbox| {
-        let TextCheckbox { checked, disabled } = checkbox;
+        let TextCheckbox {
+            checked,
+            disabled,
+            line,
+        } = checkbox;
         view! {
-            <Checkbox checked disabled capture_presses=true tab_stop=false press_focus=false />
+            <Checkbox
+                @test_id={format!("text.checkbox.{line}")}
+                checked
+                disabled
+                capture_presses=true
+                tab_stop=false
+                press_focus=false
+            />
         }
     })
 }

@@ -56,9 +56,7 @@ pub trait TreeNode {
     fn first_offset_within(&self) -> Option<NodeId>;
     fn offset(&self) -> Option<f32>;
     fn scroll_position(&self) -> Option<ScrollPosition>;
-    fn overscroll(&self) -> f32;
     fn drive_offset(&self, value: f32);
-    fn set_overscroll(&self, overscroll: f32);
     fn on_steer(&self, handler: impl FnMut(()) + 'static);
     fn row_offset<K: Clone + Hash + Eq + 'static>(&self, key: &K) -> Option<f32>;
     fn texts_within(&self) -> Vec<NodeId>;
@@ -149,25 +147,10 @@ impl TreeNode for NodeId {
         with_document(|document| document.offset_position(offset_node(document, *self)?))
     }
 
-    fn overscroll(&self) -> f32 {
-        with_document(|document| match document.contains(*self) {
-            true => document.scroll_overscroll(*self),
-            false => 0.0,
-        })
-    }
-
     fn drive_offset(&self, value: f32) {
         with_document(|document| {
             if let Some(offset) = offset_node(document, *self) {
                 document.drive_offset(offset, value);
-            }
-        });
-    }
-
-    fn set_overscroll(&self, overscroll: f32) {
-        with_document(|document| {
-            if let Some(offset) = offset_node(document, *self) {
-                document.set_offset_overscroll(offset, overscroll);
             }
         });
     }

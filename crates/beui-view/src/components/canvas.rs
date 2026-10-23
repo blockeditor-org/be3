@@ -29,7 +29,10 @@ pub fn Canvas(
         document.set_canvas_on_reveal(canvas, on_reveal);
     });
     children.mount(canvas);
-    create_effect(move || with_document(|document| document.set_canvas_view(canvas, view.get())));
+    create_effect(move || {
+        let view = view.get();
+        with_document(|document| document.set_canvas_view(canvas, view))
+    });
     let scale = create_memo(move || view.get().map_or(1.0, |view| view.scale));
     let settle = create_timer(move || {
         let raster = scale.get_untracked();
@@ -75,13 +78,16 @@ pub fn CanvasItem(
         with_document(|document| document.set_canvas_item_rect(item, rect));
     });
     create_effect(move || {
-        with_document(|document| document.set_canvas_item_clip(item, clip.get()))
+        let clip = clip.get();
+        with_document(|document| document.set_canvas_item_clip(item, clip))
     });
     create_effect(move || {
-        with_document(|document| document.set_canvas_item_pointer(item, pointer.get()))
+        let pointer = pointer.get();
+        with_document(|document| document.set_canvas_item_pointer(item, pointer))
     });
     create_effect(move || {
-        with_document(|document| document.set_canvas_item_scales(item, scales.get()))
+        let scales = scales.get();
+        with_document(|document| document.set_canvas_item_scales(item, scales))
     });
     CanvasItem::new(item.id(), ())
 }

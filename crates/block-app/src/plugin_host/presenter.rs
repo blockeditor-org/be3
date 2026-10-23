@@ -309,7 +309,7 @@ impl Blit {
     }
 }
 
-fn unstretched(
+pub(super) fn unstretched(
     quad: Quad,
     source: Rect,
     requested: (u32, u32),

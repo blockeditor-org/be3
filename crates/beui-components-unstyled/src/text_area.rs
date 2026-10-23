@@ -22,7 +22,7 @@ use text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::Scroll;
+use crate::{Scroll, ScrollbarStyle};
 use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::clipboard::{PasteKind, Pasted};
@@ -52,16 +52,6 @@ pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
 pub use state::{TextAreaLayout, TextAreaState};
 
 #[derive(Clone, Copy)]
-pub struct BlockView {
-    pub state: TextAreaState,
-    pub line: ReadSignal<usize>,
-    pub start: Memo<usize>,
-    pub props: Memo<text_editor_core::MarkSet>,
-    pub line_height: Memo<f32>,
-    pub text: NodeId,
-}
-
-#[derive(Clone, Copy)]
 pub struct VoidView {
     pub state: TextAreaState,
     pub props: Memo<text_editor_core::MarkSet>,
@@ -71,6 +61,7 @@ pub struct VoidView {
 pub struct TextCheckbox {
     pub checked: Binding<bool>,
     pub disabled: Memo<bool>,
+    pub line: usize,
 }
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
@@ -87,6 +78,8 @@ const RUN_CHIP_RADIUS: f32 = 3.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
 const CODE_RADIUS: f32 = 3.0;
+const QUOTE_INDENT: f32 = 14.0;
+const QUOTE_BAR_WIDTH: f32 = 3.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -171,7 +164,6 @@ struct Surface {
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
-    render_block: Option<RenderFn<BlockView>>,
     render_void: Option<RenderFn<VoidView>>,
     void_size: Option<VoidSize>,
     completion: Memo<Option<Query>>,
@@ -375,7 +367,7 @@ impl Surface {
                 None => return,
             },
         };
-        let mut offset = position.offset;
+        let mut offset = position.clamped();
         if rect.min.y - REVEAL_MARGIN.y < offset {
             offset = rect.min.y - REVEAL_MARGIN.y;
         }
@@ -849,7 +841,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-            Inline::Run => {}
+            Inline::Run | Inline::Bullet | Inline::Quote => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -1077,12 +1069,12 @@ pub fn TextArea(
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
+    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
-    render_block: Option<RenderFn<BlockView>>,
     render_void: Option<RenderFn<VoidView>>,
     #[prop(default = None)] void_size: Option<VoidSize>,
     #[prop(default = Completer::none())] completer: Completer,
@@ -1321,7 +1313,6 @@ pub fn TextArea(
                     block,
                     selected_widget,
                     checkbox,
-                    render_block,
                     render_void,
                     void_size,
                     completion,
@@ -1478,6 +1469,7 @@ pub fn TextArea(
                                         <Scroll
                                             offset={offset}
                                             focus_color={Color32::TRANSPARENT}
+                                            scrollbar
                                             on_change={scroll}
                                         >
                                             <Editing field={field} />

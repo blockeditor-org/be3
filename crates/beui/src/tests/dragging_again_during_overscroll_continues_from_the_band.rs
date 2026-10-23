@@ -38,5 +38,5 @@ fn dragging_again_during_overscroll_continues_from_the_band() {
     let dragged = harness.document().scroll_overscroll(scroll);
 
     assert!(dragged < grabbed);
-    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
+    assert_eq!(harness.document().scroll_offset(scroll), dragged);
 }

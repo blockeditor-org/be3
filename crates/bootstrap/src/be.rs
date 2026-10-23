@@ -9,12 +9,15 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     let credentials = repository().join("external/.tracker-credentials");
     let bundle = match std::env::var("BE3_AGENT_CREDENTIALS") {
         Ok(bundle) if !bundle.is_empty() => bundle,
-        _ => std::fs::read_to_string(&credentials).map_err(|_| {
-            format!(
-                "Set BE3_AGENT_CREDENTIALS or save the copied agent JSON in {}.",
-                credentials.display()
-            )
-        })?,
+        _ => {
+            fetch_credentials(&credentials);
+            std::fs::read_to_string(&credentials).map_err(|_| {
+                format!(
+                    "Set BE3_AGENT_CREDENTIALS or save the copied agent JSON in {}.",
+                    credentials.display()
+                )
+            })?
+        }
     };
     let pins = Pins::read()?;
     let be = ensure(&pins)?;
@@ -66,4 +69,38 @@ pub fn ensure(pins: &Pins) -> Result<std::path::PathBuf> {
         .map_err(|error| format!("could not write {}: {error}", destination.display()))?;
     eprintln!("Installed be {release} at {}", destination.display());
     Ok(destination)
+}
+
+fn fetch_credentials(credentials: &std::path::Path) {
+    if std::fs::metadata(credentials).is_ok_and(|metadata| metadata.len() > 0) {
+        return;
+    }
+    let partial = partial_path(credentials);
+    let _ = std::fs::create_dir_all(credentials.parent().unwrap_or(repository()));
+    let fetched = Command::new("curl")
+        .args(["-sSf", "--max-time", "30", "-o"])
+        .arg(&partial)
+        .arg("https://api.be3.pfg.pw/authorized-storage/tracker-credentials")
+        .status()
+        .is_ok_and(|status| status.success());
+    if fetched && restrict(&partial) && std::fs::rename(&partial, credentials).is_ok() {
+        eprintln!(
+            "Fetched the tracker's credentials into {}.",
+            credentials.display()
+        );
+    } else {
+        let _ = std::fs::remove_file(&partial);
+    }
+}
+
+fn restrict(path: &std::path::Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).is_ok()
+    }
+    #[cfg(not(unix))]
+    {
+        path.is_file()
+    }
 }

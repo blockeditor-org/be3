@@ -866,13 +866,25 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn handle(&mut self, message: Message) {
         match message {
-            Message::Children(placements) => {
-                self.children = placements.children;
-                self.occluders = placements.occluders;
-            }
-            Message::Frames(reports) => {
-                if let Some(report) = reports.into_iter().find(|report| report.screen == SCREEN) {
+            Message::Frame(commit) => {
+                if let Some(placements) = commit.children.into_iter().last() {
+                    self.children = placements.children;
+                    self.occluders = placements.occluders;
+                }
+                if let Some(report) = commit
+                    .reports
+                    .into_iter()
+                    .find(|report| report.screen == SCREEN)
+                {
                     self.report = Some(report);
+                }
+                if let Some(window) = commit
+                    .windows
+                    .into_iter()
+                    .find(|window| window.screen == SCREEN)
+                    .filter(|_| self.region() == EditorRegion::Frame)
+                {
+                    self.window = window.window;
                 }
             }
             Message::Editor(message) => {
@@ -884,11 +896,6 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                     EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
                     EditorMessage::Menu { entries, .. } => self.menu.clone_from(entries),
-                    EditorMessage::Window {
-                        region: EditorRegion::Frame,
-                        window,
-                        ..
-                    } => self.window.clone_from(window),
                     _ => {}
                 }
                 self.sent.push(message);

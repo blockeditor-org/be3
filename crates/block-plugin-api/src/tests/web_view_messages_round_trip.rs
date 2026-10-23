@@ -3,14 +3,9 @@ use super::*;
 #[test]
 fn web_view_messages_round_trip() {
     for message in [
-        Message::Children(ChildPlacements {
+        committed(ChildPlacements {
             instance: EditorInstanceId(5),
             region: EditorRegion::Frame,
-            generation: 1,
-            size: Size {
-                width: 640.0,
-                height: 480.0,
-            },
             children: vec![ChildPlacement {
                 child: ChildId(1),
                 content: ChildContent::WebView(WebViewId(2)),
@@ -24,10 +19,9 @@ fn web_view_messages_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
             }],
             occluders: Vec::new(),
-            camera: None,
         }),
         Message::Editor(EditorMessage::WebViewCommand {
             instance: EditorInstanceId(5),
