@@ -12,8 +12,8 @@ struct KeyboardWindow {
 }
 
 impl KeyboardHost for KeyboardWindow {
-    fn height(&mut self, width: f32) -> f32 {
-        keyboard_height(width)
+    fn height(&mut self, width: f32, scale: f32) -> f32 {
+        keyboard_height(width, scale)
     }
 
     fn show(&mut self, ctx: &Context, rect: Rect) {

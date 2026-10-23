@@ -57,6 +57,7 @@ pub struct InteractiveNode {
     pub drawing_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub inhibits_shortcuts: bool,
+    pub forwards_wheel: bool,
     pub claim_modifiers: Option<Modifiers>,
     pub claim_at: Callback<(Pos2, Modifiers), bool>,
     pub on_press_outside: Callback<Pos2>,
@@ -113,6 +114,7 @@ impl InteractiveNode {
             drawing_at: Callback::empty(),
             on_forward: Callback::empty(),
             inhibits_shortcuts: false,
+            forwards_wheel: true,
             claim_modifiers: None,
             claim_at: Callback::empty(),
             on_press_outside: Callback::empty(),
@@ -146,6 +148,10 @@ impl InteractiveNode {
 
     pub fn forwards(&self) -> bool {
         !self.on_forward.is_empty()
+    }
+
+    pub fn forwards_wheels(&self) -> bool {
+        self.forwards() && self.forwards_wheel
     }
 
     pub fn takes_presses(&self) -> bool {
@@ -557,6 +563,14 @@ impl Document {
             self.arena
                 .touch_mut_as::<InteractiveNode>(id)
                 .inhibits_shortcuts = inhibits;
+        }
+    }
+
+    pub fn set_interactive_forwards_wheel(&mut self, id: NodeOf<InteractiveNode>, forwards: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).forwards_wheel != forwards {
+            self.arena
+                .touch_mut_as::<InteractiveNode>(id)
+                .forwards_wheel = forwards;
         }
     }
 

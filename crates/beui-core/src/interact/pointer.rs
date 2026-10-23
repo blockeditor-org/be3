@@ -1439,7 +1439,7 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
                 if node.wants_wheel(along) {
                     return Some(id);
                 }
-                if node.forwards() {
+                if node.forwards_wheels() {
                     return None;
                 }
             }
@@ -1524,7 +1524,7 @@ fn wheel_sink(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) ->
         .into_iter()
         .find_map(|id| {
             let node = interactive(doc, id)?;
-            match (node.forwards(), node.on_scroll.is_empty()) {
+            match (node.forwards_wheels(), node.on_scroll.is_empty()) {
                 (true, _) => Some(Some(id)),
                 (false, false) => Some(None),
                 (false, true) => None,

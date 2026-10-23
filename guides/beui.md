@@ -2863,7 +2863,12 @@ every key pressed while they are held; Shift's corner is caps lock. Fn and the
 two scripts change the labels as well as what the keys type. Dragging left from
 Backspace selects a word per step (Ctrl+Shift+Left) and deletes the selection
 when let go; dragging along Space moves the caret a letter per step. Held keys
-repeat. Compose combines the next keys through X11's compose sequences.
+repeat. Compose combines the next keys through X11's compose sequences. While
+it composes, each key shows what it would do next (`compose::preview`, which
+`KeyCapHandle::previews` holds per slot): a letter that finishes a sequence
+shows its result in its place, one that continues a sequence stays as it is, and
+one that leads nowhere fades, as do keys that take no part (Esc, the modifiers,
+the layers and Compose itself stay); a key with nothing left on it fades whole.
 
 It is three pieces:
 
@@ -2877,8 +2882,8 @@ It is three pieces:
   `Interactive` with `press_focus=false`, so every finger reaches the engine as
   its own pointer and pressing a key never moves the focus. It hands each key's
   appearance to a `cap` render function and the emoji layer to `emoji`.
-- `beui::styled::SoftwareKeyboard`: the keys painted with theme tokens, a bar
-  with the close button, and the emoji panel (`emojis` grouped as the
+- `beui::styled::SoftwareKeyboard`: the keys painted with theme tokens under a
+  separator along its top, a bar with the close button, and the emoji panel (`emojis` grouped as the
   `emojis` crate groups them, leaving out what the fonts cannot draw).
   `install_keyboard` puts a `KeyboardWindow` on a document as its
   `KeyboardHost`, which `beui::reactive::build` does for every document.
@@ -2891,7 +2896,11 @@ It is three pieces:
   height off the bottom of the screen the focused field is on, the way the
   mouse simulation's strip is taken: a single screen's document is laid out
   above it, and on several screens that screen is shortened in what
-  `use_screens()` offers. The keyboard is a document of its own, shown after
+  `use_screens()` offers. `Context::set_keyboard_scale` scales the height of
+  its keys (`KeyboardHost::height` is handed it; block-app sets it from the
+  display settings' on-screen keyboard height), and the keyboard never takes
+  more than `MAX_SHARE` of the screen. A platform's own keyboard ignores it.
+  The keyboard is a document of its own, shown after
   the app with the pointer only while a press began on it or the pointer is
   over it, and with no keys.
 
@@ -3452,7 +3461,9 @@ hears `on_hover_change` when it joins or leaves the path whether the pointer
 moved or the layout did. The cursor is the innermost armed catcher's, else the
 innermost hovered one's. A wheel turn goes to the innermost catcher on the path
 under where the pointer was when it turned that takes it along its axis, unless
-a forwarding catcher comes first, and stays latched to it for
+a forwarding catcher comes first (one with `forwards_wheel=false`, such as the
+on-screen keyboard, forwards only its presses and lets the wheel pass to what is
+under it), and stays latched to it for
 `WHEEL_LATCH_TIMEOUT` while the pointer holds still.
 
 Parts a catcher draws outside its own rectangle, such as the touch selection

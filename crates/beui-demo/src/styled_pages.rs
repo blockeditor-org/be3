@@ -860,7 +860,7 @@ fn KeyboardInput() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <TextInput value=String::new() placeholder="Type with the keys below" />
-            <Frame height={keyboard_height(480.0)}>
+            <Frame height={keyboard_height(480.0, 1.0)}>
                 <SoftwareKeyboard />
             </Frame>
             <Text style=TextStyle::CAPTION wrap=true>

@@ -9,7 +9,7 @@ use crate::screens::{self, Screen};
 pub const MAX_SHARE: f32 = 0.5;
 
 pub trait KeyboardHost: Any {
-    fn height(&mut self, width: f32) -> f32;
+    fn height(&mut self, width: f32, scale: f32) -> f32;
 
     fn show(&mut self, ctx: &Context, rect: Rect);
 
@@ -27,6 +27,7 @@ pub enum Opened {
 pub(crate) struct KeyboardState {
     enabled: bool,
     attached: bool,
+    scale: f32,
     opened: Opened,
     toggles: u32,
     applied_toggles: u32,
@@ -44,6 +45,7 @@ impl Default for KeyboardState {
         Self {
             enabled: false,
             attached: true,
+            scale: 1.0,
             opened: Opened::Closed,
             toggles: 0,
             applied_toggles: 0,
@@ -73,6 +75,18 @@ impl KeyboardState {
 
     pub(crate) fn set_attached(&mut self, attached: bool) {
         self.attached = attached;
+    }
+
+    pub(crate) fn scale(&self) -> f32 {
+        self.scale
+    }
+
+    pub(crate) fn set_scale(&mut self, scale: f32) -> bool {
+        let scale = match scale.is_finite() && scale > 0.0 {
+            true => scale,
+            false => 1.0,
+        };
+        std::mem::replace(&mut self.scale, scale) != scale
     }
 
     pub(crate) fn opened(&self) -> Opened {
@@ -147,7 +161,7 @@ impl KeyboardState {
             .or_else(|| shown.first())
             .map_or(rect, |screen| screen.rect);
         let height = host
-            .height(target.width())
+            .height(target.width(), self.scale)
             .min(target.height() * MAX_SHARE)
             .max(0.0);
         let keyboard =
