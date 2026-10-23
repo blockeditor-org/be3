@@ -9,7 +9,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
 use block_plugin_api::{
-    ChildRect, HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin,
+    HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin,
 };
 
 struct Running {
@@ -274,12 +274,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                     width: info.size.x,
                     height: info.size.y,
                 },
-                fullscreen: info.fullscreen.map(|area| ChildRect {
-                    x: area.min.x,
-                    y: area.min.y,
-                    width: area.width(),
-                    height: area.height(),
-                }),
+                fullscreen: info.fullscreen,
                 responding: info.responding,
                 focused: windows.focused() == Some(info.id),
                 icon: info.icon.map(|icon| HostImage {

@@ -887,13 +887,13 @@ leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
 does.
 A pen is `Event::Pen`: a `PenPhase` (`Move` in range, whether or not the tip is down, `Down`
 and `Up` of the tip, which is `Primary`, and of its barrel buttons, and `Gone` when it leaves
-range), its pressure from 0 to 1 and a `Pen` with its tilt in degrees and whether it is the
+range) and a `Pen` with its pressure from 0 to 1, its tilt in degrees and whether it is the
 eraser end. It is `PointerId::Pen` and behaves as the mouse does: it hovers, moves the pointer,
 presses and drags without a slop or a long press and never scrolls what it is dragged across,
 so every control works with it unchanged (`PointerId::hovers` is true for both). Its
-`PointerEvent`s carry the pressure as `force` and the `Pen`, and the `PointerPress` a catcher
-hears carries them too, as `pressure` and `pen`, sampled when it was pressed and at each drag;
-a finger's press carries its `force` as `pressure` where the platform reports one. The DRM
+`PointerEvent`s carry the `Pen`, and the `PointerPress` a catcher hears carries it too, as
+`pen`, sampled when it was pressed and at each drag; a finger's `PointerEvent`s carry its
+`force` where the platform reports one. The DRM
 adapter reads libinput's tablet tools, the web adapter pointer events whose `pointerType` is
 `pen`, Android a stylus or eraser `MotionEvent`, the winit adapter winit's tablet-tool pointer
 events (on Wayland and Windows; X11 and macOS report none), and drive's `pen` commands make one.

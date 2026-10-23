@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ChildRect, HostAction, HostImage, HostValue, Size};
+use crate::{Rect, HostAction, HostImage, HostValue, Size};
 use ui_types::{DisplayMode, InputDevice, PointerSettings, Rotation};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -14,7 +14,7 @@ pub struct HostWindow {
     pub parent: Option<HostWindowId>,
     pub modal: bool,
     pub size: Size,
-    pub fullscreen: Option<ChildRect>,
+    pub fullscreen: Option<Rect>,
     pub responding: bool,
     pub focused: bool,
     pub icon: Option<HostImage>,

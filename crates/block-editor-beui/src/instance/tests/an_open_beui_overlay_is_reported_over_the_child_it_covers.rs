@@ -57,7 +57,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         .first()
         .expect("an open overlay must be reported so the host blits it over the children");
     assert_eq!(
-        (floating.width, floating.height),
+        (floating.width(), floating.height()),
         (PANEL, PANEL),
         "the reported rectangle is the one the overlay was laid out at"
     );
@@ -66,7 +66,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         .first()
         .expect("an open overlay must be withheld from the child under it");
     assert_eq!(
-        (occluder.rect.width, occluder.rect.height),
+        (occluder.rect.width(), occluder.rect.height()),
         (PANEL, PANEL),
         "the occluder covers the same rectangle the overlay was laid out at"
     );

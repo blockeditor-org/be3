@@ -11,8 +11,8 @@ fn a_pen_over_a_window_reaches_it_as_a_tablet_tool_with_its_pressure() {
     let pen = |phase, pos, pressure| Event::Pen {
         phase,
         pos,
-        pressure,
         pen: Pen {
+            pressure,
             tilt: vec2(20.0, -10.0),
             eraser: false,
         },

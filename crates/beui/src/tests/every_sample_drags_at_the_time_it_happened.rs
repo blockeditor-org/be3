@@ -24,8 +24,10 @@ fn every_sample_drags_at_the_time_it_happened() {
     let pen = |phase, x| Input::Pen {
         phase,
         pos: pos2(x, 100.0),
-        pressure: 0.5,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure: 0.5,
+            ..Pen::default()
+        },
     };
     harness.frame(vec![pen(PenPhase::Down(PointerButton::Primary), 100.0)]);
     drags.set(Vec::new());

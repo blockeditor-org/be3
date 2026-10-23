@@ -11,7 +11,7 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FitArea,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea,
     FrameChrome, FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
     ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, ViewportMetrics,
 };
@@ -361,12 +361,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
         self.frame = Some(block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
-            content: closable.then_some(ChildRect {
-                x: 0.0,
-                y: 0.0,
-                width: self.size.x,
-                height: self.size.y,
-            }),
+            content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
         });
         self.place();
@@ -491,12 +486,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .map(|(id, rect)| block_plugin_api::Monitor {
                 id: id.to_owned(),
                 name: id.to_owned(),
-                rect: block_plugin_api::ChildRect {
-                    x: rect.min.x,
-                    y: rect.min.y,
-                    width: rect.width(),
-                    height: rect.height(),
-                },
+                rect,
             })
             .collect();
         self.place();
@@ -569,11 +559,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn content_rect(&self) -> Option<Rect> {
         let report = self.report.as_ref()?;
-        let rect = report.content;
-        Some(Rect::from_min_size(
-            Pos2::new(rect.x, rect.y),
-            Vec2::new(rect.width, rect.height),
-        ))
+        Some(report.content)
     }
 
     pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
@@ -1341,18 +1327,24 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pen(&mut self, phase: PenPhase, pos: Pos2, pressure: f32) {
-        let frames = self
-            .gestures
-            .pen_sample(phase, pos, pressure, Pen::default());
+        let frames = self.gestures.pen_sample(
+            phase,
+            pos,
+            Pen {
+                pressure,
+                ..Pen::default()
+            },
+        );
         self.perform(frames);
     }
 
     pub fn eraser(&mut self, phase: PenPhase, pos: Pos2) {
         let eraser = Pen {
+            pressure: 1.0,
+            tilt: Vec2::ZERO,
             eraser: true,
-            ..Pen::default()
         };
-        let frames = self.gestures.pen_sample(phase, pos, 1.0, eraser);
+        let frames = self.gestures.pen_sample(phase, pos, eraser);
         self.perform(frames);
     }
 

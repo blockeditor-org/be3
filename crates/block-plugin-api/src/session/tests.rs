@@ -64,8 +64,10 @@ fn pen(x: f32, time_micros: u64) -> TimedInput {
         Input::Pen {
             phase: crate::PenPhase::Move,
             pos: crate::Pos2::new(x, 0.0),
-            pressure: 0.5,
-            pen: crate::Pen::default(),
+            pen: crate::Pen {
+                pressure: 0.5,
+                ..crate::Pen::default()
+            },
         },
         time_micros,
     )

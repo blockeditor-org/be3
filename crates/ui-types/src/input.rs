@@ -561,6 +561,7 @@ pub struct TouchId {
 
 #[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct Pen {
+    pub pressure: f32,
     pub tilt: Vec2,
     pub eraser: bool,
 }
@@ -581,7 +582,7 @@ pub enum ScrollDelta {
     Pages(Vec2),
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DroppedFile {
     pub name: String,
     pub path: Option<std::path::PathBuf>,
@@ -618,7 +619,6 @@ pub enum Input {
     Pen {
         phase: PenPhase,
         pos: Pos2,
-        pressure: f32,
         pen: Pen,
     },
     Predicted(Pos2),
@@ -629,8 +629,11 @@ pub enum Input {
         repeat: bool,
     },
     InterceptedTap(Key),
+    #[serde(skip)]
     FileHovered,
+    #[serde(skip)]
     FileHoverCancelled,
+    #[serde(skip)]
     FileDropped(DroppedFile),
 }
 
@@ -645,17 +648,5 @@ impl Input {
             _ => {}
         }
         self
-    }
-}
-
-impl From<Keystroke> for Input {
-    fn from(stroke: Keystroke) -> Self {
-        Self::Key(stroke)
-    }
-}
-
-impl From<ScrollDelta> for Input {
-    fn from(delta: ScrollDelta) -> Self {
-        Self::Scroll(delta)
     }
 }

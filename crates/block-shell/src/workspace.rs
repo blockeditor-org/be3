@@ -13,10 +13,10 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
-use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::beui::{NodeId, Rect, Vec2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, BlockPick, ChildRect, ChildState, Contacts, Editor, EditorHost,
+    AccessLevel, BlockFilter, BlockPick, ChildState, Contacts, Editor, EditorHost,
     FocusedBlock, HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed,
     ShellDialog, WindowAction,
 };
@@ -1306,7 +1306,7 @@ impl Workspace {
         );
     }
 
-    pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<ChildRect>) {
+    pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<Rect>) {
         self.error.set(None);
         let workspace = *self;
         let inner = self.state.value();
@@ -1394,13 +1394,7 @@ pub fn WindowTab(
         true => name.get(),
         false => format!("{} (not responding)", name.get()),
     });
-    let fullscreen = create_memo(move || {
-        let area = info.get()?.fullscreen?;
-        Some(Rect::from_min_size(
-            pos2(area.x, area.y),
-            vec2(area.width, area.height),
-        ))
-    });
+    let fullscreen = create_memo(move || info.get()?.fullscreen);
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let size = create_memo(move || {
         info.get()

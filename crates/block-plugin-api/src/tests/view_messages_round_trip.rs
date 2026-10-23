@@ -31,12 +31,10 @@ fn view_messages_round_trip() {
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
-            change: ViewChange::KeepFitted(Some(FitArea::Rect {
-                x: 40.0,
-                y: 30.0,
-                width: -6.0,
-                height: 2.5,
-            })),
+            change: ViewChange::KeepFitted(Some(FitArea::Rect(Rect::from_min_size(
+                Pos2::new(40.0, 30.0),
+                Vec2::new(-6.0, 2.5),
+            )))),
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),

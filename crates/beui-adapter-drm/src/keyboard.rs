@@ -80,7 +80,7 @@ impl Keyboard {
                 ..stroke.clone()
             });
         }
-        out.inputs.push(stroke.into());
+        out.inputs.push(Input::Key(stroke));
         out
     }
 

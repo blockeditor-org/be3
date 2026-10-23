@@ -30,7 +30,6 @@ pub struct PointerPress {
     pub clicks: u32,
     pub modifiers: Modifiers,
     pub touch: bool,
-    pub pressure: Option<f32>,
     pub pen: Option<Pen>,
     pub predicted: Option<Pos2>,
     pub time: Instant,
@@ -120,7 +119,6 @@ pub enum Event {
     Pen {
         phase: PenPhase,
         pos: Pos2,
-        pressure: f32,
         pen: Pen,
     },
     Predicted(Pos2),
@@ -461,13 +459,7 @@ impl InputState {
                     self.force = *force;
                     self.touch(*id, *phase, *pos, now);
                 }
-                Event::Pen {
-                    phase,
-                    pos,
-                    pressure,
-                    pen,
-                } => {
-                    self.force = Some(*pressure);
+                Event::Pen { phase, pos, pen } => {
                     self.pen = Some(*pen);
                     self.pen_event(*phase, *pos, now);
                 }

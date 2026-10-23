@@ -102,7 +102,6 @@ enum Message {
         phase: PenPhase,
         x: f32,
         y: f32,
-        pressure: f32,
         pen: Pen,
         at: Instant,
     },
@@ -574,19 +573,17 @@ impl Runner {
                 phase,
                 x,
                 y,
-                pressure,
                 pen,
                 at,
             } => {
                 self.runner.push(Input::Pen {
                     phase,
                     pos: pos2(x, y),
-                    pressure,
                     pen,
                 });
                 self.runner.push(Incoming::Time(at));
             }
-            Message::Scroll(delta) => self.runner.push(ScrollDelta::Lines(delta)),
+            Message::Scroll(delta) => self.runner.push(Input::Scroll(ScrollDelta::Lines(delta))),
             Message::Key {
                 key,
                 pressed,
@@ -595,13 +592,13 @@ impl Runner {
                 text,
             } => {
                 self.runner.push(Input::Modifiers(modifiers));
-                self.runner.push(Keystroke {
+                self.runner.push(Input::Key(Keystroke {
                     key,
                     pressed,
                     repeat,
                     code: None,
                     text,
-                });
+                }));
             }
             Message::Ime { event, serial } => {
                 self.platform.ime_serial = self.platform.ime_serial.max(serial);
@@ -1107,8 +1104,8 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
         phase,
         x,
         y,
-        pressure,
         pen: Pen {
+            pressure,
             tilt: vec2(tilt_x, tilt_y),
             eraser,
         },

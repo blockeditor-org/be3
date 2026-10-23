@@ -92,8 +92,10 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
     let pen = |phase| Input::Pen {
         phase,
         pos: center,
-        pressure: 0.5,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure: 0.5,
+            ..Pen::default()
+        },
     };
     harness.frame(vec![pen(PenPhase::Down(PointerButton::Primary))]);
     harness.frame(vec![pen(PenPhase::Up(PointerButton::Primary))]);

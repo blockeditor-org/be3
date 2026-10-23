@@ -1012,7 +1012,7 @@ impl Session {
                 let delta = ScrollDelta::Pixels(
                     vec2(amount(Axis::Horizontal), amount(Axis::Vertical)) * scale,
                 );
-                self.push(delta);
+                self.push(beui::Input::Scroll(delta));
             }
             InputEvent::TouchDown { event } => {
                 self.escape_touch(event.slot(), true);
@@ -1092,8 +1092,8 @@ impl Session {
         self.push_sample(beui::Input::Pen {
             phase,
             pos: self.physical(position),
-            pressure: event.pressure() as f32,
             pen: Pen {
+                pressure: event.pressure() as f32,
                 tilt,
                 eraser: tool.tool_type == TabletToolType::Eraser,
             },
@@ -1207,7 +1207,7 @@ impl Session {
             }
             RawInput::Wheel { x, y } => {
                 let notches = |v120: i32| -v120 as f32 / 120.0;
-                self.push(ScrollDelta::Lines(vec2(notches(x), notches(y))));
+                self.push(beui::Input::Scroll(ScrollDelta::Lines(vec2(notches(x), notches(y)))));
             }
         }
     }
@@ -1244,7 +1244,7 @@ impl Session {
         let token = self.handle.insert_source(
             Timer::from_duration(self.input.repeat_delay),
             move |_, _, session| {
-                session.push(repeated.clone());
+                session.push(beui::Input::Key(repeated.clone()));
                 TimeoutAction::ToDuration(interval)
             },
         );

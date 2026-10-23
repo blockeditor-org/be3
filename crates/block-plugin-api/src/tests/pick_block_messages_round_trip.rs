@@ -11,12 +11,7 @@ fn pick_block_messages_round_trip() {
             excluded: vec![[3; 16]],
             templates: true,
             place: Some(BlockLocation::Block([4; 16])),
-            anchor: Some(ChildRect {
-                x: 12.0,
-                y: 40.0,
-                width: 28.0,
-                height: 28.0,
-            }),
+            anchor: Some(Rect::from_min_size(Pos2::new(12.0, 40.0), Vec2::new(28.0, 28.0))),
         }),
     );
     assert_eq!(decode_frame(&encode_frame(&asked).unwrap()).unwrap(), asked);

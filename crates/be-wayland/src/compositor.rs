@@ -685,7 +685,7 @@ impl Compositor {
                     let target = at(*over, event.pos);
                     state.pen_motion(
                         target,
-                        f64::from(event.force.unwrap_or(0.0)),
+                        f64::from(pen.pressure),
                         (f64::from(pen.tilt.x), f64::from(pen.tilt.y)),
                         pen.eraser,
                     );

@@ -1,14 +1,8 @@
 use block_editor_beui::beui::{Pos2, pos2};
-use block_plugin_api::ChildRect;
 
 use super::*;
 
-const SCREEN: ChildRect = ChildRect {
-    x: 0.0,
-    y: 0.0,
-    width: 800.0,
-    height: 600.0,
-};
+const SCREEN: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
 
 fn windows(fixture: &mut Fixture, focused: u64) {
     let calculator = HostWindow {
@@ -30,9 +24,9 @@ fn front_at(fixture: &Fixture, at: Pos2) -> Option<HostWindowId> {
         .enumerate()
         .rev()
         .filter(|(index, placement)| {
-            placement.clip.contains(at.x, at.y)
+            placement.clip.contains_half_open(at)
                 && !occluders.iter().any(|occluder| {
-                    occluder.after as usize > *index && occluder.rect.contains(at.x, at.y)
+                    occluder.after as usize > *index && occluder.rect.contains_half_open(at)
                 })
         })
         .find_map(|(_, placement)| match placement.content {
@@ -51,10 +45,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
         .iter()
         .find(|placement| placement.content == ChildContent::Window(HostWindowId(2)))
         .map(|placement| {
-            pos2(
-                placement.rect.x + placement.rect.width / 2.0,
-                placement.rect.y + placement.rect.height / 2.0,
-            )
+placement.rect.center()
         })
         .expect("the terminal is placed");
     assert_eq!(
@@ -87,7 +78,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
     fixture.test.take_sent();
     fixture
         .test
-        .click(pos2(SCREEN.width - 10.0, SCREEN.height - 10.0));
+        .click(pos2(SCREEN.width() - 10.0, SCREEN.height() - 10.0));
     fixture.settle();
     assert_eq!(
         fixture.focused_windows(),

@@ -195,8 +195,10 @@ fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Input {
     Input::Pen {
         phase,
         pos,
-        pressure,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure,
+            ..Pen::default()
+        },
     }
 }
 

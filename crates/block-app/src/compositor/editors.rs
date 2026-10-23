@@ -11,7 +11,7 @@ use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
 use block_plugin_api::{
-    BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
+    BarAction, ChildId, ChildMode, CreationProgress, EditorInstanceId, EditorRegion,
     FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
     ViewChange,
 };
@@ -1232,15 +1232,9 @@ fn BlockFrameView(
                         Chrome::Drawn => FrameChrome::Drawn,
                         Chrome::None => FrameChrome::None,
                     },
-                    content: content.get().map(|content| {
-                        let content = content.translate(-origin.to_vec2());
-                        ChildRect {
-                            x: content.min.x,
-                            y: content.min.y,
-                            width: content.width(),
-                            height: content.height(),
-                        }
-                    }),
+                    content: content
+                        .get()
+                        .map(|content| content.translate(-origin.to_vec2())),
                     top_bar: top_bar.get(),
                 })
             });

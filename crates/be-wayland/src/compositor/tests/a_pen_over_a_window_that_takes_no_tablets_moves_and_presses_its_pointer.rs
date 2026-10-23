@@ -10,8 +10,10 @@ fn a_pen_over_a_window_that_takes_no_tablets_moves_and_presses_its_pointer() {
     let pen = |phase, pressure| Event::Pen {
         phase,
         pos: at,
-        pressure,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure,
+            ..Pen::default()
+        },
     };
 
     harness.frame(vec![pen(PenPhase::Move, 0.0)]);

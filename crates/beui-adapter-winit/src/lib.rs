@@ -360,8 +360,8 @@ impl Runner {
         self.push(Input::Pen {
             phase,
             pos: self.pointer,
-            pressure,
             pen: Pen {
+                pressure,
                 tilt,
                 eraser: kind == TabletToolKind::Eraser,
             },
@@ -681,13 +681,13 @@ impl ApplicationHandler for Runner {
                 if wheeled == Wheeled::StartAndScroll {
                     self.push(Input::ScrollStarted);
                 }
-                self.push(match delta {
+                self.push(Input::Scroll(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),
                     MouseScrollDelta::PixelDelta(position) => {
                         ScrollDelta::Pixels(physical(position).to_vec2())
                     }
                     _ => return,
-                });
+                }));
                 if wheeled == Wheeled::ScrollAndEnd {
                     self.push(Input::ScrollEnded);
                 }
@@ -711,13 +711,13 @@ impl ApplicationHandler for Runner {
                         PhysicalKey::Unidentified(_) => unidentified_key(event.physical_key),
                     },
                 };
-                self.push(Keystroke {
+                self.push(Input::Key(Keystroke {
                     key,
                     pressed: event.state == ElementState::Pressed,
                     repeat: event.repeat,
                     code,
                     text: event.text.map(|text| text.to_string()),
-                });
+                }));
             }
             WindowEvent::Ime(Ime::Enabled) => self.push(Input::Ime(ImeEvent::Enabled)),
             WindowEvent::Ime(Ime::Preedit(text, _)) => {

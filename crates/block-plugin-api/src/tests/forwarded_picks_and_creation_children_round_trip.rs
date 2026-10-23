@@ -8,12 +8,7 @@ fn forwarded_picks_and_creation_children_round_trip() {
         excluded: vec![[3; 16]],
         templates: true,
         place: Some(BlockLocation::Root),
-        anchor: Some(ChildRect {
-            x: 300.0,
-            y: 80.0,
-            width: 32.0,
-            height: 32.0,
-        }),
+        anchor: Some(Rect::from_min_size(Pos2::new(300.0, 80.0), Vec2::new(32.0, 32.0))),
     };
     for message in [
         Message::Editor(EditorMessage::PickRequested {
@@ -54,18 +49,8 @@ fn forwarded_picks_and_creation_children_round_trip() {
                     editor: [7; 16],
                     template: "main".into(),
                 },
-                rect: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 320.0,
-                    height: 96.0,
-                },
-                clip: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 360.0,
-                    height: 240.0,
-                },
+                rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(320.0, 96.0)),
+                clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(360.0, 240.0)),
                 own_frame: false,
                 top_bar: TopBar::Hidden,
                 corner_radius: 0.0,

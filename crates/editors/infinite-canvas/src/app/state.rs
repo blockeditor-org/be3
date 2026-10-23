@@ -24,8 +24,7 @@ use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::{
-    BlockFilter, ChildRect, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
-    child_rect,
+    BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
 use block_editor_beui::{BlockParent, BlockQuery, SharedCaret};
 use serde::{Deserialize, Serialize};
@@ -1995,15 +1994,15 @@ impl CanvasState {
         let on_screen = self.camera().to_screen(pos2(at.x, at.y));
         self.pick_block_from(
             center,
-            child_rect(Rect::from_min_size(on_screen, Vec2::ZERO)),
+            Rect::from_min_size(on_screen, Vec2::ZERO),
         );
     }
 
-    pub(crate) fn open_block_picker_at(self, button: ChildRect) {
+    pub(crate) fn open_block_picker_at(self, button: Rect) {
         self.pick_block_from(None, button);
     }
 
-    fn pick_block_from(self, center: Option<CanvasPoint>, anchor: ChildRect) {
+    fn pick_block_from(self, center: Option<CanvasPoint>, anchor: Rect) {
         let state = self;
         let filter = BlockFilter {
             anchor: Some(anchor),
@@ -2037,7 +2036,7 @@ impl CanvasState {
         });
     }
 
-    pub(crate) fn open_component_picker(self, anchor: Option<ChildRect>) {
+    pub(crate) fn open_component_picker(self, anchor: Option<Rect>) {
         let selected = self
             .selected_entities()
             .iter()

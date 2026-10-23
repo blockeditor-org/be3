@@ -2,7 +2,7 @@ use super::*;
 use block_editor_plugin::editor_session::EditorSession;
 use block_editor_plugin::{Plugin, Waker};
 use block_plugin_api::{
-    ChildRect, EditorInstanceId, FrameChrome, FrameSpec, ScreenId, ScreenPlacement, ScreenRequest,
+    Rect, EditorInstanceId, FrameChrome, FrameSpec, ScreenId, ScreenPlacement, ScreenRequest,
     TopBar, ViewportMetrics,
 };
 
@@ -20,7 +20,7 @@ fn session<A: BeuiApp>(block_type: Uuid) -> EditorSession {
     session
 }
 
-fn frame(session: &mut EditorSession, content: Option<ChildRect>, top_bar: TopBar) {
+fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
     session.place(
         &[ScreenPlacement {
             screen: ScreenId(0),

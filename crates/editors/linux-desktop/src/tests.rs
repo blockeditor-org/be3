@@ -132,10 +132,7 @@ impl Fixture {
             .iter()
             .find(|placement| placement.content == ChildContent::Window(HostWindowId(id)))
             .map(|placement| {
-                Rect::from_min_size(
-                    block_editor_beui::pos2(placement.rect.x, placement.rect.y),
-                    block_editor_beui::vec2(placement.rect.width, placement.rect.height),
-                )
+                placement.rect
             })
     }
 
@@ -357,10 +354,7 @@ impl Fixture {
                 } => Some((
                     Uuid::from_bytes(block_id),
                     view_block.map(Uuid::from_bytes),
-                    Rect::from_min_size(
-                        block_editor_beui::pos2(placement.rect.x, placement.rect.y),
-                        block_editor_beui::vec2(placement.rect.width, placement.rect.height),
-                    ),
+                    placement.rect,
                 )),
                 _ => None,
             })

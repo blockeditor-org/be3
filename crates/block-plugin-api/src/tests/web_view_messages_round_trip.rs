@@ -14,18 +14,8 @@ fn web_view_messages_round_trip() {
             children: vec![ChildPlacement {
                 child: ChildId(1),
                 content: ChildContent::WebView(WebViewId(2)),
-                rect: ChildRect {
-                    x: 4.0,
-                    y: 8.0,
-                    width: 320.0,
-                    height: 240.0,
-                },
-                clip: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 640.0,
-                    height: 480.0,
-                },
+                rect: Rect::from_min_size(Pos2::new(4.0, 8.0), Vec2::new(320.0, 240.0)),
+                clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 480.0)),
                 own_frame: false,
                 top_bar: TopBar::Hidden,
                 corner_radius: 0.0,

@@ -131,7 +131,7 @@ fn push(input: impl Into<Incoming>) {
     schedule();
 }
 
-fn push_logical(input: impl Into<Input>) {
+fn push_logical(input: Input) {
     push(Incoming::logical(input));
 }
 
@@ -916,12 +916,12 @@ fn listen(
             event.shift_key(),
         );
         let key = key(&event);
-        push(Keystroke {
+        push(Input::Key(Keystroke {
             key,
             pressed: true,
             repeat: event.repeat(),
             ..Keystroke::default()
-        });
+        }));
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
         let printable = event.key().chars().count() == 1 && !modifiers.command();
         let passes = key.is_some_and(|key| key.is_media() || key.is_modifier());
@@ -939,10 +939,10 @@ fn listen(
             event.meta_key(),
             event.shift_key(),
         );
-        push(Keystroke {
+        push(Input::Key(Keystroke {
             key: key(&event),
             ..Keystroke::default()
-        });
+        }));
     })?;
     on(agent_target, "input", {
         let agent = agent.clone();
@@ -1077,8 +1077,8 @@ fn pen(event: &web_sys::PointerEvent, phase: PenPhase, pos: Pos2) -> Input {
     Input::Pen {
         phase,
         pos,
-        pressure: event.pressure(),
         pen: Pen {
+            pressure: event.pressure(),
             tilt: vec2(event.tilt_x() as f32, event.tilt_y() as f32),
             eraser: event.buttons() & PEN_ERASER != 0 || event.button() == 5,
         },

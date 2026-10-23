@@ -11,7 +11,7 @@ use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockImport, BlockPick, Camera, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildRect, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
+    ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
     FileSave, FitArea, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue,
     HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange,
     WebViewCommand, WebViewEvent, WebViewId, decode_host, encode_host,
@@ -793,13 +793,9 @@ impl EditorHost {
             .push((block_id, BlockCommand::Leave));
     }
 
-    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<ChildRect>) {
+    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<Rect>) {
         let origin = self.region.get().origin;
-        let anchor = anchor.map(|anchor| ChildRect {
-            x: anchor.x - origin.x,
-            y: anchor.y - origin.y,
-            ..anchor
-        });
+        let anchor = anchor.map(|anchor| anchor.translate(-origin));
         self.block_commands
             .borrow_mut()
             .push((block_id, BlockCommand::AppMenu { anchor }));
@@ -1288,11 +1284,7 @@ impl EditorHost {
 
     pub fn pick_block(&self, mut filter: BlockFilter) -> u64 {
         let origin = self.region.get().origin;
-        filter.anchor = filter.anchor.map(|anchor| ChildRect {
-            x: anchor.x - origin.x,
-            y: anchor.y - origin.y,
-            ..anchor
-        });
+        filter.anchor = filter.anchor.map(|anchor| anchor.translate(-origin));
         self.ask(HostRequest::PickBlock(filter))
     }
 
@@ -1586,7 +1578,7 @@ impl EditorHost {
         let after = children.placements.len() as u32;
         children.occluders.push(Occluder {
             after,
-            rect: child_rect(rect.translate(-origin)),
+            rect: rect.translate(-origin),
         });
     }
 
@@ -1605,8 +1597,10 @@ impl EditorHost {
         follows_camera: bool,
     ) -> ChildId {
         let state = self.region.get();
-        let placed = child_rect(rect.translate(-state.origin));
-        let clip = child_rect(clip.translate(-state.origin)).intersect(placed.swept(rotation));
+        let placed = rect.translate(-state.origin);
+        let clip = clip
+            .translate(-state.origin)
+            .intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
         let mut children = self.children.borrow_mut();
         let child = children.identify(
             state.region.unwrap_or(EditorRegion::Frame),
@@ -1871,15 +1865,6 @@ impl FileSaver {
             FileSave::Cancelled => Ok(false),
             FileSave::Failed(error) => Err(error),
         })
-    }
-}
-
-pub fn child_rect(rect: Rect) -> ChildRect {
-    ChildRect {
-        x: rect.min.x,
-        y: rect.min.y,
-        width: rect.width().max(0.0),
-        height: rect.height().max(0.0),
     }
 }
 

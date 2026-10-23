@@ -1110,12 +1110,7 @@ impl Editor {
 
     pub(crate) fn host_rect(&self, rect: Rect) -> FitArea {
         let ratio = self.ratio();
-        FitArea::Rect {
-            x: rect.min.x / ratio,
-            y: rect.min.y / ratio,
-            width: rect.width() / ratio,
-            height: rect.height() / ratio,
-        }
+        FitArea::Rect(rect.scaled(1.0 / ratio))
     }
 
     pub fn pan_drag(&self) {
@@ -1506,11 +1501,10 @@ impl crate::root_settings::SettingsGraph for Editor {
     }
 }
 
-pub fn node_anchor(node: &NodeRef) -> Option<block_plugin_api::ChildRect> {
+pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
     let node = node.try_get()?;
     try_with_document(|document| document.node_rect(node))
         .flatten()
-        .map(crate::child_rect)
 }
 
 #[cfg(test)]

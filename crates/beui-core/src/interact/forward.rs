@@ -147,7 +147,6 @@ impl Replay {
             out.push(timed(Input::Pen {
                 phase,
                 pos,
-                pressure: event.force.unwrap_or(0.0),
                 pen: event.pen.unwrap_or_default(),
             }));
         } else {

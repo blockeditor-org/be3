@@ -24,30 +24,18 @@ pub enum Incoming {
 }
 
 impl Incoming {
-    pub fn logical(input: impl Into<Input>) -> Self {
-        Self::Input(Units::Logical, input.into())
+    pub fn logical(input: Input) -> Self {
+        Self::Input(Units::Logical, input)
     }
 
-    pub fn points(input: impl Into<Input>) -> Self {
-        Self::Input(Units::Points, input.into())
+    pub fn points(input: Input) -> Self {
+        Self::Input(Units::Points, input)
     }
 }
 
 impl From<Input> for Incoming {
     fn from(input: Input) -> Self {
         Self::Input(Units::Physical, input)
-    }
-}
-
-impl From<Keystroke> for Incoming {
-    fn from(stroke: Keystroke) -> Self {
-        Self::from(Input::Key(stroke))
-    }
-}
-
-impl From<ScrollDelta> for Incoming {
-    fn from(delta: ScrollDelta) -> Self {
-        Self::from(Input::Scroll(delta))
     }
 }
 
@@ -178,15 +166,9 @@ impl Intake {
                 pos: points(pos),
                 force,
             }),
-            Input::Pen {
-                phase,
-                pos,
-                pressure,
-                pen,
-            } => events.push(Event::Pen {
+            Input::Pen { phase, pos, pen } => events.push(Event::Pen {
                 phase,
                 pos: points(pos),
-                pressure,
                 pen,
             }),
             Input::Predicted(pos) => events.push(Event::Predicted(points(pos))),

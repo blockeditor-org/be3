@@ -21,8 +21,10 @@ fn every_coalesced_sample_drags_and_the_last_carries_its_prediction() {
     let pen = |phase, x| Input::Pen {
         phase,
         pos: pos2(x, 100.0),
-        pressure: 0.5,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure: 0.5,
+            ..Pen::default()
+        },
     };
 
     harness.frame(vec![pen(PenPhase::Down(PointerButton::Primary), 100.0)]);

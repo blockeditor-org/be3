@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, ChildRect,
+    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, Rect,
 };
 
 #[test]
@@ -24,18 +24,8 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
                 view_block: None,
                 editor: None,
             },
-            rect: ChildRect {
-                x: 0.0,
-                y: 0.0,
-                width: 20.0,
-                height: 20.0,
-            },
-            clip: ChildRect {
-                x: 0.0,
-                y: 0.0,
-                width: 100.0,
-                height: 100.0,
-            },
+            rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(20.0, 20.0)),
+            clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0)),
             own_frame: false,
             top_bar: block_plugin_api::TopBar::Hidden,
             corner_radius: 0.0,
