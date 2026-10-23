@@ -41,22 +41,20 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
             .unwrap_or_else(|| panic!("the menu shows {label}"))
     };
     let profiles = find(&harness, "Profiles");
-    harness.frame(vec![Event::PointerMoved(harness.center(profiles))]);
+    harness.frame(vec![Input::PointerMoved(harness.center(profiles))]);
     harness.frame(Vec::new());
     let second = harness.center(find(&harness, "Profile 2"));
-    harness.frame(vec![Event::PointerMoved(second)]);
+    harness.frame(vec![Input::PointerMoved(second)]);
     harness.frame(vec![
-        Event::PointerButton {
+        Input::PointerButton {
             pos: second,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: Modifiers::NONE,
         },
-        Event::PointerButton {
+        Input::PointerButton {
             pos: second,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: Modifiers::NONE,
         },
     ]);
     harness.frame(Vec::new());

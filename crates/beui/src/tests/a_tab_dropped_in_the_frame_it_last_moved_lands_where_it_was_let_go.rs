@@ -10,17 +10,16 @@ fn a_tab_dropped_in_the_frame_it_last_moved_lands_where_it_was_let_go() {
     let first = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     let second = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     let past = pos2(second.right() + 4.0, second.center().y);
-    let button = |pos, pressed| Event::PointerButton {
+    let button = |pos, pressed| Input::PointerButton {
         pos,
         button: PointerButton::Primary,
         pressed,
-        modifiers: Modifiers::NONE,
     };
 
-    harness.frame(vec![Event::PointerMoved(first)]);
+    harness.frame(vec![Input::PointerMoved(first)]);
     harness.frame(vec![button(first, true)]);
-    harness.frame(vec![Event::PointerMoved(first + (past - first) * 0.5)]);
-    harness.frame(vec![Event::PointerMoved(past), button(past, false)]);
+    harness.frame(vec![Input::PointerMoved(first + (past - first) * 0.5)]);
+    harness.frame(vec![Input::PointerMoved(past), button(past, false)]);
     harness.frame(Vec::new());
 
     let state = harness.document().api::<DockApi>(dock).state();

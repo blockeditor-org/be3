@@ -25,7 +25,7 @@ fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {
         tilt: vec2(10.0, -5.0),
         eraser: false,
     };
-    let pen = |phase, pos, pressure| Event::Pen {
+    let pen = |phase, pos, pressure| Input::Pen {
         phase,
         pos,
         pressure,

@@ -19,22 +19,20 @@ fn a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it() {
     let from = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
     let target = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     let to = pos2(target.max.x + 60.0, target.center().y);
-    harness.frame(vec![Event::PointerMoved(from)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     for step in 1..=8 {
         let at = from + (to - from) * (step as f32 / 8.0);
-        harness.frame(vec![Event::PointerMoved(at)]);
+        harness.frame(vec![Input::PointerMoved(at)]);
     }
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos: to,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 

@@ -70,7 +70,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
         "the fullscreen tab covers the whole document, the bar above the dock as well"
     );
 
-    harness.frame(vec![Event::PointerMoved(over_bar)]);
+    harness.frame(vec![Input::PointerMoved(over_bar)]);
     harness.scroll_at(over_bar, Vec2::new(0.0, -30.0), Modifiers::NONE);
     harness.settle();
     assert!(
@@ -100,7 +100,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
         docked,
         "leaving puts the tab back where it was"
     );
-    harness.frame(vec![Event::PointerMoved(over_bar)]);
+    harness.frame(vec![Input::PointerMoved(over_bar)]);
     assert!(
         bar.with_untracked(|bar| bar.hovered),
         "and what it covered hears the pointer again"

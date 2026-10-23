@@ -848,7 +848,7 @@ use std::rc::Rc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Pos2, Vec2, pos2, vec2};
-use crate::input::{Event, Input, Key, Modifiers, PointerButton, RawInput};
+use crate::input::{Event, Input, Key, Modifiers, PointerButton, RawInput, ScrollDelta};
 use crate::input::{TouchId, TouchPhase};
 
 use crate::base::frame::FrameNode;
@@ -908,8 +908,8 @@ fn held_keys(modifiers: Modifiers) -> Vec<Key> {
     .collect()
 }
 
-fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
-    Event::Touch {
+fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
         id: TouchId { device: 1, finger },
         phase,
         pos,
@@ -966,8 +966,8 @@ impl Harness {
         Self(stepped)
     }
 
-    pub(crate) fn frame(&mut self, events: Vec<Event>) -> crate::FrameOutput {
-        self.0.frame(events)
+    pub(crate) fn frame(&mut self, inputs: Vec<Input>) -> crate::FrameOutput {
+        self.0.frame(inputs)
     }
 
     pub(crate) fn click(&mut self, target: impl Into<crate::testing::Target>) {
@@ -1475,12 +1475,19 @@ impl Harness {
     }
 }
 
-fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-    Event::key(beui_core::input::KeyPress {
-        key,
+fn pressed_with(key: Key, modifiers: Modifiers) -> Vec<Input> {
+    vec![
+        Input::Modifiers(modifiers),
+        key_event(key, true),
+        Input::Modifiers(Modifiers::NONE),
+    ]
+}
+
+fn key_event(key: Key, pressed: bool) -> Input {
+    Input::Key(beui_core::input::Keystroke {
+        key: Some(key),
         pressed,
-        repeat: false,
-        modifiers,
+        ..Default::default()
     })
 }
 
@@ -1869,20 +1876,19 @@ pub(crate) fn secondary_drag_with(
     to: Pos2,
     modifiers: Modifiers,
 ) {
-    harness.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from), Input::Modifiers(modifiers)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers,
     }]);
-    harness.frame(vec![Event::PointerMoved(to)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(to)]);
+    harness.frame(vec![Input::PointerButton {
         pos: to,
         button: PointerButton::Secondary,
         pressed: false,
-        modifiers,
     }]);
+    harness.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
 pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {
@@ -1963,20 +1969,19 @@ pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId
 }
 
 pub(crate) fn drag_with(harness: &mut Harness, from: Pos2, to: Pos2, modifiers: Modifiers) {
-    harness.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from), Input::Modifiers(modifiers)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers,
     }]);
-    harness.frame(vec![Event::PointerMoved(to), Event::Modifiers(modifiers)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(to), Input::Modifiers(modifiers)]);
+    harness.frame(vec![Input::PointerButton {
         pos: to,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers,
     }]);
+    harness.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
 pub(crate) fn toolbar_of<const N: usize>(

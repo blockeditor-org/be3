@@ -13,8 +13,8 @@ fn HoverInto(hovered: Rc<Cell<bool>>) -> NodeId {
 }
 
 fn hover(harness: &mut Harness, pos: Pos2) {
-    harness.frame(vec![Event::PointerMoved(pos2(1.0, 1.0))]);
-    harness.frame(vec![Event::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerMoved(pos2(1.0, 1.0))]);
+    harness.frame(vec![Input::PointerMoved(pos)]);
 }
 
 #[test]

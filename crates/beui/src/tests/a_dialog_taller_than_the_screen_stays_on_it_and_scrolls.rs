@@ -39,8 +39,8 @@ fn a_dialog_taller_than_the_screen_stays_on_it_and_scrolls() {
     );
 
     harness.frame(vec![
-        Event::PointerMoved(harness.center(first)),
-        Event::Scroll(Vec2::new(0.0, -2000.0)),
+        Input::PointerMoved(harness.center(first)),
+        Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, -2000.0))),
     ]);
     harness.settle();
 

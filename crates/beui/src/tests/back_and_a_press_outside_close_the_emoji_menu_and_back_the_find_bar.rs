@@ -33,7 +33,7 @@ fn back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar() {
     harness.frame(Vec::new());
     assert!(offered(&harness));
     assert!(harness.frame(Vec::new()).window.requests.handles_back);
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     harness.frame(Vec::new());
     assert!(!offered(&harness), "back closes the menu");
 
@@ -48,7 +48,7 @@ fn back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar() {
     harness.key(Key::F, Modifiers::CTRL);
     harness.frame(Vec::new());
     assert!(state.find_open().get_untracked());
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     harness.frame(Vec::new());
     assert!(
         !state.find_open().get_untracked(),

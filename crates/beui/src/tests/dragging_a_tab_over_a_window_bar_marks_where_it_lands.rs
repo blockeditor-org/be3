@@ -22,14 +22,13 @@ fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
 
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     let over = pos2(floated.right() + 20.0, floated.center().y);
-    harness.frame(vec![Event::PointerMoved(tab)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(tab)]);
+    harness.frame(vec![Input::PointerButton {
         pos: tab,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    harness.frame(vec![Event::PointerMoved(over)]);
+    harness.frame(vec![Input::PointerMoved(over)]);
     let output = harness.frame(Vec::new());
 
     let bar = Rect::from_min_max(

@@ -23,10 +23,10 @@ fn pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still() {
     harness.frame(Vec::new());
     let origin = harness.rect(scroll).center();
 
-    harness.frame(vec![Event::PointerMoved(origin)]);
+    harness.frame(vec![Input::PointerMoved(origin)]);
     harness.middle_button(origin, true);
     harness.middle_button(origin, false);
-    harness.frame(vec![Event::PointerMoved(origin + Vec2::new(0.0, 5.0))]);
+    harness.frame(vec![Input::PointerMoved(origin + Vec2::new(0.0, 5.0))]);
     harness.frame(Vec::new());
 
     assert!(harness.document().autoscroll.is_some());

@@ -89,7 +89,7 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
     );
     assert_eq!(zoom.get_untracked(), 1.0, "two fingers do not zoom it");
 
-    let pen = |phase| Event::Pen {
+    let pen = |phase| Input::Pen {
         phase,
         pos: center,
         pressure: 0.5,

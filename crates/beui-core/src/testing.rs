@@ -13,9 +13,9 @@ use crate::context::RendererInfo;
 use crate::context::{Context, FrameOutput};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{Event, Key, Modifiers, PointerButton, TouchPhase};
+use crate::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
-use crate::runner::{Launch, Platform, RunOptions, Runner};
+use crate::runner::{Incoming, Launch, Platform, RunOptions, Runner};
 
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 const ANSWER_FRAMES: usize = 600;
@@ -231,8 +231,10 @@ impl<A: App + 'static> Stepped<A> {
         &self.steps
     }
 
-    pub fn frame(&mut self, events: Vec<Event>) -> FrameOutput {
-        self.runner.send(events);
+    pub fn frame(&mut self, inputs: Vec<Input>) -> FrameOutput {
+        for input in inputs {
+            self.runner.push(Incoming::points(input));
+        }
         self.paint();
         self.runner
             .take_output()

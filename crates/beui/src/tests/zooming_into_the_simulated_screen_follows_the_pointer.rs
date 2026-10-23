@@ -28,7 +28,7 @@ fn zooming_into_the_simulated_screen_follows_the_pointer() {
 
     let root = harness.document().root().expect("the toolbar was built");
     let target = harness.center(checkbox) - harness.rect(root).min.to_vec2() + margin;
-    let output = harness.frame(vec![Event::PointerMoved(target)]);
+    let output = harness.frame(vec![Input::PointerMoved(target)]);
 
     let laid_out = harness.rect(checkbox);
     let shown = output.test_id_rect("option").expect("the option was shown");

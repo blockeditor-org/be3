@@ -35,9 +35,9 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.frame(Vec::new());
     let (inside, outside) = (pos2(50.0, 50.0), pos2(250.0, 50.0));
 
-    harness.frame(vec![Event::PointerMoved(inside)]);
-    harness.frame(vec![Event::PointerMoved(outside)]);
-    harness.frame(vec![Event::PointerMoved(pos2(260.0, 50.0))]);
+    harness.frame(vec![Input::PointerMoved(inside)]);
+    harness.frame(vec![Input::PointerMoved(outside)]);
+    harness.frame(vec![Input::PointerMoved(pos2(260.0, 50.0))]);
     assert_eq!(
         lefts(heard.read_only()),
         1,
@@ -46,17 +46,16 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
 
     heard.update(|heard| heard.clear());
     harness.press_at(inside);
-    harness.frame(vec![Event::PointerMoved(outside)]);
+    harness.frame(vec![Input::PointerMoved(outside)]);
     assert_eq!(
         lefts(heard.read_only()),
         0,
         "a press it holds keeps the pointer"
     );
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos: outside,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
     assert_eq!(lefts(heard.read_only()), 1, "until it is let go");
 }

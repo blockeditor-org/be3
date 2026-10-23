@@ -44,7 +44,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     );
 
     let center = harness.center(button);
-    harness.frame(vec![Event::PointerMoved(center)]);
+    harness.frame(vec![Input::PointerMoved(center)]);
     harness.frame(Vec::new());
     let tip = harness.document().find_test_id("tip").expect("the bubble");
     assert!(

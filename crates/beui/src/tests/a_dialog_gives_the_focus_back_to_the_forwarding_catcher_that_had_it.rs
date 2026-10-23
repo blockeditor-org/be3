@@ -50,7 +50,7 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
     );
 
     heard.update(|heard| heard.clear());
-    harness.frame(vec![Event::Text("a".to_owned())]);
+    harness.frame(vec![Input::Text("a".to_owned())]);
     assert!(
         heard
             .get_untracked()

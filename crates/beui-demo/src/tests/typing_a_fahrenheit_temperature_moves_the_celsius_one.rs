@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, Key};
+use beui::Key;
 
 #[test]
 fn typing_a_fahrenheit_temperature_moves_the_celsius_one() {
@@ -11,7 +11,7 @@ fn typing_a_fahrenheit_temperature_moves_the_celsius_one() {
 
     test.click("demo.temperature.fahrenheit");
     test.frame(Vec::new());
-    test.frame(vec![Event::Text("212".to_owned())]);
+    test.frame(vec![Input::Text("212".to_owned())]);
     press_key(&mut test, Key::Enter);
 
     assert_eq!(

@@ -14,23 +14,23 @@ fn key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::CTRL);
     harness.key(Key::Space, Modifiers::ALT);
-    harness.frame(vec![Event::key(beui::KeyPress {
-        key: Key::Space,
+    harness.frame(vec![Input::Key(beui::Keystroke {
+        key: Some(Key::Space),
         pressed: true,
         repeat: true,
-        modifiers: Modifiers::NONE,
+        ..Default::default()
     })]);
-    harness.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Space, false)]);
     assert_eq!(clicks.get_untracked(), 0);
-    harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Space, true)]);
     for _ in 0..3 {
-        harness.frame(vec![Event::key(beui::KeyPress {
-            key: Key::Space,
+        harness.frame(vec![Input::Key(beui::Keystroke {
+            key: Some(Key::Space),
             pressed: true,
             repeat: true,
-            modifiers: Modifiers::NONE,
+            ..Default::default()
         })]);
     }
-    harness.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Space, false)]);
     assert_eq!(clicks.get_untracked(), 1);
 }

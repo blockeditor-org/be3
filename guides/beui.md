@@ -357,7 +357,8 @@ hooks the higher crates fill in:
   `on_text` takes text. `request_paste` (a Paste menu) and Ctrl+V, which the
   document turns into a paste when nothing on the key's way took it or the
   focus forwards it, ask `Platform::paste` once a frame for the first of those kinds the
-  clipboard holds, and its answer arrives at the focus as `Event::Paste`
+  clipboard holds, and its answer goes through the runner's intake as `Input::Paste`, after
+  any input pushed before it, and arrives at the focus as `Event::Paste`
   (`Pasted::Text`, or `Pasted::Image` as a PNG `PickedFile`), handed to
   `on_paste`, or a text paste to `on_text` without one. A platform that
   delivers Ctrl+V's paste itself (`Platform::delivers_paste_shortcut`: the
@@ -3497,8 +3498,14 @@ run by the same automation engine: `click(Target::id("wheel").at(offset))`, `dra
 and `settle` are typed forms of them, a `Pos2` is a target too, and `ask(&["back",
 "0.5"])` sends any other. Each settles as `drive` does, unless the test turned that off
 with `settle_after_gestures(false)`, when it answers after the frame that took the input.
-`frame(events)` paints one frame with exactly the events it is handed, for a test of what a
-single frame does, and hands back its output. A failure prints the steps so far as `drive`
+`frame(inputs)` pushes the `Input`s it is handed in points (`Incoming::points`) and paints one
+frame, for a test of what a single frame does, and hands back its output. Like every input,
+they go through the runner's intake, so a test sends what a platform would: an
+`Input::Modifiers` before a key or a press it means to be held with (`Harness`'s
+`pressed_with` sends a chord that way), `Input::PointerLeft` for the pointer leaving, and
+`Input::Scroll(ScrollDelta::Pixels(..))` for a scroll in points. There is no way to hand the
+runner an `Event` directly. A test that stamps samples with times pushes `Incoming::Time`
+through `runner().push` and then paints `frame(Vec::new())`. A failure prints the steps so far as `drive`
 commands (guides/running/drive.md), which replay against a `:dev` app.
 
 beui's own tests use `Harness::new(document)` or `Harness::sized(document, size)` from

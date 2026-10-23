@@ -57,8 +57,8 @@ impl DocumentTest {
         &self.fonts
     }
 
-    pub fn frame(&mut self, events: Vec<beui::Event>) {
-        self.latest = Some(self.stepped.frame(events));
+    pub fn frame(&mut self, inputs: Vec<beui::Input>) {
+        self.latest = Some(self.stepped.frame(inputs));
     }
 
     pub fn render_dom(&mut self) {

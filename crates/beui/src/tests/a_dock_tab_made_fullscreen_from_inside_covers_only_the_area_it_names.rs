@@ -56,7 +56,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
         "the tab covers the area it asked for"
     );
 
-    harness.frame(vec![Event::PointerMoved(pos2(
+    harness.frame(vec![Input::PointerMoved(pos2(
         bar.right() - 10.0,
         bar.center().y,
     ))]);
@@ -64,7 +64,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
         hovered.get_untracked(),
         "outside that area the document still hears the pointer"
     );
-    harness.frame(vec![Event::PointerMoved(pos2(10.0, bar.center().y))]);
+    harness.frame(vec![Input::PointerMoved(pos2(10.0, bar.center().y))]);
     assert!(
         !hovered.get_untracked(),
         "inside it, nothing under the tab does"

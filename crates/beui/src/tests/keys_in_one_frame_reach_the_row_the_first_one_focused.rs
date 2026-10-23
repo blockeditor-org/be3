@@ -30,10 +30,10 @@ fn keys_in_one_frame_reach_the_row_the_first_one_focused() {
     harness.frame(Vec::new());
 
     harness.frame(vec![
-        key_event(Key::ArrowDown, true, Modifiers::NONE),
-        key_event(Key::ArrowDown, false, Modifiers::NONE),
-        key_event(Key::Enter, true, Modifiers::NONE),
-        key_event(Key::Enter, false, Modifiers::NONE),
+        key_event(Key::ArrowDown, true),
+        key_event(Key::ArrowDown, false),
+        key_event(Key::Enter, true),
+        key_event(Key::Enter, false),
     ]);
     harness.frame(Vec::new());
 

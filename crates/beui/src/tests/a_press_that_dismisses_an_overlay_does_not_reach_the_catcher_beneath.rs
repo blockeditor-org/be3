@@ -45,15 +45,14 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     harness.frame(Vec::new());
 
     let outside = pos2(20.0, 20.0);
-    harness.frame(vec![Event::PointerMoved(outside)]);
+    harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(
         [true, false]
             .into_iter()
-            .map(|pressed| Event::PointerButton {
+            .map(|pressed| Input::PointerButton {
                 pos: outside,
                 button: PointerButton::Primary,
                 pressed,
-                modifiers: Modifiers::NONE,
             })
             .collect(),
     );

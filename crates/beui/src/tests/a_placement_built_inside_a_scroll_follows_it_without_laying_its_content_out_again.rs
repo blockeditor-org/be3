@@ -25,9 +25,9 @@ fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_a
     harness.frame(Vec::new());
     assert_eq!(seen.get_untracked().top(), 80.0);
     let scroll = harness.find("scroll");
-    harness.frame(vec![Event::PointerMoved(harness.rect(scroll).center())]);
+    harness.frame(vec![Input::PointerMoved(harness.rect(scroll).center())]);
 
-    harness.frame(vec![Event::Scroll(vec2(0.0, -30.0))]);
+    harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -30.0)))]);
     assert_eq!(harness.document().scroll_offset(scroll), 30.0);
     assert_eq!(
         seen.get_untracked().top(),

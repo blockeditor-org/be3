@@ -50,5 +50,5 @@ fn a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it() {
         2,
         "the children around it stay"
     );
-    harness.frame(vec![Event::PointerMoved(pos2(5.0, 5.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(5.0, 5.0))]);
 }

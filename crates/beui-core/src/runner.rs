@@ -16,7 +16,7 @@ use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
-use crate::input::{Event, RawInput};
+use crate::input::{Event, Input, RawInput};
 use crate::renderer::{Loaded, Renderers};
 use crate::window::{WindowReports, WindowState};
 
@@ -270,10 +270,6 @@ impl Runner {
         self.intake.incoming.push(input.into());
     }
 
-    pub fn send(&mut self, events: impl IntoIterator<Item = Event>) {
-        self.events.extend(events);
-    }
-
     pub fn modifiers(&self) -> crate::input::Modifiers {
         self.intake.modifiers()
     }
@@ -405,7 +401,7 @@ impl Runner {
             Err(error) => panic!("beui: the GPU was lost and could not be reopened: {error}"),
         }
         while let Ok(pasted) = self.pastes.1.try_recv() {
-            self.events.push(Event::Paste(pasted));
+            self.intake.incoming.push(Input::Paste(pasted).into());
         }
         let held = self.intake.modifiers();
         type_pastes(&self.typed_pastes.1, held, &mut self.intake.incoming);
@@ -557,7 +553,7 @@ impl Runner {
             let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
             platform.paste(&output.window.requests.pastes, answer);
             while let Ok(pasted) = self.pastes.1.try_recv() {
-                self.events.push(Event::Paste(pasted));
+                self.intake.incoming.push(Input::Paste(pasted).into());
             }
         }
         let window_units = scale / self.context.native_pixels_per_point();
@@ -583,7 +579,9 @@ impl Runner {
         };
         let mut frame = Frame {
             pending,
-            deferred: !self.events.is_empty() || self.reports.pending(),
+            deferred: !self.events.is_empty()
+                || !self.intake.incoming.is_empty()
+                || self.reports.pending(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
             animating: output.animating,

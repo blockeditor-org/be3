@@ -2,7 +2,7 @@ use std::sync::mpsc::channel;
 
 use beui::reactive::untrack;
 use beui::unstyled::TabId;
-use beui::{Event, Modifiers, Vec2};
+use beui::{Input, Modifiers, Vec2};
 use block_ui_test::DocumentTest;
 
 use super::{Person, PullRequest, State, scratch};
@@ -46,9 +46,9 @@ fn close(model: Model, number: u64) -> String {
 }
 
 fn click(test: &mut DocumentTest, number: u64, modifiers: Modifiers) {
-    test.frame(vec![Event::Modifiers(modifiers)]);
+    test.frame(vec![Input::Modifiers(modifiers)]);
     test.click(format!("launcher.pull_request.{number}"));
-    test.frame(vec![Event::Modifiers(Modifiers::NONE)]);
+    test.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
 #[test]

@@ -45,7 +45,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
     harness.click(pos2(50.0, 50.0));
     below.update(|below| below.clear());
     above.update(|above| above.clear());
-    harness.frame(vec![Event::Text("a".to_owned())]);
+    harness.frame(vec![Input::Text("a".to_owned())]);
     assert_eq!(below.get_untracked(), [Event::Text("a".to_owned())]);
     assert!(
         above.with_untracked(|above| above.is_empty()),
@@ -55,7 +55,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
     harness.click(pos2(150.0, 50.0));
     below.update(|below| below.clear());
     above.update(|above| above.clear());
-    harness.frame(vec![Event::Text("b".to_owned())]);
+    harness.frame(vec![Input::Text("b".to_owned())]);
     assert_eq!(above.get_untracked(), [Event::Text("b".to_owned())]);
     assert!(below.with_untracked(|below| below.is_empty()));
 }

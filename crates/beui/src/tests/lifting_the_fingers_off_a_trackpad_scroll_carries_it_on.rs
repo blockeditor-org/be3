@@ -25,9 +25,9 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
     harness.frame(Vec::new());
     let pos = harness.rect(scroll).center();
 
-    harness.frame(vec![Event::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerMoved(pos)]);
     for _ in 0..6 {
-        harness.frame(vec![Event::Scroll(vec2(0.0, -20.0))]);
+        harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -20.0)))]);
     }
     assert_eq!(harness.document().scroll_offset(scroll), 120.0);
     assert!(
@@ -38,7 +38,7 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
         "a scroll follows the fingers while they are down"
     );
 
-    harness.frame(vec![Event::ScrollEnded]);
+    harness.frame(vec![Input::ScrollEnded]);
     assert!(
         harness
             .document()
@@ -55,7 +55,7 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
     let rested = harness.document().scroll_offset(scroll);
     harness.scroll_at(pos, vec2(0.0, -40.0), Modifiers::NONE);
     harness.advance(Duration::from_millis(300));
-    harness.frame(vec![Event::ScrollEnded]);
+    harness.frame(vec![Input::ScrollEnded]);
     assert_eq!(
         harness.document().scroll_offset(scroll),
         rested + 40.0,

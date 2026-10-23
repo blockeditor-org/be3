@@ -49,12 +49,11 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
     );
 
     let grip = grip_nearest(&harness, dock, pos2(tab.left(), tab.top()));
-    harness.frame(vec![Event::PointerMoved(grip)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(grip)]);
+    harness.frame(vec![Input::PointerButton {
         pos: grip,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, "Show tabs across the top")

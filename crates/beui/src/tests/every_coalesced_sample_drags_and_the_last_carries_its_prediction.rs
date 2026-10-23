@@ -18,7 +18,7 @@ fn every_coalesced_sample_drags_and_the_last_carries_its_prediction() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let pen = |phase, x| Event::Pen {
+    let pen = |phase, x| Input::Pen {
         phase,
         pos: pos2(x, 100.0),
         pressure: 0.5,
@@ -31,7 +31,7 @@ fn every_coalesced_sample_drags_and_the_last_carries_its_prediction() {
         pen(PenPhase::Move, 110.0),
         pen(PenPhase::Move, 120.0),
         pen(PenPhase::Move, 130.0),
-        Event::Predicted(pos2(145.0, 100.0)),
+        Input::Predicted(pos2(145.0, 100.0)),
     ]);
     let seen: Vec<(f32, Option<Pos2>)> = drags
         .get_untracked()

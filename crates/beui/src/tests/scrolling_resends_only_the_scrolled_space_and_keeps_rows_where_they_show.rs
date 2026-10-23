@@ -37,9 +37,9 @@ fn scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show() {
             .accessibility_tree("Test", VIEWPORT),
     );
     let scroll = harness.find("scroll");
-    harness.frame(vec![Event::PointerMoved(harness.rect(scroll).center())]);
+    harness.frame(vec![Input::PointerMoved(harness.rect(scroll).center())]);
 
-    let output = harness.frame(vec![Event::Scroll(vec2(0.0, -25.0))]);
+    let output = harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -25.0)))]);
     assert_eq!(harness.document().scroll_offset(scroll), 25.0);
     let update = output.accessibility_tree("Test", VIEWPORT);
     assert!(
