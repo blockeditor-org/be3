@@ -16,11 +16,12 @@ be-graph = { path = "../be-graph" }
 be-keys = { path = "../be-keys" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
+be-sync = { path = "../be-sync" }
 build-id = { path = "../build-id" }
 futures-util = "0.3"
 block-ui = { path = "../block-ui" }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
 uuid = { version = "1", features = ["v4", "v7"] }
 
 [dev-dependencies]

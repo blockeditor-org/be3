@@ -1,0 +1,10 @@
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+# The numbers guides/sync.md reports: a server on this machine, and a directory synced
+# up, listed, resynced and downloaded again:
+# `./scripts/buck run -m release //crates/be-sync:example-scale -- COPY WORK`.
+cargo_example("scale")

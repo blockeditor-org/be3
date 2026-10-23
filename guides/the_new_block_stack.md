@@ -61,6 +61,7 @@ be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
 be-vcs       snapshot trees, diff, tree merge      client
 be-client    a peer: local store, blocks, Live    client
+be-sync      a folder <-> a directory on disk      client (native)
 be-server    the always-online peer               server
 ```
 

@@ -58,6 +58,9 @@ pub const LOCAL_ID: MetaKey<Uuid> =
 pub const MY_FILES: MetaKey<bool> =
     MetaKey::defined(0x6be3_6d65_7461_4d00_8a1e_6d79_6669_0001, "my_files");
 
+pub const EXECUTABLE: MetaKey<bool> =
+    MetaKey::defined(0x6be3_6d65_7461_5800_8a1e_6578_6563_0001, "executable");
+
 pub const DELETED_FROM: MetaKey<DeletedFrom> =
     MetaKey::defined(0x6be3_6d65_7461_4400_8a1e_6465_6c66_0001, "deleted_from");
 
