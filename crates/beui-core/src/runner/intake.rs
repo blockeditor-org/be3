@@ -206,7 +206,10 @@ impl Intake {
                 }
             }
             Input::PointerLeft => match self.emulated_touch || self.held != 0 {
-                true => self.left = true,
+                true => {
+                    self.left = true;
+                    events.push(Event::PointerOutside);
+                }
                 false => events.push(Event::PointerGone),
             },
             Input::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),

@@ -17,4 +17,4 @@ pub use crate::components::shift::Shift;
 pub use crate::components::text::{Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
 pub use crate::components::turn::Turn;
 pub use crate::components::virtual_list::VirtualList;
-pub use crate::components::window::{Window, WindowHandle, use_window};
+pub use crate::components::window::{Window, WindowHandle, opens_windows, use_window};

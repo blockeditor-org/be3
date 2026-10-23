@@ -1898,6 +1898,28 @@ resolved against. A window is a floating overlay, so it paints above the dock
 and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
 
+A dock window is a `Window` (see "Windows and window hosts") sized to its rect
+plus the reach of its resize grips, which lie around it. Where nothing opens
+windows it is that `Window`'s overlay and the dock moves, clamps, springs back
+and resizes it itself. Where a host opens windows each dock window is a real
+window: a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`,
+so the host moves and resizes it; the dock writes the size of the host's
+`Resized` reports into the window's rect (less the grips) and keeps each
+`Placed` report's `HostPlacement` in memory, handing it back as
+`WindowPlacement::Host` when the window opens again (after the dock was
+stacked, say). A window opened with no placement kept opens `Beside` the main
+window. Each window holds its own drop target, and drop targets are resolved
+in the window the `DragPoint` names, in that window's coordinates
+(`stacked_at` takes the window), so a tab dragged from one window onto
+another's bar or pane lands there. A tab or pane dropped where no window is (a
+`Draggable`'s `on_drop_outside`, below) floats into a new window opened
+`AtPointer`; without a host that drop keeps its old meaning.
+
+`floating_only` on `Docking` floats every pane of the base into a window of
+its own, its tabs staying together, whenever one has tabs, and no drop tiles
+into the base; beui-demo turns it on under a window host (`opens_windows()`,
+from `beui::primitives` and `beui::styled`, the document's `opens_windows` as a signal).
+
 How the windows stack is the document's layer order alone (`Document::layers()`),
 not anything in `DockState`: a press on a window, the focus moving into one and
 showing a tab of the window that has the focus (`DockState::show`, so a host can bring
@@ -2640,7 +2662,17 @@ on getting the drag, and its `PointerPress` names the window the pointer is
 over and the position in that window (`local` is then measured from the
 holder's rectangle in its own window, so it means little; a click needs the
 release in the window the press began in). The drag board looks for drop
-targets only in the window the `DragPoint` names. `ui_types::Input` has no window: it is the
+targets only in the window the `DragPoint` names. A host signals that the pointer, holding a
+button, is over no window by sending `PointerLeft` (moves and the release then
+keep going to the window the press began in, outside its rect): the intake
+turns that into `Event::PointerOutside`, which sets `Pointer::outside` until
+the next press. While it is set and the pointer is outside its window's
+reported size, the board (`Board::set_outside`, each frame) drops nothing:
+the target the pointer left hears `over(None)` and the drop calls the
+`Outside` callback given to `Board::begin` with the last point, which
+`Draggable` passes on as `on_drop_outside`. Where nothing opens windows the
+flag is ignored, so dragging out of a platform window still drops at the last
+point inside. `ui_types::Input` has no window: it is the
 plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_core::runner::WindowHost` sits between one platform window and an

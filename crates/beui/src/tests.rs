@@ -93,6 +93,7 @@ mod a_dock_dialog_is_never_a_tab;
 mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
 mod a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_document;
 mod a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced;
+mod a_dock_tab_dropped_where_no_window_is_opens_a_window_at_the_pointer;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
 mod a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane;
@@ -148,6 +149,7 @@ mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
 mod a_fling_to_the_start_bounces_the_whole_sheet;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
+mod a_floating_only_dock_floats_each_pane_of_its_base_into_a_window;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
 mod a_floating_window_the_dock_puts_on_top_is_drawn_on_top;
 mod a_floating_windows_grips_lie_outside_it;
@@ -188,6 +190,8 @@ mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
 mod a_headless_window_fills_its_screen_when_the_app_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
+mod a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there;
+mod a_hosted_dock_windows_grip_asks_its_host_to_resize_it;
 mod a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own;
 mod a_hosts_report_of_a_windows_size_and_place_reaches_the_app;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
@@ -350,6 +354,7 @@ mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
 mod a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
+mod a_tab_dragged_from_one_hosted_dock_window_onto_anothers_bar_joins_it;
 mod a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it;
 mod a_tab_dropped_in_the_frame_it_last_moved_lands_where_it_was_let_go;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
@@ -536,6 +541,7 @@ mod double_tapping_with_the_screen_reader_activates_what_it_is_reading;
 mod dragging_a_color_picker_previews_the_color_and_reports_it_once;
 mod dragging_a_color_wheels_ring_turns_its_hue;
 mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
+mod dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it;
 mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_panes_grip_moves_every_tab_of_the_pane;
@@ -976,11 +982,11 @@ impl Harness {
         Self(stepped)
     }
 
-    pub(crate) fn hosting_windows(mut document: Document) -> Self {
+    pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
         let window = beui_core::app::automation::WindowSize {
-            size: VIEWPORT,
+            size: viewport,
             scale: 1.0,
         };
         let mut stepped = crate::testing::Stepped::hosting_windows(
@@ -1840,6 +1846,70 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+pub(crate) fn windowed_dock(floating_only: bool) -> (Document, NodeId) {
+    let dock = NodeRef::new();
+    let document = build_node(move || {
+        let layout = unstyled::DockingLayout::new();
+        view! {
+            <styled::Docking @node_ref=&dock layout floating_only>
+                <unstyled::DockSplit id="split">
+                    <unstyled::DockPane id="left">
+                        <unstyled::DockTab id=1u64 title="Tab 1">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                    <unstyled::DockPane id="right">
+                        <unstyled::DockTab id=2u64 title="Tab 2">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                </unstyled::DockSplit>
+                <unstyled::DockWindow
+                    id="first"
+                    rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
+                >
+                    <unstyled::DockPane id="third">
+                        <unstyled::DockTab id=3u64 title="Tab 3">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                </unstyled::DockWindow>
+                <unstyled::DockWindow
+                    id="second"
+                    rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
+                >
+                    <unstyled::DockPane id="fourth">
+                        <unstyled::DockTab id=4u64 title="Tab 4">
+                            <Frame />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                </unstyled::DockWindow>
+            </styled::Docking>
+        }
+    });
+    (document, dock.get())
+}
+
+pub(crate) fn window_showing(harness: &Harness, dock: NodeId, title: &str) -> crate::WindowId {
+    harness
+        .document()
+        .window_of(dock_tab(harness.document(), dock, title))
+}
+
+pub(crate) fn press_in(harness: &mut Harness, window: crate::WindowId, pos: Pos2, pressed: bool) {
+    harness.frame_in(
+        window,
+        vec![
+            Input::PointerMoved(pos),
+            Input::PointerButton {
+                pos,
+                button: PointerButton::Primary,
+                pressed,
+            },
+        ],
+    );
 }
 
 pub(crate) struct SplitDock {

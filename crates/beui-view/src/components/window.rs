@@ -50,6 +50,10 @@ pub fn use_window() -> Option<WindowHandle> {
     use_context::<WindowHandle>()
 }
 
+pub fn opens_windows() -> ReadSignal<bool> {
+    with_document(|document| document.watch_opens_windows())
+}
+
 #[component]
 pub fn Window(
     id: Option<WindowId>,
@@ -64,7 +68,7 @@ pub fn Window(
     #[prop(children)] content: RenderFn<WindowHandle>,
 ) -> NodeId {
     let id = id.unwrap_or_else(WindowId::next);
-    let hosted = with_document(|document| document.watch_opens_windows());
+    let hosted = opens_windows();
     let reported = create_signal(None::<Vec2>);
     let shown = create_memo(move || match (hosted.get(), reported.get()) {
         (true, Some(reported)) => reported,

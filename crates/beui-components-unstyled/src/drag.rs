@@ -42,6 +42,7 @@ pub fn Draggable<P>(
     #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_drag_change: Callback<bool>,
+    on_drop_outside: Callback<DragPoint>,
     preview: Option<RenderFn<P>>,
     #[prop(children)] content: Render<DragHandle>,
 ) -> NodeId
@@ -79,6 +80,7 @@ where
             Rc::new(payload),
             point,
             Rc::new(move |pos| pointer.set(pos)),
+            Rc::new(move |point| on_drop_outside.call(point)),
         );
     };
     let moved: Pending = Rc::new(moved);

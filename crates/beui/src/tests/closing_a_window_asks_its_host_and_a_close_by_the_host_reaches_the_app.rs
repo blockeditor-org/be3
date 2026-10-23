@@ -24,7 +24,7 @@ fn closing_a_window_asks_its_host_and_a_close_by_the_host_reaches_the_app() {
             }</Window>
         }
     });
-    let mut harness = Harness::hosting_windows(document);
+    let mut harness = Harness::hosting_windows(document, VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     harness.take_window_requests();

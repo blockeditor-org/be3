@@ -19,7 +19,7 @@ fn a_hosts_report_of_a_windows_size_and_place_reaches_the_app() {
             </Window>
         }
     });
-    let mut harness = Harness::hosting_windows(document);
+    let mut harness = Harness::hosting_windows(document, VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     heard.set(Vec::new());

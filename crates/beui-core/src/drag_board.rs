@@ -70,6 +70,7 @@ pub type Accepts = Rc<dyn Fn(&dyn Any) -> bool>;
 pub type Dropped = Rc<dyn Fn(&dyn Any, DragPoint)>;
 pub type Over = Rc<dyn Fn(Option<(&dyn Any, DragPoint)>)>;
 pub type Pending = Rc<dyn Fn(DragPoint)>;
+pub type Outside = Rc<dyn Fn(DragPoint)>;
 
 pub struct Target {
     pub id: u64,
@@ -85,6 +86,7 @@ pub struct Carried {
     pub over: Option<u64>,
     pub last: Option<DragPoint>,
     pub follow: Rc<dyn Fn(Pos2)>,
+    pub outside: Outside,
 }
 
 pub struct Board {
@@ -94,6 +96,7 @@ pub struct Board {
     targets: RefCell<Vec<Target>>,
     painted: RefCell<HashMap<u64, Vec<usize>>>,
     windows: RefCell<HashMap<u64, WindowId>>,
+    outside: Cell<bool>,
     next: Cell<u64>,
 }
 
@@ -106,6 +109,7 @@ impl Board {
             targets: RefCell::default(),
             painted: RefCell::default(),
             windows: RefCell::default(),
+            outside: Cell::default(),
             next: Cell::default(),
         }
     }
@@ -146,7 +150,13 @@ impl Board {
         self.carried.borrow().is_some()
     }
 
-    pub fn begin(&self, payload: Rc<dyn Any>, point: DragPoint, follow: Rc<dyn Fn(Pos2)>) {
+    pub fn begin(
+        &self,
+        payload: Rc<dyn Any>,
+        point: DragPoint,
+        follow: Rc<dyn Fn(Pos2)>,
+        outside: Outside,
+    ) {
         let marks = self
             .targets
             .borrow()
@@ -159,6 +169,7 @@ impl Board {
             over: None,
             last: None,
             follow,
+            outside,
         });
         for mark in marks {
             mark(true);
@@ -172,6 +183,25 @@ impl Board {
 
     pub fn release(&self) {
         self.pressed.borrow_mut().take();
+    }
+
+    pub fn set_outside(&self, outside: bool) {
+        self.outside.set(outside);
+    }
+
+    pub fn outside(&self) -> bool {
+        self.outside.get()
+    }
+
+    fn leave(&self) {
+        let previous = self
+            .carried
+            .borrow_mut()
+            .as_mut()
+            .and_then(|carried| carried.over.take());
+        if let Some(left) = previous.and_then(|id| self.over(id)) {
+            left(None);
+        }
     }
 
     pub fn order(&self, doc: &Document) {
@@ -202,6 +232,10 @@ impl Board {
             }
             return;
         }
+        if self.outside.get() {
+            self.leave();
+            return;
+        }
         let follow = {
             let mut carried = self.carried.borrow_mut();
             let Some(carried) = carried.as_mut() else {
@@ -223,7 +257,20 @@ impl Board {
             .borrow()
             .as_ref()
             .and_then(|carried| carried.last);
-        self.end(last);
+        if !self.outside.get() {
+            self.end(last);
+            return;
+        }
+        let outside = self
+            .carried
+            .borrow()
+            .as_ref()
+            .map(|carried| Rc::clone(&carried.outside));
+        self.leave();
+        self.end(None);
+        if let (Some(outside), Some(last)) = (outside, last) {
+            outside(last);
+        }
     }
 
     pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, Rect, Over)> {

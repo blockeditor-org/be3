@@ -272,6 +272,21 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
     for session in &mut doc.pointers.sessions {
         session.dragged_this_frame = false;
     }
+    let (left, window, pos) = frame.ctx.input(|input| {
+        (
+            input.pointer.outside,
+            input.pointer.window,
+            input.pointer.pos,
+        )
+    });
+    let within = |pos: Pos2| {
+        frame
+            .ctx
+            .window_size(window)
+            .is_some_and(|size| Rect::from_min_size(Pos2::ZERO, size).contains(pos))
+    };
+    let outside = left && doc.opens_windows() && !pos.is_some_and(within);
+    doc.drag_board().set_outside(outside);
     autoscroll::frame(doc, frame.ctx);
     long_presses(doc, frame)
 }

@@ -23,7 +23,7 @@ fn a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own() {
             </Window>
         }
     });
-    let mut harness = Harness::hosting_windows(document);
+    let mut harness = Harness::hosting_windows(document, VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

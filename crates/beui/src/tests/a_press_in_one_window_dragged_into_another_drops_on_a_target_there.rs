@@ -28,7 +28,7 @@ fn a_press_in_one_window_dragged_into_another_drops_on_a_target_there() {
             </List>
         }
     });
-    let mut harness = Harness::hosting_windows(document);
+    let mut harness = Harness::hosting_windows(document, VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

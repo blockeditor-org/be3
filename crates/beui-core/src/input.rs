@@ -146,6 +146,7 @@ pub enum Event {
     InterceptedKey(KeyPress),
     InterceptedTap(Key),
     PointerWindow(crate::window::WindowId),
+    PointerOutside,
 }
 
 impl Event {
@@ -181,6 +182,7 @@ impl Event {
                 | Self::Time(_)
                 | Self::Zoom(_)
                 | Self::PointerWindow(_)
+                | Self::PointerOutside
         )
     }
 
@@ -417,6 +419,7 @@ impl InputState {
             }
             match event {
                 Event::PointerWindow(window) => self.window = *window,
+                Event::PointerOutside => self.pointer.outside = true,
                 Event::PointerMoved(pos) if !self.on_finger(*pos) => {
                     self.pointer.place_mouse(*pos, self.window);
                     self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
@@ -440,6 +443,9 @@ impl InputState {
                     ..
                 } if !self.on_finger(*pos) => {
                     self.pointer.place_mouse(*pos, self.window);
+                    if *pressed {
+                        self.pointer.outside = false;
+                    }
                     if *pressed && *button == PointerButton::Primary {
                         self.pointer.count_click(*pos, now);
                     }
@@ -637,6 +643,7 @@ impl InputState {
 pub struct Pointer {
     pub pos: Option<Pos2>,
     pub window: crate::window::WindowId,
+    pub outside: bool,
     pub motion: Vec2,
     clicks: u32,
     last_click: Option<(Instant, Pos2)>,
