@@ -179,12 +179,13 @@ mod a_plugin_hears_every_sample_only_while_it_asks;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
-mod a_resize_places_children_by_the_size_their_frame_was_laid_out_at;
+mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_plugin_hears_its_childrens_statuses_again;
 mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
 mod a_restarted_plugin_no_longer_shows_its_regions_stopped;
 mod a_shell_only_host_value_reaches_only_the_shell;
 mod a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard;
+mod a_zoomed_region_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
@@ -198,3 +199,26 @@ mod host_actions_reach_the_host_only_from_the_shell;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_view_a_screen_is_given_carries_its_scale;
+
+fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
+    let role = InstanceRole::Editor(
+        Uuid::nil(),
+        EditorBlock {
+            id: Uuid::nil(),
+            block_type: Uuid::nil(),
+            view_block: None,
+        },
+    );
+    instances.report(
+        INSTANCE,
+        REGION,
+        Uuid::nil(),
+        role,
+        &Arc::new(block_plugin_api::Catalog::default()),
+        Some(block_plugin_api::FrameSpec::default()),
+        size,
+        Rect::from_min_size(Pos2::ZERO, size),
+        scale_factor,
+        PASS,
+    );
+}

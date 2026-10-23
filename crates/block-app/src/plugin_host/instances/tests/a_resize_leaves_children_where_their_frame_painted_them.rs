@@ -1,30 +1,7 @@
 use super::*;
 
-fn resize(instances: &mut Instances, size: Vec2) {
-    let role = InstanceRole::Editor(
-        Uuid::nil(),
-        EditorBlock {
-            id: Uuid::nil(),
-            block_type: Uuid::nil(),
-            view_block: None,
-        },
-    );
-    instances.report(
-        INSTANCE,
-        REGION,
-        Uuid::nil(),
-        role,
-        &Arc::new(block_plugin_api::Catalog::default()),
-        Some(block_plugin_api::FrameSpec::default()),
-        size,
-        Rect::from_min_size(Pos2::ZERO, size),
-        1.0,
-        PASS,
-    );
-}
-
 #[test]
-fn a_resize_places_children_by_the_size_their_frame_was_laid_out_at() {
+fn a_resize_leaves_children_where_their_frame_painted_them() {
     let mut instances = placed();
     assert_eq!(
         configure(&mut instances),
@@ -52,7 +29,7 @@ fn a_resize_places_children_by_the_size_their_frame_was_laid_out_at() {
     instances.confirm(1, &HashSet::new());
 
     let shrunk = vec2(100.0, 60.0);
-    resize(&mut instances, shrunk);
+    resize(&mut instances, shrunk, 1.0);
     assert_eq!(
         configure(&mut instances),
         Some(Message::Configure { serial: 2 })
@@ -61,13 +38,14 @@ fn a_resize_places_children_by_the_size_their_frame_was_laid_out_at() {
     let (children, _) = instances.host_children(INSTANCE, REGION, rect, rect, None);
     assert_eq!(
         children[0].rect,
-        Rect::from_min_size(pos2(10.0, 40.0), vec2(20.0, 12.0)),
-        "a frame laid out at 100x100 is shown in the 100x60 the region now has"
+        Rect::from_min_size(pos2(10.0, 60.0), vec2(20.0, 20.0)),
+        "a frame painted at 100x100 is shown at its own size from the region's top-left, \
+         cropped to the 100x60 the region now has, so its children are not squeezed either"
     );
     assert_eq!(
         instances.ime(INSTANCE, REGION, rect).map(|ime| ime.rect),
-        Some(Rect::from_min_size(pos2(10.0, 40.0), vec2(100.0, 12.0))),
-        "the text input area moves with the frame it was laid out in"
+        Some(Rect::from_min_size(pos2(10.0, 60.0), vec2(100.0, 20.0))),
+        "the text input area stays where the frame painted it"
     );
 
     instances.confirm(2, &HashSet::new());
@@ -75,6 +53,6 @@ fn a_resize_places_children_by_the_size_their_frame_was_laid_out_at() {
     assert_eq!(
         children[0].rect,
         Rect::from_min_size(pos2(10.0, 60.0), vec2(20.0, 20.0)),
-        "once the plugin answers the resize, nothing is stretched"
+        "once the plugin answers the resize, its children are still placed one to one"
     );
 }

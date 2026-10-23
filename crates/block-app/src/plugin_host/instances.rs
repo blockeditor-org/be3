@@ -586,11 +586,24 @@ struct Screen {
     reported_statuses: HashMap<ChildId, ChildStatus>,
     revoked: HashSet<ChildId>,
     frame_revoked: HashSet<ChildId>,
-    sizes: Sent<Vec2>,
+    scales: Sent<f32>,
     serial: u64,
 }
 
 impl Screen {
+    fn shown_scale(&self, rect: Rect) -> Vec2 {
+        let metrics = &self.request.metrics;
+        let painted = self
+            .scales
+            .at(self.serial)
+            .copied()
+            .unwrap_or(metrics.scale_factor);
+        vec2(
+            ratio(rect.width(), metrics.logical.width),
+            ratio(rect.height(), metrics.logical.height),
+        ) * ratio(painted, metrics.scale_factor)
+    }
+
     fn unplace(&mut self) {
         self.placement = None;
         self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, Vec::new());
@@ -880,7 +893,7 @@ impl Instances {
                 reported_statuses: HashMap::new(),
                 revoked: HashSet::new(),
                 frame_revoked: HashSet::new(),
-                sizes: Sent::default(),
+                scales: Sent::default(),
                 serial: 0,
             }
         });
@@ -1578,10 +1591,7 @@ impl Instances {
                 Message::Screens(set) => {
                     for request in &set.screens {
                         if let Some(screen) = self.screen_by_id(request.screen) {
-                            let logical = request.metrics.logical;
-                            screen
-                                .sizes
-                                .push(serial, vec2(logical.width, logical.height));
+                            screen.scales.push(serial, request.metrics.scale_factor);
                         }
                     }
                 }
@@ -1644,7 +1654,7 @@ impl Instances {
         for entry in self.entries.values_mut() {
             let oldest = entry.screens.values().map(|screen| screen.serial).min();
             for screen in entry.screens.values_mut() {
-                screen.sizes.confirm(screen.serial);
+                screen.scales.confirm(screen.serial);
             }
             if let Some(oldest) = oldest {
                 entry.views.confirm(oldest);
@@ -1838,15 +1848,7 @@ impl Instances {
         };
         let table = &screen.children;
         let origin = rect.min.to_vec2();
-        let laid_out = screen
-            .sizes
-            .at(screen.serial)
-            .copied()
-            .unwrap_or(Vec2::ZERO);
-        let stretch = vec2(
-            ratio(rect.width(), laid_out.x),
-            ratio(rect.height(), laid_out.y),
-        );
+        let scale = screen.shown_scale(rect);
         let laid_view = entry
             .views
             .at(screen.serial)
@@ -1859,7 +1861,7 @@ impl Instances {
             let painted: Vec<Rect> = report
                 .painted
                 .iter()
-                .map(|painted| host_rect(*painted, origin, stretch))
+                .map(|painted| host_rect(*painted, origin, scale))
                 .collect();
             if !painted.is_empty() {
                 for piece in pieces::subtract(rect.intersect(clip), &painted) {
@@ -1944,20 +1946,20 @@ impl Instances {
                     }
                 }
             };
-            let child_rect = host_rect(child.rect, origin, stretch);
+            let child_rect = host_rect(child.rect, origin, scale);
             let (view_rect, child_clip) = match (child.follows_view, laid_view, view) {
                 (true, Some(laid_view), Some(view)) => (
-                    host_rect(through(child.rect, laid_view, view), origin, stretch),
-                    host_rect(followed_clip(child, laid_view, view), origin, stretch),
+                    host_rect(through(child.rect, laid_view, view), origin, scale),
+                    host_rect(followed_clip(child, laid_view, view), origin, scale),
                 ),
-                _ => (child_rect, host_rect(child.clip, origin, stretch)),
+                _ => (child_rect, host_rect(child.clip, origin, scale)),
             };
             let child_clip = child_clip.intersect(clip);
             let occluders: Vec<Rect> = table
                 .occluders
                 .iter()
                 .filter(|occluder| occluder.after as usize > index)
-                .map(|occluder| host_rect(occluder.rect, origin, stretch))
+                .map(|occluder| host_rect(occluder.rect, origin, scale))
                 .collect();
             if matches!(
                 mode,
@@ -2451,19 +2453,10 @@ impl Instances {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         let area = screen.window.ime.as_ref()?;
         let origin = rect.min.to_vec2();
-        let current = screen.request.metrics.logical;
-        let laid_out = screen
-            .sizes
-            .at(screen.serial)
-            .copied()
-            .unwrap_or(vec2(current.width, current.height));
-        let stretch = vec2(
-            ratio(rect.width(), laid_out.x),
-            ratio(rect.height(), laid_out.y),
-        );
+        let scale = screen.shown_scale(rect);
         Some(ImeArea {
-            rect: host_rect(area.rect, origin, stretch),
-            cursor: host_rect(area.cursor, origin, stretch),
+            rect: host_rect(area.rect, origin, scale),
+            cursor: host_rect(area.cursor, origin, scale),
             text: area.text.clone(),
             keyboard: area.keyboard,
         })
@@ -3491,10 +3484,10 @@ fn followed_clip(child: &ChildPlacement, laid_view: EditorView, view: EditorView
     through(swept, laid_view, view).intersect(held)
 }
 
-fn host_rect(rect: Rect, origin: Vec2, stretch: Vec2) -> Rect {
+fn host_rect(rect: Rect, origin: Vec2, scale: Vec2) -> Rect {
     Rect::from_min_size(
-        pos2(rect.min.x * stretch.x, rect.min.y * stretch.y) + origin,
-        vec2(rect.width() * stretch.x, rect.height() * stretch.y),
+        pos2(rect.min.x * scale.x, rect.min.y * scale.y) + origin,
+        vec2(rect.width() * scale.x, rect.height() * scale.y),
     )
 }
 

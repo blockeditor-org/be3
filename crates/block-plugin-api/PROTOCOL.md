@@ -421,13 +421,16 @@ cleared transparent, so the host composites the child's editor under the
 instance and anything the instance draws after the child covers it again. A
 child placed above composites against the instance's pixels instead and cannot
 be drawn over. The host draws the children below a region, then the region,
-then the children above it. Placements are in the coordinates of the host
-state the frame carrying them was laid out against, and the host maps them to
-the region as it is now: a child placed in a region of another size is
-stretched by the size the host had sent at that frame's serial, and a child
-the placement says follows the view is moved from the view sent at that serial
-to the one the host is showing, so a child keeps up with a pan the plugin has
-not drawn yet.
+then the children above it. A painting is never stretched: the host shows each
+frame at the size it was painted, from the region's top-left corner, so while
+a region is resizing ahead of the plugin the painting is cropped or falls
+short at the right and bottom, and the children, occluders and input method
+area that frame carried are placed in its own coordinates from that corner,
+unscaled. Only a zoom the host renders a region at - a pixel density sent with
+its screen - scales them, and then by the one sent at the frame's serial. A
+child the placement says follows the view is moved from the view sent at that
+serial to the one the host is showing, so a child keeps up with a pan the
+plugin has not drawn yet.
 
 A child the user has selected, or one an instance declares as the whole of
 what it shows, becomes a frame owner of its own: it is handed the same frame

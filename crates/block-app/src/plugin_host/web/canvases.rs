@@ -5,7 +5,7 @@ use block_plugin_api::ScreenId;
 use wasm_bindgen::JsCast;
 
 use super::adapter::WebProtocolAdapter;
-use crate::plugin_host::presenter::Blit;
+use crate::plugin_host::presenter::{Blit, unstretched};
 
 const LAYER: &str = "plugins";
 
@@ -30,12 +30,17 @@ pub(in crate::plugin_host) fn placement(
     {
         return None;
     }
-    let source = blit.source;
+    let painted = (placement.width, placement.height);
+    let (quad, source) = match (blit.drawn, blit.requested) {
+        (None, Some(requested)) if requested != painted => {
+            unstretched(blit.quad, blit.source, requested, painted)?
+        }
+        _ => (blit.quad, blit.source),
+    };
     if !source.is_positive() {
         return None;
     }
-    let [first, second, _, fourth] = blit
-        .quad
+    let [first, second, _, fourth] = quad
         .corners
         .map(|corner| pos2(corner.x * scale, corner.y * scale));
     let across = (second - first) / source.width();
@@ -60,7 +65,7 @@ pub(in crate::plugin_host) fn placement(
         percent(1.0 - source.max.x),
         percent(1.0 - source.max.y),
         percent(source.min.x),
-        blit.quad.opacity.clamp(0.0, 1.0),
+        quad.opacity.clamp(0.0, 1.0),
     );
     Some(Placement {
         screen: blit.screen,
