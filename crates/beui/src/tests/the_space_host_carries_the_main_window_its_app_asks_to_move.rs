@@ -1,9 +1,9 @@
 use super::*;
-use std::cell::Cell;
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, RunOptions, Runner};
 use beui_core::window::{WindowId, WindowRequest};
+use std::cell::Cell;
 
 struct Screen;
 
@@ -22,7 +22,12 @@ impl Renderer for Screen {
         Some(vec2(400.0, 300.0))
     }
 
-    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        _output: &crate::WindowOutput,
+        _scale: f32,
+        _background: Color32,
+    ) -> bool {
         false
     }
 

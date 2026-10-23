@@ -25,10 +25,7 @@ fn holding_right_ctrl_and_right_shift_steers_the_head() {
         [
             (WindowId::MAIN, key(Key::Ctrl, RIGHT_CTRL, true)),
             (WindowId::MAIN, key(Key::Ctrl, RIGHT_CTRL, false)),
-            (
-                WindowId::MAIN,
-                Input::Modifiers(Modifiers::NONE)
-            ),
+            (WindowId::MAIN, Input::Modifiers(Modifiers::NONE)),
         ],
         "right Ctrl alone is the app's, until Shift joins it and the app sees it let go"
     );
@@ -38,18 +35,30 @@ fn holding_right_ctrl_and_right_shift_steers_the_head() {
     assert_eq!(delivered(&turned), [], "motion turns the head, not the app");
     assert!(space.head.yaw > yaw, "moving right turns right");
     assert!(space.head.pitch > 0.0, "moving up looks up");
-    send(&mut space, now, [Input::PointerMotion(vec2(0.0, -100_000.0))]);
+    send(
+        &mut space,
+        now,
+        [Input::PointerMotion(vec2(0.0, -100_000.0))],
+    );
     assert!(
         space.head.pitch <= crate::head::MAX_PITCH,
         "the head looks no further than straight up"
     );
-    send(&mut space, now, [Input::PointerMotion(vec2(-100.0, 100_000.0))]);
+    send(
+        &mut space,
+        now,
+        [Input::PointerMotion(vec2(-100.0, 100_000.0))],
+    );
     space.head.pitch = 0.0;
     space.head.yaw = 0.0;
 
     let start = space.head.position;
     let pressed = send(&mut space, now, [key(Key::W, 17, true)]);
-    assert_eq!(delivered(&pressed), [], "W walks and does not reach the app");
+    assert_eq!(
+        delivered(&pressed),
+        [],
+        "W walks and does not reach the app"
+    );
     let mut at = now;
     for _ in 0..5 {
         at = later(at, 0.1);

@@ -4,8 +4,14 @@ use super::*;
 fn a_carried_panel_follows_the_cursor_and_the_head() {
     let (mut space, now) = space();
     let grab = centre() + vec2(0.0, -100.0);
-    send(&mut space, now, [Input::PointerMoved(grab), button(grab, true)]);
-    let grabbed = main(&space).hit(space.head.ray(PLATFORM, grab.to_vec2())).unwrap();
+    send(
+        &mut space,
+        now,
+        [Input::PointerMoved(grab), button(grab, true)],
+    );
+    let grabbed = main(&space)
+        .hit(space.head.ray(PLATFORM, grab.to_vec2()))
+        .unwrap();
     space.begin_carry(WindowId::MAIN);
     let distance = space.carry.unwrap().distance;
 
@@ -24,7 +30,10 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
         grabbed.pos,
         under.pos
     );
-    assert!((under.distance - distance).abs() < 1e-3, "at the same distance");
+    assert!(
+        (under.distance - distance).abs() < 1e-3,
+        "at the same distance"
+    );
 
     send(&mut space, now, steer(true));
     send(&mut space, now, [Input::PointerMotion(vec2(400.0, 0.0))]);
@@ -37,11 +46,24 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
     let released = send(&mut space, now, [button(moved, false)]);
     assert_eq!(space.carry, None, "letting go ends the carry");
     let got = delivered(&released);
-    let [(window, Input::PointerButton { pos, pressed: false, .. })] = got.as_slice() else {
+    let [
+        (
+            window,
+            Input::PointerButton {
+                pos,
+                pressed: false,
+                ..
+            },
+        ),
+    ] = got.as_slice()
+    else {
         panic!("the app gets the release, not {got:?}");
     };
     assert_eq!(*window, WindowId::MAIN);
-    assert!((*pos - grabbed.pos).length() < 0.5, "where it grabbed: {pos:?}");
+    assert!(
+        (*pos - grabbed.pos).length() < 0.5,
+        "where it grabbed: {pos:?}"
+    );
     let reports = placed(&released);
     let [WindowReport::Placed { window, placement }] = reports.as_slice() else {
         panic!("the new place is reported, not {reports:?}");

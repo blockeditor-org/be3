@@ -231,7 +231,11 @@ struct Stage<'a> {
     blend: Option<wgpu::BlendState>,
 }
 
-fn pipeline(device: &wgpu::Device, shader: &wgpu::ShaderModule, stage: Stage) -> wgpu::RenderPipeline {
+fn pipeline(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    stage: Stage,
+) -> wgpu::RenderPipeline {
     let layouts: Vec<Option<&wgpu::BindGroupLayout>> =
         stage.layouts.iter().copied().map(Some).collect();
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -428,7 +432,11 @@ impl Gpu {
     }
 
     fn target(&mut self, size: (u32, u32), format: wgpu::TextureFormat) {
-        if self.target.as_ref().is_some_and(|target| target.size == size) {
+        if self
+            .target
+            .as_ref()
+            .is_some_and(|target| target.size == size)
+        {
             return;
         }
         let texture = |label, format, samples, usage| {
@@ -611,14 +619,9 @@ impl Gpu {
                 Repaint::Everything => wgpu::LoadOp::Clear(wgpu_color_in(self.format, background)),
                 Repaint::Region { .. } => wgpu::LoadOp::Load,
             };
-            panel.renderer.render(
-                &self.device,
-                &self.queue,
-                encoder,
-                &panel.level,
-                size,
-                load,
-            );
+            panel
+                .renderer
+                .render(&self.device, &self.queue, encoder, &panel.level, size, load);
             panel.painted = true;
             for (view, group) in &panel.mips {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

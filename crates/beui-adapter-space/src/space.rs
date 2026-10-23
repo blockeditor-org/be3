@@ -164,7 +164,9 @@ impl Space {
         let seconds = self
             .now
             .replace(now)
-            .map_or(0.0, |then| now.saturating_duration_since(then).as_secs_f32())
+            .map_or(0.0, |then| {
+                now.saturating_duration_since(then).as_secs_f32()
+            })
             .min(MOST_SECONDS);
         if !self.steering() || self.walking.is_empty() {
             return;
@@ -420,10 +422,7 @@ impl Space {
             out.push(Incoming::new(units, Input::Key(keystroke)));
             return;
         }
-        let placed = keystroke
-            .evdev
-            .and_then(Key::from_evdev)
-            .or(keystroke.key);
+        let placed = keystroke.evdev.and_then(Key::from_evdev).or(keystroke.key);
         let walks = matches!(placed, Some(Key::W | Key::A | Key::S | Key::D));
         if self.steering() && walks {
             let Some(key) = placed else {
@@ -508,8 +507,7 @@ impl Space {
             true => state.requests.cursor,
             false => CursorIcon::Default,
         };
-        state.requests.pointer_locked =
-            self.steering() || (over && state.requests.pointer_locked);
+        state.requests.pointer_locked = self.steering() || (over && state.requests.pointer_locked);
         state.requests.ime = None;
         state.appearance.clear_color = SKY;
         state

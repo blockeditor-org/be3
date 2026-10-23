@@ -10,13 +10,13 @@ use crate::Space;
 use crate::head::Head;
 use crate::panel::{Panel, Pose};
 
+mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
 mod a_miss_leaves_the_panel;
 mod a_ray_hits_the_nearest_panel_where_it_points;
-mod holding_right_ctrl_and_right_shift_steers_the_head;
-mod a_carried_panel_follows_the_cursor_and_the_head;
-mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 mod a_released_panel_turns_to_face_the_viewer;
+mod holding_right_ctrl_and_right_shift_steers_the_head;
+mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 
 const PLATFORM: Vec2 = vec2(800.0, 600.0);
 
@@ -87,7 +87,9 @@ fn delivered(incoming: &[Incoming]) -> Vec<(WindowId, Input)> {
 }
 
 fn main(space: &Space) -> &Panel {
-    space.panel(WindowId::MAIN).expect("the main window has a panel")
+    space
+        .panel(WindowId::MAIN)
+        .expect("the main window has a panel")
 }
 
 fn close(a: Vec3, b: Vec3) -> bool {

@@ -44,5 +44,9 @@ fn a_click_on_the_panel_reaches_the_app_where_the_ray_hits() {
     }
 
     let typed = delivered(&send(&mut space, now, [key(Key::A, 30, true)]));
-    assert_eq!(typed, [(WindowId::MAIN, key(Key::A, 30, true))], "keys go to the app");
+    assert_eq!(
+        typed,
+        [(WindowId::MAIN, key(Key::A, 30, true))],
+        "keys go to the app"
+    );
 }
