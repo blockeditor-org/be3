@@ -619,11 +619,9 @@ fn member(listing: Listing, node: &Node, nodes: &HashMap<Uuid, Node>) -> Option<
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Block(block) => Some(block == node.id),
         Listing::Backrefs(block) => Some(node.references.contains(&block)),
-        Listing::References(block) => Some(
-            nodes
-                .get(&block)
-                .is_some_and(|referrer| referrer.references.contains(&node.id)),
-        ),
+        Listing::References(block) => nodes
+            .get(&block)
+            .map(|referrer| referrer.references.contains(&node.id)),
         Listing::Shared => None,
     }
 }
