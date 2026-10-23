@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn dragging_a_dock_windows_bar_in_space_carries_its_panel() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false, None);
+    let (document, dock) = windowed_dock(None);
     let mut space = InSpace::new(document);
     space.settle();
     space.space.borrow_mut().head.position.z += 1.5;

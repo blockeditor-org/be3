@@ -5,7 +5,7 @@ use crate::unstyled::DockApi;
 #[test]
 fn dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false, None);
+    let (document, dock) = windowed_dock(None);
     let mut harness = Harness::hosting_windows(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

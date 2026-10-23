@@ -5,7 +5,7 @@ use crate::{WindowId, WindowPlacement, WindowRequest};
 #[test]
 fn a_dock_tab_dropped_where_no_window_is_opens_a_window_at_the_pointer() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false, None);
+    let (document, dock) = windowed_dock(None);
     let mut harness = Harness::hosting_windows(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

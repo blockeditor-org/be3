@@ -4,7 +4,7 @@ use crate::unstyled::{DockApi, TabId};
 #[test]
 fn dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false, None);
+    let (document, dock) = windowed_dock(None);
     let mut space = InSpace::new(document);
     space.settle();
     space.space.borrow_mut().head.position.z += 1.5;

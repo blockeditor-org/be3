@@ -75,7 +75,6 @@ const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
 const FLOAT_INSET: Vec2 = Vec2::new(64.0, 48.0);
 const GRAB_OFFSET: Vec2 = Vec2::new(72.0, 14.0);
-const FLOAT_STEP: Vec2 = Vec2::new(32.0, 32.0);
 const GROUP_ZONE: f32 = 0.3;
 const OUTER_EDGE: f32 = 18.0;
 const WINDOW_KEEP_VISIBLE: f32 = 96.0;
@@ -370,7 +369,6 @@ struct State {
     group_inset: f32,
     rect: ReadSignal<Rect>,
     opens: ReadSignal<bool>,
-    floating_only: Memo<bool>,
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
@@ -870,9 +868,6 @@ impl State {
                     continue;
                 }
                 let split = state.window_rect(surface).is_none();
-                if split && self.floating_only.get_untracked() {
-                    continue;
-                }
                 if let Some(found) =
                     self.resolve_in(&state, Tree::Surface(surface), pos, split, dragged)
                 {
@@ -1215,7 +1210,6 @@ pub(crate) struct DockConfig {
     pub(crate) stack_below: f32,
     pub(crate) mode: Signal<DockMode>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
-    pub(crate) floating_only: Prop<bool>,
     pub(crate) splitter_thickness: f32,
     pub(crate) splitter_reach: f32,
     pub(crate) group_inset: f32,
@@ -1258,7 +1252,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         stack_below,
         mode: published,
         drag_modifier,
-        floating_only,
         splitter_thickness,
         splitter_reach,
         group_inset,
@@ -1341,7 +1334,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 group_inset,
                 rect: dock_rect,
                 opens: opens_windows(),
-                floating_only: create_memo(move || floating_only.get()),
                 placements: create_signal(HashMap::new()),
                 panes: store(RefCell::default()),
                 bars: store(RefCell::default()),
@@ -1412,23 +1404,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dock.keep_panels(&tabs);
             });
             on_cleanup(move || dock.keep_panels(&[]));
-            create_effect(move || {
-                if !dock.floating_only.get() {
-                    return;
-                }
-                let tiled = state.with(|state| {
-                    state
-                        .leaves(state.main())
-                        .into_iter()
-                        .any(|leaf| !state.entries(leaf).is_empty())
-                });
-                if tiled {
-                    untrack(|| {
-                        let origin = dock.float_origin();
-                        dock.edit(|state| state.float_main_panes(origin, FLOAT_STEP));
-                    });
-                }
-            });
             view! {
                 <List spacing=0.0>
                     <Frame @sizing=ItemSize::Percent(100.0) padding=inset>
@@ -1728,8 +1703,7 @@ fn closing_switcher(nodes: Vec<MenuNode>, switching: Signal<bool>) -> Vec<MenuNo
 #[component]
 fn DockTiles(dock: State) -> NodeId {
     let current = dock.state;
-    let floating_only = dock.floating_only;
-    let main = create_memo(move || (!floating_only.get()).then(|| current.with(DockState::main)));
+    let main = create_memo(move || current.with(DockState::main));
     let windows = create_memo(move || current.with(DockState::windows));
     view! {
         <DropTarget
@@ -1737,19 +1711,14 @@ fn DockTiles(dock: State) -> NodeId {
             on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
         >|_: DropHandle|
             <List spacing=0.0>
-                <Dynamic value={main}>|surface: Option<SurfaceId>| {
+                <Dynamic value={main}>|surface: SurfaceId| {
                     let dock = dock;
-                    match surface {
-                        Some(surface) => view! {
-                            <DockTreeView
-                                dock
-                                tree={Tree::Surface(surface)}
-                                @sizing=ItemSize::Percent(100.0)
-                            />
-                        },
-                        None => view! {
-                            <Frame @sizing=ItemSize::Percent(100.0) />
-                        },
+                    view! {
+                        <DockTreeView
+                            dock
+                            tree={Tree::Surface(surface)}
+                            @sizing=ItemSize::Percent(100.0)
+                        />
                     }
                 }</Dynamic>
                 <ForEach keys={windows}>|surface: SurfaceId| {

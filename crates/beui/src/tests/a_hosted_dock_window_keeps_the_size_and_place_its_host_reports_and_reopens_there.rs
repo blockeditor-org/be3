@@ -5,7 +5,7 @@ use crate::{HostPlacement, WindowPlacement, WindowReport, WindowRequest};
 #[test]
 fn a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false, None);
+    let (document, dock) = windowed_dock(None);
     let mut harness = Harness::hosting_windows(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

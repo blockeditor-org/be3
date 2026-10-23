@@ -69,7 +69,6 @@ pub fn Docking<K>(
     layout: DockingLayout<K>,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
-    #[prop(default = false)] floating_only: Prop<bool>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -89,7 +88,6 @@ where
             stack_below=NARROW_WIDTH
             focus
             drag_modifier
-            floating_only
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
             menu={menu_style()}

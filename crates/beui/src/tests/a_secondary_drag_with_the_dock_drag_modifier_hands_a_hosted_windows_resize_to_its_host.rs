@@ -5,7 +5,7 @@ use crate::{WindowEdge, WindowRequest};
 #[test]
 fn a_secondary_drag_with_the_dock_drag_modifier_hands_a_hosted_windows_resize_to_its_host() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false, Some(Modifiers::LOGO));
+    let (document, dock) = windowed_dock(Some(Modifiers::LOGO));
     let mut harness = Harness::hosting_windows(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

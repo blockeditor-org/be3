@@ -150,7 +150,6 @@ mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
 mod a_fling_to_the_start_bounces_the_whole_sheet;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
-mod a_floating_only_dock_floats_each_pane_of_its_base_into_a_window;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
 mod a_floating_window_the_dock_puts_on_top_is_drawn_on_top;
 mod a_floating_windows_grips_lie_outside_it;
@@ -1855,15 +1854,12 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     (document, dock.get())
 }
 
-pub(crate) fn windowed_dock(
-    floating_only: bool,
-    drag_modifier: Option<Modifiers>,
-) -> (Document, NodeId) {
+pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout floating_only drag_modifier>
+            <styled::Docking @node_ref=&dock layout drag_modifier>
                 <unstyled::DockSplit id="split">
                     <unstyled::DockPane id="left">
                         <unstyled::DockTab id=1u64 title="Tab 1">

@@ -1919,11 +1919,6 @@ another's bar or pane lands there. A tab or pane dropped where no window is (a
 `Draggable`'s `on_drop_outside`, below) floats into a new window opened
 `AtPointer`; without a host that drop keeps its old meaning.
 
-`floating_only` on `Docking` floats every pane of the base into a window of
-its own, its tabs staying together, whenever one has tabs, and no drop tiles
-into the base, which shows nothing; beui-demo turns it on under a window host (`opens_windows()`,
-from `beui::primitives` and `beui::styled`, the document's `opens_windows` as a signal).
-
 How the windows stack is the document's layer order alone (`Document::layers()`),
 not anything in `DockState`: a press on a window, the focus moving into one and
 showing a tab of the window that has the focus (`DockState::show`, so a host can bring

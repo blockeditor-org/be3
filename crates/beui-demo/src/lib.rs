@@ -622,14 +622,13 @@ fn DemoShell() -> NodeId {
     });
     provide_context(dialogs);
     let attached = dialogs.open;
-    let floating_only = opens_windows();
     view! {
         <List spacing=0.0>
             <Frame padding=SHELL_PADDING>
                 <DemoToolbar pages />
             </Frame>
             <Separator />
-            <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier floating_only>
+            <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
                 <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                     <DockPane id="catalog">
                         <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>

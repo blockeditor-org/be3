@@ -1286,17 +1286,6 @@ impl DockState {
         self.settle_focus();
     }
 
-    pub fn float_main_panes(&mut self, origin: Pos2, step: Vec2) {
-        let mut at = origin;
-        for leaf in self.leaves(self.main()) {
-            if self.entries(leaf).is_empty() {
-                continue;
-            }
-            self.drop_leaf(leaf, DockDrop::Window { pos: at });
-            at += step;
-        }
-    }
-
     fn dress(&mut self, leaf: LeafId, like: &Leaf, identity: bool) {
         if let Some(leaf) = self.leaf_mut(leaf) {
             leaf.vertical = like.vertical;

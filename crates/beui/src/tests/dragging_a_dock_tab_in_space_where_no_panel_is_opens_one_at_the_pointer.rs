@@ -4,7 +4,7 @@ use crate::unstyled::{DockApi, TabId};
 #[test]
 fn dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = windowed_dock(false, None);
+    let (document, dock) = windowed_dock(None);
     let mut space = InSpace::new(document);
     space.settle();
     space.space.borrow_mut().head.position.z += 1.5;
