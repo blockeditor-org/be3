@@ -109,7 +109,7 @@ pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
 pub use sheet::{ModalSheet, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::Slider;
-pub use software_keyboard::{SoftwareKeyboard, keyboard_height};
+pub use software_keyboard::SoftwareKeyboard;
 pub use spinner::Spinner;
 pub use split_button::SplitButton;
 pub use stack::Stack;
