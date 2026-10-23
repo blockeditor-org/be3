@@ -1,7 +1,7 @@
 use crate::{
     ArtifactDescription, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
-    ChildContent, CreationOutcome, EditorInstanceId, EditorMessage, HostReply, HostRequest,
-    Message, VersionCommand,
+    ChildContent, ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply,
+    HostRequest, Message, VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -16,27 +16,9 @@ impl Message {
     pub fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         match self {
             Self::Editor(message) => message.visit_block_ids(visit),
-            Self::Children(placements) => {
-                for child in &mut placements.children {
-                    match &mut child.content {
-                        ChildContent::Block {
-                            block_id,
-                            view_block,
-                            ..
-                        } => {
-                            visit(placements.instance, BlockIdRole::Existing, block_id);
-                            if let Some(view_block) = view_block {
-                                visit(placements.instance, BlockIdRole::Existing, view_block);
-                            }
-                        }
-                        ChildContent::WebView(_)
-                        | ChildContent::Host(_)
-                        | ChildContent::Window(_)
-                        | ChildContent::Creation { .. } => {}
-                        ChildContent::ArtifactSettings { block_id } => {
-                            visit(placements.instance, BlockIdRole::Existing, block_id);
-                        }
-                    }
+            Self::Frame(commit) => {
+                for placements in &mut commit.children {
+                    placements.visit_block_ids(visit);
                 }
             }
             Self::Hello(_)
@@ -46,13 +28,11 @@ impl Message {
             | Self::Fonts(_)
             | Self::MissingCharacters(_)
             | Self::Screens(_)
+            | Self::Configure { .. }
             | Self::Layout(_)
-            | Self::RegionSizes(_)
-            | Self::Frames(_)
             | Self::Input(_)
             | Self::DrawFrame { .. }
             | Self::FrameNeeded
-            | Self::FrameReady(_)
             | Self::Acknowledged { .. }
             | Self::Error(_)
             | Self::Shutdown
@@ -63,6 +43,32 @@ impl Message {
             | Self::RunAction { .. }
             | Self::NodeAction { .. }
             | Self::Extension { .. } => {}
+        }
+    }
+}
+
+impl ChildPlacements {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
+        for child in &mut self.children {
+            match &mut child.content {
+                ChildContent::Block {
+                    block_id,
+                    view_block,
+                    ..
+                } => {
+                    visit(self.instance, BlockIdRole::Existing, block_id);
+                    if let Some(view_block) = view_block {
+                        visit(self.instance, BlockIdRole::Existing, view_block);
+                    }
+                }
+                ChildContent::WebView(_)
+                | ChildContent::Host(_)
+                | ChildContent::Window(_)
+                | ChildContent::Creation { .. } => {}
+                ChildContent::ArtifactSettings { block_id } => {
+                    visit(self.instance, BlockIdRole::Existing, block_id);
+                }
+            }
         }
     }
 }
@@ -301,7 +307,6 @@ impl EditorMessage {
             | Self::ArtifactEdited { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactRegenerated { .. }
-            | Self::Window { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildBar { .. }

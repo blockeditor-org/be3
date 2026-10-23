@@ -29,7 +29,7 @@ fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
         TopBar::Shown,
     );
 
-    session.run(EditorRegion::Frame, 1, 0);
+    session.run(EditorRegion::Frame, 0);
 
     let report = session
         .report(EditorRegion::Frame)

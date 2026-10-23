@@ -126,6 +126,41 @@ fn take_actions<A: block_plugin_api::HostAction>(instances: &mut Instances) -> V
         .collect()
 }
 
+fn configure(instances: &mut Instances) -> Option<Message> {
+    let next = instances.next_screens(PASS);
+    let mut messages = next.opened;
+    messages.push(instances.screen_set(next.screens));
+    instances.configure(&messages)
+}
+
+fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
+    ChildPlacements {
+        instance: INSTANCE,
+        region: REGION,
+        children: vec![ChildPlacement {
+            child: ChildId(1),
+            content: ChildContent::Block {
+                block_id: [1; 16],
+                block_type: [0; 16],
+                view_block: None,
+                editor: None,
+            },
+            rect,
+            clip: Rect::from_min_size(pos2(-1000.0, -1000.0), vec2(2000.0, 2000.0)),
+            own_frame: false,
+            top_bar: block_plugin_api::TopBar::Hidden,
+            corner_radius: 0.0,
+            layer: block_plugin_api::ChildLayer::Below,
+            mode: ChildMode::Passive,
+            intrinsic: None,
+            rotation: 0.0,
+            opacity: 1.0,
+            follows_view,
+        }],
+        occluders: Vec::new(),
+    }
+}
+
 fn next_screens(instances: &mut Instances) -> NextScreens {
     instances.touch(&crate::be::take_touched());
     instances.next_screens(PASS)
@@ -144,6 +179,7 @@ mod a_plugin_hears_every_sample_only_while_it_asks;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
+mod a_resize_places_children_by_the_size_their_frame_was_laid_out_at;
 mod a_restarted_plugin_hears_its_childrens_statuses_again;
 mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
 mod a_restarted_plugin_no_longer_shows_its_regions_stopped;
@@ -158,6 +194,7 @@ mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 #[cfg(target_os = "linux")]
 #[cfg(target_os = "linux")]
 #[cfg(target_os = "linux")]
+mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod host_actions_reach_the_host_only_from_the_shell;

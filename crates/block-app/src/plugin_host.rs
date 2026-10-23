@@ -18,6 +18,7 @@ mod instances;
 mod pieces;
 mod presenter;
 mod runtime;
+mod sent;
 #[cfg(not(target_arch = "wasm32"))]
 mod surface;
 #[cfg(not(target_arch = "wasm32"))]
@@ -184,7 +185,7 @@ pub(crate) struct RuntimeStatus {
 
 pub(crate) struct SurfaceStatus {
     pub(crate) index: u32,
-    pub(crate) generation: u64,
+    pub(crate) serial: u64,
     pub(crate) pixels: u64,
     pub(crate) placements: usize,
 }
@@ -217,7 +218,7 @@ pub(crate) struct ScreenStatus {
     pub(crate) placement: Option<[u32; 3]>,
     pub(crate) drawn: bool,
     pub(crate) children: usize,
-    pub(crate) child_generation: u64,
+    pub(crate) serial: u64,
 }
 
 pub(crate) fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {

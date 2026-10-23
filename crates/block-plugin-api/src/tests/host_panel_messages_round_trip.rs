@@ -8,14 +8,9 @@ fn host_panel_messages_round_trip() {
                 instance: EditorInstanceId(3),
                 panel,
             }),
-            Message::Children(ChildPlacements {
+            committed(ChildPlacements {
                 instance: EditorInstanceId(3),
                 region: EditorRegion::Frame,
-                generation: 2,
-                size: Size {
-                    width: 800.0,
-                    height: 600.0,
-                },
                 children: vec![ChildPlacement {
                     child: ChildId(1),
                     content: ChildContent::Host(panel),
@@ -29,10 +24,9 @@ fn host_panel_messages_round_trip() {
                     intrinsic: None,
                     rotation: 0.0,
                     opacity: 1.0,
-                    follows_camera: false,
+                    follows_view: false,
                 }],
                 occluders: Vec::new(),
-                camera: None,
             }),
         ] {
             assert_eq!(

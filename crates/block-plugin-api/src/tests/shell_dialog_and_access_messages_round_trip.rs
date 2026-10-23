@@ -33,14 +33,9 @@ fn shell_dialog_and_access_messages_round_trip() {
                 waiting: true,
             }])),
         }),
-        Message::Children(ChildPlacements {
+        committed(ChildPlacements {
             instance: EditorInstanceId(1),
             region: EditorRegion::Frame,
-            generation: 1,
-            size: Size {
-                width: 360.0,
-                height: 240.0,
-            },
             children: vec![ChildPlacement {
                 child: ChildId(6),
                 content: ChildContent::ArtifactSettings { block_id: [3; 16] },
@@ -54,10 +49,9 @@ fn shell_dialog_and_access_messages_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
             }],
             occluders: Vec::new(),
-            camera: None,
         }),
     ];
     for message in messages {

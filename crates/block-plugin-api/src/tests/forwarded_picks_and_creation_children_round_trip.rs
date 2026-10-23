@@ -38,14 +38,9 @@ fn forwarded_picks_and_creation_children_round_trip() {
             parent: BlockLocation::Root,
             name: Some("Minutes".into()),
         }),
-        Message::Children(ChildPlacements {
+        committed(ChildPlacements {
             instance: EditorInstanceId(1),
             region: EditorRegion::Frame,
-            generation: 1,
-            size: Size {
-                width: 360.0,
-                height: 240.0,
-            },
             children: vec![ChildPlacement {
                 child: ChildId(6),
                 content: ChildContent::Creation {
@@ -62,10 +57,9 @@ fn forwarded_picks_and_creation_children_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
             }],
             occluders: Vec::new(),
-            camera: None,
         }),
     ] {
         assert_eq!(

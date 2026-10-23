@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Edits, Message, ScreenId,
-    ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Edits, FrameCommit,
+    Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use std::{
@@ -32,6 +32,8 @@ pub(crate) struct Screens {
     everything: bool,
     reporting: HashSet<EditorInstanceId>,
     reporting_everything: bool,
+    laid_out: HashSet<EditorInstanceId>,
+    serial: u64,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -65,6 +67,8 @@ impl Screens {
             everything: true,
             reporting: HashSet::new(),
             reporting_everything: true,
+            laid_out: HashSet::new(),
+            serial: 0,
         }
     }
 
@@ -80,6 +84,28 @@ impl Screens {
 
     pub(crate) fn ran(&mut self, instance: EditorInstanceId) {
         self.reporting.insert(instance);
+        self.laid_out.insert(instance);
+    }
+
+    pub(crate) fn commit(&mut self) -> FrameCommit {
+        let mut commit = FrameCommit {
+            serial: self.serial,
+            sizes: Vec::new(),
+            reports: Vec::new(),
+            windows: Vec::new(),
+            children: Vec::new(),
+            repaint_after_micros: None,
+            animating: false,
+            presented: None,
+        };
+        let mut laid_out: Vec<_> = self.laid_out.drain().collect();
+        laid_out.sort_by_key(|instance| instance.0);
+        for instance in laid_out {
+            if let Some(session) = self.sessions.get_mut(&instance) {
+                session.commit(&mut commit);
+            }
+        }
+        commit
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -156,10 +182,6 @@ impl Screens {
         self.surface
     }
 
-    pub(crate) fn set_generation(&mut self, generation: u64) {
-        self.layout.generation = generation;
-    }
-
     pub(crate) fn receive(&mut self, message: &Message) -> bool {
         match message {
             Message::HelloAccepted(accepted) => {
@@ -170,6 +192,10 @@ impl Screens {
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
+            Message::Configure { serial } => {
+                self.serial = *serial;
+                return false;
+            }
             Message::DrawFrame { now_micros, seen } => {
                 crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
                 SEEN.store(*seen, std::sync::atomic::Ordering::Relaxed);
@@ -711,7 +737,6 @@ impl Screens {
                     *next
                 })
         });
-        self.layout.generation = previous.generation;
         let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::new();
         for placement in &self.layout.screens {
             placements

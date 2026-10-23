@@ -1,9 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 
-use block_plugin_api::{
-    FrameReady, Message, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec,
-};
+use block_plugin_api::{Message, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
 
 use crate::{panes::Panes, screens::Screens};
 
@@ -124,12 +122,11 @@ impl Surfaces {
             });
             presented = Some(PresentedFrame { sequence, damage });
         }
-        Ok(vec![Message::FrameReady(FrameReady {
-            generation: self.layout.generation,
-            repaint_after_micros: repaint.map(|delay| delay.as_micros() as u64),
-            animating,
-            presented,
-        })])
+        let mut commit = screens.commit();
+        commit.repaint_after_micros = repaint.map(|delay| delay.as_micros() as u64);
+        commit.animating = animating;
+        commit.presented = presented;
+        Ok(vec![Message::Frame(commit)])
     }
 }
 
