@@ -191,9 +191,6 @@ mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_plugin_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
-#[cfg(target_os = "linux")]
-#[cfg(target_os = "linux")]
-#[cfg(target_os = "linux")]
 mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
