@@ -19,6 +19,8 @@ use super::state::Snapshot;
 pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
 pub const CODE_SIZE: f32 = BODY_SIZE;
 pub const CHECKBOX_WIDTH: f32 = 18.0;
+pub const BULLET_WIDTH: f32 = 10.0;
+pub const BULLET_SIZE: f32 = 6.0;
 pub const INLINE_WIDGET_HEIGHT: f32 = 24.0;
 pub const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
 pub const RUN_CHIP_HEIGHT: f32 = 16.0;
@@ -105,6 +107,8 @@ impl RowOptions {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Inline {
     Checkbox { line_start: usize, checked: bool },
+    Bullet,
+    Quote,
     Widget(usize),
     Run,
     Void,
@@ -155,6 +159,7 @@ pub struct Row {
     pub block: Option<(usize, Vec2)>,
     pub code: Vec<Range<usize>>,
     pub code_block: bool,
+    pub quote: usize,
     pub placeholder: bool,
     pub props: MarkSet,
 }
@@ -628,6 +633,8 @@ fn deleted_preview(deleted: &[u8]) -> String {
 pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
     match inline {
         Inline::Checkbox { .. } => Vec2::splat(CHECKBOX_WIDTH),
+        Inline::Bullet => Vec2::new(BULLET_WIDTH, BULLET_SIZE),
+        Inline::Quote => Vec2::ZERO,
         Inline::Widget(_) => Vec2::new(
             galley(label, style.font).map_or(0.0, |galley| galley.size().x),
             INLINE_WIDGET_HEIGHT,
@@ -848,6 +855,29 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 SpanKind::Inline(inline),
             );
             index = checkbox.marker.end;
+            continue;
+        }
+        let marker = match style_at(index).color {
+            SynHlColorScope::MarkdownBullet => Some(Inline::Bullet),
+            SynHlColorScope::MarkdownQuote => Some(Inline::Quote),
+            _ => None,
+        };
+        if let Some(inline) = marker
+            && !options.mask
+        {
+            if inline == Inline::Quote {
+                builder.row.quote += 1;
+            }
+            let inline = builder.push_inline(inline, base, String::new());
+            let text = char::from(bytes[index]).to_string();
+            builder.push(
+                &text,
+                index..index + 1,
+                true,
+                base,
+                SpanKind::Inline(inline),
+            );
+            index += 1;
             continue;
         }
         if let Some((widget_index, widget)) = inputs

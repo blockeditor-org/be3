@@ -7,6 +7,7 @@ use beui_macros::{component, view};
 
 use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
+use crate::scroll::scrollbar_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -94,6 +95,7 @@ pub fn TextArea(
                     password
                     show_runs
                     client_colors
+                    scrollbar={scrollbar_style()}
                     on_widget_press={on_widget_press}
                     on_focus_change={on_focus_change}
                     pastes_images

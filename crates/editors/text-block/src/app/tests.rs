@@ -13,6 +13,7 @@ use crate::app::embeds::{image_embed_directive, parse_embeds};
 use crate::presence::TextCursor;
 
 mod a_link_to_a_block_you_cannot_see_reads_no_access_beside_one_you_can;
+mod a_long_text_fades_at_the_edges_it_scrolls_past_beside_its_scrollbar;
 mod a_peers_caret_and_selection_are_drawn_in_their_color;
 mod a_phone_formats_from_a_bar_above_the_keyboard;
 mod a_rewrite_refused_while_read_only_leaves_the_text_as_it_was;
@@ -24,6 +25,7 @@ mod code_is_painted_on_its_background;
 mod foreign_organization_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;
+mod lists_and_quotes_are_painted_with_bullets_and_bars;
 mod markdown_is_painted_with_its_styles;
 mod peers_carets_follow_their_presence_and_go_when_it_is_hidden;
 mod pressing_the_format_bar_keeps_the_focus_and_the_selection_in_the_text;

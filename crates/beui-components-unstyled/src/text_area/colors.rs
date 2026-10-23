@@ -92,7 +92,10 @@ impl SyntaxColors {
             SynHlColorScope::VariableMutable => self.variable_mutable,
             SynHlColorScope::VariableParameter => self.variable_parameter,
             SynHlColorScope::MarkdownPlainText => self.markdown_plain_text,
-            SynHlColorScope::MarkdownSymbol => self.markdown_symbol,
+            SynHlColorScope::MarkdownSymbol | SynHlColorScope::MarkdownQuote => {
+                self.markdown_symbol
+            }
+            SynHlColorScope::MarkdownBullet => self.markdown_plain_text,
             SynHlColorScope::MarkdownLink => self.markdown_link,
             SynHlColorScope::MarkdownCode => self.markdown_code,
             SynHlColorScope::Unstyled => self.unstyled,
