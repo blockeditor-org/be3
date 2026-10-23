@@ -1,5 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
-load("@root//buck/platforms:profile.bzl", "released_binary")
+load("@root//buck/platforms:profile.bzl", "released")
 
 # What ./scripts/verify and ./scripts/ci run once buck/dev/verify.bxl has built
 # what they check, built for this machine in that same command and downloaded
@@ -13,7 +13,7 @@ cargo_test()
 
 cargo_binary()
 
-released_binary(
+released(
     name = "release",
     actual = ":bin",
     visibility = ["PUBLIC"],

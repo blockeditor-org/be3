@@ -1,3 +1,11 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary")
+load("@root//buck/platforms:profile.bzl", "released")
 
 cargo_binary()
+
+# What CI downloads to draw the paint previews (buck/dev/verify.bxl).
+released(
+    name = "release",
+    actual = ":bin",
+    visibility = ["PUBLIC"],
+)

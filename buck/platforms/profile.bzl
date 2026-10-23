@@ -26,9 +26,9 @@ def dev_only(flags):
         "root//buck/constraints:release": [],
     })
 
-# A binary in cargo's release profile whatever the command asked for, for a
-# tool a command downloads to run here: crates/verify is a few hundred
-# kilobytes so, rather than megabytes of debug information.
+# A target in cargo's release profile whatever the command asked for, for what
+# a command downloads: crates/verify, which it runs here, and the paint review
+# page, a quarter the size of its dev build.
 def _release_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     release = refs.release[ConstraintValueInfo]
     if platform.configuration.constraints.get(release.setting.label) == release:
@@ -42,7 +42,11 @@ def _release_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
 
 _release = transition(impl = _release_impl, refs = PROFILE_REFS)
 
-released_binary = rule(
-    attrs = {"actual": attrs.transition_dep(cfg = _release, providers = [RunInfo])},
-    impl = lambda ctx: [ctx.attrs.actual[DefaultInfo], ctx.attrs.actual[RunInfo]],
+def _released_impl(ctx: AnalysisContext) -> list[Provider]:
+    actual = ctx.attrs.actual
+    return [actual[DefaultInfo]] + ([actual[RunInfo]] if RunInfo in actual else [])
+
+released = rule(
+    attrs = {"actual": attrs.transition_dep(cfg = _release)},
+    impl = _released_impl,
 )
