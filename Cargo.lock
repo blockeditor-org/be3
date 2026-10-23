@@ -5126,8 +5126,9 @@ dependencies = [
 name = "paint-format"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "ciborium",
  "serde",
+ "serde_bytes",
 ]
 
 [[package]]
@@ -5166,11 +5167,11 @@ dependencies = [
 name = "paint-snapshot"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "flate2",
  "image",
  "paint-format",
  "serde",
+ "serde_bytes",
  "serde_json",
  "sha2 0.10.9",
 ]

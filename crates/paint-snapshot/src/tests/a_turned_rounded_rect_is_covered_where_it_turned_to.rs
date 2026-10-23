@@ -33,6 +33,7 @@ fn painting(shape: RoundedRect) -> image::RgbaImage {
             background: [0, 0, 0, 255],
             primitives: vec![Primitive {
                 clip: [0.0, 0.0, 16.0, 16.0],
+                fade: Fade::NONE,
                 content: Content::RoundedRect(shape),
             }],
         },

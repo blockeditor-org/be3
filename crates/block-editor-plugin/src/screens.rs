@@ -136,7 +136,7 @@ impl Screens {
             }
             if let Some(painting) = session.painting(placement.region) {
                 paintings.screens.push((placement.screen.0, painting));
-                if paintings.encoded_len() > block_plugin_api::MAX_BLOB_BYTES {
+                if paintings.encode().len() > block_plugin_api::MAX_BLOB_BYTES {
                     paintings.screens.pop();
                 }
             }

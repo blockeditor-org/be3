@@ -10,6 +10,7 @@ fn a_rounded_rect_is_covered_the_way_the_shader_covers_it() {
             background: [0, 0, 0, 255],
             primitives: vec![Primitive {
                 clip: [0.0, 0.0, 8.0, 8.0],
+                fade: Fade::NONE,
                 content: Content::RoundedRect(RoundedRect {
                     rect: [1.0, 1.0, 7.0, 7.0],
                     corner_radius: 3.0,

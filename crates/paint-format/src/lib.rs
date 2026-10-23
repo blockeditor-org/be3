@@ -1,12 +1,23 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 mod raster;
 
 pub use raster::rasterize;
 
 pub type TextureKey = u64;
+
+pub fn encode<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    ciborium::into_writer(value, &mut bytes).map_err(|error| error.to_string())?;
+    Ok(bytes)
+}
+
+pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
+    ciborium::from_reader(bytes).map_err(|error| error.to_string())
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Frame {
@@ -19,7 +30,61 @@ pub struct Frame {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Primitive {
     pub clip: [f32; 4],
+    #[serde(default, skip_serializing_if = "Fade::is_none")]
+    pub fade: Fade,
     pub content: Content,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Fade {
+    pub rect: [f32; 4],
+    pub widths: [f32; 4],
+}
+
+impl Fade {
+    pub const NONE: Self = Self {
+        rect: [0.0; 4],
+        widths: [0.0; 4],
+    };
+
+    pub fn is_none(&self) -> bool {
+        self.widths == [0.0; 4]
+    }
+
+    pub fn alpha(self, point: [f32; 2]) -> f32 {
+        let ramp = |distance: f32, width: f32| match width > 0.0 {
+            true => (distance / width).clamp(0.0, 1.0),
+            false => 1.0,
+        };
+        let [left, top, right, bottom] = self.rect;
+        let [near_x, near_y, far_x, far_y] = self.widths;
+        ramp(point[0] - left, near_x)
+            * ramp(point[1] - top, near_y)
+            * ramp(right - point[0], far_x)
+            * ramp(bottom - point[1], far_y)
+    }
+
+    pub fn scaled(self, scale: f32) -> Self {
+        Self {
+            rect: self.rect.map(|value| value * scale),
+            widths: self.widths.map(|width| width * scale),
+        }
+    }
+
+    fn moved(self, by: [f32; 2]) -> Self {
+        match self.is_none() {
+            true => self,
+            false => Self {
+                rect: [
+                    self.rect[0] + by[0],
+                    self.rect[1] + by[1],
+                    self.rect[2] + by[0],
+                    self.rect[3] + by[1],
+                ],
+                widths: self.widths,
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -132,7 +197,22 @@ pub struct Vertex {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Pixels {
     pub size: [u32; 2],
+    #[serde(serialize_with = "flat", deserialize_with = "unflat")]
     pub rgba: Vec<[u8; 4]>,
+}
+
+fn flat<S: Serializer>(rgba: &[[u8; 4]], serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_bytes(rgba.as_flattened())
+}
+
+fn unflat<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<[u8; 4]>, D::Error> {
+    let bytes = serde_bytes::ByteBuf::deserialize(deserializer)?;
+    match bytes.as_chunks::<4>() {
+        (rgba, []) => Ok(rgba.to_vec()),
+        _ => Err(serde::de::Error::custom(
+            "pixels are not a whole number of rgba values",
+        )),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -152,16 +232,12 @@ pub struct ScreenPaintings {
 }
 
 impl ScreenPaintings {
-    pub fn encoded_len(&self) -> usize {
-        bincode::serialized_size(self).map_or(usize::MAX, |size| size as usize)
-    }
-
     pub fn encode(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap_or_default()
+        encode(self).unwrap_or_default()
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
-        bincode::deserialize(bytes).map_err(|error| error.to_string())
+        decode(bytes)
     }
 }
 
@@ -299,6 +375,7 @@ impl Painting {
                 return false;
             }
             primitive.clip = moved(clip);
+            primitive.fade = primitive.fade.moved([-left, -top]);
             match &mut primitive.content {
                 Content::Mesh(triangles) => {
                     for triangle in triangles {
@@ -341,11 +418,11 @@ impl Painting {
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap_or_default()
+        encode(self).unwrap_or_default()
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
-        bincode::deserialize(bytes).map_err(|error| error.to_string())
+        decode(bytes)
     }
 
     pub fn placed(&self, placement: Placement) -> Vec<Primitive> {
@@ -387,6 +464,7 @@ impl Painting {
         };
         let background = (frame.background[3] > 0).then(|| Primitive {
             clip: shown,
+            fade: Fade::NONE,
             content: Content::RoundedRect(scaled_rect(RoundedRect {
                 rect: source,
                 corner_radius: 0.0,
@@ -434,7 +512,18 @@ impl Painting {
                         })
                     }
                 };
-                Some(Primitive { clip, content })
+                let fade = match primitive.fade.is_none() {
+                    true => Fade::NONE,
+                    false => Fade {
+                        rect: map.bounds(primitive.fade.rect),
+                        widths: primitive.fade.widths.map(|width| width * map.scale),
+                    },
+                };
+                Some(Primitive {
+                    clip,
+                    fade,
+                    content,
+                })
             }))
             .collect()
     }
