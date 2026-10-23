@@ -214,8 +214,9 @@ real one:
 - `drive resize 390x844@3` resizes it and sets its scale, which is how to see a phone's
   layout; `drive resize screen 1920x1080` sets the screen it fills when the app asks for
   fullscreen. Only a headless window can be resized this way.
-- `drive focus` and `drive blur` give it focus or take it away. Like the runner,
-  `blur` lets go of every key drive holds.
+- `drive focus` and `drive blur` give it focus or take it away. `blur` does what a
+  window blur does on winit and the web: it cancels every pointer (buttons, fingers and
+  the pen) and lets go of every key drive holds.
 - `drive clipboard` prints the window's clipboard and `drive clipboard TEXT` sets it; the
   app's own copy and paste use it, and `drive key ctrl+v` pastes it. In a headless window
   the clipboard is the window's own; in a real one it is the system's.

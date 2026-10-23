@@ -83,7 +83,7 @@ Files:
 Window (headless only, except focus, blur, leave and close):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
-  focus / blur              the window gains or loses focus; blur lets go of held keys
+  focus / blur              the window gains or loses focus; blur cancels the pointers and lets go of held keys
   clipboard [TEXT]          read the clipboard, or put TEXT on it
   close                     ask the window to close, as its close button does; an app that stays
                             open, to ask about unsaved changes, answers with what changed

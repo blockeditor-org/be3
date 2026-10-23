@@ -381,11 +381,16 @@ impl Gestures {
     }
 
     pub fn focus(&mut self, focused: bool) -> Frames {
-        if !focused {
-            self.held = Modifiers::NONE;
-            self.keys.clear();
+        if focused {
+            return vec![vec![Input::Focus(true)]];
         }
-        vec![vec![Input::Focus(focused)]]
+        self.held = Modifiers::NONE;
+        self.keys.clear();
+        self.buttons.clear();
+        self.fingers.clear();
+        self.pen = None;
+        self.hovering = false;
+        vec![vec![Input::PointersCancelled, Input::Focus(false)]]
     }
 
     pub fn compose(&mut self, text: String) -> Frames {
