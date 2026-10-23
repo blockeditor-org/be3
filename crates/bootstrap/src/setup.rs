@@ -2,7 +2,7 @@ use std::process::{Command, ExitCode, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::pins::Pins;
-use crate::{Result, be, buck2, repository};
+use crate::{Result, be, buck2};
 
 const PACKAGES: &[&str] = &[
     "curl",
@@ -152,30 +152,6 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         println!("No be release is pinned yet, so ./scripts/be is not installed.");
     }
 
-    let credentials = repository().join("external/.tracker-credentials");
-    if std::fs::metadata(&credentials).map_or(true, |metadata| metadata.len() == 0) {
-        let partial = crate::partial_path(&credentials);
-        let _ = std::fs::create_dir_all(credentials.parent().unwrap_or(repository()));
-        let fetched = Command::new("curl")
-            .args(["-sSf", "--max-time", "30", "-o"])
-            .arg(&partial)
-            .arg("https://api.be3.pfg.pw/authorized-storage/tracker-credentials")
-            .status()
-            .is_ok_and(|status| status.success());
-        if fetched && restrict(&partial) && std::fs::rename(&partial, &credentials).is_ok() {
-            println!(
-                "Fetched the tracker's credentials into {}.",
-                credentials.display()
-            );
-        } else {
-            let _ = std::fs::remove_file(&partial);
-            println!(
-                "Could not fetch the tracker's credentials; ./scripts/be needs them in {}.",
-                credentials.display()
-            );
-        }
-    }
-
     steps.end();
     println!();
     println!("Setup finished. The first time ./scripts/buck runs, it asks which build server");
@@ -183,16 +159,4 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     println!("workspace compiles with");
     println!("./scripts/buck run //:check, and run ./scripts/verify before committing.");
     Ok(ExitCode::SUCCESS)
-}
-
-fn restrict(path: &std::path::Path) -> bool {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).is_ok()
-    }
-    #[cfg(not(unix))]
-    {
-        path.is_file()
-    }
 }

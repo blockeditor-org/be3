@@ -42,7 +42,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/buck test //crates/app-tests:test`: the app tests, which `./scripts/verify` runs too. Each starts the native app headless with every plugin and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless the app exits cleanly (guides/testing_a_gui.md, 6).
 - `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web` serves it on http://127.0.0.1:8080 (guides/running/web.md).
 - `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
-- `./scripts/be Issues row BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/setup` fetches.
+- `./scripts/be Issues row BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/be` fetches on first use.
 
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
