@@ -24,9 +24,9 @@ fn releasing_a_middle_drag_ends_autoscroll() {
     let origin = harness.rect(scroll).center();
     let below = origin + Vec2::new(0.0, 100.0);
 
-    harness.frame(vec![Event::PointerMoved(origin)]);
+    harness.frame(vec![Input::PointerMoved(origin)]);
     harness.middle_button(origin, true);
-    harness.frame(vec![Event::PointerMoved(below)]);
+    harness.frame(vec![Input::PointerMoved(below)]);
     harness.frame(Vec::new());
     assert!(harness.document().api::<ScrollApi>(scroll).animating());
 

@@ -1,10 +1,10 @@
 use super::*;
-use beui::{Event, TouchId, TouchPhase};
+use beui::{TouchId, TouchPhase};
 
 const HOLD_FRAMES: usize = 40;
 
-fn finger(phase: TouchPhase, pos: Pos2) -> Event {
-    Event::Touch {
+fn finger(phase: TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
         id: TouchId {
             device: 1,
             finger: 1,

@@ -16,7 +16,7 @@ fn media_keysyms_map_to_the_media_keys() {
         (keysyms::KEY_XF86AudioStop, Key::MediaStop),
     ];
     for (keysym, expected) in media {
-        assert_eq!(key(keysym), Some(expected));
+        assert_eq!(key(keysym, 0), Some(expected));
         assert!(expected.is_media());
     }
 }

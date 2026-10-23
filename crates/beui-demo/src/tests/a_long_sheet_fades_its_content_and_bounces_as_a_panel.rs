@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, vec2};
+use beui::vec2;
 use beui::{TouchId, TouchPhase};
 use beui_macros::view;
 
@@ -20,7 +20,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     });
     let mut test = DocumentTest::new(document, vec2(400.0, 600.0));
     let touch = |test: &mut DocumentTest, phase, pos| {
-        test.frame(vec![Event::Touch {
+        test.frame(vec![Input::Touch {
             id: TouchId {
                 device: 1,
                 finger: 0,

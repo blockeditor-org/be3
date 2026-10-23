@@ -18,16 +18,10 @@ fn the_view_a_screen_is_given_carries_its_scale() {
         message,
         Message::Editor(EditorMessage::ViewChanged {
             instance,
-            x,
-            y,
-            width,
-            height,
+            view,
             scale,
         }) if *instance == INSTANCE
-            && *x == 4.0
-            && *y == 6.0
-            && *width == 200.0
-            && *height == 100.0
+            && *view == Rect::from_min_size(pos2(4.0, 6.0), vec2(200.0, 100.0))
             && *scale == 0.5
     )));
 }

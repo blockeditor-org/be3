@@ -28,7 +28,7 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
     );
     assert_eq!(desktop.top_bar, TopBar::Shown);
     assert!(
-        desktop.rect.x > 0.0,
+        desktop.rect.min.x > 0.0,
         "on a desktop the block sits beside the files"
     );
 

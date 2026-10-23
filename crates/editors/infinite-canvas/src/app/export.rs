@@ -13,7 +13,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{ChoiceOption, SyntaxColors, TextAreaColors};
 use block_editor_beui::beui::{
     Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
-    Painter, Path, PathElement, Pos2, RawInput, Rect, Stroke, TextAlign, Vec2, pos2,
+    Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, pos2,
 };
 use block_editor_beui::{FileSaver, SavedFile};
 use uuid::Uuid;
@@ -375,7 +375,7 @@ pub(crate) fn png(
         .collect();
     let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
     context.set_pixels_per_point(scale);
-    let output = context.run(RawInput::default(), |context| {
+    let output = context.run(|context| {
         let whole = Rect::from_min_size(Pos2::ZERO, size);
         let painter = context.painter();
         let painter = match scene.clipped {
@@ -566,7 +566,7 @@ pub(crate) fn svg(scene: &Scene, options: ExportOptions, images: &Images) -> Str
         ));
     }
     let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
-    context.run(RawInput::default(), |context| {
+    context.run(|context| {
         let painter = context.painter();
         for entity in &scene.entities {
             svg_entity(&mut out, &painter, scene, entity, images);

@@ -462,10 +462,6 @@ pub(crate) fn PluginRegion(
         let Some(placed) = frame.get_untracked().and_then(|frame| frame.content) else {
             return false;
         };
-        let placed = Rect::from_min_size(
-            pos2(placed.x, placed.y),
-            Vec2::new(placed.width, placed.height),
-        );
         region == EditorRegion::Frame
             && !placed.contains(local)
             && plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {

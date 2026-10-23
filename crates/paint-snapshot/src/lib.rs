@@ -13,8 +13,8 @@ pub use fingerprint::fingerprint;
 pub use format::{Snapshot, Texture};
 pub use highlight::{Highlight, highlight};
 pub use paint_format::{
-    Content, Frame, Glyph, Painting, Pixels, Primitive, RoundedRect, TextureKey, Triangle, Turn,
-    Vertex,
+    Content, Fade, Frame, Glyph, Painting, Pixels, Primitive, RoundedRect, TextureKey, Triangle,
+    Turn, Vertex,
 };
 pub use raster::render;
 

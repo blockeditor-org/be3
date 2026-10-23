@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::{Key, Modifiers};
 
 fn pressed(test: &DocumentTest, id: &str) -> bool {
     let button = test
@@ -22,7 +22,7 @@ fn the_rich_text_bar_styles_a_selection_and_shows_the_style_under_the_caret() {
 
     press_key(&mut test, Key::End);
     press_key_with(&mut test, Key::B, Modifiers::CTRL);
-    test.frame(vec![Event::Text(" Typed after.".to_owned())]);
+    test.frame(vec![Input::Text(" Typed after.".to_owned())]);
     test.frame(Vec::new());
     assert!(
         pressed(&test, "demo.rich.bold") && pressed(&test, "demo.rich.strikethrough"),

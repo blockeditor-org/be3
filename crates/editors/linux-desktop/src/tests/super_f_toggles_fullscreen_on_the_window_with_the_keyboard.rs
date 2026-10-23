@@ -1,4 +1,4 @@
-use block_plugin_api::ChildRect;
+use block_editor_beui::beui::{Pos2, Vec2};
 
 use super::*;
 
@@ -29,12 +29,10 @@ fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
 
     fixture.test.take_sent();
     let fullscreen = HostWindow {
-        fullscreen: Some(ChildRect {
-            x: 0.0,
-            y: 0.0,
-            width: 800.0,
-            height: 600.0,
-        }),
+        fullscreen: Some(Rect::from_min_size(
+            Pos2::new(0.0, 0.0),
+            Vec2::new(800.0, 600.0),
+        )),
         ..host_window(2, true)
     };
     fixture

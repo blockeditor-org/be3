@@ -3,11 +3,11 @@ use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, Camera, ChildContent,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildRect, ChildStatus, CreationOutcome,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, DataListing,
+    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport, FrameSpec,
+    HostPanel, HostReply, HostRequest, Message, Monitor, Occluder, PerformanceMeasurement,
+    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
+    Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{ByteBuf, DescribedAction, WindowRequests};
 use std::{
@@ -1117,8 +1117,8 @@ impl Instances {
                 .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
-        let zoom = match screen.request.metrics.logical_width > 0.0 {
-            true => input.rect.width() / screen.request.metrics.logical_width,
+        let zoom = match screen.request.metrics.logical.width > 0.0 {
+            true => input.rect.width() / screen.request.metrics.logical.width,
             false => 1.0,
         };
         let every_sample = screen
@@ -1209,8 +1209,10 @@ impl Instances {
         entry.reported_size = Some(size);
         vec![Message::Editor(EditorMessage::Resized {
             instance,
-            width: size.x,
-            height: size.y,
+            size: Size {
+                width: size.x,
+                height: size.y,
+            },
         })]
     }
 
@@ -1543,10 +1545,7 @@ impl Instances {
                 if let Some(view) = entry.view {
                     opened.push(Message::Editor(EditorMessage::ViewChanged {
                         instance,
-                        x: view.rect.min.x,
-                        y: view.rect.min.y,
-                        width: view.rect.width(),
-                        height: view.rect.height(),
+                        view: view.rect,
                         scale: view.scale,
                     }));
                 }
@@ -1565,7 +1564,7 @@ impl Instances {
                     .values_mut()
                     .find(|screen| screen.request.screen == size.screen)
                 {
-                    let used = vec2(size.logical_width, size.logical_height);
+                    let used = vec2(size.logical.width, size.logical.height);
                     changed |= screen.used != Some(used);
                     screen.used = Some(used);
                 }
@@ -1595,8 +1594,7 @@ impl Instances {
                 vec![Message::Editor(EditorMessage::DragOver {
                     instance,
                     region,
-                    x: event.position.x,
-                    y: event.position.y,
+                    pos: event.position,
                     block_id: event.drag.block_id.into_bytes(),
                     block_type: event.drag.block_type.into_bytes(),
                     dropped: event.dropped,
@@ -1629,8 +1627,7 @@ impl Instances {
                 vec![Message::Editor(EditorMessage::FileDrop {
                     instance,
                     region,
-                    x: event.position.x,
-                    y: event.position.y,
+                    pos: event.position,
                     files: event.files,
                     dropped: event.dropped,
                 })]
@@ -1821,7 +1818,7 @@ impl Instances {
                 }
                 ChildContent::WebView(_) => continue,
             };
-            if child.rect.is_empty() {
+            if !child.rect.is_positive() {
                 continue;
             }
             let requested = match (region, child.mode) {
@@ -1931,7 +1928,7 @@ impl Instances {
                     && !child.own_frame
                     && !screen.frame_revoked.contains(&child.child)
                     && !screen.revoked.contains(&child.child)
-                    && !child.rect.is_empty()
+                    && child.rect.is_positive()
             })
             .find_map(|child| child.content.block_id())
             .map(Uuid::from_bytes)
@@ -2086,7 +2083,7 @@ impl Instances {
                         super::ScreenStatus {
                             screen: screen.request.screen,
                             region: screen.request.region,
-                            logical: vec2(metrics.logical_width, metrics.logical_height),
+                            logical: vec2(metrics.logical.width, metrics.logical.height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
                             used: screen.used,
@@ -2349,18 +2346,12 @@ impl Instances {
         let area = screen.window.ime.as_ref()?;
         let origin = rect.min.to_vec2();
         let stretch = vec2(
-            ratio(rect.width(), screen.request.metrics.logical_width),
-            ratio(rect.height(), screen.request.metrics.logical_height),
+            ratio(rect.width(), screen.request.metrics.logical.width),
+            ratio(rect.height(), screen.request.metrics.logical.height),
         );
-        let place = |rect: Rect| {
-            Rect::from_min_size(
-                pos2(rect.min.x * stretch.x, rect.min.y * stretch.y) + origin,
-                vec2(rect.width() * stretch.x, rect.height() * stretch.y),
-            )
-        };
         Some(ImeArea {
-            rect: place(area.rect),
-            cursor: place(area.cursor),
+            rect: host_rect(area.rect, origin, stretch),
+            cursor: host_rect(area.cursor, origin, stretch),
             text: area.text.clone(),
             keyboard: area.keyboard,
         })
@@ -3374,38 +3365,41 @@ impl Instances {
     }
 }
 
-fn through(rect: ChildRect, camera: Camera, view: EditorView) -> ChildRect {
+fn through(rect: Rect, camera: Camera, view: EditorView) -> Rect {
     if (camera.x, camera.y, camera.scale) == (view.rect.min.x, view.rect.min.y, view.scale) {
         return rect;
     }
     let scale = ratio(view.scale, camera.scale);
-    ChildRect {
-        x: view.rect.min.x + (rect.x - camera.x) * scale,
-        y: view.rect.min.y + (rect.y - camera.y) * scale,
-        width: rect.width * scale,
-        height: rect.height * scale,
-    }
+    Rect::from_min_size(
+        view.rect.min + (rect.min - pos2(camera.x, camera.y)) * scale,
+        rect.size() * scale,
+    )
 }
 
-fn followed_clip(child: &ChildPlacement, camera: Camera, view: EditorView) -> ChildRect {
-    let (clip, swept) = (child.clip, child.rect.swept(child.rotation));
+fn followed_clip(child: &ChildPlacement, camera: Camera, view: EditorView) -> Rect {
+    let clip = child.clip;
+    let swept = beui::Rotation::new(child.rect.center(), child.rotation).bounds(child.rect);
     let held = |clipped: f32, own: f32, open: f32| match (clipped - own).abs() > 0.01 {
         true => clipped,
         false => open,
     };
-    let held = ChildRect::from_edges(
-        held(clip.x, swept.x, f32::MIN),
-        held(clip.y, swept.y, f32::MIN),
-        held(clip.right(), swept.right(), f32::MAX),
-        held(clip.bottom(), swept.bottom(), f32::MAX),
+    let held = Rect::from_min_max(
+        pos2(
+            held(clip.min.x, swept.min.x, f32::MIN),
+            held(clip.min.y, swept.min.y, f32::MIN),
+        ),
+        pos2(
+            held(clip.max.x, swept.max.x, f32::MAX),
+            held(clip.max.y, swept.max.y, f32::MAX),
+        ),
     );
     through(swept, camera, view).intersect(held)
 }
 
-fn host_rect(rect: block_plugin_api::ChildRect, origin: Vec2, stretch: Vec2) -> Rect {
+fn host_rect(rect: Rect, origin: Vec2, stretch: Vec2) -> Rect {
     Rect::from_min_size(
-        pos2(rect.x * stretch.x, rect.y * stretch.y) + origin,
-        vec2(rect.width * stretch.x, rect.height * stretch.y),
+        pos2(rect.min.x * stretch.x, rect.min.y * stretch.y) + origin,
+        vec2(rect.width() * stretch.x, rect.height() * stretch.y),
     )
 }
 

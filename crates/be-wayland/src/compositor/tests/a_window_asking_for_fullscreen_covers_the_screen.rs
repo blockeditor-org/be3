@@ -10,7 +10,7 @@ fn a_window_asking_for_fullscreen_covers_the_screen() {
     window.toplevel.as_ref().unwrap().set_fullscreen(None);
     harness.settle();
 
-    let listed = harness.app.windows().list().get_untracked();
+    let listed = harness.compositor().windows().list().get_untracked();
     assert_eq!(
         listed[0].fullscreen,
         Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
@@ -27,5 +27,5 @@ fn a_window_asking_for_fullscreen_covers_the_screen() {
         harness.client.received.activated,
         "the fullscreen window takes the keyboard"
     );
-    assert_eq!(harness.app.windows().focused(), Some(id));
+    assert_eq!(harness.compositor().windows().focused(), Some(id));
 }

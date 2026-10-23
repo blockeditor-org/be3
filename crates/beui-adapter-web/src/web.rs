@@ -17,8 +17,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
-    PointerButton, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
+    PenPhase, PointerButton, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
@@ -131,7 +131,7 @@ fn push(input: impl Into<Incoming>) {
     schedule();
 }
 
-fn push_logical(input: impl Into<Input>) {
+fn push_logical(input: Input) {
     push(Incoming::logical(input));
 }
 
@@ -873,19 +873,19 @@ fn listen(
     )?;
     on(surface_target, "dragover", |event: web_sys::DragEvent| {
         event.prevent_default();
-        push(Input::FileHovered);
+        push(FileDrag::Hovered);
     })?;
     on(surface_target, "dragleave", |_event: web_sys::DragEvent| {
-        push(Input::FileHoverCancelled);
+        push(FileDrag::Cancelled);
     })?;
     on(surface_target, "drop", |event: web_sys::DragEvent| {
         event.prevent_default();
         let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
-            push(Input::FileHoverCancelled);
+            push(FileDrag::Cancelled);
             return;
         };
         if files.length() == 0 {
-            push(Input::FileHoverCancelled);
+            push(FileDrag::Cancelled);
         }
         for index in 0..files.length() {
             let Some(file) = files.get(index) else {
@@ -896,7 +896,7 @@ fn listen(
                     .await
                     .ok()
                     .map(|buffer| js_sys::Uint8Array::new(&buffer).to_vec());
-                push(Input::FileDropped(DroppedFile {
+                push(FileDrag::Dropped(DroppedFile {
                     name: file.name(),
                     path: None,
                     bytes: bytes.map(Arc::from),
@@ -915,13 +915,9 @@ fn listen(
             event.meta_key(),
             event.shift_key(),
         );
-        let key = key(&event);
-        push(Keystroke {
-            key,
-            pressed: true,
-            repeat: event.repeat(),
-            ..Keystroke::default()
-        });
+        let stroke = keystroke(&event, true);
+        let key = stroke.key;
+        push(Input::Key(stroke));
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
         let printable = event.key().chars().count() == 1 && !modifiers.command();
         let passes = key.is_some_and(|key| key.is_media() || key.is_modifier());
@@ -939,10 +935,7 @@ fn listen(
             event.meta_key(),
             event.shift_key(),
         );
-        push(Keystroke {
-            key: key(&event),
-            ..Keystroke::default()
-        });
+        push(Input::Key(keystroke(&event, false)));
     })?;
     on(agent_target, "input", {
         let agent = agent.clone();
@@ -1030,6 +1023,9 @@ fn listen(
     })?;
     let window_target: &web_sys::EventTarget = window.as_ref();
     on(window_target, "resize", |_event: web_sys::Event| schedule())?;
+    on(window_target, "blur", |_event: web_sys::FocusEvent| {
+        push(Input::PointersCancelled);
+    })?;
     on(window_target, "beforeunload", |event: web_sys::Event| {
         close_requested(&event);
     })?;
@@ -1074,8 +1070,8 @@ fn pen(event: &web_sys::PointerEvent, phase: PenPhase, pos: Pos2) -> Input {
     Input::Pen {
         phase,
         pos,
-        pressure: event.pressure(),
         pen: Pen {
+            pressure: event.pressure(),
             tilt: vec2(event.tilt_x() as f32, event.tilt_y() as f32),
             eraser: event.buttons() & PEN_ERASER != 0 || event.button() == 5,
         },
@@ -1103,10 +1099,17 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
 }
 
 fn key(event: &web_sys::KeyboardEvent) -> Option<Key> {
-    match event.code().as_str() {
-        "MetaLeft" | "MetaRight" => Some(Key::meta(apple())),
-        "" => Key::from_code(&event.key()),
-        code => Key::from_code(code),
+    let physical = Key::evdev_from_code(&event.code()).and_then(Key::from_evdev);
+    Key::from_value(&event.key(), physical, apple())
+}
+
+fn keystroke(event: &web_sys::KeyboardEvent, pressed: bool) -> Keystroke {
+    Keystroke {
+        key: key(event),
+        pressed,
+        repeat: pressed && event.repeat(),
+        evdev: Key::evdev_from_code(&event.code()),
+        text: None,
     }
 }
 

@@ -13,7 +13,7 @@ fn a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_p
     test.frame(Vec::new());
     test.snapshot("scrollbar_shown_while_scrolling");
 
-    test.frame(vec![beui::Event::PointerMoved(pos2(
+    test.frame(vec![Input::PointerMoved(pos2(
         WINDOW.x - 4.0,
         WINDOW.y / 2.0,
     ))]);

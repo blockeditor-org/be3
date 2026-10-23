@@ -23,10 +23,10 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     let resting = harness.rect(page.get());
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     let pulled = harness.rect(page.get());
     assert!(
@@ -34,7 +34,7 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
         "held all the way, the page has moved well over: {pulled:?} from {resting:?}"
     );
 
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     harness.frame(Vec::new());
     let leaving = harness.rect(page.get());
     assert!(leaving.left() > pulled.left());
@@ -63,7 +63,7 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     harness.settle();
     assert_eq!(harness.rect(page.get()), resting);
 
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     harness.frame(Vec::new());
     assert_eq!(
         depth.get_untracked(),

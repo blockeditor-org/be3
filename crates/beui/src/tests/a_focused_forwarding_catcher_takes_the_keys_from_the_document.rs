@@ -37,13 +37,13 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
     assert!(focused.is_some());
     keys.update(|keys| keys.clear());
 
+    harness.frame(vec![key_event(Key::Tab, true), Input::Text("a".to_owned())]);
     let tab = Event::key(beui::KeyPress {
         key: Key::Tab,
         pressed: true,
         repeat: false,
         modifiers: Modifiers::NONE,
     });
-    harness.frame(vec![tab.clone(), Event::Text("a".to_owned())]);
 
     assert_eq!(keys.get_untracked(), [tab, Event::Text("a".to_owned())]);
     assert_eq!(

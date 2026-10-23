@@ -4,14 +4,16 @@ use std::fmt::Write as _;
 pub enum Kind {
     Rust,
     Tests,
+    NewTests,
     Build,
     Markdown,
     Other,
 }
 
-const KINDS: [(Kind, &str); 5] = [
+const KINDS: [(Kind, &str); 6] = [
     (Kind::Rust, "Rust (excluding tests and build tooling)"),
-    (Kind::Tests, "tests"),
+    (Kind::NewTests, "new tests"),
+    (Kind::Tests, "existing tests"),
     (Kind::Build, "build system"),
     (Kind::Markdown, "Markdown"),
     (Kind::Other, "everything else"),
@@ -72,7 +74,7 @@ pub fn kind(path: &str) -> Option<Kind> {
     Some(Kind::Other)
 }
 
-pub fn summary(numstat: &str) -> String {
+pub fn summary(numstat: &str, added: &[&str]) -> String {
     let mut totals = [(0u64, 0u64, 0u64); KINDS.len()];
     for line in numstat.lines() {
         let mut fields = line.splitn(3, '\t');
@@ -85,6 +87,10 @@ pub fn summary(numstat: &str) -> String {
         };
         let Some(kind) = kind(path) else {
             continue;
+        };
+        let kind = match kind {
+            Kind::Tests if added.contains(&path) => Kind::NewTests,
+            kind => kind,
         };
         let Some(index) = KINDS.iter().position(|(each, _)| *each == kind) else {
             continue;

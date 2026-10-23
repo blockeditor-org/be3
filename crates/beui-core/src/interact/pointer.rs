@@ -156,7 +156,6 @@ struct Session {
     pan: Option<NodeId>,
     modifiers: Modifiers,
     clicks: u32,
-    pressure: Option<f32>,
     pen: Option<Pen>,
     predicted: Option<Pos2>,
     time: Instant,
@@ -176,7 +175,6 @@ struct Session {
 impl Session {
     fn press(&self, rect: Rect, pos: Pos2) -> PointerPress {
         PointerPress {
-            pressure: self.pressure,
             pen: self.pen,
             predicted: self.predicted,
             ..press_at(
@@ -550,7 +548,6 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         pan: None,
         modifiers: event.modifiers,
         clicks: event.clicks,
-        pressure: event.force,
         pen: event.pen,
         predicted: None,
         time: event.time,
@@ -765,7 +762,6 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
         with_session(doc, index, |doc, session| {
             let pos = event.pos + session.shift;
             session.modifiers = event.modifiers;
-            session.pressure = event.force;
             session.pen = event.pen;
             session.predicted = event.predicted.map(|predicted| predicted + session.shift);
             session.time = event.time;

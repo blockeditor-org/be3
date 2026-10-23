@@ -1,16 +1,15 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::Key;
 
 fn press(test: &mut DocumentTest, key: Key) {
     test.frame(
         [true, false]
             .into_iter()
             .map(|pressed| {
-                Event::key(beui::KeyPress {
-                    key,
+                Input::Key(beui::Keystroke {
+                    key: Some(key),
                     pressed,
-                    repeat: false,
-                    modifiers: Modifiers::NONE,
+                    ..Default::default()
                 })
             })
             .collect(),
@@ -20,7 +19,7 @@ fn press(test: &mut DocumentTest, key: Key) {
 
 fn type_password(test: &mut DocumentTest, password: &str) {
     for letter in password.chars() {
-        test.frame(vec![Event::Text(letter.to_string())]);
+        test.frame(vec![Input::Text(letter.to_string())]);
     }
     press(test, Key::Enter);
 }

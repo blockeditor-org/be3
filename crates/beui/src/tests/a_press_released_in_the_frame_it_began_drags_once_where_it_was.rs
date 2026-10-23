@@ -19,14 +19,13 @@ fn a_press_released_in_the_frame_it_began_drags_once_where_it_was() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let at = pos2(40.0, 60.0);
-    let button = |pressed| Event::PointerButton {
+    let button = |pressed| Input::PointerButton {
         pos: at,
         button: PointerButton::Primary,
         pressed,
-        modifiers: Modifiers::NONE,
     };
 
-    harness.frame(vec![Event::PointerMoved(at), button(true), button(false)]);
+    harness.frame(vec![Input::PointerMoved(at), button(true), button(false)]);
 
     assert_eq!(
         drags.get_untracked(),

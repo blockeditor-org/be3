@@ -51,8 +51,8 @@ fn resizing_rows_preserves_the_scroll_anchor() {
     assert_eq!(reported.get_untracked().unwrap().offset, 109.0);
 
     harness.frame(vec![
-        Event::PointerMoved(harness.center(scroll)),
-        Event::Scroll(Vec2::new(0.0, -5.0)),
+        Input::PointerMoved(harness.center(scroll)),
+        Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, -5.0))),
     ]);
     assert_eq!(harness.rect(anchor).top(), top - 5.0);
     assert_eq!(reported.get_untracked().unwrap().offset, 114.0);

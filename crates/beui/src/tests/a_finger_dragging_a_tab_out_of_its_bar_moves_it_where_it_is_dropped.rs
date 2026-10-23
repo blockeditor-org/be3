@@ -7,7 +7,7 @@ fn a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped() {
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
-    harness.frame(vec![Event::Modifiers(Modifiers::NONE)]);
+    harness.frame(vec![Input::Modifiers(Modifiers::NONE)]);
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
     let placed = harness
         .document()

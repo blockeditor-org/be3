@@ -157,7 +157,7 @@ fn stroke(key: Key, pressed: bool, repeat: bool, text: Option<String>) -> Input 
         key: Some(key),
         pressed,
         repeat,
-        code: key.evdev().filter(|_| cfg!(target_os = "linux")),
+        evdev: key.evdev(),
         text,
     })
 }

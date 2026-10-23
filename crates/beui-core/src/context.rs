@@ -17,7 +17,7 @@ use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::Vec2;
 use crate::geometry::{Pos2, Rect, pos2};
-use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord, RawInput};
+use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, Scope, Shape};
@@ -112,7 +112,7 @@ pub trait InputSimulation: Any {
 
     fn set_enabled(&mut self, enabled: bool);
 
-    fn translate(&mut self, raw: RawInput, now: Instant) -> (RawInput, Option<Duration>);
+    fn translate(&mut self, events: Vec<Event>, now: Instant) -> (Vec<Event>, Option<Duration>);
 
     fn measure(&mut self, viewport: Rect, scale: f32);
 
@@ -533,7 +533,7 @@ impl Context {
         self.inner.now.set(now);
     }
 
-    pub fn begin_frame(&self, raw: RawInput) {
+    fn begin_frame(&self, events: Vec<Event>) {
         self.inner.in_frame.set(true);
         self.inner.woken.set(false);
         let now = self.inner.clock.get().unwrap_or_else(Instant::now);
@@ -545,13 +545,13 @@ impl Context {
         self.inner.mouse_viewport.set(None);
         self.inner.shown.set(None);
         let keyboard = self.keyboard_rect();
-        let (raw, wake, toggled) = match self.inner.input_simulation.borrow_mut().as_mut() {
+        let (events, wake, toggled) = match self.inner.input_simulation.borrow_mut().as_mut() {
             Some(simulation) => {
                 simulation.keyboard(keyboard);
-                let (raw, wake) = simulation.translate(raw, now);
-                (raw, wake, simulation.take_keyboard_toggle())
+                let (events, wake) = simulation.translate(events, now);
+                (events, wake, simulation.take_keyboard_toggle())
             }
-            None => (raw, None, false),
+            None => (events, None, false),
         };
         if toggled {
             self.toggle_keyboard();
@@ -559,12 +559,11 @@ impl Context {
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
         }
-        let typed = raw
-            .events
+        let typed = events
             .iter()
             .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
         self.inner.window.borrow_mut().begin_frame(typed);
-        self.inner.input.borrow_mut().begin_frame(raw, now);
+        self.inner.input.borrow_mut().begin_frame(events, now);
         self.inner.layers.borrow_mut().clear();
         self.inner.grouping.borrow_mut().clear();
         self.inner.paint_stack.borrow_mut().clear();
@@ -583,7 +582,7 @@ impl Context {
         ::reactive::flush();
     }
 
-    pub fn end_frame(&self) -> FrameOutput {
+    fn end_frame(&self) -> FrameOutput {
         ::reactive::flush();
         self.inner.in_frame.set(false);
         let woken = std::mem::take(&mut *self.inner.zones_woken_in_frame.borrow_mut());
@@ -675,8 +674,12 @@ impl Context {
         }
     }
 
-    pub fn run(&self, raw: RawInput, frame: impl FnOnce(&Self)) -> FrameOutput {
-        self.begin_frame(raw);
+    pub fn run(&self, frame: impl FnOnce(&Self)) -> FrameOutput {
+        self.run_with(Vec::new(), frame)
+    }
+
+    pub(crate) fn run_with(&self, events: Vec<Event>, frame: impl FnOnce(&Self)) -> FrameOutput {
+        self.begin_frame(events);
         frame(self);
         self.end_frame()
     }

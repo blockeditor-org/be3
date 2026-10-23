@@ -32,7 +32,7 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
 
     instances.set_frame_reports(vec![block_plugin_api::FrameReport {
         screen,
-        content: block_plugin_api::ChildRect::default(),
+        content: Rect::ZERO,
         painted: Vec::new(),
         floating: Vec::new(),
         drawing: Vec::new(),

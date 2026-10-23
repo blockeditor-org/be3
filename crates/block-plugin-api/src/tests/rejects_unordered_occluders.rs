@@ -17,8 +17,8 @@ fn placements(occluders: Vec<Occluder>) -> Message {
                 view_block: None,
                 editor: None,
             },
-            rect: ChildRect::default(),
-            clip: ChildRect::default(),
+            rect: Rect::ZERO,
+            clip: Rect::ZERO,
             own_frame: false,
             top_bar: TopBar::Hidden,
             corner_radius: 0.0,
@@ -38,7 +38,7 @@ fn placements(occluders: Vec<Occluder>) -> Message {
 fn rejects_unordered_occluders() {
     let occluder = |after| Occluder {
         after,
-        rect: ChildRect::default(),
+        rect: Rect::ZERO,
     };
     assert_eq!(
         encode_frame(&placements(vec![occluder(2)])),

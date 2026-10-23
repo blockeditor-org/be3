@@ -42,7 +42,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     let along = |fraction: f32| pos2(track.left() + track.width() * fraction, y);
 
     harness.press_at(along(0.0));
-    harness.frame(vec![Event::PointerMoved(along(0.5))]);
+    harness.frame(vec![Input::PointerMoved(along(0.5))]);
     harness.frame(Vec::new());
     let held = harness.rect(page.get());
     assert!(
@@ -60,7 +60,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     assert_eq!(depth.get_untracked(), 1);
 
     harness.press_at(along(0.0));
-    harness.frame(vec![Event::PointerMoved(pos2(track.right() + 40.0, y))]);
+    harness.frame(vec![Input::PointerMoved(pos2(track.right() + 40.0, y))]);
     harness.settle();
     assert_eq!(depth.get_untracked(), 0, "the end of the slider goes back");
     harness.release_at(pos2(track.right() + 40.0, y));

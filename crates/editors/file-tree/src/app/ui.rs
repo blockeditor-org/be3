@@ -13,8 +13,7 @@ use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem,
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{
-    Administrator, BlockFilter, BlockPicker, ChildRect, Drag, Editor, Toolbar, child_rect,
-    node_anchor, phone_layout,
+    Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
 use uuid::Uuid;
 
@@ -614,7 +613,7 @@ fn glyph_size() -> Memo<TextSize> {
     })
 }
 
-pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: Option<ChildRect>) {
+pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: Option<Rect>) {
     picker.open(
         editor,
         Some(id),
@@ -883,7 +882,7 @@ impl Picker {
         editor: Editor,
         parent: Option<Uuid>,
         excluded: HashSet<Uuid>,
-        anchor: Option<ChildRect>,
+        anchor: Option<Rect>,
     ) {
         self.error.set(None);
         let inner = self.inner.value();
@@ -902,9 +901,9 @@ impl Picker {
         );
     }
 
-    pub(crate) fn row_anchor(&self, key: &RowKey) -> Option<ChildRect> {
+    pub(crate) fn row_anchor(&self, key: &RowKey) -> Option<Rect> {
         let tree = self.inner.try_value()?.tree.try_get()?;
-        row_rect(tree, key).map(child_rect)
+        row_rect(tree, key)
     }
 }
 

@@ -11,8 +11,8 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FitArea,
-    FrameChrome, FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea, FrameChrome,
+    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
     ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
@@ -272,10 +272,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.screens += 1;
         let region = self.region();
         let metrics = ViewportMetrics {
-            logical_width: self.size.x,
-            logical_height: self.size.y,
-            visible_x: 0.0,
-            visible_y: 0.0,
+            logical: block_plugin_api::Size {
+                width: self.size.x,
+                height: self.size.y,
+            },
+            visible: block_plugin_api::Pos2::ZERO,
             pixel_width: (self.size.x * self.scale_factor).round() as u32,
             pixel_height: (self.size.y * self.scale_factor).round() as u32,
             scale_factor: self.scale_factor,
@@ -361,12 +362,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
         self.frame = Some(block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
-            content: closable.then_some(ChildRect {
-                x: 0.0,
-                y: 0.0,
-                width: self.size.x,
-                height: self.size.y,
-            }),
+            content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
         });
         self.place();
@@ -439,10 +435,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         self.inbox.push(Message::Editor(EditorMessage::ViewChanged {
             instance: INSTANCE,
-            x: view.min.x,
-            y: view.min.y,
-            width: view.width(),
-            height: view.height(),
+            view,
             scale,
         }));
     }
@@ -459,8 +452,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.inbox.push(Message::Editor(EditorMessage::DragOver {
             instance: INSTANCE,
             region: self.region(),
-            x: position.x,
-            y: position.y,
+            pos: position,
             block_id: block_id.into_bytes(),
             block_type: block_type.into_bytes(),
             dropped,
@@ -491,12 +483,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .map(|(id, rect)| block_plugin_api::Monitor {
                 id: id.to_owned(),
                 name: id.to_owned(),
-                rect: block_plugin_api::ChildRect {
-                    x: rect.min.x,
-                    y: rect.min.y,
-                    width: rect.width(),
-                    height: rect.height(),
-                },
+                rect,
             })
             .collect();
         self.place();
@@ -569,11 +556,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn content_rect(&self) -> Option<Rect> {
         let report = self.report.as_ref()?;
-        let rect = report.content;
-        Some(Rect::from_min_size(
-            Pos2::new(rect.x, rect.y),
-            Vec2::new(rect.width, rect.height),
-        ))
+        Some(report.content)
     }
 
     pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
@@ -613,8 +596,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn resize(&mut self, size: Vec2) {
         self.inbox.push(Message::Editor(EditorMessage::Resized {
             instance: INSTANCE,
-            width: size.x,
-            height: size.y,
+            size: block_plugin_api::Size {
+                width: size.x,
+                height: size.y,
+            },
         }));
         self.run();
     }
@@ -1341,28 +1326,34 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pen(&mut self, phase: PenPhase, pos: Pos2, pressure: f32) {
-        let frames = self
-            .gestures
-            .pen_sample(phase, pos, pressure, Pen::default());
+        let frames = self.gestures.pen_sample(
+            phase,
+            pos,
+            Pen {
+                pressure,
+                ..Pen::default()
+            },
+        );
         self.perform(frames);
     }
 
     pub fn eraser(&mut self, phase: PenPhase, pos: Pos2) {
         let eraser = Pen {
+            pressure: 1.0,
+            tilt: Vec2::ZERO,
             eraser: true,
-            ..Pen::default()
         };
-        let frames = self.gestures.pen_sample(phase, pos, 1.0, eraser);
+        let frames = self.gestures.pen_sample(phase, pos, eraser);
         self.perform(frames);
     }
 
     pub fn pinch(&mut self, pos: Pos2, factor: f32) {
-        let anchor = pos - self.rect().min;
+        let anchor = Pos2::ZERO + (pos - self.rect().min);
         self.sent.push(EditorMessage::ChangeView {
             instance: INSTANCE,
             change: ViewChange::Zoom {
                 factor,
-                anchor: Some((anchor.x, anchor.y)),
+                anchor: Some(anchor),
             },
         });
         self.run();
@@ -1656,10 +1647,7 @@ impl Viewport {
         self.sent = Some(sent);
         Some(Message::Editor(EditorMessage::ViewChanged {
             instance: INSTANCE,
-            x: view.min.x,
-            y: view.min.y,
-            width: view.width(),
-            height: view.height(),
+            view,
             scale: self.zoom,
         }))
     }
@@ -1681,17 +1669,13 @@ impl Viewport {
             _ => true,
         });
         for change in changes {
-            let anchored = |(x, y): (f32, f32)| Pos2::new(x, y) + origin.to_vec2();
             match change {
                 ViewChange::KeepFitted(area) => self.fitted = area,
                 ViewChange::Fit => self.moved = false,
                 ViewChange::Zoom { factor, anchor } => self.apply(
                     ViewChange::Zoom {
                         factor,
-                        anchor: anchor.map(|anchor| {
-                            let at = anchored(anchor);
-                            (at.x, at.y)
-                        }),
+                        anchor: anchor.map(|anchor| anchor + origin.to_vec2()),
                     },
                     region,
                 ),
@@ -1700,18 +1684,17 @@ impl Viewport {
         }
         if let Some(area) = self.fitted.filter(|_| drawn && !self.moved) {
             let content = self.content(region, intrinsic);
-            let (scale, (x, y)) =
-                area.fit((content.x, content.y), (region.width(), region.height()));
+            let (scale, centre) = area.fit(content, region.size());
             self.zoom = scale.clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
-            self.pan = (content * 0.5 - Vec2::new(x, y)) * self.zoom;
+            self.pan = (content * 0.5 - centre.to_vec2()) * self.zoom;
         }
     }
 
     fn apply(&mut self, change: ViewChange, region: Rect) {
         match change {
-            ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
+            ViewChange::Pan(by) => self.pan += by,
             ViewChange::Zoom { factor, anchor } => {
-                let anchor = anchor.map_or(region.center(), |(x, y)| Pos2::new(x, y));
+                let anchor = anchor.unwrap_or(region.center());
                 self.zoom_at(factor, anchor, region);
             }
             ViewChange::KeepFitted(_) | ViewChange::Fit | ViewChange::PanDrag => return,

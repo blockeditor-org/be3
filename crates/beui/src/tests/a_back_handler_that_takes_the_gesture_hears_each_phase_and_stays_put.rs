@@ -26,8 +26,8 @@ fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
         edge: BackEdge::Left,
     };
     harness.frame(vec![
-        Event::Back(started),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(started),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     assert_eq!(
         harness.rect(page.get()),
@@ -35,7 +35,7 @@ fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
         "the content is left for the taker to move"
     );
 
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(
         heard.get_untracked(),
         [started, BackGesture::Progressed(1.0), BackGesture::Invoked]

@@ -38,20 +38,13 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
-    let f6 = |shift: bool| {
-        Event::key(beui::KeyPress {
-            key: Key::F6,
-            pressed: true,
-            repeat: false,
-            modifiers: match shift {
-                true => Modifiers::SHIFT,
-                false => Modifiers::NONE,
-            },
-        })
+    let f6 = |shift: bool| match shift {
+        true => pressed_with(Key::F6, Modifiers::SHIFT),
+        false => vec![key_event(Key::F6, true)],
     };
 
     heard.update(|heard| heard.clear());
-    harness.frame(vec![f6(false)]);
+    harness.frame(f6(false));
     let focused = |heard: &[(usize, bool, Vec<Event>)]| {
         heard
             .iter()
@@ -73,7 +66,7 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
     );
 
     heard.update(|heard| heard.clear());
-    harness.frame(vec![f6(true)]);
+    harness.frame(f6(true));
     assert_eq!(
         focused(&heard.get_untracked()),
         Some(0),

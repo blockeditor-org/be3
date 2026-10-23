@@ -23,12 +23,11 @@ fn right_click_opens_a_context_menu_at_the_cursor_position() {
     harness.frame(Vec::new());
 
     let pos = harness.rect(region).min + Vec2::new(10.0, 10.0);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 

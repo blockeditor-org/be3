@@ -96,9 +96,10 @@ impl BrowserSnapshot {
             .expect("the browser painting could not be encoded");
         crate::accepted::assert_bytes(
             name,
-            &bytes,
             "UPDATE_SNAPSHOTS=1 ./scripts/test TEST_NAME",
             "push it and review the browser painting in the pull request's text diff and painting comment",
+            |previous| previous == bytes,
+            || bytes.clone(),
             |previous| {
                 let previous = String::from_utf8_lossy(previous);
                 let current = String::from_utf8_lossy(&bytes);

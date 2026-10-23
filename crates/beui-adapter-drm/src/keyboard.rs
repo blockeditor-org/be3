@@ -66,12 +66,12 @@ impl Keyboard {
             out.terminal = virtual_terminal(sym);
             out.quit = held.ctrl && held.alt && sym == keysyms::KEY_BackSpace;
         }
-        let key = key(sym).unwrap_or(Key::Unidentified);
+        let key = key(sym, code).unwrap_or(Key::Unidentified);
         let stroke = Keystroke {
             key: Some(key),
             pressed,
             repeat: false,
-            code: Some(code),
+            evdev: Some(code),
             text: Some(text),
         };
         if pressed && !key.is_modifier() && out.terminal.is_none() {
@@ -80,7 +80,7 @@ impl Keyboard {
                 ..stroke.clone()
             });
         }
-        out.inputs.push(stroke.into());
+        out.inputs.push(Input::Key(stroke));
         out
     }
 

@@ -26,7 +26,7 @@ fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() 
     let bar = bounds.min + before.min.to_vec2() + vec2(before.width() - 80.0, 10.0);
     let pulled = bar - vec2(before.min.x + 200.0, 0.0);
     harness.press_at(bar);
-    harness.frame(vec![Event::PointerMoved(pulled)]);
+    harness.frame(vec![Input::PointerMoved(pulled)]);
     harness.advance(Duration::from_millis(200));
     harness.release_at(pulled);
     let released = drawn_left(&harness) - inset;

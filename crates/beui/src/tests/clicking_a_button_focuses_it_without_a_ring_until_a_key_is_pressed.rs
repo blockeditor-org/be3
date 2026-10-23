@@ -30,7 +30,7 @@ fn clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed() {
     assert!(first_focused.get());
     assert_eq!(rings(&clicked), rings(&initial));
 
-    let tabbed = harness.frame(vec![key_event(Key::Tab, true, Modifiers::NONE)]);
+    let tabbed = harness.frame(vec![key_event(Key::Tab, true)]);
     assert!(second_focused.get());
     assert!(rings(&tabbed) > rings(&initial));
 

@@ -21,7 +21,7 @@ fn a_floating_windows_grips_lie_outside_it() {
     let corner = bounds.min + before.max.to_vec2();
 
     let inside = corner - vec2(2.0, 2.0);
-    let output = harness.frame(vec![Event::PointerMoved(inside)]);
+    let output = harness.frame(vec![Input::PointerMoved(inside)]);
     assert_ne!(
         output.window.requests.cursor,
         CursorIcon::ResizeNwSe,
@@ -36,7 +36,7 @@ fn a_floating_windows_grips_lie_outside_it() {
     );
 
     let outside = corner + vec2(3.0, 3.0);
-    let output = harness.frame(vec![Event::PointerMoved(outside)]);
+    let output = harness.frame(vec![Input::PointerMoved(outside)]);
     assert_eq!(output.window.requests.cursor, CursorIcon::ResizeNwSe);
     harness.drag(outside, outside + vec2(40.0, 30.0));
     harness.frame(Vec::new());
@@ -48,7 +48,7 @@ fn a_floating_windows_grips_lie_outside_it() {
 
     let corner = bounds.min + placed(&harness).max.to_vec2();
     let along = pos2(corner.x - 12.0, corner.y + 3.0);
-    let output = harness.frame(vec![Event::PointerMoved(along)]);
+    let output = harness.frame(vec![Input::PointerMoved(along)]);
     assert_eq!(
         output.window.requests.cursor,
         CursorIcon::ResizeNwSe,

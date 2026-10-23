@@ -5,13 +5,17 @@ fn region_sizes_round_trip() {
     let message = Message::RegionSizes(vec![
         RegionSize {
             screen: ScreenId(1),
-            logical_width: 400.0,
-            logical_height: 24.5,
+            logical: Size {
+                width: 400.0,
+                height: 24.5,
+            },
         },
         RegionSize {
             screen: ScreenId(2),
-            logical_width: 200.0,
-            logical_height: 300.0,
+            logical: Size {
+                width: 200.0,
+                height: 300.0,
+            },
         },
     ]);
     assert_eq!(
@@ -22,8 +26,10 @@ fn region_sizes_round_trip() {
     let oversized = Message::RegionSizes(vec![
         RegionSize {
             screen: ScreenId(1),
-            logical_width: 1.0,
-            logical_height: 1.0,
+            logical: Size {
+                width: 1.0,
+                height: 1.0,
+            },
         };
         MAX_COLLECTION_ITEMS + 1
     ]);

@@ -85,7 +85,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
         "the rest of the scroll must go on answering the pointer"
     );
 
-    harness.frame(vec![Event::PointerMoved(Pos2::new(
+    harness.frame(vec![Input::PointerMoved(Pos2::new(
         viewport.center().x,
         viewport.top() + 4.0,
     ))]);
@@ -95,7 +95,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
         "the row under the pointer is hovered"
     );
 
-    harness.frame(vec![Event::PointerMoved(floating.center())]);
+    harness.frame(vec![Input::PointerMoved(floating.center())]);
 
     assert_eq!(
         hovered.get_untracked(),

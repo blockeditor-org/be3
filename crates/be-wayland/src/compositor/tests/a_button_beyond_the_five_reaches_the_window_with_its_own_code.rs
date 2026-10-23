@@ -6,14 +6,13 @@ fn a_button_beyond_the_five_reaches_the_window_with_its_own_code() {
     let _pointer = harness.client.pointer();
     let (_window, id) = harness.open();
     let at = harness.window(id).center();
-    let button = |pressed| Event::PointerButton {
+    let button = |pressed| Input::PointerButton {
         pos: at,
         button: PointerButton::Other(0x115),
         pressed,
-        modifiers: beui::Modifiers::NONE,
     };
 
-    harness.frame(vec![Event::PointerMoved(at), button(true)]);
+    harness.frame(vec![Input::PointerMoved(at), button(true)]);
     harness.frame(vec![button(false)]);
     harness.settle();
 

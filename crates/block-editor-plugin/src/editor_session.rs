@@ -1,11 +1,11 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
-    ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildRect,
-    ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message,
-    Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, TimedInput, ViewportMetrics,
-    WebViewEvent, WebViewId,
+    ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
+    CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameReport,
+    HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder,
+    RegionSize, ScreenPlacement, ScreenRequest, Size, TimedInput, ViewportMetrics, WebViewEvent,
+    WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -209,10 +209,7 @@ impl EditorSession {
         touch: bool,
     ) {
         let origin = self.rect(EditorRegion::Frame).min.to_vec2();
-        let anchor = filter.anchor.map(|anchor| {
-            Rect::from_min_size(pos2(anchor.x, anchor.y), vec2(anchor.width, anchor.height))
-                .translate(origin)
-        });
+        let anchor = filter.anchor.map(|anchor| anchor.translate(origin));
         self.host.request_pick(crate::host::PickRequest {
             pick,
             filter,
@@ -785,8 +782,10 @@ impl EditorSession {
             state.reported = Some(used);
             sizes.push(RegionSize {
                 screen: placement.screen,
-                logical_width: used.x,
-                logical_height: used.y,
+                logical: Size {
+                    width: used.x,
+                    height: used.y,
+                },
             });
         }
         sizes
@@ -875,8 +874,8 @@ impl EditorSession {
             return Rect::ZERO;
         };
         Rect::from_min_size(
-            pos2(-metrics.visible_x, -metrics.visible_y),
-            vec2(metrics.logical_width, metrics.logical_height),
+            pos2(-metrics.visible.x, -metrics.visible.y),
+            vec2(metrics.logical.width, metrics.logical.height),
         )
     }
 
@@ -892,11 +891,7 @@ impl EditorSession {
                     .map(|monitor| RegionMonitor {
                         id: monitor.id.clone(),
                         name: monitor.name.clone(),
-                        rect: Rect::from_min_size(
-                            pos2(monitor.rect.x, monitor.rect.y),
-                            vec2(monitor.rect.width, monitor.rect.height),
-                        )
-                        .translate(origin),
+                        rect: monitor.rect.translate(origin),
                     })
                     .collect()
             })
@@ -941,13 +936,7 @@ impl EditorSession {
         self.host.begin_region(region, origin);
         self.host
             .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
-        self.host
-            .set_placed_content(context.spec.content.map(|content| {
-                Rect::from_min_size(
-                    pos2(content.x, content.y),
-                    vec2(content.width, content.height),
-                )
-            }));
+        self.host.set_placed_content(context.spec.content);
         let drag = self.drag.and_then(|(dragged, drag)| {
             (dragged == region).then(|| BlockDrag {
                 position: drag.position + origin,
@@ -992,7 +981,7 @@ impl EditorSession {
         let screen = self.placement(region).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
         self.used(region, content);
-        let reported = |rect: Rect| plugin_rect(rect, origin);
+        let reported = |rect: Rect| rect.translate(-origin);
         let reported_content = self
             .host
             .take_content()
@@ -1094,16 +1083,6 @@ impl EditorSession {
 
     pub fn host(&self) -> &EditorHost {
         &self.host
-    }
-}
-
-fn plugin_rect(rect: Rect, origin: Vec2) -> ChildRect {
-    let rect = rect.translate(-origin);
-    ChildRect {
-        x: rect.min.x,
-        y: rect.min.y,
-        width: rect.width(),
-        height: rect.height(),
     }
 }
 

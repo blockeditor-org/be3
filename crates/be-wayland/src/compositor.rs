@@ -640,7 +640,7 @@ impl Compositor {
             match forwarded {
                 Forwarded::Input(Event::Key {
                     press,
-                    code: Some(code),
+                    evdev: Some(code),
                     ..
                 }) if !press.repeat && state.keyboard_window() == Some(id) => {
                     if press.pressed {
@@ -685,7 +685,7 @@ impl Compositor {
                     let target = at(*over, event.pos);
                     state.pen_motion(
                         target,
-                        f64::from(event.force.unwrap_or(0.0)),
+                        f64::from(pen.pressure),
                         (f64::from(pen.tilt.x), f64::from(pen.tilt.y)),
                         pen.eraser,
                     );

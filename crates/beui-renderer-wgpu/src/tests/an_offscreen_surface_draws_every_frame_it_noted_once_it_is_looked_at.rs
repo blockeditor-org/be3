@@ -9,7 +9,7 @@ fn an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at() {
         .expect("no graphics adapter is available");
     let context = Context::new(beui_font_freetype::FreetypeFonts::default());
     let frame = |left_color: Color32| {
-        context.run(RawInput::default(), |context| {
+        context.run(|context| {
             let painter = context.painter();
             painter.rect_filled(left, 0.0, left_color);
             painter.rect_filled(right, 0.0, Color32::WHITE);

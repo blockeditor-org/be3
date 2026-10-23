@@ -86,7 +86,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     );
 
     open_outer(&mut harness);
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert!(!harness.document().is_overlay_open(outer.id()));
     assert_eq!(
         dismissed.get_untracked().last(),

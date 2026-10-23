@@ -22,12 +22,11 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     harness.frame(Vec::new());
 
     let pos = harness.center(region);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 
@@ -40,7 +39,7 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
         .api::<unstyled::MenuListApi>(content)
         .row_button(0);
     let copy_pos = harness.center(copy);
-    harness.frame(vec![Event::PointerMoved(copy_pos)]);
+    harness.frame(vec![Input::PointerMoved(copy_pos)]);
     assert!(
         harness
             .document()
@@ -53,7 +52,7 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
         .document()
         .node_rect(copy)
         .expect("the row is laid out");
-    harness.frame(vec![Event::PointerMoved(pos2(
+    harness.frame(vec![Input::PointerMoved(pos2(
         rect.right() + 40.0,
         rect.bottom() + 80.0,
     ))]);

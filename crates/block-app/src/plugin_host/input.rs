@@ -1,6 +1,7 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
-    DroppedFile, Input, InputBatch, Message, Monitor, Pasted, ScreenId, TimedInput, ViewportMetrics,
+    DroppedFile, Input, InputBatch, Message, Monitor, Pasted, ScreenId, Size, TimedInput,
+    ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -11,13 +12,13 @@ pub(crate) struct BlockDrag {
 }
 
 pub(super) struct BlockDragEvent {
-    pub(super) position: Vec2,
+    pub(super) position: Pos2,
     pub(super) drag: BlockDrag,
     pub(super) dropped: bool,
 }
 
 pub(super) struct FileDropEvent {
-    pub(super) position: Vec2,
+    pub(super) position: Pos2,
     pub(super) files: Vec<DroppedFile>,
     pub(super) dropped: bool,
 }
@@ -42,7 +43,7 @@ pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<
     }
     let pointer = input.pointer.filter(|_| input.hovered)?;
     Some(FileDropEvent {
-        position: pointer - input.rect.min,
+        position: Pos2::ZERO + (pointer - input.rect.min),
         files,
         dropped,
     })
@@ -119,14 +120,14 @@ pub(super) fn viewport_metrics(
     scale_factor: f32,
     monitors: Vec<Monitor>,
 ) -> ViewportMetrics {
-    let logical_width = size.x.max(0.0);
-    let logical_height = size.y.max(0.0);
+    let logical = Size {
+        width: size.x.max(0.0),
+        height: size.y.max(0.0),
+    };
     let visible = visible.intersect(Rect::from_min_size(Pos2::ZERO, size));
     ViewportMetrics {
-        logical_width,
-        logical_height,
-        visible_x: visible.min.x.max(0.0),
-        visible_y: visible.min.y.max(0.0),
+        logical,
+        visible: Pos2::new(visible.min.x.max(0.0), visible.min.y.max(0.0)),
         pixel_width: (visible.width().max(0.0) * scale_factor).round() as u32,
         pixel_height: (visible.height().max(0.0) * scale_factor).round() as u32,
         scale_factor,

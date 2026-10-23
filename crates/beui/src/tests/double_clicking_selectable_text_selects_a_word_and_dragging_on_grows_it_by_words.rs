@@ -49,13 +49,12 @@ fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_wo
 
     harness.advance(Duration::from_secs(1));
     harness.click(on_beta);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos: on_beta,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    harness.frame(vec![Event::PointerMoved(at(
+    harness.frame(vec![Input::PointerMoved(at(
         &harness,
         "alpha beta ga".len(),
     ))]);
@@ -65,7 +64,7 @@ fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_wo
         "dragging on from a double click selects whole words"
     );
     let on_alpha = at(&harness, "al".len());
-    harness.frame(vec![Event::PointerMoved(on_alpha)]);
+    harness.frame(vec![Input::PointerMoved(on_alpha)]);
     assert_eq!(
         selected(&harness),
         "alpha beta",

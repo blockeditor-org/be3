@@ -19,7 +19,7 @@ fn an_open_menu_is_withheld_from_the_block_under_it() {
         .first()
         .expect("an open menu must be withheld from the block editor beneath it");
     assert!(
-        occluder.rect.width > 0.0 && occluder.rect.height > 0.0,
+        occluder.rect.width() > 0.0 && occluder.rect.height() > 0.0,
         "the occluder covers the rectangle the menu was laid out at"
     );
     assert!(

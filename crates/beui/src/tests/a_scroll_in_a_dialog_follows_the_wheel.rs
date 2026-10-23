@@ -37,8 +37,8 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
     let top = harness.rect(first).top();
 
     harness.frame(vec![
-        Event::PointerMoved(harness.center(first)),
-        Event::Scroll(Vec2::new(0.0, -40.0)),
+        Input::PointerMoved(harness.center(first)),
+        Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, -40.0))),
     ]);
     harness.frame(Vec::new());
 

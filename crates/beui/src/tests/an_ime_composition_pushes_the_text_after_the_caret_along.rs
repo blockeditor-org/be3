@@ -36,7 +36,7 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
     let before = [1, 5, 11].map(x_of);
     let first = x_of(0);
 
-    harness.frame(vec![Event::Ime(ImeEvent::SetComposingText(
+    harness.frame(vec![Input::Ime(ImeEvent::SetComposingText(
         "xyz".to_owned(),
     ))]);
     let composing = [4, 8, 14].map(x_of);
@@ -57,7 +57,7 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
         "the text before the caret stays where it was"
     );
 
-    harness.frame(vec![Event::Ime(ImeEvent::SetComposingText(String::new()))]);
+    harness.frame(vec![Input::Ime(ImeEvent::SetComposingText(String::new()))]);
     assert_eq!(
         [1, 5, 11].map(x_of),
         before,

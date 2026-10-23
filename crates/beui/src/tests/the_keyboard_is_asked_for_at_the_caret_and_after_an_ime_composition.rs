@@ -43,7 +43,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     );
 
     let composing = harness
-        .frame(vec![Event::Ime(ImeEvent::SetComposingText(
+        .frame(vec![Input::Ime(ImeEvent::SetComposingText(
             "nihao".to_owned(),
         ))])
         .window
@@ -56,7 +56,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     );
 
     let cleared = harness
-        .frame(vec![Event::Ime(ImeEvent::SetComposingText(String::new()))])
+        .frame(vec![Input::Ime(ImeEvent::SetComposingText(String::new()))])
         .window
         .requests
         .ime

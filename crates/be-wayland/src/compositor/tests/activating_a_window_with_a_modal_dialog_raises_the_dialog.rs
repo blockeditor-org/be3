@@ -14,7 +14,7 @@ fn activating_a_window_with_a_modal_dialog_raises_the_dialog() {
         .get_xdg_dialog(toplevel, &harness.client.handle, ())
         .set_modal();
     harness.settle();
-    let windows = harness.app.windows();
+    let windows = harness.compositor().windows();
     let (parent_raised, dialog_raised) = (windows.raised(parent_id), windows.raised(dialog_id));
 
     windows.activate(parent_id);

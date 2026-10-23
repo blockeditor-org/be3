@@ -237,8 +237,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     private static boolean key(KeyEvent event, boolean pressed) {
         int meta = event.getMetaState();
-        return nativeKey(event.getKeyCode(), pressed, event.getRepeatCount(), meta,
-                event.getUnicodeChar(meta));
+        return nativeKey(event.getKeyCode(), event.getScanCode(), pressed,
+                event.getRepeatCount(), meta, event.getUnicodeChar(meta), event.getUnicodeChar(0));
     }
 
     @Override
@@ -392,8 +392,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     private static native void nativeScroll(float x, float y);
 
-    private static native boolean nativeKey(int code, boolean pressed, int repeat, int meta,
-            int character);
+    private static native boolean nativeKey(int code, int scanCode, boolean pressed, int repeat,
+            int meta, int character, int layoutCharacter);
 
     static native void nativeIme(int kind, long first, long second, String text, long serial);
 

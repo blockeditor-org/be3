@@ -28,8 +28,11 @@ fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.frame(vec![key_event(Key::G, true, Modifiers::LOGO)]);
-    harness.frame(vec![Event::Focus(false)]);
+    harness.frame(vec![
+        Input::Modifiers(Modifiers::LOGO),
+        key_event(Key::G, true),
+    ]);
+    harness.frame(vec![Input::Focus(false)]);
     harness.key(Key::G, Modifiers::NONE);
 
     assert_eq!(

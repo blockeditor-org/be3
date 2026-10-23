@@ -38,7 +38,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
     harness.frame(Vec::new());
     let below = harness.rect(catcher.get());
     heard.update(|heard| heard.clear());
-    harness.frame(vec![Event::PointerMoved(below.min + vec2(10.0, 10.0))]);
+    harness.frame(vec![Input::PointerMoved(below.min + vec2(10.0, 10.0))]);
 
     assert!(
         heard.with_untracked(|heard| heard.is_empty()),

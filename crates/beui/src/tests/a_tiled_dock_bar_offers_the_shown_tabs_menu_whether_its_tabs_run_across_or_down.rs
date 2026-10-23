@@ -75,12 +75,11 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
 
     let label = harness.rect(dock_tab(harness.document(), dock, "Tab 1"));
     let grip = pos2(label.left() - 25.0, label.center().y);
-    harness.frame(vec![Event::PointerMoved(grip)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(grip)]);
+    harness.frame(vec![Input::PointerButton {
         pos: grip,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let sidebar = text_within(harness.document(), dock, "Show tabs in a sidebar")

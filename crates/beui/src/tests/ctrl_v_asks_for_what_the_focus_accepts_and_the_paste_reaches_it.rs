@@ -34,14 +34,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
         }
     });
     let mut harness = Harness::new(document);
-    let ctrl_v = || {
-        Event::key(beui::KeyPress {
-            key: Key::V,
-            pressed: true,
-            repeat: false,
-            modifiers: Modifiers::CTRL,
-        })
-    };
+    let ctrl_v = || pressed_with(Key::V, Modifiers::CTRL);
     let output = harness.frame(Vec::new());
     assert_eq!(output.paste, None);
     assert!(
@@ -50,7 +43,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     );
 
     harness.click(pos2(50.0, 50.0));
-    let output = harness.frame(vec![ctrl_v()]);
+    let output = harness.frame(ctrl_v());
     assert_eq!(output.paste, Some(PasteRequest::Shortcut));
     assert_eq!(output.window.requests.pastes, [PasteKind::Image]);
 
@@ -59,8 +52,8 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
         data: vec![1, 2, 3],
     };
     harness.frame(vec![
-        Event::Paste(Pasted::Image(image.clone())),
-        Event::Paste(Pasted::Text("typed".to_owned())),
+        Input::Paste(Pasted::Image(image.clone())),
+        Input::Paste(Pasted::Text("typed".to_owned())),
     ]);
     assert_eq!(
         heard.get_untracked(),
@@ -69,7 +62,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     );
 
     harness.click(pos2(250.0, 50.0));
-    let output = harness.frame(vec![ctrl_v()]);
+    let output = harness.frame(ctrl_v());
     assert_eq!(
         output.paste,
         Some(PasteRequest::Shortcut),
@@ -80,7 +73,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
         [PasteKind::Text, PasteKind::Image]
     );
     forwarded.update(|forwarded| forwarded.clear());
-    harness.frame(vec![Event::Paste(Pasted::Image(image.clone()))]);
+    harness.frame(vec![Input::Paste(Pasted::Image(image.clone()))]);
     assert_eq!(
         forwarded.get_untracked(),
         [Event::Paste(Pasted::Image(image))]

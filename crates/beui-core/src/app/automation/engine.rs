@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use super::gestures::Gestures;
+use super::gestures::{Frames, Gestures};
 use super::target::{describe, locate, node, point, scaled};
 use super::window::{Resize, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes};
@@ -13,7 +13,7 @@ use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::Keyboard;
-use crate::input::{BackEdge, DroppedFile, Input, Key, PointerButton, TouchPhase};
+use crate::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
 use crate::runner::{Incoming, Platform};
 use crate::window::WindowState;
 
@@ -83,7 +83,7 @@ Files:
 Window (headless only, except focus, blur, leave and close):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
-  focus / blur              the window gains or loses focus
+  focus / blur              the window gains or loses focus; blur cancels the pointers and lets go of held keys
   clipboard [TEXT]          read the clipboard, or put TEXT on it
   close                     ask the window to close, as its close button does; an app that stays
                             open, to ask about unsaved changes, answers with what changed
@@ -130,7 +130,7 @@ pub struct Settled {
 
 enum Phase {
     Input {
-        steps: VecDeque<Vec<Input>>,
+        steps: VecDeque<Vec<Incoming>>,
         before: String,
         then: Option<Box<Phase>>,
     },
@@ -227,9 +227,7 @@ impl Automation {
             && let Some(active) = self.active.take()
             && let Phase::Input { steps, .. } = active.phase
         {
-            world
-                .events
-                .extend(steps.into_iter().flatten().map(Incoming::points));
+            world.events.extend(steps.into_iter().flatten());
         }
         while self.active.is_none() {
             let Some(request) = self.inbox.take() else {
@@ -295,11 +293,11 @@ impl Automation {
             && let Some(step) = steps.pop_front()
         {
             for event in &step {
-                if let Input::Focus(focused) = event {
+                if let Incoming::Input(_, Input::Focus(focused)) = event {
                     self.focused = *focused;
                 }
             }
-            world.events.extend(step.into_iter().map(Incoming::points));
+            world.events.extend(step);
         }
     }
 
@@ -583,13 +581,14 @@ impl Automation {
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
         let at = |target: &str| point(target, view.lines, view.pixels_per_point);
-        let input = |steps: Vec<Vec<Input>>| {
+        let incoming = |steps: Vec<Vec<Incoming>>| {
             Ok(Started::Phase(Phase::Input {
                 steps: steps.into(),
                 before: view.tree.to_owned(),
                 then: None,
             }))
         };
+        let input = |frames: Frames| incoming(points(frames));
         match command.as_str() {
             "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "tree" => Ok(Started::Done(Reply::Text(view.tree.to_owned()))),
@@ -842,7 +841,7 @@ impl Automation {
                 };
                 input(frames)
             }
-            "focus" | "blur" => input(vec![vec![Input::Focus(command == "focus")]]),
+            "focus" | "blur" => input(self.gestures.focus(command == "focus")),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(
@@ -882,7 +881,8 @@ impl Automation {
                     Some(target) => {
                         let at = at(target)?;
                         Ok(Started::Phase(Phase::Input {
-                            steps: self.gestures.click(at, PointerButton::Primary, 1).into(),
+                            steps: points(self.gestures.click(at, PointerButton::Primary, 1))
+                                .into(),
                             before: before.clone(),
                             then: Some(Box::new(Phase::Uploading { file, before })),
                         }))
@@ -919,9 +919,9 @@ impl Automation {
                         }
                     })
                     .collect();
-                input(vec![vec![
-                    Input::PointerMoved(self.gestures.pointer),
-                    Input::FileHovered,
+                incoming(vec![vec![
+                    Incoming::points(Input::PointerMoved(self.gestures.pointer)),
+                    FileDrag::Hovered.into(),
                 ]])
             }
             "drop" => {
@@ -932,16 +932,19 @@ impl Automation {
                     self.gestures.pointer = at(target)?;
                 }
                 let files = std::mem::take(&mut self.grabbed);
-                input(vec![
-                    vec![Input::PointerMoved(self.gestures.pointer)],
-                    files.into_iter().map(Input::FileDropped).collect(),
+                incoming(vec![
+                    vec![Incoming::points(Input::PointerMoved(self.gestures.pointer))],
+                    files
+                        .into_iter()
+                        .map(|file| FileDrag::Dropped(file).into())
+                        .collect(),
                 ])
             }
             "ungrab" => {
                 if std::mem::take(&mut self.grabbed).is_empty() {
                     return Err("nothing is grabbed".to_owned());
                 }
-                input(vec![vec![Input::FileHoverCancelled]])
+                incoming(vec![vec![FileDrag::Cancelled.into()]])
             }
             "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
             "close" => {
@@ -1354,4 +1357,11 @@ fn cropped(capture: Capture, crop: Option<Rect>) -> Reply {
         height: y1 - y0,
         rgba,
     }
+}
+
+fn points(frames: Frames) -> Vec<Vec<Incoming>> {
+    frames
+        .into_iter()
+        .map(|frame| frame.into_iter().map(Incoming::points).collect())
+        .collect()
 }

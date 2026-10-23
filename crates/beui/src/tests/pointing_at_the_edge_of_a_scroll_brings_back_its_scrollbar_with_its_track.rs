@@ -26,7 +26,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
     assert!(!thumb_painted(&output, track));
     assert!(!painted_rect(&output, track, theme.surface_raised));
 
-    harness.frame(vec![Event::PointerMoved(pos2(
+    harness.frame(vec![Input::PointerMoved(pos2(
         bar.center().x,
         bar.bottom() - 4.0,
     ))]);
@@ -47,7 +47,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
         "the bar stays while the pointer is on it"
     );
 
-    harness.frame(vec![Event::PointerMoved(
+    harness.frame(vec![Input::PointerMoved(
         harness.rect(scroll.get()).center(),
     )]);
     let output = harness.frame(Vec::new());

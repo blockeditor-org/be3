@@ -6,16 +6,14 @@ fn file_drop_messages_round_trip() {
         Message::Editor(EditorMessage::FileDrop {
             instance: EditorInstanceId(13),
             region: EditorRegion::Frame,
-            x: 4.0,
-            y: 5.0,
+            pos: Pos2::new(4.0, 5.0),
             files: Vec::new(),
             dropped: false,
         }),
         Message::Editor(EditorMessage::FileDrop {
             instance: EditorInstanceId(13),
             region: EditorRegion::Frame,
-            x: 4.0,
-            y: 5.0,
+            pos: Pos2::new(4.0, 5.0),
             files: vec![DroppedFile {
                 name: "photo.png".into(),
                 data: vec![9, 9, 9],

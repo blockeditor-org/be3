@@ -39,7 +39,7 @@ pub(crate) fn frame(doc: &mut Document, ctx: &Context) {
         doc.autoscroll = None;
         return;
     }
-    let lost = ctx.input(|input| input.events.contains(&Event::Focus(false)));
+    let lost = ctx.input(|input| input.events.contains(&Event::PointersCancelled));
     if lost {
         finish(doc, &autoscroll);
     }

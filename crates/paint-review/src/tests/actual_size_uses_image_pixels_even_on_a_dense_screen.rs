@@ -25,10 +25,9 @@ fn actual_size_uses_image_pixels_even_on_a_dense_screen() {
         .test
         .snapshot("actual_size_uses_image_pixels_even_on_a_dense_screen");
     let stage = review.test.rect_of("paint_review.pan_zoom");
-    review.test.frame(vec![
-        beui::Event::PointerMoved(stage.center()),
-        beui::Event::Zoom(2.0),
-    ]);
+    review
+        .test
+        .frame(vec![Input::PointerMoved(stage.center()), Input::Zoom(2.0)]);
     review.test.settle();
     let document = review.test.document();
     let zoomed = document

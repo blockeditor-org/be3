@@ -5,7 +5,7 @@ mod each_screen_shows_its_own_part_of_the_desktop;
 mod settling_tells_the_display_everything_drawn_while_hurried;
 mod the_display_is_told_only_what_changed;
 
-use beui::{Color32, RawInput, pos2};
+use beui::{Color32, pos2};
 
 use be_dmabuf::testing::{read, vulkan_device};
 

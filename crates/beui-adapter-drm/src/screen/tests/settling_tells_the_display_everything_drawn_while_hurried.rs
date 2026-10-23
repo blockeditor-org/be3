@@ -1,7 +1,7 @@
 use super::*;
 
 fn paint(context: &beui::Context, squares: &[Rect]) -> FrameOutput {
-    context.run(RawInput::default(), |context| {
+    context.run(|context| {
         let painter = context.painter();
         painter.rect_filled(
             Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0)),

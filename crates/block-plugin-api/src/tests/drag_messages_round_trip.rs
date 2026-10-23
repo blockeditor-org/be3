@@ -6,8 +6,7 @@ fn drag_messages_round_trip() {
         Message::Editor(EditorMessage::DragOver {
             instance: EditorInstanceId(4),
             region: EditorRegion::Frame,
-            x: 12.5,
-            y: 30.0,
+            pos: Pos2::new(12.5, 30.0),
             block_id: [1; 16],
             block_type: [2; 16],
             dropped: true,

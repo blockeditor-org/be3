@@ -76,7 +76,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     assert!((shown.center().x - left.center().x).abs() < 2.0);
 
     open.set(false);
-    harness.frame(vec![Event::PointerMoved(right.center())]);
+    harness.frame(vec![Input::PointerMoved(right.center())]);
     open.set(true);
     harness.frame(Vec::new());
     let shown = harness.rect(body.get());

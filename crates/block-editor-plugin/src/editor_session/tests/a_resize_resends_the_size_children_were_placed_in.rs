@@ -39,10 +39,11 @@ fn place(session: &mut EditorSession, height: u32) {
             region: EditorRegion::Frame,
             frame: None,
             metrics: ViewportMetrics {
-                logical_width: 100.0,
-                logical_height: height as f32,
-                visible_x: 0.0,
-                visible_y: 0.0,
+                logical: block_plugin_api::Size {
+                    width: 100.0,
+                    height: height as f32,
+                },
+                visible: block_plugin_api::Pos2::ZERO,
                 pixel_width: 100,
                 pixel_height: height,
                 scale_factor: 1.0,

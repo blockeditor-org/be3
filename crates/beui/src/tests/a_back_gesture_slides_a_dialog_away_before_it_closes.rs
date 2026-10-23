@@ -36,10 +36,10 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let resting = harness.rect(body.get());
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     let pulled = harness.rect(body.get());
     assert!(
@@ -48,7 +48,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     );
     assert_eq!(pulled.top(), resting.top());
 
-    harness.frame(vec![Event::Back(BackGesture::Cancelled)]);
+    harness.frame(vec![Input::Back(BackGesture::Cancelled)]);
     harness.frame(Vec::new());
     let returning = harness.rect(body.get()).left();
     assert!(
@@ -60,15 +60,15 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     assert_eq!(dismissed.get_untracked(), 0);
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Right,
         }),
-        Event::Back(BackGesture::Progressed(0.5)),
+        Input::Back(BackGesture::Progressed(0.5)),
     ]);
     let pulled = harness.rect(body.get());
     assert!(pulled.left() < resting.left() - 40.0);
 
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     harness.frame(Vec::new());
     let leaving = harness.rect(body.get());
     assert!(

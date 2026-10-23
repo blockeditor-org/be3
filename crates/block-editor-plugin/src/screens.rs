@@ -136,7 +136,7 @@ impl Screens {
             }
             if let Some(painting) = session.painting(placement.region) {
                 paintings.screens.push((placement.screen.0, painting));
-                if paintings.encoded_len() > block_plugin_api::MAX_BLOB_BYTES {
+                if paintings.encode().len() > block_plugin_api::MAX_BLOB_BYTES {
                     paintings.screens.pop();
                 }
             }
@@ -234,13 +234,9 @@ impl Screens {
                     data.clone(),
                 );
             }
-            Message::Editor(EditorMessage::Resized {
-                instance,
-                width,
-                height,
-            }) => {
+            Message::Editor(EditorMessage::Resized { instance, size }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.resized(geometry::vec2(*width, *height));
+                    session.resized(geometry::vec2(size.width, size.height));
                 }
             }
             Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
@@ -456,20 +452,11 @@ impl Screens {
             }
             Message::Editor(EditorMessage::ViewChanged {
                 instance,
-                x,
-                y,
-                width,
-                height,
+                view,
                 scale,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.set_view(
-                        geometry::Rect::from_min_size(
-                            geometry::pos2(*x, *y),
-                            geometry::vec2(*width, *height),
-                        ),
-                        *scale,
-                    );
+                    session.set_view(*view, *scale);
                 }
             }
             Message::Editor(EditorMessage::PickRequested {
@@ -566,8 +553,7 @@ impl Screens {
             Message::Editor(EditorMessage::DragOver {
                 instance,
                 region,
-                x,
-                y,
+                pos,
                 block_id,
                 block_type,
                 dropped,
@@ -576,7 +562,7 @@ impl Screens {
                     session.set_drag(Some((
                         *region,
                         BlockDrag {
-                            position: geometry::pos2(*x, *y),
+                            position: *pos,
                             block_id: Uuid::from_bytes(*block_id),
                             block_type: Uuid::from_bytes(*block_type),
                             dropped: *dropped,
@@ -624,8 +610,7 @@ impl Screens {
             Message::Editor(EditorMessage::FileDrop {
                 instance,
                 region,
-                x,
-                y,
+                pos,
                 files,
                 dropped,
             }) => {
@@ -633,7 +618,7 @@ impl Screens {
                     session.set_files(Some((
                         *region,
                         crate::host::FileDrop {
-                            position: geometry::pos2(*x, *y),
+                            position: *pos,
                             files: files
                                 .iter()
                                 .map(|file| crate::PickedFile {

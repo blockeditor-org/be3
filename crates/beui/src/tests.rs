@@ -119,6 +119,7 @@ mod a_driver_finds_a_test_id_with_a_space_in_it;
 mod a_driver_holds_a_back_gesture_part_way_and_cancels_it;
 mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
 mod a_driver_hovers_before_it_presses_so_a_scrollbar_shown_on_hover_takes_its_click;
+mod a_driver_lets_go_of_its_held_keys_and_pointers_when_the_window_loses_focus;
 mod a_driver_lists_and_runs_an_action;
 mod a_driver_lists_components_and_their_internals;
 mod a_driver_pastes_the_headless_clipboard_with_ctrl_v;
@@ -261,6 +262,7 @@ mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
+mod a_press_cancelled_after_the_pointer_left_does_not_wait_for_its_release;
 mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
 mod a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on;
@@ -627,7 +629,7 @@ mod list_rows_and_pressables_activate_from_the_keyboard;
 mod listbox_navigation_reveals_options_inside_a_tall_scroll_item;
 mod listbox_typeahead_matches_prefixes_and_cycles_repeated_letters;
 mod logical_input_arrives_in_points_at_the_zoom_of_the_frame;
-mod losing_focus_lets_go_of_the_modifiers_and_an_emulated_touch;
+mod losing_focus_lets_go_of_the_modifiers_but_not_an_emulated_touch;
 mod losing_window_focus_cancels_a_held_activation_key;
 mod measuring_after_an_edit_matches_measuring_afresh;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
@@ -849,7 +851,7 @@ use std::rc::Rc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Pos2, Vec2, pos2, vec2};
-use crate::input::{Event, Input, Key, Modifiers, PointerButton, RawInput};
+use crate::input::{Event, Input, Key, Modifiers, PointerButton, ScrollDelta};
 use crate::input::{TouchId, TouchPhase};
 
 use crate::base::frame::FrameNode;
@@ -909,8 +911,8 @@ fn held_keys(modifiers: Modifiers) -> Vec<Key> {
     .collect()
 }
 
-fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
-    Event::Touch {
+fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
         id: TouchId { device: 1, finger },
         phase,
         pos,
@@ -967,8 +969,8 @@ impl Harness {
         Self(stepped)
     }
 
-    pub(crate) fn frame(&mut self, events: Vec<Event>) -> crate::FrameOutput {
-        self.0.frame(events)
+    pub(crate) fn frame(&mut self, inputs: Vec<Input>) -> crate::FrameOutput {
+        self.0.frame(inputs)
     }
 
     pub(crate) fn click(&mut self, target: impl Into<crate::testing::Target>) {
@@ -1476,12 +1478,19 @@ impl Harness {
     }
 }
 
-fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-    Event::key(beui_core::input::KeyPress {
-        key,
+fn pressed_with(key: Key, modifiers: Modifiers) -> Vec<Input> {
+    vec![
+        Input::Modifiers(modifiers),
+        key_event(key, true),
+        Input::Modifiers(Modifiers::NONE),
+    ]
+}
+
+fn key_event(key: Key, pressed: bool) -> Input {
+    Input::Key(beui_core::input::Keystroke {
+        key: Some(key),
         pressed,
-        repeat: false,
-        modifiers,
+        ..Default::default()
     })
 }
 
@@ -1870,20 +1879,19 @@ pub(crate) fn secondary_drag_with(
     to: Pos2,
     modifiers: Modifiers,
 ) {
-    harness.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from), Input::Modifiers(modifiers)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers,
     }]);
-    harness.frame(vec![Event::PointerMoved(to)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(to)]);
+    harness.frame(vec![Input::PointerButton {
         pos: to,
         button: PointerButton::Secondary,
         pressed: false,
-        modifiers,
     }]);
+    harness.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
 pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {
@@ -1964,20 +1972,19 @@ pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId
 }
 
 pub(crate) fn drag_with(harness: &mut Harness, from: Pos2, to: Pos2, modifiers: Modifiers) {
-    harness.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from), Input::Modifiers(modifiers)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers,
     }]);
-    harness.frame(vec![Event::PointerMoved(to), Event::Modifiers(modifiers)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(to), Input::Modifiers(modifiers)]);
+    harness.frame(vec![Input::PointerButton {
         pos: to,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers,
     }]);
+    harness.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
 pub(crate) fn toolbar_of<const N: usize>(

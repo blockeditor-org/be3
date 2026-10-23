@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::Key;
 
 #[test]
 fn the_launcher_sample_narrows_its_programs_as_a_name_is_typed() {
@@ -10,7 +10,7 @@ fn the_launcher_sample_narrows_its_programs_as_a_name_is_typed() {
     assert!(test.shows("launcher.item.terminal"));
     test.snapshot("launcher");
 
-    test.frame(vec![Event::Text("te".to_owned())]);
+    test.frame(vec![Input::Text("te".to_owned())]);
     test.frame(Vec::new());
     assert!(test.shows("launcher.item.text"));
     assert!(test.shows("launcher.item.terminal"));
@@ -22,11 +22,10 @@ fn the_launcher_sample_narrows_its_programs_as_a_name_is_typed() {
         [true, false]
             .into_iter()
             .map(|pressed| {
-                Event::key(beui::KeyPress {
-                    key: Key::Enter,
+                Input::Key(beui::Keystroke {
+                    key: Some(Key::Enter),
                     pressed,
-                    repeat: false,
-                    modifiers: Modifiers::NONE,
+                    ..Default::default()
                 })
             })
             .collect(),

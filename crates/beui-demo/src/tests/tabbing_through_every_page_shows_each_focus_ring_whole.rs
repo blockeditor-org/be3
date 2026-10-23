@@ -1,6 +1,6 @@
 use super::*;
+use beui::Key;
 use beui::overflow::OverflowKind;
-use beui::{Event, Key, Modifiers};
 
 const MOST_STOPS: usize = 200;
 
@@ -9,11 +9,10 @@ fn tab(test: &mut DocumentTest) {
         [true, false]
             .into_iter()
             .map(|pressed| {
-                Event::key(beui::KeyPress {
-                    key: Key::Tab,
+                Input::Key(beui::Keystroke {
+                    key: Some(Key::Tab),
                     pressed,
-                    repeat: false,
-                    modifiers: Modifiers::NONE,
+                    ..Default::default()
                 })
             })
             .collect(),

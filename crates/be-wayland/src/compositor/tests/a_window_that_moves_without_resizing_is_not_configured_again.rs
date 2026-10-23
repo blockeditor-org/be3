@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_window_that_moves_without_resizing_is_not_configured_again() {
     let mut harness = Harness::new();
-    let mut other = TestClient::connect(harness.app.server());
+    let mut other = TestClient::connect(harness.stepped.app_mut().compositor.server());
     let first = other.toplevel();
     other.flush();
     harness.settle();

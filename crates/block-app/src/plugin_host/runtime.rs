@@ -9,9 +9,9 @@ use std::{
 use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message,
-    Monitor, PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
+    ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
+    HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message, Monitor,
+    PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
     SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
@@ -974,19 +974,13 @@ pub(crate) fn frame_placement(
     .flatten()
 }
 
-pub(crate) fn reanchor(
-    anchor: ChildRect,
-    from: FramePlacement,
-    to: FramePlacement,
-) -> Option<ChildRect> {
+pub(crate) fn reanchor(anchor: Rect, from: FramePlacement, to: FramePlacement) -> Option<Rect> {
     let scale = from.zoom / to.zoom;
-    let moved = ChildRect {
-        x: (from.rect.min.x + anchor.x * from.zoom - to.rect.min.x) / to.zoom,
-        y: (from.rect.min.y + anchor.y * from.zoom - to.rect.min.y) / to.zoom,
-        width: anchor.width.max(0.0) * scale,
-        height: anchor.height.max(0.0) * scale,
-    };
-    [moved.x, moved.y, moved.width, moved.height]
+    let moved = Rect::from_min_size(
+        Pos2::ZERO + (from.rect.min + anchor.min.to_vec2() * from.zoom - to.rect.min) / to.zoom,
+        anchor.size().max(Vec2::ZERO) * scale,
+    );
+    [moved.min.x, moved.min.y, moved.max.x, moved.max.y]
         .iter()
         .all(|value| value.is_finite())
         .then_some(moved)
@@ -1494,14 +1488,9 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
         runtime
             .instances
             .frame_report(instance, EditorRegion::Frame)
-            .map(|report| {
-                let rect = |rect: &block_plugin_api::ChildRect| {
-                    Rect::from_min_size(pos2(rect.x, rect.y), vec2(rect.width, rect.height))
-                };
-                HostFrame {
-                    content: rect(&report.content),
-                    floating: report.floating.iter().map(rect).collect(),
-                }
+            .map(|report| HostFrame {
+                content: report.content,
+                floating: report.floating.clone(),
             })
     })
     .flatten()
@@ -1868,12 +1857,10 @@ fn region_monitors(screens: &[beui::Screen], rect: Rect, size: Vec2) -> Vec<Moni
             Monitor {
                 id: screen.id.clone(),
                 name: screen.name.clone(),
-                rect: ChildRect {
-                    x: shown.min.x * scale.x,
-                    y: shown.min.y * scale.y,
-                    width: shown.width() * scale.x,
-                    height: shown.height() * scale.y,
-                },
+                rect: Rect::from_min_size(
+                    Pos2::new(shown.min.x * scale.x, shown.min.y * scale.y),
+                    Vec2::new(shown.width() * scale.x, shown.height() * scale.y),
+                ),
             }
         })
         .collect()
@@ -2137,12 +2124,7 @@ fn placed_view(
                     report
                         .floating
                         .iter()
-                        .map(|floating| {
-                            Rect::from_min_size(
-                                pos2(floating.x, floating.y) + rect.min.to_vec2(),
-                                vec2(floating.width, floating.height),
-                            )
-                        })
+                        .map(|floating| floating.translate(rect.min.to_vec2()))
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -2155,10 +2137,7 @@ fn placed_view(
                     .claims
                     .iter()
                     .map(|claim| {
-                        let at = Rect::from_min_size(
-                            pos2(claim.rect.x, claim.rect.y) + rect.min.to_vec2(),
-                            vec2(claim.rect.width, claim.rect.height),
-                        );
+                        let at = claim.rect.translate(rect.min.to_vec2());
                         (claim.modifiers, at.intersect(visible))
                     })
                     .collect()
@@ -2169,13 +2148,7 @@ fn placed_view(
                 report
                     .drawing
                     .iter()
-                    .map(|drawing| {
-                        Rect::from_min_size(
-                            pos2(drawing.x, drawing.y) + rect.min.to_vec2(),
-                            vec2(drawing.width, drawing.height),
-                        )
-                        .intersect(visible)
-                    })
+                    .map(|drawing| drawing.translate(rect.min.to_vec2()).intersect(visible))
                     .collect()
             })
             .unwrap_or_default();
@@ -2271,12 +2244,11 @@ pub(crate) fn take_region_actions(
     .unwrap_or_default()
 }
 
-fn in_host(runtime: &Runtime, instance: EditorInstanceId, anchor: ChildRect) -> Option<Rect> {
+fn in_host(runtime: &Runtime, instance: EditorInstanceId, anchor: Rect) -> Option<Rect> {
     let placed = runtime.placements.get(&(instance, EditorRegion::Frame))?;
-    let min = placed.rect.min + vec2(anchor.x, anchor.y) * placed.zoom;
     let rect = Rect::from_min_size(
-        min,
-        vec2(anchor.width, anchor.height).max(Vec2::ZERO) * placed.zoom,
+        placed.rect.min + anchor.min.to_vec2() * placed.zoom,
+        anchor.size().max(Vec2::ZERO) * placed.zoom,
     );
     [rect.min.x, rect.min.y, rect.max.x, rect.max.y]
         .iter()
@@ -2305,7 +2277,7 @@ pub(crate) fn drag_over_region(
             .map_or(Pos2::ZERO, |placement| placement.rect.min);
         let was = runtime.instances.dragging(instance, region);
         let event = over.map(|(drag, at)| BlockDragEvent {
-            position: at - origin,
+            position: Pos2::ZERO + (at - origin),
             drag,
             dropped,
         });

@@ -15,17 +15,16 @@ fn a_release_that_moves_the_inspectors_edge_resizes_the_panel_to_it() {
     let width = harness.inspector().width;
     let edge = pos2(WIDE_VIEWPORT.x - width, 100.0);
     let to = edge - vec2(80.0, 0.0);
-    let button = |pos, pressed| Event::PointerButton {
+    let button = |pos, pressed| Input::PointerButton {
         pos,
         button: PointerButton::Primary,
         pressed,
-        modifiers: Modifiers::NONE,
     };
 
-    harness.frame(vec![Event::PointerMoved(edge)]);
+    harness.frame(vec![Input::PointerMoved(edge)]);
     harness.frame(vec![button(edge, true)]);
-    harness.frame(vec![Event::PointerMoved(edge - vec2(40.0, 0.0))]);
-    harness.frame(vec![Event::PointerMoved(to), button(to, false)]);
+    harness.frame(vec![Input::PointerMoved(edge - vec2(40.0, 0.0))]);
+    harness.frame(vec![Input::PointerMoved(to), button(to, false)]);
 
     assert_eq!(
         harness.inspector().width,

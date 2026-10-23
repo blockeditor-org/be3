@@ -4,7 +4,7 @@ use crate::selection::client;
 #[test]
 fn with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off() {
     let mut harness = Harness::new();
-    harness.app.set_primary_selection(true);
+    harness.compositor().set_primary_selection(true);
     let _keyboard = harness.client.keyboard();
     let _pointer = harness.client.pointer();
     let device = harness.client.primary_device();
@@ -29,7 +29,7 @@ fn with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off() 
     harness.settle();
     assert_eq!(client::answer(answer), "selected in a window");
 
-    harness.app.set_primary_selection(false);
+    harness.compositor().set_primary_selection(false);
     harness.settle();
     assert!(
         client::primary_cancelled(),

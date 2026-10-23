@@ -20,12 +20,11 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let pos = harness.center(region.get());
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 

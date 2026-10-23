@@ -1,4 +1,4 @@
-use block_plugin_api::ChildRect;
+use block_editor_beui::beui::{Pos2, Vec2};
 
 use super::*;
 
@@ -7,12 +7,10 @@ fn the_desktop_keeps_each_programs_window_to_bring_back() {
     let mut fixture = Fixture::new();
     fixture.settle();
     let full = HostWindow {
-        fullscreen: Some(ChildRect {
-            x: 0.0,
-            y: 0.0,
-            width: 800.0,
-            height: 600.0,
-        }),
+        fullscreen: Some(Rect::from_min_size(
+            Pos2::new(0.0, 0.0),
+            Vec2::new(800.0, 600.0),
+        )),
         ..notes(2)
     };
     let dialog = HostWindow {

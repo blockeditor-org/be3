@@ -547,8 +547,18 @@ impl Run {
         }
         let numstat = git(&["diff", "--numstat", "--no-renames", from, "HEAD"])
             .ok_or("could not count the lines that changed")?;
+        let added = git(&[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=A",
+            from,
+            "HEAD",
+        ])
+        .ok_or("could not list the files that were added")?;
+        let added: Vec<&str> = added.lines().collect();
         let mut comment = "## Lines of code\n\n".to_owned();
-        comment.push_str(&lines::summary(&numstat));
+        comment.push_str(&lines::summary(&numstat, &added));
         comment.push_str(&unsafe_counts::summary(
             &unsafe_at(from)?,
             &unsafe_at("HEAD")?,

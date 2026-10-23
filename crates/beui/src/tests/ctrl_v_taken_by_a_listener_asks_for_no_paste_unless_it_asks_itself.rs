@@ -26,23 +26,16 @@ fn ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(harness.center(field.get()));
-    let ctrl_v = || {
-        Event::key(beui::KeyPress {
-            key: Key::V,
-            pressed: true,
-            repeat: false,
-            modifiers: Modifiers::CTRL,
-        })
-    };
+    let ctrl_v = || pressed_with(Key::V, Modifiers::CTRL);
 
-    let output = harness.frame(vec![ctrl_v()]);
+    let output = harness.frame(ctrl_v());
     assert_eq!(
         output.paste, None,
         "an action took Ctrl+V for something else"
     );
 
     asks.set(true);
-    let output = harness.frame(vec![ctrl_v()]);
+    let output = harness.frame(ctrl_v());
     assert_eq!(
         output.paste,
         Some(PasteRequest::Shortcut),
