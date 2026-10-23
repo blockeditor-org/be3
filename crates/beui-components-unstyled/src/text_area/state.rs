@@ -640,6 +640,7 @@ impl TextAreaState {
                 wrap_width: wrap,
                 padding: options.padding(),
                 style: SpanStyle::new(font, Color32::WHITE),
+                hang: row.hang,
             };
             lines.push(lay_out(&row.pieces(), options)?);
         }

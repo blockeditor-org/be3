@@ -23,6 +23,7 @@ fn options(wrap_width: f32) -> RichOptions {
         wrap_width,
         padding: (0.0, 0.0),
         style: SpanStyle::new(FontId::proportional(14.0), Color32::WHITE),
+        hang: 0,
     }
 }
 

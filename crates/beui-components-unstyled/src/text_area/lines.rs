@@ -458,6 +458,7 @@ fn RowText(
     });
     let wraps = create_memo(move || wrap && cx.prose.get().is_none_or(|prose| prose.wrap));
     let align = create_memo(move || cx.prose.get().map(|prose| prose.align));
+    let hang = create_memo(move || model.get().hang);
     let marks = create_memo(move || {
         if layer == Layer::Handles {
             return Vec::new();
@@ -550,6 +551,7 @@ fn RowText(
             align={align}
             vertical_align={Some(TextAlign::Start)}
             line_padding={padding}
+            hang={hang}
             font={font}
             color={color}
             marks={marks}

@@ -283,6 +283,7 @@ pub struct TextStyle {
     pub underline: bool,
     pub ellipsis: bool,
     pub padding: (f32, f32),
+    pub hang: usize,
 }
 
 pub struct TextNode {
@@ -299,6 +300,7 @@ pub struct TextNode {
     underline: bool,
     ellipsis: bool,
     padding: (f32, f32),
+    hang: usize,
     marks: Vec<TextMark>,
     carets: Vec<TextCaret>,
     since: Cell<Instant>,
@@ -448,6 +450,7 @@ impl TextNode {
                 wrap_width: self.wrap_width(available_width),
                 padding: self.padding,
                 style: self.style(),
+                hang: self.hang,
             },
             line_height: self.line_height,
             scale: ctx.pixels_per_point(),
@@ -874,6 +877,7 @@ impl Document {
             underline: false,
             ellipsis: false,
             padding: (0.0, 0.0),
+            hang: 0,
             marks: Vec::new(),
             carets: Vec::new(),
             since,
@@ -963,6 +967,7 @@ impl Document {
         self.set_text_underline(text, style.underline);
         self.set_text_ellipsis(text, style.ellipsis);
         self.set_text_line_padding(text, style.padding);
+        self.set_text_hang(text, style.hang);
     }
 
     pub fn set_text_horizontal_align(&mut self, text: NodeOf<TextNode>, horizontal: TextAlign) {
@@ -1118,6 +1123,12 @@ impl Document {
     pub fn set_text_line_padding(&mut self, text: NodeOf<TextNode>, padding: (f32, f32)) {
         if self.arena.get_as::<TextNode>(text).padding != padding {
             self.arena.get_mut_as::<TextNode>(text).padding = padding;
+        }
+    }
+
+    pub fn set_text_hang(&mut self, text: NodeOf<TextNode>, hang: usize) {
+        if self.arena.get_as::<TextNode>(text).hang != hang {
+            self.arena.get_mut_as::<TextNode>(text).hang = hang;
         }
     }
 

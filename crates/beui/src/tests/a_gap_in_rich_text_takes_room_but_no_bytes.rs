@@ -13,6 +13,7 @@ fn a_gap_in_rich_text_takes_room_but_no_bytes() {
         wrap_width: f32::INFINITY,
         padding: (0.0, 0.0),
         style,
+        hang: 0,
     };
     let plain = RichLayout::new(
         &[Piece::text("ab", style), Piece::text("cd", style)],

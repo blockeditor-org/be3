@@ -29,6 +29,7 @@ pub fn Text(
     #[prop(default = false)] underline: Prop<bool>,
     #[prop(default = false)] ellipsis: Prop<bool>,
     #[prop(default = (0.0, 0.0))] line_padding: Prop<(f32, f32)>,
+    #[prop(default = 0)] hang: Prop<usize>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
@@ -63,6 +64,7 @@ pub fn Text(
             underline: underline.get(),
             ellipsis: ellipsis.get(),
             padding: line_padding.get(),
+            hang: hang.get(),
         };
         with_document(|document| document.set_text_style(node, style));
     });

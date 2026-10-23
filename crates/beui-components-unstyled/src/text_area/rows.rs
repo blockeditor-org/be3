@@ -160,6 +160,7 @@ pub struct Row {
     pub code: Vec<Range<usize>>,
     pub code_block: bool,
     pub quote: usize,
+    pub hang: usize,
     pub placeholder: bool,
     pub props: MarkSet,
 }
@@ -976,6 +977,12 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.push(&text, index..stop, true, base, SpanKind::Text);
         index = stop;
     }
+    if snapshot.language == TextLanguage::Markdown
+        && !options.mask
+        && let Some(content) = after_markers(snapshot, start, end, style_at)
+    {
+        builder.row.hang = builder.row.to_display(content);
+    }
     builder.spacers(end, body);
     builder.runs(runs, end, builder.span_style(style_at(end)));
     let ending = builder.span_style(style_at(end)).font;
@@ -1002,6 +1009,49 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
     finish(builder, body)
+}
+
+fn after_markers(
+    snapshot: &Snapshot,
+    start: usize,
+    end: usize,
+    style_at: impl Fn(usize) -> SynHlStyle,
+) -> Option<usize> {
+    let bytes = &snapshot.bytes;
+    let mut at = start;
+    let mut marked = false;
+    loop {
+        while at < end && matches!(bytes[at], b' ' | b'\t') {
+            at += 1;
+        }
+        if at >= end {
+            break;
+        }
+        if let Some(checkbox) = snapshot
+            .checkboxes
+            .iter()
+            .find(|checkbox| checkbox.marker.start == at)
+        {
+            at = checkbox.marker.end;
+            marked = true;
+            continue;
+        }
+        match style_at(at).color {
+            SynHlColorScope::MarkdownQuote | SynHlColorScope::MarkdownBullet => at += 1,
+            SynHlColorScope::MarkdownSymbol if bytes[at].is_ascii_digit() => {
+                while at < end && bytes[at].is_ascii_digit() {
+                    at += 1;
+                }
+                if at >= end || !matches!(bytes[at], b'.' | b')') {
+                    break;
+                }
+                at += 1;
+            }
+            _ => break,
+        }
+        marked = true;
+    }
+    marked.then_some(at)
 }
 
 fn finish(mut builder: Builder, body: SpanStyle) -> Row {
@@ -1056,6 +1106,7 @@ pub fn rich_layout(
         wrap_width,
         padding,
         style: SpanStyle::new(font, Color32::WHITE),
+        hang: row.hang,
     };
     beui_view::reactive::rich_layout(&row.pieces(), options)
 }
