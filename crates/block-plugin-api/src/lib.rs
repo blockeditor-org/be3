@@ -2005,10 +2005,7 @@ pub enum SurfaceFormat {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ViewChange {
     Pan(Vec2),
-    Zoom {
-        factor: f32,
-        anchor: Option<Pos2>,
-    },
+    Zoom { factor: f32, anchor: Option<Pos2> },
     KeepFitted(Option<FitArea>),
     Fit,
     PanDrag,

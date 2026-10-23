@@ -2,8 +2,8 @@ use std::time::Instant;
 
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{
-    Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta, TouchId,
-    TouchPhase,
+    Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta,
+    TouchId, TouchPhase,
 };
 
 pub const SCROLL_LINE: f32 = 40.0;

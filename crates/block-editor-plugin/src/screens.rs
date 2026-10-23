@@ -456,10 +456,7 @@ impl Screens {
                 scale,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.set_view(
-                        *view,
-                        *scale,
-                    );
+                    session.set_view(*view, *scale);
                 }
             }
             Message::Editor(EditorMessage::PickRequested {

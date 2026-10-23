@@ -17,8 +17,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
-    PointerButton, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
+    PenPhase, PointerButton, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;

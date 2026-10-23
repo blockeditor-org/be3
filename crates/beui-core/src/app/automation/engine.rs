@@ -881,7 +881,8 @@ impl Automation {
                     Some(target) => {
                         let at = at(target)?;
                         Ok(Started::Phase(Phase::Input {
-                            steps: points(self.gestures.click(at, PointerButton::Primary, 1)).into(),
+                            steps: points(self.gestures.click(at, PointerButton::Primary, 1))
+                                .into(),
                             before: before.clone(),
                             then: Some(Box::new(Phase::Uploading { file, before })),
                         }))
