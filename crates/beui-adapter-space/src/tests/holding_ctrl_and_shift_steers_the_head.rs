@@ -2,32 +2,38 @@ use super::*;
 use beui_core::input::Modifiers;
 
 #[test]
-fn holding_right_ctrl_and_right_shift_steers_the_head() {
+fn holding_ctrl_and_shift_steers_the_head() {
     let (mut space, now) = space();
 
-    let left = delivered(&send(
-        &mut space,
-        now,
-        [key(Key::Ctrl, 29, true), key(Key::Shift, 42, true)],
-    ));
-    assert_eq!(left.len(), 2, "left Ctrl and Shift reach the app");
-    assert!(!space.steering(), "and do not steer");
-    send(
-        &mut space,
-        now,
-        [key(Key::Ctrl, 29, false), key(Key::Shift, 42, false)],
+    let [ctrl, ctrl_held, shift, chord] = steer(true);
+    let got = delivered(&send(&mut space, now, [ctrl.clone(), ctrl_held.clone()]));
+    assert_eq!(
+        got,
+        [(WindowId::MAIN, ctrl), (WindowId::MAIN, ctrl_held)],
+        "Ctrl alone is the app's"
     );
+    assert!(!space.steering());
 
-    let got = delivered(&send(&mut space, now, steer(true)));
-    assert!(space.steering());
+    let got = delivered(&send(&mut space, now, [shift.clone(), chord]));
+    assert!(space.steering(), "Ctrl and Shift together steer");
     assert_eq!(
         got,
         [
-            (WindowId::MAIN, key(Key::Ctrl, RIGHT_CTRL, true)),
-            (WindowId::MAIN, key(Key::Ctrl, RIGHT_CTRL, false)),
+            (WindowId::MAIN, shift),
+            (WindowId::MAIN, key(Key::Ctrl, CTRL, false)),
+            (WindowId::MAIN, key(Key::Shift, SHIFT, false)),
             (WindowId::MAIN, Input::Modifiers(Modifiers::NONE)),
         ],
-        "right Ctrl alone is the app's, until Shift joins it and the app sees it let go"
+        "when Shift joins Ctrl the app sees both let go"
+    );
+    assert_eq!(
+        delivered(&send(
+            &mut space,
+            now,
+            [key(Key::Z, 44, true), key(Key::Z, 44, false)]
+        )),
+        [],
+        "other keys do not reach the app while steering"
     );
 
     let yaw = space.head.yaw;

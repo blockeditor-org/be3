@@ -2737,12 +2737,17 @@ all its 3D (`glam`) stays in the crate.
   floats a tab dropped there into a window opened `AtPointer`). Presses that
   miss reach nothing. Input in points is a driver's (`drive` sees the app's
   main window): it passes through unchanged and only moves the 3D cursor.
-- Head: holding right Ctrl and right Shift (`Keystroke::is`) steers. Right Ctrl
-  alone still reaches the app; when Shift joins it the app sees it let go. While
-  steering the host asks for pointer lock, `PointerMotion` turns the head (yaw,
-  and pitch clamped short of straight up or down) and W, A, S and D, by their
+- Head: holding Ctrl and Shift (either side, as `Input::Modifiers` reports
+  them) steers. Ctrl or Shift alone still reaches the app; when the other joins
+  it the app sees both keys let go and its modifiers cleared. While steering
+  the host asks for pointer lock, `PointerMotion` turns the head (yaw, and
+  pitch clamped short of straight up or down) and W, A, S and D, by their
   place, walk along the floor relative to where the head faces, timed from
-  `HostView::now`; none of it reaches the app, nor the releases of keys it took.
+  `HostView::now`. No key pressed while steering reaches the app, nor its
+  release, and clicks reach it without Ctrl or Shift, so an app in space never
+  sees a Ctrl+Shift chord. Keys and modifiers sent by `drive` go through the
+  same rule, so `drive keydown ctrl; drive keydown shift; drive keydown w`
+  walks; drive sends no `PointerMotion`, so it cannot turn the head.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. Scroll changes the distance and does

@@ -157,10 +157,7 @@ its scan code and drm its evdev code, and drive sends `Key::evdev`;
 `Key::from_evdev` names the key in that place. It is `None` for a key with no
 physical place, such as one from an on-screen keyboard. It is for programs that
 apply a layout of their own, such as be-wayland's Wayland clients; shortcuts
-match `Key`. `Key` has one Ctrl, Shift, Alt and Logo for both sides of the
-keyboard; `Keystroke::side()` reads which one was pressed (`KeySide::Left` or
-`Right`) from the evdev code, and `Keystroke::is(Key::Ctrl, KeySide::Right)`
-tests for one, as the space host's head control does.
+match `Key`.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 

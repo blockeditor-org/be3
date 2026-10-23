@@ -1,4 +1,4 @@
-use super::{Key, KeySide, Keystroke, Modifiers};
+use super::{Key, Modifiers};
 
 impl Key {
     pub fn meta(apple: bool) -> Self {
@@ -465,18 +465,3 @@ const DIGITS: [Key; 10] = [
     Key::Eight,
     Key::Nine,
 ];
-
-impl Keystroke {
-    pub fn side(&self) -> Option<KeySide> {
-        self.key.filter(|key| key.is_modifier())?;
-        match self.evdev? {
-            29 | 42 | 56 | 125 => Some(KeySide::Left),
-            54 | 97 | 100 | 126 => Some(KeySide::Right),
-            _ => None,
-        }
-    }
-
-    pub fn is(&self, key: Key, side: KeySide) -> bool {
-        self.key == Some(key) && self.side() == Some(side)
-    }
-}

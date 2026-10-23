@@ -7,7 +7,7 @@ use beui_core::context::{FrameOutput, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::Layer;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
-use beui_core::input::{CursorIcon, Input, Key, KeySide, Keystroke, Modifiers};
+use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers};
 use beui_core::painter::Shape;
 use beui_core::runner::{HostView, Hosted, Incoming, SCROLL_LINE, Units, WindowHost, scrolled};
 use beui_core::window::{
@@ -78,8 +78,6 @@ pub struct Space {
     grip_held: bool,
     grip_pressed: u32,
     reports: Vec<Incoming>,
-    right_ctrl: bool,
-    right_shift: bool,
     forwarded: Vec<Keystroke>,
     swallowed: Vec<Stroke>,
     walking: Vec<Key>,
@@ -113,8 +111,6 @@ impl Space {
             grip_held: false,
             grip_pressed: 0,
             reports: Vec::new(),
-            right_ctrl: false,
-            right_shift: false,
             forwarded: Vec::new(),
             swallowed: Vec::new(),
             walking: Vec::new(),
@@ -124,7 +120,7 @@ impl Space {
     }
 
     pub fn steering(&self) -> bool {
-        self.right_ctrl && self.right_shift
+        self.modifiers.ctrl && self.modifiers.shift
     }
 
     pub fn panel(&self, window: WindowId) -> Option<&Panel> {
@@ -200,6 +196,11 @@ impl Space {
     fn take(&mut self, incoming: Incoming, out: &mut Vec<Incoming>) {
         match incoming {
             Incoming::Input {
+                units,
+                input: input @ (Input::Key(_) | Input::Modifiers(_)),
+                ..
+            } => self.platform_input(units, input, out),
+            Incoming::Input {
                 units: Units::Points,
                 window,
                 input,
@@ -229,12 +230,7 @@ impl Space {
     fn platform_input(&mut self, units: Units, input: Input, out: &mut Vec<Incoming>) {
         match input {
             Input::Key(keystroke) => self.key(units, keystroke, out),
-            Input::Modifiers(modifiers) => {
-                self.modifiers = modifiers;
-                if !self.steering() {
-                    out.push(Incoming::new(units, Input::Modifiers(modifiers)));
-                }
-            }
+            Input::Modifiers(modifiers) => self.modifiers(units, modifiers, out),
             Input::PointerMotion(motion) if self.steering() => self.head.look(motion),
             Input::PointerMoved(at) => {
                 self.cursor = Some(Cursor::Platform(at));
@@ -413,18 +409,11 @@ impl Space {
         }
     }
 
-    fn key(&mut self, units: Units, keystroke: Keystroke, out: &mut Vec<Incoming>) {
-        let stroke = Stroke::of(&keystroke);
-        let right_ctrl = keystroke.is(Key::Ctrl, KeySide::Right);
-        let right_shift = keystroke.is(Key::Shift, KeySide::Right);
-        if right_ctrl || right_shift {
-            let was = self.steering();
-            match right_ctrl {
-                true => self.right_ctrl = keystroke.pressed,
-                false => self.right_shift = keystroke.pressed,
-            }
-            let now = self.steering();
-            if !was && now {
+    fn modifiers(&mut self, units: Units, modifiers: Modifiers, out: &mut Vec<Incoming>) {
+        let was = self.steering();
+        self.modifiers = modifiers;
+        match (was, self.steering()) {
+            (false, true) => {
                 for forwarded in self.forwarded.drain(..) {
                     self.swallowed.push(Stroke::of(&forwarded));
                     out.push(Incoming::new(
@@ -442,62 +431,51 @@ impl Space {
                     Input::Modifiers(Modifiers {
                         ctrl: false,
                         shift: false,
-                        ..self.modifiers
+                        ..modifiers
                     }),
                 ));
-                self.swallowed.push(stroke);
-                return;
             }
-            if was && !now {
+            (true, true) => {}
+            (true, false) => {
                 self.walking.clear();
+                out.push(Incoming::new(units, Input::Modifiers(modifiers)));
+            }
+            (false, false) => out.push(Incoming::new(units, Input::Modifiers(modifiers))),
+        }
+    }
+
+    fn key(&mut self, units: Units, keystroke: Keystroke, out: &mut Vec<Incoming>) {
+        let stroke = Stroke::of(&keystroke);
+        let placed = keystroke.evdev.and_then(Key::from_evdev).or(keystroke.key);
+        let walks = matches!(placed, Some(Key::W | Key::A | Key::S | Key::D));
+        if !keystroke.pressed
+            && let Some(key) = placed
+        {
+            self.walking.retain(|held| *held != key);
+        }
+        if self.swallowed.contains(&stroke) {
+            if !keystroke.pressed {
                 self.swallowed.retain(|held| *held != stroke);
-                out.push(Incoming::new(units, Input::Modifiers(self.modifiers)));
-                return;
             }
-            if now || self.swallowed.contains(&stroke) {
-                if !keystroke.pressed {
-                    self.swallowed.retain(|held| *held != stroke);
-                }
-                return;
+            return;
+        }
+        let chord = matches!(keystroke.key, Some(Key::Ctrl | Key::Shift));
+        if keystroke.pressed && self.steering() {
+            self.swallowed.push(stroke);
+            if walks
+                && let Some(key) = placed
+                && !self.walking.contains(&key)
+            {
+                self.walking.push(key);
             }
+            return;
+        }
+        if chord {
             match keystroke.pressed {
                 true if !keystroke.repeat => self.forwarded.push(keystroke.clone()),
                 true => {}
                 false => self.forwarded.retain(|held| Stroke::of(held) != stroke),
             }
-            out.push(Incoming::new(units, Input::Key(keystroke)));
-            return;
-        }
-        let placed = keystroke.evdev.and_then(Key::from_evdev).or(keystroke.key);
-        let walks = matches!(placed, Some(Key::W | Key::A | Key::S | Key::D));
-        if self.steering() && walks {
-            let Some(key) = placed else {
-                return;
-            };
-            match keystroke.pressed {
-                true => {
-                    if !self.walking.contains(&key) {
-                        self.walking.push(key);
-                    }
-                    if !self.swallowed.contains(&stroke) {
-                        self.swallowed.push(stroke);
-                    }
-                }
-                false => {
-                    self.walking.retain(|held| *held != key);
-                    self.swallowed.retain(|held| *held != stroke);
-                }
-            }
-            return;
-        }
-        if self.swallowed.contains(&stroke) {
-            if !keystroke.pressed {
-                self.swallowed.retain(|held| *held != stroke);
-                if let Some(key) = placed {
-                    self.walking.retain(|held| *held != key);
-                }
-            }
-            return;
         }
         out.push(Incoming::new(units, Input::Key(keystroke)));
     }

@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use beui_core::geometry::Rect;
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::input::{Input, Key, Keystroke, PointerButton, ScrollDelta};
+use beui_core::input::{Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta};
 use beui_core::runner::{HostView, Incoming, Units, WindowHost};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
@@ -23,8 +23,9 @@ mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
 mod a_window_opened_beside_another_sits_to_its_right;
 mod closing_a_window_removes_its_panel;
-mod holding_right_ctrl_and_right_shift_steers_the_head;
+mod holding_ctrl_and_shift_steers_the_head;
 mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
+mod keys_a_driver_sends_steer_too;
 mod moving_a_window_carries_its_panel;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
@@ -65,14 +66,29 @@ fn key(key: Key, evdev: u32, pressed: bool) -> Input {
     })
 }
 
-const RIGHT_CTRL: u32 = 97;
-const RIGHT_SHIFT: u32 = 54;
+const CTRL: u32 = 29;
+const SHIFT: u32 = 42;
 
-fn steer(pressed: bool) -> [Input; 2] {
-    [
-        key(Key::Ctrl, RIGHT_CTRL, pressed),
-        key(Key::Shift, RIGHT_SHIFT, pressed),
-    ]
+fn steer(pressed: bool) -> [Input; 4] {
+    let ctrl = Modifiers::CTRL;
+    let chord = Modifiers {
+        shift: true,
+        ..Modifiers::CTRL
+    };
+    match pressed {
+        true => [
+            key(Key::Ctrl, CTRL, true),
+            Input::Modifiers(ctrl),
+            key(Key::Shift, SHIFT, true),
+            Input::Modifiers(chord),
+        ],
+        false => [
+            key(Key::Shift, SHIFT, false),
+            Input::Modifiers(ctrl),
+            key(Key::Ctrl, CTRL, false),
+            Input::Modifiers(Modifiers::NONE),
+        ],
+    }
 }
 
 fn button(pos: Pos2, pressed: bool) -> Input {
