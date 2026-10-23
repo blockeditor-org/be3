@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::{Pos2, Vec2};
 
 #[test]
 fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
@@ -9,12 +10,7 @@ fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
     fixture.settle();
     let docked = placed_windows(&fixture)[0].1;
 
-    let screen = block_plugin_api::ChildRect {
-        x: 0.0,
-        y: 0.0,
-        width: 800.0,
-        height: 600.0,
-    };
+    let screen = Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(800.0, 600.0));
     let mut fullscreen = window(3, "Player", None);
     fullscreen.fullscreen = Some(screen);
     fixture

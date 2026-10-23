@@ -12,13 +12,12 @@ fn returning_to_the_inspector_tab_repaints_the_whole_panel() {
 
     let inspector = harness.bar_option_center(1);
     let mut damage = Vec::new();
-    harness.frame(vec![Event::PointerMoved(inspector)]);
+    harness.frame(vec![Input::PointerMoved(inspector)]);
     for pressed in [true, false] {
-        let output = harness.frame(vec![Event::PointerButton {
+        let output = harness.frame(vec![Input::PointerButton {
             pos: inspector,
             button: PointerButton::Primary,
             pressed,
-            modifiers: Modifiers::NONE,
         }]);
         damage.extend_from_slice(output.damage.rects());
     }

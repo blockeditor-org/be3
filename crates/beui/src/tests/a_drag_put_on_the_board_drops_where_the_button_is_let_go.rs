@@ -34,7 +34,7 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
         DragPoint::at(from, Modifiers::NONE),
         Rc::new(|_| {}),
     );
-    harness.frame(vec![Event::PointerMoved(to)]);
+    harness.frame(vec![Input::PointerMoved(to)]);
     assert_eq!(
         dropped.get_untracked(),
         None,

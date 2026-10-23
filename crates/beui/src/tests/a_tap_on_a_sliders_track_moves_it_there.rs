@@ -21,19 +21,17 @@ fn a_tap_on_a_sliders_track_moves_it_there() {
         track.center().y,
     );
 
-    harness.frame(vec![Event::PointerMoved(at)]);
+    harness.frame(vec![Input::PointerMoved(at)]);
     harness.frame(vec![
-        Event::PointerButton {
+        Input::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: Modifiers::NONE,
         },
-        Event::PointerButton {
+        Input::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: Modifiers::NONE,
         },
     ]);
     let moved = changes.get_untracked();

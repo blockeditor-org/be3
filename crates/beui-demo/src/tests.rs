@@ -1,5 +1,5 @@
 use beui::datetime::Date;
-use beui::{Document, NodeId, Pos2, Vec2, pos2};
+use beui::{Document, Input, NodeId, Pos2, Vec2, pos2};
 use block_ui_test::DocumentTest;
 
 use super::*;
@@ -144,9 +144,9 @@ fn open(test: &mut DocumentTest, page: Page) {
 }
 
 fn open_beside(test: &mut DocumentTest, page: Page) {
-    test.frame(vec![beui::Event::Modifiers(beui::Modifiers::CTRL)]);
+    test.frame(vec![Input::Modifiers(beui::Modifiers::CTRL)]);
     open(test, page);
-    test.frame(vec![beui::Event::Modifiers(beui::Modifiers::NONE)]);
+    test.frame(vec![Input::Modifiers(beui::Modifiers::NONE)]);
 }
 
 fn reveal(test: &mut DocumentTest, test_id: &str) {

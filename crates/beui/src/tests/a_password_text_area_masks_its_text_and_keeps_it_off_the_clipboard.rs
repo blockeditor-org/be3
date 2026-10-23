@@ -31,8 +31,8 @@ fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
 
     harness.click(pos2(300.0, 16.0));
     harness.key(Key::A, Modifiers::CTRL);
-    let copied = harness.frame(vec![key_event(Key::C, true, Modifiers::CTRL)]);
-    let cut = harness.frame(vec![key_event(Key::X, true, Modifiers::CTRL)]);
+    let copied = harness.frame(pressed_with(Key::C, Modifiers::CTRL));
+    let cut = harness.frame(pressed_with(Key::X, Modifiers::CTRL));
 
     assert_eq!(copied.copied_text, None);
     assert_eq!(cut.copied_text, None);

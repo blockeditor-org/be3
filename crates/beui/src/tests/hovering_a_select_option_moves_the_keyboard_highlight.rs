@@ -41,7 +41,7 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
         .api::<unstyled::SelectApi>(select)
         .option_button(2);
     let cherry_pos = harness.center(cherry);
-    harness.frame(vec![Event::PointerMoved(cherry_pos)]);
+    harness.frame(vec![Input::PointerMoved(cherry_pos)]);
 
     assert_eq!(
         harness

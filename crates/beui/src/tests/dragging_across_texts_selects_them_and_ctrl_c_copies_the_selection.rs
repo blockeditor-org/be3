@@ -27,7 +27,7 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
     let (title, labels) = (harness.rect(title.get()), harness.rect(labels.get()));
     let copy = |harness: &mut Harness| {
         harness
-            .frame(vec![key_event(Key::C, true, Modifiers::CTRL)])
+            .frame(pressed_with(Key::C, Modifiers::CTRL))
             .copied_text
     };
 

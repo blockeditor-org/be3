@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::Key;
 
 #[test]
 fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
@@ -27,11 +27,10 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
         [true, false]
             .into_iter()
             .map(|pressed| {
-                Event::key(beui::KeyPress {
-                    key: Key::Escape,
+                Input::Key(beui::Keystroke {
+                    key: Some(Key::Escape),
                     pressed,
-                    repeat: false,
-                    modifiers: Modifiers::NONE,
+                    ..Default::default()
                 })
             })
             .collect(),

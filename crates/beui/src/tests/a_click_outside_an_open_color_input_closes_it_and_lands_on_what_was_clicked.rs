@@ -40,7 +40,7 @@ fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked()
         harness.rect(button).left() + 10.0,
         harness.rect(button).center().y,
     );
-    let hovered = harness.frame(vec![Event::PointerMoved(elsewhere)]);
+    let hovered = harness.frame(vec![Input::PointerMoved(elsewhere)]);
     assert_eq!(
         hovered.window.requests.cursor,
         CursorIcon::PointingHand,

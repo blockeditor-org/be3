@@ -21,7 +21,7 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
     });
 
     let mut harness = Harness::new(document);
-    harness.frame(vec![Event::PointerMotion(Vec2::new(4.0, 0.0))]);
+    harness.frame(vec![Input::PointerMotion(Vec2::new(4.0, 0.0))]);
     assert_eq!(
         moved.get_untracked(),
         Vec2::ZERO,
@@ -35,7 +35,7 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
         "pressing the region should ask for the pointer"
     );
 
-    harness.frame(vec![Event::PointerMotion(Vec2::new(4.0, -2.0))]);
+    harness.frame(vec![Input::PointerMotion(Vec2::new(4.0, -2.0))]);
     assert_eq!(
         moved.get_untracked(),
         Vec2::new(4.0, -2.0),
@@ -48,7 +48,7 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
         "escape should let the pointer go"
     );
 
-    harness.frame(vec![Event::PointerMotion(Vec2::new(9.0, 9.0))]);
+    harness.frame(vec![Input::PointerMotion(Vec2::new(9.0, 9.0))]);
     assert_eq!(
         moved.get_untracked(),
         Vec2::new(4.0, -2.0),

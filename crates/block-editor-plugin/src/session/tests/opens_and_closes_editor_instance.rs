@@ -19,8 +19,10 @@ fn opens_and_closes_editor_instance() {
     assert_eq!(opened, Vec::new());
     let resized = session.receive(Message::Editor(block_plugin_api::EditorMessage::Resized {
         instance,
-        width: 10.0,
-        height: 10.0,
+        size: block_plugin_api::Size {
+            width: 10.0,
+            height: 10.0,
+        },
     }));
     assert_eq!(resized, Vec::new());
     assert_eq!(session.state(), State::Running);
@@ -31,8 +33,10 @@ fn opens_and_closes_editor_instance() {
     assert_eq!(session.state(), State::Running);
     let stray = session.receive(Message::Editor(block_plugin_api::EditorMessage::Resized {
         instance,
-        width: 10.0,
-        height: 10.0,
+        size: block_plugin_api::Size {
+            width: 10.0,
+            height: 10.0,
+        },
     }));
     assert!(matches!(stray.as_slice(), [Message::Error(_)]));
     assert_eq!(session.state(), State::Failed);

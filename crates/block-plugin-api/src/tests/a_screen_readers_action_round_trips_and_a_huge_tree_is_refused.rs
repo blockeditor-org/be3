@@ -19,12 +19,7 @@ fn a_screen_readers_action_round_trips_and_a_huge_tree_is_refused() {
 
     let huge = Message::Frames(vec![FrameReport {
         screen: ScreenId(4),
-        content: ChildRect {
-            x: 0.0,
-            y: 0.0,
-            width: 10.0,
-            height: 10.0,
-        },
+        content: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(10.0, 10.0)),
         painted: Vec::new(),
         floating: Vec::new(),
         drawing: Vec::new(),

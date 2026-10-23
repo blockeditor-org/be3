@@ -38,9 +38,11 @@ fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {
     let first = first.get();
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    harness.frame(vec![Event::PointerMoved(harness.center(first))]);
+    harness.frame(vec![Input::PointerMoved(harness.center(first))]);
 
-    let output = harness.frame(vec![Event::Scroll(Vec2::new(0.0, -40.0))]);
+    let output = harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(Vec2::new(
+        0.0, -40.0,
+    )))]);
     let moved = output
         .moved()
         .expect("the dialog's panel hides the page, so the scroll copies what it showed");

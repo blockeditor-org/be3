@@ -28,7 +28,7 @@ fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::End, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    harness.frame(vec![Event::Text(" two\nthree".to_owned())]);
+    harness.frame(vec![Input::Text(" two\nthree".to_owned())]);
 
     assert_eq!(submitted.get_untracked(), 1);
     assert_eq!(String::from_utf8_lossy(&state.bytes()), "one twothree");

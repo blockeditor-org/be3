@@ -29,7 +29,7 @@ use winit::event::{
 use winit::event_loop::{
     ActiveEventLoop, AsyncRequestSerial, ControlFlow, DndAction, EventLoop, EventLoopProxy,
 };
-use winit::keyboard::{NamedKey, PhysicalKey};
+use winit::keyboard::{NativeKeyCode, PhysicalKey};
 use winit::monitor::Fullscreen;
 use winit::window::{
     CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, Window,
@@ -43,8 +43,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase,
-    PointerButton, ScrollDelta, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
+    PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Incoming, Launch, Platform, Running};
@@ -55,7 +55,6 @@ use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
 #[cfg(target_os = "linux")]
-const EVDEV_BACK: u32 = 158;
 const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
 
 type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
@@ -101,6 +100,8 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         load: Some(load),
         surface: None,
         pointer: Pos2::ZERO,
+        pressed: 0,
+        wayland: false,
         fingers: Vec::new(),
         wheel: Wheel::new(cfg!(target_os = "macos")),
         dropping: None,
@@ -132,6 +133,8 @@ struct Runner {
     load: Option<Load>,
     surface: Option<Surface>,
     pointer: Pos2,
+    pressed: u32,
+    wayland: bool,
     fingers: Vec<TouchId>,
     wheel: Wheel,
     dropping: Option<AsyncRequestSerial>,
@@ -356,8 +359,8 @@ impl Runner {
         self.push(Input::Pen {
             phase,
             pos: self.pointer,
-            pressure,
             pen: Pen {
+                pressure,
                 tilt,
                 eraser: kind == TabletToolKind::Eraser,
             },
@@ -416,7 +419,12 @@ impl Runner {
                 PointerKind::TabletTool(kind) => {
                     self.pen(PenPhase::Gone, position, kind, TabletToolData::default());
                 }
-                _ => self.push(Input::PointerLeft),
+                _ => {
+                    self.push(Input::PointerLeft);
+                    if self.wayland && std::mem::take(&mut self.pressed) > 0 {
+                        self.push(Input::PointersCancelled);
+                    }
+                }
             },
             WindowEvent::PointerButton {
                 device_id,
@@ -444,6 +452,10 @@ impl Runner {
                     }
                     ButtonSource::Mouse(button) => {
                         self.pointer = physical(position);
+                        self.pressed = match pressed {
+                            true => self.pressed.saturating_add(1),
+                            false => self.pressed.saturating_sub(1),
+                        };
                         if let Some(button) = pointer_button(button) {
                             self.push(Input::PointerButton {
                                 pos: self.pointer,
@@ -454,6 +466,10 @@ impl Runner {
                     }
                     ButtonSource::Unknown(code) if code >= BUTTON_EVDEV_FIRST => {
                         self.pointer = physical(position);
+                        self.pressed = match pressed {
+                            true => self.pressed.saturating_add(1),
+                            false => self.pressed.saturating_sub(1),
+                        };
                         let button = PointerButton::Other(code);
                         self.push(Input::PointerButton {
                             pos: self.pointer,
@@ -487,6 +503,11 @@ impl ApplicationHandler for Runner {
     }
 
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            use winit::platform::wayland::ActiveEventLoopExtWayland;
+            self.wayland = event_loop.is_wayland();
+        }
         if self.surface.is_some() {
             if let Err(error) = self.attach() {
                 self.fail(event_loop, error);
@@ -620,7 +641,13 @@ impl ApplicationHandler for Runner {
                 self.runner.reports().scaled(scale_factor as f32);
                 self.request_redraw();
             }
-            WindowEvent::Focused(focused) => self.push(Input::Focus(focused)),
+            WindowEvent::Focused(focused) => {
+                if !focused {
+                    self.pressed = 0;
+                    self.push(Input::PointersCancelled);
+                }
+                self.push(Input::Focus(focused));
+            }
             WindowEvent::ThemeChanged(theme) => {
                 self.preferences.window_theme(Some(theme));
                 self.runner
@@ -653,13 +680,13 @@ impl ApplicationHandler for Runner {
                 if wheeled == Wheeled::StartAndScroll {
                     self.push(Input::ScrollStarted);
                 }
-                self.push(match delta {
+                self.push(Input::Scroll(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),
                     MouseScrollDelta::PixelDelta(position) => {
                         ScrollDelta::Pixels(physical(position).to_vec2())
                     }
                     _ => return,
-                });
+                }));
                 if wheeled == Wheeled::ScrollAndEnd {
                     self.push(Input::ScrollEnded);
                 }
@@ -668,28 +695,18 @@ impl ApplicationHandler for Runner {
                 self.push(Input::Zoom(1.0 + delta as f32));
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                #[cfg(target_os = "linux")]
-                let code = {
-                    use winit::platform::scancode::PhysicalKeyExtScancode;
-                    event.physical_key.to_scancode()
-                };
-                #[cfg(not(target_os = "linux"))]
-                let code = None;
-                let key = match logical_key(&event.key_without_modifiers) {
-                    Logical::Key(key) => Some(key),
-                    Logical::Ignored => None,
-                    Logical::Unknown => match event.physical_key {
-                        PhysicalKey::Code(code) => Key::from_code(&format!("{code:?}")),
-                        PhysicalKey::Unidentified(_) => unidentified_key(event.physical_key),
-                    },
-                };
-                self.push(Keystroke {
+                let evdev = evdev(event.physical_key);
+                let key = logical_key(
+                    &event.key_without_modifiers,
+                    evdev.and_then(Key::from_evdev),
+                );
+                self.push(Input::Key(Keystroke {
                     key,
                     pressed: event.state == ElementState::Pressed,
                     repeat: event.repeat,
-                    code,
+                    evdev,
                     text: event.text.map(|text| text.to_string()),
-                });
+                }));
             }
             WindowEvent::Ime(Ime::Enabled) => self.push(Input::Ime(ImeEvent::Enabled)),
             WindowEvent::Ime(Ime::Preedit(text, _)) => {
@@ -711,17 +728,17 @@ impl ApplicationHandler for Runner {
                         .set_valid_dnd_actions(id, &[DndAction::Copy])
                         .is_ok()
                 {
-                    self.push(Input::FileHovered);
+                    self.push(FileDrag::Hovered);
                 }
             }
             WindowEvent::DragLeft { .. } => {
                 self.dropping = None;
-                self.push(Input::FileHoverCancelled);
+                self.push(FileDrag::Cancelled);
             }
             WindowEvent::DragDropped { id, .. } => {
                 self.dropping = event_loop.fetch_data_transfer(id, &TypeHint::UriList).ok();
                 if self.dropping.is_none() {
-                    self.push(Input::FileHoverCancelled);
+                    self.push(FileDrag::Cancelled);
                 }
             }
             WindowEvent::DataTransferReceived { serial, value, .. }
@@ -730,7 +747,7 @@ impl ApplicationHandler for Runner {
                 self.dropping = None;
                 let paths = value.try_as_file_paths().unwrap_or_default();
                 if paths.is_empty() {
-                    self.push(Input::FileHoverCancelled);
+                    self.push(FileDrag::Cancelled);
                 }
                 for path in paths {
                     let name = path
@@ -738,7 +755,7 @@ impl ApplicationHandler for Runner {
                         .and_then(|name| name.to_str())
                         .unwrap_or_default()
                         .to_owned();
-                    self.push(Input::FileDropped(DroppedFile {
+                    self.push(FileDrag::Dropped(DroppedFile {
                         name,
                         path: Some(path),
                         bytes: None,
@@ -837,109 +854,26 @@ fn cursor(icon: CursorIcon) -> Option<winit::cursor::CursorIcon> {
     })
 }
 
-#[cfg(target_os = "linux")]
-fn unidentified_key(physical: PhysicalKey) -> Option<Key> {
-    use winit::platform::scancode::PhysicalKeyExtScancode;
-    match physical.to_scancode() {
-        Some(EVDEV_BACK) => Some(Key::BrowserBack),
-        _ => None,
+fn evdev(physical: PhysicalKey) -> Option<u32> {
+    match physical {
+        PhysicalKey::Code(code) => Key::evdev_from_code(&code.to_string()),
+        PhysicalKey::Unidentified(NativeKeyCode::Xkb(code)) => code.checked_sub(8),
+        PhysicalKey::Unidentified(NativeKeyCode::Android(code)) => Some(code),
+        PhysicalKey::Unidentified(_) => None,
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-fn unidentified_key(_: PhysicalKey) -> Option<Key> {
-    None
-}
-
-enum Logical {
-    Key(Key),
-    Ignored,
-    Unknown,
-}
-
-fn logical_key(logical: &winit::keyboard::Key) -> Logical {
+fn logical_key(logical: &winit::keyboard::Key, physical: Option<Key>) -> Option<Key> {
     use winit::keyboard::Key as Winit;
-    let named = match logical {
-        Winit::Named(named) => named_key(*named),
-        Winit::Character(text) => {
-            let mut chars = text.chars();
-            match (chars.next(), chars.next()) {
-                (Some(c), None) => Key::from_char(c),
-                _ => None,
-            }
-        }
+    let apple = cfg!(target_os = "macos");
+    match logical {
+        Winit::Named(named) => Key::from_value(&named.to_string(), physical, apple),
+        Winit::Character(text) => Key::from_value(text, physical, apple),
         Winit::Unidentified(winit::keyboard::NativeKey::Xkb(XKB_AUDIO_MIC_MUTE)) => {
             Some(Key::MicMute)
         }
-        Winit::Unidentified(_) | Winit::Dead(_) => None,
-    };
-    match (named, logical) {
-        (Some(key), _) => Logical::Key(key),
-        (None, Winit::Named(_)) => Logical::Ignored,
-        (None, _) => Logical::Unknown,
+        Winit::Unidentified(_) | Winit::Dead(_) => physical,
     }
-}
-
-fn named_key(named: NamedKey) -> Option<Key> {
-    let key = match named {
-        NamedKey::ArrowDown => Key::ArrowDown,
-        NamedKey::ArrowLeft => Key::ArrowLeft,
-        NamedKey::ArrowRight => Key::ArrowRight,
-        NamedKey::ArrowUp => Key::ArrowUp,
-        NamedKey::Backspace => Key::Backspace,
-        NamedKey::Delete => Key::Delete,
-        NamedKey::End => Key::End,
-        NamedKey::Enter => Key::Enter,
-        NamedKey::Escape => Key::Escape,
-        NamedKey::Home => Key::Home,
-        NamedKey::PageDown => Key::PageDown,
-        NamedKey::PageUp => Key::PageUp,
-        NamedKey::Tab => Key::Tab,
-        NamedKey::Insert => Key::Insert,
-        NamedKey::BrowserBack => Key::BrowserBack,
-        NamedKey::F1 => Key::F1,
-        NamedKey::F2 => Key::F2,
-        NamedKey::F3 => Key::F3,
-        NamedKey::F4 => Key::F4,
-        NamedKey::F5 => Key::F5,
-        NamedKey::F6 => Key::F6,
-        NamedKey::F7 => Key::F7,
-        NamedKey::F8 => Key::F8,
-        NamedKey::F9 => Key::F9,
-        NamedKey::F10 => Key::F10,
-        NamedKey::F11 => Key::F11,
-        NamedKey::F12 => Key::F12,
-        NamedKey::F13 => Key::F13,
-        NamedKey::F14 => Key::F14,
-        NamedKey::F15 => Key::F15,
-        NamedKey::F16 => Key::F16,
-        NamedKey::F17 => Key::F17,
-        NamedKey::F18 => Key::F18,
-        NamedKey::F19 => Key::F19,
-        NamedKey::F20 => Key::F20,
-        NamedKey::F21 => Key::F21,
-        NamedKey::F22 => Key::F22,
-        NamedKey::F23 => Key::F23,
-        NamedKey::F24 => Key::F24,
-        NamedKey::AudioVolumeUp => Key::VolumeUp,
-        NamedKey::AudioVolumeDown => Key::VolumeDown,
-        NamedKey::AudioVolumeMute => Key::VolumeMute,
-        NamedKey::MicrophoneVolumeMute => Key::MicMute,
-        NamedKey::BrightnessUp => Key::BrightnessUp,
-        NamedKey::BrightnessDown => Key::BrightnessDown,
-        NamedKey::MediaPlayPause | NamedKey::MediaPlay | NamedKey::MediaPause => {
-            Key::MediaPlayPause
-        }
-        NamedKey::MediaTrackNext => Key::MediaNext,
-        NamedKey::MediaTrackPrevious => Key::MediaPrevious,
-        NamedKey::MediaStop => Key::MediaStop,
-        NamedKey::Shift => Key::Shift,
-        NamedKey::Control => Key::Ctrl,
-        NamedKey::Alt => Key::Alt,
-        NamedKey::Meta => Key::meta(cfg!(target_os = "macos")),
-        _ => return None,
-    };
-    Some(key)
 }
 
 fn show_cursor(surface: &Surface, state: &WindowState) {

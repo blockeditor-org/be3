@@ -35,7 +35,7 @@ fn the_rich_text_page_renders_its_blocks_and_voids_and_edits_them_through_them()
     );
 
     test.click("demo.rich.@ada");
-    test.frame(vec![beui::Event::Text("Ada".to_owned())]);
+    test.frame(vec![Input::Text("Ada".to_owned())]);
     test.frame(Vec::new());
     assert_eq!(
         showing(test.document(), root, "@ada"),

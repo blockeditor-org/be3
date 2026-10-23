@@ -5,7 +5,7 @@ use crate::test_client::Feedback;
 #[test]
 fn presentation_feedback_carries_the_flip_time() {
     let (mut harness, device, queue) = Harness::with_gpu();
-    harness.app.pace_to_flips();
+    harness.compositor().pace_to_flips();
     let (window, _) = harness.open();
     let mut painter = Painter::new(&device, &queue);
 
@@ -25,7 +25,7 @@ fn presentation_feedback_carries_the_flip_time() {
         ..flip(0)
     };
     harness
-        .app
+        .compositor()
         .presented(Rect::from_min_size(Pos2::ZERO, SCREEN), flipped);
     harness.frame(Vec::new());
     assert_eq!(harness.client.received.clock, Some(1), "CLOCK_MONOTONIC");

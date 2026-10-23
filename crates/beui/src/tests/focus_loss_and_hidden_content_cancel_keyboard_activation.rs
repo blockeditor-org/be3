@@ -29,14 +29,14 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
     let button = button.get();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
-    harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Space, true)]);
     harness.key(Key::Tab, Modifiers::NONE);
-    harness.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Space, false)]);
     assert_eq!(clicks.get_untracked(), 0);
     harness.key(Key::Tab, Modifiers::SHIFT);
-    harness.frame(vec![key_event(Key::Enter, true, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Enter, true)]);
     with_installed(harness.document_mut(), |_| shown.set(false));
-    harness.frame(vec![key_event(Key::Enter, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Enter, false)]);
     assert_eq!(clicks.get_untracked(), 0);
     assert_ne!(harness.document().focused_node(), Some(button));
     with_installed(harness.document_mut(), |_| shown.set(true));

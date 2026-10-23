@@ -9,16 +9,16 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
         key: Some(key),
         pressed: true,
         repeat: false,
-        code: None,
+        evdev: None,
         text: Some(text.to_owned()),
     };
 
-    let seen = intaken.frame(1.0, [typed(Key::A, "a").into()]);
+    let seen = intaken.frame(1.0, [Input::Key(typed(Key::A, "a")).into()]);
     assert_eq!(
         seen,
         [Event::Key {
             press: KeyPress::down(Key::A, Modifiers::NONE),
-            code: None,
+            evdev: None,
             text: Some("a".to_owned()),
         }]
     );
@@ -28,12 +28,12 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
         [
             Input::Modifiers(Modifiers::CTRL).into(),
             Input::Modifiers(Modifiers::CTRL).into(),
-            Keystroke {
+            Input::Key(Keystroke {
                 repeat: true,
                 ..typed(Key::Ctrl, "")
-            }
+            })
             .into(),
-            typed(Key::S, "s").into(),
+            Input::Key(typed(Key::S, "s")).into(),
         ],
     );
     assert_eq!(
@@ -42,7 +42,7 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
             Event::Modifiers(Modifiers::CTRL),
             Event::Key {
                 press: KeyPress::down(Key::S, Modifiers::CTRL),
-                code: None,
+                evdev: None,
                 text: None,
             }
         ],
@@ -53,10 +53,10 @@ fn a_platform_keystroke_types_only_without_a_shortcut_held() {
         1.0,
         [
             Input::Modifiers(Modifiers::NONE).into(),
-            Keystroke {
+            Input::Key(Keystroke {
                 key: None,
                 ..typed(Key::A, "é")
-            }
+            })
             .into(),
         ],
     );

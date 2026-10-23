@@ -4,11 +4,24 @@ use std::time::{Duration, Instant};
 use crate::geometry::{Pos2, Vec2};
 
 pub use ui_types::input::{
-    BackEdge, BackGesture, CursorIcon, DroppedFile, ImeEvent, ImeText, Input, Key, KeyChord,
-    KeyPress, Keyboard, Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId,
-    TouchPhase,
+    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
+    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 pub use ui_types::window::ImeArea;
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DroppedFile {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum FileDrag {
+    Hovered,
+    Cancelled,
+    Dropped(DroppedFile),
+}
 
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
@@ -30,7 +43,6 @@ pub struct PointerPress {
     pub clicks: u32,
     pub modifiers: Modifiers,
     pub touch: bool,
-    pub pressure: Option<f32>,
     pub pen: Option<Pen>,
     pub predicted: Option<Pos2>,
     pub time: Instant,
@@ -93,7 +105,7 @@ pub enum Event {
     Modifiers(Modifiers),
     Key {
         press: KeyPress,
-        code: Option<u32>,
+        evdev: Option<u32>,
         text: Option<String>,
     },
     PointerButton {
@@ -103,6 +115,7 @@ pub enum Event {
         modifiers: Modifiers,
     },
     PointerGone,
+    PointersCancelled,
     PointerMotion(Vec2),
     PointerMoved(Pos2),
     ScrollStarted,
@@ -119,7 +132,6 @@ pub enum Event {
     Pen {
         phase: PenPhase,
         pos: Pos2,
-        pressure: f32,
         pen: Pen,
     },
     Predicted(Pos2),
@@ -138,7 +150,7 @@ impl Event {
     pub fn key(press: KeyPress) -> Self {
         Self::Key {
             press,
-            code: None,
+            evdev: None,
             text: None,
         }
     }
@@ -155,6 +167,7 @@ impl Event {
             self,
             Self::PointerButton { .. }
                 | Self::PointerGone
+                | Self::PointersCancelled
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
                 | Self::ScrollStarted
@@ -187,11 +200,6 @@ impl Event {
             _ => None,
         }
     }
-}
-
-#[derive(Clone, Default, Debug)]
-pub struct RawInput {
-    pub events: Vec<Event>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -378,7 +386,7 @@ impl InputState {
         !self.touches.is_empty()
     }
 
-    pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
+    pub(crate) fn begin_frame(&mut self, events: Vec<Event>, now: Instant) {
         self.pointer.motion = Vec2::ZERO;
         if self.touches.is_empty() {
             self.pointer.lift_finger();
@@ -386,13 +394,13 @@ impl InputState {
         self.pointer_events.clear();
         self.touched = self.touches.iter().map(|(_, pos)| *pos).collect();
         self.touched
-            .extend(raw.events.iter().filter_map(|event| match event {
+            .extend(events.iter().filter_map(|event| match event {
                 Event::Touch { pos, .. } => Some(*pos),
                 _ => None,
             }));
-        for (source, event) in raw.events.iter().enumerate() {
+        for (source, event) in events.iter().enumerate() {
             self.source = source;
-            self.time = match raw.events.get(source + 1) {
+            self.time = match events.get(source + 1) {
                 Some(Event::Time(at)) => Some(*at),
                 _ => Some(now),
             };
@@ -410,7 +418,7 @@ impl InputState {
                     self.pointer.motion += *delta;
                 }
                 Event::PointerGone if self.touched.is_empty() => self.mouse_gone(),
-                Event::Focus(false) => {
+                Event::PointersCancelled => {
                     for (id, pos) in std::mem::take(&mut self.touches) {
                         self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
                     }
@@ -459,18 +467,12 @@ impl InputState {
                     self.force = *force;
                     self.touch(*id, *phase, *pos, now);
                 }
-                Event::Pen {
-                    phase,
-                    pos,
-                    pressure,
-                    pen,
-                } => {
-                    self.force = Some(*pressure);
+                Event::Pen { phase, pos, pen } => {
                     self.pen = Some(*pen);
                     self.pen_event(*phase, *pos, now);
                 }
                 Event::Predicted(pos) => {
-                    let stamped = raw.events[..source]
+                    let stamped = events[..source]
                         .iter()
                         .rev()
                         .take_while(|event| matches!(event, Event::Time(_)))
@@ -480,7 +482,7 @@ impl InputState {
                 _ => {}
             }
         }
-        self.events = raw.events;
+        self.events = events;
         while self
             .scroll_samples
             .front()

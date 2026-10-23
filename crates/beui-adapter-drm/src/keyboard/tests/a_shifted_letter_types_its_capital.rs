@@ -12,7 +12,7 @@ fn a_shifted_letter_types_its_capital() {
         key: Some(Key::A),
         pressed: true,
         repeat: false,
-        code: Some(KEY_A),
+        evdev: Some(KEY_A),
         text: Some("A".to_owned()),
     };
     assert!(pressed.inputs.contains(&Input::Key(typed.clone())));

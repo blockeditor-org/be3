@@ -277,19 +277,14 @@ impl Gestures {
         Ok(vec![frame])
     }
 
-    pub fn pen_sample(&mut self, phase: PenPhase, pos: Pos2, pressure: f32, pen: Pen) -> Frames {
+    pub fn pen_sample(&mut self, phase: PenPhase, pos: Pos2, pen: Pen) -> Frames {
         self.pen = match phase {
             PenPhase::Gone => None,
             PenPhase::Down(_) => Some((pos, true)),
             PenPhase::Up(_) => Some((pos, false)),
             PenPhase::Move => Some((pos, self.pen.is_some_and(|(_, down)| down))),
         };
-        vec![vec![Input::Pen {
-            phase,
-            pos,
-            pressure,
-            pen,
-        }]]
+        vec![vec![Input::Pen { phase, pos, pen }]]
     }
 
     pub fn hold(&mut self, modifiers: Modifiers) -> Frames {
@@ -385,6 +380,19 @@ impl Gestures {
         Ok(vec![events])
     }
 
+    pub fn focus(&mut self, focused: bool) -> Frames {
+        if focused {
+            return vec![vec![Input::Focus(true)]];
+        }
+        self.held = Modifiers::NONE;
+        self.keys.clear();
+        self.buttons.clear();
+        self.fingers.clear();
+        self.pen = None;
+        self.hovering = false;
+        vec![vec![Input::PointersCancelled, Input::Focus(false)]]
+    }
+
     pub fn compose(&mut self, text: String) -> Frames {
         let mut events = self.enable_ime();
         self.composing = Some(text.clone());
@@ -444,8 +452,10 @@ fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Input {
     Input::Pen {
         phase,
         pos,
-        pressure,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure,
+            ..Pen::default()
+        },
     }
 }
 

@@ -12,8 +12,8 @@ fn activation_requires_a_matching_release_and_escape_cancels_it() {
     });
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
-    harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
-    harness.frame(vec![key_event(Key::Enter, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Space, true)]);
+    harness.frame(vec![key_event(Key::Enter, false)]);
     assert_eq!(clicks.get_untracked(), 0);
     assert!(
         harness
@@ -23,7 +23,7 @@ fn activation_requires_a_matching_release_and_escape_cancels_it() {
             .get()
     );
     harness.key(Key::Escape, Modifiers::NONE);
-    harness.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Space, false)]);
     assert_eq!(clicks.get_untracked(), 0);
     assert!(
         !harness

@@ -1,4 +1,6 @@
-use beui::{Context, Event, ForwardedInput, FreetypeFonts, Modifiers, RawInput};
+use beui::automation::WindowSize;
+use beui::testing::{Showing, Stepped};
+use beui::{Context, Event, ForwardedInput, FreetypeFonts, Input, Keystroke};
 
 use super::*;
 
@@ -10,7 +12,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     let catcher = NodeRef::new();
     let item = NodeRef::new();
     let menu = create_signal(false);
-    let mut document = build({
+    let document = build({
         let stopped = Rc::clone(&stopped);
         let heard = Rc::clone(&heard);
         move || {
@@ -48,24 +50,27 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
             }
         }
     });
-    let context = Context::new(FreetypeFonts::default());
-    let frame = |document: &mut beui::Document, events: Vec<Event>| {
-        context.run(RawInput { events }, |context| {
-            document.show(context, Rect::from_min_size(Pos2::ZERO, vec2(200.0, 200.0)));
-        });
+    let window = WindowSize {
+        size: vec2(200.0, 200.0),
+        scale: 1.0,
     };
-    frame(&mut document, Vec::new());
-    document.focus_focusable(catcher.get());
+    let mut stepped = Stepped::new(
+        Context::new(FreetypeFonts::default()),
+        Showing(document),
+        window,
+        None,
+    );
+    stepped.frame(Vec::new());
+    stepped.document_mut().focus_focusable(catcher.get());
     let key = |key, pressed| {
-        Event::key(beui::KeyPress {
-            key,
+        Input::Key(Keystroke {
+            key: Some(key),
             pressed,
-            repeat: false,
-            modifiers: Modifiers::NONE,
+            ..Keystroke::default()
         })
     };
 
-    frame(&mut document, vec![key(Key::A, true), key(Key::A, false)]);
+    stepped.frame(vec![key(Key::A, true), key(Key::A, false)]);
     assert_eq!(stopped.get(), 0, "other keys leave the presentation alone");
     assert_eq!(
         heard.borrow().len(),
@@ -75,20 +80,17 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     );
 
     menu.set(true);
-    frame(&mut document, Vec::new());
-    document.focus_focusable(item.get());
-    frame(
-        &mut document,
-        vec![key(Key::Escape, true), key(Key::Escape, false)],
-    );
-    frame(&mut document, Vec::new());
+    stepped.frame(Vec::new());
+    stepped.document_mut().focus_focusable(item.get());
+    stepped.frame(vec![key(Key::Escape, true), key(Key::Escape, false)]);
+    stepped.frame(Vec::new());
     assert!(!menu.get_untracked(), "Escape closes a menu open over it");
     assert_eq!(stopped.get(), 0, "and leaves the presentation up");
 
-    document.focus_focusable(catcher.get());
+    stepped.document_mut().focus_focusable(catcher.get());
     heard.borrow_mut().clear();
-    frame(&mut document, vec![key(Key::Escape, true)]);
-    frame(&mut document, vec![key(Key::Escape, false)]);
+    stepped.frame(vec![key(Key::Escape, true)]);
+    stepped.frame(vec![key(Key::Escape, false)]);
     assert_eq!(
         stopped.get(),
         1,

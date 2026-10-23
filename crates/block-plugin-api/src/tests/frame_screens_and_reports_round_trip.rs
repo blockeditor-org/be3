@@ -1,5 +1,5 @@
 use super::*;
-use accesskit::{Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate};
+use accesskit::{Node, NodeId, Role, Toggled, Tree, TreeId, TreeUpdate};
 
 fn checklist_tree() -> TreeUpdate {
     let mut root = Node::new(Role::Window);
@@ -8,7 +8,7 @@ fn checklist_tree() -> TreeUpdate {
     done.set_label("Buy milk");
     done.set_value("x".repeat(MAX_STRING_BYTES + 1));
     done.set_toggled(Toggled::True);
-    done.set_bounds(Rect::new(8.0, 48.0, 208.0, 72.0));
+    done.set_bounds(accesskit::Rect::new(8.0, 48.0, 208.0, 72.0));
     done.add_action(accesskit::Action::Click);
     done.add_action(accesskit::Action::Focus);
     done.set_author_id("checklist.done");
@@ -25,12 +25,10 @@ fn frame_screens_and_reports_round_trip() {
     let mut request = region_screen(EditorRegion::Frame, 1, 2, 640, 480, 1.0);
     request.frame = Some(FrameSpec {
         chrome: FrameChrome::Drawn,
-        content: Some(ChildRect {
-            x: 10.0,
-            y: 20.0,
-            width: 300.0,
-            height: 200.0,
-        }),
+        content: Some(Rect::from_min_size(
+            Pos2::new(10.0, 20.0),
+            Vec2::new(300.0, 200.0),
+        )),
         top_bar: TopBar::Phone,
     });
     let screens = Message::Screens(ScreenSet {
@@ -44,42 +42,26 @@ fn frame_screens_and_reports_round_trip() {
 
     let frames = Message::Frames(vec![FrameReport {
         screen: ScreenId(1),
-        content: ChildRect {
-            x: 0.0,
-            y: 40.0,
-            width: 640.0,
-            height: 440.0,
-        },
-        painted: vec![ChildRect {
-            x: 0.0,
-            y: 0.0,
-            width: 640.0,
-            height: 40.0,
-        }],
-        floating: vec![ChildRect {
-            x: 8.0,
-            y: 44.0,
-            width: 120.0,
-            height: 90.0,
-        }],
-        drawing: vec![ChildRect {
-            x: 0.0,
-            y: 0.0,
-            width: 640.0,
-            height: 400.0,
-        }],
+        content: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(640.0, 440.0)),
+        painted: vec![Rect::from_min_size(
+            Pos2::new(0.0, 0.0),
+            Vec2::new(640.0, 40.0),
+        )],
+        floating: vec![Rect::from_min_size(
+            Pos2::new(8.0, 44.0),
+            Vec2::new(120.0, 90.0),
+        )],
+        drawing: vec![Rect::from_min_size(
+            Pos2::new(0.0, 0.0),
+            Vec2::new(640.0, 400.0),
+        )],
         every_sample: true,
         claims: vec![PressClaim {
             modifiers: Modifiers {
                 logo: true,
                 ..Modifiers::default()
             },
-            rect: ChildRect {
-                x: 0.0,
-                y: 40.0,
-                width: 320.0,
-                height: 440.0,
-            },
+            rect: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(320.0, 440.0)),
         }],
         description: Some(Description {
             tree: Some(checklist_tree()),

@@ -11,7 +11,7 @@ fn logical_input_arrives_in_points_at_the_zoom_of_the_frame() {
         [
             Incoming::logical(Input::PointerMoved(pos2(10.0, 20.0))),
             Incoming::logical(Input::PointerMotion(vec2(4.0, -8.0))),
-            Incoming::logical(ScrollDelta::Pixels(vec2(0.0, 30.0))),
+            Incoming::logical(Input::Scroll(ScrollDelta::Pixels(vec2(0.0, 30.0)))),
             Input::PointerMoved(pos2(10.0, 20.0)).into(),
         ],
     );

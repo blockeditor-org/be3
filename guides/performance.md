@@ -17,6 +17,10 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   keeps grow from empty every time. A long-lived document reuses the slots of the nodes
   it removed; don't chase the growth of those tables in a profile of the bench.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
+- Both beui benches run their frames through the real `Runner`, with no automation (so no
+  accessibility dump) and the clock stopped, and push their inputs as a platform would. A
+  frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
+  around the app's update; the open bench takes the renderer's `prepare` out of it.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
 - `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink]` opens the

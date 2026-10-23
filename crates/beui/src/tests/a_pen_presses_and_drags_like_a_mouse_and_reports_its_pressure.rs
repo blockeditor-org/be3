@@ -21,15 +21,15 @@ fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let tilted = Pen {
+    let tilted = |pressure| Pen {
+        pressure,
         tilt: vec2(10.0, -5.0),
         eraser: false,
     };
-    let pen = |phase, pos, pressure| Event::Pen {
+    let pen = |phase, pos, pressure| Input::Pen {
         phase,
         pos,
-        pressure,
-        pen: tilted,
+        pen: tilted(pressure),
     };
 
     harness.frame(vec![pen(PenPhase::Move, pos2(100.0, 100.0), 0.0)]);
@@ -51,15 +51,15 @@ fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {
     )]);
 
     let presses = presses.get_untracked();
-    let seen: Vec<(Pos2, Option<f32>, bool, Option<Pen>)> = presses
+    let seen: Vec<(Pos2, bool, Option<Pen>)> = presses
         .iter()
-        .map(|press| (press.pos, press.pressure, press.touch, press.pen))
+        .map(|press| (press.pos, press.touch, press.pen))
         .collect();
     assert_eq!(
         (seen.first().copied(), seen.last().copied()),
         (
-            Some((pos2(100.0, 100.0), Some(0.25), false, Some(tilted))),
-            Some((pos2(110.0, 100.0), Some(0.75), false, Some(tilted))),
+            Some((pos2(100.0, 100.0), false, Some(tilted(0.25)))),
+            Some((pos2(110.0, 100.0), false, Some(tilted(0.75)))),
         ),
         "the press and the drag each carry the pen's pressure and tilt where they happened, and the pen is not a finger"
     );

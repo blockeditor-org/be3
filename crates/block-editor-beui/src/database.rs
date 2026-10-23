@@ -12,8 +12,7 @@ use beui::icons::ICON_CLEAR;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
-use beui::{Color32, NodeId};
-use block_plugin_api::ChildRect;
+use beui::{Color32, NodeId, Rect};
 pub use block_ui::database::ValueLabels;
 use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
 use uuid::Uuid;
@@ -31,7 +30,7 @@ pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 pub struct DatabaseBlockPickRequest {
     pub field_id: Uuid,
     pub block_type: Option<Uuid>,
-    pub anchor: Option<ChildRect>,
+    pub anchor: Option<Rect>,
 }
 
 #[component]

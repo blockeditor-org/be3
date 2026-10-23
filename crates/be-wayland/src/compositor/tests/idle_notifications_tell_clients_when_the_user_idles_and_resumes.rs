@@ -7,19 +7,15 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 #[test]
 fn idle_notifications_tell_clients_when_the_user_idles_and_resumes() {
     let mut harness = Harness::new();
-    harness.context.stop_clock();
     let _notification = harness
         .client
         .idle_notification(TIMEOUT.as_millis() as u32, false);
+    let start = harness.context().now() + beui::testing::FRAME_INTERVAL;
     harness.settle();
 
-    harness
-        .context
-        .advance_clock(TIMEOUT - Duration::from_millis(1));
-    harness.frame(Vec::new());
+    harness.frame_at(start + TIMEOUT - Duration::from_millis(1));
     assert!(harness.client.received.idle.is_empty());
-    harness.context.advance_clock(Duration::from_millis(1));
-    harness.frame(Vec::new());
+    harness.frame_at(start + TIMEOUT);
     assert_eq!(harness.client.received.idle, vec![true]);
 
     harness.frame(Vec::new());

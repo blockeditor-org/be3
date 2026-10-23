@@ -44,7 +44,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let inside = harness.center(dock_tab(harness.document(), root, "Tab 11"));
 
     harness.press_at(pinned);
-    harness.frame(vec![Event::PointerMoved(outside)]);
+    harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(Vec::new());
 
     assert!(
@@ -52,7 +52,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
         "a pinned tab over a bar outside its group is shown no place to land"
     );
 
-    harness.frame(vec![Event::PointerMoved(inside)]);
+    harness.frame(vec![Input::PointerMoved(inside)]);
     harness.frame(Vec::new());
 
     assert!(

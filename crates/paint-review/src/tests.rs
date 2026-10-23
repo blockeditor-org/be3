@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::{Image, Vec2};
+use beui::{Image, Input, Vec2};
 use block_ui_test::DocumentTest;
 
 use super::*;
@@ -100,11 +100,10 @@ impl Review {
             [true, false]
                 .into_iter()
                 .map(|pressed| {
-                    beui::Event::key(beui::KeyPress {
-                        key,
+                    Input::Key(beui::Keystroke {
+                        key: Some(key),
                         pressed,
-                        repeat: false,
-                        modifiers: beui::Modifiers::NONE,
+                        ..Default::default()
                     })
                 })
                 .collect(),

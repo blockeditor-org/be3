@@ -197,13 +197,7 @@ fn placed_windows(fixture: &Fixture) -> Vec<(u64, Rect)> {
         .children()
         .iter()
         .filter_map(|placement| match placement.content {
-            ChildContent::Window(window) => Some((
-                window.0,
-                Rect::from_min_size(
-                    block_editor_beui::pos2(placement.rect.x, placement.rect.y),
-                    block_editor_beui::vec2(placement.rect.width, placement.rect.height),
-                ),
-            )),
+            ChildContent::Window(window) => Some((window.0, placement.rect)),
             _ => None,
         })
         .collect()

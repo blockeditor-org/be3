@@ -39,7 +39,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
         "the input method is told the text around the caret"
     );
 
-    let after = harness.frame(vec![Event::Ime(ImeEvent::ReplaceText {
+    let after = harness.frame(vec![Input::Ime(ImeEvent::ReplaceText {
         range: 4..8,
         text: "hello".to_owned(),
     })]);

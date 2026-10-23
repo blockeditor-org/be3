@@ -1,5 +1,4 @@
 use block_editor_beui::beui::{pos2, vec2};
-use block_plugin_api::ChildRect;
 
 use super::*;
 
@@ -13,12 +12,7 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
         .set_monitors(vec![("left", left), ("right", right)]);
     fixture.settle();
     let fullscreen = HostWindow {
-        fullscreen: Some(ChildRect {
-            x: right.min.x,
-            y: right.min.y,
-            width: right.width(),
-            height: right.height(),
-        }),
+        fullscreen: Some(right),
         ..host_window(1, true)
     };
     fixture

@@ -78,7 +78,7 @@ pub enum FrameChrome {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct FrameSpec {
     pub chrome: FrameChrome,
-    pub content: Option<ChildRect>,
+    pub content: Option<Rect>,
     pub top_bar: TopBar,
 }
 
@@ -161,10 +161,10 @@ impl MenuEntry {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FrameReport {
     pub screen: ScreenId,
-    pub content: ChildRect,
-    pub painted: Vec<ChildRect>,
-    pub floating: Vec<ChildRect>,
-    pub drawing: Vec<ChildRect>,
+    pub content: Rect,
+    pub painted: Vec<Rect>,
+    pub floating: Vec<Rect>,
+    pub drawing: Vec<Rect>,
     pub every_sample: bool,
     pub claims: Vec<PressClaim>,
     pub description: Option<Description>,
@@ -189,7 +189,7 @@ pub struct DescribedAction {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PressClaim {
     pub modifiers: Modifiers,
-    pub rect: ChildRect,
+    pub rect: Rect,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -212,8 +212,7 @@ pub struct ScreenPlacement {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegionSize {
     pub screen: ScreenId,
-    pub logical_width: f32,
-    pub logical_height: f32,
+    pub logical: Size,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -293,14 +292,6 @@ pub struct Size {
     pub height: f32,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct ChildRect {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
 
@@ -360,8 +351,8 @@ impl ChildContent {
 pub struct ChildPlacement {
     pub child: ChildId,
     pub content: ChildContent,
-    pub rect: ChildRect,
-    pub clip: ChildRect,
+    pub rect: Rect,
+    pub clip: Rect,
     pub own_frame: bool,
     pub top_bar: TopBar,
     pub corner_radius: f32,
@@ -383,7 +374,7 @@ pub struct Camera {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Occluder {
     pub after: u32,
-    pub rect: ChildRect,
+    pub rect: Rect,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -398,64 +389,11 @@ pub struct ChildPlacements {
 }
 
 impl ChildPlacements {
-    pub fn occluded(&self, index: usize, x: f32, y: f32) -> bool {
+    pub fn occluded(&self, index: usize, point: Pos2) -> bool {
         self.occluders
             .iter()
             .filter(|occluder| occluder.after as usize > index)
-            .any(|occluder| occluder.rect.contains(x, y))
-    }
-}
-
-impl ChildRect {
-    pub fn contains(&self, x: f32, y: f32) -> bool {
-        x >= self.x && y >= self.y && x < self.x + self.width && y < self.y + self.height
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.width <= 0.0 || self.height <= 0.0
-    }
-
-    pub fn right(&self) -> f32 {
-        self.x + self.width
-    }
-
-    pub fn bottom(&self) -> f32 {
-        self.y + self.height
-    }
-
-    pub fn from_edges(left: f32, top: f32, right: f32, bottom: f32) -> Self {
-        Self {
-            x: left,
-            y: top,
-            width: (right - left).max(0.0),
-            height: (bottom - top).max(0.0),
-        }
-    }
-
-    pub fn intersect(&self, other: ChildRect) -> ChildRect {
-        Self::from_edges(
-            self.x.max(other.x),
-            self.y.max(other.y),
-            self.right().min(other.right()),
-            self.bottom().min(other.bottom()),
-        )
-    }
-
-    pub fn swept(&self, rotation: f32) -> ChildRect {
-        if rotation == 0.0 {
-            return *self;
-        }
-        let (center_x, center_y) = (self.x + self.width / 2.0, self.y + self.height / 2.0);
-        let (sin, cos) = rotation.sin_cos();
-        let (half_width, half_height) = (self.width / 2.0, self.height / 2.0);
-        let reach_x = half_width * cos.abs() + half_height * sin.abs();
-        let reach_y = half_width * sin.abs() + half_height * cos.abs();
-        Self::from_edges(
-            center_x - reach_x,
-            center_y - reach_y,
-            center_x + reach_x,
-            center_y + reach_y,
-        )
+            .any(|occluder| occluder.rect.contains_half_open(point))
     }
 }
 
@@ -920,10 +858,7 @@ pub enum EditorMessage {
     },
     ViewChanged {
         instance: EditorInstanceId,
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
+        view: Rect,
         scale: f32,
     },
     ChangeView {
@@ -940,8 +875,7 @@ pub enum EditorMessage {
     },
     Resized {
         instance: EditorInstanceId,
-        width: f32,
-        height: f32,
+        size: Size,
     },
     LeaveFrame {
         instance: EditorInstanceId,
@@ -1054,8 +988,7 @@ pub enum EditorMessage {
     DragOver {
         instance: EditorInstanceId,
         region: EditorRegion,
-        x: f32,
-        y: f32,
+        pos: Pos2,
         block_id: [u8; 16],
         block_type: [u8; 16],
         dropped: bool,
@@ -1068,8 +1001,7 @@ pub enum EditorMessage {
     FileDrop {
         instance: EditorInstanceId,
         region: EditorRegion,
-        x: f32,
-        y: f32,
+        pos: Pos2,
         files: Vec<DroppedFile>,
         dropped: bool,
     },
@@ -1576,7 +1508,7 @@ pub enum BlockCommand {
     },
     Restore,
     AppMenu {
-        anchor: Option<ChildRect>,
+        anchor: Option<Rect>,
     },
 }
 
@@ -1725,7 +1657,7 @@ pub struct BlockFilter {
     pub excluded: Vec<[u8; 16]>,
     pub templates: bool,
     pub place: Option<BlockLocation>,
-    pub anchor: Option<ChildRect>,
+    pub anchor: Option<Rect>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2072,14 +2004,8 @@ pub enum SurfaceFormat {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ViewChange {
-    Pan {
-        x: f32,
-        y: f32,
-    },
-    Zoom {
-        factor: f32,
-        anchor: Option<(f32, f32)>,
-    },
+    Pan(Vec2),
+    Zoom { factor: f32, anchor: Option<Pos2> },
     KeepFitted(Option<FitArea>),
     Fit,
     PanDrag,
@@ -2089,39 +2015,28 @@ pub enum ViewChange {
 pub enum FitArea {
     World,
     Centre,
-    Rect {
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
-    },
+    Rect(Rect),
 }
 
 impl FitArea {
-    pub fn fit(self, world: (f32, f32), room: (f32, f32)) -> (f32, (f32, f32)) {
-        let (x, y, width, height) = match self {
-            Self::World => (0.0, 0.0, world.0, world.1),
-            Self::Centre => (world.0 * 0.5, world.1 * 0.5, 0.0, 0.0),
-            Self::Rect {
-                x,
-                y,
-                width,
-                height,
-            } => (x, y, width, height),
+    pub fn fit(self, world: Vec2, room: Vec2) -> (f32, Pos2) {
+        let area = match self {
+            Self::World => Rect::from_min_size(Pos2::ZERO, world),
+            Self::Centre => Rect::from_min_size(Pos2::ZERO + world * 0.5, Vec2::ZERO),
+            Self::Rect(rect) => rect,
         };
-        let scale = (room.0.max(1.0) / width.max(f32::EPSILON))
-            .min(room.1.max(1.0) / height.max(f32::EPSILON))
+        let size = area.size();
+        let scale = (room.x.max(1.0) / size.x.max(f32::EPSILON))
+            .min(room.y.max(1.0) / size.y.max(f32::EPSILON))
             .min(1.0);
-        (scale, (x + width * 0.5, y + height * 0.5))
+        (scale, area.center())
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ViewportMetrics {
-    pub logical_width: f32,
-    pub logical_height: f32,
-    pub visible_x: f32,
-    pub visible_y: f32,
+    pub logical: Size,
+    pub visible: Pos2,
     pub pixel_width: u32,
     pub pixel_height: u32,
     pub scale_factor: f32,
@@ -2132,7 +2047,7 @@ pub struct ViewportMetrics {
 pub struct Monitor {
     pub id: String,
     pub name: String,
-    pub rect: ChildRect,
+    pub rect: Rect,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2271,12 +2186,6 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                     Input::Paste(Pasted::Image(file)) => {
                         string(&file.name)?;
                         blob(&file.data)?;
-                    }
-                    Input::FileDropped(file) => {
-                        string(&file.name)?;
-                        if let Some(bytes) = &file.bytes {
-                            blob(bytes)?;
-                        }
                     }
                     Input::Text(value)
                     | Input::Key(Keystroke {

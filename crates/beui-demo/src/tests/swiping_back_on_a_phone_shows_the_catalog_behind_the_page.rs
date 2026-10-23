@@ -1,4 +1,4 @@
-use beui::{BackEdge, BackGesture, Event};
+use beui::{BackEdge, BackGesture};
 
 use super::*;
 
@@ -12,10 +12,10 @@ fn swiping_back_on_a_phone_shows_the_catalog_behind_the_page() {
     assert!(!test.shows("demo.catalog.Buttons"));
 
     test.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     assert!(
         test.shows("demo.catalog.Buttons"),
@@ -23,7 +23,7 @@ fn swiping_back_on_a_phone_shows_the_catalog_behind_the_page() {
     );
     test.snapshot("swiping_back_shows_the_catalog_behind_the_page");
 
-    test.frame(vec![Event::Back(BackGesture::Invoked)]);
+    test.frame(vec![Input::Back(BackGesture::Invoked)]);
     for _ in 0..FRAME_LIMIT {
         if test.document().find_test_id("dock.back").is_none() {
             break;

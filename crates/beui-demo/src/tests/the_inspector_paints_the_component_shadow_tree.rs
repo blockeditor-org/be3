@@ -84,16 +84,19 @@ fn the_inspector_paints_the_component_shadow_tree() {
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(1200.0, 1100.0));
-    test.frame(vec![beui::Event::key(beui::KeyPress {
-        key: beui::Key::I,
-        pressed: true,
-        modifiers: beui::Modifiers {
+    test.frame(vec![
+        Input::Modifiers(beui::Modifiers {
             ctrl: true,
             shift: true,
             ..beui::Modifiers::NONE
-        },
-        repeat: false,
-    })]);
+        }),
+        Input::Key(beui::Keystroke {
+            key: Some(beui::Key::I),
+            pressed: true,
+            ..Default::default()
+        }),
+        Input::Modifiers(beui::Modifiers::NONE),
+    ]);
     test.frame(Vec::new());
     let panel = inspector(&test);
     let tab = panel.option_node("inspector.tabs", 1);

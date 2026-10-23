@@ -20,11 +20,11 @@ fn the_color_areas_thumb_shows_a_grab_cursor() {
     let area = harness.rect(picker.get());
     let thumb = pos2(area.left() + PICKER_WIDTH / 2.0, area.top() + 78.0);
 
-    harness.frame(vec![Event::PointerMoved(thumb)]);
+    harness.frame(vec![Input::PointerMoved(thumb)]);
     let over = harness.frame(Vec::new());
     assert_eq!(over.window.requests.cursor, CursorIcon::Grab);
 
-    harness.frame(vec![Event::PointerMoved(pos2(
+    harness.frame(vec![Input::PointerMoved(pos2(
         area.left() + 10.0,
         area.top() + 10.0,
     ))]);

@@ -63,20 +63,18 @@ fn pressing_a_windows_bar_gives_it_the_keyboard() {
     let bar = pos2(shown.center().x + 100.0, shown.min.y - 12.0);
     let moved = bar + Vec2::new(-40.0, 30.0);
     harness.frame(vec![
-        Event::PointerMoved(bar),
-        Event::PointerButton {
+        Input::PointerMoved(bar),
+        Input::PointerButton {
             pos: bar,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: beui::Modifiers::NONE,
         },
     ]);
-    harness.frame(vec![Event::PointerMoved(moved)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(moved)]);
+    harness.frame(vec![Input::PointerButton {
         pos: moved,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: beui::Modifiers::NONE,
     }]);
     harness.settle();
     assert_ne!(harness.window(id), shown, "the bar moved the window");

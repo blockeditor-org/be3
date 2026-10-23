@@ -5,21 +5,18 @@ fn view_messages_round_trip() {
     let messages = [
         Message::Editor(EditorMessage::ViewChanged {
             instance: EditorInstanceId(3),
-            x: -12.5,
-            y: 4.0,
-            width: 320.0,
-            height: 240.5,
+            view: Rect::from_min_size(Pos2::new(-12.5, 4.0), Vec2::new(320.0, 240.5)),
             scale: 1.5,
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
-            change: ViewChange::Pan { x: 8.0, y: -3.5 },
+            change: ViewChange::Pan(Vec2::new(8.0, -3.5)),
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
             change: ViewChange::Zoom {
                 factor: 1.25,
-                anchor: Some((10.0, 20.0)),
+                anchor: Some(Pos2::new(10.0, 20.0)),
             },
         }),
         Message::Editor(EditorMessage::ChangeView {
@@ -31,12 +28,10 @@ fn view_messages_round_trip() {
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),
-            change: ViewChange::KeepFitted(Some(FitArea::Rect {
-                x: 40.0,
-                y: 30.0,
-                width: -6.0,
-                height: 2.5,
-            })),
+            change: ViewChange::KeepFitted(Some(FitArea::Rect(Rect::from_min_size(
+                Pos2::new(40.0, 30.0),
+                Vec2::new(-6.0, 2.5),
+            )))),
         }),
         Message::Editor(EditorMessage::ChangeView {
             instance: EditorInstanceId(3),

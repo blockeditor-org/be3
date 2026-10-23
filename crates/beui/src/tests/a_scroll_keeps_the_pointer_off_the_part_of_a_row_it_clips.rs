@@ -37,7 +37,7 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(scroll), 60.0);
 
-    harness.frame(vec![Event::PointerMoved(pos2(x, 50.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(x, 50.0))]);
     assert_eq!(
         hovers.get_untracked(),
         Vec::<bool>::new(),
@@ -46,9 +46,9 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
     harness.click(pos2(x, 50.0));
     assert_eq!(clicks.get_untracked(), 0, "nor can it be clicked");
 
-    harness.frame(vec![Event::PointerMoved(pos2(x, 120.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(x, 120.0))]);
     assert_eq!(hovers.get_untracked(), vec![true]);
 
-    harness.frame(vec![Event::PointerMoved(pos2(x, 50.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(x, 50.0))]);
     assert_eq!(hovers.get_untracked(), vec![true, false]);
 }

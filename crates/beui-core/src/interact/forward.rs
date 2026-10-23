@@ -66,6 +66,7 @@ impl From<Input> for Replayed {
 pub struct Replay {
     focused: bool,
     modifiers: Modifiers,
+    pressed: u32,
 }
 
 impl Replay {
@@ -146,18 +147,22 @@ impl Replay {
             out.push(timed(Input::Pen {
                 phase,
                 pos,
-                pressure: event.force.unwrap_or(0.0),
                 pen: event.pen.unwrap_or_default(),
             }));
         } else {
             match event.phase {
                 PointerPhase::Move => out.push(timed(Input::PointerMoved(pos))),
                 PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                    let pressed = matches!(event.phase, PointerPhase::Down(_));
+                    self.pressed = match pressed {
+                        true => self.pressed.saturating_add(1),
+                        false => self.pressed.saturating_sub(1),
+                    };
                     self.modifiers(event.modifiers, out);
                     out.push(timed(Input::PointerButton {
                         pos,
                         button,
-                        pressed: matches!(event.phase, PointerPhase::Down(_)),
+                        pressed,
                     }));
                 }
                 PointerPhase::Scroll(delta) => {
@@ -167,7 +172,11 @@ impl Replay {
                 PointerPhase::ScrollStarted => out.push(Input::ScrollStarted.into()),
                 PointerPhase::ScrollEnded { .. } => out.push(Input::ScrollEnded.into()),
                 PointerPhase::Zoom(factor) => out.push(Input::Zoom(factor).into()),
-                PointerPhase::Cancel | PointerPhase::Gone => {}
+                PointerPhase::Cancel | PointerPhase::Gone => {
+                    if std::mem::take(&mut self.pressed) > 0 {
+                        out.push(timed(Input::PointersCancelled));
+                    }
+                }
             }
         }
         if let (PointerPhase::Move, Some(predicted)) = (event.phase, event.predicted) {
@@ -178,13 +187,13 @@ impl Replay {
     fn input(&mut self, event: &Event, out: &mut Vec<Replayed>) {
         let input = match event {
             Event::PointerMotion(delta) => Input::PointerMotion(*delta),
-            Event::Key { press, code, text } => {
+            Event::Key { press, evdev, text } => {
                 self.modifiers(press.modifiers, out);
                 Input::Key(Keystroke {
                     key: Some(press.key),
                     pressed: press.pressed,
                     repeat: press.repeat,
-                    code: *code,
+                    evdev: *evdev,
                     text: text.clone(),
                 })
             }
@@ -391,3 +400,6 @@ pub(super) fn route(
         });
     }
 }
+
+#[cfg(test)]
+mod tests;

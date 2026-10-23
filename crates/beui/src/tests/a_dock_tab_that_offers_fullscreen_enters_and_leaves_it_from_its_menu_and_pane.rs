@@ -14,13 +14,12 @@ fn Offered() -> NodeId {
 
 fn right_click(harness: &mut Harness, dock: NodeId, title: &str) {
     let pos = harness.center(dock_tab(harness.document(), dock, title));
-    harness.frame(vec![Event::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerMoved(pos)]);
     for pressed in [true, false] {
-        harness.frame(vec![Event::PointerButton {
+        harness.frame(vec![Input::PointerButton {
             pos,
             button: PointerButton::Secondary,
             pressed,
-            modifiers: Modifiers::NONE,
         }]);
     }
     harness.frame(Vec::new());

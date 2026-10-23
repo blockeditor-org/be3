@@ -260,7 +260,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, and its evdev code, `Key::evdev`), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform adapter, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
+| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every adapter names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform adapter, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -357,7 +357,8 @@ hooks the higher crates fill in:
   `on_text` takes text. `request_paste` (a Paste menu) and Ctrl+V, which the
   document turns into a paste when nothing on the key's way took it or the
   focus forwards it, ask `Platform::paste` once a frame for the first of those kinds the
-  clipboard holds, and its answer arrives at the focus as `Event::Paste`
+  clipboard holds, and its answer goes through the runner's intake as `Input::Paste`, after
+  any input pushed before it, and arrives at the focus as `Event::Paste`
   (`Pasted::Text`, or `Pasted::Image` as a PNG `PickedFile`), handed to
   `on_paste`, or a text paste to `on_text` without one. A platform that
   delivers Ctrl+V's paste itself (`Platform::delivers_paste_shortcut`: the
@@ -371,11 +372,17 @@ hooks the higher crates fill in:
 - An adapter only translates: it hands `Runner::push` an `Incoming`, which is
   a `ui_types::Input` with its positions and deltas in physical pixels
   (`Incoming::from`), in the window's logical pixels (`Incoming::logical`) or
-  in points (`Incoming::points`), or `Incoming::Time`, below. An `Input` is
+  in points (`Incoming::points`), an `Incoming::FileDrag` (files hovered over
+  the window, the hover cancelled, or a `DroppedFile` dropped: its name and
+  its host path or its bytes), or `Incoming::Time`, below. `FileDrag` and
+  `DroppedFile` live in beui-core rather than ui-types because they never
+  cross the plugin protocol: a plugin's host turns them into its own
+  `FileDrop` messages. An `Input` is
   what any platform reports: pointer moves and buttons, a `Keystroke` (the
-  key, its text and scancode, with no modifiers), a `ScrollDelta` in pixels,
+  key a shortcut matches, its text and its physical place as an evdev code,
+  with no modifiers; guides/beui_keyboard.md), a `ScrollDelta` in pixels,
   lines (`SCROLL_LINE` points) or pages (`SCROLL_PAGE`), touches, pen samples,
-  text, IME edits, a paste, file drops, the modifiers held and the window's
+  text, IME edits, a paste, the modifiers held and the window's
   focus. The runner's intake is the one place it becomes `Event`s, and drive's
   gestures, the on-screen keyboard and typed pastes push `Input` there too, so
   they are normalized as a window's input is. A trackpad's two-finger
@@ -433,8 +440,19 @@ hooks the higher crates fill in:
   intercepted keys with the modifiers held, and drops a held modifier's
   repeats and the text of a shortcut. It turns the primary mouse button into
   a finger while `Context::touch_emulation` is on, holds `PointerGone` back
-  while a button is held, and lets go of the modifiers, buttons and emulated
-  touch when focus is lost.
+  while a button is held, and lets go of the modifiers when the keyboard is
+  lost (`Input::Focus(false)` means only the keyboard). `Input::PointersCancelled`
+  says every press, touch and pen session is over and its release will not
+  come: the runner lets go of its buttons and emulated touch, and the
+  document cancels the touches, ends the pen and the mouse
+  (`Event::PointersCancelled`) and stops autoscrolling. Only the adapters
+  whose platform can lose a release send it: winit and the web when their
+  window loses focus (alt-tab mid-press, a broken capture on Windows, a grab
+  by another X11 client), and winit on Wayland also when the pointer leaves
+  with a button held, since a compositor grab sends `wl_pointer.leave` and no
+  release (`ActiveEventLoopExtWayland::is_wayland`). Android reports
+  `ACTION_CANCEL`, the web `pointercancel` for touches and pens, DRM reads
+  libinput, and a plugin's host ends each pointer through `Replay`.
 - `Platform::pick_file` gets a `FilePickAnswer`, which can be sent from any
   thread and wakes the runner; the pick reaches the app at the next frame.
   Accessibility trees are published only between
@@ -875,13 +893,13 @@ leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
 does.
 A pen is `Event::Pen`: a `PenPhase` (`Move` in range, whether or not the tip is down, `Down`
 and `Up` of the tip, which is `Primary`, and of its barrel buttons, and `Gone` when it leaves
-range), its pressure from 0 to 1 and a `Pen` with its tilt in degrees and whether it is the
+range) and a `Pen` with its pressure from 0 to 1, its tilt in degrees and whether it is the
 eraser end. It is `PointerId::Pen` and behaves as the mouse does: it hovers, moves the pointer,
 presses and drags without a slop or a long press and never scrolls what it is dragged across,
 so every control works with it unchanged (`PointerId::hovers` is true for both). Its
-`PointerEvent`s carry the pressure as `force` and the `Pen`, and the `PointerPress` a catcher
-hears carries them too, as `pressure` and `pen`, sampled when it was pressed and at each drag;
-a finger's press carries its `force` as `pressure` where the platform reports one. The DRM
+`PointerEvent`s carry the `Pen`, and the `PointerPress` a catcher hears carries it too, as
+`pen`, sampled when it was pressed and at each drag; a finger's `PointerEvent`s carry its
+`force` where the platform reports one. The DRM
 adapter reads libinput's tablet tools, the web adapter pointer events whose `pointerType` is
 `pen`, Android a stylus or eraser `MotionEvent`, the winit adapter winit's tablet-tool pointer
 events (on Wayland and Windows; X11 and macOS report none), and drive's `pen` commands make one.
@@ -3497,8 +3515,16 @@ run by the same automation engine: `click(Target::id("wheel").at(offset))`, `dra
 and `settle` are typed forms of them, a `Pos2` is a target too, and `ask(&["back",
 "0.5"])` sends any other. Each settles as `drive` does, unless the test turned that off
 with `settle_after_gestures(false)`, when it answers after the frame that took the input.
-`frame(events)` paints one frame with exactly the events it is handed, for a test of what a
-single frame does, and hands back its output. A failure prints the steps so far as `drive`
+`frame(inputs)` pushes the `Input`s it is handed in points (`Incoming::points`) and paints one
+frame, for a test of what a single frame does, and hands back its output. Like every input,
+they go through the runner's intake, so a test sends what a platform would: an
+`Input::Modifiers` before a key or a press it means to be held with (`Harness`'s
+`pressed_with` sends a chord that way), `Input::PointerLeft` for the pointer leaving, and
+`Input::Scroll(ScrollDelta::Pixels(..))` for a scroll in points. There is no way to hand the
+runner an `Event` directly, and input reaches a `Context` only through a `Runner`:
+`Context::run(frame)` paints one frame with no input, for drawing offscreen (the canvas's
+export) or a test of painting alone. A test that stamps samples with times pushes `Incoming::Time`
+through `runner().push` and then paints `frame(Vec::new())`. A failure prints the steps so far as `drive`
 commands (guides/running/drive.md), which replay against a `:dev` app.
 
 beui's own tests use `Harness::new(document)` or `Harness::sized(document, size)` from

@@ -31,9 +31,9 @@ fn scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let scroll = harness.find("scroll");
-    harness.frame(vec![Event::PointerMoved(harness.rect(scroll).center())]);
+    harness.frame(vec![Input::PointerMoved(harness.rect(scroll).center())]);
 
-    harness.frame(vec![Event::Scroll(vec2(0.0, -40.0))]);
+    harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -40.0)))]);
     assert_eq!(harness.document().scroll_offset(scroll), 40.0);
     let work = harness.document().performance().latest.work;
     let row = LABELS + 2;

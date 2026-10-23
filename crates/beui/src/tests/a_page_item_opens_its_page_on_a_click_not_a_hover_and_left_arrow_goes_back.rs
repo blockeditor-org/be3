@@ -29,13 +29,7 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let pos = harness.center(region);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
-        pos,
-        button: PointerButton::Secondary,
-        pressed: true,
-        modifiers: Modifiers::NONE,
-    }]);
+    harness.click_with(pos, PointerButton::Secondary);
     harness.frame(Vec::new());
 
     let content = harness
@@ -47,7 +41,7 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
         .api::<unstyled::MenuListApi>(content)
         .row_button(0);
     let at = harness.center(move_to);
-    harness.frame(vec![Event::PointerMoved(at)]);
+    harness.frame(vec![Input::PointerMoved(at)]);
     harness.frame(Vec::new());
     assert!(
         harness
@@ -59,7 +53,7 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
     );
 
     harness.click(at);
-    harness.frame(vec![Event::PointerGone]);
+    harness.frame(vec![Input::PointerLeft]);
     let page = harness
         .document()
         .api::<unstyled::MenuListApi>(content)

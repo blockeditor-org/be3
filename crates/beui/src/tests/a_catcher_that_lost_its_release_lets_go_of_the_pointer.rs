@@ -36,9 +36,9 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
     harness.frame(Vec::new());
 
     harness.press_at(pos2(50.0, 50.0));
-    harness.frame(vec![Event::Focus(false)]);
+    harness.frame(vec![Input::PointersCancelled]);
     heard.update(|heard| heard.clear());
-    harness.frame(vec![Event::PointerMoved(pos2(250.0, 50.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(250.0, 50.0))]);
 
     assert_eq!(
         heard.get_untracked(),

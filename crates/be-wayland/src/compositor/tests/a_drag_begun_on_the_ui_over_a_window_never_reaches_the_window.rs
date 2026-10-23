@@ -48,7 +48,15 @@ fn Covered(windows: Windows) -> NodeId {
     }
 }
 
-fn button(pos: Pos2, pressed: bool) -> Event {
+fn button(pos: Pos2, pressed: bool) -> Input {
+    Input::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+    }
+}
+
+fn heard_button(pos: Pos2, pressed: bool) -> Event {
     Event::PointerButton {
         pos,
         button: PointerButton::Primary,
@@ -75,10 +83,10 @@ fn a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window() {
 
     let over = shown.center();
     harness.frame(vec![
-        Event::PointerMoved(tab().center()),
+        Input::PointerMoved(tab().center()),
         button(tab().center(), true),
     ]);
-    harness.frame(vec![Event::PointerMoved(over)]);
+    harness.frame(vec![Input::PointerMoved(over)]);
     harness.frame(vec![button(over, false)]);
     harness.settle();
     assert!(
@@ -88,12 +96,13 @@ fn a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window() {
     );
     let heard = HEARD.with(|heard| heard.borrow().clone());
     assert!(
-        heard.contains(&button(tab().center(), true)) && heard.contains(&button(over, false)),
+        heard.contains(&heard_button(tab().center(), true))
+            && heard.contains(&heard_button(over, false)),
         "the UI under the tab took the whole drag: {heard:?}"
     );
 
     harness.frame(vec![
-        Event::PointerMoved(over),
+        Input::PointerMoved(over),
         button(over, true),
         button(over, false),
     ]);

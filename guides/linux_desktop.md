@@ -416,7 +416,7 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`) and buttons by theirs: a
+`wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`) and buttons by theirs: a
 button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM adapter
 reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's

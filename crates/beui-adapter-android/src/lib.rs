@@ -102,7 +102,6 @@ enum Message {
         phase: PenPhase,
         x: f32,
         y: f32,
-        pressure: f32,
         pen: Pen,
         at: Instant,
     },
@@ -111,6 +110,7 @@ enum Message {
         key: Option<Key>,
         pressed: bool,
         repeat: bool,
+        evdev: Option<u32>,
         modifiers: Modifiers,
         text: Option<String>,
     },
@@ -574,34 +574,33 @@ impl Runner {
                 phase,
                 x,
                 y,
-                pressure,
                 pen,
                 at,
             } => {
                 self.runner.push(Input::Pen {
                     phase,
                     pos: pos2(x, y),
-                    pressure,
                     pen,
                 });
                 self.runner.push(Incoming::Time(at));
             }
-            Message::Scroll(delta) => self.runner.push(ScrollDelta::Lines(delta)),
+            Message::Scroll(delta) => self.runner.push(Input::Scroll(ScrollDelta::Lines(delta))),
             Message::Key {
                 key,
                 pressed,
                 repeat,
+                evdev,
                 modifiers,
                 text,
             } => {
                 self.runner.push(Input::Modifiers(modifiers));
-                self.runner.push(Keystroke {
+                self.runner.push(Input::Key(Keystroke {
                     key,
                     pressed,
                     repeat,
-                    code: None,
+                    evdev,
                     text,
-                });
+                }));
             }
             Message::Ime { event, serial } => {
                 self.platform.ime_serial = self.platform.ime_serial.max(serial);
@@ -727,6 +726,13 @@ fn modifiers(meta: jint) -> Modifiers {
         shift: meta & META_SHIFT_ON != 0,
         logo: meta & META_META_ON != 0,
     }
+}
+
+fn unicode(character: jint) -> Option<char> {
+    u32::try_from(character)
+        .ok()
+        .filter(|character| *character > 0)
+        .and_then(char::from_u32)
 }
 
 fn is_modifier(code: jint) -> bool {
@@ -1107,8 +1113,8 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
         phase,
         x,
         y,
-        pressure,
         pen: Pen {
+            pressure,
             tilt: vec2(tilt_x, tilt_y),
             eraser,
         },
@@ -1133,16 +1139,15 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     _env: EnvUnowned<'local>,
     _: JClass<'local>,
     code: jint,
+    scan_code: jint,
     pressed: jboolean,
     repeat: jint,
     meta: jint,
     character: jint,
+    layout_character: jint,
 ) -> jboolean {
-    let key = key(code);
-    let character = u32::try_from(character)
-        .ok()
-        .filter(|character| *character > 0)
-        .and_then(char::from_u32);
+    let character = unicode(character);
+    let key = Key::from_typed(unicode(layout_character), key(code));
     let types = character.is_some_and(|character| !character.is_control());
     let handled = key.is_some() || types || is_modifier(code);
     let text = character.map(String::from);
@@ -1151,6 +1156,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
             key,
             pressed,
             repeat: repeat > 0,
+            evdev: u32::try_from(scan_code).ok().filter(|evdev| *evdev > 0),
             modifiers: modifiers(meta),
             text,
         });

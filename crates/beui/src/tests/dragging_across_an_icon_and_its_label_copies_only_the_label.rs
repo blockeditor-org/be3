@@ -27,7 +27,7 @@ fn dragging_across_an_icon_and_its_label_copies_only_the_label() {
         pos2(rect.right() + 20.0, rect.center().y),
     );
     let copied = harness
-        .frame(vec![key_event(Key::C, true, Modifiers::CTRL)])
+        .frame(pressed_with(Key::C, Modifiers::CTRL))
         .copied_text;
     assert_eq!(
         copied.as_deref(),

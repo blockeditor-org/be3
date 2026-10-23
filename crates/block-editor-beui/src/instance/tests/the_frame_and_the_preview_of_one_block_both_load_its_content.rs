@@ -47,10 +47,11 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
         instance: EditorInstanceId(0),
         region,
         metrics: ViewportMetrics {
-            logical_width: 400.0,
-            logical_height: 300.0,
-            visible_x: 0.0,
-            visible_y: 0.0,
+            logical: block_plugin_api::Size {
+                width: 400.0,
+                height: 300.0,
+            },
+            visible: block_plugin_api::Pos2::ZERO,
             pixel_width: 400,
             pixel_height: 300,
             scale_factor: 1.0,

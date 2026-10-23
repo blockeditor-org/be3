@@ -19,7 +19,7 @@ fn a_modal_dialog_keeps_presses_and_keys_from_its_parent() {
     harness.settle();
 
     let listed = harness
-        .app
+        .compositor()
         .windows()
         .list()
         .get_untracked()

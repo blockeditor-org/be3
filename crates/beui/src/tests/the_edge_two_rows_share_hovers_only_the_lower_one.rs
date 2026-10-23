@@ -24,10 +24,10 @@ fn the_edge_two_rows_share_hovers_only_the_lower_one() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.frame(vec![Event::PointerMoved(pos2(10.0, ROW - 0.5))]);
+    harness.frame(vec![Input::PointerMoved(pos2(10.0, ROW - 0.5))]);
     assert!(upper.get_untracked() && !lower.get_untracked());
 
-    harness.frame(vec![Event::PointerMoved(pos2(10.0, ROW))]);
+    harness.frame(vec![Input::PointerMoved(pos2(10.0, ROW))]);
     assert!(
         !upper.get_untracked() && lower.get_untracked(),
         "a pointer on the edge between two rows hovers one of them"

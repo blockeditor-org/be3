@@ -6,7 +6,7 @@ use beui::styled;
 use beui::styled::*;
 use beui::unstyled::Scroll;
 use beui_core::document::Document;
-use block_editor_plugin::{Input, ScrollDelta, TimedInput};
+use block_editor_plugin::{ScrollDelta, TimedInput};
 
 use super::*;
 

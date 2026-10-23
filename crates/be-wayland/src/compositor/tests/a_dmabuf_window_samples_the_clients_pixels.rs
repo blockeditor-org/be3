@@ -20,9 +20,9 @@ fn a_dmabuf_window_samples_the_clients_pixels() {
         .attach_dmabuf_unsent(&window, file.as_fd(), 64, 16);
     harness.settle();
 
-    let surface = harness.app.server().state.surface(id).unwrap();
+    let surface = harness.compositor().server().state.surface(id).unwrap();
     let current = harness
-        .app
+        .compositor()
         .textures
         .borrow()
         .get(&surface)

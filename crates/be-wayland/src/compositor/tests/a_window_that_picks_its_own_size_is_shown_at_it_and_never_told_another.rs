@@ -36,7 +36,7 @@ fn a_window_that_picks_its_own_size_is_shown_at_it_and_never_told_another() {
     let window = harness.client.toplevel();
     harness.settle();
     let id = *harness
-        .app
+        .compositor()
         .server()
         .state
         .windows()

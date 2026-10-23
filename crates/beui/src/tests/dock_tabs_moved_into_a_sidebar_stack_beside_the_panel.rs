@@ -2,12 +2,11 @@ use super::*;
 use crate::unstyled::{DockApi, Entry, TabId};
 
 fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, item)

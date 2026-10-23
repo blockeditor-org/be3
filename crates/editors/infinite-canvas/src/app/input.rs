@@ -607,5 +607,8 @@ fn selection_frame_of(state: &CanvasState) -> Option<SelectionFrame> {
 }
 
 fn pen_pressure(press: PointerPress) -> f32 {
-    press.pressure.unwrap_or(PEN_PRESSURE).clamp(0.0, 1.0)
+    press
+        .pen
+        .map_or(PEN_PRESSURE, |pen| pen.pressure)
+        .clamp(0.0, 1.0)
 }

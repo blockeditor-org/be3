@@ -31,11 +31,10 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
 
     let pos = harness.center(button);
     harness.press_at(pos);
-    let opened = harness.frame(vec![Event::PointerButton {
+    let opened = harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
 
     let damage = opened.damage().expect("opening a menu repaints");

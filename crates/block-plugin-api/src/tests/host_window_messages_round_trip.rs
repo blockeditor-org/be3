@@ -50,18 +50,8 @@ fn host_window_messages_round_trip() {
             children: vec![ChildPlacement {
                 child: ChildId(1),
                 content: ChildContent::Window(window.id),
-                rect: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 640.0,
-                    height: 480.0,
-                },
-                clip: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 800.0,
-                    height: 600.0,
-                },
+                rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 480.0)),
+                clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(800.0, 600.0)),
                 own_frame: false,
                 top_bar: TopBar::Hidden,
                 corner_radius: 0.0,
