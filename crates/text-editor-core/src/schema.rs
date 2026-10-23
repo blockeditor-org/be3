@@ -34,12 +34,22 @@ pub enum ListMarker {
     Check(bool),
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LineLook {
+    pub marker: std::ops::Range<usize>,
     pub list: Option<ListMarker>,
     pub depth: usize,
     pub quote: usize,
     pub code_block: bool,
+}
+
+impl LineLook {
+    pub fn at(start: usize) -> Self {
+        Self {
+            marker: start..start,
+            ..Self::default()
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

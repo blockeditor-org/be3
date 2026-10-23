@@ -12,6 +12,7 @@ fn lists_and_quotes_are_painted_with_bullets_and_bars() {
         "\n",
         "> A quote that is not italic, and is long enough to wrap so that its second line stays beside the bar, however narrow or wide the window it is drawn in happens to be today\n",
         "> > Nested quote\n",
+        "lazily continued without its markers\n",
     ));
     editor.run();
 

@@ -364,7 +364,6 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
         content.get();
         let line = line();
         let starts = cx.starts.get();
-        let tables = cx.tables.get();
         let widgets = cx.widgets.get();
         let composition = cx.composition.get();
         let placeholder = cx.placeholder.get();
@@ -382,7 +381,6 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
         cx.state.with_snapshot(|snapshot| {
             let (start, end, newline) =
                 line_range(&snapshot.bytes, &starts, line).unwrap_or((0, 0, false));
-            let spacers = tables.get(&start).map_or(&[][..], Vec::as_slice);
             let placeholder = (snapshot.bytes.is_empty() && !placeholder.is_empty() && line == 0)
                 .then_some(placeholder.as_str());
             if !snapshot.loaded || snapshot.highlight.is_none() {
@@ -400,7 +398,6 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 composition: composition.as_ref(),
                 colors: &env.colors,
                 options: env.options,
-                spacers,
                 placeholder,
                 void_size: cx.void_size,
             };

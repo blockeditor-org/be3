@@ -5,27 +5,12 @@ use crate::unstyled::{TextArea, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::{EditorCommand, TextBuffer};
 
-type Checkbox = (usize, std::ops::Range<usize>, bool);
-
-fn indexed(state: &TextAreaState) -> (Vec<usize>, Vec<Checkbox>) {
-    state.with_snapshot(|snapshot| {
-        let checkboxes = snapshot
-            .checkboxes
-            .iter()
-            .map(|checkbox| {
-                (
-                    checkbox.line_start,
-                    checkbox.marker.clone(),
-                    checkbox.checked,
-                )
-            })
-            .collect();
-        (snapshot.starts.to_vec(), checkboxes)
-    })
+fn indexed(state: &TextAreaState) -> Vec<usize> {
+    state.with_snapshot(|snapshot| snapshot.starts.to_vec())
 }
 
 #[test]
-fn line_starts_and_checkboxes_follow_edits() {
+fn line_starts_follow_edits() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
     let text = "intro\n- [ ] one\n- [x] two\nplain\n  - [ ] three\nend";

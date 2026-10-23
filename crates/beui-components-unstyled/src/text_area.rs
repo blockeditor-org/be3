@@ -8,7 +8,7 @@ pub mod rows;
 pub mod state;
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
@@ -39,10 +39,7 @@ use beui_view::reactive::*;
 
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
-use rows::{
-    BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, RowOptions, TableSpacers,
-    galley, line_of, table_spacers,
-};
+use rows::{BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, galley, line_of};
 use state::{AreaGeometry, Grab};
 
 pub use colors::{SyntaxColors, TextAreaColors};
@@ -134,7 +131,6 @@ struct Surface {
     held: Stored<Held>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
-    tables: Memo<Rc<TableSpacers>>,
     widgets: Memo<Vec<TextWidget>>,
     client_colors: Memo<Vec<(u64, Color32)>>,
     colors: Memo<TextAreaColors>,
@@ -1196,41 +1192,6 @@ pub fn TextArea(
                         false => gutter_width(starts.get().len()),
                     }
                 });
-                let wrap_width = create_memo(move || {
-                    (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
-                });
-                let table_cache = std::cell::RefCell::new(rows::TableCache::default());
-                let tables = create_memo(
-                    move || {
-                        content.get();
-                        let scale = scale.get();
-                        let fonts = fonts.get();
-                        let wrap_width = wrap_width.get();
-                        let starts = starts.get();
-                        let widgets = widgets.get();
-                        let colors = colors.get();
-                        let options = RowOptions {
-                            body_size: font_size.get(),
-                            mask: masked.get(),
-                            single_line,
-                            prose: prose.get(),
-                        };
-                        Rc::new(state.with_snapshot(|snapshot| match snapshot.loaded && !single_line {
-                            true => table_spacers(&rows::TableInputs {
-                                wrap_width,
-                                snapshot,
-                                widgets: &widgets,
-                                colors: &colors,
-                                options,
-                                starts: &starts,
-                                scale,
-                                fonts,
-                                cache: &table_cache,
-                            }),
-                            false => HashMap::new(),
-                        }))
-                    },
-                );
                 let composition = create_memo(move || {
                     state.cursors().get();
                     state.content().get();
@@ -1283,7 +1244,6 @@ pub fn TextArea(
                     }),
                     starts,
                     visible,
-                    tables,
                     widgets,
                     client_colors,
                     colors,

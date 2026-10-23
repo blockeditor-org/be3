@@ -92,6 +92,7 @@ pub fn line_looks(formats: &Formats) -> Vec<LineLook> {
                     _ => None,
                 });
             LineLook {
+                marker: block.start..block.start,
                 list,
                 depth: match list {
                     Some(_) => level.max(0) as usize,

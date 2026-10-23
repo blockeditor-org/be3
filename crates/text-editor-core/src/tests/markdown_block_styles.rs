@@ -9,11 +9,14 @@ fn markdown_block_styles() {
     assert_eq!(highlight.style_at(0).color, SynHlColorScope::MarkdownSymbol);
     assert_eq!(highlight.style_at(2).size, SynHlTextSize::Heading(1));
     assert!(highlight.style_at(2).bold);
-    assert_eq!(highlight.style_at(10).color, SynHlColorScope::MarkdownQuote);
+    assert_eq!(
+        highlight.style_at(10).color,
+        SynHlColorScope::MarkdownSymbol
+    );
     assert!(!highlight.style_at(12).italic);
     assert_eq!(
         highlight.style_at(18).color,
-        SynHlColorScope::MarkdownBullet
+        SynHlColorScope::MarkdownSymbol
     );
     assert_eq!(
         highlight.style_at(20).color,

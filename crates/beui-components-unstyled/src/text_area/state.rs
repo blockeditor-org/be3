@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Formats, LineLook, MarkdownCommand, Position, Schema, Selected, SyntaxHighlight, TextChange,
-    TextIndentation, TextLanguage, TextRun, markdown_checkbox_marker,
+    Formats, MarkdownCommand, Position, Schema, Selected, SyntaxHighlight, TextChange,
+    TextIndentation, TextLanguage, TextRun,
 };
 
 use beui_core::color::Color32;
@@ -31,13 +31,6 @@ pub enum Grab {
     Caret,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarkdownCheckbox {
-    pub line_start: usize,
-    pub marker: Range<usize>,
-    pub checked: bool,
-}
-
 #[derive(Default)]
 pub struct Snapshot {
     pub loaded: bool,
@@ -47,11 +40,9 @@ pub struct Snapshot {
     pub language: TextLanguage,
     pub sections: Vec<CollapsibleSection>,
     pub hidden: Vec<Range<usize>>,
-    pub checkboxes: Vec<MarkdownCheckbox>,
     pub highlight: Option<SyntaxHighlight>,
     pub runs: Option<Rc<Vec<TextRun>>>,
     pub formats: Option<Arc<Formats>>,
-    pub looks: Vec<LineLook>,
 }
 
 const MEASURED_BYTES: usize = 64 * 1024;
@@ -460,11 +451,6 @@ impl TextAreaState {
         inner.snapshot.borrow().sections.clone()
     }
 
-    pub fn checkboxes(&self) -> Vec<MarkdownCheckbox> {
-        let inner = self.0.value();
-        inner.snapshot.borrow().checkboxes.clone()
-    }
-
     pub fn selecting(&self) -> bool {
         let inner = self.0.value();
         inner.selecting.get()
@@ -564,7 +550,6 @@ impl TextAreaState {
                 composition: None,
                 colors: &colors,
                 options,
-                spacers: &[],
                 placeholder: None,
                 void_size: None,
             };
@@ -651,7 +636,6 @@ impl TextAreaState {
                 composition: None,
                 colors,
                 options,
-                spacers: &[],
                 placeholder: shown,
                 void_size: None,
             };
@@ -863,22 +847,12 @@ impl TextAreaState {
                 })
                 .flatten()
         };
-        let (starts, checkboxes) = {
+        let starts = {
             let snapshot = inner.snapshot.borrow();
             match change {
-                Some(change) => (
-                    Rc::new(shifted_line_starts(&snapshot.starts, &bytes, change)),
-                    shifted_checkboxes(&snapshot.checkboxes, &bytes, change),
-                ),
-                None => (
-                    Rc::new(line_starts(&bytes)),
-                    parse_markdown_checkboxes(&bytes),
-                ),
+                Some(change) => Rc::new(shifted_line_starts(&snapshot.starts, &bytes, change)),
+                None => Rc::new(line_starts(&bytes)),
             }
-        };
-        let checkboxes = match language {
-            TextLanguage::Markdown => checkboxes,
-            _ => Vec::new(),
         };
         let hidden = hidden_ranges(&sections);
         let formats = (language == TextLanguage::RichText)
@@ -887,9 +861,6 @@ impl TextAreaState {
                 core.document().read().and_then(|read| read.formats())
             })
             .flatten();
-        let looks = formats.as_deref().map_or_else(Vec::new, |formats| {
-            inner.core.borrow().schema().line_looks(formats)
-        });
         let runs = inner.show_runs.get().then(|| {
             let core = inner.core.borrow();
             Rc::new(
@@ -907,11 +878,9 @@ impl TextAreaState {
             language,
             sections,
             hidden,
-            checkboxes,
             highlight: Some(highlight),
             runs,
             formats,
-            looks,
         };
         inner.content_counter.set(inner.content_counter.get() + 1);
         inner.content.set(inner.content_counter.get());
@@ -1012,43 +981,6 @@ fn shifted_line_starts(starts: &[usize], bytes: &[u8], change: TextChange) -> Ve
     shifted
 }
 
-fn shifted_checkboxes(
-    checkboxes: &[MarkdownCheckbox],
-    bytes: &[u8],
-    change: TextChange,
-) -> Vec<MarkdownCheckbox> {
-    let first = memchr::memrchr(b'\n', &bytes[..change.start]).map_or(0, |newline| newline + 1);
-    let end = memchr::memchr(b'\n', &bytes[change.new_end..])
-        .map_or(bytes.len(), |newline| change.new_end + newline);
-    let old_end = end - change.new_end + change.old_end;
-    let shift = |at: usize| at - change.old_end + change.new_end;
-    let mut shifted: Vec<MarkdownCheckbox> = checkboxes
-        .iter()
-        .take_while(|checkbox| checkbox.line_start < first)
-        .cloned()
-        .collect();
-    shifted.extend(
-        parse_markdown_checkboxes(&bytes[first..end])
-            .into_iter()
-            .map(|checkbox| MarkdownCheckbox {
-                line_start: checkbox.line_start + first,
-                marker: checkbox.marker.start + first..checkbox.marker.end + first,
-                checked: checkbox.checked,
-            }),
-    );
-    shifted.extend(
-        checkboxes
-            .iter()
-            .filter(|checkbox| checkbox.line_start > old_end)
-            .map(|checkbox| MarkdownCheckbox {
-                line_start: shift(checkbox.line_start),
-                marker: shift(checkbox.marker.start)..shift(checkbox.marker.end),
-                checked: checkbox.checked,
-            }),
-    );
-    shifted
-}
-
 fn read_bytes(core: &Core) -> Vec<u8> {
     let Some(read) = core.document().read() else {
         return Vec::new();
@@ -1062,25 +994,4 @@ pub fn hidden_ranges(sections: &[CollapsibleSection]) -> Vec<Range<usize>> {
         .filter(|section| section.collapsed)
         .map(|section| section.line_end + 1..section.content_end + 1)
         .collect()
-}
-
-pub fn parse_markdown_checkboxes(bytes: &[u8]) -> Vec<MarkdownCheckbox> {
-    let mut result = Vec::new();
-    let mut line_start = 0;
-    loop {
-        let line_end = memchr::memchr(b'\n', &bytes[line_start..])
-            .map_or(bytes.len(), |offset| line_start + offset);
-        if let Some(marker) = markdown_checkbox_marker(bytes, line_start) {
-            result.push(MarkdownCheckbox {
-                line_start,
-                marker: marker.marker,
-                checked: marker.checked,
-            });
-        }
-        if line_end == bytes.len() {
-            break;
-        }
-        line_start = line_end + 1;
-    }
-    result
 }

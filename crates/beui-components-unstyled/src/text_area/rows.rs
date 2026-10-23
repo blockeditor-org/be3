@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::ops::Range;
 
 use text_editor_core::{
-    LineLook, ListMarker, MarkSet, MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily,
-    SynHlStyle, SynHlTextSize, TextLanguage, TextRun, VOID,
+    LineLook, ListMarker, MarkSet, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    TextLanguage, TextRun, VOID,
 };
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
@@ -332,7 +331,6 @@ pub struct RowInputs<'a> {
     pub composition: Option<&'a Composition>,
     pub colors: &'a TextAreaColors,
     pub options: RowOptions,
-    pub spacers: &'a [(usize, f32)],
     pub placeholder: Option<&'a str>,
     pub void_size: Option<VoidSize>,
 }
@@ -502,17 +500,50 @@ impl Builder<'_> {
         }
     }
 
-    fn spacers(&mut self, at: usize, style: SpanStyle) {
-        let widths: Vec<f32> = self
-            .inputs
-            .spacers
-            .iter()
-            .filter(|(byte, width)| *byte == at && *width > 0.0)
-            .map(|(_, width)| *width)
-            .collect();
-        for width in widths {
-            self.gap(width, style);
+    fn marker(&mut self, look: &LineLook, source: Range<usize>, body: SpanStyle) {
+        let shown =
+            String::from_utf8_lossy(&self.inputs.snapshot.bytes[source.clone()]).into_owned();
+        let (text, mapped) = match source.is_empty() {
+            true => (OBJECT, false),
+            false => (shown.as_str(), true),
+        };
+        let Some(list) = look.list else {
+            let item = self.push_inline(Inline::Quote, body, String::new());
+            self.push(text, source, mapped, body, SpanKind::Inline(item));
+            self.row.hang = self.row.display.len();
+            return;
+        };
+        if source.is_empty() {
+            self.gap(look.depth as f32 * LIST_INDENT, body);
         }
+        let end = source.end;
+        match list {
+            ListMarker::Bullet => {
+                let item = self.push_inline(Inline::Bullet, body, String::new());
+                self.push(text, source, mapped, body, SpanKind::Inline(item));
+            }
+            ListMarker::Number(ordinal) => {
+                let style = SpanStyle {
+                    color: self
+                        .inputs
+                        .colors
+                        .syntax
+                        .scope(SynHlColorScope::MarkdownSymbol),
+                    ..body
+                };
+                self.push(&format!("{ordinal}."), source, false, style, SpanKind::Text);
+            }
+            ListMarker::Check(checked) => {
+                let inline = Inline::Checkbox {
+                    line_start: self.row.start,
+                    checked,
+                };
+                let item = self.push_inline(inline, body, String::new());
+                self.push(text, source, mapped, body, SpanKind::Inline(item));
+            }
+        }
+        self.push(" ", end..end, false, body, SpanKind::Text);
+        self.row.hang = self.row.display.len();
     }
 
     fn gap(&mut self, width: f32, style: SpanStyle) {
@@ -668,11 +699,8 @@ pub struct RowKey {
     newline: bool,
     styles: Vec<SynHlStyle>,
     styled_from_start: bool,
-    code_block: bool,
     collapsed: bool,
-    checkboxes: Vec<(Range<usize>, bool)>,
     widgets: Vec<(usize, Range<usize>, TextWidget)>,
-    spacers: Vec<(usize, f32)>,
     composition: Option<Range<usize>>,
     placeholder: Option<String>,
     props: MarkSet,
@@ -701,17 +729,10 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
         newline,
         styles: highlight.styles_in(held..(end + 1).min(bytes.len())),
         styled_from_start: held == start,
-        code_block: highlight.in_code_block(start..end),
         collapsed: snapshot
             .sections
             .iter()
             .any(|section| section.collapsed && section.line_start == start),
-        checkboxes: snapshot
-            .checkboxes
-            .iter()
-            .filter(|checkbox| (start..=end).contains(&checkbox.marker.start))
-            .map(|checkbox| (relative(&checkbox.marker), checkbox.checked))
-            .collect(),
         widgets: inputs
             .widgets
             .iter()
@@ -729,11 +750,6 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
                 )
             })
             .collect(),
-        spacers: inputs
-            .spacers
-            .iter()
-            .map(|(at, width)| (at.saturating_sub(start), *width))
-            .collect(),
         composition: inputs
             .composition
             .filter(|composition| composition.range.start < end && composition.range.end > start)
@@ -745,7 +761,13 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
             .and_then(|formats| formats.block_at(start))
             .map(|block| block.props.clone())
             .unwrap_or_default(),
-        look: look_at(snapshot, start),
+        look: {
+            let look = highlight.line_look(start);
+            LineLook {
+                marker: relative(&look.marker),
+                ..look
+            }
+        },
         voids: snapshot
             .formats
             .as_deref()
@@ -820,39 +842,14 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.row.placeholder = true;
         return finish(builder, body);
     }
-    let look = look_at(snapshot, start);
+    let look = match options.mask {
+        true => LineLook::at(start),
+        false => highlight.line_look(start),
+    };
     builder.row.quote = look.quote;
     builder.row.code_block = look.code_block;
-    if let Some(marker) = look.list {
-        builder.gap(look.depth as f32 * LIST_INDENT, body);
-        match marker {
-            ListMarker::Bullet => builder.inline(Inline::Bullet, start..start, body, String::new()),
-            ListMarker::Number(ordinal) => {
-                let style = SpanStyle {
-                    color: inputs.colors.syntax.scope(SynHlColorScope::MarkdownSymbol),
-                    ..body
-                };
-                builder.push(
-                    &format!("{ordinal}."),
-                    start..start,
-                    false,
-                    style,
-                    SpanKind::Text,
-                );
-            }
-            ListMarker::Check(checked) => builder.inline(
-                Inline::Checkbox {
-                    line_start: start,
-                    checked,
-                },
-                start..start,
-                body,
-                String::new(),
-            ),
-        }
-        builder.push(" ", start..start, false, body, SpanKind::Text);
-        builder.row.hang = builder.row.display.len();
-    }
+    let marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
+    let mut marked = look.list.is_some() || !marker.is_empty();
     let trailing_from = bytes[start..end]
         .iter()
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
@@ -864,59 +861,20 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     };
     let run_starts = |at: usize| runs.binary_search_by_key(&at, |run| run.at).is_ok();
     let mut index = start;
-    while index < end {
+    while index < end || marked {
+        if marked && index >= marker.start {
+            builder.marker(&look, marker.clone(), body);
+            marked = false;
+            index = marker.end;
+            continue;
+        }
         let base = builder.span_style(style_at(index));
-        builder.spacers(index, base);
         builder.runs(runs, index, base);
         let base = builder.span_style(style_at(index));
         let base = SpanStyle {
             underline: base.underline || composed(index),
             ..base
         };
-        if let Some(checkbox) = snapshot
-            .checkboxes
-            .iter()
-            .find(|checkbox| checkbox.marker.start == index && checkbox.marker.end <= end)
-        {
-            let inline = Inline::Checkbox {
-                line_start: checkbox.line_start,
-                checked: checkbox.checked,
-            };
-            let inline = builder.push_inline(inline, base, String::new());
-            let marker = String::from_utf8_lossy(&bytes[checkbox.marker.clone()]).into_owned();
-            builder.push(
-                &marker,
-                checkbox.marker.clone(),
-                true,
-                base,
-                SpanKind::Inline(inline),
-            );
-            index = checkbox.marker.end;
-            continue;
-        }
-        let marker = match style_at(index).color {
-            SynHlColorScope::MarkdownBullet => Some(Inline::Bullet),
-            SynHlColorScope::MarkdownQuote => Some(Inline::Quote),
-            _ => None,
-        };
-        if let Some(inline) = marker
-            && !options.mask
-        {
-            if inline == Inline::Quote {
-                builder.row.quote += 1;
-            }
-            let inline = builder.push_inline(inline, base, String::new());
-            let text = char::from(bytes[index]).to_string();
-            builder.push(
-                &text,
-                index..index + 1,
-                true,
-                base,
-                SpanKind::Inline(inline),
-            );
-            index += 1;
-            continue;
-        }
         if let Some((widget_index, widget)) = inputs
             .widgets
             .iter()
@@ -984,11 +942,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         while stop < end {
             if composition.is_some_and(|composition| {
                 composition.range.start == stop || composition.range.end == stop
-            }) || inputs.spacers.iter().any(|(at, _)| *at == stop)
-                || snapshot
-                    .checkboxes
-                    .iter()
-                    .any(|checkbox| checkbox.marker.start == stop)
+            }) || (marked && stop == marker.start)
                 || inputs
                     .widgets
                     .iter()
@@ -1013,13 +967,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.push(&text, index..stop, true, base, SpanKind::Text);
         index = stop;
     }
-    if snapshot.language == TextLanguage::Markdown
-        && !options.mask
-        && let Some(content) = after_markers(snapshot, start, end, style_at)
-    {
-        builder.row.hang = builder.row.to_display(content);
-    }
-    builder.spacers(end, body);
     builder.runs(runs, end, builder.span_style(style_at(end)));
     let ending = builder.span_style(style_at(end)).font;
     if !builder.fonts.contains(&ending) {
@@ -1047,57 +994,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     finish(builder, body)
 }
 
-fn look_at(snapshot: &Snapshot, start: usize) -> LineLook {
-    snapshot
-        .looks
-        .get(line_of(&snapshot.starts, start))
-        .copied()
-        .unwrap_or_default()
-}
-
-fn after_markers(
-    snapshot: &Snapshot,
-    start: usize,
-    end: usize,
-    style_at: impl Fn(usize) -> SynHlStyle,
-) -> Option<usize> {
-    let bytes = &snapshot.bytes;
-    let mut at = start;
-    let mut marked = false;
-    loop {
-        while at < end && matches!(bytes[at], b' ' | b'\t') {
-            at += 1;
-        }
-        if at >= end {
-            break;
-        }
-        if let Some(checkbox) = snapshot
-            .checkboxes
-            .iter()
-            .find(|checkbox| checkbox.marker.start == at)
-        {
-            at = checkbox.marker.end;
-            marked = true;
-            continue;
-        }
-        match style_at(at).color {
-            SynHlColorScope::MarkdownQuote | SynHlColorScope::MarkdownBullet => at += 1,
-            SynHlColorScope::MarkdownSymbol if bytes[at].is_ascii_digit() => {
-                while at < end && bytes[at].is_ascii_digit() {
-                    at += 1;
-                }
-                if at >= end || !matches!(bytes[at], b'.' | b')') {
-                    break;
-                }
-                at += 1;
-            }
-            _ => break,
-        }
-        marked = true;
-    }
-    marked.then_some(at)
-}
-
 fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     let padding = builder.inputs.options.padding();
     let mut height = galley("", body.font).map_or(0.0, |galley| galley.line_height());
@@ -1108,9 +1004,6 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     }
     builder.row.line_height = height + padding.0 + padding.1;
     let highlight = builder.inputs.snapshot.highlight();
-    let (start, end) = (builder.row.start, builder.row.end);
-    builder.row.code_block =
-        !builder.row.placeholder && (builder.row.code_block || highlight.in_code_block(start..end));
     if builder.row.code_block {
         return builder.row;
     }
@@ -1154,212 +1047,4 @@ pub fn rich_layout(
         hang: row.hang,
     };
     beui_view::reactive::rich_layout(&row.pieces(), options)
-}
-
-pub type TableSpacers = HashMap<usize, Vec<(usize, f32)>>;
-
-type Cell = (Range<usize>, f32, f32);
-
-pub struct TableInputs<'a> {
-    pub wrap_width: f32,
-    pub snapshot: &'a Snapshot,
-    pub widgets: &'a [TextWidget],
-    pub colors: &'a TextAreaColors,
-    pub options: RowOptions,
-    pub starts: &'a [usize],
-    pub scale: f32,
-    pub fonts: u64,
-    pub cache: &'a std::cell::RefCell<TableCache>,
-}
-
-type MeasuredRow = Option<(Vec<(Range<usize>, f32, f32)>, f32)>;
-
-#[derive(Clone, PartialEq)]
-struct TableEnv {
-    colors: TextAreaColors,
-    options: RowOptions,
-    wrap_width: f32,
-    scale: f32,
-    fonts: u64,
-}
-
-type TableRowKey = (RowKey, Vec<Range<usize>>);
-
-#[derive(Default)]
-pub struct TableCache {
-    env: Option<TableEnv>,
-    rows: Vec<(TableRowKey, MeasuredRow)>,
-    used: Vec<(TableRowKey, MeasuredRow)>,
-}
-
-impl TableCache {
-    fn start(&mut self, env: TableEnv) {
-        if self.env.as_ref() != Some(&env) {
-            self.env = Some(env);
-            self.rows.clear();
-        }
-        self.used.clear();
-    }
-
-    fn finish(&mut self) {
-        self.rows = std::mem::take(&mut self.used);
-    }
-
-    fn take(&mut self, key: &TableRowKey) -> Option<MeasuredRow> {
-        if let Some(found) = self.rows.iter().position(|(held, _)| held == key) {
-            let (key, measured) = self.rows.swap_remove(found);
-            self.used.push((key, measured.clone()));
-            return Some(measured);
-        }
-        self.used
-            .iter()
-            .find(|(held, _)| held == key)
-            .map(|(_, measured)| measured.clone())
-    }
-}
-
-fn measure_table_row(
-    inputs: &TableInputs,
-    line: usize,
-    cells: &[Range<usize>],
-) -> Option<(usize, MeasuredRow)> {
-    let snapshot = inputs.snapshot;
-    let (start, end, newline) = line_range(&snapshot.bytes, inputs.starts, line)?;
-    let row_inputs = RowInputs {
-        snapshot,
-        widgets: inputs.widgets,
-        client_colors: &[],
-        composition: None,
-        colors: inputs.colors,
-        options: inputs.options,
-        spacers: &[],
-        placeholder: None,
-        void_size: None,
-    };
-    let relative: Vec<Range<usize>> = cells
-        .iter()
-        .map(|cell| cell.start.saturating_sub(start)..cell.end.saturating_sub(start))
-        .collect();
-    let key = row_key(&row_inputs, start, end, newline).map(|key| (key, relative.clone()));
-    if let Some(key) = &key
-        && let Some(measured) = inputs.cache.borrow_mut().take(key)
-    {
-        return Some((start, measured));
-    }
-    let row = build_row(&row_inputs, line, start, end, newline);
-    let measured = rich_layout(
-        &row,
-        FontId::proportional(inputs.options.body_size),
-        (0.0, 0.0),
-        inputs.wrap_width,
-    )
-    .and_then(|layout| {
-        let first = layout.lines.first()?;
-        let cells: Vec<(Range<usize>, f32, f32)> = cells
-            .iter()
-            .zip(&relative)
-            .map(|(cell, relative)| {
-                (
-                    relative,
-                    row.to_display(cell.start),
-                    row.to_display(cell.end),
-                )
-            })
-            .take_while(|(_, _, end)| *end <= first.range.end)
-            .map(|(relative, start, end)| (relative.clone(), first.x_of(start), first.x_of(end)))
-            .collect();
-        (!cells.is_empty()).then_some((cells, first.width))
-    });
-    if let Some(key) = key {
-        inputs.cache.borrow_mut().used.push((key, measured.clone()));
-    }
-    Some((start, measured))
-}
-
-pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
-    inputs.cache.borrow_mut().start(TableEnv {
-        colors: *inputs.colors,
-        options: inputs.options,
-        wrap_width: inputs.wrap_width,
-        scale: inputs.scale,
-        fonts: inputs.fonts,
-    });
-    let spacers = lay_out_tables(inputs);
-    inputs.cache.borrow_mut().finish();
-    spacers
-}
-
-fn lay_out_tables(inputs: &TableInputs) -> TableSpacers {
-    let mut spacers = HashMap::new();
-    let snapshot = inputs.snapshot;
-    for table in &snapshot.highlight().markdown_tables() {
-        let rows: Vec<(usize, Vec<Cell>, f32)> = table
-            .rows
-            .iter()
-            .filter_map(|table_row| {
-                let line = line_of(inputs.starts, table_row.range.start);
-                let (start, measured) = measure_table_row(inputs, line, &table_row.cells)?;
-                let (cells, width) = measured?;
-                let cells = cells
-                    .into_iter()
-                    .map(|(cell, left, right)| (start + cell.start..start + cell.end, left, right))
-                    .collect();
-                Some((start, cells, width))
-            })
-            .collect();
-        if rows.is_empty() {
-            continue;
-        }
-        let columns = rows
-            .iter()
-            .map(|(_, cells, _)| cells.len())
-            .max()
-            .unwrap_or(0);
-        let mut widths = vec![0.0_f32; columns];
-        let mut gaps = vec![0.0_f32; columns.saturating_sub(1)];
-        let mut prefix = 0.0_f32;
-        for (_, cells, _) in &rows {
-            prefix = prefix.max(cells[0].1);
-            for (column, (_, start, end)) in cells.iter().enumerate() {
-                widths[column] = widths[column].max((end - start).max(0.0));
-                if let Some((_, next, _)) = cells.get(column + 1) {
-                    gaps[column] = gaps[column].max((next - end).max(0.0));
-                }
-            }
-        }
-        for (line_start, cells, _) in rows {
-            let mut inserted = 0.0_f32;
-            let mut placed = Vec::new();
-            let mut insert = |at: usize, natural: f32, wanted: f32, inserted: &mut f32| {
-                let width = wanted - (natural + *inserted);
-                if width > 0.0 {
-                    placed.push((at, width));
-                    *inserted += width;
-                }
-            };
-            let mut target = prefix;
-            for (column, (cell, start, end)) in cells.iter().enumerate() {
-                let width = (end - start).max(0.0);
-                let spare = (widths[column] - width).max(0.0);
-                let leading = match table
-                    .alignments
-                    .get(column)
-                    .copied()
-                    .unwrap_or(MarkdownTableAlignment::Left)
-                {
-                    MarkdownTableAlignment::Left => 0.0,
-                    MarkdownTableAlignment::Center => spare / 2.0,
-                    MarkdownTableAlignment::Right => spare,
-                };
-                insert(cell.start, *start, target + leading, &mut inserted);
-                target += widths[column];
-                insert(cell.end, *end, target, &mut inserted);
-                if let Some((_, next, _)) = cells.get(column + 1) {
-                    target += gaps[column].max((next - end).max(0.0));
-                }
-            }
-            spacers.insert(line_start, placed);
-        }
-    }
-    spacers
 }
