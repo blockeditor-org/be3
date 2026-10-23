@@ -13,7 +13,10 @@ fn a_pick_anchor_is_moved_from_the_asking_region_into_the_pickers() {
     let button = Rect::from_min_size(Pos2::new(12.0, 8.0), Vec2::new(28.0, 28.0));
     assert_eq!(
         reanchor(button, tab, window),
-        Some(Rect::from_min_size(Pos2::new(272.0, 48.0), Vec2::new(28.0, 28.0))),
+        Some(Rect::from_min_size(
+            Pos2::new(272.0, 48.0),
+            Vec2::new(28.0, 28.0)
+        )),
         "a tab's button lands where the tab sits in the window"
     );
 
@@ -23,7 +26,10 @@ fn a_pick_anchor_is_moved_from_the_asking_region_into_the_pickers() {
     };
     assert_eq!(
         reanchor(button, zoomed, window),
-        Some(Rect::from_min_size(Pos2::new(424.0, 316.0), Vec2::new(56.0, 56.0))),
+        Some(Rect::from_min_size(
+            Pos2::new(424.0, 316.0),
+            Vec2::new(56.0, 56.0)
+        )),
         "a block shown zoomed in a canvas anchors at the size it is drawn"
     );
 

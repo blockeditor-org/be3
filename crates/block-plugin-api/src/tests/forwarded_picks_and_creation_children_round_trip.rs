@@ -8,7 +8,10 @@ fn forwarded_picks_and_creation_children_round_trip() {
         excluded: vec![[3; 16]],
         templates: true,
         place: Some(BlockLocation::Root),
-        anchor: Some(Rect::from_min_size(Pos2::new(300.0, 80.0), Vec2::new(32.0, 32.0))),
+        anchor: Some(Rect::from_min_size(
+            Pos2::new(300.0, 80.0),
+            Vec2::new(32.0, 32.0),
+        )),
     };
     for message in [
         Message::Editor(EditorMessage::PickRequested {

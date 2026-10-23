@@ -11,9 +11,8 @@ use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
 use block_plugin_api::{
-    BarAction, ChildId, ChildMode, CreationProgress, EditorInstanceId, EditorRegion,
-    FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
-    ViewChange,
+    BarAction, ChildId, ChildMode, CreationProgress, EditorInstanceId, EditorRegion, FitArea,
+    FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar, ViewChange,
 };
 use uuid::Uuid;
 

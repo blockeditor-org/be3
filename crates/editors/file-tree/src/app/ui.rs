@@ -13,8 +13,7 @@ use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem,
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{
-    Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar,
-    node_anchor, phone_layout,
+    Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
 use uuid::Uuid;
 

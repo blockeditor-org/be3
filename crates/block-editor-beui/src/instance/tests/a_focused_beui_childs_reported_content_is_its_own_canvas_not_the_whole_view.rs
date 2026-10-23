@@ -27,7 +27,10 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
     let mut session = session::<SidebarApp>(Uuid::new_v4());
     frame(
         &mut session,
-        Some(Rect::from_min_size(beui::Pos2::new(300.0, 250.0), beui::Vec2::new(120.0, 90.0))),
+        Some(Rect::from_min_size(
+            beui::Pos2::new(300.0, 250.0),
+            beui::Vec2::new(120.0, 90.0),
+        )),
         TopBar::Shown,
     );
 

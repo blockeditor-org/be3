@@ -1503,8 +1503,7 @@ impl crate::root_settings::SettingsGraph for Editor {
 
 pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
     let node = node.try_get()?;
-    try_with_document(|document| document.node_rect(node))
-        .flatten()
+    try_with_document(|document| document.node_rect(node)).flatten()
 }
 
 #[cfg(test)]

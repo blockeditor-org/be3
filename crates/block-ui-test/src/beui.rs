@@ -11,8 +11,8 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea,
-    FrameChrome, FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea, FrameChrome,
+    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
     ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;

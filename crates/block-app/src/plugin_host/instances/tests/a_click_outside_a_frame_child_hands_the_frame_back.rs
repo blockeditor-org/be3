@@ -1,7 +1,5 @@
 use super::*;
-use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, Rect,
-};
+use block_plugin_api::{ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, Rect};
 
 #[test]
 fn a_click_outside_a_frame_child_hands_the_frame_back() {

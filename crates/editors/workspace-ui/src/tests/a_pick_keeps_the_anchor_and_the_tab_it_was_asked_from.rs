@@ -1,5 +1,5 @@
-use block_editor_beui::beui::{Pos2, Vec2};
 use block_editor_beui::beui::styled::Root;
+use block_editor_beui::beui::{Pos2, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -44,7 +44,10 @@ fn a_pick_keeps_the_anchor_and_the_tab_it_was_asked_from() {
     assert!(tab.is_some(), "the shown block has a tab");
 
     let mut asked = filter();
-    asked.anchor = Some(Rect::from_min_size(Pos2::new(412.0, 96.0), Vec2::new(28.0, 28.0)));
+    asked.anchor = Some(Rect::from_min_size(
+        Pos2::new(412.0, 96.0),
+        Vec2::new(28.0, 28.0),
+    ));
     let inner = Uuid::new_v4();
     test.request_pick(
         9,

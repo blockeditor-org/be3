@@ -22,7 +22,10 @@ fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
     let mut session = session::<RecordingApp>(Uuid::new_v4());
     frame(
         &mut session,
-        Some(Rect::from_min_size(beui::Pos2::new(300.0, 250.0), beui::Vec2::new(120.0, 90.0))),
+        Some(Rect::from_min_size(
+            beui::Pos2::new(300.0, 250.0),
+            beui::Vec2::new(120.0, 90.0),
+        )),
         TopBar::Shown,
     );
 

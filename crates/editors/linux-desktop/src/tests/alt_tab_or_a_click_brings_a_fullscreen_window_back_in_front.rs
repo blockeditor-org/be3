@@ -44,9 +44,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
         .children()
         .iter()
         .find(|placement| placement.content == ChildContent::Window(HostWindowId(2)))
-        .map(|placement| {
-placement.rect.center()
-        })
+        .map(|placement| placement.rect.center())
         .expect("the terminal is placed");
     assert_eq!(
         front_at(&fixture, terminal),

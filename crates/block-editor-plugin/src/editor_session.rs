@@ -1,11 +1,11 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
-    ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements,
-    ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message,
-    Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, TimedInput, ViewportMetrics,
-    WebViewEvent, WebViewId,
+    ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
+    CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameReport,
+    HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder,
+    RegionSize, ScreenPlacement, ScreenRequest, Size, TimedInput, ViewportMetrics, WebViewEvent,
+    WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -934,8 +934,7 @@ impl EditorSession {
         self.host.begin_region(region, origin);
         self.host
             .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
-        self.host
-            .set_placed_content(context.spec.content);
+        self.host.set_placed_content(context.spec.content);
         let drag = self.drag.and_then(|(dragged, drag)| {
             (dragged == region).then(|| BlockDrag {
                 position: drag.position + origin,

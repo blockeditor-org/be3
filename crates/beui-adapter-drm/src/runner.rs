@@ -1207,7 +1207,10 @@ impl Session {
             }
             RawInput::Wheel { x, y } => {
                 let notches = |v120: i32| -v120 as f32 / 120.0;
-                self.push(beui::Input::Scroll(ScrollDelta::Lines(vec2(notches(x), notches(y)))));
+                self.push(beui::Input::Scroll(ScrollDelta::Lines(vec2(
+                    notches(x),
+                    notches(y),
+                ))));
             }
         }
     }

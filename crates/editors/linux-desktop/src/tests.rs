@@ -131,9 +131,7 @@ impl Fixture {
             .children()
             .iter()
             .find(|placement| placement.content == ChildContent::Window(HostWindowId(id)))
-            .map(|placement| {
-                placement.rect
-            })
+            .map(|placement| placement.rect)
     }
 
     fn placeholder_rect(&self, key: u64) -> Option<Rect> {

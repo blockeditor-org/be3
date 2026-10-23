@@ -10,9 +10,7 @@ fn placed(fixture: &Fixture, window: u64) -> Option<Rect> {
         .children()
         .iter()
         .find(|placement| placement.content == ChildContent::Window(HostWindowId(window)))
-        .map(|placement| {
-            placement.rect
-        })
+        .map(|placement| placement.rect)
 }
 
 fn kept(fullscreen: bool) -> Vec<HostWindow> {

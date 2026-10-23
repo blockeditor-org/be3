@@ -25,7 +25,10 @@ fn frame_screens_and_reports_round_trip() {
     let mut request = region_screen(EditorRegion::Frame, 1, 2, 640, 480, 1.0);
     request.frame = Some(FrameSpec {
         chrome: FrameChrome::Drawn,
-        content: Some(Rect::from_min_size(Pos2::new(10.0, 20.0), Vec2::new(300.0, 200.0))),
+        content: Some(Rect::from_min_size(
+            Pos2::new(10.0, 20.0),
+            Vec2::new(300.0, 200.0),
+        )),
         top_bar: TopBar::Phone,
     });
     let screens = Message::Screens(ScreenSet {
@@ -40,9 +43,18 @@ fn frame_screens_and_reports_round_trip() {
     let frames = Message::Frames(vec![FrameReport {
         screen: ScreenId(1),
         content: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(640.0, 440.0)),
-        painted: vec![Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 40.0))],
-        floating: vec![Rect::from_min_size(Pos2::new(8.0, 44.0), Vec2::new(120.0, 90.0))],
-        drawing: vec![Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 400.0))],
+        painted: vec![Rect::from_min_size(
+            Pos2::new(0.0, 0.0),
+            Vec2::new(640.0, 40.0),
+        )],
+        floating: vec![Rect::from_min_size(
+            Pos2::new(8.0, 44.0),
+            Vec2::new(120.0, 90.0),
+        )],
+        drawing: vec![Rect::from_min_size(
+            Pos2::new(0.0, 0.0),
+            Vec2::new(640.0, 400.0),
+        )],
         every_sample: true,
         claims: vec![PressClaim {
             modifiers: Modifiers {

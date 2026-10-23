@@ -8,9 +8,7 @@ use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{
-    HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin,
-};
+use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin};
 
 struct Running {
     compositor: Compositor,

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Rect, HostAction, HostImage, HostValue, Size};
+use crate::{HostAction, HostImage, HostValue, Rect, Size};
 use ui_types::{DisplayMode, InputDevice, PointerSettings, Rotation};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

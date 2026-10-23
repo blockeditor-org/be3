@@ -1992,10 +1992,7 @@ impl CanvasState {
     pub(crate) fn open_block_picker(self, center: Option<CanvasPoint>) {
         let at = center.unwrap_or_else(|| self.viewport_center());
         let on_screen = self.camera().to_screen(pos2(at.x, at.y));
-        self.pick_block_from(
-            center,
-            Rect::from_min_size(on_screen, Vec2::ZERO),
-        );
+        self.pick_block_from(center, Rect::from_min_size(on_screen, Vec2::ZERO));
     }
 
     pub(crate) fn open_block_picker_at(self, button: Rect) {

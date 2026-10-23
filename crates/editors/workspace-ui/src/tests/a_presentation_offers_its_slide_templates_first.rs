@@ -1,5 +1,5 @@
 use block_editor_beui::beui::{Pos2, Vec2};
-use block_editor_beui::{BlockLocation, BlockPick, Rect, CreationProgress};
+use block_editor_beui::{BlockLocation, BlockPick, CreationProgress, Rect};
 
 use super::*;
 
@@ -28,7 +28,10 @@ fn a_presentation_offers_its_slide_templates_first() {
     let mut asked = filter();
     asked.name = "Slide".to_owned();
     asked.templates = true;
-    asked.anchor = Some(Rect::from_min_size(Pos2::new(300.0, 60.0), Vec2::new(200.0, 32.0)));
+    asked.anchor = Some(Rect::from_min_size(
+        Pos2::new(300.0, 60.0),
+        Vec2::new(200.0, 32.0),
+    ));
     let deck = Uuid::new_v4();
     fixture
         .test

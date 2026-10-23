@@ -197,10 +197,7 @@ fn placed_windows(fixture: &Fixture) -> Vec<(u64, Rect)> {
         .children()
         .iter()
         .filter_map(|placement| match placement.content {
-            ChildContent::Window(window) => Some((
-                window.0,
-                placement.rect,
-            )),
+            ChildContent::Window(window) => Some((window.0, placement.rect)),
             _ => None,
         })
         .collect()

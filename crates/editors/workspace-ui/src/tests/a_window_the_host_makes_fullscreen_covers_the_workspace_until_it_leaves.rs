@@ -1,5 +1,5 @@
-use block_editor_beui::beui::{Pos2, Vec2};
 use super::*;
+use block_editor_beui::beui::{Pos2, Vec2};
 
 #[test]
 fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {

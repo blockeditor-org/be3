@@ -9,9 +9,9 @@ use std::{
 use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message,
-    Monitor, PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
+    ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
+    HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message, Monitor,
+    PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
     SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
@@ -974,11 +974,7 @@ pub(crate) fn frame_placement(
     .flatten()
 }
 
-pub(crate) fn reanchor(
-    anchor: Rect,
-    from: FramePlacement,
-    to: FramePlacement,
-) -> Option<Rect> {
+pub(crate) fn reanchor(anchor: Rect, from: FramePlacement, to: FramePlacement) -> Option<Rect> {
     let scale = from.zoom / to.zoom;
     let moved = Rect::from_min_size(
         Pos2::ZERO + (from.rect.min + anchor.min.to_vec2() * from.zoom - to.rect.min) / to.zoom,
@@ -1492,11 +1488,9 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
         runtime
             .instances
             .frame_report(instance, EditorRegion::Frame)
-            .map(|report| {
-                HostFrame {
-                    content: report.content,
-                    floating: report.floating.clone(),
-                }
+            .map(|report| HostFrame {
+                content: report.content,
+                floating: report.floating.clone(),
             })
     })
     .flatten()
@@ -1863,7 +1857,10 @@ fn region_monitors(screens: &[beui::Screen], rect: Rect, size: Vec2) -> Vec<Moni
             Monitor {
                 id: screen.id.clone(),
                 name: screen.name.clone(),
-                rect: Rect::from_min_size(Pos2::new(shown.min.x * scale.x, shown.min.y * scale.y), Vec2::new(shown.width() * scale.x, shown.height() * scale.y)),
+                rect: Rect::from_min_size(
+                    Pos2::new(shown.min.x * scale.x, shown.min.y * scale.y),
+                    Vec2::new(shown.width() * scale.x, shown.height() * scale.y),
+                ),
             }
         })
         .collect()

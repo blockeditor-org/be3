@@ -353,8 +353,7 @@ fn TextSettings(state: State) -> NodeId {
 
 fn pick_block(state: State) {
     let caret = state.text.caret_indices().first().copied();
-    let anchor = caret
-        .and_then(|caret| state.text.layout().get_untracked().caret_rect(caret));
+    let anchor = caret.and_then(|caret| state.text.layout().get_untracked().caret_rect(caret));
     state.editor.pick_block(
         BlockFilter {
             name: "Insert".to_owned(),
