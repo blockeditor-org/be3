@@ -17,7 +17,7 @@ fn an_unstyled_scroll_keeps_the_whole_width_for_its_content() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let children = harness

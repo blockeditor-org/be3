@@ -24,7 +24,7 @@ fn a_picture_given_a_source_paints_only_that_part_of_the_image() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
 
     let drawn: Vec<_> = output

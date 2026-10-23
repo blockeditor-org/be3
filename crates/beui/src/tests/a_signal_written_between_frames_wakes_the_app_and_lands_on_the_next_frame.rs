@@ -12,7 +12,7 @@ fn a_signal_written_between_frames_wakes_the_app_and_lands_on_the_next_frame() {
             <Text>{create_memo(move || count.get().to_string())}</Text>
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let woken = Arc::new(AtomicUsize::new(0));
     harness.context().set_waker(Waker::new({
         let woken = Arc::clone(&woken);

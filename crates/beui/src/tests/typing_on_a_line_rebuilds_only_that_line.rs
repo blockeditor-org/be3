@@ -24,7 +24,7 @@ fn typing_on_a_line_rebuilds_only_that_line() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(250.0, 20.0));
     harness.frame(Vec::new());

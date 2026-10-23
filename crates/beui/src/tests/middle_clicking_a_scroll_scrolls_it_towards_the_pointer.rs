@@ -19,7 +19,7 @@ fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let origin = harness.rect(scroll).center();
 

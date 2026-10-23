@@ -21,7 +21,7 @@ fn a_text_of_spans_takes_its_alignment_and_line_height() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = kind_of::<TextNode>(harness.document(), text.get());
     let rect = harness.rect(text);

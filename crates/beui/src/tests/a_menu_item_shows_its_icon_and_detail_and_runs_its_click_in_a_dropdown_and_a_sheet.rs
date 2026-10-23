@@ -38,7 +38,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
             />
         }]
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.settle();
 
     harness.click(harness.center(button));

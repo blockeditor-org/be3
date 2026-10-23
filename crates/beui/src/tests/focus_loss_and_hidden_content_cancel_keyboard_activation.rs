@@ -27,7 +27,7 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
         ]
     });
     let button = button.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
     harness.key(Key::Tab, Modifiers::NONE);

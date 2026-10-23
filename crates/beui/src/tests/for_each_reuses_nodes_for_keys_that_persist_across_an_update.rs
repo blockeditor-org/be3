@@ -24,7 +24,7 @@ fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
     });
 
     let (list, shuffle) = (list.get(), shuffle.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let before = harness.document().children(list);

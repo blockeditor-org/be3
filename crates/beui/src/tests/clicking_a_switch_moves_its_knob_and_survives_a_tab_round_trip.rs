@@ -18,7 +18,7 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
             </List>
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let switch = switch_ref.get();

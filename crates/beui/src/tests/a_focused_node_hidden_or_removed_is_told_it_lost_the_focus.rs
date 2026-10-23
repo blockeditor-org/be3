@@ -47,7 +47,7 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
         }
     });
     let (first, second) = controls.expect("the controls were built");
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     shown.set(Some(second));
     harness.frame(Vec::new());
     shown.set(Some(first));

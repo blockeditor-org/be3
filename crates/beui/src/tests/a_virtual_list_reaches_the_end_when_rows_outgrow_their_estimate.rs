@@ -37,7 +37,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.rect(harness.document().children(list)[1]).top(),

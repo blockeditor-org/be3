@@ -17,7 +17,7 @@ fn a_docked_pane_lays_its_content_edge_to_edge() {
         }
     });
     let dock = dock.get();
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let pane = harness.rect(dock);

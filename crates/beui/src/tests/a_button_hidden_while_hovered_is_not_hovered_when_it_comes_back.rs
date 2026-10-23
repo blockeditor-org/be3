@@ -41,7 +41,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let button = harness
         .document()

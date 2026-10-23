@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn moving_the_pointer_ends_the_wheel_latch() {
-    let mut harness = harness(nested());
+    let mut harness = Harness::new(nested());
     harness.frame(Vec::new());
     let (inner, outer) = (harness.find("inner"), harness.find("outer"));
 

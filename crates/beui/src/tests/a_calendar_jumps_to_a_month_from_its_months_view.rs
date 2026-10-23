@@ -16,7 +16,7 @@ fn a_calendar_jumps_to_a_month_from_its_months_view() {
             />
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     for _ in 0..3 {

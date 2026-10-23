@@ -19,7 +19,7 @@ fn an_animation_can_start_its_next_phase_from_completion() {
             <Frame height=10.0 />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(finished.get_untracked(), 2);

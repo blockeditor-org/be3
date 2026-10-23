@@ -15,7 +15,7 @@ fn a_baseline_row_lines_up_text_of_different_sizes() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(300.0, 80.0));
+    let mut harness = Harness::sized(document, vec2(300.0, 80.0));
     let output = harness.frame(Vec::new());
     let lines: Vec<(f32, f32)> = output
         .shapes()

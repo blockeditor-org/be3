@@ -18,7 +18,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let theme = styled::Theme::DARK;
     let output = harness.frame(Vec::new());
     let bar = harness.rect(scrollbar_of(&harness, scroll.get()));

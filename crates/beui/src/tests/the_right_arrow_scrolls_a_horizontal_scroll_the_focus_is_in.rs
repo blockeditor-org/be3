@@ -23,7 +23,7 @@ fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let strip = harness.find("strip");
 

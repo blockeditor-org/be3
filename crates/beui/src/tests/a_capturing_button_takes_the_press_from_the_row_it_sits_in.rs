@@ -37,7 +37,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     });
 
     let (inner, row) = (inner.get(), row.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(inner));

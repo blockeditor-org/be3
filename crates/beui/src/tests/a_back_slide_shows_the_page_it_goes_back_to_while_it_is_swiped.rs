@@ -30,7 +30,7 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
             .try_get()
             .is_some_and(|id| harness.document().contains(id))
     };
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let resting = harness.rect(page.get());
     assert!(

@@ -15,7 +15,7 @@ fn a_component_can_return_a_show_for_its_parent_to_lay_out() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let after = harness.find("after");
     assert_eq!(harness.rect(after).top(), 40.0);

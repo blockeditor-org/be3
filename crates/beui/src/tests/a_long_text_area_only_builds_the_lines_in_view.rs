@@ -38,7 +38,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let root = harness.document().root().expect("the document has a root");

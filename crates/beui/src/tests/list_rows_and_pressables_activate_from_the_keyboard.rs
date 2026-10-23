@@ -21,7 +21,7 @@ fn list_rows_and_pressables_activate_from_the_keyboard() {
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);

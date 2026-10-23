@@ -7,7 +7,7 @@ fn a_taller_window_keeps_the_layout_and_paint_of_what_it_did_not_resize() {
     let middle = panels.middle;
     let mut document = panels.document;
     let (layouts, _) = counted(&mut document, middle);
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let settled = layouts.get_untracked();
 

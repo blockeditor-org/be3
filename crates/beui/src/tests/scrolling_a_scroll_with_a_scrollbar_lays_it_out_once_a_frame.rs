@@ -17,7 +17,7 @@ fn scrolling_a_scroll_with_a_scrollbar_lays_it_out_once_a_frame() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let over = harness.rect(scroll.get()).center();
     for _ in 0..3 {

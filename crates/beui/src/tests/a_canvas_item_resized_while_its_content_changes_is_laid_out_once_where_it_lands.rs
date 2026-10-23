@@ -24,7 +24,7 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
     });
     let item = item.get();
     let (layouts, _) = counted(&mut document, item);
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.settle();
     let settled = layouts.get_untracked();
 

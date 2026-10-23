@@ -13,7 +13,7 @@ fn a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it()
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(harness.center(first));
 

@@ -4,7 +4,7 @@ use super::*;
 fn turning_off_picking_clears_its_highlight() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
 
     harness.toggle_inspector();
     harness.toggle_picking();

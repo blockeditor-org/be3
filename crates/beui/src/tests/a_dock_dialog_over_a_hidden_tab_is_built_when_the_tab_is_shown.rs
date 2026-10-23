@@ -5,7 +5,7 @@ fn a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown() {
     let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], vec![(10, 2, false)]);
     let layout = dock.layout;
-    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert!(

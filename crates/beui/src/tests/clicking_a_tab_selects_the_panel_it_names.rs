@@ -17,7 +17,7 @@ fn clicking_a_tab_selects_the_panel_it_names() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     assert_eq!(

@@ -22,7 +22,7 @@ fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
         }
     });
     let picked = frames[PICKED].get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
     harness.toggle_picking();

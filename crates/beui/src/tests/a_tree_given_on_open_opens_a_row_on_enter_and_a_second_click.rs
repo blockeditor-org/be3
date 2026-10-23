@@ -29,7 +29,7 @@ fn a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click() {
             </Tree>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let row = |harness: &Harness, key: usize| {
         let row = harness

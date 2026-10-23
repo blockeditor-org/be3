@@ -5,7 +5,7 @@ fn a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab() {
     let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], vec![(10, 1, false)]);
     let layout = dock.layout;
-    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

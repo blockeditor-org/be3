@@ -15,7 +15,7 @@ fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
             <Frame width=300.0 height=300.0 />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.touch(TouchPhase::Start, pos2(50.0, 50.0));

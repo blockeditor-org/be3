@@ -19,7 +19,7 @@ fn turning_an_oklch_color_wheel_keeps_its_lightness() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let rect = harness.rect(wheel.get());
     let centre = pos2(

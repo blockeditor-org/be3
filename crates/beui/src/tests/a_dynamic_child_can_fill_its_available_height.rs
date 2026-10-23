@@ -24,7 +24,7 @@ fn a_dynamic_child_can_fill_its_available_height() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.frame(Vec::new());
 

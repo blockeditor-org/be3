@@ -15,7 +15,7 @@ fn a_drag_preview_follows_the_pointer_until_the_drop() {
             </Draggable>
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     assert!(
         output.test_id_rect("ghost").is_none(),

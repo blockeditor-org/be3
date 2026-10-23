@@ -13,7 +13,7 @@ fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
             <Select options selected=None />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let trigger = harness
         .document()

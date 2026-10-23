@@ -19,7 +19,7 @@ fn instant_carets_do_not_request_blink_frames() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
 
     harness.key(Key::Tab, Modifiers::NONE);

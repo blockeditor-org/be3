@@ -37,7 +37,7 @@ fn painted_on_redraw(count: usize) -> (usize, usize) {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     color.set(Color32::from_rgb(0, 0, 200));

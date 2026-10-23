@@ -15,7 +15,7 @@ fn a_test_id_reaches_the_accessibility_tree_as_its_author_id() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
 
     let tree = output.accessibility_tree("Test", VIEWPORT);

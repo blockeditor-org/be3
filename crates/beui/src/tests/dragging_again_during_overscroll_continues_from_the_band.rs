@@ -21,7 +21,7 @@ fn dragging_again_during_overscroll_continues_from_the_band() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
 

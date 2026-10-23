@@ -40,7 +40,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
     });
 
     let tree = tree.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let name = harness.document().find_test_id("name.0").expect("the name");
     let row = harness.rect(name);

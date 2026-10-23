@@ -14,7 +14,7 @@ fn an_optional_child_slot_takes_no_children_or_exactly_one() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
 

@@ -9,7 +9,7 @@ fn arrow_keys_step_the_focused_slider() {
             <Slider value=0.5 />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);

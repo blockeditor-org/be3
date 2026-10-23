@@ -13,7 +13,7 @@ fn clicking_a_link_reports_it_and_reads_as_a_link() {
             <Link label="Open the grid" on_click={move || clicks.update(|clicks| *clicks += 1)} />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
 
     let tree = output.accessibility_tree("Test", VIEWPORT);

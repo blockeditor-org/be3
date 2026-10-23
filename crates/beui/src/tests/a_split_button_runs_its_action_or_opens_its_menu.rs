@@ -25,7 +25,7 @@ fn a_split_button_runs_its_action_or_opens_its_menu() {
             />
         }]
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let buttons: Vec<Option<String>> = harness
         .accessible()

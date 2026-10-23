@@ -22,7 +22,7 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
             </SelectableText>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (title, labels) = (harness.rect(title.get()), harness.rect(labels.get()));
     let copy = |harness: &mut Harness| {

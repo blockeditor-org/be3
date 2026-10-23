@@ -35,7 +35,7 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let tab = Chord::key(Key::Tab).alt().key_chord();
     let escape = Chord::key(Key::Escape).alt().key_chord();

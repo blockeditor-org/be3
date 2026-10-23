@@ -28,7 +28,7 @@ fn scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let scroll = harness.find("scroll");
     harness.frame(vec![Event::PointerMoved(harness.rect(scroll).center())]);

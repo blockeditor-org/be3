@@ -19,7 +19,7 @@ fn the_scrollbar_thumb_brightens_under_the_pointer_and_while_it_is_dragged() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let theme = styled::Theme::DARK;
     let output = harness.frame(Vec::new());
     assert_eq!(

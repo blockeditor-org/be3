@@ -21,7 +21,7 @@ fn an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     banner.set(50.0);

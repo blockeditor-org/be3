@@ -5,7 +5,7 @@ fn a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom() {
     let _root = crate::reactive::RootScope::new();
     let dock = anchored_card_dock(false);
     let (pressed, attended, open) = (dock.pressed, dock.attended, dock.open);
-    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     let anchor = open_anchored(&mut harness, (dock.anchor, open), |panel| {
         Rect::from_min_size(
             pos2(panel.center().x - 16.0, panel.bottom() - 48.0),

@@ -19,7 +19,7 @@ fn pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let origin = harness.rect(scroll).center();
 

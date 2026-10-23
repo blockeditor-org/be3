@@ -27,7 +27,7 @@ fn a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on() {
         }
     });
     let (scroll, beside) = (scroll.get(), beside.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
     harness.finger_drag(&[

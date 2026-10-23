@@ -16,7 +16,7 @@ fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
             </Interactive>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (from, to) = (pos2(50.0, 50.0), pos2(120.0, 90.0));
     harness.frame(vec![Event::PointerMoved(from)]);

@@ -52,7 +52,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
             </styled::Docking>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
     let dock = dock.get();
 

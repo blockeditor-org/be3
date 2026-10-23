@@ -27,8 +27,8 @@ fn a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it() {
         }
     });
     let press = press.get();
-    let mut pressing = harness(pressing);
-    let mut watching = harness(watching);
+    let mut pressing = Harness::new(pressing);
+    let mut watching = Harness::new(watching);
     pressing.frame(Vec::new());
     watching.frame(Vec::new());
 

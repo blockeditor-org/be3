@@ -29,7 +29,7 @@ fn scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let mut dump = AccessibilityDump::new();
     dump.update(
         harness

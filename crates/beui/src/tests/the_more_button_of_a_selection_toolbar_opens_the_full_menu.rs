@@ -16,7 +16,7 @@ fn the_more_button_of_a_selection_toolbar_opens_the_full_menu() {
             </SelectableText>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (text, region) = (text.get(), region.get());
     let rect = harness.rect(text);

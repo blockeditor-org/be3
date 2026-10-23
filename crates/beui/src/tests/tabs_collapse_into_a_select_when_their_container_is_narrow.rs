@@ -27,7 +27,7 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     });
     let tabs = tabs.get();
 
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let [wide] = harness.document().children(tabs)[..] else {

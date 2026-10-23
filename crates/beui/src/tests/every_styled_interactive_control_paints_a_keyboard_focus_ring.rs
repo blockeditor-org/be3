@@ -86,7 +86,7 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
     ];
     for control in controls {
         let (document, [control]) = toolbar_of(|| [control()]);
-        let mut harness = harness(document);
+        let mut harness = Harness::new(document);
         let initial = harness.frame(vec![]);
         let focused = harness.frame(vec![key_event(Key::Tab, true, Modifiers::NONE)]);
         let rings = |output: &crate::FrameOutput| {

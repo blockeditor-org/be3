@@ -35,7 +35,7 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
     let f6 = |shift: bool| {

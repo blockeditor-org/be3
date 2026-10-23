@@ -19,7 +19,7 @@ fn hovering_a_context_menu_item_moves_keyboard_focus_to_it() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

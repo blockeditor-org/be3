@@ -30,7 +30,7 @@ fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

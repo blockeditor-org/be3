@@ -17,7 +17,7 @@ fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile(
             <TextArea state={state} single_line=true />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     harness.key(Key::Tab, Modifiers::NONE);

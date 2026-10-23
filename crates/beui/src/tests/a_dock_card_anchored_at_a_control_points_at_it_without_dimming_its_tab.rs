@@ -5,7 +5,7 @@ fn a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab() {
     let _root = crate::reactive::RootScope::new();
     let dock = anchored_card_dock(true);
     let (pressed, attended, open) = (dock.pressed, dock.attended, dock.open);
-    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     let anchor = open_anchored(&mut harness, (dock.anchor, open), |panel| {
         Rect::from_min_size(panel.min + vec2(24.0, 16.0), vec2(32.0, 24.0))
     });

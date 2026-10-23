@@ -7,7 +7,7 @@ fn inserting_above_a_virtual_list_view_keeps_the_rows_in_place() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = keyed_virtual_list(built);
-    let mut harness = harness(scroll.document);
+    let mut harness = Harness::new(scroll.document);
     harness
         .document_mut()
         .set_scroll_offset(scroll.scroll, 1000.0);

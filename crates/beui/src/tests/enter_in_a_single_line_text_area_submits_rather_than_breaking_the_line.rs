@@ -21,7 +21,7 @@ fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
             />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
 

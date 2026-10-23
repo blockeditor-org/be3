@@ -15,7 +15,7 @@ fn a_separator_keeps_the_length_it_is_given_where_its_row_centres_it() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, VIEWPORT);
+    let mut harness = Harness::sized(document, VIEWPORT);
 
     let output = harness.frame(Vec::new());
 

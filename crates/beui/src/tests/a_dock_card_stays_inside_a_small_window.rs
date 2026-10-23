@@ -7,7 +7,7 @@ const WINDOW_MARGIN: f32 = 12.0;
 fn a_dock_card_stays_inside_a_small_window() {
     let _root = crate::reactive::RootScope::new();
     let dock = side_card_dock(false);
-    let mut harness = harness_sized(dock.document, SMALL_WINDOW);
+    let mut harness = Harness::sized(dock.document, SMALL_WINDOW);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

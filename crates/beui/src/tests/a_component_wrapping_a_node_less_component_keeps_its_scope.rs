@@ -17,7 +17,7 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
             <Rows @node_ref=&menu region={region} count={count.read_only()} />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let pos = harness.center(region.get());
     harness.frame(vec![Event::PointerMoved(pos)]);

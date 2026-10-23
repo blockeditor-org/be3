@@ -25,7 +25,7 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

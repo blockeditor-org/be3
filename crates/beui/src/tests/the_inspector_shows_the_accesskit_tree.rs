@@ -4,7 +4,7 @@ use super::*;
 fn the_inspector_shows_the_accesskit_tree() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
 
     harness.click(harness.accesskit_tab_center());

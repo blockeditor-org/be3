@@ -10,7 +10,7 @@ fn losing_window_focus_cancels_a_held_activation_key() {
             <LabelledButton label="Click" on_click={move || clicks.update(|clicks| *clicks += 1)} />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
     harness.frame(vec![Event::Focus(false)]);

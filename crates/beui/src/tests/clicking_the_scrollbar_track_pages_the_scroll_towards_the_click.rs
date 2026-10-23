@@ -20,7 +20,7 @@ fn clicking_the_scrollbar_track_pages_the_scroll_towards_the_click() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let scroll = scroll.get();

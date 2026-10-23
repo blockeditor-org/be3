@@ -30,7 +30,7 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
             </styled::Docking>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     layout.show(&2);
     layout.show(&1);

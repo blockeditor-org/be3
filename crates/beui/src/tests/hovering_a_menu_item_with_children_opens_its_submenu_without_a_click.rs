@@ -20,7 +20,7 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

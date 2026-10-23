@@ -19,7 +19,7 @@ fn a_finger_on_a_hidden_scrollbar_scrolls_the_content_under_it() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let bar = harness.rect(scrollbar_of(&harness, scroll.get()));
     let from = pos2(bar.center().x, bar.center().y);

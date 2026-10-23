@@ -28,7 +28,7 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let shown = (VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;
     let rows = shown * 2;

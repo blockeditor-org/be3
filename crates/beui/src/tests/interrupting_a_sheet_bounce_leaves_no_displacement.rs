@@ -9,7 +9,7 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
         let sheet = NodeRef::new();
         let closed = create_signal(0);
         let document = sheet_of_rows(0.9, sheet, closed);
-        let mut harness = harness_sized(document, vec2(400.0, 600.0));
+        let mut harness = Harness::sized(document, vec2(400.0, 600.0));
         harness.settle();
         let handle = harness.find("sheet.handle");
         let top = harness.rect(handle).top();

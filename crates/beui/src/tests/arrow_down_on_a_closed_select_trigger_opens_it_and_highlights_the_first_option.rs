@@ -14,7 +14,7 @@ fn arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_optio
             <Select options selected=None />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let trigger = harness

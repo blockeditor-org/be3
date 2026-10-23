@@ -8,7 +8,7 @@ fn the_components_tab_lists_components_instead_of_base_nodes() {
             <ButtonFace label="Save" />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
     assert_eq!(harness.tree(), ["list", "  frame", "    text"]);

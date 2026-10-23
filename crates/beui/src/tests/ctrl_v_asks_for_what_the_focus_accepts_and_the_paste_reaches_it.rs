@@ -33,7 +33,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let ctrl_v = || {
         Event::key(beui::KeyPress {
             key: Key::V,

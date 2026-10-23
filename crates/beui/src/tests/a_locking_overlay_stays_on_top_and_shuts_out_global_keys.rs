@@ -47,7 +47,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let lock = kind_of::<OverlayNode>(harness.document(), lock.get());
     let popup = kind_of::<OverlayNode>(harness.document(), popup.get());

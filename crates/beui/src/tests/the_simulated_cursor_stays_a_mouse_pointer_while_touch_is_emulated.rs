@@ -5,7 +5,7 @@ use crate::painter::Shape;
 #[test]
 fn the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated() {
     let _root = crate::reactive::RootScope::new();
-    let mut harness = harness_sized(hello_column().document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());

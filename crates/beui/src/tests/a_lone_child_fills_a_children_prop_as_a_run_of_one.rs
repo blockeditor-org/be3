@@ -16,7 +16,7 @@ fn a_lone_child_fills_a_children_prop_as_a_run_of_one() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     assert_eq!(

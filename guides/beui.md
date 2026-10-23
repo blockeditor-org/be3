@@ -3493,9 +3493,9 @@ with `settle_after_gestures(false)`, when it answers after the frame that took t
 single frame does, and hands back its output. A failure prints the steps so far as `drive`
 commands (guides/running/drive.md), which replay against a `:dev` app.
 
-beui's own tests build theirs with `harness(document)` or `harness_sized(document, size)`
-in `crates/beui/src/tests.rs`, which turn settling off, and its `Steps` trait adds what
-those tests share: finding and measuring nodes, and driving the inspector and the dock.
+beui's own tests use `Harness::new(document)` or `Harness::sized(document, size)` from
+`crates/beui/src/tests.rs`: a `Stepped` with settling turned off, plus what those tests
+share: finding and measuring nodes, and driving the inspector and the dock.
 Tests of the `Runner` itself take `testing::Screen` rather than a renderer of their own.
 
 For a beui block editor, use `block_ui_test::BeuiTest`, built from an `Editor`

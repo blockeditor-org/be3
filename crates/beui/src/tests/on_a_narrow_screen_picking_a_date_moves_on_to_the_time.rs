@@ -24,7 +24,7 @@ fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
             </Container>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(360.0, 700.0));
+    let mut harness = Harness::sized(document, Vec2::new(360.0, 700.0));
     harness.frame(Vec::new());
     let find = |harness: &Harness, role: Role, label: &str| {
         harness

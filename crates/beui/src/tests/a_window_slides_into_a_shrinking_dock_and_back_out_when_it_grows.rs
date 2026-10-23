@@ -5,7 +5,7 @@ use crate::unstyled::DockApi;
 fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
     let stored = harness
         .document()

@@ -39,7 +39,7 @@ fn super_tapped_alone_runs_its_tap_action_and_still_reaches_the_app() {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
     forwarded.update(|forwarded| forwarded.clear());

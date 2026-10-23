@@ -24,7 +24,7 @@ fn painted_width(container: f32) -> f32 {
             </List>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(700.0, 300.0));
+    let mut harness = Harness::sized(document, Vec2::new(700.0, 300.0));
     let output = harness.frame(Vec::new());
     output
         .shapes()

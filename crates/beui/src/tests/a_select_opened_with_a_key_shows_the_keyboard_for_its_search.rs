@@ -13,7 +13,7 @@ fn a_select_opened_with_a_key_shows_the_keyboard_for_its_search() {
             <Select options selected=None />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let trigger = harness

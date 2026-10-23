@@ -13,7 +13,7 @@ fn clicking_the_padding_around_a_button_label_activates_it() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.click(pos2(4.0, 4.0));
 

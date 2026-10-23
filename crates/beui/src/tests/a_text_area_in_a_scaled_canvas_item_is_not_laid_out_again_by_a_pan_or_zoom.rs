@@ -40,7 +40,7 @@ fn a_text_area_in_a_scaled_canvas_item_is_not_laid_out_again_by_a_pan_or_zoom() 
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let crisp = tallest_glyph(&harness.frame(Vec::new()));
     let moved = |harness: &mut Harness, origin, scale| {

@@ -5,7 +5,7 @@ fn performance_measurements_report_what_the_frame_reused() {
     let _root = crate::reactive::RootScope::new();
     let panels = three_panels();
     let middle = panels.middle;
-    let mut harness = harness(panels.document);
+    let mut harness = Harness::new(panels.document);
     harness.frame(Vec::new());
 
     let first = harness.document().performance().latest.work;

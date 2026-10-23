@@ -4,7 +4,7 @@ use super::*;
 fn returning_to_the_inspector_tab_repaints_the_whole_panel() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.toggle_inspector();
     harness.frame(Vec::new());
     harness.click(harness.bar_option_center(0));

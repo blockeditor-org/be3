@@ -22,7 +22,7 @@ fn a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes() {
             />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     harness.type_text("gtk4-demo --run ");

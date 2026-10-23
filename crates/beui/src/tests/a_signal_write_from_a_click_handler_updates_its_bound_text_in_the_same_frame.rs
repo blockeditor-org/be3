@@ -19,7 +19,7 @@ fn a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame(
         ]
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(text_of(harness.document(), value), "0");
 

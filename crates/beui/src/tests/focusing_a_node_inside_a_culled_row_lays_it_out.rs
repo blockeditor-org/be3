@@ -33,7 +33,7 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
             }
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let row = rows[FOCUSED].get();
     assert!(harness.document().is_culled(row));

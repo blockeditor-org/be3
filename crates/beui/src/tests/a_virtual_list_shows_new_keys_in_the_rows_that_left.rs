@@ -31,7 +31,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
         }
     });
     let (scroll, list) = (scroll.get(), list.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let shown = harness.document().children(list).len();
 

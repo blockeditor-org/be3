@@ -6,7 +6,7 @@ use crate::{PreferenceLayer, PreferenceSource};
 fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {

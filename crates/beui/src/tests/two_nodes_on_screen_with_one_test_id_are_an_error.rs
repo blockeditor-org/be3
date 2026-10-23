@@ -15,7 +15,7 @@ fn two_nodes_on_screen_with_one_test_id_are_an_error() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
 
     assert!(output.test_id_rect("single").is_some());

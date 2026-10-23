@@ -5,7 +5,7 @@ use crate::unstyled::{DockApi, Entry, TabId};
 fn a_tab_dropped_in_the_frame_it_last_moved_lands_where_it_was_let_go() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let first = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     let second = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));

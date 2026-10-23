@@ -17,7 +17,7 @@ fn an_overflowing_scroll_of_plain_text_is_a_tab_stop() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness_sized(document, Vec2::new(300.0, 100.0));
+    let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     let focused = harness

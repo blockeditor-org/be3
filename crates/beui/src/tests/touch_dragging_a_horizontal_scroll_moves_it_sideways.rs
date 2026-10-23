@@ -29,7 +29,7 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let strip = harness.find("strip");
 

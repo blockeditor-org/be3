@@ -28,7 +28,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
             </Container>
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let open = |harness: &Harness| {
         harness.accessible().iter().any(|node| {

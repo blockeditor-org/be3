@@ -10,7 +10,7 @@ fn activation_requires_a_matching_release_and_escape_cancels_it() {
             <LabelledButton label="Click" on_click={move || clicks.update(|clicks| *clicks += 1)} />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
     harness.frame(vec![key_event(Key::Enter, false, Modifiers::NONE)]);

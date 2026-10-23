@@ -16,7 +16,7 @@ fn a_calendar_reaches_a_distant_year_from_its_years_view() {
             />
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::SHIFT);

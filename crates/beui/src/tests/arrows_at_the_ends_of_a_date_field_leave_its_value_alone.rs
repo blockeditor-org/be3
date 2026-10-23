@@ -18,7 +18,7 @@ fn arrows_at_the_ends_of_a_date_field_leave_its_value_alone() {
             </Container>
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);

@@ -18,7 +18,7 @@ fn enter_activates_a_list_row_and_space_selects_it() {
             </ListRow>
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Space, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);

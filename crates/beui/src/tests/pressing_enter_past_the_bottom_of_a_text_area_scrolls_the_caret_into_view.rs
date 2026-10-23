@@ -21,7 +21,7 @@ fn pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let visible = harness.rect(area.get());

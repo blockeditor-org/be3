@@ -32,7 +32,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
             </styled::Docking>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     assert!(first.placement().is_some(), "the tab on show is placed");
 

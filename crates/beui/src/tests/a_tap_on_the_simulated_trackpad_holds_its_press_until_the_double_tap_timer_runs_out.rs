@@ -10,7 +10,7 @@ fn a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_ru
             <Checkbox label="Trackpad option" checked=false />
         }]
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
     harness.point_at(harness.center(checkbox));

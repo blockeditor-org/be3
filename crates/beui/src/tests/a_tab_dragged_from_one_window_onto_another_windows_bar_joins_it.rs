@@ -5,7 +5,7 @@ use crate::unstyled::{DockApi, TabId};
 fn a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     for (title, to) in [("Tab 2", pos2(250.0, 150.0)), ("Tab 3", pos2(700.0, 380.0))] {
         let tab = harness.center(dock_tab(harness.document(), dock, title));

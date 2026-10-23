@@ -23,7 +23,7 @@ fn held_modifiers_and_key_releases_reach_global_listeners() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(harness.center(harness.find("field")));
 

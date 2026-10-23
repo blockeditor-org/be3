@@ -19,7 +19,7 @@ fn a_wrapping_row_flows_its_children_onto_more_lines() {
         row
     });
 
-    let mut harness = harness_sized(document, Vec2::new(100.0, 200.0));
+    let mut harness = Harness::sized(document, Vec2::new(100.0, 200.0));
     harness.frame(Vec::new());
 
     let tiles = tiles.get_untracked();

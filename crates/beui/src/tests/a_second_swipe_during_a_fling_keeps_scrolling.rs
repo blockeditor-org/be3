@@ -19,7 +19,7 @@ fn a_second_swipe_during_a_fling_keeps_scrolling() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
     let swipe = [

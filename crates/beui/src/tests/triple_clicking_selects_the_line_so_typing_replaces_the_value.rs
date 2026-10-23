@@ -9,7 +9,7 @@ fn triple_clicking_selects_the_line_so_typing_replaces_the_value() {
             <TextInput value="hello world" />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let rect = harness.rect(input);

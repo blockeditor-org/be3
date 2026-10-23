@@ -14,7 +14,7 @@ fn tab_moves_focus_from_one_text_input_to_the_next() {
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);

@@ -23,7 +23,7 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
     harness.finger_drag(&[

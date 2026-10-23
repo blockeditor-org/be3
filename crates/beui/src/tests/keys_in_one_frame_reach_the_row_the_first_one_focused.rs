@@ -24,7 +24,7 @@ fn keys_in_one_frame_reach_the_row_the_first_one_focused() {
         }]
     });
     let button = button.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(harness.center(button));
     harness.frame(Vec::new());

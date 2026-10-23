@@ -18,7 +18,7 @@ fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(vec![]);
 
     let rect = harness.rect(shown.get());

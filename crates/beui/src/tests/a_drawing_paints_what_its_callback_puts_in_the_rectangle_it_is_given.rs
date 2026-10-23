@@ -23,7 +23,7 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
             <Drawing draw={draw} />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     let output = harness.frame(Vec::new());
     assert_eq!(

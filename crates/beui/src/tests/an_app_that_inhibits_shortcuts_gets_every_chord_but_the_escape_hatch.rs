@@ -58,7 +58,7 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
         }
     });
     let inhibits = setter.get_untracked().expect("the document was built");
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
 

@@ -10,7 +10,7 @@ fn a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing() {
         presses,
         ..
     } = split_dock(Some(Modifiers::LOGO));
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let before = harness.document().api::<DockApi>(dock).state();
     let content = harness.center(harness.find("content.1"));

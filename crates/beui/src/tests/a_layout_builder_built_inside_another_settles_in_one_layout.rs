@@ -29,7 +29,7 @@ fn a_layout_builder_built_inside_another_settles_in_one_layout() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().performance().latest.layout_passes,

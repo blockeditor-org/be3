@@ -26,7 +26,7 @@ fn a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus() {
             <LetterShortcut taken={taken} />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.key(Key::A, Modifiers::NONE);

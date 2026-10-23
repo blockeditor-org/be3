@@ -17,7 +17,7 @@ fn clicking_an_accordion_header_hides_its_content() {
         }]
     });
     let body = body.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     assert!(harness.document().node_rect(body).is_some());

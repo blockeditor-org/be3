@@ -28,7 +28,7 @@ fn an_animation_restarted_from_its_step_keeps_its_new_schedule() {
             <Frame height=10.0 />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(runs.get_untracked(), 2);

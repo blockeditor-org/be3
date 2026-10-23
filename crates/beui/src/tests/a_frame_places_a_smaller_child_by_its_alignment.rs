@@ -28,7 +28,7 @@ fn child_rect(horizontal: Align, vertical: Align) -> Rect {
             </Frame>
         }
     });
-    let mut harness = harness_sized(document, vec2(300.0, 300.0));
+    let mut harness = Harness::sized(document, vec2(300.0, 300.0));
     harness.frame(Vec::new());
     harness.rect(child.get())
 }

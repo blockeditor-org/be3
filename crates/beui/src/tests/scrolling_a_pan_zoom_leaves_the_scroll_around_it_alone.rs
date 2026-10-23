@@ -30,7 +30,7 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.scroll_at(pos2(200.0, 100.0), vec2(0.0, -20.0), Modifiers::NONE);

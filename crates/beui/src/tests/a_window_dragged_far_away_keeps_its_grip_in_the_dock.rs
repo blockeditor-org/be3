@@ -6,7 +6,7 @@ use crate::{PreferenceLayer, PreferenceSource};
 fn a_window_dragged_far_away_keeps_its_grip_in_the_dock() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {

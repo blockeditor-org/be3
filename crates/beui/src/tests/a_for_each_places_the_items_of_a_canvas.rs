@@ -24,7 +24,7 @@ fn a_for_each_places_the_items_of_a_canvas() {
     });
 
     let (canvas, add) = (canvas.get(), add.get());
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let items = harness.document().children(canvas);

@@ -22,7 +22,7 @@ fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
     });
 
     let drop_two = drop_two.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     assert!(harness.document().find_test_id("item.1").is_some());

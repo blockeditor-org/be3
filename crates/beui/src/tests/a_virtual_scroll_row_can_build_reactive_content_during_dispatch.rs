@@ -23,7 +23,7 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
     });
     let list = list.get();
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let first_row = harness.document().children(list)[0];

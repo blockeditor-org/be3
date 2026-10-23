@@ -24,7 +24,7 @@ fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
 
     let hole = slot.placement().expect("the first embed was laid out").rect;

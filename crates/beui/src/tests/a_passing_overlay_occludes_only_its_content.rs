@@ -21,7 +21,7 @@ fn a_passing_overlay_occludes_only_its_content() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let layers = harness.document().overlay_layers();

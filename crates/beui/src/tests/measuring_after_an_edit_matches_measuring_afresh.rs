@@ -30,7 +30,7 @@ fn measuring_after_an_edit_matches_measuring_afresh() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
 

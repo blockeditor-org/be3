@@ -24,7 +24,7 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert!(
         surface.try_get().is_none(),

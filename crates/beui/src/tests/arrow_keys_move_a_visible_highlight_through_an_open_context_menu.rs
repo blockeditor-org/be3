@@ -18,7 +18,7 @@ fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

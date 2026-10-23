@@ -33,7 +33,7 @@ fn a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view() {
             }
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let first = (cells[0].get(), insides[0].get());

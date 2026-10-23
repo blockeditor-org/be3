@@ -26,7 +26,7 @@ fn tab_is_trapped_inside_an_open_context_menu() {
         ]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

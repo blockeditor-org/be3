@@ -28,7 +28,7 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

@@ -8,7 +8,7 @@ fn turning_the_accessibility_tree_off_in_the_inspector_stops_building_it() {
             <styled::Button variant=styled::ButtonVariant::Primary label="Save" on_click={|| {}} />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     assert!(
         output.accessibility_tree("Test", VIEWPORT).nodes.len() > 1,

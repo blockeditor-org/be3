@@ -36,7 +36,7 @@ fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {
         }
     });
     let first = first.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.frame(vec![Event::PointerMoved(harness.center(first))]);
 

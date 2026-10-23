@@ -18,7 +18,7 @@ fn opening_a_menu_damages_only_where_it_appears() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

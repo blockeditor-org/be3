@@ -12,7 +12,7 @@ fn the_inspector_shows_the_base_nodes_of_a_styled_component() {
             </ListRow>
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
 

@@ -23,7 +23,7 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let from = harness.center(source);

@@ -11,7 +11,7 @@ fn setting_the_bound_value_of_a_text_input_shows_it() {
             <TextInput value={value} />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     with_installed(harness.document_mut(), |_| {

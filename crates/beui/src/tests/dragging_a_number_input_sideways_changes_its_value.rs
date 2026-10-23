@@ -16,7 +16,7 @@ fn dragging_a_number_input_sideways_changes_its_value() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let middle = harness.center(input);
 

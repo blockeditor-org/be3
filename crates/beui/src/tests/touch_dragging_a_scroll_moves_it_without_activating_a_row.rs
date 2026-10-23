@@ -26,7 +26,7 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let rect = harness.rect(scroll);
     let start = pos2(rect.center().x, rect.bottom() - 40.0);

@@ -20,7 +20,7 @@ fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
     harness.point_at(harness.rect(scroll).center());

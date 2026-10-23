@@ -16,7 +16,7 @@ fn a_slider_reports_and_steps_within_the_range_it_was_given() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);

@@ -38,7 +38,7 @@ fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
     let value = value.get_untracked().expect("text node was created");
     let increment = increment.get_untracked().expect("button node was created");
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(text_of(harness.document(), value), "0");
 

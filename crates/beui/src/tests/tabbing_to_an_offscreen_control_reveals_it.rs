@@ -24,7 +24,7 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
     });
     let scroll = scroll.get();
     let buttons: Vec<NodeId> = buttons.iter().map(NodeRef::get).collect();
-    let mut harness = harness_sized(document, Vec2::new(300.0, 100.0));
+    let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
     for _ in 0..5 {
         harness.key(Key::Tab, Modifiers::NONE);
     }

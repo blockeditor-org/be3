@@ -928,105 +928,65 @@ pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
     })
 }
 
-pub(crate) type Harness = crate::testing::Stepped;
+pub(crate) struct Harness(crate::testing::Stepped);
 
-pub(crate) fn harness(document: Document) -> Harness {
-    harness_sized(document, VIEWPORT)
+impl std::ops::Deref for Harness {
+    type Target = crate::testing::Stepped;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
-pub(crate) fn harness_sized(mut document: Document, viewport: Vec2) -> Harness {
-    crate::verify_paint(true);
-    crate::inspector::install(&mut document);
-    let window = beui_core::app::automation::WindowSize {
-        size: viewport,
-        scale: 1.0,
-    };
-    let mut stepped =
-        crate::testing::Stepped::new(context(), crate::testing::Showing(document), window, None);
-    stepped.settle_after_gestures(false);
-    stepped
+impl std::ops::DerefMut for Harness {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
-pub(crate) trait Steps {
-    fn frames_to_settle(&mut self) -> usize;
-    fn press_at(&mut self, pos: Pos2);
-    fn release_at(&mut self, pos: Pos2);
-    fn finger_drag(&mut self, path: &[Pos2]);
-    fn finger_drag_and_hold(&mut self, from: Pos2, to: Pos2);
-    fn scroll_at(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers);
-    fn middle_button(&mut self, pos: Pos2, pressed: bool);
-    fn middle_drag(&mut self, from: Pos2, to: Pos2);
-    fn move_fingers(&mut self, first: Pos2, second: Pos2);
-    fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput;
-    fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput;
-    fn toggle_inspector(&mut self);
-    fn toggle_picking(&mut self);
-    fn toggle_responsive(&mut self);
-    fn shown_screen(&self) -> Rect;
-    fn assert_screen_size(&self, size: Vec2);
-    fn responsive_control_rect(&self, test_id: &str) -> Rect;
-    fn toggle_inspector_focus(&mut self);
-    fn chord(&mut self, key: Key);
-    fn accessible(&self) -> Vec<accesskit::Node>;
-    fn rect(&self, id: impl Into<NodeId>) -> Rect;
-    fn find(&self, test_id: &str) -> NodeId;
-    fn center(&self, id: impl Into<NodeId>) -> Pos2;
-    fn inspector_open(&self) -> bool;
-    fn inspector(&self) -> &Inspector;
-    fn tree(&self) -> Vec<String>;
-    fn selected_row(&self) -> Option<String>;
-    fn row_center(&self, index: usize) -> Pos2;
-    fn focused_row_index(&self) -> Option<usize>;
-    fn touch_toggle_center(&self) -> Pos2;
-    fn choose_in_simulation(&mut self, control: &str, index: usize);
-    fn click_in_inspector(&mut self, node: NodeId);
-    fn mouse_toggle_center(&self) -> Pos2;
-    fn close_button_center(&self) -> Pos2;
-    fn bar_close_rect(&self) -> Rect;
-    fn bar_option_center(&self, index: usize) -> Pos2;
-    fn bar_option_rect(&self, index: usize) -> Rect;
-    fn inspector_panel_rect(&self) -> Rect;
-    fn mouse_simulation(&self) -> bool;
-    fn mouse_simulated<R>(&self, read: impl FnOnce(&MouseSimulation) -> R) -> R;
-    fn simulated_cursor(&self) -> Pos2;
-    fn simulated_button(&self, index: usize) -> Pos2;
-    fn simulated_trackpad(&self) -> Pos2;
-    fn enable_mouse_simulation(&mut self);
-    fn point_at(&mut self, target: Pos2);
-    fn tap_trackpad(&mut self);
-    fn quick_tap_trackpad(&mut self);
-    fn wait_out_double_tap(&mut self);
-    fn simulated_left_held(&self) -> bool;
-    fn enable_screen_reader(&mut self);
-    fn disable_accessibility(&mut self);
-    fn screen_reader_control_center(&self, control: &str) -> Pos2;
-    fn spoken(&self) -> Option<String>;
-    fn readout(&self) -> Rect;
-    fn document_bottom(&self) -> f32;
-    fn reading(&self) -> Option<String>;
-    fn reader_item_center(&self, index: usize) -> Pos2;
-    fn reader_items(&self) -> Vec<String>;
-    fn change_flash_toggle_center(&self) -> Pos2;
-    fn damage_flash_toggle_center(&self) -> Pos2;
-    fn accesskit_tab_center(&self) -> Pos2;
-    fn components_tab_center(&self) -> Pos2;
-    fn performance_tab_center(&self) -> Pos2;
-    fn simulation_tab_center(&self) -> Pos2;
-    fn simulation_tab_node(&self) -> NodeId;
-    fn drag_simulation_slider(&mut self, control: &str, fraction: f32);
-    fn inspector_rect(&self, test_id: &str) -> Rect;
-    fn performance_panel_visible(&self) -> bool;
-    fn tab_node(&self, index: usize) -> NodeId;
-    fn inspector_center(&self, test_id: &str) -> Pos2;
-    fn touch_emulation(&self) -> bool;
-    fn chevron_center(&self, index: usize) -> Pos2;
-    fn reveal_center(&self) -> Pos2;
-    fn reveal_shown(&self) -> bool;
-    fn node_center(&self, id: NodeId) -> Pos2;
-}
+impl Harness {
+    pub(crate) fn new(document: Document) -> Self {
+        Self::sized(document, VIEWPORT)
+    }
 
-impl Steps for Harness {
-    fn frames_to_settle(&mut self) -> usize {
+    pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
+        crate::verify_paint(true);
+        crate::inspector::install(&mut document);
+        let window = beui_core::app::automation::WindowSize {
+            size: viewport,
+            scale: 1.0,
+        };
+        let mut stepped = crate::testing::Stepped::new(
+            context(),
+            crate::testing::Showing(document),
+            window,
+            None,
+        );
+        stepped.settle_after_gestures(false);
+        Self(stepped)
+    }
+
+    pub(crate) fn frame(&mut self, events: Vec<Event>) -> crate::FrameOutput {
+        self.0.frame(events)
+    }
+
+    pub(crate) fn click(&mut self, target: impl Into<crate::testing::Target>) {
+        self.0.click(target);
+    }
+
+    pub(crate) fn drag(
+        &mut self,
+        from: impl Into<crate::testing::Target>,
+        to: impl Into<crate::testing::Target>,
+    ) {
+        self.0.drag(from, to);
+    }
+
+    pub(crate) fn resize(&mut self, size: Vec2) {
+        self.0.resize(size);
+    }
+
+    pub(crate) fn frames_to_settle(&mut self) -> usize {
         const LIMIT: usize = 1200;
         for frames in 0..LIMIT {
             let output = self.frame(Vec::new());
@@ -1037,15 +997,15 @@ impl Steps for Harness {
         panic!("still animating after {LIMIT} frames");
     }
 
-    fn press_at(&mut self, pos: Pos2) {
+    pub(crate) fn press_at(&mut self, pos: Pos2) {
         self.down(pos, PointerButton::Primary);
     }
 
-    fn release_at(&mut self, pos: Pos2) {
+    pub(crate) fn release_at(&mut self, pos: Pos2) {
         self.up(pos, PointerButton::Primary);
     }
 
-    fn finger_drag(&mut self, path: &[Pos2]) {
+    pub(crate) fn finger_drag(&mut self, path: &[Pos2]) {
         let (Some(first), Some(last)) = (path.first(), path.last()) else {
             return;
         };
@@ -1056,7 +1016,7 @@ impl Steps for Harness {
         self.touch(TouchPhase::End, *last);
     }
 
-    fn finger_drag_and_hold(&mut self, from: Pos2, to: Pos2) {
+    pub(crate) fn finger_drag_and_hold(&mut self, from: Pos2, to: Pos2) {
         const STEP: f32 = 10.0;
         const HOLD: Duration = Duration::from_millis(200);
         self.touch(TouchPhase::Start, from);
@@ -1071,7 +1031,7 @@ impl Steps for Harness {
         self.touch(TouchPhase::End, to);
     }
 
-    fn scroll_at(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
+    pub(crate) fn scroll_at(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
         let held = held_keys(modifiers);
         for key in &held {
             self.key_down(*key);
@@ -1082,52 +1042,57 @@ impl Steps for Harness {
         }
     }
 
-    fn middle_button(&mut self, pos: Pos2, pressed: bool) {
+    pub(crate) fn middle_button(&mut self, pos: Pos2, pressed: bool) {
         match pressed {
             true => self.down(pos, PointerButton::Middle),
             false => self.up(pos, PointerButton::Middle),
         };
     }
 
-    fn middle_drag(&mut self, from: Pos2, to: Pos2) {
+    pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {
         self.down(from, PointerButton::Middle);
         self.hover(to);
         self.up(to, PointerButton::Middle);
     }
 
-    fn move_fingers(&mut self, first: Pos2, second: Pos2) {
+    pub(crate) fn move_fingers(&mut self, first: Pos2, second: Pos2) {
         self.fingers(TouchPhase::Move, &[(1, first), (2, second)]);
     }
 
-    fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
+    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
         self.finger(1, phase, pos)
     }
 
-    fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
+    pub(crate) fn finger(
+        &mut self,
+        finger: u64,
+        phase: TouchPhase,
+        pos: Pos2,
+    ) -> crate::FrameOutput {
         self.fingers(phase, &[(finger, pos)]);
         self.take_output()
     }
 
-    fn toggle_inspector(&mut self) {
+    pub(crate) fn toggle_inspector(&mut self) {
         self.chord(Key::I);
     }
 
-    fn toggle_picking(&mut self) {
+    pub(crate) fn toggle_picking(&mut self) {
         self.chord(Key::C);
     }
 
-    fn toggle_responsive(&mut self) {
+    pub(crate) fn toggle_responsive(&mut self) {
         self.chord(Key::M);
     }
 
-    fn shown_screen(&self) -> Rect {
+    pub(crate) fn shown_screen(&self) -> Rect {
         self.document()
             .shown_screen()
             .expect("a screen is simulated")
             .shown()
     }
 
-    fn assert_screen_size(&self, size: Vec2) {
+    pub(crate) fn assert_screen_size(&self, size: Vec2) {
         let simulation = self
             .context()
             .screen_simulation()
@@ -1142,18 +1107,18 @@ impl Steps for Harness {
         );
     }
 
-    fn responsive_control_rect(&self, test_id: &str) -> Rect {
+    pub(crate) fn responsive_control_rect(&self, test_id: &str) -> Rect {
         self.inspector()
             .toolbar_rect(test_id)
             .expect("the control was not laid out")
             .scaled(crate::inspector::scale(self.context()))
     }
 
-    fn toggle_inspector_focus(&mut self) {
+    pub(crate) fn toggle_inspector_focus(&mut self) {
         self.chord(Key::F);
     }
 
-    fn chord(&mut self, key: Key) {
+    pub(crate) fn chord(&mut self, key: Key) {
         self.key(
             key,
             Modifiers {
@@ -1164,7 +1129,7 @@ impl Steps for Harness {
         );
     }
 
-    fn accessible(&self) -> Vec<accesskit::Node> {
+    pub(crate) fn accessible(&self) -> Vec<accesskit::Node> {
         ::reactive::flush();
         self.document()
             .accessibility_view()
@@ -1172,32 +1137,32 @@ impl Steps for Harness {
             .unwrap_or_default()
     }
 
-    fn rect(&self, id: impl Into<NodeId>) -> Rect {
+    pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
         ::reactive::flush();
         self.document()
             .node_rect(id)
             .expect("the node was not laid out")
     }
 
-    fn find(&self, test_id: &str) -> NodeId {
+    pub(crate) fn find(&self, test_id: &str) -> NodeId {
         ::reactive::flush();
         self.document()
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
     }
 
-    fn center(&self, id: impl Into<NodeId>) -> Pos2 {
+    pub(crate) fn center(&self, id: impl Into<NodeId>) -> Pos2 {
         self.rect(id).center()
     }
 
-    fn inspector_open(&self) -> bool {
+    pub(crate) fn inspector_open(&self) -> bool {
         ::reactive::flush();
         self.document()
             .tools::<InspectorTools>()
             .is_some_and(|tools| tools.inspector.is_some())
     }
 
-    fn inspector(&self) -> &Inspector {
+    pub(crate) fn inspector(&self) -> &Inspector {
         ::reactive::flush();
         self.document()
             .tools::<InspectorTools>()
@@ -1205,7 +1170,7 @@ impl Steps for Harness {
             .expect("the inspector is closed")
     }
 
-    fn tree(&self) -> Vec<String> {
+    pub(crate) fn tree(&self) -> Vec<String> {
         self.inspector()
             .entries
             .iter()
@@ -1213,15 +1178,15 @@ impl Steps for Harness {
             .collect()
     }
 
-    fn selected_row(&self) -> Option<String> {
+    pub(crate) fn selected_row(&self) -> Option<String> {
         self.inspector().selected_row(self.document())
     }
 
-    fn row_center(&self, index: usize) -> Pos2 {
+    pub(crate) fn row_center(&self, index: usize) -> Pos2 {
         self.node_center(self.inspector().row_node(index))
     }
 
-    fn focused_row_index(&self) -> Option<usize> {
+    pub(crate) fn focused_row_index(&self) -> Option<usize> {
         let focused = self.inspector().focused_row()?;
         self.inspector()
             .entries
@@ -1229,11 +1194,11 @@ impl Steps for Harness {
             .position(|entry| entry.key == focused)
     }
 
-    fn touch_toggle_center(&self) -> Pos2 {
+    pub(crate) fn touch_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    fn choose_in_simulation(&mut self, control: &str, index: usize) {
+    pub(crate) fn choose_in_simulation(&mut self, control: &str, index: usize) {
         let select = self
             .inspector()
             .find(&format!("inspector.simulation.{control}"));
@@ -1264,40 +1229,40 @@ impl Steps for Harness {
         self.click(self.node_center(node));
     }
 
-    fn mouse_toggle_center(&self) -> Pos2 {
+    pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.simulation.mouse_simulation")
     }
 
-    fn close_button_center(&self) -> Pos2 {
+    pub(crate) fn close_button_center(&self) -> Pos2 {
         self.inspector_center("inspector.close")
     }
 
-    fn bar_close_rect(&self) -> Rect {
+    pub(crate) fn bar_close_rect(&self) -> Rect {
         self.inspector()
             .bar_rect("inspector.bar.close")
             .expect("the inspector's tab bar has no close button")
             .scaled(crate::inspector::scale(self.context()))
     }
 
-    fn bar_option_center(&self, index: usize) -> Pos2 {
+    pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
         self.bar_option_rect(index).center()
     }
 
-    fn bar_option_rect(&self, index: usize) -> Rect {
+    pub(crate) fn bar_option_rect(&self, index: usize) -> Rect {
         self.inspector()
             .bar_option_rect(index)
             .expect("the inspector has no tab bar")
             .scaled(crate::inspector::scale(self.context()))
     }
 
-    fn inspector_panel_rect(&self) -> Rect {
+    pub(crate) fn inspector_panel_rect(&self) -> Rect {
         self.inspector()
             .panel_rect()
             .expect("the inspector panel was not laid out")
             .scaled(crate::inspector::scale(self.context()))
     }
 
-    fn mouse_simulation(&self) -> bool {
+    pub(crate) fn mouse_simulation(&self) -> bool {
         self.context().mouse_simulation()
     }
 
@@ -1307,19 +1272,19 @@ impl Steps for Harness {
             .expect("the mouse is simulated")
     }
 
-    fn simulated_cursor(&self) -> Pos2 {
+    pub(crate) fn simulated_cursor(&self) -> Pos2 {
         self.mouse_simulated(MouseSimulation::cursor)
     }
 
-    fn simulated_button(&self, index: usize) -> Pos2 {
+    pub(crate) fn simulated_button(&self, index: usize) -> Pos2 {
         self.mouse_simulated(|simulation| simulation.button_center(index))
     }
 
-    fn simulated_trackpad(&self) -> Pos2 {
+    pub(crate) fn simulated_trackpad(&self) -> Pos2 {
         self.mouse_simulated(MouseSimulation::trackpad_center)
     }
 
-    fn enable_mouse_simulation(&mut self) {
+    pub(crate) fn enable_mouse_simulation(&mut self) {
         self.toggle_inspector();
         let tab = self.simulation_tab_center();
         self.click(tab);
@@ -1330,7 +1295,7 @@ impl Steps for Harness {
         self.frame(Vec::new());
     }
 
-    fn point_at(&mut self, target: Pos2) {
+    pub(crate) fn point_at(&mut self, target: Pos2) {
         let origin = self.simulated_trackpad();
         let jog = Vec2::new(0.0, -40.0);
         let delta = target - self.simulated_cursor();
@@ -1340,28 +1305,28 @@ impl Steps for Harness {
         self.finger(9, TouchPhase::End, origin + delta);
     }
 
-    fn tap_trackpad(&mut self) {
+    pub(crate) fn tap_trackpad(&mut self) {
         self.quick_tap_trackpad();
         self.wait_out_double_tap();
     }
 
-    fn quick_tap_trackpad(&mut self) {
+    pub(crate) fn quick_tap_trackpad(&mut self) {
         let at = self.simulated_trackpad();
         self.finger(1, TouchPhase::Start, at);
         self.finger(1, TouchPhase::End, at);
         self.frame(Vec::new());
     }
 
-    fn wait_out_double_tap(&mut self) {
+    pub(crate) fn wait_out_double_tap(&mut self) {
         self.advance(crate::mouse_simulation::DOUBLE_TAP_TIME);
         self.frame(Vec::new());
     }
 
-    fn simulated_left_held(&self) -> bool {
+    pub(crate) fn simulated_left_held(&self) -> bool {
         self.mouse_simulated(MouseSimulation::left_held)
     }
 
-    fn enable_screen_reader(&mut self) {
+    pub(crate) fn enable_screen_reader(&mut self) {
         self.toggle_inspector();
         let tab = self.simulation_tab_center();
         self.click(tab);
@@ -1372,7 +1337,7 @@ impl Steps for Harness {
         self.frame(Vec::new());
     }
 
-    fn disable_accessibility(&mut self) {
+    pub(crate) fn disable_accessibility(&mut self) {
         self.toggle_inspector();
         let tab = self.simulation_tab_center();
         self.click(tab);
@@ -1383,19 +1348,19 @@ impl Steps for Harness {
         self.frame(Vec::new());
     }
 
-    fn screen_reader_control_center(&self, control: &str) -> Pos2 {
+    pub(crate) fn screen_reader_control_center(&self, control: &str) -> Pos2 {
         self.inspector_center(&format!("inspector.screen_reader.{control}"))
     }
 
-    fn spoken(&self) -> Option<String> {
+    pub(crate) fn spoken(&self) -> Option<String> {
         self.inspector().reader().spoken()
     }
 
-    fn readout(&self) -> Rect {
+    pub(crate) fn readout(&self) -> Rect {
         self.inspector().reader().bar()
     }
 
-    fn document_bottom(&self) -> f32 {
+    pub(crate) fn document_bottom(&self) -> f32 {
         self.document()
             .root()
             .and_then(|root| self.document().node_rect(root))
@@ -1403,54 +1368,54 @@ impl Steps for Harness {
             .bottom()
     }
 
-    fn reading(&self) -> Option<String> {
+    pub(crate) fn reading(&self) -> Option<String> {
         self.inspector().reader().reading()
     }
 
-    fn reader_item_center(&self, index: usize) -> Pos2 {
+    pub(crate) fn reader_item_center(&self, index: usize) -> Pos2 {
         self.inspector().reader().item_center(index)
     }
 
-    fn reader_items(&self) -> Vec<String> {
+    pub(crate) fn reader_items(&self) -> Vec<String> {
         self.inspector().reader().items()
     }
 
-    fn change_flash_toggle_center(&self) -> Pos2 {
+    pub(crate) fn change_flash_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.performance.flash_changes")
     }
 
-    fn damage_flash_toggle_center(&self) -> Pos2 {
+    pub(crate) fn damage_flash_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.performance.flash_damage")
     }
 
-    fn accesskit_tab_center(&self) -> Pos2 {
+    pub(crate) fn accesskit_tab_center(&self) -> Pos2 {
         self.node_center(self.tab_node(2))
     }
 
-    fn components_tab_center(&self) -> Pos2 {
+    pub(crate) fn components_tab_center(&self) -> Pos2 {
         self.node_center(self.tab_node(1))
     }
 
-    fn performance_tab_center(&self) -> Pos2 {
+    pub(crate) fn performance_tab_center(&self) -> Pos2 {
         self.node_center(self.tab_node(3))
     }
 
-    fn simulation_tab_center(&self) -> Pos2 {
+    pub(crate) fn simulation_tab_center(&self) -> Pos2 {
         self.node_center(self.simulation_tab_node())
     }
 
-    fn simulation_tab_node(&self) -> NodeId {
+    pub(crate) fn simulation_tab_node(&self) -> NodeId {
         self.tab_node(4)
     }
 
-    fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
+    pub(crate) fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
         let track = self.inspector_rect(&format!("inspector.simulation.{control}"));
         let y = track.center().y;
         let to = pos2(track.left() + track.width() * fraction.clamp(0.0, 1.0), y);
         self.drag(pos2(track.center().x, y), to);
     }
 
-    fn inspector_rect(&self, test_id: &str) -> Rect {
+    pub(crate) fn inspector_rect(&self, test_id: &str) -> Rect {
         let inspector = self.inspector();
         let rect = inspector
             .document
@@ -1459,7 +1424,7 @@ impl Steps for Harness {
         rect.scaled(crate::inspector::scale(self.context()))
     }
 
-    fn performance_panel_visible(&self) -> bool {
+    pub(crate) fn performance_panel_visible(&self) -> bool {
         let inspector = self.inspector();
         inspector
             .document
@@ -1468,28 +1433,28 @@ impl Steps for Harness {
             .is_some()
     }
 
-    fn tab_node(&self, index: usize) -> NodeId {
+    pub(crate) fn tab_node(&self, index: usize) -> NodeId {
         self.inspector().option_node("inspector.tabs", index)
     }
 
-    fn inspector_center(&self, test_id: &str) -> Pos2 {
+    pub(crate) fn inspector_center(&self, test_id: &str) -> Pos2 {
         self.node_center(self.inspector().find(test_id))
     }
 
-    fn touch_emulation(&self) -> bool {
+    pub(crate) fn touch_emulation(&self) -> bool {
         self.context().touch_emulation()
     }
 
-    fn chevron_center(&self, index: usize) -> Pos2 {
+    pub(crate) fn chevron_center(&self, index: usize) -> Pos2 {
         let row = self.inspector().entries[index].key.test_id();
         self.inspector_center(&format!("{row}.chevron"))
     }
 
-    fn reveal_center(&self) -> Pos2 {
+    pub(crate) fn reveal_center(&self) -> Pos2 {
         self.inspector_center("inspector.reveal")
     }
 
-    fn reveal_shown(&self) -> bool {
+    pub(crate) fn reveal_shown(&self) -> bool {
         let inspector = self.inspector();
         inspector
             .document
@@ -1498,7 +1463,7 @@ impl Steps for Harness {
             .is_some()
     }
 
-    fn node_center(&self, id: NodeId) -> Pos2 {
+    pub(crate) fn node_center(&self, id: NodeId) -> Pos2 {
         let center = self
             .inspector()
             .document
@@ -2212,7 +2177,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
             </List>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(1600.0, 1000.0));
+    let mut harness = Harness::sized(document, Vec2::new(1600.0, 1000.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

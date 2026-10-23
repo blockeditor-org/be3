@@ -22,7 +22,7 @@ fn a_sheet_opened_as_another_closes_takes_its_place_without_sliding() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     let top = |harness: &Harness, content: NodeRef| {
         harness
             .document()

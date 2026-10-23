@@ -13,7 +13,7 @@ fn a_key_let_go_over_the_inspector_is_not_left_held() {
             <TextInput @test_id="field" value={typed} />
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.context().enable_keyboard();
     harness.toggle_inspector();
     harness.frame(Vec::new());

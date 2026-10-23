@@ -26,7 +26,7 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
         }]
     });
     let button = button.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(button));

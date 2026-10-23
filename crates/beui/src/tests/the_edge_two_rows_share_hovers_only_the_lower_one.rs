@@ -21,7 +21,7 @@ fn the_edge_two_rows_share_hovers_only_the_lower_one() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.frame(vec![Event::PointerMoved(pos2(10.0, ROW - 0.5))]);

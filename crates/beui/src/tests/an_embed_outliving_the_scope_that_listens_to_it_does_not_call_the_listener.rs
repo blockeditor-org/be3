@@ -29,7 +29,7 @@ fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() 
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     shown.set(false);

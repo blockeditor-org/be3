@@ -19,7 +19,7 @@ fn a_backdrop_drag_expands_an_unscrolled_half_open_sheet() {
             </ModalSheet>
         }
     });
-    let mut harness = harness_sized(document, vec2(400.0, 600.0));
+    let mut harness = Harness::sized(document, vec2(400.0, 600.0));
     harness.settle();
     let handle = harness.find("sheet.handle");
     assert_eq!(harness.rect(handle).top(), 300.0);

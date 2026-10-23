@@ -34,7 +34,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
         }
     });
     let written = writer.get_untracked().expect("the words were made");
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = kind_of::<TextNode>(harness.document(), text.get());
     let layout = harness

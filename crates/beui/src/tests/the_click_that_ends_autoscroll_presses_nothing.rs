@@ -23,7 +23,7 @@ fn the_click_that_ends_autoscroll_presses_nothing() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let origin = harness.rect(scroll).center();
 

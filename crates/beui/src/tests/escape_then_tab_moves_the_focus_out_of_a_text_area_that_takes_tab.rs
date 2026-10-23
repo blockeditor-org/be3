@@ -22,7 +22,7 @@ fn escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let surface = harness
         .document()

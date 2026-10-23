@@ -11,7 +11,7 @@ fn a_bare_separator_rules_across_the_column_it_sits_in() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, VIEWPORT);
+    let mut harness = Harness::sized(document, VIEWPORT);
 
     let output = harness.frame(Vec::new());
 

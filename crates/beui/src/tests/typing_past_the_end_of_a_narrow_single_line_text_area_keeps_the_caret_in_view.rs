@@ -22,7 +22,7 @@ fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
 

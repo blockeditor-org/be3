@@ -47,7 +47,7 @@ fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
             <Docked />
         }
     });
-    let mut harness = harness_sized(document, PHONE);
+    let mut harness = Harness::sized(document, PHONE);
     harness.settle();
     let at = harness.center(harness.find("dock.switch"));
     harness.click(at);

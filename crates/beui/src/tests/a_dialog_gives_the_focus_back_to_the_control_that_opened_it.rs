@@ -45,7 +45,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let open_at = harness.rect(opener.get()).center();

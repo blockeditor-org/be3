@@ -17,7 +17,7 @@ fn a_new_line_typed_into_an_empty_text_area_paints_one_caret() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(250.0, 20.0));
     harness.type_text("first");

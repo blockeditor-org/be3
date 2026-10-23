@@ -18,7 +18,7 @@ fn a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button() {
         }
     });
     let (scroll, button) = (scroll.get(), button.get());
-    let mut harness = harness_sized(document, Vec2::new(300.0, 100.0));
+    let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(

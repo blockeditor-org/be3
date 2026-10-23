@@ -22,7 +22,7 @@ fn a_shifted_child_in_a_scrolled_view_still_paints() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness
         .document_mut()

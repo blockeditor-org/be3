@@ -17,7 +17,7 @@ fn tapping_a_calendar_day_picks_it() {
             />
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let day = harness
         .document()

@@ -17,7 +17,7 @@ fn wrapped_rows_wrap_long_text_and_grow_percent_children() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(150.0, 300.0));
+    let mut harness = Harness::sized(document, vec2(150.0, 300.0));
     harness.frame(Vec::new());
     let caption = harness.rect(caption.get());
     assert!(

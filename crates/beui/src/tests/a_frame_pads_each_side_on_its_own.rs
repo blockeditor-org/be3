@@ -18,7 +18,7 @@ fn a_frame_pads_each_side_on_its_own() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(300.0, 300.0));
+    let mut harness = Harness::sized(document, vec2(300.0, 300.0));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(inner.get()).min, pos2(5.0, 1.0));
     assert_eq!(harness.rect(outer.get()).size(), vec2(28.0, 15.0));

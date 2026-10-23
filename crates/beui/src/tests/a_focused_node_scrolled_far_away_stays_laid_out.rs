@@ -28,7 +28,7 @@ fn a_focused_node_scrolled_far_away_stays_laid_out() {
             }
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(harness.document().focused_node().is_some());

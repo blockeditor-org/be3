@@ -22,7 +22,7 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert!(
         content.try_get().is_none(),

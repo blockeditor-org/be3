@@ -18,7 +18,7 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     assert!(harness.frame(Vec::new()).window.handles_back);
     let resting = harness.rect(page.get());
 

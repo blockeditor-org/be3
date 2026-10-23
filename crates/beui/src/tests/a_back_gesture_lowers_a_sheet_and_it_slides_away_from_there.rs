@@ -24,7 +24,7 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     open.set(true);
     harness.settle();

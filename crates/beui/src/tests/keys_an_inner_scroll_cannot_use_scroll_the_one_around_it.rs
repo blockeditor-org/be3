@@ -21,7 +21,7 @@ fn keys_an_inner_scroll_cannot_use_scroll_the_one_around_it() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(300.0, 200.0));
+    let mut harness = Harness::sized(document, Vec2::new(300.0, 200.0));
     harness.frame(Vec::new());
     let (inner, outer) = (harness.find("inner"), harness.find("outer"));
     harness.key(Key::Tab, Modifiers::NONE);

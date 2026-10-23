@@ -9,7 +9,7 @@ fn arrow_keys_pan_a_focused_pan_zoom() {
             <PanZoomStage />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let stage = harness.find("stage");
 

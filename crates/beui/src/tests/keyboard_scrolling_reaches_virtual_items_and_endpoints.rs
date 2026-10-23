@@ -24,7 +24,7 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::PageDown, Modifiers::NONE);
     assert_eq!(harness.document().scroll_offset(scroll), VIEWPORT.y);

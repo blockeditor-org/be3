@@ -23,7 +23,7 @@ fn ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(harness.center(field.get()));
     let ctrl_v = || {

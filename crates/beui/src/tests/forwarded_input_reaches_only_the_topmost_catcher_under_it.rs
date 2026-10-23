@@ -36,7 +36,7 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.frame(vec![Event::PointerMoved(pos2(60.0, 60.0))]);

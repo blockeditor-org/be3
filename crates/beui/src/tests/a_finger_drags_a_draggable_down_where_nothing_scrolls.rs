@@ -21,7 +21,7 @@ fn a_finger_drags_a_draggable_down_where_nothing_scrolls() {
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let from = harness.center(source);
     let to = pos2(from.x, harness.center(target).y);

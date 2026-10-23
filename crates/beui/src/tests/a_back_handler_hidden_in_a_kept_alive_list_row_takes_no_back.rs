@@ -22,7 +22,7 @@ fn a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);

@@ -26,7 +26,7 @@ fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
         }
     });
     let (scroll, listbox) = (scroll.get(), listbox.get());
-    let mut harness = harness_sized(document, Vec2::new(300.0, 80.0));
+    let mut harness = Harness::sized(document, Vec2::new(300.0, 80.0));
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::End, Modifiers::NONE);

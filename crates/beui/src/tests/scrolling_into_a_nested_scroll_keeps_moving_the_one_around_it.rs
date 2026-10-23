@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn scrolling_into_a_nested_scroll_keeps_moving_the_one_around_it() {
-    let mut harness = harness(nested());
+    let mut harness = Harness::new(nested());
     harness.frame(Vec::new());
     let (inner, outer) = (harness.find("inner"), harness.find("outer"));
     let still = pos2(200.0, 190.0);

@@ -1,7 +1,7 @@
 use accesskit::{Action, ActionRequest, Role, TreeId};
 use beui_view::reactive::Get;
 
-use super::{VIEWPORT, build_node, create_signal, harness, styled, view};
+use super::{Harness, VIEWPORT, build_node, create_signal, styled, view};
 
 #[test]
 fn accessibility_reports_and_steps_a_slider() {
@@ -12,7 +12,7 @@ fn accessibility_reports_and_steps_a_slider() {
             <styled::Slider value={changed} label="Volume" />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     let output = harness.frame(Vec::new());
     let tree = output.accessibility_tree("Test", VIEWPORT);

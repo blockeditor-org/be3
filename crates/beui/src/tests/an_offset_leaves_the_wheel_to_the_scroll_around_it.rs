@@ -23,7 +23,7 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (offset, scroll) = (harness.find("offset"), harness.find("scroll"));
 

@@ -112,7 +112,7 @@ fn clicking_and_dragging_in_a_text_area_moves_the_caret_and_selects() {
             <TextArea state={state} />
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let second = TEXT.find("second").expect("the text has a second line");

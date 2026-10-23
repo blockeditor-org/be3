@@ -8,7 +8,7 @@ fn open_inspector_opens_the_inspector_from_inside_the_document() {
             <LabelledButton label="Inspect" on_click={|| with_document(Document::open_inspector)} />
         }]
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.click(harness.center(button));

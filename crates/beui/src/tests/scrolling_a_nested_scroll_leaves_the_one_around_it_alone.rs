@@ -21,7 +21,7 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (inner, outer) = (harness.find("inner"), harness.find("outer"));
 

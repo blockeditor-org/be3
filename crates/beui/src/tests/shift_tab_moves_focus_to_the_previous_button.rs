@@ -15,7 +15,7 @@ fn shift_tab_moves_focus_to_the_previous_button() {
     });
     let first_focused = document.api::<unstyled::ButtonApi>(first).focused();
     let second_focused = document.api::<unstyled::ButtonApi>(second).focused();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);

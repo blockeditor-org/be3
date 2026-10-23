@@ -21,7 +21,7 @@ fn setting_a_scroll_offset_during_a_fling_stops_the_fling() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
 

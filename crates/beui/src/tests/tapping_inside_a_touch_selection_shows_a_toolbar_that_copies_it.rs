@@ -9,7 +9,7 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
             <TextInput value="Hello world" />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = harness.rect(
         harness

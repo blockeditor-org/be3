@@ -36,7 +36,7 @@ fn a_canvas_item_that_stops_clipping_moves_into_the_unclipped_space() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let first = harness.frame(Vec::new());
     assert_eq!(
         slot.placement().expect("the embed was laid out").clip.max.x,

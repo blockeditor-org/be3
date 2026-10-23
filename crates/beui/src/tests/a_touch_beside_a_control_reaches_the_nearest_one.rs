@@ -20,7 +20,7 @@ fn a_touch_beside_a_control_reaches_the_nearest_one() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let tap = |harness: &mut Harness, pos: Pos2| {
         harness.touch(TouchPhase::Start, pos);

@@ -22,7 +22,7 @@ fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     open.set(true);
     let output = harness.frame(Vec::new());

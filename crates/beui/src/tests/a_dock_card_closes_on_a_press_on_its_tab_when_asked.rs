@@ -5,7 +5,7 @@ fn a_dock_card_closes_on_a_press_on_its_tab_when_asked() {
     let _root = crate::reactive::RootScope::new();
     let dock = card_dock(true);
     let (pressed, attended, open) = (dock.pressed, dock.attended, dock.open);
-    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

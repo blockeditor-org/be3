@@ -21,7 +21,7 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
             </Container>
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);

@@ -4,7 +4,7 @@ use super::*;
 fn a_crowded_dock_tab_bar_scrolls_rather_than_spilling() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(24);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let area = harness.rect(dock);
     assert!(

@@ -18,7 +18,7 @@ fn a_canvas_item_moved_into_view_is_laid_out_where_it_arrives() {
         })
     };
     let item = item.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert!(
         harness.document().node_rect(item).is_none(),

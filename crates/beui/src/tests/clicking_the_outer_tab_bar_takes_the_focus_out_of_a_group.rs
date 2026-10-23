@@ -5,7 +5,7 @@ use crate::unstyled::{DockApi, Entry, TabId};
 fn clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let dragged = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
     let onto = dock_tab_extent(&harness, dock, "Tab 2", 2).center();

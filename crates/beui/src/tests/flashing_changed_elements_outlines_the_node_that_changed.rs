@@ -6,7 +6,7 @@ fn flashing_changed_elements_outlines_the_node_that_changed() {
     let _root = crate::reactive::RootScope::new();
     let panels = stacked_panels();
     let lower = panels.lower;
-    let mut harness = harness_sized(panels.document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(panels.document, WIDE_VIEWPORT);
     harness.toggle_inspector();
     harness.click(harness.performance_tab_center());
     harness.frame(Vec::new());

@@ -28,7 +28,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = harness_sized(document, Vec2::new(400.0, 300.0));
+    let mut harness = Harness::sized(document, Vec2::new(400.0, 300.0));
     harness.frame(Vec::new());
     let original = harness.document().children(list);
     assert!(!original.is_empty());

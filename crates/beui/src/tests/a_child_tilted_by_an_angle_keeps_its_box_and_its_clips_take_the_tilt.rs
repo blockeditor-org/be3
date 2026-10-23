@@ -25,7 +25,7 @@ fn a_child_tilted_by_an_angle_keeps_its_box_and_its_clips_take_the_tilt() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     let tilted = harness.rect(turn.get());
     assert_eq!(tilted.size(), vec2(60.0, 60.0), "a tilt keeps the box");

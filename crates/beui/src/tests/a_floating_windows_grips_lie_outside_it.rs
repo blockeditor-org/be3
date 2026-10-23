@@ -6,7 +6,7 @@ use crate::unstyled::DockApi;
 fn a_floating_windows_grips_lie_outside_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);
     let bounds = harness.rect(dock);
     let placed = |harness: &Harness| {

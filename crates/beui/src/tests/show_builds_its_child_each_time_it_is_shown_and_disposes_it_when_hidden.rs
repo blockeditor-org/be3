@@ -32,7 +32,7 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     });
 
     let (column, toggle) = (column.get(), toggle.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     assert_eq!(

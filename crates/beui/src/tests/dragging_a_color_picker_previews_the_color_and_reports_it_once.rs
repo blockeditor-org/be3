@@ -20,7 +20,7 @@ fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let area = harness.rect(picker.get());
 

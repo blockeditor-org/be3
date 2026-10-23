@@ -7,7 +7,7 @@ fn a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go() {
     let sheet = NodeRef::new();
     let closed = create_signal(0);
     let document = sheet_of_rows(0.9, sheet, closed);
-    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();
     let handle = harness.center(harness.find("sheet.handle"));

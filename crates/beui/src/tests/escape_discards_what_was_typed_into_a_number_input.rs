@@ -15,7 +15,7 @@ fn escape_discards_what_was_typed_into_a_number_input() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let middle = harness.center(input);
 

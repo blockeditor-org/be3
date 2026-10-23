@@ -34,7 +34,7 @@ fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
             />
         }]
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.settle();
 
     harness.click(harness.center(button));

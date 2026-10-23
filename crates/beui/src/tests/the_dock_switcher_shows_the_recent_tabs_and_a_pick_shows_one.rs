@@ -38,7 +38,7 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
             </styled::Docking>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     for tab in [2, 4, 3, 1] {
         layout.show(&tab);

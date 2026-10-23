@@ -19,7 +19,7 @@ fn a_date_field_takes_a_date_typed_segment_by_segment() {
             </Container>
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);

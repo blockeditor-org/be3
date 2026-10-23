@@ -13,7 +13,7 @@ fn an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on() {
             <Switch label="Every light" on={on} indeterminate=true />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
 
     let tree = output.accessibility_tree("Test", VIEWPORT);

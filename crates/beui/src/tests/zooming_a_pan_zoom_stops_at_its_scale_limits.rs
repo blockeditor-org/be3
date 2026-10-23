@@ -9,7 +9,7 @@ fn zooming_a_pan_zoom_stops_at_its_scale_limits() {
             <PanZoomStage />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let stage = harness.find("stage");
 

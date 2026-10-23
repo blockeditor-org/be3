@@ -23,7 +23,7 @@ fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
             </styled::Docking>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     assert!(
         harness.document().find_test_id("nothing_open").is_none(),

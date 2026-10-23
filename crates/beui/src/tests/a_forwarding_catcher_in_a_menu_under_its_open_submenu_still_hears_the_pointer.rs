@@ -34,7 +34,7 @@ fn a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.frame(vec![Event::PointerMoved(pos2(40.0, 40.0))]);

@@ -46,7 +46,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let rows = ROWS as f32 * VIRTUAL_ITEM_HEIGHT;

@@ -27,7 +27,7 @@ fn touch_overscroll_bands_without_hovering_a_row() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let start = pos2(harness.rect(scroll).center().x, 20.0);
     let end = pos2(start.x, start.y + 100.0);

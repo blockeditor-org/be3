@@ -18,7 +18,7 @@ fn a_kept_alive_child_shown_again_keeps_the_sizing_it_was_last_given() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(400.0, 600.0));
+    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     let drawn = |harness: &Harness| {
         harness
             .document()

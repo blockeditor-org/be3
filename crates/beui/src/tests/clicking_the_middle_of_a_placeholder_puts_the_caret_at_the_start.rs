@@ -9,7 +9,7 @@ fn clicking_the_middle_of_a_placeholder_puts_the_caret_at_the_start() {
             <TextInput value=String::new() placeholder="Search" />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(input));

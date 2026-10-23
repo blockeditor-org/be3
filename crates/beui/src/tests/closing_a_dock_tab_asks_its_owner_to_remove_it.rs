@@ -26,7 +26,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
         }
     });
     let dock = dock.get();
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 

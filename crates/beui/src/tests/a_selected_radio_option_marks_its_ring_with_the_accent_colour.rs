@@ -23,7 +23,7 @@ fn accent_rings(selected: Option<usize>) -> usize {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     output
         .shapes()

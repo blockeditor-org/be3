@@ -6,7 +6,7 @@ fn enter_on_an_inspector_row_selects_it_without_collapsing_it() {
     let HelloColumn {
         document, padding, ..
     } = hello_column();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
     harness.frame(Vec::new());

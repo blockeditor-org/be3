@@ -14,7 +14,7 @@ fn a_scroll_only_re_measures_the_row_that_changed() {
     }
     let scroll = document.create_offset(list.id());
     document.set_root(scroll.id());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.frame(Vec::new());

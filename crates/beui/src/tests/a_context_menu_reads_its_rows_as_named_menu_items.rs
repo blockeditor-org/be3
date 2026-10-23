@@ -20,7 +20,7 @@ fn a_context_menu_reads_its_rows_as_named_menu_items() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

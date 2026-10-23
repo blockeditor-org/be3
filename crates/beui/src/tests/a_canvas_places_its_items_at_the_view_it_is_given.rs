@@ -18,7 +18,7 @@ fn a_canvas_places_its_items_at_the_view_it_is_given() {
         canvas
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let items = items.get_untracked();

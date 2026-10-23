@@ -11,7 +11,7 @@ fn the_simulated_cursor_takes_the_shape_the_document_asks_for() {
             <TextInput value=String::new() />
         }]
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
     let target = harness.center(input);

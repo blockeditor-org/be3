@@ -38,7 +38,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let rows = harness.document().children(list);
     assert_eq!(rows.len(), ROWS);

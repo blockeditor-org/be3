@@ -15,7 +15,7 @@ fn flicking_across_the_screen_reader_reads_the_next_item() {
             },
         ]
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
 

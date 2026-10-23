@@ -17,7 +17,7 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let shown = harness
         .document()

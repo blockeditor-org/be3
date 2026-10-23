@@ -44,7 +44,7 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
     });
 
     let (toggle, left, right) = (toggle.get(), left.get(), right.get());
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(left).width(), FIXED_WIDTH);

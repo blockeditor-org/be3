@@ -16,7 +16,7 @@ fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
             <Select options selected=None />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     let trigger = harness

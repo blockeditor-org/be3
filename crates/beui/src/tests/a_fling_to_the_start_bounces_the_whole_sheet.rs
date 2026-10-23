@@ -6,7 +6,7 @@ fn a_fling_to_the_start_bounces_the_whole_sheet() {
     let sheet = NodeRef::new();
     let closed = create_signal(0);
     let document = sheet_of_rows(0.9, sheet, closed);
-    let mut harness = harness_sized(document, vec2(400.0, 600.0));
+    let mut harness = Harness::sized(document, vec2(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();
     harness.finger_drag_and_hold(pos2(200.0, 500.0), pos2(200.0, 200.0));

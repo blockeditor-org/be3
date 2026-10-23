@@ -18,7 +18,7 @@ fn painting_never_has_to_move_a_rect_onto_the_pixel_grid() {
         }
     });
 
-    let mut harness = harness_sized(document, Vec2::new(407.0, 200.0));
+    let mut harness = Harness::sized(document, Vec2::new(407.0, 200.0));
     harness.rescale(1.5);
     let output = harness.frame(Vec::new());
 

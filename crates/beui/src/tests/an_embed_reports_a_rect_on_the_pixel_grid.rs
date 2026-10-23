@@ -16,7 +16,7 @@ fn an_embed_reports_a_rect_on_the_pixel_grid() {
         }
     });
 
-    let mut harness = harness_sized(document, Vec2::new(101.0, 100.0));
+    let mut harness = Harness::sized(document, Vec2::new(101.0, 100.0));
     harness.frame(Vec::new());
 
     let placed = slot.placement().expect("the embed was laid out");

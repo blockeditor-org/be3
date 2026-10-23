@@ -12,7 +12,7 @@ fn a_vertical_separator_rules_down_the_row_it_sits_in() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, VIEWPORT);
+    let mut harness = Harness::sized(document, VIEWPORT);
 
     let output = harness.frame(Vec::new());
 

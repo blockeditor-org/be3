@@ -21,7 +21,7 @@ fn a_number_input_shows_its_value_to_the_decimals_asked() {
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let shown = |input| {

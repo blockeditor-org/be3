@@ -5,7 +5,7 @@ fn scrolling_a_virtual_scroll_reuses_overlapping_items() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = virtual_list(built);
-    let mut harness = harness(scroll.document);
+    let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
     let original = harness.document().children(scroll.list);
     let visible = original.len();

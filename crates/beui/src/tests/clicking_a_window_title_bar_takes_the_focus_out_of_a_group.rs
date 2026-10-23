@@ -5,7 +5,7 @@ use crate::unstyled::{DockApi, Entry, TabId};
 fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(4);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let pos = harness.center(dock_tab(harness.document(), dock, "Tab 4"));
     harness.frame(vec![Event::PointerMoved(pos)]);

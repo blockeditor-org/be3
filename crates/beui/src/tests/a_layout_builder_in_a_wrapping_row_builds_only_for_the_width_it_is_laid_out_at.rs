@@ -23,7 +23,7 @@ fn a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_a
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(150.0, 300.0));
+    let mut harness = Harness::sized(document, vec2(150.0, 300.0));
     harness.frame(Vec::new());
     let width = harness.rect(builder.get()).width();
     assert!(width > 0.0);

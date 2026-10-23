@@ -31,7 +31,7 @@ fn scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent() {
     });
     let (scroll, list) = (scroll.get(), list.get());
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     for _ in 0..STEPS {
         let offset = harness.document().scroll_offset(scroll);

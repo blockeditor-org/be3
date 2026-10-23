@@ -44,7 +44,7 @@ fn a_picture_shows_its_thumbhash_until_the_image_arrives() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let placed = ImageFit::Contain.place(
         Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(40.0, 40.0)),
         Vec2::new(30.0, 7.0),

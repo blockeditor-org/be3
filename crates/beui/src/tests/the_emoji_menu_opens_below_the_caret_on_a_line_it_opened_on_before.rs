@@ -20,7 +20,7 @@ fn the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before() {
             </Frame>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let area = harness
         .document()

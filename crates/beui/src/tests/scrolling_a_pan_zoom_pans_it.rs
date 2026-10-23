@@ -12,7 +12,7 @@ fn scrolling_a_pan_zoom_pans_it() {
             <PanZoomStage view={reported} />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let item = harness.find("item");

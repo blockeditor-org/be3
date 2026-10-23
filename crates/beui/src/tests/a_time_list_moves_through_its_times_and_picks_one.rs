@@ -25,7 +25,7 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     harness.key(Key::ArrowUp, Modifiers::NONE);

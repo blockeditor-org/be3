@@ -35,7 +35,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
             }
         })
     };
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
     let control = control
         .get_untracked()

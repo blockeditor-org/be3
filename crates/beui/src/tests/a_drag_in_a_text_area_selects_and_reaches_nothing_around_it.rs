@@ -25,7 +25,7 @@ fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
             </Interactive>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let rect = harness.rect(area.get());
     let (start, end) = (

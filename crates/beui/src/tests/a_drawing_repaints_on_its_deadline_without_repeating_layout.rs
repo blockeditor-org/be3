@@ -23,7 +23,7 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     });
     let drawing = drawing.get();
     let (layouts, paints) = counted(&mut document, drawing);
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(vec![]);
     assert!(!output.repaint);
     assert!(output.repaint_after > Duration::ZERO);

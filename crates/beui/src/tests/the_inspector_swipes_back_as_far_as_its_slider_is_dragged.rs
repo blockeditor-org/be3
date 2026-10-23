@@ -25,7 +25,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
         }
     });
 
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(Vec::new());

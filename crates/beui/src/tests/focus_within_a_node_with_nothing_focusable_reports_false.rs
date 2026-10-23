@@ -15,7 +15,7 @@ fn focus_within_a_node_with_nothing_focusable_reports_false() {
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     with_installed(harness.document_mut(), |_| {
         assert!(!crate::focus_within(label));

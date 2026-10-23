@@ -46,7 +46,7 @@ fn a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_d
         })
     };
     let documents = held.get().expect("the dock was built");
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let first = documents.open((1, 0), false).slot();

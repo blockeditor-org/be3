@@ -13,7 +13,7 @@ fn a_scroll_with_nothing_to_scroll_is_not_a_tab_stop() {
             </Scroll>
         }
     });
-    let mut harness = harness_sized(document, Vec2::new(300.0, 100.0));
+    let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     assert_eq!(harness.document().focused_node(), None);

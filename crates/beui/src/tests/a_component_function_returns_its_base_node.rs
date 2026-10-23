@@ -18,7 +18,7 @@ fn a_component_function_returns_its_base_node() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
 

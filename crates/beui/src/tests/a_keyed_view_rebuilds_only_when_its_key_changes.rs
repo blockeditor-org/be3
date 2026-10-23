@@ -41,7 +41,7 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
     });
 
     let (holder, retitle, reshape) = (holder.get(), retitle.get(), reshape.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let built = harness.document().children(holder);

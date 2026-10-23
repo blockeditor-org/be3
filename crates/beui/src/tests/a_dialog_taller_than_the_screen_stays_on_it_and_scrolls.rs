@@ -26,7 +26,7 @@ fn a_dialog_taller_than_the_screen_stays_on_it_and_scrolls() {
         }
     });
     let (first, last) = (first.get(), last.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert!(

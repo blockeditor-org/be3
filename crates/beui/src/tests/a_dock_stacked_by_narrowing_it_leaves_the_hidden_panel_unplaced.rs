@@ -25,7 +25,7 @@ fn a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced() {
             </styled::Docking>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let home = home.get();
     assert!(

@@ -46,7 +46,7 @@ fn clicking_a_markdown_checkbox_in_a_text_area_toggles_it_without_moving_the_car
             <TextArea state={state} />
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let plain = TEXT.find("plain").expect("the text has a plain line") + 3;

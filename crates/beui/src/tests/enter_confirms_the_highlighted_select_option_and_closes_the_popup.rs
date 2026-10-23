@@ -20,7 +20,7 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let trigger = harness

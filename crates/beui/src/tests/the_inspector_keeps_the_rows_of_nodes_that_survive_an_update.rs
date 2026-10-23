@@ -4,7 +4,7 @@ use super::*;
 fn the_inspector_keeps_the_rows_of_nodes_that_survive_an_update() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
     harness.frame(Vec::new());

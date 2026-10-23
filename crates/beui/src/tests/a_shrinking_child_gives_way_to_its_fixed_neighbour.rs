@@ -19,7 +19,7 @@ fn a_shrinking_child_gives_way_to_its_fixed_neighbour() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(200.0, 50.0));
+    let mut harness = Harness::sized(document, vec2(200.0, 50.0));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(label.get()).width(), 130.0);
     assert_eq!(harness.rect(button.get()).left(), 140.0);

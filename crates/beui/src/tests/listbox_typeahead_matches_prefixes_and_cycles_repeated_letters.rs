@@ -23,7 +23,7 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
         ]
     });
     let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("bl");
     assert_eq!(

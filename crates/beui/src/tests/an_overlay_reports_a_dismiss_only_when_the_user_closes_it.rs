@@ -45,7 +45,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let outer = kind_of::<OverlayNode>(harness.document(), outer.get());
 

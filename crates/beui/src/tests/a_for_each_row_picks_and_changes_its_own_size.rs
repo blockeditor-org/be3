@@ -42,7 +42,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
     });
 
     let (toggle, header, body) = (toggle.get(), header.get(), body.get());
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
     let rows = WIDE_VIEWPORT.y - harness.rect(toggle).height();

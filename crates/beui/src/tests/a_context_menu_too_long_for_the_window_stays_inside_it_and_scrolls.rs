@@ -24,7 +24,7 @@ fn a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls() {
     });
     let region = region.get();
     let viewport = vec2(400.0, 300.0);
-    let mut harness = harness_sized(document, viewport);
+    let mut harness = Harness::sized(document, viewport);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

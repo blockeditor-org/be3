@@ -65,7 +65,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
     forwarded.update(|forwarded| forwarded.clear());

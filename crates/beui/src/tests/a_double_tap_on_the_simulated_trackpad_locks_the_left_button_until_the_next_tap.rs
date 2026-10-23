@@ -9,7 +9,7 @@ fn a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_t
             <Slider value=0.0 />
         }]
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
 

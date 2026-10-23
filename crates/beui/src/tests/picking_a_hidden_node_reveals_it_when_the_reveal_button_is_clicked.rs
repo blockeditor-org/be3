@@ -22,7 +22,7 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
         }
     });
     let text = text.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
     assert_eq!(

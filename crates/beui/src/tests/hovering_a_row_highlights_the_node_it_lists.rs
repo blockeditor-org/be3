@@ -4,7 +4,7 @@ use super::*;
 fn hovering_a_row_highlights_the_node_it_lists() {
     let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, text, .. } = hello_column();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
     harness.frame(vec![Event::PointerMoved(harness.row_center(2))]);

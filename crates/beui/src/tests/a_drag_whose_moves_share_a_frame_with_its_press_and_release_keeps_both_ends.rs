@@ -19,7 +19,7 @@ fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends()
             </Interactive>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.frame(vec![

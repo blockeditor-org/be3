@@ -17,7 +17,7 @@ fn a_second_finger_cancels_the_press_the_first_began() {
             </Interactive>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.finger(1, TouchPhase::Start, pos2(20.0, 20.0));

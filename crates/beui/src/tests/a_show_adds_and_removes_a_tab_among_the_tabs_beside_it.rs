@@ -23,7 +23,7 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
         }]
     });
     let tabs = tabs.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     assert_eq!(

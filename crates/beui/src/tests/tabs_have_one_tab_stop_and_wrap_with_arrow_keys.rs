@@ -25,7 +25,7 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
         ]
     });
     let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);

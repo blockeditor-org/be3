@@ -51,7 +51,7 @@ fn check_compact_rows(inset: f32) {
     });
     let (switch, scroll, list) = (switch.get(), scroll.get(), list.get());
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let index = 120;
     harness

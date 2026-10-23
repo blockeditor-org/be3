@@ -15,7 +15,7 @@ fn dragging_slowly_with_the_screen_reader_reads_what_the_finger_is_on() {
             },
         ]
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
     let from = harness.reader_item_center(0);

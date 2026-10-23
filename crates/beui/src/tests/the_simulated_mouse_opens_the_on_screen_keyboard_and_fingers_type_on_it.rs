@@ -11,7 +11,7 @@ fn the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it() {
             <TextInput value=String::new() />
         }]
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.context().enable_keyboard();
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();

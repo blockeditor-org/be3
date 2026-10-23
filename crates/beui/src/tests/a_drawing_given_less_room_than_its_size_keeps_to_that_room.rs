@@ -26,7 +26,7 @@ fn a_drawing_given_less_room_than_its_size_keeps_to_that_room() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
 
     let given = given.get_untracked();

@@ -7,7 +7,7 @@ fn the_inspector_follows_nodes_added_to_the_document() {
     let column = document.create_list(Direction::Vertical, 0.0);
     document.append_child(column, first.id(), ItemSize::Intrinsic);
     document.set_root(column.id());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
     assert_eq!(harness.tree(), ["list", "  text"]);

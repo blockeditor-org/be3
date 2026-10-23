@@ -42,7 +42,7 @@ fn a_capturing_action_answers_before_the_focused_control() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(harness.center(control.get()));
 

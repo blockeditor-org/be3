@@ -23,7 +23,7 @@ fn a_press_outside_an_interactive_is_reported_to_it() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.rect(watcher.get()).center());

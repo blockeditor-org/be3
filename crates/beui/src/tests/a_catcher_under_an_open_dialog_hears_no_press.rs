@@ -30,7 +30,7 @@ fn a_catcher_under_an_open_dialog_hears_no_press() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.press_at(pos2(10.0, 10.0));

@@ -29,7 +29,7 @@ fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let tap = |harness: &mut Harness| {
         let before = taps.get_untracked();
         harness.finger(1, TouchPhase::Start, pos2(50.0, 50.0));

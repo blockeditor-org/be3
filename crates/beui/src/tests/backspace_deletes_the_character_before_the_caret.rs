@@ -9,7 +9,7 @@ fn backspace_deletes_the_character_before_the_caret() {
             <TextInput value="beui" />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Backspace, Modifiers::NONE);

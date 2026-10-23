@@ -35,7 +35,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(1200.0, 500.0));
+    let mut harness = Harness::sized(document, vec2(1200.0, 500.0));
     harness.context().set_screens(vec![
         Screen::new("left", "Left", left),
         Screen::new("right", "Right", right),

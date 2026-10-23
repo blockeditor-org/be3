@@ -17,7 +17,7 @@ fn the_menu_of_a_selectable_text_copies_what_is_selected() {
             </SelectableText>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (first, second) = (harness.rect(first.get()), harness.rect(second.get()));
 

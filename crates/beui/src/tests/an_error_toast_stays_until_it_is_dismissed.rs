@@ -25,7 +25,7 @@ fn an_error_toast_stays_until_it_is_dismissed() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.advance(TOAST_DURATION * 4);

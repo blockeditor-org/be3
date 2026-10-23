@@ -43,7 +43,7 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let button = harness.find("button");
     harness.click(harness.center(button));

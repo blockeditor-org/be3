@@ -13,7 +13,7 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let middle = harness.center(input);
 

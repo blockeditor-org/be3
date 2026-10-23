@@ -25,7 +25,7 @@ fn nested_lists_measure_each_node_a_bounded_number_of_times() {
             inner = Some(list);
         }
         document.set_root(inner.expect("the loop builds at least one list").id());
-        let mut harness = harness(document);
+        let mut harness = Harness::new(document);
         harness.frame(Vec::new());
 
         let measured = harness.document().performance().latest.work.measured;

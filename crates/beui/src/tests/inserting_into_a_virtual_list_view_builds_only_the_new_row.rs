@@ -7,7 +7,7 @@ fn inserting_into_a_virtual_list_view_builds_only_the_new_row() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = keyed_virtual_list(built);
-    let mut harness = harness(scroll.document);
+    let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
     let rows = harness.document().children(scroll.list);
 

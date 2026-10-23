@@ -31,7 +31,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     above.set(true);

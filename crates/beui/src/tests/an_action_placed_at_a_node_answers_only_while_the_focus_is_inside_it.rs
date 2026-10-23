@@ -27,7 +27,7 @@ fn an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(outside.get()));

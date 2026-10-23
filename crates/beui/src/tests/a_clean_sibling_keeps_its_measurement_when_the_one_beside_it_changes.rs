@@ -18,7 +18,7 @@ fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
         kind_of::<TextNode>(&document, edited.get()),
     );
     let measures = counted_with_measures(&mut document, steady).measures;
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
 
     harness.frame(Vec::new());
     let built = measures.get_untracked();

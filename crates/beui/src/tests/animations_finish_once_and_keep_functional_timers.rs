@@ -23,7 +23,7 @@ fn animations_finish_once_and_keep_functional_timers() {
             <Frame height=10.0 />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(finished.get_untracked(), 0);
     harness.context().set_preference_layer(

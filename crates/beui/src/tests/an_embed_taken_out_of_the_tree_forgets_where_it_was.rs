@@ -28,7 +28,7 @@ fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert!(slot.placement().is_some());
 

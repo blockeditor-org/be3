@@ -23,7 +23,7 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
             />
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let field = field.get();
 

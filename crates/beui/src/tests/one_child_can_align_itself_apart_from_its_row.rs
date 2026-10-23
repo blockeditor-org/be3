@@ -25,7 +25,7 @@ fn one_child_can_align_itself_apart_from_its_row() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(200.0, 40.0));
+    let mut harness = Harness::sized(document, vec2(200.0, 40.0));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(tall.get()).top(), 0.0);
     assert_eq!(harness.rect(centred.get()).top(), 15.0);

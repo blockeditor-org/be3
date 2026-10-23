@@ -67,7 +67,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
             }
         })
     };
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
     let over_other = harness.center(harness.find("other"));
 

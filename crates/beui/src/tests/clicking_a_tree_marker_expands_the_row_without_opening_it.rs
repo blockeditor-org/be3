@@ -33,7 +33,7 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
         }
     });
 
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let label = harness.document().find_test_id("row.0").expect("the row");
     let rect = harness.document().node_rect(label).expect("the row's rect");

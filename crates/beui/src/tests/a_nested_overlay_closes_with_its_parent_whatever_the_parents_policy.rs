@@ -43,7 +43,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let outer = kind_of::<OverlayNode>(harness.document(), outer.get());
     let inner = kind_of::<OverlayNode>(harness.document(), inner.get());

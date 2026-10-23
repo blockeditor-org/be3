@@ -11,7 +11,7 @@ fn a_dock_card_reaches_past_its_pane_and_holds_only_its_tab() {
         dock.attended,
         dock.open,
     );
-    let mut harness = harness_sized(dock.document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

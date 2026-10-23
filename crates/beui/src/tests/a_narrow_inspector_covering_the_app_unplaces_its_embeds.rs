@@ -11,7 +11,7 @@ fn a_narrow_inspector_covering_the_app_unplaces_its_embeds() {
             <Embed slot={slot} />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert!(slot.placement().is_some(), "the embed is placed");
 

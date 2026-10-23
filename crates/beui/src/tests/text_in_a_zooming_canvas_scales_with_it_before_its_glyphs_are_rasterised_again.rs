@@ -47,7 +47,7 @@ fn text_in_a_zooming_canvas_scales_with_it_before_its_glyphs_are_rasterised_agai
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let crisp = glyph_span(&harness.frame(Vec::new()));
     assert!(

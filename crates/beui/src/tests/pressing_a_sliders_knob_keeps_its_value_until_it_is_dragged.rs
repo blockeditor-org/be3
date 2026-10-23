@@ -13,7 +13,7 @@ fn pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let track = harness.rect(slider);
     let knob = track.left() + 8.0 + 0.3 * (track.width() - 16.0);

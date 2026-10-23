@@ -24,7 +24,7 @@ fn caption_height(wrap: bool) -> f32 {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness
         .document()

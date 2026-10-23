@@ -13,7 +13,7 @@ fn unchanged_input_reuses_layout_and_paint() {
     });
     let fill = kind_of::<FrameNode>(&document, fill.get());
     let (layouts, paints) = counted(&mut document, fill);
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     assert!(harness.frame(vec![]).changed);
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
     for event in [

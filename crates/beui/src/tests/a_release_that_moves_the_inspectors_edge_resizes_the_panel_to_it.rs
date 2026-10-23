@@ -10,7 +10,7 @@ fn a_release_that_moves_the_inspectors_edge_resizes_the_panel_to_it() {
             <Text color=Color32::WHITE>"Hello"</Text>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
     let width = harness.inspector().width;
     let edge = pos2(WIDE_VIEWPORT.x - width, 100.0);

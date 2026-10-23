@@ -19,7 +19,7 @@ fn a_scrolled_sheet_can_be_lowered_by_its_handle_or_backdrop() {
             </ModalSheet>
         }
     });
-    let mut harness = harness_sized(document, vec2(400.0, 600.0));
+    let mut harness = Harness::sized(document, vec2(400.0, 600.0));
     harness.settle();
     harness.finger_drag_and_hold(pos2(200.0, 500.0), pos2(200.0, 200.0));
     harness.settle();

@@ -9,7 +9,7 @@ fn holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor
             <Slider value=0.0 />
         }]
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
 

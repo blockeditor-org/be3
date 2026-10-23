@@ -17,7 +17,7 @@ fn space_toggles_checkboxes_switches_and_toggle_buttons() {
             },
         ]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Space, Modifiers::NONE);
     assert!(

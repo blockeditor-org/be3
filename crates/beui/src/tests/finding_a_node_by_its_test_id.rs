@@ -14,7 +14,7 @@ fn finding_a_node_by_its_test_id() {
             />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(harness.find("toolbar.button")));

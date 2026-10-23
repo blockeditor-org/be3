@@ -5,7 +5,7 @@ use crate::unstyled::{DockApi, TabId};
 fn a_tab_split_out_of_a_window_keeps_its_panel_on_screen() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     drag_with(

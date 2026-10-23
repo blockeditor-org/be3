@@ -18,7 +18,7 @@ fn a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     let track = track_within(&harness, scrollbar_of(&harness, scroll.get()));
     assert!(

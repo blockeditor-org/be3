@@ -9,7 +9,7 @@ fn without_a_drag_modifier_a_modified_drag_reaches_the_dock_content() {
         dock,
         presses,
     } = split_dock(None);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let content = harness.rect(harness.find("content.1"));
     harness.click(content.center());

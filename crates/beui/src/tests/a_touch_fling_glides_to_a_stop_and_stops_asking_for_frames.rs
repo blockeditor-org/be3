@@ -21,7 +21,7 @@ fn a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
 

@@ -20,7 +20,7 @@ fn a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let children = harness

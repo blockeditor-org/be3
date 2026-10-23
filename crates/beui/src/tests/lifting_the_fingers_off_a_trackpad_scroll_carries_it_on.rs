@@ -21,7 +21,7 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let pos = harness.rect(scroll).center();
 

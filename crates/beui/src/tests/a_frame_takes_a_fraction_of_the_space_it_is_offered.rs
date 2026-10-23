@@ -13,7 +13,7 @@ fn a_frame_takes_a_fraction_of_the_space_it_is_offered() {
             </List>
         }
     });
-    let mut harness = harness_sized(document, vec2(400.0, 200.0));
+    let mut harness = Harness::sized(document, vec2(400.0, 200.0));
     harness.frame(Vec::new());
     assert_eq!(harness.rect(quarter.get()).width(), 100.0);
 }

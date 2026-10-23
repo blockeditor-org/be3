@@ -27,7 +27,7 @@ fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.press_at(pos2(50.0, 50.0));

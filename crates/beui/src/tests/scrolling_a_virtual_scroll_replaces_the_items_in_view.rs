@@ -5,7 +5,7 @@ fn scrolling_a_virtual_scroll_replaces_the_items_in_view() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = virtual_list(built);
-    let mut harness = harness(scroll.document);
+    let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
 
     built.update(|built| built.clear());

@@ -19,7 +19,7 @@ fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.enable_mouse_simulation();
     let center = harness.rect(scroll).center();

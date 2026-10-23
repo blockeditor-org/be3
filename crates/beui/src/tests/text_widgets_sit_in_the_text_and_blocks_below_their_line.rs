@@ -47,7 +47,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
             </Frame>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
     let canvas = harness.rect(state.canvas().get());

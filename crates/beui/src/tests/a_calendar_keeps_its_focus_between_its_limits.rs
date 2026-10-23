@@ -20,7 +20,7 @@ fn a_calendar_keeps_its_focus_between_its_limits() {
             />
         }
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
 
     for _ in 0..3 {

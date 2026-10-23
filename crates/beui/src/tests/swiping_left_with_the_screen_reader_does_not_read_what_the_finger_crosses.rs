@@ -15,7 +15,7 @@ fn swiping_left_with_the_screen_reader_does_not_read_what_the_finger_crosses() {
             },
         ]
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
     let start = harness.reading();

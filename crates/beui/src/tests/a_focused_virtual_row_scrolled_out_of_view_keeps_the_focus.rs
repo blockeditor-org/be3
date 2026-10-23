@@ -29,7 +29,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
         }
     });
     let (scroll, list) = (scroll.get(), list.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.key(Key::Tab, Modifiers::NONE);
     let focused = harness

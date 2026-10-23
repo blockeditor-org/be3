@@ -7,7 +7,7 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
     let SplitDock {
         document, presses, ..
     } = split_dock(None);
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let left = harness.rect(harness.find("content.1"));
     let right = harness.rect(harness.find("content.2"));

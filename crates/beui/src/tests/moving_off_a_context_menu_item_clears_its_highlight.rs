@@ -18,7 +18,7 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
         }]
     });
     let region = region.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(region);

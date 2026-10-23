@@ -37,7 +37,7 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
         }
     });
     let dock = dock.get();
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let (main, floating) = (harness.find("input.1"), harness.find("input.2"));
     let tab = harness.rect(dock_tab(harness.document(), dock, "Floating"));

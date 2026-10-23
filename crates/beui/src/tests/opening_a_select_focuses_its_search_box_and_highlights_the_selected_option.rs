@@ -14,7 +14,7 @@ fn opening_a_select_focuses_its_search_box_and_highlights_the_selected_option() 
             <Select options selected=Some(1) />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let trigger = harness

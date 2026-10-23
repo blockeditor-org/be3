@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn turning_on_the_screen_reader_reads_what_it_is_on() {
     let _root = crate::reactive::RootScope::new();
-    let mut harness = harness_sized(hello_column().document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(hello_column().document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
 

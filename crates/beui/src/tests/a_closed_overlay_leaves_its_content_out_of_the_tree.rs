@@ -37,7 +37,7 @@ fn a_closed_overlay_leaves_its_content_out_of_the_tree() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (fresh, kept) = (fresh.get(), kept.get());
     let content = |harness: &Harness, overlay: NodeId| {

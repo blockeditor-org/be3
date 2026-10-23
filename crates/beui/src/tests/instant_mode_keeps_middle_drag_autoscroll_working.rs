@@ -19,7 +19,7 @@ fn instant_mode_keeps_middle_drag_autoscroll_working() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let origin = harness.rect(scroll).center();
     let below = origin + Vec2::new(0.0, 100.0);

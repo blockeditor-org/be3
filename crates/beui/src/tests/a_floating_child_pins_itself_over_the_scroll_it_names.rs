@@ -46,7 +46,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     });
 
     let (scroll, button) = (scroll.get(), button.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let viewport = harness.rect(scroll);

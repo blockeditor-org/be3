@@ -32,7 +32,7 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.press_at(pos2(50.0, 50.0));

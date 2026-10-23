@@ -7,7 +7,7 @@ fn a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes() {
     let (top, middle) = (panels.top, panels.middle);
     let mut document = panels.document;
     let (layouts, _) = counted(&mut document, middle);
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let settled = layouts.get_untracked();
     assert!(settled > 0, "the first frame has to lay the panel out");

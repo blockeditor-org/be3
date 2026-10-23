@@ -52,7 +52,7 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
 

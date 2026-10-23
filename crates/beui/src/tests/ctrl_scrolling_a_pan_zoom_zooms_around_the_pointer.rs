@@ -10,7 +10,7 @@ fn ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer() {
             <PanZoomStage />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let corner = pos2(300.0, 200.0);

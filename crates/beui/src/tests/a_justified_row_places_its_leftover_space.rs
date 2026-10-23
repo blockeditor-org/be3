@@ -27,7 +27,7 @@ fn lefts(justify: Justify) -> [f32; 3] {
             }
         }
     });
-    let mut harness = harness_sized(document, vec2(180.0, 50.0));
+    let mut harness = Harness::sized(document, vec2(180.0, 50.0));
     harness.frame(Vec::new());
     tiles.map(|tile| harness.rect(tile.get()).left())
 }

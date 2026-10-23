@@ -26,7 +26,7 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
         }
     });
     let button = button.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let pos = harness.center(button);

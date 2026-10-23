@@ -13,7 +13,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
             </Card>
         }]
     });
-    let mut harness = harness_sized(document, TALL_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     let app = PreferenceLayer {
         theme: Some(ThemeKind::Light),
         ..PreferenceLayer::EMPTY

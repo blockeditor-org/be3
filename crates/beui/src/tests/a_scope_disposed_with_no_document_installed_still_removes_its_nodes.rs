@@ -17,7 +17,7 @@ fn a_scope_disposed_with_no_document_installed_still_removes_its_nodes() {
             <Frame width=20.0 height=20.0 />
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (scope, node) = held.update(|held| held.take().expect("the scope was built"));
     assert!(harness.document().contains(node));

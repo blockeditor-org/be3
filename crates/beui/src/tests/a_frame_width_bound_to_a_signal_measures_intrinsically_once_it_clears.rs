@@ -21,7 +21,7 @@ fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
         }
     });
     let outer = outer.get();
-    let mut harness = harness_sized(document, VIEWPORT);
+    let mut harness = Harness::sized(document, VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(outer).width(), GIVEN_WIDTH);

@@ -18,7 +18,7 @@ fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
         }
     });
     let scroll = scroll.get();
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let thumb = |harness: &mut Harness| {
         let output = harness.frame(Vec::new());

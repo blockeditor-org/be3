@@ -25,7 +25,7 @@ fn panning_a_canvas_moves_its_accessibility_spaces_and_describes_none_of_its_ite
             </Canvas>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     let mut dump = AccessibilityDump::new();
     dump.update(
         harness

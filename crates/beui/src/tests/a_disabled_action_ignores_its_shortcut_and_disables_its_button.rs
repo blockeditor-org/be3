@@ -21,7 +21,7 @@ fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let ctrl = Modifiers {
         ctrl: true,

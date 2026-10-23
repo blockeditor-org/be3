@@ -25,7 +25,7 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
             </List>
         }
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     tall.set(true);

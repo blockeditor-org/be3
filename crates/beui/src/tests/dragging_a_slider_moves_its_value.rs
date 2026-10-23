@@ -11,7 +11,7 @@ fn dragging_a_slider_moves_its_value() {
             <Slider value={reported} />
         }]
     });
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     let track = harness.rect(slider);

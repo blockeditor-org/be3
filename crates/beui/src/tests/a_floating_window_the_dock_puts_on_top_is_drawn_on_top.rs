@@ -62,7 +62,7 @@ fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
             </styled::Docking>
         }
     });
-    let mut harness = harness_sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     for program in [2, 3, 1] {
         layout.show(&program);

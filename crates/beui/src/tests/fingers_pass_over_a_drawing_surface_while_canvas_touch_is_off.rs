@@ -39,7 +39,7 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
         }
     });
     let (surface, button) = (surface.get(), button.get());
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let center = harness.rect(surface).center();
 

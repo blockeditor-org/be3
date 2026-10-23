@@ -21,7 +21,7 @@ fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
     let (beside_layouts, _) = counted(&mut document, beside);
     let (fixed_layouts, _) = counted(&mut document, fixed);
     let (inner_layouts, _) = counted(&mut document, inner);
-    let mut harness = harness(document);
+    let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let settled = (
         list_layouts.get_untracked(),
