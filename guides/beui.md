@@ -2684,20 +2684,34 @@ all its 3D (`glam`) stays in the crate.
   frame it opens the main window's panel at the platform window's size in
   points, at eye height straight ahead, far enough that it fills 80% of the
   view's width, and reports that size (`WindowReport::Resized`).
+- Windows: the runner sets `Context::opens_windows` under any host, so every
+  `Window` is a real window here. `Space::request` handles each of the frame's
+  `WindowRequest`s. `Open` adds a panel at the size asked for and reports
+  `Resized` and `Placed` the next frame: `Host` decodes the pose (a placement
+  another host wrote opens at the pointer instead), `Beside(id)` puts it right
+  of that panel, tops level, `BESIDE_GAP` apart, and `AtPointer` puts the
+  point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
+  in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
+  none, turned to face the viewer (yaw only). `Close` removes the panel and
+  its texture; the main window's panel never closes.
 - Pointer: input in physical or logical pixels is the platform's; a ray from
   the eye through the cursor picks the nearest panel's front (`panel::pick`) and
-  the app gets the input in that window's points. A press captures the window
-  it hit until the last button is let go. A miss sends the window `PointerLeft`,
-  and presses that miss reach nothing. Input in points is a driver's (`drive`
-  sees the app's main window): it passes through unchanged and only moves the
-  3D cursor.
+  the app gets the input as that window's, in its points. Moving onto another
+  panel just names the new window, held button or not (no `PointerLeft`), so
+  a drag goes on across windows. Moving off every panel sends the last window
+  `PointerLeft`; while a button is held, moves and the release then go to the
+  window the press began in, at the point the ray meets that panel's plane,
+  outside its rectangle. That is how an app tells a drop on nothing (the dock
+  floats a tab dropped there into a window opened `AtPointer`). Presses that
+  miss reach nothing. Input in points is a driver's (`drive` sees the app's
+  main window): it passes through unchanged and only moves the 3D cursor.
 - Head: holding right Ctrl and right Shift (`Keystroke::is`) steers. Right Ctrl
   alone still reaches the app; when Shift joins it the app sees it let go. While
   steering the host asks for pointer lock, `PointerMotion` turns the head (yaw,
   and pitch clamped short of straight up or down) and W, A, S and D, by their
   place, walk along the floor relative to where the head faces, timed from
   `HostView::now`; none of it reaches the app, nor the releases of keys it took.
-- Carry: on `WindowRequest::BeginMove` the panel keeps its pose relative to the
+- Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. Scroll changes the distance and does
   not reach the app; the app sees no pointer moves meanwhile. Letting go of the
@@ -2706,11 +2720,19 @@ all its 3D (`glam`) stays in the crate.
   (yaw only), and the host reports `WindowReport::Placed` with the pose as
   `space X Y Z QX QY QZ QW` (`Pose::placement`, `Pose::from_placement`). Poses
   live in memory.
+- Resize: on `WindowRequest::BeginResize(window, edge)` (`resize::Resize`)
+  the cursor's ray meets the panel's plane as it was, and that edge or corner
+  follows it while the opposite one stays put, no smaller than
+  `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
+  app lays out at it the same frame; the app sees no moves meanwhile, and the
+  carry's rule for letting go ends it, with a `Placed` for the panel's new
+  centre.
 - Drawing: each window's display is drawn by its own
   `beui_renderer_wgpu::Renderer` into a mipmapped texture, only when that
   window's output changed, sampled with trilinear and anisotropic filtering;
   then a 4x multisampled, depth-tested pass draws a floor grid, the panels
-  (their backs grey) and a cursor disc where the ray meets a panel, and a
+  (their backs grey; nearer panels hide farther ones by depth) and a cursor
+  disc where the ray meets a panel, and a
   `Drawing` blits it into the platform window. A frame is composed again only
   when the head, a panel, the cursor or a window's output changed.
 

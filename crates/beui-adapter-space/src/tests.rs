@@ -3,7 +3,10 @@ use std::time::{Duration, Instant};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{Input, Key, Keystroke, PointerButton, ScrollDelta};
 use beui_core::runner::{HostView, Incoming, Units, WindowHost};
-use beui_core::window::{WindowId, WindowReport};
+use beui_core::geometry::Rect;
+use beui_core::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+};
 use glam::Vec3;
 
 use crate::Space;
@@ -13,8 +16,16 @@ use crate::panel::{Panel, Pose};
 mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
 mod a_miss_leaves_the_panel;
+mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;
 mod a_ray_hits_the_nearest_panel_where_it_points;
 mod a_released_panel_turns_to_face_the_viewer;
+mod a_window_opened_at_a_host_placement_lands_on_that_pose;
+mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
+mod a_window_opened_beside_another_sits_to_its_right;
+mod closing_a_window_removes_its_panel;
+mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
+mod moving_a_window_carries_its_panel;
+mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
 mod holding_right_ctrl_and_right_shift_steers_the_head;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 
@@ -127,4 +138,50 @@ fn placed(incoming: &[Incoming]) -> Vec<WindowReport> {
 
 fn scroll(lines: f32) -> Input {
     Input::Scroll(ScrollDelta::Lines(vec2(0.0, lines)))
+}
+
+const SMALL: Vec2 = vec2(200.0, 150.0);
+
+fn open(space: &mut Space, now: Instant, placement: WindowPlacement) -> (WindowId, Vec<Incoming>) {
+    let window = WindowId::next();
+    space.request(&WindowRequest::Open {
+        window,
+        placement,
+        size: SMALL,
+    });
+    (window, send(space, now, []))
+}
+
+fn open_ahead(space: &mut Space, now: Instant, distance: f32) -> WindowId {
+    open(
+        space,
+        now,
+        WindowPlacement::Host(ahead(distance).placement()),
+    )
+    .0
+}
+
+fn reports(incoming: &[Incoming]) -> Vec<WindowReport> {
+    incoming
+        .iter()
+        .filter_map(|incoming| match incoming {
+            Incoming::Window(report) => Some(report.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn pos_of(input: &Input) -> Pos2 {
+    match input {
+        Input::PointerMoved(pos) | Input::PointerButton { pos, .. } => *pos,
+        other => panic!("no position in {other:?}"),
+    }
+}
+
+fn on(space: &Space, window: WindowId, at: Pos2) -> Pos2 {
+    space
+        .panel(window)
+        .and_then(|panel| panel.hit(space.head.ray(PLATFORM, at.to_vec2())))
+        .expect("the cursor is on the panel")
+        .pos
 }

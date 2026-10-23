@@ -136,6 +136,12 @@ impl Compositor {
         true
     }
 
+    pub fn forget(&self, window: WindowId) {
+        let mut gpu = self.0.borrow_mut();
+        gpu.panels.remove(&window);
+        gpu.pending.remove(&window);
+    }
+
     pub fn drawing(&self, frame: Frame) -> Drawing {
         beui_renderer_wgpu::drawing(SpaceDraw {
             gpu: self.clone(),
