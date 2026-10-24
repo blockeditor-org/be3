@@ -11603,6 +11603,98 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/builtin-types": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "builtin_types",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "builtin-types",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/cvl2": {
         "binaries": [
             {

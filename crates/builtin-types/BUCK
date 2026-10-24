@@ -1,0 +1,18 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/wasm:defs.bzl", "wasm32_module")
+
+# The app's first-party type module: every block type the app does not apply
+# itself, as one pure guest (guides/type_modules.md).
+cargo_library()
+
+cargo_library(
+    name = "wasm",
+    preferred_linkage = "shared",
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+)
+
+wasm32_module(
+    name = "module",
+    library = ":wasm",
+    visibility = ["PUBLIC"],
+)

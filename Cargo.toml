@@ -51,6 +51,7 @@ members = [
     "crates/block-gpu-shim",
     "crates/block-guest-abi",
     "crates/block-guest-echo",
+    "crates/builtin-types",
     "crates/block-guest-host",
     "crates/block-plugin-api",
     "crates/block-plugin-sdk",
