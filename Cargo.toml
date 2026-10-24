@@ -99,6 +99,7 @@ members = [
     "crates/editors/terminal",
     "crates/editors/text-block",
     "crates/editors/triangle",
+    "crates/editors/triangle/types",
     "crates/editors/version-control",
     "crates/editors/video-block",
     "crates/editors/workspace-index",

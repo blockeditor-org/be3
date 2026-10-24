@@ -1,4 +1,4 @@
-use block_editor_plugin::be_block::TriangleContent;
+use triangle_types::TriangleContent;
 use block_editor_plugin::wgpu;
 use block_editor_plugin::{
     BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, SurfaceRect, TimedInput,

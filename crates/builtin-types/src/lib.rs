@@ -3,7 +3,7 @@ use be_block::{
     CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
     DeterministicGameContent, GameModuleContent, HotbarContent, LogicGameContent, LogicGridContent,
     MapContent, PixelArtContent, PixelRayTracerContent, PresentationContent, Scene3dContent,
-    TerminalContent, TextContent, TriangleContent, VideoContent,
+    TerminalContent, TextContent, VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -33,7 +33,6 @@ be_block_types![
     PresentationContent { undo },
     Scene3dContent,
     TerminalContent,
-    TriangleContent,
     VideoContent { undo },
 ];
 

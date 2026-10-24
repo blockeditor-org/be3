@@ -7840,6 +7840,18 @@ name = "triangle"
 version = "0.1.0"
 dependencies = [
  "block-editor-plugin",
+ "triangle-types",
+ "uuid",
+]
+
+[[package]]
+name = "triangle-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
