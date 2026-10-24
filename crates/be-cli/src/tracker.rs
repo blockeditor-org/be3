@@ -1,14 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use database_types::database::{
-    Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
-};
-use database_types::database_schema::{
-    ChoiceColor, ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
-    DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
-};
-use database_types::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_client::{Peer, Saved};
 use be_commit::CommitId;
@@ -18,6 +10,14 @@ use be_store::ObjectStore;
 use be_types_host::Modules;
 use block_type_api::{Change as Edit, ChildChange, Description};
 use block_ui::database::{ValueLabels, database_value_text, parse_cell_value};
+use database_types::database::{
+    Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
+};
+use database_types::database_schema::{
+    ChoiceColor, ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
+    DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
+};
+use database_types::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use tokio::sync::{MappedMutexGuard, Mutex, MutexGuard};
 use uuid::Uuid;
 

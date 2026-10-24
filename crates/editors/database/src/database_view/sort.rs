@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 
+use block_editor_beui::block_ui::database::block_reference_text;
 use database_types::database::{DatabaseRow, DatabaseValue};
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use database_types::database_view::{DatabaseViewSort, SortDirection, ViewFilter};
-use block_editor_beui::block_ui::database::block_reference_text;
 use uuid::Uuid;
 
 pub type BlockLabels = block_editor_beui::block_ui::database::ValueLabels;

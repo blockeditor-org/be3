@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
 
-use database_types::database::DatabaseValue;
 use block_editor_beui::be_block::presence::PresenceKind;
 use block_editor_beui::be_block::{
     DisplaySettings, Root, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
@@ -8,6 +7,7 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use database_types::database::DatabaseValue;
 use infinite_canvas_types::Canvas;
 use infinite_canvas_types::{
     CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasLook,

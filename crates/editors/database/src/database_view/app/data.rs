@@ -7,6 +7,11 @@ use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::block_ui::BlockLabel;
+use block_editor_beui::database::DatabaseBlockPickRequest;
+use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_labels};
+use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use database_types::database::Inverse;
 use database_types::database::{
     Database, DatabaseContent, DatabaseRow, DatabaseValue, RowRef, short_id,
@@ -15,11 +20,6 @@ use database_types::database_schema::{DatabaseField, DatabaseSchemaContent};
 use database_types::database_view::{
     DatabaseView, DatabaseViewContent, DatabaseViewKind, DatabaseViewSort, ViewFilter,
 };
-use block_editor_beui::beui::reactive::*;
-use block_editor_beui::block_ui::BlockLabel;
-use block_editor_beui::database::DatabaseBlockPickRequest;
-use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_labels};
-use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use uuid::Uuid;
 
 use crate::database_view::groups::{Group, GroupKey, group_rows, matches_search};

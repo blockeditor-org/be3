@@ -1,5 +1,5 @@
-use logic_grid_types::HotbarContent;
 use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::HotbarContent;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

@@ -1,6 +1,6 @@
-use logic_grid_types::hotbar::{Hotbar, HotbarContent, HotbarSlot};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use logic_grid_types::hotbar::{Hotbar, HotbarContent, HotbarSlot};
 use uuid::Uuid;
 
 use crate::hotbar::app::HotbarApp;

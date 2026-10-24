@@ -1,12 +1,12 @@
 use block_editor_beui::be_block::ObjectId;
-use database_types::database::{DatabaseValue, short_id};
-use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CHEVRONS_UP_DOWN, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::database::ChoiceMark;
+use database_types::database::{DatabaseValue, short_id};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use uuid::Uuid;
 
 use crate::database_view::app::controls::MARK;

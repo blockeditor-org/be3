@@ -1,9 +1,9 @@
-use database_types::database::DatabaseValue;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_PLUS, ICON_SEARCH, ICON_SLIDERS_HORIZONTAL};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::narrow_chrome;
+use database_types::database::DatabaseValue;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;

@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
-use database_types::database::{Database, DatabaseContent};
-use database_types::database_schema::{
-    DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
-};
 use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::MemoryStore;
+use database_types::database::{Database, DatabaseContent};
+use database_types::database_schema::{
+    DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
+};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 

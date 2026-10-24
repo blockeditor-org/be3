@@ -1,4 +1,3 @@
-use database_types::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{
@@ -10,6 +9,7 @@ use beui::reactive::*;
 use beui::styled::theme::ThemeKind;
 use beui::styled::*;
 use beui::{Color32, NodeId};
+use database_types::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 
 pub fn choice_glyph(icon: ChoiceIcon) -> Option<Glyph> {
     Some(match icon {

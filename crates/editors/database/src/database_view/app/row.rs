@@ -1,5 +1,3 @@
-use database_types::database::{DatabaseValue, RowRef, short_id};
-use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::be_block::{BlockContent, ObjectId};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
@@ -13,6 +11,8 @@ use block_editor_beui::block_ui::database::DatabaseValueChange;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget, narrow_chrome};
+use database_types::database::{DatabaseValue, RowRef, short_id};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use uuid::Uuid;
 
 use crate::database_view::app::controls::{ChoicePicker, MARK, MARK_SIZE};

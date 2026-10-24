@@ -572,7 +572,10 @@ impl Root for Database {
     }
 
     fn describe(&self, metadata: &mut be_block::BlockMetadata) {
-        metadata.insert(&be_block::metadata::ROW_PREFIX, &self.prefix.trim().to_owned());
+        metadata.insert(
+            &be_block::metadata::ROW_PREFIX,
+            &self.prefix.trim().to_owned(),
+        );
     }
 
     fn name_in(_document: &Document<Self>) -> Option<String> {

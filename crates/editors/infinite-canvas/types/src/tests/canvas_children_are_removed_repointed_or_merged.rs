@@ -4,8 +4,8 @@ use crate::{
     CanvasComponent, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
     InfiniteCanvasOperation,
 };
-use database_types::database::DatabaseValue;
 use be_block::{ChildChange, Root};
+use database_types::database::DatabaseValue;
 use uuid::Uuid;
 
 fn entity(shape: CanvasShape, components: Vec<CanvasComponent>) -> CanvasEntity {

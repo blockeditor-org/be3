@@ -6,8 +6,8 @@ use be_model::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use database_types::database::DatabaseValue;
 use be_block::{ChildChange, Root};
+use database_types::database::DatabaseValue;
 
 pub const BINDING_GAP: f32 = 4.0;
 

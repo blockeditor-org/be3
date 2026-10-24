@@ -1,15 +1,11 @@
+use be_block::CounterContent;
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
     InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
 };
-use be_block::{
-    CounterContent, 
-};
 use block_type_guest::{Registration, be_block_types};
 
-be_block_types![
-    CounterContent { undo },
-];
+be_block_types![CounterContent { undo },];
 
 #[cfg(feature = "module")]
 block_type_guest::abi::guest!(BlockTypes);

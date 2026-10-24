@@ -1,12 +1,5 @@
 use std::collections::BTreeMap;
 
-use database_types::database::{
-    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
-};
-use database_types::database_schema::{
-    DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
-    DatabaseSchemaContent,
-};
 use beui::datetime::DateTime;
 use beui::icons::ICON_X;
 use beui::reactive::*;
@@ -15,6 +8,13 @@ use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId, Rect};
 pub use block_ui::database::ValueLabels;
 use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
+use database_types::database::{
+    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
+};
+use database_types::database_schema::{
+    DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
+    DatabaseSchemaContent,
+};
 use uuid::Uuid;
 
 mod choice;
@@ -1047,7 +1047,9 @@ fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
 pub fn create_database(creation: &crate::Creation) -> Uuid {
     use crate::BlockParent;
     use database_types::database::{Database, DatabaseContent};
-    use database_types::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
+    use database_types::database_schema::{
+        DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent,
+    };
 
     let blocks = creation.blocks();
     let mut fields = DatabaseSchemaContent::default();

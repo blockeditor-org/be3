@@ -1,7 +1,7 @@
 use be_block::BlockContent;
-use database_types::database::DatabaseContent;
 use be_graph::BlockParent;
 use be_store::ObjectStore;
+use database_types::database::DatabaseContent;
 use serde_json::{Value, json};
 use uuid::Uuid;
 

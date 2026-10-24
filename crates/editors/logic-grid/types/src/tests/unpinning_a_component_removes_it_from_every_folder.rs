@@ -1,5 +1,5 @@
-use be_block::BlockContent;
 use crate::hotbar::{Hotbar, HotbarContent, HotbarSlot};
+use be_block::BlockContent;
 use be_block::{ChildChange, Root};
 use uuid::Uuid;
 

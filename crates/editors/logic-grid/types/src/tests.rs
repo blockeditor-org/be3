@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::{LogicGameContent, LogicGridContent, LogicGridOperation};
 
-mod unpinning_a_component_removes_it_from_every_folder;
 mod a_component_moved_on_both_sides_conflicts_and_keeps_ours;
 mod a_component_removed_on_one_side_and_turned_on_the_other_stays_removed;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
@@ -28,6 +27,7 @@ mod the_same_wire_drawn_on_both_sides_merges_to_one;
 mod undoing_a_component_removal_brings_it_back_with_its_wires_untouched;
 mod undoing_a_wire_cut_joins_the_wire_again;
 mod undoing_a_wire_keeps_the_part_someone_else_drew_onto_it;
+mod unpinning_a_component_removes_it_from_every_folder;
 mod wires_drawn_on_each_side_that_meet_join_into_one;
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {
