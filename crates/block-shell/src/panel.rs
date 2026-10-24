@@ -128,24 +128,13 @@ pub(crate) fn read_info(
         workspace.record_reference_types(reference);
     }
     let types = workspace.types();
-    let deleted =
-        own.filter(|info| info.deleted)
-            .map(|info| match parent == Some(BlockParent::Detached) {
-                true => Deleted {
-                    root: info.id,
-                    inside: None,
-                },
-                false => {
-                    let root = parents
-                        .list
-                        .iter()
-                        .find(|above| above.parent == Some(BlockParent::Detached));
-                    Deleted {
-                        root: root.map_or(info.id, |root| root.id),
-                        inside: root.map(|root| root.label(types.as_ref()).name),
-                    }
-                }
-            });
+    let deleted = own.filter(|info| info.deleted).map(|info| {
+        let root = parents.list.iter().find(|above| above.deleted);
+        Deleted {
+            root: root.map_or(info.id, |root| root.id),
+            inside: root.map(|root| root.label(types.as_ref()).name),
+        }
+    });
     let type_name = types
         .display_name(item.block_type)
         .map_or_else(|| item.block_type.to_string(), str::to_owned);

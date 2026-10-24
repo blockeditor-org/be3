@@ -1738,17 +1738,34 @@ impl BlockApp {
         let Some(node) = be::node(root) else {
             return;
         };
-        let from = node.metadata.get(&be_block::DELETED_FROM);
         let usable = |parent: Uuid| {
             be::node(parent).is_some_and(|parent| parent.access.can_edit())
                 && be::with_graph(|graph| graph.deleted_root(parent).is_none()).unwrap_or(false)
+        };
+        let addable = |parent: Uuid| {
+            be::node(parent)
+                .and_then(|parent| be_block::block_types::block_type(parent.content_type))
+                .is_some_and(|block_type| block_type.children.add)
+        };
+        if let Some(BlockParent::Block(parent)) = node.parent
+            && usable(parent)
+            && addable(parent)
+        {
+            self.queue_placement(root, node.content_type, parent, false);
+            return;
+        }
+        let from = match node.parent {
+            Some(BlockParent::Block(parent)) => Some(be_block::DeletedFrom::Block(parent)),
+            _ => node.metadata.get(&be_block::DELETED_FROM),
         };
         let destination = match from {
             Some(be_block::DeletedFrom::Root) => {
                 be::set_parent(root, BlockParent::Root);
                 return;
             }
-            Some(be_block::DeletedFrom::Block(parent)) if usable(parent) => parent,
+            Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
+                parent
+            }
             Some(be_block::DeletedFrom::Block(_)) | None => match self.root_settings.my_files() {
                 Some(files) => files,
                 None => return,
@@ -1767,13 +1784,7 @@ impl BlockApp {
         }
     }
 
-    fn queue_delete(
-        &mut self,
-        child: Uuid,
-        block_type: Uuid,
-        source: SidebarDragSource,
-        is_reference: bool,
-    ) {
+    fn queue_delete(&mut self, child: Uuid, block_type: Uuid, source: SidebarDragSource) {
         if self.pending_transfers.iter().any(|pending| {
             pending.child == child
                 && pending.source == Some(source)
@@ -1793,8 +1804,7 @@ impl BlockApp {
             child,
             source: Some(source),
             destination: None,
-            parent_after: (!is_reference && source != SidebarDragSource::Root)
-                .then_some(BlockParent::Detached),
+            parent_after: None,
             stage: TransferStage::DeleteSource,
         });
     }
@@ -1832,7 +1842,9 @@ impl BlockApp {
             if let Some(parent) = transfer.parent_after {
                 self.set_block_parent(transfer.child, parent);
             }
-            be::placing(transfer.child, false);
+            if !matches!(transfer.parent_after, Some(BlockParent::Block(_))) {
+                be::placing(transfer.child, false);
+            }
         }
     }
 
@@ -2503,16 +2515,9 @@ impl BlockApp {
                         .with_simulated(|simulated| simulated.insert(id, access)),
                 };
             }
-            BlockCommand::Delete {
-                block_type,
-                source,
-                is_reference,
-            } => self.queue_delete(
-                id,
-                Uuid::from_bytes(block_type),
-                drag_source(source),
-                is_reference,
-            ),
+            BlockCommand::Delete { block_type, source } => {
+                self.queue_delete(id, Uuid::from_bytes(block_type), drag_source(source))
+            }
             BlockCommand::Move {
                 block_type,
                 source,

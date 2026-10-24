@@ -1505,7 +1505,6 @@ pub enum BlockCommand {
     Delete {
         block_type: [u8; 16],
         source: BlockLocation,
-        is_reference: bool,
     },
     Move {
         block_type: [u8; 16],

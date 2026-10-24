@@ -15,16 +15,17 @@ use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_core::rich::{SpanStyle, TextCaret, TextGlyph, TextMark, handle_shape};
 use beui_view::components::overlay::Overlay;
-use text_editor_core::{SynHlColorScope, SynHlStyle};
+use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
-use super::hooks::{MarkerKind, TextLeaf, TextLine, TextMarker};
+use super::hooks::{MARGIN_EM, MARGIN_MIN_WIDTH_EM, MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
     BODY_SIZE, DOCUMENT_PADDING, Inline, InlineItem, LINE_PADDING, RUN_CHIP_SIZE, Row, RowInputs,
-    RowKey, RowOptions, SpanKind, build_row, galley, line_range, row_key,
+    RowKey, RowOptions, SpanKind, TableColumns, build_row, galley, line_range, row_key,
+    table_columns,
 };
 use super::{
     CARET_WIDTH, Context, GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT,
@@ -234,10 +235,33 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             }</Dynamic>
         </List>
     };
+    let content = cx.state.content();
+    let margin = create_memo(move || {
+        content.get();
+        let document = cx.state.with_snapshot(|snapshot| {
+            matches!(
+                snapshot.language,
+                TextLanguage::Markdown | TextLanguage::RichText
+            )
+        });
+        let size = cx.font_size.get();
+        let wide = cx.view_width.get() >= size * MARGIN_MIN_WIDTH_EM;
+        match document && wide && cx.line_numbers && cx.prose.get().is_none() && !cx.single_line {
+            true => size * MARGIN_EM,
+            false => 0.0,
+        }
+    });
     let wrapped = cx.line.call(TextLine {
+        state: cx.state,
+        line: create_memo(move || model.get().line),
+        start: create_memo(move || model.get().start),
         look,
         padding,
         size: cx.font_size,
+        margin,
+        outdent: create_memo(move || model.get().outdent),
+        space: create_memo(move || model.get().space),
+        table: create_memo(move || model.get().table.clone()),
         text: lines,
     });
     view! {
@@ -375,20 +399,51 @@ struct RowEnv {
 }
 
 const ROW_CACHE_LIMIT: usize = 1024;
+const TABLE_CACHE_LIMIT: usize = 64;
 
 #[derive(Default)]
 pub(super) struct RowCache {
     env: Option<RowEnv>,
     rows: HashMap<u64, Vec<(RowKey, Rc<Row>)>>,
     count: usize,
+    tables: HashMap<usize, (u64, Rc<TableColumns>)>,
 }
 
 impl RowCache {
+    fn refresh(&mut self, env: &RowEnv) -> bool {
+        if self.env.as_ref() == Some(env) {
+            return false;
+        }
+        self.env = Some(env.clone());
+        self.rows.clear();
+        self.tables.clear();
+        self.count = 0;
+        true
+    }
+
+    fn table(
+        &mut self,
+        env: &RowEnv,
+        revision: u64,
+        start: usize,
+        measure: impl FnOnce() -> TableColumns,
+    ) -> Rc<TableColumns> {
+        self.refresh(env);
+        if self.tables.len() >= TABLE_CACHE_LIMIT {
+            self.tables.clear();
+        }
+        match self.tables.get(&start) {
+            Some((held, columns)) if *held == revision => Rc::clone(columns),
+            _ => {
+                let columns = Rc::new(measure());
+                self.tables.insert(start, (revision, Rc::clone(&columns)));
+                columns
+            }
+        }
+    }
+
     fn find(&mut self, env: &RowEnv, key: &RowKey) -> Option<Rc<Row>> {
-        if self.env.as_ref() != Some(env) {
-            self.env = Some(env.clone());
-            self.rows.clear();
-            self.count = 0;
+        if self.refresh(env) {
             return None;
         }
         self.rows
@@ -450,7 +505,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                     ..Row::default()
                 });
             }
-            let inputs = RowInputs {
+            let mut inputs = RowInputs {
                 snapshot,
                 widgets: &widgets,
                 client_colors: &env.client_colors,
@@ -458,9 +513,19 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 colors: &env.colors,
                 options: env.options,
                 placeholder,
+                columns: None,
             };
-            let key = row_key(&inputs, start, end, newline);
             let held = cx.held.value();
+            if let Some(table) = snapshot.highlight().line_look(start).table {
+                let columns =
+                    held.row_cache
+                        .borrow_mut()
+                        .table(&env, snapshot.revision, table.start, || {
+                            table_columns(&inputs, table.start)
+                        });
+                inputs.columns = Some(columns);
+            }
+            let key = row_key(&inputs, start, end, newline);
             if let Some(key) = &key
                 && let Some(row) = held.row_cache.borrow_mut().find(&env, key)
             {
@@ -803,10 +868,13 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
         let start = model.get_untracked().start;
         cx.state.set_checked(start, !shown.get_untracked());
     });
+    let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     TextMarker {
         state: cx.state,
         line: model.get_untracked().line,
         kind,
+        label,
+        depth: create_memo(move || model.get().look.depth),
         style,
         checked,
         disabled: cx.disabled,
@@ -934,6 +1002,14 @@ fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
 fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let number = create_memo(move || (model.get().line + 1).to_string());
     let height = create_memo(move || Some(model.get().line_height));
+    let above = create_memo(move || {
+        Sides::new(
+            GUTTER_PADDING_LEFT,
+            model.get().space.0,
+            GUTTER_PADDING_RIGHT,
+            0.0,
+        )
+    });
     let arrow = create_memo(move || {
         cx.state.content().get();
         let start = model.get().start;
@@ -949,7 +1025,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let arrow_color = create_memo(move || cx.colors.get().gutter_arrow);
     let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
-        <Frame padding={Sides::new(GUTTER_PADDING_LEFT, 0.0, GUTTER_PADDING_RIGHT, 0.0)}>
+        <Frame padding=above>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width=GUTTER_ARROW_SIZE height=height>
                     <Text

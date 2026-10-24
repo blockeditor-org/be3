@@ -1406,6 +1406,17 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    pub async fn deleted(&self) -> Result<Vec<BlockSummary>, ClientError> {
+        let response = self
+            .connection
+            .request(|request| ClientMessage::ListDeleted { request })
+            .await?;
+        match response {
+            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
+            _ => Err(ClientError::Unexpected),
+        }
+    }
+
     pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
         self.connection
             .request(|request| ClientMessage::Unlist { request, listing })

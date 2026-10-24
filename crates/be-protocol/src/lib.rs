@@ -119,6 +119,7 @@ pub struct OwnSealed {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Listing {
     Children(BlockParent),
+    Deleted,
     Shared,
     Backrefs(Uuid),
     Block(Uuid),
@@ -140,6 +141,7 @@ pub struct BlockSummary {
     pub key: Option<Uuid>,
     pub scope: Option<Uuid>,
     pub revision: u64,
+    pub held: bool,
 }
 
 impl BlockSummary {
@@ -157,6 +159,7 @@ impl BlockSummary {
             key: None,
             scope: None,
             revision: 0,
+            held: true,
         }
     }
 }
@@ -500,6 +503,9 @@ pub enum ClientMessage {
         request: u64,
         parent: BlockParent,
     },
+    ListDeleted {
+        request: u64,
+    },
     ListBackrefs {
         request: u64,
         block: Uuid,
@@ -703,6 +709,7 @@ impl ClientMessage {
             | Self::SetParent { request, .. }
             | Self::ListShared { request }
             | Self::ListChildren { request, .. }
+            | Self::ListDeleted { request }
             | Self::ListBackrefs { request, .. }
             | Self::ListReferences { request, .. }
             | Self::Unlist { request, .. }

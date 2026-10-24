@@ -2,6 +2,7 @@ use super::*;
 
 mod a_cycle_is_refused_when_reparenting;
 mod a_detached_subtree_is_pending_deletion;
+mod a_parent_holds_a_child_only_while_it_references_it;
 mod a_parent_knows_its_children_as_the_graph_changes;
 mod access_is_inherited_through_parents;
 mod access_to_one_block_agrees_with_mapping_the_whole_graph;
@@ -24,6 +25,11 @@ fn graph(parents: &[(u128, BlockParent)]) -> BlockGraph {
         graph
             .insert(id(*block), BlockNode::new(TYPE, AUTHOR, *parent))
             .unwrap();
+        if let BlockParent::Block(parent) = parent {
+            let mut references = graph.references(*parent);
+            references.push(id(*block));
+            graph.set_references(*parent, &references).unwrap();
+        }
     }
     graph
 }

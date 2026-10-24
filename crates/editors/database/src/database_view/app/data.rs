@@ -340,9 +340,18 @@ impl ViewData {
         let count = self.views.with_untracked(Vec::len);
         let created = blocks.create_named(
             &DatabaseViewContent::new(&view),
-            parent,
+            BlockParent::Detached,
             format!("View {}", count + 1),
         );
+        match parent {
+            BlockParent::Block(container) => self.editor.host().place_block(
+                created,
+                DatabaseViewContent::CONTENT_TYPE,
+                container,
+                false,
+            ),
+            other => blocks.set_parent(created, other),
+        }
         self.editor
             .host()
             .open_block(created, DatabaseViewContent::CONTENT_TYPE);

@@ -923,6 +923,10 @@ impl Connection {
                 request,
                 blocks: self.list(Listing::Children(parent)).await?,
             }),
+            ClientMessage::ListDeleted { request } => Ok(ServerMessage::Blocks {
+                request,
+                blocks: self.list(Listing::Deleted).await?,
+            }),
             ClientMessage::ListBackrefs { request, block } => Ok(ServerMessage::Blocks {
                 request,
                 blocks: self.list(Listing::Backrefs(block)).await?,
@@ -1382,6 +1386,7 @@ impl Connection {
         let blocks = match listing {
             Listing::Shared => self.store.list_shared(identity).await?,
             Listing::Children(parent) => self.store.list_children(identity, parent).await?,
+            Listing::Deleted => self.store.list_deleted(identity).await?,
             Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
             Listing::References(block) => self.store.list_references(identity, block).await?,
             Listing::Block(block) => vec![self.store.read_block(identity, block).await?],

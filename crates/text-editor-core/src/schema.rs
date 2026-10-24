@@ -34,6 +34,20 @@ pub enum ListMarker {
     Check(bool),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TableRow {
+    Header,
+    Delimiter,
+    Body,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TableLine {
+    pub row: TableRow,
+    pub start: usize,
+    pub last: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LineLook {
     pub marker: std::ops::Range<usize>,
@@ -42,13 +56,54 @@ pub struct LineLook {
     pub continues: bool,
     pub quote: usize,
     pub code_block: bool,
+    pub heading: u8,
+    pub rule: bool,
+    pub hang: std::ops::Range<usize>,
+    pub quote_above: usize,
+    pub quote_below: usize,
+    pub code_above: bool,
+    pub code_below: bool,
+    pub table: Option<TableLine>,
 }
 
 impl LineLook {
     pub fn at(start: usize) -> Self {
         Self {
             marker: start..start,
+            hang: start..start,
             ..Self::default()
+        }
+    }
+
+    pub fn shifted(&self, by: isize) -> Self {
+        let shift = |at: usize| at.saturating_add_signed(by);
+        Self {
+            marker: shift(self.marker.start)..shift(self.marker.end),
+            hang: shift(self.hang.start)..shift(self.hang.end),
+            table: self.table.map(|table| TableLine {
+                start: shift(table.start),
+                ..table
+            }),
+            ..self.clone()
+        }
+    }
+}
+
+pub fn join_neighbours<T: PartialEq>(looks: &mut [LineLook], blocks: &[Option<T>]) {
+    for at in 0..looks.len() {
+        let quote = looks[at].quote;
+        let block = &blocks[at];
+        if at > 0 {
+            looks[at].quote_above = quote.min(looks[at - 1].quote);
+            looks[at].code_above = block.is_some() && blocks[at - 1] == *block;
+        }
+        if at + 1 < looks.len() {
+            looks[at].quote_below = quote.min(looks[at + 1].quote);
+            looks[at].code_below = block.is_some() && blocks[at + 1] == *block;
+        }
+        let next = looks.get(at + 1).and_then(|below| below.table);
+        if let Some(table) = &mut looks[at].table {
+            table.last = next.is_none_or(|next| next.start != table.start);
         }
     }
 }

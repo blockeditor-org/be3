@@ -2293,6 +2293,7 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
         let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
             match *listing {
                 Listing::Children(parent) => peer.children(parent).await,
+                Listing::Deleted => peer.deleted().await,
                 Listing::Shared => peer.shared().await,
                 Listing::Backrefs(block) => peer.backrefs(block).await,
                 Listing::References(block) => peer.referenced(block).await,
@@ -2339,7 +2340,9 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
 fn listing_failure(listing: Listing) -> &'static str {
     match listing {
         Listing::Children(BlockParent::Root) => "Couldn't load your blocks",
-        Listing::Children(BlockParent::Detached) => "Couldn't load Recently Deleted",
+        Listing::Children(BlockParent::Detached) | Listing::Deleted => {
+            "Couldn't load Recently Deleted"
+        }
         Listing::Children(BlockParent::Block(_)) => "Couldn't load what's inside this block",
         Listing::Shared => "Couldn't load what's shared with you",
         Listing::Backrefs(_) => "Couldn't load what links here",
@@ -2436,6 +2439,7 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         references: summary.references.clone(),
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
+        held: summary.held,
     }
 }
 

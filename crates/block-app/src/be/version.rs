@@ -604,6 +604,15 @@ impl Versions {
         };
         save_new(context, checkout, &state).await?;
         set_parent(context, root, BlockParent::Block(checkout)).await?;
+        relist(
+            context,
+            node.parent.ok_or_else(unplaced)?,
+            be_block::ChildChange::Replace {
+                old: root,
+                new: checkout,
+            },
+        )
+        .await?;
         self.finish(
             context,
             checkout,
@@ -648,6 +657,7 @@ impl Versions {
             ..Checkout::default()
         };
         save_new(context, checkout, &state).await?;
+        relist(context, parent, be_block::ChildChange::Add(checkout)).await?;
         self.operate(
             context,
             repository,
@@ -1136,6 +1146,12 @@ impl Versions {
             ..Repository::default()
         };
         save_new(context, fork, &state).await?;
+        relist(
+            context,
+            node.parent.ok_or_else(unplaced)?,
+            be_block::ChildChange::Add(fork),
+        )
+        .await?;
         Ok(fork)
     }
 
@@ -1696,6 +1712,60 @@ async fn change<R: Root + Model + Default>(
             Saved::Published(head) | Saved::Unchanged(head) => {
                 settle(context, block, head).await?;
                 return Ok(());
+            }
+            Saved::Rejected { .. } => {}
+        }
+    }
+    Err("Someone else kept changing it at the same time. Try again.".into())
+}
+
+async fn relist(
+    context: &mut Context<'_>,
+    parent: BlockParent,
+    change: be_block::ChildChange,
+) -> Result<(), String> {
+    let BlockParent::Block(parent) = parent else {
+        return Ok(());
+    };
+    let content_type = with_graph(context.shared, |graph| {
+        graph.get(parent).map(|node| node.content_type)
+    });
+    match content_type {
+        Some(kind) if kind == be_block::FolderContent::CONTENT_TYPE => {
+            relist_in::<be_block::FolderContent>(context, parent, change).await
+        }
+        Some(kind) if kind == be_block::WorkspaceContent::CONTENT_TYPE => {
+            relist_in::<be_block::WorkspaceContent>(context, parent, change).await
+        }
+        _ => Err("Version control can only put a block in a folder or a workspace.".into()),
+    }
+}
+
+async fn relist_in<C: be_block::LiveEdit + Default>(
+    context: &mut Context<'_>,
+    parent: Uuid,
+    change: be_block::ChildChange,
+) -> Result<(), String> {
+    for _ in 0..8 {
+        let head = context.peer.remote_head(parent).await.map_err(failed)?;
+        let mut content = match head {
+            Some(head) => context.peer.open_commit::<C>(head).await.map_err(failed)?,
+            None => C::default(),
+        };
+        let operations = content
+            .child_operations(change)
+            .ok_or("That place cannot hold another block.")?;
+        for operation in &operations {
+            content.apply(operation);
+        }
+        match context
+            .peer
+            .save(parent, &content, head)
+            .await
+            .map_err(failed)?
+        {
+            Saved::Published(head) | Saved::Unchanged(head) => {
+                return settle(context, parent, head).await;
             }
             Saved::Rejected { .. } => {}
         }

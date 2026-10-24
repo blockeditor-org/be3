@@ -3,7 +3,7 @@ use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
 use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::TextChange;
-use crate::schema::{LineLook, ListMarker};
+use crate::schema::{LineLook, ListMarker, TableLine, TableRow, join_neighbours};
 
 pub(super) fn styles_in(tree: &MarkdownTree, window: Range<usize>) -> Vec<SynHlStyle> {
     let mut styles = vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); window.len()];
@@ -22,19 +22,27 @@ fn code_blocks(tree: &MarkdownTree) -> Vec<Range<usize>> {
 fn looks(tree: &MarkdownTree, source: &[u8]) -> Vec<(usize, LineLook)> {
     let blocks = code_blocks(tree);
     let root = tree.block_tree().root_node();
-    let mut looks = Vec::new();
+    let mut lines = Vec::new();
+    let mut held = Vec::new();
+    let mut code = Vec::new();
     let mut start = 0;
     loop {
         let end = memchr::memchr(b'\n', &source[start..]).map_or(source.len(), |at| start + at);
-        let look = line_look(root, source, &blocks, start..end);
-        if look != LineLook::at(start) {
-            looks.push((start, look));
-        }
+        let (look, block) = line_look(root, source, &blocks, start..end);
+        lines.push(start);
+        held.push(look);
+        code.push(block);
         if end == source.len() {
-            return looks;
+            break;
         }
         start = end + 1;
     }
+    join_neighbours(&mut held, &code);
+    lines
+        .into_iter()
+        .zip(held)
+        .filter(|(start, look)| *look != LineLook::at(*start))
+        .collect()
 }
 
 fn skip_spaces(source: &[u8], mut at: usize, end: usize) -> usize {
@@ -44,26 +52,44 @@ fn skip_spaces(source: &[u8], mut at: usize, end: usize) -> usize {
     at
 }
 
+fn heading_level(node: tree_sitter::Node<'_>) -> u8 {
+    let mut child = node.walk();
+    let level = node
+        .children(&mut child)
+        .find_map(|child| match child.kind() {
+            "setext_h1_underline" => Some(1),
+            "setext_h2_underline" => Some(2),
+            kind => kind
+                .strip_prefix("atx_h")
+                .and_then(|value| value.strip_suffix("_marker"))
+                .and_then(|value| value.parse().ok()),
+        });
+    level.unwrap_or(2)
+}
+
 fn line_look(
     root: tree_sitter::Node<'_>,
     source: &[u8],
     blocks: &[Range<usize>],
     line: Range<usize>,
-) -> LineLook {
+) -> (LineLook, Option<usize>) {
     let (start, end) = (line.start, line.end);
-    let code_block = blocks
-        .iter()
-        .any(|block| block.start <= end && block.end > start);
     let lead = skip_spaces(source, start, end);
+    let reach = end + usize::from(lead == end);
+    let block = blocks.iter().position(|block| {
+        block.start <= end && (block.end > reach || (block.end >= source.len() && lead < end))
+    });
+    let code_block = block.is_some();
     let mut probe = lead;
     while probe < end && source[probe] == b'>' {
         probe = skip_spaces(source, probe + 1, end);
     }
     if lead == end {
-        return LineLook {
+        let look = LineLook {
             code_block,
             ..LineLook::at(start)
         };
+        return (look, block);
     }
     if probe == end {
         probe = (lead..end)
@@ -72,28 +98,41 @@ fn line_look(
             .unwrap_or(lead);
     }
     let Some(node) = root.descendant_for_byte_range(probe, probe + 1) else {
-        return LineLook {
+        let look = LineLook {
             code_block,
             ..LineLook::at(start)
         };
+        return (look, block);
     };
     let mut quote = 0;
     let mut lists = 0_usize;
+    let mut heading = None;
+    let mut rule = false;
+    let mut table = None;
+    let mut table_row = TableRow::Body;
     let mut parent = Some(node);
     while let Some(held) = parent {
         match held.kind() {
             "block_quote" => quote += 1,
             "list" => lists += 1,
+            "atx_heading" | "setext_heading" if held.start_byte() >= start => {
+                heading = Some(held);
+            }
+            "thematic_break" => rule = true,
+            "pipe_table_header" => table_row = TableRow::Header,
+            "pipe_table_delimiter_row" => table_row = TableRow::Delimiter,
+            "pipe_table" if table.is_none() => table = Some(held.start_byte()),
             _ => {}
         }
         parent = held.parent();
     }
     let mut at = lead;
     for _ in 0..quote {
-        if at >= end || source[at] != b'>' {
+        let next = skip_spaces(source, at, end);
+        if next >= end || source[next] != b'>' {
             break;
         }
-        at = (at + 1).min(end);
+        at = next + 1;
         if at < end && source[at] == b' ' {
             at += 1;
         }
@@ -111,11 +150,22 @@ fn line_look(
         true => skip_spaces(source, content, end),
         false => content,
     };
-    LineLook {
-        marker: match content > lead || (continues && content > start) {
-            true => start..content,
-            false => start..start,
-        },
+    let marker = match content > lead || (continues && content > start) {
+        true => start..content,
+        false => start..start,
+    };
+    let top = quote == 0 && lists == 0;
+    let hang = match heading {
+        Some(heading) if top && heading.kind() == "atx_heading" => {
+            heading.child(0).map_or(start..start, |mark| {
+                start..skip_spaces(source, mark.end_byte(), end)
+            })
+        }
+        _ if top && rule => start..end,
+        _ => start..start,
+    };
+    let look = LineLook {
+        marker,
         list: list.map(|(list, _)| list),
         depth: match list.is_some() || continues {
             true => lists.saturating_sub(1),
@@ -124,7 +174,17 @@ fn line_look(
         continues,
         quote,
         code_block,
-    }
+        heading: heading.map_or(0, heading_level),
+        rule,
+        hang,
+        table: table.map(|start| TableLine {
+            row: table_row,
+            start,
+            last: false,
+        }),
+        ..LineLook::default()
+    };
+    (look, block)
 }
 
 fn list_marker(node: tree_sitter::Node<'_>, source: &[u8]) -> Option<(ListMarker, usize)> {
@@ -270,13 +330,11 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
         "link_text" | "link_label" | "image_description" | "uri_autolink" | "email_autolink" => {
             for style in &mut styles[range.clone()] {
                 style.color = SynHlColorScope::MarkdownLink;
-                style.underline = true;
             }
         }
         "link_destination" | "link_title" => {
             for style in &mut styles[range.clone()] {
-                style.color = SynHlColorScope::MarkdownLink;
-                style.family = SynHlFontFamily::Monospace;
+                set_symbol(style);
             }
         }
         "backslash_escape" => {
@@ -286,8 +344,19 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
                 set_symbol(style);
             }
         }
+        "block_continuation" => {
+            let code = matches!(
+                parent_kind,
+                Some("indented_code_block" | "fenced_code_block" | "code_fence_content")
+            );
+            for style in &mut styles[range.clone()] {
+                set_symbol(style);
+                if code {
+                    style.family = SynHlFontFamily::Monospace;
+                }
+            }
+        }
         "block_quote_marker"
-        | "block_continuation"
         | "list_marker_plus"
         | "list_marker_minus"
         | "list_marker_star"
