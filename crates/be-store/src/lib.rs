@@ -10,8 +10,8 @@ pub mod vault;
 
 pub use chunker::{ChunkerConfig, split};
 pub use hash::Hash;
-pub use store::{FileStore, MemoryStore, ObjectStore};
 pub use manifest::{ChunkRef, Manifest, decode_value, encode_value};
+pub use store::{FileStore, MemoryStore, ObjectStore};
 #[cfg(feature = "vault")]
 pub use vault::{ContentKey, Keyring, Vault, sealed_key};
 

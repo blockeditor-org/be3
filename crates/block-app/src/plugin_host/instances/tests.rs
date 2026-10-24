@@ -213,10 +213,7 @@ fn replica_sent_until(
             "the replica never sent what was expected: {sent:?}"
         );
         crate::be::wait_for(std::time::Duration::from_millis(100), |shared| {
-            shared
-                .editor_frames
-                .contains_key(&INSTANCE.0)
-                .then_some(())
+            shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
         });
     }
 }

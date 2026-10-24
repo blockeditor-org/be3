@@ -9,8 +9,8 @@ use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, ServerMessage, SessionState};
 use block_type_api::{
-    ByteRange, Change, Command, EditorId, Endpoint, Event, HeadEvent, Recipients, ReplicaId,
-    Reply, Request, RequestId, Status,
+    ByteRange, Change, Command, EditorId, Endpoint, Event, HeadEvent, Recipients, ReplicaId, Reply,
+    Request, RequestId, Status,
 };
 use block_type_guest::editor::{FromEditor, ToEditor};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -28,7 +28,7 @@ pub(super) enum Io {
     Answer {
         replica: ReplicaId,
         epoch: u64,
-        event: Event,
+        event: Box<Event>,
         published: Option<CommitId>,
     },
     Locked {
@@ -319,7 +319,13 @@ impl Replicas {
         idle
     }
 
-    pub(super) fn from_editor(&mut self, block: Uuid, editor: EditorId, bytes: Vec<u8>, at: Instant) {
+    pub(super) fn relay_from_editor(
+        &mut self,
+        block: Uuid,
+        editor: EditorId,
+        bytes: Vec<u8>,
+        at: Instant,
+    ) {
         let Some(replica) = self.blocks.get(&block).copied() else {
             return;
         };
@@ -337,14 +343,14 @@ impl Replicas {
         self.modules.send(module, vec![event]);
     }
 
-    pub(super) fn from_host(&mut self, block: Uuid, message: &FromEditor, at: Instant) {
+    pub(super) fn send_as_host(&mut self, block: Uuid, message: &FromEditor, at: Instant) {
         if let Some((replica, open)) = self.replica_of(block)
             && !open.editors.contains_key(&HOST_EDITOR)
         {
             let module = open.module;
             self.attach_now(module, replica, HOST_EDITOR, true);
         }
-        self.from_editor(block, HOST_EDITOR, message.encode(), at);
+        self.relay_from_editor(block, HOST_EDITOR, message.encode(), at);
     }
 
     pub(super) fn close(&mut self, block: Uuid) {
@@ -598,13 +604,13 @@ impl Replicas {
                     return;
                 }
                 let module = open.module;
-                if matches!(event, Event::Head { .. }) {
+                if matches!(*event, Event::Head { .. }) {
                     open.publishing = open.publishing.saturating_sub(1);
                 }
                 if let Some(head) = published {
                     open.published.push(head);
                 }
-                self.modules.send(module, vec![event]);
+                self.modules.send(module, vec![*event]);
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
@@ -690,7 +696,11 @@ impl Replicas {
     }
 
     pub(super) async fn restart(&mut self, module: usize) {
-        for (replica, open) in self.open.iter_mut().filter(|(_, open)| open.module == module) {
+        for (replica, open) in self
+            .open
+            .iter_mut()
+            .filter(|(_, open)| open.module == module)
+        {
             open.epoch += 1;
             let mut events = vec![Event::Open {
                 replica: *replica,
@@ -714,7 +724,8 @@ impl Replicas {
             open.moved.clear();
             self.modules.send(module, events);
             if open.closing {
-                self.modules.send(module, vec![Event::Close { replica: *replica }]);
+                self.modules
+                    .send(module, vec![Event::Close { replica: *replica }]);
             }
         }
     }
@@ -745,7 +756,10 @@ impl Replicas {
                 let block = open.block;
                 let content_type = open.content_type;
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                let revision = held.blocks.get(&block).map_or(0, |content| content.revision);
+                let revision = held
+                    .blocks
+                    .get(&block)
+                    .map_or(0, |content| content.revision);
                 let mut content = Content::new(content_type, bytes);
                 content.revision = revision + 1;
                 held.blocks.insert(block, content);
@@ -753,11 +767,7 @@ impl Replicas {
                 held.touch(block);
                 true
             }
-            Command::Send {
-                replica,
-                to,
-                bytes,
-            } => {
+            Command::Send { replica, to, bytes } => {
                 let Some((block, _, true)) = replica_of(replica, &self.open) else {
                     return false;
                 };
@@ -808,11 +818,11 @@ impl Replicas {
                     let _ = io.send(Io::Answer {
                         replica,
                         epoch,
-                        event: Event::Read {
+                        event: Box::new(Event::Read {
                             replica,
                             token,
                             result,
-                        },
+                        }),
                         published: None,
                     });
                     crate::host::wake();
@@ -864,7 +874,7 @@ impl Replicas {
                     let _ = io.send(Io::Answer {
                         replica,
                         epoch,
-                        event: Event::Head { replica, event },
+                        event: Box::new(Event::Head { replica, event }),
                         published,
                     });
                     crate::host::wake();
@@ -907,7 +917,7 @@ impl Replicas {
                     let _ = io.send(Io::Answer {
                         replica,
                         epoch,
-                        event: Event::Head { replica, event },
+                        event: Box::new(Event::Head { replica, event }),
                         published: None,
                     });
                     crate::host::wake();
@@ -940,11 +950,11 @@ impl Replicas {
                     let _ = io.send(Io::Answer {
                         replica,
                         epoch,
-                        event: Event::Resumed {
+                        event: Box::new(Event::Resumed {
                             replica,
                             token,
                             result: resumed.map_err(|error| error.to_string()),
-                        },
+                        }),
                         published: None,
                     });
                     crate::host::wake();
@@ -996,13 +1006,8 @@ impl Replicas {
                 let _ = peer.leave_session(open.block).await;
                 let _ = peer.unwatch(open.block).await;
                 if open.reopen {
-                    self.open(
-                        (peer, shared),
-                        open.block,
-                        open.content_type,
-                        open.reader,
-                    )
-                    .await;
+                    self.open((peer, shared), open.block, open.content_type, open.reader)
+                        .await;
                     return true;
                 }
                 let block = open.block;
@@ -1111,10 +1116,8 @@ impl Replicas {
                     return false;
                 };
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                held.histories.insert(
-                    open.block,
-                    super::History { can_undo, can_redo },
-                );
+                held.histories
+                    .insert(open.block, super::History { can_undo, can_redo });
                 held.touch(open.block);
                 true
             }
@@ -1156,11 +1159,7 @@ impl Replicas {
     }
 
     fn counted(&self, shared: &Arc<Mutex<Shared>>) {
-        let unsealed = self
-            .open
-            .values()
-            .filter(|open| !open.status.clean)
-            .count();
+        let unsealed = self.open.values().filter(|open| !open.status.clean).count();
         let owing = self
             .open
             .values()

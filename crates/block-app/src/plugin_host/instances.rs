@@ -10,11 +10,11 @@ use block_plugin_api::{
     WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests};
+use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use block_type_guest::editor::{FromEditor, Gesture};
 use uuid::Uuid;
 
 use super::{

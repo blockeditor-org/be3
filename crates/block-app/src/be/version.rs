@@ -28,7 +28,6 @@ use super::worker::{Shared, Store, node_of};
 
 const LOG_LENGTH: usize = 100;
 
-
 #[derive(Default)]
 pub(crate) struct VersionState {
     pub(crate) revision: u64,

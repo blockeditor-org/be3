@@ -51,7 +51,11 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     assert!(matches!(sent.as_slice(), [ToEditor::Snapshot(_)]));
 
     let add = CounterContent::encode_operation(&Counter::add(3));
-    assert!(to_replica(&mut instances, other, &FromEditor::Operate(add.clone())));
+    assert!(to_replica(
+        &mut instances,
+        other,
+        &FromEditor::Operate(add.clone())
+    ));
     counted(other, 3);
     let sent = replica_sent_until(&mut instances, other, |sent| !sent.is_empty());
     assert_eq!(

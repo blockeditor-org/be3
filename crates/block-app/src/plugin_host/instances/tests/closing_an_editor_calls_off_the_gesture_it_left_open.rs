@@ -42,9 +42,21 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
     counted(watched, 0);
 
     let add = |amount| CounterContent::encode_operation(&Counter::add(amount));
-    assert!(to_replica(&mut instances, watched, &FromEditor::Operate(add(2))));
-    assert!(to_replica(&mut instances, watched, &FromEditor::Gesture(Gesture::Begin)));
-    assert!(to_replica(&mut instances, watched, &FromEditor::Operate(add(3))));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &FromEditor::Operate(add(2))
+    ));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &FromEditor::Gesture(Gesture::Begin)
+    ));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &FromEditor::Operate(add(3))
+    ));
     counted(watched, 5);
 
     assert!(instances.remove(INSTANCE));

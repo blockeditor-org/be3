@@ -71,11 +71,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
     }
 
     fn send(&mut self, message: block_type_guest::editor::FromEditor) {
-        from_editor(
-            self.block,
-            self.id,
-            &block_type_api::encode_frame(&message),
-        );
+        from_editor(self.block, self.id, &block_type_api::encode_frame(&message));
     }
 
     fn pump(&mut self) {
@@ -115,7 +111,9 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
     }
 
     fn content(&self) -> &C {
-        self.mirror.content().expect("the editor was sent its content")
+        self.mirror
+            .content()
+            .expect("the editor was sent its content")
     }
 
     fn operate(&mut self, operation: C::Op) {

@@ -1,6 +1,4 @@
-use std::{
-    sync::{Arc, Mutex, PoisonError},
-};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use be_client::Peer;
 use be_commit::CommitId;

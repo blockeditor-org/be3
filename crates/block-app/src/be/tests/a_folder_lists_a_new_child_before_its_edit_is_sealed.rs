@@ -21,7 +21,9 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         be_block::BlockMetadata::default(),
         None,
     );
-    wait_until("knew the folder's type", |_| is_known(FolderContent::CONTENT_TYPE));
+    wait_until("knew the folder's type", |_| {
+        is_known(FolderContent::CONTENT_TYPE)
+    });
     assert_eq!(
         change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child)),
         Some(true)

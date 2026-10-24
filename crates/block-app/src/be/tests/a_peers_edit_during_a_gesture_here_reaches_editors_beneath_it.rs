@@ -25,7 +25,9 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);
     let mut editor = Editor::<CounterContent>::attach(block);
-    editor.wait("was sent the counter", |counter| counter.root().value() == 0);
+    editor.wait("was sent the counter", |counter| {
+        counter.root().value() == 0
+    });
     editor.take_received();
     for _ in 0..3 {
         editor.operate(Counter::add(1));

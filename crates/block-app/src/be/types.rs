@@ -116,7 +116,8 @@ pub(super) fn in_process<G: Guest + 'static>(name: &'static str) -> Source {
     Source {
         name,
         start: Box::new(move |wake, waiting| {
-            let tag = tag_of(format!("{name} {}", build_id::current().unwrap_or_default()).as_bytes());
+            let tag =
+                tag_of(format!("{name} {}", build_id::current().unwrap_or_default()).as_bytes());
             Ok((Box::new(InProcess::<G>::start(wake, waiting)) as Boxed, tag))
         }),
     }
@@ -463,10 +464,7 @@ impl Modules {
     pub(super) fn tick_due(&mut self) {
         let now = now_millis();
         for module in 0..self.modules.len() {
-            if self.modules[module]
-                .wake
-                .is_some_and(|wake| wake <= now)
-            {
+            if self.modules[module].wake.is_some_and(|wake| wake <= now) {
                 self.modules[module].wake = None;
                 self.send(module, Vec::new());
             }

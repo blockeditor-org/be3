@@ -1,8 +1,8 @@
 use be_block::{
     AudioContent, BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent,
-    ChecklistContent, CompiledLogicContent, CounterContent, DatabaseContent,
-    DatabaseSchemaContent, DatabaseViewContent, DeterministicGameContent, EditorSettingsContent,
-    FileContent, FolderContent, GameModuleContent, HotbarContent, ImageContent, LogicGameContent,
+    ChecklistContent, CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
+    DatabaseViewContent, DeterministicGameContent, EditorSettingsContent, FileContent,
+    FolderContent, GameModuleContent, HotbarContent, ImageContent, LogicGameContent,
     LogicGridContent, MapContent, PanZoomContent, PdfContent, PixelArtContent,
     PixelRayTracerContent, PresentationContent, Scene3dContent, TerminalContent, TextContent,
     TriangleContent, VideoContent, WorkspaceContent,

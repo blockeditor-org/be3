@@ -413,10 +413,11 @@ pub(super) struct Wanted {
 
 impl Wanted {
     fn content_type(&self, block: Uuid) -> Option<Uuid> {
-        self.open
-            .get(&block)
-            .copied()
-            .or_else(|| self.editing.get(&block).map(|(content_type, _)| *content_type))
+        self.open.get(&block).copied().or_else(|| {
+            self.editing
+                .get(&block)
+                .map(|(content_type, _)| *content_type)
+        })
     }
 
     fn wanted(&self, block: Uuid) -> bool {
@@ -721,7 +722,12 @@ async fn wait(
     let closed = std::pin::pin!(gone.changed());
     let uploaded = std::pin::pin!(uploads.next());
     let module = std::pin::pin!(replicas.woken());
-    match select(select(select(select(command, event), closed), uploaded), module).await {
+    match select(
+        select(select(select(command, event), closed), uploaded),
+        module,
+    )
+    .await
+    {
         Either::Right(_) => Woken::Module,
         Either::Left((Either::Right(_), _)) => Woken::Uploaded,
         Either::Left((Either::Left((woken, _)), _)) => match woken {
@@ -1279,7 +1285,7 @@ async fn apply(
             bytes,
             at,
         } => {
-            replicas.from_editor(block, editor, bytes, at);
+            replicas.relay_from_editor(block, editor, bytes, at);
             false
         }
         Command::ChangeChild {
@@ -1297,12 +1303,12 @@ async fn apply(
             false
         }
         Command::Operate(block, operation, at) => {
-            replicas.from_host(block, &FromEditor::Operate(operation), at);
+            replicas.send_as_host(block, &FromEditor::Operate(operation), at);
             false
         }
         #[cfg(test)]
         Command::Presence { block, kind, value } => {
-            replicas.from_host(
+            replicas.send_as_host(
                 block,
                 &FromEditor::ShowPresence { kind, value },
                 Instant::now(),
@@ -1316,7 +1322,7 @@ async fn apply(
             channel,
             payload,
         } => {
-            replicas.from_host(
+            replicas.send_as_host(
                 block,
                 &FromEditor::SendToPeers {
                     to,
@@ -1367,7 +1373,8 @@ async fn apply(
                     None
                 }),
             };
-            let bytes = bytes.or_else(|| super::types::kind_of(content_type).map(|kind| kind.blank));
+            let bytes =
+                bytes.or_else(|| super::types::kind_of(content_type).map(|kind| kind.blank));
             if let Some(bytes) = bytes
                 && let Err(error) =
                     publish_bytes(peer, replicas, shared, to, content_type, bytes, true).await
@@ -1387,9 +1394,7 @@ async fn apply(
                 .is_some_and(|status| status.unreadable.is_some());
             let outcome = match replicas.is_open(block) && !unreadable {
                 true => {
-                    replicas
-                        .change(ctx, block, Change::Replace(bytes))
-                        .await;
+                    replicas.change(ctx, block, Change::Replace(bytes)).await;
                     Ok(())
                 }
                 false => match peer
@@ -1581,7 +1586,10 @@ async fn publish_bytes(
     bytes: Vec<u8>,
     retry: bool,
 ) -> Result<(), ClientError> {
-    let Some(description) = replicas.describe((peer, shared), content_type, &bytes).await else {
+    let Some(description) = replicas
+        .describe((peer, shared), content_type, &bytes)
+        .await
+    else {
         return Ok(());
     };
     let mut expected = peer.remote_head(block).await?;

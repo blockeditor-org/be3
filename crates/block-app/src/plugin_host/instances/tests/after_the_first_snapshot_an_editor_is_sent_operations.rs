@@ -45,7 +45,11 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     assert!(operations(&sent).is_empty());
 
     let own = CounterContent::encode_operation(&Counter::add(2));
-    assert!(to_replica(&mut instances, block, &FromEditor::Operate(own.clone())));
+    assert!(to_replica(
+        &mut instances,
+        block,
+        &FromEditor::Operate(own.clone())
+    ));
     counted(block, 2);
     let sent = replica_sent_until(&mut instances, block, |sent| !operations(sent).is_empty());
     assert_eq!(

@@ -13,9 +13,7 @@ pub(crate) fn seed(seed: [u8; 32]) {
     GENERATOR.with(|held| *held.borrow_mut() = Some(ChaCha12Rng::from_seed(seed)));
 }
 
-/// # Safety
-///
-/// getrandom calls it with `len` writable bytes at `dest`.
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 unsafe extern "Rust" fn __getrandom_v03_custom(
     dest: *mut u8,
@@ -23,6 +21,7 @@ unsafe extern "Rust" fn __getrandom_v03_custom(
 ) -> Result<(), getrandom::Error> {
     GENERATOR.with(|held| match held.borrow_mut().as_mut() {
         Some(generator) => {
+            // unsafe(ffi)
             let dest = unsafe { std::slice::from_raw_parts_mut(dest, len) };
             generator.fill_bytes(dest);
             Ok(())

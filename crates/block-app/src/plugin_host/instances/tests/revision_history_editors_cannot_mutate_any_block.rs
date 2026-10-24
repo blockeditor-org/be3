@@ -8,7 +8,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
     harness.connect();
     let block = Uuid::new_v4();
     crate::be::hold(block, CounterContent::CONTENT_TYPE);
-    crate::be::operate(block, CounterContent::encode_operation(&be_block::Counter::add(1)),
+    crate::be::operate(
+        block,
+        CounterContent::encode_operation(&be_block::Counter::add(1)),
     );
     crate::be::flush();
     let head = crate::be::wait_for(std::time::Duration::from_secs(20), |shared| {
@@ -39,7 +41,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
         assert!(!to_replica(
             &mut instances,
             target,
-            &FromEditor::Operate(CounterContent::encode_operation(&be_block::Counter::add(99)))
+            &FromEditor::Operate(CounterContent::encode_operation(&be_block::Counter::add(
+                99
+            )))
         ));
         assert!(!instances.editor_message(EditorMessage::ReplaceContent {
             instance: INSTANCE,
@@ -63,7 +67,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
     }
     let child = Uuid::new_v4();
     crate::be::open(child, CounterContent::CONTENT_TYPE);
-    crate::be::operate(child, CounterContent::encode_operation(&be_block::Counter::add(7)),
+    crate::be::operate(
+        child,
+        CounterContent::encode_operation(&be_block::Counter::add(7)),
     );
     crate::be::flush();
     crate::be::close(child);
@@ -99,7 +105,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
     assert!(!to_replica(
         &mut nested,
         child,
-        &FromEditor::Operate(CounterContent::encode_operation(&be_block::Counter::add(99)))
+        &FromEditor::Operate(CounterContent::encode_operation(&be_block::Counter::add(
+            99
+        )))
     ));
     crate::be::flush();
     assert_eq!(crate::be::content(block).unwrap().bytes().to_vec(), before);

@@ -291,4 +291,3 @@ impl<S: ObjectStore> Vault<S> {
         self.store.has(hash)
     }
 }
-

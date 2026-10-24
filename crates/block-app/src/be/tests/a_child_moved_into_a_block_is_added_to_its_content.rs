@@ -22,7 +22,9 @@ fn a_child_moved_into_a_block_is_added_to_its_content() {
     harness.connect();
     let (block, first, second) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
 
-    wait_until("knew the block's type", |_| is_known(PresentationContent::CONTENT_TYPE));
+    wait_until("knew the block's type", |_| {
+        is_known(PresentationContent::CONTENT_TYPE)
+    });
     assert_eq!(
         change_child(
             block,

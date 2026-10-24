@@ -892,9 +892,6 @@ impl<S: ObjectStore> Peer<S> {
         .await
     }
 
-    /// A compare-and-swap of `expected` with encoded content. With `merging`
-    /// (the merge base and our side), our side becomes a second parent and
-    /// defined metadata is merged from the three; otherwise it is `expected`'s.
     #[allow(clippy::too_many_arguments)]
     pub async fn publish_encoded(
         &self,
@@ -935,8 +932,6 @@ impl<S: ObjectStore> Peer<S> {
         .await
     }
 
-    /// A commit of encoded content that moves no head, with `parent`'s
-    /// defined metadata.
     pub async fn stash_encoded(
         &self,
         block: Uuid,

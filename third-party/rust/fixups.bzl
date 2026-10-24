@@ -31,10 +31,6 @@ _ANDROID_API = {
 }
 
 FIXUPS = {
-    # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
-    # type-module library seeds a generator from its host and is getrandom's
-    # custom backend (crates/block-type-guest/src/entropy.rs).
-    "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", "getrandom_backend=\"custom\""]}},
     # The text-changed event, ported from Flutter, counts back from len() - 1
     # as a signed index and relies on an empty string's wrapping to -1. With
     # overflow checks, as in a debug build, that subtraction panics on a Java
@@ -76,6 +72,10 @@ FIXUPS = {
     "gdk-pixbuf-sys": _PKG_CONFIG,
     "gdk-sys": _PKG_CONFIG,
     "gdkx11-sys": _PKG_CONFIG,
+    # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
+    # type-module library seeds a generator from its host and is getrandom's
+    # custom backend (crates/block-type-guest/src/entropy.rs).
+    "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", 'getrandom_backend="custom"']}},
     "gio-sys": _PKG_CONFIG,
     "glib-sys": _PKG_CONFIG,
     "gobject-sys": _PKG_CONFIG,
