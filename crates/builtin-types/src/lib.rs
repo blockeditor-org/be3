@@ -1,9 +1,9 @@
 use be_block::{
-    CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, HotbarContent,
-};
-use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
     InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
+};
+use be_block::{
+    CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, HotbarContent,
 };
 use block_type_guest::{Registration, be_block_types};
 
