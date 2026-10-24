@@ -129,7 +129,12 @@ FIXUPS = {
     # itself, rather than through the import library windows_<arch>_msvc
     # vendors. That library is needed by every final link, and a build
     # script's link search path reaches only the compile of its own crate.
-    "windows-targets": {"rustc_flags": ["--cfg=windows_raw_dylib"]},
+    # Under that cfg 0.53 re-exports windows-link's macro, a dependency cargo
+    # adds only when it sees the cfg itself; the older versions ignore it.
+    "windows-targets": {
+        "deps": [":windows-link-0.2.1"],
+        "rustc_flags": ["--cfg=windows_raw_dylib"],
+    },
     # The snapshot lookup, which nothing here calls, starts from
     # env!("CARGO_MANIFEST_DIR"): an absolute path into the directory each
     # compile runs in. That made the -Zno-codegen metadata a dependent compiles
