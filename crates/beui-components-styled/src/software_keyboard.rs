@@ -1,7 +1,7 @@
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::software_keyboard::{
-    EMOJI_GROUPS, Face, KeyCapHandle, KeyboardHandle, Latch, Layer, Role, Slot, Value, emojis_in,
-    face,
+    EMOJI_GROUPS, Face, KeyCapHandle, KeyboardHandle, Latch, Layer, Preview, Role, Slot, Value,
+    composed_face, emojis_in, face,
 };
 use beui_core::geometry::Rect;
 use beui_core::icons;
@@ -11,28 +11,22 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+use crate::border::Separator;
 use crate::frame::{ColorRole, Frame, Radius};
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::SEPARATOR_THICKNESS;
 
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: f32 = 4.0;
 const GAP: f32 = 2.5;
-const KEY_SHARE: f32 = 0.8;
-const KEY_HEIGHT_MIN: f32 = 40.0;
-const KEY_HEIGHT_MAX: f32 = 56.0;
 const EMOJI_SIZE: f32 = 44.0;
-
-pub fn keyboard_height(width: f32) -> f32 {
-    let key = (width / 10.0 * KEY_SHARE).clamp(KEY_HEIGHT_MIN, KEY_HEIGHT_MAX);
-    BAR_HEIGHT + PADDING * 2.0 + key * unstyled::software_keyboard::layout::QWERTY.height()
-}
 
 pub fn keys_area(keyboard: Rect) -> Rect {
     let inner = keyboard.shrink(PADDING);
     Rect::from_min_max(
-        beui_core::geometry::pos2(inner.left(), inner.top() + BAR_HEIGHT),
+        beui_core::geometry::pos2(inner.left(), inner.top() + SEPARATOR_THICKNESS + BAR_HEIGHT),
         inner.max,
     )
 }
@@ -46,20 +40,27 @@ pub fn key_center(keyboard: Rect, layer: Layer, value: Value) -> Option<beui_cor
 #[component]
 pub fn SoftwareKeyboard() -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background padding=Sides::all(PADDING)>
-            <List spacing=0.0>
-                <KeyboardBar @sizing=ItemSize::Fixed(BAR_HEIGHT) />
-                <unstyled::SoftwareKeyboard
-                    @sizing=ItemSize::Percent(100.0)
-                    cap={|handle: KeyCapHandle| view! {
-                        <KeyCap handle />
-                    }}
-                    emoji={|keyboard: KeyboardHandle| view! {
-                        <EmojiPanel keyboard />
-                    }}
-                />
-            </List>
-        </Frame>
+        <List spacing=0.0>
+            <Separator />
+            <Frame
+                @sizing=ItemSize::Percent(100.0)
+                fill=ColorRole::Background
+                padding=Sides::all(PADDING)
+            >
+                <List spacing=0.0>
+                    <KeyboardBar @sizing=ItemSize::Fixed(BAR_HEIGHT) />
+                    <unstyled::SoftwareKeyboard
+                        @sizing=ItemSize::Percent(100.0)
+                        cap={|handle: KeyCapHandle| view! {
+                            <KeyCap handle />
+                        }}
+                        emoji={|keyboard: KeyboardHandle| view! {
+                            <EmojiPanel keyboard />
+                        }}
+                    />
+                </List>
+            </Frame>
+        </List>
     }
 }
 
@@ -79,9 +80,10 @@ fn KeyboardBar() -> NodeId {
     }
 }
 
-fn key_fill(pressed: bool, latch: Latch, active: bool, role: Role) -> ColorRole {
+fn key_fill(pressed: bool, latch: Latch, active: bool, faded: bool, role: Role) -> ColorRole {
     match (pressed, latch, active) {
         (true, _, _) => ColorRole::Pressed,
+        _ if faded => ColorRole::None,
         (_, Latch::Locked, _) => ColorRole::Accent,
         (_, Latch::Latched, _) | (_, _, true) => ColorRole::AccentSoft,
         _ if role == Role::Normal => ColorRole::SurfaceRaised,
@@ -93,16 +95,28 @@ fn key_fill(pressed: bool, latch: Latch, active: bool, role: Role) -> ColorRole 
 fn KeyCap(handle: KeyCapHandle) -> NodeId {
     let KeyCapHandle {
         def,
+        values,
+        previews,
         pressed,
         latch,
         active,
         ..
     } = handle;
+    let faded = create_memo(move || {
+        let values = values.get();
+        let previews = previews.get();
+        values.iter().any(Option::is_some)
+            && values
+                .iter()
+                .zip(previews)
+                .all(|(value, preview)| value.is_none() || preview == Preview::Faded)
+    });
     let fill = create_memo(move || {
         key_fill(
             pressed.with(Option::is_some),
             latch.get(),
             active.get(),
+            faded.get(),
             def.role,
         )
     });
@@ -169,17 +183,25 @@ fn KeyCap(handle: KeyCapHandle) -> NodeId {
 #[component]
 fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) -> NodeId {
     let KeyCapHandle {
-        values, pressed, ..
+        values,
+        previews,
+        pressed,
+        ..
     } = handle;
     let center = slot == Slot::Center;
     let shown = create_memo(move || values.get()[slot.index()]);
-    let label = create_memo(move || shown.get().map(face).unwrap_or_default());
+    let preview = create_memo(move || previews.get()[slot.index()]);
+    let label = create_memo(move || match preview.get() {
+        Preview::Becomes(text) => composed_face(text),
+        Preview::Same | Preview::Faded => shown.get().map(face).unwrap_or_default(),
+    });
     let glyph = create_memo(move || label.with(|face: &Face| face.glyph.to_owned()));
     let text = create_memo(move || label.with(|face: &Face| face.text.clone()));
     let after = create_memo(move || label.with(|face: &Face| face.after.clone()));
     let chosen =
         create_memo(move || !center && shown.get().is_some() && pressed.get() == Some(shown.get()));
     let color = create_memo(move || match (locked.get(), chosen.get(), center) {
+        _ if preview.get() == Preview::Faded => TextColor::Faint,
         (true, _, true) => TextColor::OnAccent,
         (_, true, _) => TextColor::Accent,
         (_, _, true) => TextColor::Default,

@@ -1,8 +1,10 @@
 use std::io::Read;
 use std::process::ExitCode;
 
+use be_block::BlockContent;
 use be_cli::cli::{self, Outcome, USAGE};
-use be_cli::session::{Settings, connect};
+use be_cli::session::{Settings, connect, connect_live};
+use be_cli::terminal_host::{Host, HostOptions};
 use be_cli::tracker::Tracker;
 
 #[tokio::main]
@@ -34,10 +36,38 @@ async fn run() -> Result<String, String> {
     }
     build_id::current()?;
     let settings = Settings::from_env()?;
+    if invocation.verb == "terminal-host"
+        && let Some(target) = &invocation.target
+    {
+        return host_terminal(&settings, target, &invocation.options.command).await;
+    }
     let tracker = Tracker::new(connect(&settings).await?);
     let (block, label, base) = match cli::run(&tracker, &invocation).await? {
         Outcome::Print(text) => return Ok(text),
         Outcome::Edit { block, label, base } => (block, label, base),
+        Outcome::Watch {
+            root,
+            directory,
+            every,
+        } => {
+            let stop = async {
+                let _ = tokio::signal::ctrl_c().await;
+            };
+            be_sync::watch::watch(
+                tracker.peer(),
+                &directory,
+                &be_sync::Target { root },
+                every,
+                stop,
+                |passed| match passed {
+                    Ok(report) if report.changed() || report.retry => println!("{report}"),
+                    Ok(_) => {}
+                    Err(error) => eprintln!("be: {error}"),
+                },
+            )
+            .await?;
+            return Ok(String::new());
+        }
     };
     let directory = private_directory()?;
     let path = directory.join(format!("{}.md", block.simple()));
@@ -80,4 +110,25 @@ fn private_directory() -> Result<std::path::PathBuf, String> {
         .create(&path)
         .map_err(|error| format!("could not make {}: {error}", path.display()))?;
     Ok(path)
+}
+
+async fn host_terminal(
+    settings: &Settings,
+    target: &str,
+    command: &[String],
+) -> Result<String, String> {
+    let mut host = Host::new(HostOptions::here(command.to_vec()))?;
+    let connect = async || {
+        let tracker = Tracker::new(connect_live(settings).await?);
+        let entry = tracker.resolve(target).await?;
+        if entry.block_type != be_block::TerminalContent::CONTENT_TYPE {
+            return Err(format!("{} is not a terminal block", entry.label()));
+        }
+        Ok((tracker.shared_peer(), entry.id))
+    };
+    let stopped = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    host.run(connect, stopped).await?;
+    Ok(String::new())
 }

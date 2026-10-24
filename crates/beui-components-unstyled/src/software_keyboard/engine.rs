@@ -298,6 +298,10 @@ impl Engine {
         self.compose.is_some()
     }
 
+    pub fn sequence(&self) -> Option<&str> {
+        self.compose.as_deref()
+    }
+
     pub fn set_key_size(&mut self, size: Vec2) {
         let side = size.x.min(size.y).max(1.0);
         self.swipe = side * SWIPE_SHARE;

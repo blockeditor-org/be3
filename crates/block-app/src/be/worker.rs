@@ -79,6 +79,12 @@ pub(super) enum Command {
         kind: Uuid,
         value: Option<Vec<u8>>,
     },
+    SendToPeers {
+        block: Uuid,
+        to: Option<u64>,
+        channel: Uuid,
+        payload: Vec<u8>,
+    },
     Create {
         block: Uuid,
         content_type: Uuid,
@@ -160,6 +166,7 @@ impl Command {
             | Command::History { block, .. }
             | Command::Gesture { block, .. }
             | Command::Presence { block, .. }
+            | Command::SendToPeers { block, .. }
             | Command::Create { block, .. }
             | Command::SetParent { block, .. }
             | Command::Define { block, .. }
@@ -246,6 +253,8 @@ pub(crate) struct PairingRequest {
 
 const PAIRING_REQUEST_LIMIT: usize = 4;
 
+const PEER_MESSAGE_LIMIT: usize = 4096;
+
 #[derive(Default)]
 pub(crate) struct Shared {
     pub(crate) revision_previews: HashMap<Uuid, super::revisions::Preview>,
@@ -256,6 +265,8 @@ pub(crate) struct Shared {
     pub(crate) histories: HashMap<Uuid, History>,
     pub(crate) presence: HashMap<Uuid, (u64, Vec<Presence>)>,
     pub(crate) presence_revision: u64,
+    pub(crate) peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
+    pub(crate) peer_message_count: u64,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
     pub(crate) owing: usize,
@@ -412,6 +423,15 @@ pub(super) trait Session {
 
     fn take_presence(&mut self) -> Option<Vec<Presence>>;
 
+    fn send_to_peers(
+        &mut self,
+        to: Option<u64>,
+        channel: Uuid,
+        payload: Vec<u8>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn take_peer_messages(&mut self) -> Vec<PeerMessage>;
+
     fn take_conflicts(&mut self) -> Vec<Conflict>;
 
     fn published_elsewhere(
@@ -436,6 +456,27 @@ pub(super) trait Session {
         let _ = (origin, phase);
         Box::pin(async { Ok(()) })
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PeerMessage {
+    pub(crate) from: u64,
+    pub(crate) channel: Uuid,
+    pub(crate) payload: Vec<u8>,
+}
+
+fn take_peer_messages<C>(live: &mut Live<Store, C>) -> Vec<PeerMessage>
+where
+    C: LiveEdit + Clone + Default,
+{
+    live.take_channel()
+        .into_iter()
+        .map(|message| PeerMessage {
+            from: message.from,
+            channel: message.channel,
+            payload: message.payload,
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -593,6 +634,19 @@ where
 
     fn take_presence(&mut self) -> Option<Vec<Presence>> {
         take_presence(&mut self.live)
+    }
+
+    fn send_to_peers(
+        &mut self,
+        to: Option<u64>,
+        channel: Uuid,
+        payload: Vec<u8>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.send_channel(to, channel, payload).await })
+    }
+
+    fn take_peer_messages(&mut self) -> Vec<PeerMessage> {
+        take_peer_messages(&mut self.live)
     }
 
     fn take_conflicts(&mut self) -> Vec<Conflict> {
@@ -774,6 +828,19 @@ where
 
     fn take_presence(&mut self) -> Option<Vec<Presence>> {
         take_presence(&mut self.live)
+    }
+
+    fn send_to_peers(
+        &mut self,
+        to: Option<u64>,
+        channel: Uuid,
+        payload: Vec<u8>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.send_channel(to, channel, payload).await })
+    }
+
+    fn take_peer_messages(&mut self) -> Vec<PeerMessage> {
+        take_peer_messages(&mut self.live)
     }
 
     fn take_conflicts(&mut self) -> Vec<Conflict> {
@@ -1237,11 +1304,11 @@ impl Ran<'_> {
                 false
             }
             Command::CreateAgent { name, reply } => {
-                reply(
-                    create_agent(self.peer, self.config, name)
-                        .await
-                        .map_err(|error| error.to_string()),
-                );
+                let created = create_agent(self.peer, self.config, name).await;
+                if created.is_ok() {
+                    sync_contacts(self.peer, self.shared).await;
+                }
+                reply(created.map_err(|error| error.to_string()));
                 crate::host::wake();
                 false
             }
@@ -1842,6 +1909,7 @@ async fn apply(
             held.previewed.remove(&block);
             held.histories.remove(&block);
             held.presence.remove(&block);
+            held.peer_messages.remove(&block);
             held.touch(block);
             true
         }
@@ -1926,6 +1994,20 @@ async fn apply(
                 return false;
             };
             if let Err(error) = session.show(kind, value).await {
+                record(shared, error);
+            }
+            false
+        }
+        Command::SendToPeers {
+            block,
+            to,
+            channel,
+            payload,
+        } => {
+            let Some(session) = sessions.get_mut(&block) else {
+                return false;
+            };
+            if let Err(error) = session.send_to_peers(to, channel, payload).await {
                 record(shared, error);
             }
             false
@@ -2416,6 +2498,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 block: *block,
                 history: session.history(),
                 presence: session.take_presence(),
+                peer_messages: session.take_peer_messages(),
                 conflicts: session.take_conflicts(),
                 head: session.head(),
                 log,
@@ -2438,6 +2521,19 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             held.presence_revision += 1;
             let revision = held.presence_revision;
             held.presence.insert(block, (revision, presence));
+            held.touch(block);
+            changed = true;
+        }
+        if !published.peer_messages.is_empty() {
+            for message in published.peer_messages {
+                held.peer_message_count += 1;
+                let sequence = held.peer_message_count;
+                let queue = held.peer_messages.entry(block).or_default();
+                queue.push_back((sequence, message));
+                if queue.len() > PEER_MESSAGE_LIMIT {
+                    queue.pop_front();
+                }
+            }
             held.touch(block);
             changed = true;
         }
@@ -2501,6 +2597,7 @@ struct Published {
     block: Uuid,
     history: History,
     presence: Option<Vec<Presence>>,
+    peer_messages: Vec<PeerMessage>,
     conflicts: Vec<Conflict>,
     head: Option<CommitId>,
     log: Vec<Logged>,

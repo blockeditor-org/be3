@@ -7,10 +7,9 @@ use crate::input::{Event, ImeArea, InputState, Keyboard, PointerId, PointerPhase
 use crate::screens::{self, Screen};
 
 pub const MAX_SHARE: f32 = 0.5;
+pub const DEFAULT_SHARE: f32 = 0.35;
 
 pub trait KeyboardHost: Any {
-    fn height(&mut self, width: f32) -> f32;
-
     fn show(&mut self, ctx: &Context, rect: Rect);
 
     fn closed(&mut self) {}
@@ -27,6 +26,7 @@ pub enum Opened {
 pub(crate) struct KeyboardState {
     enabled: bool,
     attached: bool,
+    share: f32,
     opened: Opened,
     toggles: u32,
     applied_toggles: u32,
@@ -44,6 +44,7 @@ impl Default for KeyboardState {
         Self {
             enabled: false,
             attached: true,
+            share: DEFAULT_SHARE,
             opened: Opened::Closed,
             toggles: 0,
             applied_toggles: 0,
@@ -73,6 +74,18 @@ impl KeyboardState {
 
     pub(crate) fn set_attached(&mut self, attached: bool) {
         self.attached = attached;
+    }
+
+    pub(crate) fn share(&self) -> f32 {
+        self.share
+    }
+
+    pub(crate) fn set_share(&mut self, share: f32) -> bool {
+        let share = match share.is_finite() && share > 0.0 {
+            true => share.min(MAX_SHARE),
+            false => DEFAULT_SHARE,
+        };
+        std::mem::replace(&mut self.share, share) != share
     }
 
     pub(crate) fn opened(&self) -> Opened {
@@ -138,7 +151,7 @@ impl KeyboardState {
         if self.opened == Opened::Closed || !self.enabled {
             return None;
         }
-        let host = host?;
+        host?;
         let shown = screens::shown_in(&ctx.screens(), rect);
         let target = self
             .area
@@ -146,10 +159,7 @@ impl KeyboardState {
             .and_then(|area| screens::under(&shown, area.rect))
             .or_else(|| shown.first())
             .map_or(rect, |screen| screen.rect);
-        let height = host
-            .height(target.width())
-            .min(target.height() * MAX_SHARE)
-            .max(0.0);
+        let height = target.height() * self.share;
         let keyboard =
             Rect::from_min_max(pos2(target.left(), target.bottom() - height), target.max);
         let content = match target == rect {

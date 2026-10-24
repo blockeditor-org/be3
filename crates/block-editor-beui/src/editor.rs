@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use be_block::presence::PresenceKind;
+use be_block::presence::{ChannelKind, PresenceKind};
 use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
@@ -1031,6 +1031,39 @@ impl Editor {
             peers.set(decoded);
         });
         peers.read_only()
+    }
+
+    pub fn send_to_peers<M: ChannelKind>(&self, to: Option<u64>, message: &M) {
+        self.state()
+            .host
+            .send_to_peers(None, to, M::ID, message.encode());
+    }
+
+    pub fn on_peer_message<M>(&self, receive: impl Fn(u64, M) + 'static)
+    where
+        M: ChannelKind + 'static,
+    {
+        let host = self.state().host.clone();
+        let revision = self.pushed(Pushed::PeerMessages);
+        let seen = Cell::new(host.peer_messages_seen());
+        create_effect(move || {
+            revision.get();
+            let received = host.peer_messages_since(None, seen.get());
+            let Some((last, _)) = received.last() else {
+                return;
+            };
+            seen.set(*last);
+            untrack(|| {
+                for (_, message) in received {
+                    if message.channel != M::ID {
+                        continue;
+                    }
+                    if let Some(decoded) = M::decode(&message.payload) {
+                        receive(message.from, decoded);
+                    }
+                }
+            });
+        });
     }
 
     pub fn presence_visible(&self) -> ReadSignal<bool> {

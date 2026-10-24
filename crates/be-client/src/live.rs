@@ -64,6 +64,13 @@ impl<Op> Journaled<Op> {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChannelMessage {
+    pub from: ClientId,
+    pub channel: Uuid,
+    pub payload: Vec<u8>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Conflict {
     pub ours: CommitId,
@@ -97,6 +104,7 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
     shown: BTreeMap<Uuid, Vec<u8>>,
     presence_changed: bool,
+    channel: Vec<ChannelMessage>,
     moved: bool,
     conflicts: Vec<Conflict>,
     incompatible: bool,
@@ -139,6 +147,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             presence: BTreeMap::new(),
             shown: BTreeMap::new(),
             presence_changed: false,
+            channel: Vec::new(),
             moved: false,
             conflicts: Vec::new(),
             incompatible: false,
@@ -235,6 +244,20 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         };
         self.broadcast(&SessionMessage::Presence { kind, value })
             .await
+    }
+
+    pub async fn send_channel(
+        &self,
+        to: Option<ClientId>,
+        channel: Uuid,
+        payload: Vec<u8>,
+    ) -> Result<(), ClientError> {
+        self.send(to, &SessionMessage::Channel { channel, payload })
+            .await
+    }
+
+    pub fn take_channel(&mut self) -> Vec<ChannelMessage> {
+        std::mem::take(&mut self.channel)
     }
 
     async fn show_presence_to(&self, client: ClientId) -> Result<(), ClientError> {
@@ -536,6 +559,16 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     None => self.presence.remove(&(from, kind)).is_some(),
                 };
                 self.presence_changed |= changed;
+                Ok(())
+            }
+            SessionMessage::Channel { channel, payload } => {
+                if from != self.client {
+                    self.channel.push(ChannelMessage {
+                        from,
+                        channel,
+                        payload,
+                    });
+                }
                 Ok(())
             }
             SessionMessage::Sealed {
