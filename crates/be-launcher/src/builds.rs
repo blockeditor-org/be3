@@ -1,12 +1,15 @@
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub(crate) const STORE: &str = "https://be3-ci.b-cdn.net/android";
+use crate::helper::{self, Manifest};
+use crate::net::Http;
+
 const PART: &str = "part";
+const FILES: &str = "files";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) enum Slot {
@@ -14,52 +17,11 @@ pub(crate) enum Slot {
     Main,
 }
 
-impl Slot {
-    pub(crate) fn name(self) -> String {
-        match self {
-            Slot::PullRequest(number) => format!("pr-{number}"),
-            Slot::Main => "main".to_owned(),
-        }
-    }
-
-    pub(crate) fn manifest_url(self) -> String {
-        format!("{STORE}/{}/build.json", self.name())
-    }
-
-    pub(crate) fn object_url(self, hash: &str) -> String {
-        format!("{STORE}/{}/{hash}.apk", self.name())
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Object {
-    pub(crate) hash: String,
-    pub(crate) size: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Build {
-    pub(crate) commit: String,
-    pub(crate) app: Object,
-    pub(crate) launcher: Object,
-}
-
-impl Build {
-    pub(crate) fn parse(document: &[u8]) -> Result<Self, String> {
-        serde_json::from_slice(document)
-            .map_err(|error| format!("be3-ci described the build as {error}"))
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Installed {
     pub(crate) slot: Slot,
     pub(crate) commit: String,
-    pub(crate) hash: String,
-}
-
-pub(crate) trait Fetch {
-    fn fetch(&mut self, url: &str, into: &mut dyn Write) -> Result<(), String>;
+    pub(crate) product: String,
 }
 
 pub(crate) fn installed(record: &Path) -> Option<Installed> {
@@ -71,35 +33,58 @@ pub(crate) fn remember(record: &Path, installed: Option<&Installed>) -> Result<(
     match installed {
         Some(installed) => {
             let document = serde_json::to_vec(installed).map_err(|error| error.to_string())?;
+            if let Some(parent) = record.parent() {
+                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
             fs::write(record, document).map_err(|error| error.to_string())
         }
         None => remove(record),
     }
 }
 
-pub(crate) fn fetch_apk(
-    path: &Path,
-    slot: Slot,
-    object: &Object,
-    fetch: &mut dyn Fetch,
+pub(crate) fn cached(cache: &Path, sha256: &str) -> PathBuf {
+    cache.join(FILES).join(sha256)
+}
+
+pub(crate) fn missing(cache: &Path, manifest: &Manifest) -> u64 {
+    manifest
+        .files
+        .iter()
+        .filter(|file| !cached(cache, &file.sha256).exists())
+        .map(|file| file.size)
+        .sum()
+}
+
+pub(crate) fn fetch(
+    cache: &Path,
+    manifest: &Manifest,
+    http: &mut dyn Http,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<(), String> {
-    if hash_file(path).as_deref() != Some(object.hash.as_str()) {
-        let mut report = |written: u64| progress(written, object.size);
+    let total = missing(cache, manifest);
+    let mut done = 0;
+    for file in &manifest.files {
+        let target = cached(cache, &file.sha256);
+        if target.exists() {
+            continue;
+        }
+        let before = done;
+        let mut report = |written: u64| progress(before + written, total);
         download(
-            fetch,
-            &slot.object_url(&object.hash),
-            &object.hash,
-            path,
+            http,
+            &helper::file_url(&file.sha256),
+            &file.sha256,
+            &target,
             &mut report,
         )?;
+        done += file.size;
     }
-    progress(object.size, object.size);
+    progress(total, total);
     Ok(())
 }
 
 fn download(
-    fetch: &mut dyn Fetch,
+    http: &mut dyn Http,
     url: &str,
     hash: &str,
     target: &Path,
@@ -120,9 +105,14 @@ fn download(
         written: 0,
         progress,
     };
-    let fetched = fetch.fetch(url, &mut hashing);
+    let fetched = http.send("GET", url, &[], &mut hashing);
     let Hashing { file, hasher, .. } = hashing;
-    if let Err(error) = fetched {
+    let failure = match fetched {
+        Err(error) => Some(error),
+        Ok(200) => None,
+        Ok(code) => Some(format!("{url} answered {code}")),
+    };
+    if let Some(error) = failure {
         drop(file);
         let _ = fs::remove_file(&part);
         return Err(error);
@@ -160,6 +150,61 @@ impl Write for Hashing<'_> {
     }
 }
 
+#[cfg(not(target_os = "android"))]
+pub(crate) fn assemble(cache: &Path, manifest: &Manifest, into: &Path) -> Result<(), String> {
+    let mut staging = into.as_os_str().to_owned();
+    staging.push(".");
+    staging.push(PART);
+    let staging = PathBuf::from(staging);
+    let _ = fs::remove_dir_all(&staging);
+    for file in &manifest.files {
+        let target = staging.join(&file.path);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        let source = cached(cache, &file.sha256);
+        if fs::hard_link(&source, &target).is_err() {
+            fs::copy(&source, &target).map_err(|error| format!("{}: {error}", target.display()))?;
+        }
+        if file.executable {
+            executable(&target)?;
+        }
+    }
+    let _ = fs::remove_dir_all(into);
+    fs::rename(&staging, into).map_err(|error| format!("{}: {error}", into.display()))
+}
+
+#[cfg(all(unix, not(target_os = "android")))]
+fn executable(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let mut permissions = fs::metadata(path)
+        .map_err(|error| error.to_string())?
+        .permissions();
+    permissions.set_mode(permissions.mode() | 0o111);
+    fs::set_permissions(path, permissions).map_err(|error| error.to_string())
+}
+
+#[cfg(not(unix))]
+fn executable(_: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+pub(crate) fn forget_unused(cache: &Path, kept: &[&Manifest]) {
+    let used: std::collections::HashSet<&str> = kept
+        .iter()
+        .flat_map(|manifest| manifest.files.iter().map(|file| file.sha256.as_str()))
+        .collect();
+    let Ok(entries) = fs::read_dir(cache.join(FILES)) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        if !used.contains(name.to_string_lossy().as_ref()) {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
 fn remove(path: &Path) -> Result<(), String> {
     match fs::remove_file(path) {
         Err(error) if error.kind() != io::ErrorKind::NotFound => {
@@ -167,20 +212,6 @@ fn remove(path: &Path) -> Result<(), String> {
         }
         _ => Ok(()),
     }
-}
-
-pub(crate) fn hash_file(path: &Path) -> Option<String> {
-    let mut file = File::open(path).ok()?;
-    let mut hasher = Sha256::new();
-    let mut buffer = vec![0; 1 << 16];
-    loop {
-        let read = file.read(&mut buffer).ok()?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    Some(hex(&hasher.finalize()))
 }
 
 fn hex(bytes: &[u8]) -> String {

@@ -2032,6 +2032,7 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/beui:beui",
+                        "//crates/ghostty-vt:ghostty-vt",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jni-0.22.4",
@@ -2044,6 +2045,7 @@ crates = {
                 },
                 "deps": [
                     "//crates/beui:beui",
+                    "//crates/ghostty-vt:ghostty-vt",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jni-0.22.4",
@@ -2067,7 +2069,6 @@ crates = {
                         "//crates/ghostty-vt:ghostty-vt",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -2078,7 +2079,6 @@ crates = {
                     "//crates/ghostty-vt:ghostty-vt",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -2097,7 +2097,6 @@ crates = {
                         "//crates/ghostty-vt:ghostty-vt",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -2108,7 +2107,6 @@ crates = {
                     "//crates/ghostty-vt:ghostty-vt",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -2127,7 +2125,6 @@ crates = {
                         "//crates/ghostty-vt:ghostty-vt",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -2138,7 +2135,6 @@ crates = {
                     "//crates/ghostty-vt:ghostty-vt",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -2157,7 +2153,6 @@ crates = {
                         "//crates/ghostty-vt:ghostty-vt",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -2168,7 +2163,6 @@ crates = {
                     "//crates/ghostty-vt:ghostty-vt",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -2187,7 +2181,6 @@ crates = {
                         "//crates/ghostty-vt:ghostty-vt",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -2198,7 +2191,6 @@ crates = {
                     "//crates/ghostty-vt:ghostty-vt",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -2217,7 +2209,6 @@ crates = {
                         "//crates/ghostty-vt:ghostty-vt",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -2228,7 +2219,6 @@ crates = {
                     "//crates/ghostty-vt:ghostty-vt",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -17350,7 +17340,6 @@ third_party = {
             },
             "linux-arm64": {
                 "features": [
-                    "default",
                     "std",
                 ],
             },
@@ -17362,25 +17351,21 @@ third_party = {
             },
             "macos-arm64": {
                 "features": [
-                    "default",
                     "std",
                 ],
             },
             "macos-x86_64": {
                 "features": [
-                    "default",
                     "std",
                 ],
             },
             "windows-arm64": {
                 "features": [
-                    "default",
                     "std",
                 ],
             },
             "windows-x86_64": {
                 "features": [
-                    "default",
                     "std",
                 ],
             },
@@ -21593,33 +21578,6 @@ third_party = {
         "sha256": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801",
         "size_bytes": 9360,
         "version": "1.0.4",
-    },
-    "cfg_aliases-0.1.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Zicklag <zicklag@katharostech.com>",
-            "CARGO_PKG_DESCRIPTION": "A tiny utility to help save you a lot of effort with long winded `#[cfg()]` checks.",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/katharostech/cfg_aliases",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/katharostech/cfg_aliases",
-        },
-        "library": {
-            "crate": "cfg_aliases",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "cfg_aliases",
-        "platforms": {
-            "linux-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e",
-        "size_bytes": 6009,
-        "version": "0.1.1",
     },
     "cfg_aliases-0.2.2": {
         "build_script": None,
@@ -29603,69 +29561,6 @@ third_party = {
         "sha256": "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c",
         "size_bytes": 27188,
         "version": "0.3.7",
-    },
-    "filedescriptor-0.8.3": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Wez Furlong",
-            "CARGO_PKG_DESCRIPTION": "More ergonomic wrappers around RawFd and RawHandle",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/wezterm/wezterm",
-        },
-        "library": {
-            "crate": "filedescriptor",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "filedescriptor",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":thiserror-1.0.69",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":thiserror-1.0.69",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":thiserror-1.0.69",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":thiserror-1.0.69",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":thiserror-1.0.69",
-                    ":winapi-0.3.9",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":thiserror-1.0.69",
-                    ":winapi-0.3.9",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "e40758ed24c9b2eeb76c35fb0aebc66c626084edd827e07e1552279814c6682d",
-        "size_bytes": 12635,
-        "version": "0.8.3",
     },
     "find-msvc-tools-0.1.9": {
         "build_script": None,
@@ -38481,14 +38376,12 @@ third_party = {
             "linux-arm64": {
                 "features": [
                     "default",
-                    "extra_traits",
                     "std",
                 ],
             },
             "linux-x86_64": {
                 "features": [
                     "default",
-                    "extra_traits",
                     "std",
                 ],
             },
@@ -38521,14 +38414,12 @@ third_party = {
             "windows-arm64": {
                 "features": [
                     "default",
-                    "extra_traits",
                     "std",
                 ],
             },
             "windows-x86_64": {
                 "features": [
                     "default",
-                    "extra_traits",
                     "std",
                 ],
             },
@@ -41142,110 +41033,6 @@ third_party = {
         "sha256": "ee6cda3051665f1fb8d9e08fc35c96d5a244fb1be711a03b71118828afc9a873",
         "size_bytes": 329984,
         "version": "0.6.0+11769913",
-    },
-    "nix-0.28.0": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cfg_aliases-0.1.1",
-            ],
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The nix-rust Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Rust friendly bindings to *nix APIs",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/nix-rust/nix",
-            "CARGO_PKG_RUST_VERSION": "1.69",
-        },
-        "library": {
-            "crate": "nix",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "nix",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "fs",
-                    "term",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "fs",
-                    "term",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "fs",
-                    "term",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "fs",
-                    "term",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "fs",
-                    "term",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "fs",
-                    "term",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4",
-        "size_bytes": 311086,
-        "version": "0.28.0",
     },
     "nom-7.1.3": {
         "build_script": None,
@@ -46275,130 +46062,6 @@ third_party = {
         "sha256": "f0fa31d631f2b2cb2a544d0aa321ce847a94764d701ca2becc411138b93d49cd",
         "size_bytes": 26284,
         "version": "0.7.3",
-    },
-    "portable-pty-0.9.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Wez Furlong",
-            "CARGO_PKG_DESCRIPTION": "Cross platform pty interface",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_REPOSITORY": "https://github.com/wezterm/wezterm",
-        },
-        "library": {
-            "crate": "portable_pty",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "portable-pty",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":downcast-rs-1.2.1",
-                    ":filedescriptor-0.8.3",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":nix-0.28.0",
-                    ":serial2-0.2.38",
-                    ":shell-words-1.1.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":downcast-rs-1.2.1",
-                    ":filedescriptor-0.8.3",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":nix-0.28.0",
-                    ":serial2-0.2.38",
-                    ":shell-words-1.1.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":downcast-rs-1.2.1",
-                    ":filedescriptor-0.8.3",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":nix-0.28.0",
-                    ":serial2-0.2.38",
-                    ":shell-words-1.1.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":downcast-rs-1.2.1",
-                    ":filedescriptor-0.8.3",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":nix-0.28.0",
-                    ":serial2-0.2.38",
-                    ":shell-words-1.1.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":bitflags-1.3.2",
-                    ":downcast-rs-1.2.1",
-                    ":filedescriptor-0.8.3",
-                    ":lazy_static-1.5.0",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":nix-0.28.0",
-                    ":serial2-0.2.38",
-                    ":shared_library-0.1.9",
-                    ":shell-words-1.1.1",
-                    ":winapi-0.3.9",
-                    ":winreg-0.10.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":bitflags-1.3.2",
-                    ":downcast-rs-1.2.1",
-                    ":filedescriptor-0.8.3",
-                    ":lazy_static-1.5.0",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":nix-0.28.0",
-                    ":serial2-0.2.38",
-                    ":shared_library-0.1.9",
-                    ":shell-words-1.1.1",
-                    ":winapi-0.3.9",
-                    ":winreg-0.10.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "b4a596a2b3d2752d94f51fac2d4a96737b8705dddd311a32b9af47211f08671e",
-        "size_bytes": 29466,
-        "version": "0.9.0",
     },
     "postcard-1.1.3": {
         "build_script": None,
@@ -53608,65 +53271,6 @@ third_party = {
         "size_bytes": 11025,
         "version": "1.1.1",
     },
-    "serial2-0.2.38": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "Cross platform serial ports",
-            "CARGO_PKG_LICENSE": "BSD-2-Clause OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/de-vri-es/serial2-rs",
-            "CARGO_PKG_RUST_VERSION": "1.63",
-        },
-        "library": {
-            "crate": "serial2",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "serial2",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                    ":libc-0.2.186",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":windows-sys-0.61.2",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":windows-sys-0.61.2",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "b16809bc35793b19ce4e0c53924bc0dce3937f15487997cfdaed936004180730",
-        "size_bytes": 36487,
-        "version": "0.2.38",
-    },
     "sha1-0.10.6": {
         "build_script": None,
         "env": {
@@ -54195,103 +53799,6 @@ third_party = {
         "sha256": "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6",
         "size_bytes": 58227,
         "version": "0.1.7",
-    },
-    "shared_library-0.1.9": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Pierre Krieger <pierre.krieger1708@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Easily bind to and load shared libraries",
-            "CARGO_PKG_LICENSE": "Apache-2.0/MIT",
-            "CARGO_PKG_REPOSITORY": "https://github.com/tomaka/shared_library/",
-        },
-        "library": {
-            "crate": "shared_library",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "shared_library",
-        "platforms": {
-            "windows-arm64": {
-                "deps": [
-                    ":lazy_static-1.5.0",
-                    ":libc-0.2.186",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":lazy_static-1.5.0",
-                    ":libc-0.2.186",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "5a9e7e0f2bfae24d8a5b5a66c5b257a83c7412304311512a0c054cd5e619da11",
-        "size_bytes": 10566,
-        "version": "0.1.9",
-    },
-    "shell-words-1.1.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Tomasz Miąsko <tomasz.miasko@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Process command line according to parsing rules of UNIX shell",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/tmiasko/shell-words",
-        },
-        "library": {
-            "crate": "shell_words",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "shell-words",
-        "platforms": {
-            "linux-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77",
-        "size_bytes": 10012,
-        "version": "1.1.1",
     },
     "shlex-1.3.0": {
         "build_script": None,
@@ -69699,52 +69206,20 @@ third_party = {
         "platforms": {
             "windows-arm64": {
                 "features": [
-                    "consoleapi",
-                    "fileapi",
-                    "handleapi",
-                    "impl-debug",
-                    "impl-default",
                     "knownfolders",
-                    "minwinbase",
-                    "minwindef",
-                    "namedpipeapi",
                     "objbase",
-                    "processenv",
-                    "processthreadsapi",
                     "shlobj",
-                    "synchapi",
-                    "timezoneapi",
                     "winbase",
                     "winerror",
-                    "winnt",
-                    "winreg",
-                    "winsock2",
-                    "winuser",
                 ],
             },
             "windows-x86_64": {
                 "features": [
-                    "consoleapi",
-                    "fileapi",
-                    "handleapi",
-                    "impl-debug",
-                    "impl-default",
                     "knownfolders",
-                    "minwinbase",
-                    "minwindef",
-                    "namedpipeapi",
                     "objbase",
-                    "processenv",
-                    "processthreadsapi",
                     "shlobj",
-                    "synchapi",
-                    "timezoneapi",
                     "winbase",
                     "winerror",
-                    "winnt",
-                    "winreg",
-                    "winsock2",
-                    "winuser",
                 ],
             },
         },
@@ -70647,7 +70122,6 @@ third_party = {
                     "Wdk_System_IO",
                     "Win32",
                     "Win32_Devices",
-                    "Win32_Devices_Communication",
                     "Win32_Devices_HumanInterfaceDevice",
                     "Win32_Foundation",
                     "Win32_Globalization",
@@ -70674,7 +70148,6 @@ third_party = {
                     "Win32_System_Ole",
                     "Win32_System_Performance",
                     "Win32_System_Pipes",
-                    "Win32_System_Registry",
                     "Win32_System_SystemInformation",
                     "Win32_System_SystemServices",
                     "Win32_System_Threading",
@@ -70707,7 +70180,6 @@ third_party = {
                     "Wdk_System_IO",
                     "Win32",
                     "Win32_Devices",
-                    "Win32_Devices_Communication",
                     "Win32_Devices_HumanInterfaceDevice",
                     "Win32_Foundation",
                     "Win32_Globalization",
@@ -70734,7 +70206,6 @@ third_party = {
                     "Win32_System_Ole",
                     "Win32_System_Performance",
                     "Win32_System_Pipes",
-                    "Win32_System_Registry",
                     "Win32_System_SystemInformation",
                     "Win32_System_SystemServices",
                     "Win32_System_Threading",
@@ -71802,44 +71273,6 @@ third_party = {
         "sha256": "0592e1c9d151f854e6fd382574c3a0855250e1d9b2f99d9281c6e6391af352f1",
         "size_bytes": 187990,
         "version": "1.0.3",
-    },
-    "winreg-0.10.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2015",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Igor Shaula <gentoo90@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Rust bindings to MS Windows Registry API",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/gentoo90/winreg-rs",
-        },
-        "library": {
-            "crate": "winreg",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "winreg",
-        "platforms": {
-            "windows-arm64": {
-                "deps": [
-                    ":winapi-0.3.9",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":winapi-0.3.9",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d",
-        "size_bytes": 25725,
-        "version": "0.10.1",
     },
     "winx-0.36.4": {
         "build_script": None,

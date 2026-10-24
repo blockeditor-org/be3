@@ -5,15 +5,12 @@ use beui::styled::*;
 use beui::unstyled;
 use beui::unstyled::Picture;
 
+use crate::actions::{Actions, Notes};
 use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone};
 use crate::markdown::Block;
 use crate::model::{Loaded, Model};
-#[cfg(target_os = "android")]
-use crate::phone::{Actions, Notes};
 use crate::time::{now, relative};
 use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
-#[cfg(not(target_os = "android"))]
-use crate::workspace::{Actions, Notes};
 use beui::TextAlign;
 
 const SPACING: f32 = 12.0;

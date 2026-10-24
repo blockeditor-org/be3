@@ -14,7 +14,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 |---|---|
 | `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
 | `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
-| `./scripts/ci` | what CI runs: `./scripts/verify`, and `--android DIR` the signed APKs, `--previews BASE OUT` the paint previews |
+| `./scripts/ci` | what CI runs: `./scripts/verify`, and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below) |
 | `./scripts/test //crates/editors/checklist:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
@@ -23,7 +23,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's unsigned template; `./scripts/ci --android DIR` signs on the runner) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
 | `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:example-survey` | a crate example; every example is `example-<name>` |
 | `./scripts/buck run -m release //crates/beui:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
@@ -287,9 +287,10 @@ turns.
 | `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
-All of them build on the same Linux workers. CI builds and ships only the
-Android app and launcher (`:android-dist`); the other platforms are built by
-hand. Apple's SDK licence allows it on Apple hardware only, so release builds
+All of them build on the same Linux workers. CI ships nothing built for a
+device: the build helper (guides/build_server.md) builds the Android app and
+launcher (`:android-dist`) and the desktop app for any platform when
+be-launcher asks for a commit; releases are built by hand. Apple's SDK licence allows it on Apple hardware only, so release builds
 for macOS move to a Mac or Asahi worker before anything ships; xwin accepts
 Microsoft's Build Tools licence.
 
@@ -327,17 +328,20 @@ A native target depends on a wasm one through a transition in
   an aligned unsigned template without build metadata. `buck2 run` appends
   metadata and signs on the requesting machine with `local-tools apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.
   `:android-dist` has its own identity (`com.be3.block.ci`, `Block (CI)`), and
-  `./scripts/ci --android DIR` finalizes both APKs on the CI runner with its
-  existing key. Deploy finalizes `:android-release` locally before upload.
+  the build helper finalizes both APKs with CI's key. Deploy finalizes `:android-release` locally before upload.
   Only signed, finalized APKs can be installed; `buck build --out` returns a
   template. The minimum Android API and native toolchain API are 24, and
   signing uses v2 alone. Keys never enter action inputs (guides/running/android.md).
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
-- `crates/be-launcher` is an APK too. It downloads and installs the APKs CI
-  uploads to be3-ci, `:android-dist` of block-app (`com.be3.block.ci`) and
-  of itself, and opens the app (the `publish-android` job in ci.yml says how
-  they are stored).
+- `crates/be-launcher` lists the pull requests and runs any of them, or main,
+  on Android and the desktop alike: it asks the build helper to build the
+  commit (`android`, `launcher-android`, `native-PLATFORM`,
+  `beui-demo-PLATFORM`), streams the build's log into its Log pane, downloads
+  from be3-ci only the files of the manifest it does not already have, by
+  their SHA-256, then installs the APK or starts the app. It needs the API
+  gateway's key, which it asks for and keeps (`~/.config/be3/gateway-authorization`
+  on the desktop, its own files on Android); `BE3_AUTHORIZATION` overrides it.
 - The macOS builds are an executable and its libraries; the `.app` bundle
   comes with distribution.
 

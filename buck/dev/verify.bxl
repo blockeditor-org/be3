@@ -5,10 +5,10 @@ load(":workspace.bxl", "rust_targets")
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
 # (fix.sh), every test and plugin test, which of crates/bootstrap's binaries
 # scripts/internal/pins does not name (and with --bootstrap those binaries),
-# and on request the Android builds and the paint preview renderer; and
+# and on request the paint preview renderer; and
 # crates/verify, for the machine that asked (--host, a platform in
 # buck/platforms), which reads the rest afterwards, running crates/local-tools
-# for the Android builds and the previews. It prints what that reads,
+# for the previews. It prints what that reads,
 # "kind<TAB>path" a line; with --keep-going it prints them all even when some
 # fail to build, and crates/verify reads what was built. A path whose action
 # failed can still hold an earlier run's output, so crates/verify writes a fix
@@ -158,15 +158,10 @@ def _impl(ctx: bxl.Context):
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
     if args.plugin_tests:
         printed.extend([("paintings", paintings) for paintings in _outputs(ctx, "^(plugin_test_run|painting_test_run)$", "//crates/...")])
-    if args.previews or args.android:
-        printed.append(("local-tools", _host_output(ctx, "root//crates/local-tools:release", args.host)))
     if args.previews:
+        printed.append(("local-tools", _host_output(ctx, "root//crates/local-tools:release", args.host)))
         printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/browser-rasterizer:release", args.host)))
         printed.append(("paint-review-site", _output(ctx, "root//crates/paint-review-web:web-release")))
-    if args.android:
-        printed.append(("apk-metadata", actions.copy_file("android-build-info.json", _output(ctx, "root//buck/app:build-info.json"))))
-        printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
-        printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))
     paths = ctx.output.ensure_multiple([artifact for _, artifact in printed])
     ctx.output.ensure_multiple(built)
     for (kind, _), path in zip(printed, paths):
@@ -174,6 +169,8 @@ def _impl(ctx: bxl.Context):
 
 main = bxl_main(
     cli_args = {
+        # Ignored: the bootstrap a pull request's CI runs is the one main pins,
+        # which may be older than this file and still pass it.
         "android": cli_args.bool(False),
         "bootstrap": cli_args.bool(False),
         "host": cli_args.string("linux_x86_64"),

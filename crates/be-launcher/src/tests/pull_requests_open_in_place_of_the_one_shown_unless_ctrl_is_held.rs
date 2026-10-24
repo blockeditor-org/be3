@@ -10,6 +10,7 @@ use crate::LauncherApp;
 use crate::github::Filter;
 use crate::model::{Model, Tab};
 use crate::pane::{Pane, Session};
+use crate::runs::Runs;
 use crate::tasks::{self, Tasks};
 
 const WIDE: Vec2 = Vec2::new(1200.0, 800.0);
@@ -55,11 +56,12 @@ fn click(test: &mut DocumentTest, number: u64, modifiers: Modifiers) {
 fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
     let (sender, events) = channel();
     let tasks = Tasks::new(scratch("tabs"), sender);
-    let session = Session::new(tasks.clone()).expect("a terminal");
+    let session = Session::new().expect("a terminal");
     let LauncherApp {
         document, model, ..
     } = LauncherApp::with(tasks, events, move |tasks| {
-        Model::new(tasks.clone(), Pane::new(session, tasks))
+        let runs = Runs::new(tasks.clone(), Pane::new(session));
+        Model::new(tasks, runs)
     });
     model.receive(tasks::Event::PullRequests(
         Filter::Open,

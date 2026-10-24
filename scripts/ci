@@ -1,10 +1,10 @@
 #!/bin/sh
 #
-# What CI runs: ./scripts/verify, and the Android builds, the paint previews and
-# the bootstrap's release when asked.
+# What CI runs: ./scripts/verify, and the paint previews and the bootstrap's
+# release when asked.
 #
 # Usage:
-#   ./scripts/ci [--check] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]
+#   ./scripts/ci [--check] [--previews BASE OUT] [--bootstrap DIR]
 #
 # guides/bootstrap.md says what runs it.
 

@@ -218,17 +218,10 @@ BUNNY_STORAGE_KEY=... build-helper --checkout /srv/build-helper/checkout \
 
 ## CI's Android keystore
 
-CI signs its unsigned APK templates on the GitHub runner, after the single
-Buck invocation, with `local-tools apk-sign`. The workflow writes
-`ANDROID_CI_KEYSTORE_BASE64` to the ignored file
-`buck/android/ci-keystore.base64`; local-tools reads it at runtime.
-`BE3_ANDROID_CI_KEYSTORE` can name a different local file. The path is retained
-so the workflow also works on older PRs whose rules still expect it there.
-No current rule refers to the key as an input, so signing keys no longer enter
-the build server's CAS. Previously uploaded copies are not removed by this
-change.
-
-The build helper signs its `android` and `launcher-android` builds with the
-same keystore, named by its `--keystore`, so they install over CI's.
-Keep the same keystore so each build installs as an update over the last.
-Keys are JKS/PKCS12 or base64 of one, with password `android`. Key generation and release key handling are described in guides/running/android.md.
+The build helper signs its `android` and `launcher-android` builds with CI's
+keystore, the file its `--keystore` names, through `local-tools apk-sign`
+after the build, so the key never becomes an action input. CI itself no
+longer builds or signs an APK. Keep the same keystore so each build installs
+as an update over the last. Keys are JKS/PKCS12 or base64 of one, with
+password `android`. Key generation and release key handling are described in
+guides/running/android.md.

@@ -2,11 +2,8 @@ use std::cell::RefCell;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Color32, Direction, FontId, KeyPress, NodeId, ScrollGesture, TextLayout, Vec2};
+use beui::{Color32, Direction, FontId, NodeId, ScrollGesture, TextLayout, Vec2};
 use ghostty_vt::{Renderer, Rgb, Terminal};
-
-use crate::keys::key_bytes;
-use crate::tasks::Tasks;
 
 const DEFAULT_COLS: u16 = 100;
 const DEFAULT_ROWS: u16 = 30;
@@ -47,18 +44,14 @@ pub(crate) struct Session {
 #[derive(Clone, Copy)]
 pub(crate) struct Pane {
     session: Stored<RefCell<Session>>,
-    tasks: Stored<Tasks>,
     rows: Signal<Vec<Row>>,
     background: Signal<Color32>,
 }
 
 impl Session {
-    pub(crate) fn new(tasks: Tasks) -> Result<Self, String> {
-        let mut terminal = Terminal::new(DEFAULT_COLS, DEFAULT_ROWS, MAX_SCROLLBACK)
+    pub(crate) fn new() -> Result<Self, String> {
+        let terminal = Terminal::new(DEFAULT_COLS, DEFAULT_ROWS, MAX_SCROLLBACK)
             .map_err(|error| format!("could not create the terminal emulator: {error}"))?;
-        terminal
-            .on_reply(move |reply| tasks.input(reply))
-            .map_err(|error| format!("could not answer the terminal's queries: {error}"))?;
         let renderer = Renderer::new()
             .map_err(|error| format!("could not create the terminal renderer: {error}"))?;
         Ok(Self {
@@ -71,12 +64,11 @@ impl Session {
 }
 
 impl Pane {
-    pub(crate) fn new(session: Session, tasks: Tasks) -> Self {
+    pub(crate) fn new(session: Session) -> Self {
         let rows = create_signal(Vec::new());
         let background = create_signal(Color32::BLACK);
         Self {
             session: store(RefCell::new(session)),
-            tasks: store(tasks),
             rows,
             background,
         }
@@ -142,33 +134,7 @@ impl Pane {
             session.rows = rows;
             let _ = session.terminal.resize(cols, rows, cell_width, cell_height);
         }
-        self.tasks.value().resize(cols, rows);
         self.refresh();
-    }
-
-    fn type_text(&self, text: &str) {
-        self.session
-            .value()
-            .borrow_mut()
-            .terminal
-            .scroll_to_bottom();
-        self.tasks.value().input(text.as_bytes());
-    }
-
-    fn press(&self, press: KeyPress) -> bool {
-        if !press.pressed {
-            return false;
-        }
-        let Some(bytes) = key_bytes(press.key, press.modifiers) else {
-            return false;
-        };
-        self.session
-            .value()
-            .borrow_mut()
-            .terminal
-            .scroll_to_bottom();
-        self.tasks.value().input(&bytes);
-        true
     }
 
     fn scroll(&self, rows: isize) {
@@ -204,9 +170,6 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
             let background = pane.background;
             view! {
                 <Interactive
-                    focusable=true
-                    on_text={move |text: String| pane.type_text(&text)}
-                    on_key={move |press: KeyPress| pane.press(press)}
                     on_scroll={move |gesture: ScrollGesture| {
                         let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
                         if rows != 0 {

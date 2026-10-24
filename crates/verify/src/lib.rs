@@ -4,7 +4,7 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]";
+const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--previews BASE OUT] [--bootstrap DIR]";
 
 struct Options {
     manifest: PathBuf,
@@ -12,7 +12,6 @@ struct Options {
     check: bool,
     lint: bool,
     plugin_tests: bool,
-    android: Option<PathBuf>,
     previews: Option<(String, PathBuf)>,
     bootstrap: Option<PathBuf>,
 }
@@ -85,7 +84,6 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
         check: false,
         lint: false,
         plugin_tests: false,
-        android: None,
         previews: None,
         bootstrap: None,
     };
@@ -97,7 +95,6 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--lint" => options.lint = true,
             "--tests" => {}
             "--plugin-tests" => options.plugin_tests = true,
-            "--android" => options.android = Some(value()?.into()),
             "--bootstrap" => options.bootstrap = Some(value()?.into()),
             "--previews" => {
                 let base = value()?;
@@ -123,27 +120,19 @@ impl Run {
             self.paintings();
             self.unpainted();
         }
-        if self.options.android.is_some() || self.options.previews.is_some() {
+        if self.options.previews.is_some() {
             self.local_tools();
         }
     }
 
     fn local_tools(&mut self) {
         let Some(tool) = self.built("local-tools").into_iter().next() else {
-            println!(
-                "crates/local-tools did not build, so the Android builds and the paint previews were not made."
-            );
+            println!("crates/local-tools did not build, so the paint previews were not made.");
             self.failed = true;
             return;
         };
         let mut command = Command::new(tool);
         command.arg("ci").arg(&self.options.manifest);
-        if self.options.build_failed {
-            command.arg("--build-failed");
-        }
-        if let Some(directory) = &self.options.android {
-            command.arg("--android").arg(directory);
-        }
         if let Some((base, out)) = &self.options.previews {
             command.arg("--previews").arg(base).arg(out);
         }

@@ -1,5 +1,4 @@
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -11,8 +10,7 @@ use jni::vm::JavaVM;
 use jni::{Env, EnvUnowned, jni_sig, jni_str};
 
 use crate::LauncherApp;
-use crate::builds::Fetch;
-use crate::phone;
+use crate::runs;
 use crate::tasks::{Event, Tasks};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -25,7 +23,14 @@ static TASKS: OnceLock<Tasks> = OnceLock::new();
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
     let options = beui::RunOptions::default();
-    let code = match beui::run_with(options, LauncherApp::new(files)) {
+    let launcher = match LauncherApp::new(files) {
+        Ok(launcher) => launcher,
+        Err(error) => {
+            eprintln!("The launcher did not start: {error}");
+            std::process::exit(1);
+        }
+    };
+    let code = match beui::run_with(options, launcher) {
         Ok(()) => 0,
         Err(error) => {
             eprintln!("The launcher stopped: {error}");
@@ -44,34 +49,6 @@ pub(crate) fn agent() -> ureq::Agent {
         .timeout_connect(CONNECT_TIMEOUT)
         .timeout_read(READ_TIMEOUT)
         .build()
-}
-
-pub(crate) fn get(url: &str) -> Result<Option<Vec<u8>>, String> {
-    let response = match agent().get(url).call() {
-        Ok(response) => response,
-        Err(ureq::Error::Status(404, _)) => return Ok(None),
-        Err(error) => return Err(format!("{url}: {error}")),
-    };
-    let mut body = Vec::new();
-    response
-        .into_reader()
-        .read_to_end(&mut body)
-        .map_err(|error| format!("{url}: {error}"))?;
-    Ok(Some(body))
-}
-
-pub(crate) struct Http;
-
-impl Fetch for Http {
-    fn fetch(&mut self, url: &str, into: &mut dyn std::io::Write) -> Result<(), String> {
-        let response = agent()
-            .get(url)
-            .call()
-            .map_err(|error| format!("{url}: {error}"))?;
-        std::io::copy(&mut response.into_reader(), into)
-            .map(|_| ())
-            .map_err(|error| format!("{url}: {error}"))
-    }
 }
 
 pub(crate) fn open() -> Result<(), String> {
@@ -108,23 +85,6 @@ pub(crate) fn uninstall() -> Result<(), String> {
             .l()?;
         string(env, error)
     })?)
-}
-
-pub(crate) fn apk() -> Option<PathBuf> {
-    with_launcher(|env, class| {
-        let apk = env
-            .call_static_method(
-                class,
-                jni_str!("apk"),
-                jni_sig!("()Ljava/lang/String;"),
-                &[],
-            )?
-            .l()?;
-        string(env, apk)
-    })
-    .ok()
-    .flatten()
-    .map(PathBuf::from)
 }
 
 pub(crate) fn open_url(url: &str) {
@@ -213,10 +173,6 @@ fn launcher_activity<'local>(
     env.cast_local::<JClass<'local>>(class)
 }
 
-pub(crate) fn files(tasks: &Tasks) -> PathBuf {
-    tasks.root().to_path_buf()
-}
-
 // unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeInstallFinished(
@@ -230,6 +186,6 @@ pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeInstallFinis
         Err(error.to_string())
     };
     if let Some(tasks) = TASKS.get() {
-        tasks.send(Event::Phone(phone::Event::Finished(result)));
+        tasks.send(Event::Run(runs::Event::Finished(result)));
     }
 }

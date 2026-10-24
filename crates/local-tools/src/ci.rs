@@ -1,14 +1,10 @@
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-const USAGE: &str =
-    "usage: local-tools ci MANIFEST [--build-failed] [--android DIR] [--previews BASE OUT]";
+const USAGE: &str = "usage: local-tools ci MANIFEST [--previews BASE OUT]";
 
 struct Options {
-    build_failed: bool,
-    android: Option<PathBuf>,
     previews: Option<(String, PathBuf)>,
 }
 
@@ -52,9 +48,6 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
         options,
         built,
     };
-    if let Some(directory) = run.options.android.clone() {
-        run.android(&directory);
-    }
     if let Some((base, out)) = run.options.previews.clone()
         && let Err(message) = run.previews(&base, &out)
     {
@@ -69,16 +62,10 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
 }
 
 fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String> {
-    let mut options = Options {
-        build_failed: false,
-        android: None,
-        previews: None,
-    };
+    let mut options = Options { previews: None };
     while let Some(argument) = arguments.next() {
         let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
         match argument.as_str() {
-            "--build-failed" => options.build_failed = true,
-            "--android" => options.android = Some(value()?.into()),
             "--previews" => {
                 let base = value()?;
                 options.previews = Some((base, value()?.into()));
@@ -96,50 +83,6 @@ impl Run {
             .filter(|(each, _, exists)| each == kind && *exists)
             .map(|(_, path, _)| path.clone())
             .collect()
-    }
-
-    fn android(&mut self, directory: &Path) {
-        if fs::create_dir_all(directory).is_err() {
-            self.failed = true;
-            return;
-        }
-        for apk in ["block-app.apk", "be-launcher.apk"] {
-            let output = directory.join(apk);
-            if let Err(error) = fs::remove_file(&output)
-                && error.kind() != io::ErrorKind::NotFound
-            {
-                eprintln!("{}: {error}", output.display());
-                self.failed = true;
-                return;
-            }
-        }
-        if self.options.build_failed {
-            return;
-        }
-        let finalize = || -> Result<(), String> {
-            let metadata = self
-                .built("apk-metadata")
-                .into_iter()
-                .next()
-                .ok_or("no APK metadata was built")?;
-            let key = crate::apk_sign::ci_key();
-            for apk in ["block-app.apk", "be-launcher.apk"] {
-                let template = self
-                    .built(apk)
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| format!("no {apk} template was built"))?;
-                crate::apk_sign::finalize(&template, &directory.join(apk), &key, &metadata)?;
-            }
-            Ok(())
-        };
-        if let Err(error) = finalize() {
-            eprintln!("Could not finalize Android APKs: {error}");
-            for apk in ["block-app.apk", "be-launcher.apk"] {
-                let _ = fs::remove_file(directory.join(apk));
-            }
-            self.failed = true;
-        }
     }
 
     fn previews(&self, base: &str, out: &Path) -> Result<(), String> {

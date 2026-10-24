@@ -1,19 +1,15 @@
+mod actions;
 #[cfg(target_os = "android")]
 mod android;
-#[cfg(any(target_os = "android", test))]
 mod builds;
 mod detail;
 mod github;
-#[cfg(not(target_os = "android"))]
-mod keys;
+mod helper;
 mod markdown;
 mod model;
-#[cfg(not(target_os = "android"))]
+mod net;
 mod pane;
-#[cfg(target_os = "android")]
-mod phone;
-#[cfg(not(target_os = "android"))]
-mod targets;
+mod runs;
 mod tasks;
 mod time;
 mod view;
@@ -35,17 +31,14 @@ use beui::reactive::*;
 use beui::{App, Context, Document, Rect, Setup};
 
 use model::Model;
-#[cfg(not(target_os = "android"))]
 use pane::{Pane, Session};
-#[cfg(target_os = "android")]
-use phone::Phone;
+use runs::Runs;
 use tasks::{Event, Tasks};
 use view::Launcher;
 
 #[cfg(not(target_os = "android"))]
 pub fn run() -> Result<(), Box<dyn Error>> {
-    let root = tasks::repository_root()?;
-    beui::run(LauncherApp::new(root)?)
+    beui::run(LauncherApp::new(runs::cache_directory())?)
 }
 
 struct LauncherApp {
@@ -56,23 +49,14 @@ struct LauncherApp {
 }
 
 impl LauncherApp {
-    #[cfg(not(target_os = "android"))]
     fn new(root: PathBuf) -> Result<Self, String> {
         let (sender, events) = channel();
         let tasks = Tasks::new(root, sender);
-        let session = Session::new(tasks.clone())?;
+        let session = Session::new()?;
         Ok(Self::with(tasks, events, move |tasks| {
-            Model::new(tasks.clone(), Pane::new(session, tasks))
+            let runs = Runs::new(tasks.clone(), Pane::new(session));
+            Model::new(tasks, runs)
         }))
-    }
-
-    #[cfg(target_os = "android")]
-    fn new(files: PathBuf) -> Self {
-        let (sender, events) = channel();
-        let tasks = Tasks::new(files, sender);
-        Self::with(tasks, events, move |tasks| {
-            Model::new(tasks.clone(), Phone::new(tasks))
-        })
     }
 
     fn with(tasks: Tasks, events: Receiver<Event>, model: impl FnOnce(Tasks) -> Model) -> Self {
@@ -105,8 +89,7 @@ impl LauncherApp {
         for event in events {
             model.receive(event);
         }
-        #[cfg(not(target_os = "android"))]
-        model.pane.refresh();
+        model.runs.pane.refresh();
     }
 }
 
@@ -118,10 +101,5 @@ impl App for LauncherApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.receive();
         self.document.show(context, rect);
-    }
-
-    fn exiting(&mut self) {
-        #[cfg(not(target_os = "android"))]
-        self.tasks.stop();
     }
 }
