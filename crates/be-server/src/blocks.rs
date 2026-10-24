@@ -114,6 +114,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         key: node.key,
         scope: Some(graph.scope(block)),
         revision,
+        held: graph.holds(block),
     })
 }
 
@@ -398,9 +399,15 @@ impl ServerStore {
                     .get(block)
                     .is_some_and(|node| node.metadata != metadata))
             .then(|| {
+                let added = references
+                    .iter()
+                    .filter(|reference| !before.contains(reference))
+                    .copied()
+                    .collect::<Vec<_>>();
                 before
                     .into_iter()
                     .filter(|reference| !references.contains(reference))
+                    .chain(added)
                     .collect()
             });
             let transaction = database.unchecked_transaction()?;
@@ -618,6 +625,19 @@ impl ServerStore {
             let seen = visibility(identity);
             Ok(graph
                 .children(parent)
+                .into_iter()
+                .filter_map(|block| summary_with(graph, &seen, block))
+                .filter(|block| block.access.can_know_exists())
+                .collect())
+        })
+        .await
+    }
+
+    pub async fn list_deleted(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
+            Ok(graph
+                .deleted_roots()
                 .into_iter()
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())

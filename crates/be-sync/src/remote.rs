@@ -43,7 +43,7 @@ pub async fn list<S: ObjectStore>(
         peer.learn(&level).await.map_err(explain)?;
         let mut directories = Vec::new();
         for summary in level {
-            if !summary.access.can_view() {
+            if !summary.access.can_view() || (!first && !summary.held) {
                 continue;
             }
             if form(summary.content_type) == Form::Directory {

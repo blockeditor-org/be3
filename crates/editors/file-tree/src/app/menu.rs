@@ -1,4 +1,3 @@
-use block_editor_beui::BlockParent;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{
     ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK,
@@ -107,7 +106,7 @@ fn SectionMenu<F: Fn() + 'static>(
             [3] => editor.host().share_block(id),
             [4] => editor
                 .host()
-                .delete_block(id, shown.block_type, shown.source, false),
+                .delete_block(id, shown.block_type, shown.source),
             _ => {}
         }
     };
@@ -196,12 +195,6 @@ fn BlockMenu<F: Fn() + 'static>(
         },
     );
     let rooted = create_memo(move || edit.get() || !row.get().is_some_and(|row| row.can_delete));
-    let orphaned = create_memo(move || {
-        edit.get()
-            || row
-                .get()
-                .is_some_and(|row| row.parent == Some(BlockParent::Detached))
-    });
     let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
     let rows = tree.rows();
     let destinations = create_memo(move || {
@@ -239,11 +232,9 @@ fn BlockMenu<F: Fn() + 'static>(
                     editor.host().unlink_block(id, container);
                 }
             }
-            [7] => {
-                editor
-                    .host()
-                    .delete_block(id, shown.block_type, shown.source, shown.is_reference)
-            }
+            [7] => editor
+                .host()
+                .delete_block(id, shown.block_type, shown.source),
             [8] => inspect.set(shown.inspection),
             _ => {}
         }
@@ -289,15 +280,6 @@ fn BlockMenu<F: Fn() + 'static>(
                         />
                     }
                 }</ForEach>
-                <MenuItem
-                    label="Recently Deleted"
-                    disabled={orphaned}
-                    on_click={move || {
-                        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
-                            tree.blocks().set_parent(id, BlockParent::Detached);
-                        }
-                    }}
-                />
             </MenuItem>
             <MenuItem label="Rename" glyph={ICON_PENCIL_LINE.to_owned()} disabled={edit} />
             <MenuItem label="Share" glyph={ICON_SHARE_2.to_owned()} disabled={edit} />

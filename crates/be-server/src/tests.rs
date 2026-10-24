@@ -488,6 +488,32 @@ impl TestClient {
         Scoped { block, data, scope }
     }
 
+    async fn lists(&mut self, account: Uuid, parent: Uuid, children: Vec<Uuid>) {
+        let author = Author::new(account);
+        let (head, chunks) = author.compose(b"a listing\n", 1_000, None);
+        self.upload(&author.store, &author.objects_of(head, &chunks))
+            .await;
+        let response = self
+            .send(|request| ClientMessage::Publish {
+                request,
+                block: parent,
+                commit: head,
+                expected: None,
+                parents: Vec::new(),
+                chunks,
+                time: 1_000,
+                pinned: false,
+                references: children,
+                metadata: Vec::new(),
+                objects: Vec::new(),
+            })
+            .await;
+        assert!(
+            matches!(response, ServerMessage::Published { .. }),
+            "{response:?}"
+        );
+    }
+
     async fn inside(&mut self, scope: &Scoped) -> (Uuid, Uuid) {
         let (block, data) = (Uuid::new_v4(), Uuid::new_v4());
         let keys = KeySet {

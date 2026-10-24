@@ -40,6 +40,8 @@ async fn a_rename_on_disk_moves_the_same_block() {
     })
     .await
     .unwrap();
+    relist(&peer, inner.id, be_block::ChildChange::Delete(note.id)).await;
+    list_in(&peer, code, note.id).await;
     peer.set_parent(note.id, BlockParent::Block(code))
         .await
         .unwrap();
