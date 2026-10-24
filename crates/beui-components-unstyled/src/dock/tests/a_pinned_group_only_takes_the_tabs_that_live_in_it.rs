@@ -8,6 +8,7 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
         entries: vec![DockTreeEntry::Tab(TabId::new(10))],
         active: 0,
         vertical: false,
+        icons_only: false,
         sidebar: SIDEBAR_WIDTH,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);

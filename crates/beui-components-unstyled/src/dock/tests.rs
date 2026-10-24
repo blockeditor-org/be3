@@ -46,6 +46,7 @@ fn pane_spec(key: &str) -> DockSpecPane {
         entries: Vec::new(),
         active: None,
         vertical: false,
+        icons_only: false,
         sidebar: SIDEBAR_WIDTH,
         keep: false,
     }

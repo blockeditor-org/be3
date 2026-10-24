@@ -903,7 +903,9 @@ the rows above and below. A page of rows with a `depth` is a tree: `expanded`,
 a `Binding<Option<bool>>` (`None` for a leaf), draws the chevron, Right and Left
 and the chevron write `Some(open)` to it, and the caller shows the rows of open
 branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check (with
-`radio` it is read as one choice of a group), and
+`radio` it is read as one choice of a group) at its start, in a column every row of a
+popup menu keeps once any of its rows can be checked (`MenuRowHandle::checks`;
+a sheet's rows keep theirs at the end, as a phone's lists do), and
 a page opens with the keyboard on that row. A row with an `action` takes its
 label, glyph, enabled state, tick and first shortcut (drawn muted at the row's
 end, or `shortcut` given) from it. `MenuNodes` builds the rows from a
@@ -2013,7 +2015,19 @@ anywhere on it that is not a tab drags the window. Right-clicking a grip moves
 that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
-at its top. Windows resize from any of
+at its top. The grip's menu also closes every tab in the pane, offers the
+menu of the tab the pane shows below its own rows, and turns on icons only (`set_icons_only`, or
+`icons_only` on a `DockPane`): `DockTabHandle::icons_only` asks the tab face for
+its icon alone, which the styled dock draws as a square with the title in a
+tooltip (the title's first letter where a tab has no icon); a sidebar of
+icons moves its More menu and close button below its tabs, in a column. A sidebar's edge
+goes by the way the pointer moves as well as where it is
+(`DockState::drag_sidebar`): dragged left past `MIN_SIDEBAR_WIDTH` it turns icons
+only on at once, and while icons only, any move to the right turns it off at
+`MIN_SIDEBAR_WIDTH`, growing past that only once the pointer passes that edge. The drag
+carries on either way, and the sidebar slides to its new width (the dock's
+`icon_sidebar_width`, or the width under the pointer), following the pointer
+until it catches up. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. The grips lie
 wholly outside the window, in a ring `HANDLE_REACH` points wide (a window's overlay is that
 much larger than the window on every side), with each corner's grip running `GRIP_CORNER`
