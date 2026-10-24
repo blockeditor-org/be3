@@ -64,11 +64,11 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add(cmd_args("--sdk=", sdk, delimiter = ""))
         if ctx.attrs.precompiler:
             command.add(cmd_args("--sdk-artifact=", _precompile(ctx, sdk), delimiter = ""))
-    for name, module in ctx.attrs.types.items():
+    for type_name, module in ctx.attrs.types.items():
         wasm = module[DefaultInfo].default_outputs[0]
-        command.add(cmd_args("--type=", name, "=", wasm, delimiter = ""))
+        command.add(cmd_args("--type=", type_name, "=", wasm, delimiter = ""))
         if ctx.attrs.precompiler:
-            command.add(cmd_args("--type-artifact=", _precompile(ctx, wasm, name), delimiter = ""))
+            command.add(cmd_args("--type-artifact=", _precompile(ctx, wasm, type_name), delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     for manifest, module, files in zip(ctx.attrs.manifests, ctx.attrs.modules, data):
         wasm = module[DefaultInfo].default_outputs[0]
