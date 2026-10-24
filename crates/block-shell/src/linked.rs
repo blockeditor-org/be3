@@ -83,7 +83,7 @@ pub(crate) fn LinkedBar(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_LINK.to_owned()} />
+                        <Icon glyph=ICON_LINK />
                     </Text>
                     <Text>"Linked block"</Text>
                     <Show condition={via_reference}>
@@ -105,7 +105,7 @@ pub(crate) fn LinkedBar(
                             <Button
                                 @test_id={"workspace.linked.unlink"}
                                 label="Unlink"
-                                glyph={ICON_UNLINK.to_owned()}
+                                glyph=ICON_UNLINK
                                 variant=ButtonVariant::Secondary
                                 disabled={unlink_off}
                                 on_click={move || {

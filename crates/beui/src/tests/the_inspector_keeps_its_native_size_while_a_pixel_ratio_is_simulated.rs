@@ -25,7 +25,7 @@ fn the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated() {
     assert_eq!(simulated.size(), native.size());
     let on_screen = simulated.scaled(0.5);
     assert_eq!(on_screen.width(), native.width() / 2.0);
-    assert!(output.shapes().iter().any(|shape| matches!(
+    assert!(output.main().shapes().iter().any(|shape| matches!(
         shape,
         crate::painter::Shape::Rect { rect, .. } if *rect == on_screen
     )));

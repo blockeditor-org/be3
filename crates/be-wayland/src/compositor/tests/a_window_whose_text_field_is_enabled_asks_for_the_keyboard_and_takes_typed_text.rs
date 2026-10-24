@@ -1,7 +1,14 @@
 use super::*;
 
 fn asks(harness: &Harness) -> Option<u32> {
-    let area = harness.output.as_ref()?.window.requests.ime.clone()?;
+    let area = harness
+        .output
+        .as_ref()?
+        .main()
+        .window
+        .requests
+        .ime
+        .clone()?;
     match area.keyboard {
         beui::Keyboard::Shown { asks } => Some(asks),
         beui::Keyboard::Held => None,

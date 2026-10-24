@@ -128,7 +128,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                             <Show condition={narrow}>
                                 <IconButton
-                                    glyph={ICON_ARROW_LEFT.to_owned()}
+                                    glyph=ICON_ARROW_LEFT
                                     label="Back to the list"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.back"}
@@ -136,14 +136,14 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 />
                             </Show>
                             <IconButton
-                                glyph={ICON_CHEVRON_UP.to_owned()}
+                                glyph=ICON_CHEVRON_UP
                                 label="Previous row"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.previous"}
                                 on_click={move || step(-1)}
                             />
                             <IconButton
-                                glyph={ICON_CHEVRON_DOWN.to_owned()}
+                                glyph=ICON_CHEVRON_DOWN
                                 label="Next row"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.next"}
@@ -156,7 +156,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                             </Frame>
                             <Frame @sizing=ItemSize::Percent(100.0) />
                             <IconButton
-                                glyph={ICON_EXTERNAL_LINK.to_owned()}
+                                glyph=ICON_EXTERNAL_LINK
                                 label="Open the page"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.open"}
@@ -164,12 +164,12 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                             />
                             <IconMenuButton
                                 label="More"
-                                glyph={ICON_ELLIPSIS.to_owned()}
+                                glyph=ICON_ELLIPSIS
                                 @test_id={"database-view.detail.more"}
                                 items={view! {
                                     <MenuItem
                                         label="Delete row"
-                                        glyph={ICON_TRASH.to_owned()}
+                                        glyph=ICON_TRASH
                                         danger=true
                                         disabled={delete_off}
                                         row_test_id={"database-view.detail.delete".to_owned()}
@@ -179,7 +179,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                             />
                             <Show condition={wide}>
                                 <IconButton
-                                    glyph={ICON_X.to_owned()}
+                                    glyph=ICON_X
                                     label="Close"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.close"}
@@ -211,7 +211,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 <Show condition={missing}>
                                     <List direction=Direction::Horizontal spacing=0.0>
                                         <Button
-                                            glyph={ICON_FILE_PLUS.to_owned()}
+                                            glyph=ICON_FILE_PLUS
                                             label="Write a description"
                                             variant=ButtonVariant::Ghost
                                             disabled={page_off}
@@ -511,7 +511,7 @@ fn LinkedRow(
                 </List>
             </ListRow>
             <IconButton
-                glyph={ICON_X.to_owned()}
+                glyph=ICON_X
                 label="Remove link"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}

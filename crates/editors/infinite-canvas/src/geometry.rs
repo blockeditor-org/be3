@@ -924,11 +924,11 @@ pub(crate) fn drawn_seed(shape: CanvasShape, at: CanvasPoint) -> u32 {
 pub(crate) fn text_box_size(
     text_style: &CanvasTextStyle,
     font_size: f32,
-    measured: Vec2,
+    content: Vec2,
 ) -> CanvasPoint {
     CanvasPoint::new(
-        (measured.x + 2.0 * TEXT_INSET).max(16.0),
-        (measured.y + 2.0 * TEXT_INSET).max(font_size * text_style.line_height),
+        content.x.max(16.0),
+        content.y.max(font_size * text_style.line_height),
     )
 }
 

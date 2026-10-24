@@ -1,6 +1,7 @@
 use accesskit::{Node, Role, Toggled};
 use beui_core::base::grid::Track;
 use beui_core::base::overlay::Placement;
+use beui_core::icons::Glyph;
 use beui_core::input::{Key, KeyPress};
 use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
@@ -37,7 +38,7 @@ pub struct MenuRowHandle {
     pub kind: MenuRowKind,
     pub label: Prop<String>,
     pub lead: Prop<String>,
-    pub glyph: Prop<String>,
+    pub glyph: Prop<Option<Glyph>>,
     pub glyph_color: Prop<Option<beui_core::color::Color32>>,
     pub detail: Prop<String>,
     pub checked: Prop<Option<bool>>,
@@ -67,7 +68,7 @@ pub struct MenuItem {
     kind: Kind,
     pub(crate) label: Memo<String>,
     lead: Memo<String>,
-    pub(crate) glyph: Memo<String>,
+    pub(crate) glyph: Memo<Option<Glyph>>,
     glyph_color: Memo<Option<beui_core::color::Color32>>,
     detail: Memo<String>,
     checked: Memo<Option<bool>>,
@@ -119,7 +120,7 @@ impl MenuItem {
 pub fn MenuItem(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] lead: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = None)] glyph_color: Prop<Option<beui_core::color::Color32>>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = None)] checked: Prop<Option<bool>>,
@@ -202,7 +203,7 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
         kind: Kind::Row,
         label: create_memo(move || label.get()),
         lead: create_memo(String::new),
-        glyph: create_memo(String::new),
+        glyph: create_memo(|| None),
         glyph_color: create_memo(|| None),
         detail: create_memo(String::new),
         checked: create_memo(|| None),
@@ -329,7 +330,7 @@ pub(crate) fn MenuList(
                 items
                     .items()
                     .iter()
-                    .any(|item| item.is_row() && !item.glyph.get().is_empty())
+                    .any(|item| item.is_row() && item.glyph.get().is_some())
             })
         },
         on_select,
@@ -497,7 +498,7 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         kind,
         label,
         lead: Prop::Static(String::new()),
-        glyph: Prop::Static(String::new()),
+        glyph: Prop::Static(None),
         glyph_color: Prop::Static(None),
         detail: Prop::Static(String::new()),
         checked: Prop::Static(None),
@@ -1166,7 +1167,7 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
         Some(MenuNode::Submenu(submenu)) => {
             let items = submenu.items.clone();
             view! {
-                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph.clone()} separated>
+                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph} separated>
                     <MenuNodes nodes={items} test_prefix />
                 </MenuItem>
             }

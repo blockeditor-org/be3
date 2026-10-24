@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 use crate::app::FileTreeApp;
 
-mod a_block_can_override_and_reset_its_icon_and_color;
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
 mod a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown;
 mod a_folder_still_loading_says_so_only_after_a_moment;
@@ -25,6 +24,7 @@ mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
+mod icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod leave_is_offered_on_a_phone_but_never_to_an_administrator;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;

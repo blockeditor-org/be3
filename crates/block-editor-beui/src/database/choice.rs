@@ -1,5 +1,6 @@
 use be_block::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 use beui::TextAlign;
+use beui::icons::Glyph;
 use beui::icons::{
     ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CIRCLE_DASHED, ICON_CIRCLE_DOT_DASHED,
     ICON_CIRCLE_ELLIPSIS, ICON_CIRCLE_X, ICON_FLAG, ICON_OCTAGON_ALERT, ICON_SIGNAL_HIGH,
@@ -10,9 +11,9 @@ use beui::styled::theme::ThemeKind;
 use beui::styled::*;
 use beui::{Color32, NodeId};
 
-pub fn choice_glyph(icon: ChoiceIcon) -> &'static str {
-    match icon {
-        ChoiceIcon::None => "",
+pub fn choice_glyph(icon: ChoiceIcon) -> Option<Glyph> {
+    Some(match icon {
+        ChoiceIcon::None => return None,
         ChoiceIcon::Backlog => ICON_CIRCLE_ELLIPSIS,
         ChoiceIcon::Todo => ICON_CIRCLE,
         ChoiceIcon::Started => ICON_CIRCLE_DOT_DASHED,
@@ -25,7 +26,7 @@ pub fn choice_glyph(icon: ChoiceIcon) -> &'static str {
         ChoiceIcon::Urgent => ICON_OCTAGON_ALERT,
         ChoiceIcon::Flag => ICON_FLAG,
         ChoiceIcon::Star => ICON_STAR,
-    }
+    })
 }
 
 pub fn choice_icon_label(icon: ChoiceIcon) -> &'static str {
@@ -102,14 +103,12 @@ pub fn ChoiceMark(
         })
     });
     let glyph = create_memo(move || {
-        option
-            .with(|option| match option {
-                Some(option) => choice_glyph(option.icon),
-                None => ICON_CIRCLE,
-            })
-            .to_owned()
+        option.with(|option| match option {
+            Some(option) => choice_glyph(option.icon),
+            None => Some(ICON_CIRCLE),
+        })
     });
-    let dotted = create_memo(move || glyph.with(String::is_empty));
+    let dotted = create_memo(move || glyph.get().is_none());
     let iconic = create_memo(move || !dotted.get());
     let mark = size.icon_px();
     let dot = mark * 0.5;

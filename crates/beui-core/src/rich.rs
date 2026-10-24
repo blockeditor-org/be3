@@ -9,6 +9,7 @@ use crate::painter::{Corners, Painter};
 const SPAN_UNDERLINE_OFFSET: f32 = 0.12;
 const SPAN_STRIKE_OFFSET: f32 = 0.32;
 const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
+pub const TAB_COLUMNS: f32 = 4.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SpanStyle {
@@ -80,6 +81,7 @@ pub enum SpanKind {
     Inline(usize, Vec2),
     Gap(f32),
     Icon(f32),
+    Tab,
 }
 
 impl SpanKind {
@@ -104,19 +106,43 @@ struct TextSpan {
 pub struct TextMark {
     pub range: Range<usize>,
     pub color: Color32,
-    pub radius: f32,
-    pub outset: Vec2,
 }
 
 impl TextMark {
     pub fn new(range: Range<usize>, color: Color32) -> Self {
+        Self { range, color }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct TextGlyph {
+    pub range: Range<usize>,
+    pub glyph: String,
+    pub font: FontId,
+    pub color: Color32,
+}
+
+impl TextGlyph {
+    pub fn new(
+        range: Range<usize>,
+        glyph: impl Into<String>,
+        font: FontId,
+        color: Color32,
+    ) -> Self {
         Self {
             range,
+            glyph: glyph.into(),
+            font,
             color,
-            radius: 0.0,
-            outset: Vec2::ZERO,
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SpanBackground {
+    pub color: Color32,
+    pub radius: f32,
+    pub outset: Vec2,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -470,6 +496,24 @@ impl Builder<'_> {
                 galley: None,
                 inner: Vec::new(),
             },
+            SpanKind::Tab => {
+                let stop = self.shaper.galley(" ", style.font).size().x * TAB_COLUMNS;
+                let width = match stop > 0.0 {
+                    true => ((x / stop).floor() + 1.0) * stop - x,
+                    false => 0.0,
+                };
+                RichRun {
+                    piece,
+                    range,
+                    style,
+                    kind,
+                    x,
+                    width,
+                    height: 0.0,
+                    galley: None,
+                    inner: Vec::new(),
+                }
+            }
             SpanKind::Icon(_) => {
                 let (glyph, text_size) = match self.pieces[piece] {
                     Piece::Icon {
@@ -573,14 +617,39 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
     let mut text = String::with_capacity(pieces.iter().map(Piece::len).sum());
     let mut spans = Vec::with_capacity(pieces.len());
     for (index, piece) in pieces.iter().enumerate() {
-        let start = text.len();
+        let mut start = text.len();
         let (style, kind, break_after) = match *piece {
             Piece::Text {
                 text: piece,
                 style,
                 break_after,
             } => {
-                text.push_str(piece);
+                let mut rest = piece;
+                while let Some(tab) = rest.find('\t') {
+                    for (part, kind) in [(&rest[..tab], SpanKind::Text), ("\t", SpanKind::Tab)] {
+                        if part.is_empty() {
+                            continue;
+                        }
+                        let at = text.len();
+                        text.push_str(part);
+                        spans.push(TextSpan {
+                            piece: index,
+                            range: at..text.len(),
+                            style,
+                            kind,
+                            break_after: false,
+                        });
+                    }
+                    rest = &rest[tab + 1..];
+                }
+                start = text.len();
+                text.push_str(rest);
+                if rest.is_empty() {
+                    if let Some(last) = spans.last_mut().filter(|last| last.piece == index) {
+                        last.break_after = break_after;
+                    }
+                    continue;
+                }
                 (style, SpanKind::Text, break_after)
             }
             Piece::Inline {
@@ -911,6 +980,15 @@ impl RichLayout {
     }
 
     pub fn selection_rects(&self, range: Range<usize>) -> Vec<Rect> {
+        self.range_boxes(range)
+            .into_iter()
+            .map(|(rect, _)| {
+                Rect::from_min_max(rect.min, pos2(rect.max.x.max(rect.min.x + 1.0), rect.max.y))
+            })
+            .collect()
+    }
+
+    pub fn range_boxes(&self, range: Range<usize>) -> Vec<(Rect, f32)> {
         self.lines
             .iter()
             .filter_map(|line| {
@@ -920,10 +998,10 @@ impl RichLayout {
                     return None;
                 }
                 let left = line.x_of(start);
-                let right = line.x_after(end).max(left + 1.0);
-                Some(Rect::from_min_max(
-                    pos2(left, line.top),
-                    pos2(right, line.top + line.height),
+                let right = line.x_after(end).max(left);
+                Some((
+                    Rect::from_min_max(pos2(left, line.top), pos2(right, line.top + line.height)),
+                    line.top + line.baseline,
                 ))
             })
             .collect()

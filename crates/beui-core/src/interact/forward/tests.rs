@@ -25,6 +25,7 @@ fn rect() -> Rect {
 fn pointer(pointer: PointerId, phase: PointerPhase, pos: Pos2) -> PointerEvent {
     PointerEvent {
         pointer,
+        window: crate::window::WindowId::MAIN,
         phase,
         pos,
         modifiers: Modifiers::NONE,

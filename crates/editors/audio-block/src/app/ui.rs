@@ -32,8 +32,8 @@ pub fn AudioView(editor: Editor) -> NodeId {
 
     let playing = create_memo(move || status.with(|status| status.playing));
     let glyph = create_memo(move || match playing.get() {
-        true => ICON_PAUSE.to_owned(),
-        false => ICON_PLAY.to_owned(),
+        true => ICON_PAUSE,
+        false => ICON_PLAY,
     });
     let action = create_memo(move || match playing.get() {
         true => "Pause".to_owned(),
@@ -92,7 +92,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                 <List spacing=SPACING>
                     <Text size=TextSize::Xl4 align=TextAlign::Center>
-                        <Icon glyph={ICON_FILE_HEADPHONE.to_owned()} />
+                        <Icon glyph=ICON_FILE_HEADPHONE />
                     </Text>
                     <Text align=TextAlign::Center>{source}</Text>
                     <IconButton

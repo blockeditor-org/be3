@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -7,8 +8,8 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{TextAreaState, VoidView};
-use beui::{Direction, ItemSize, NodeId, TextAlign, Vec2};
+use beui::unstyled::{MarkerKind, TextAreaState, TextMarker};
+use beui::{Direction, ItemSize, NodeId, TextAlign};
 use beui_macros::{component, sample};
 use text_editor_core::schema::basic::{
     self, Basic, CHECK, CHECKED, CODE_BLOCK, LIST, MENTION, NUMBER, QUOTE,
@@ -22,16 +23,15 @@ use crate::sample::{Sample, ScrollPage};
 const TEXT: &str = "Rich text\nThe document is plain text with marks beside it. Select words and \
 press a button above, or Ctrl+B, Ctrl+I, Ctrl+U and Ctrl+E.\nBlocks\nA heading, a list item \
 or a quote is a prop of its line, and the text area draws each line from it.\nPress \
-Enter to continue a list\nTab nests an item\nEnter on an empty item leaves the list\nWrite a \
-schema\nRender its blocks\nShip it\nA quote is drawn with a bar beside it.\nfn main() {\n    \
+Enter to continue a list\nTab nests an item\nEnter on an empty item leaves the list\nA bullet marks an item\nand a ring marks one \
+nested in it\nWrite a schema\nRender its blocks\nShip it\nA quote is drawn with a bar beside it.\nfn main() {\n    \
 println!(\"decorated by the rust highlighter\");\n}\nAsk \u{fffc} about voids: the caret steps \
 over one in a single move.\n";
-const EDITOR_HEIGHT: f32 = 420.0;
-const MENTION_CHAR: f32 = 7.5;
+const EDITOR_HEIGHT: f32 = 470.0;
 const MENTION_PADDING: f32 = 6.0;
 const MENTION_HEIGHT: f32 = 20.0;
 
-pub(crate) const GLYPHS: [(&str, &str); 12] = [
+pub(crate) const GLYPHS: [(&str, Glyph); 12] = [
     (basic::BOLD, ICON_BOLD),
     (basic::ITALIC, ICON_ITALIC),
     (basic::UNDERLINE, ICON_UNDERLINE),
@@ -91,6 +91,12 @@ pub(crate) fn editor_seeds() -> Vec<Seed> {
         ),
         basic::block(line("Tab nests"), basic::INDENT, Value::Int(1)),
         basic::block(
+            line("A bullet marks").start..line("nested in it").end,
+            LIST,
+            Value::text(basic::BULLET),
+        ),
+        basic::block(line("and a ring marks"), basic::INDENT, Value::Int(1)),
+        basic::block(
             line("Write a schema").start..line("Ship it").end,
             LIST,
             Value::text(CHECK),
@@ -106,23 +112,15 @@ pub(crate) fn editor_seeds() -> Vec<Seed> {
     ]
 }
 
-pub(crate) fn render_void() -> RenderFn<VoidView> {
-    RenderFn::new(|void: VoidView| {
-        view! {
-            <Mention void />
-        }
+pub(crate) fn render_marker() -> RenderFn<TextMarker> {
+    RenderFn::new(|marker: TextMarker| match marker.kind.get_untracked() {
+        MarkerKind::Void(_) => view! {
+            <Mention marker />
+        },
+        _ => view! {
+            <DocumentMarker marker />
+        },
     })
-}
-
-pub(crate) fn mention_size(props: &MarkSet) -> Vec2 {
-    let name = props
-        .get(MENTION)
-        .and_then(Value::as_text)
-        .unwrap_or_default();
-    Vec2::new(
-        (name.chars().count() + 1) as f32 * MENTION_CHAR + MENTION_PADDING * 2.0,
-        MENTION_HEIGHT,
-    )
 }
 
 #[sample]
@@ -158,8 +156,7 @@ fn RichTextEditor() -> NodeId {
                 @test_id="demo.rich.editor"
                 @sizing=ItemSize::Fixed(EDITOR_HEIGHT)
                 state
-                render_void={render_void()}
-                void_size={Some(mention_size as fn(&MarkSet) -> Vec2)}
+                marker={render_marker()}
             />
         </List>
     }
@@ -185,21 +182,22 @@ fn clear_formatting(transform: &mut Transform<'_>) {
 
 #[sample]
 #[component]
-fn Mention(void: VoidView) -> NodeId {
-    let name = create_memo(move || {
-        void.props.with(|props| {
-            format!(
-                "@{}",
-                props
-                    .get(MENTION)
-                    .and_then(Value::as_text)
-                    .unwrap_or_default()
-            )
-        })
+fn Mention(marker: TextMarker) -> NodeId {
+    let name = create_memo(move || match marker.kind.get() {
+        MarkerKind::Void(props) => format!(
+            "@{}",
+            props
+                .get(MENTION)
+                .and_then(Value::as_text)
+                .unwrap_or_default()
+        ),
+        _ => String::new(),
     });
     view! {
         <Frame
             @test_id={format!("demo.rich.{}", name.get_untracked())}
+            height=MENTION_HEIGHT
+            padding={Sides::horizontal(MENTION_PADDING)}
             fill=ColorRole::AccentSoft
             radius=Radius::Md
         >

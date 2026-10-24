@@ -121,7 +121,7 @@ fn SelectTrigger(
                         {label_text}
                     </Text>
                     <Text color={arrow_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_CHEVRON_DOWN.to_owned()} />
+                        <Icon glyph=ICON_CHEVRON_DOWN />
                     </Text>
                 </List>
             </Frame>

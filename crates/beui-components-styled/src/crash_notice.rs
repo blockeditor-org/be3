@@ -32,7 +32,7 @@ pub fn CrashNotice(
         <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
                 <Text size=TextSize::Xl color=TextColor::Danger align=TextAlign::Center>
-                    <Icon glyph={ICON_CIRCLE_ALERT.to_owned()} />
+                    <Icon glyph=ICON_CIRCLE_ALERT />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
                 <Show condition={has_detail}>
@@ -50,7 +50,7 @@ pub fn CrashNotice(
                         <Button
                             @test_id={reload_id}
                             label={reload_label}
-                            glyph={ICON_REFRESH_CW.to_owned()}
+                            glyph=ICON_REFRESH_CW
                             variant=ButtonVariant::Secondary
                             on_click={on_reload}
                         />

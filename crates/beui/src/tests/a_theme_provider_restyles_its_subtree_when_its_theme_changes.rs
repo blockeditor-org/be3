@@ -16,6 +16,7 @@ fn a_theme_provider_restyles_its_subtree_when_its_theme_changes() {
     let mut harness = Harness::new(document);
     let fills = |output: &crate::FrameOutput, fill: Color32| {
         output
+            .main()
             .shapes()
             .iter()
             .filter(|shape| {

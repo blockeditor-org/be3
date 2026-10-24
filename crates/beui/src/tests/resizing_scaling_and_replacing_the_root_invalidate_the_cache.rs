@@ -19,12 +19,12 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     harness.frame(vec![]);
     assert_eq!(harness.rect(text).size(), WIDE_VIEWPORT);
     harness.rescale(2.0);
-    assert!(harness.frame(vec![]).changed);
+    assert!(harness.frame(vec![]).main().changed);
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), (3, 3));
     harness.document_mut().remove_node(text);
     let output = harness.frame(vec![]);
-    assert!(output.changed);
-    assert!(output.shapes().is_empty());
+    assert!(output.main().changed);
+    assert!(output.main().shapes().is_empty());
     assert!(harness.document().node_rect(text).is_none());
     let fill = with_installed(harness.document_mut(), |_| {
         view! {
@@ -32,5 +32,5 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
         }
     });
     harness.document_mut().set_root(fill);
-    assert!(harness.frame(vec![]).changed);
+    assert!(harness.frame(vec![]).main().changed);
 }

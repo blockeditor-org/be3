@@ -1,3 +1,4 @@
+use lucide::Glyph;
 pub mod database;
 pub mod datetime;
 
@@ -22,7 +23,7 @@ pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) 
 
 pub trait BlockTypes {
     fn display_name(&self, block_type: Uuid) -> Option<&str>;
-    fn icon(&self, block_type: Uuid) -> Option<&'static str>;
+    fn icon(&self, block_type: Uuid) -> Option<Glyph>;
     fn color(&self, _block_type: Uuid) -> Option<[u8; 3]> {
         None
     }
@@ -41,7 +42,7 @@ pub struct ChildEdits {
 pub struct BlockTypeEntry {
     pub display_name: String,
     pub color: Option<[u8; 3]>,
-    pub icon: Option<&'static str>,
+    pub icon: Option<Glyph>,
     pub child_edits: ChildEdits,
 }
 
@@ -61,7 +62,7 @@ pub struct TemplateEntry {
     pub template: String,
     pub block_type: Uuid,
     pub name: String,
-    pub icon: Option<&'static str>,
+    pub icon: Option<Glyph>,
     pub category: TemplateCategory,
     pub dialog: bool,
 }
@@ -71,7 +72,7 @@ pub struct EditorEntry {
     pub editor: Uuid,
     pub edits: Edits,
     pub name: String,
-    pub icon: Option<&'static str>,
+    pub icon: Option<Glyph>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -158,7 +159,7 @@ impl BlockTypes for BlockCatalog {
             .map(|entry| entry.display_name.as_str())
     }
 
-    fn icon(&self, block_type: Uuid) -> Option<&'static str> {
+    fn icon(&self, block_type: Uuid) -> Option<Glyph> {
         self.types.get(&block_type).and_then(|entry| entry.icon)
     }
 
@@ -193,7 +194,7 @@ impl Reach {
 #[derive(Clone, PartialEq)]
 pub struct BlockLabel {
     pub block_type: Uuid,
-    pub icon: Option<&'static str>,
+    pub icon: Option<Glyph>,
     pub name: String,
     pub automatic: bool,
     pub reach: Reach,

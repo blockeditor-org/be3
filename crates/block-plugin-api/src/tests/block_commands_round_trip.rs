@@ -7,12 +7,17 @@ fn block_commands_round_trip() {
     for command in [
         BlockCommand::Share,
         BlockCommand::Leave,
-        BlockCommand::Rename,
+        BlockCommand::Rename { anchor: None },
+        BlockCommand::Rename {
+            anchor: Some(Rect::from_min_size(
+                Pos2::new(4.0, 8.0),
+                Vec2::new(16.0, 24.0),
+            )),
+        },
         BlockCommand::Unlink { container: [5; 16] },
         BlockCommand::Delete {
             block_type: [2; 16],
             source: BlockLocation::Root,
-            is_reference: false,
         },
         BlockCommand::Move {
             block_type: [2; 16],
@@ -28,7 +33,6 @@ fn block_commands_round_trip() {
         BlockCommand::Delete {
             block_type: [2; 16],
             source: BlockLocation::Detached,
-            is_reference: true,
         },
         BlockCommand::Artifact {
             action: ArtifactAction::Regenerate,

@@ -1,7 +1,7 @@
 use crate::{
     ArtifactDescription, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
     ChildContent, ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply,
-    HostRequest, Message, VersionCommand,
+    HostRequest, Message, ShellDialog, VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -95,15 +95,27 @@ impl EditorMessage {
             | Self::ReplaceContent { block_id, .. }
             | Self::ShowPresence { block_id, .. }
             | Self::PeerPresence { block_id, .. }
+            | Self::SendToPeers { block_id, .. }
+            | Self::PeerMessages { block_id, .. }
             | Self::DragBlock { block_id, .. }
             | Self::DragOver { block_id, .. }
             | Self::PlayAudio { block_id, .. }
             | Self::OpenArtifact { block_id, .. }
             | Self::Define { block_id, .. }
             | Self::VersionStatus { block_id, .. } => existing(block_id),
-            Self::ShowDialog { block_id, .. } | Self::SetAccess { block_id, .. } => {
+            Self::ShowDialog {
+                block_id, dialog, ..
+            } => {
                 existing(block_id);
+                if let ShellDialog::Rename {
+                    within: Some(within),
+                    ..
+                } = dialog
+                {
+                    existing(within);
+                }
             }
+            Self::SetAccess { block_id, .. } => existing(block_id),
             Self::OpenBlock { block_id, via, .. } | Self::ShowBlock { block_id, via, .. } => {
                 existing(block_id);
                 via.iter_mut().for_each(existing);
@@ -135,7 +147,7 @@ impl EditorMessage {
                     BlockCommand::Place { parent, .. } => existing(parent),
                     BlockCommand::Share
                     | BlockCommand::Leave
-                    | BlockCommand::Rename
+                    | BlockCommand::Rename { .. }
                     | BlockCommand::Undo
                     | BlockCommand::Redo
                     | BlockCommand::Artifact { .. }
@@ -269,10 +281,12 @@ impl EditorMessage {
                     | VersionCommand::Resolve { block_id, .. } => {
                         existing(block_id);
                     }
-                    VersionCommand::Commit { .. }
+                    VersionCommand::Finish { .. }
                     | VersionCommand::Update
                     | VersionCommand::Switch { .. }
                     | VersionCommand::CreateBranch { .. }
+                    | VersionCommand::Merge { .. }
+                    | VersionCommand::Undo { .. }
                     | VersionCommand::NewCheckout { .. }
                     | VersionCommand::Fork
                     | VersionCommand::PullUpstream

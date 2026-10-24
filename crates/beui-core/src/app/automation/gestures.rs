@@ -58,6 +58,10 @@ impl Gestures {
         vec![vec![Input::PointerLeft]]
     }
 
+    pub fn motion(&mut self, by: Vec2) -> Frames {
+        vec![vec![Input::PointerMotion(by)]]
+    }
+
     pub fn down(&mut self, at: Pos2, button: PointerButton) -> Frames {
         let mut frames = self.arrive(at);
         self.buttons.push(button);

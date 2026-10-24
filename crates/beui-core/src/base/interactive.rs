@@ -57,6 +57,7 @@ pub struct InteractiveNode {
     pub drawing_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub inhibits_shortcuts: bool,
+    pub forwards_wheel: bool,
     pub claim_modifiers: Option<Modifiers>,
     pub claim_at: Callback<(Pos2, Modifiers), bool>,
     pub on_press_outside: Callback<Pos2>,
@@ -113,6 +114,7 @@ impl InteractiveNode {
             drawing_at: Callback::empty(),
             on_forward: Callback::empty(),
             inhibits_shortcuts: false,
+            forwards_wheel: true,
             claim_modifiers: None,
             claim_at: Callback::empty(),
             on_press_outside: Callback::empty(),
@@ -146,6 +148,10 @@ impl InteractiveNode {
 
     pub fn forwards(&self) -> bool {
         !self.on_forward.is_empty()
+    }
+
+    pub fn forwards_wheels(&self) -> bool {
+        self.forwards() && self.forwards_wheel
     }
 
     pub fn takes_presses(&self) -> bool {
@@ -238,6 +244,7 @@ pub fn press_at(
     time: std::time::Instant,
 ) -> PointerPress {
     PointerPress {
+        window: crate::window::WindowId::MAIN,
         pos,
         local: pos - rect.min.to_vec2(),
         size: rect.size(),
@@ -559,6 +566,14 @@ impl Document {
         }
     }
 
+    pub fn set_interactive_forwards_wheel(&mut self, id: NodeOf<InteractiveNode>, forwards: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).forwards_wheel != forwards {
+            self.arena
+                .touch_mut_as::<InteractiveNode>(id)
+                .forwards_wheel = forwards;
+        }
+    }
+
     pub fn set_interactive_claim_modifiers(
         &mut self,
         id: NodeOf<InteractiveNode>,
@@ -608,6 +623,7 @@ impl Document {
         &mut self,
         rects: &Rects,
         layers: &[NodeOf<OverlayNode>],
+        window: crate::window::WindowId,
         pos: Pos2,
         primary: bool,
     ) {
@@ -620,9 +636,10 @@ impl Document {
             .iter()
             .filter(|id| self.arena.contains(**id))
             .filter(|id| {
-                !rects
-                    .visible(id)
-                    .is_some_and(|rect| rect.contains_half_open(pos))
+                self.window_of(**id) != window
+                    || !rects
+                        .visible(id)
+                        .is_some_and(|rect| rect.contains_half_open(pos))
             })
             .filter_map(|id| {
                 self.arena

@@ -1,5 +1,5 @@
 use crate::color::Color32;
-use crate::context::FrameOutput;
+use crate::context::WindowOutput;
 use crate::drawing::Drawing;
 use crate::font::Glyph;
 use crate::geometry::{Rect, Rotation, vec2};
@@ -133,12 +133,12 @@ pub struct Quads {
     pub list: Vec<Quad>,
 }
 
-pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
+pub fn quads(output: &WindowOutput, pixels_per_point: f32) -> Quads {
     quads_within(output, pixels_per_point, None)
 }
 
 pub fn quads_within(
-    output: &FrameOutput,
+    output: &WindowOutput,
     pixels_per_point: f32,
     damaged: Option<&[[f32; 4]]>,
 ) -> Quads {

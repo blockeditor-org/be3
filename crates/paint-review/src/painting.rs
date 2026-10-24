@@ -152,7 +152,7 @@ fn Controls(review: Review) -> NodeId {
                 <Show condition={many}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <IconButton
-                            glyph={ICON_CHEVRON_LEFT.to_owned()}
+                            glyph=ICON_CHEVRON_LEFT
                             label="The frame before"
                             disabled={first}
                             @test_id={"paint_review.frame.previous"}
@@ -162,7 +162,7 @@ fn Controls(review: Review) -> NodeId {
                             {position}
                         </Text>
                         <IconButton
-                            glyph={ICON_CHEVRON_RIGHT.to_owned()}
+                            glyph=ICON_CHEVRON_RIGHT
                             label="The frame after"
                             disabled={last}
                             @test_id={"paint_review.frame.next"}

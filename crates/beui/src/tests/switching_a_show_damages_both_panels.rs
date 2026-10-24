@@ -34,6 +34,7 @@ fn switching_a_show_damages_both_panels() {
     second.set(true);
     let damage = harness
         .frame(Vec::new())
+        .main()
         .damage()
         .expect("swapping the shown panel repaints");
 

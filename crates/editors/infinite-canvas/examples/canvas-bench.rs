@@ -204,7 +204,7 @@ fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Input {
 
 fn inked(test: &BeuiTest<CanvasApp>, at: Pos2) -> bool {
     test.drawn()
-        .and_then(|output| output.damaged())
+        .and_then(|output| output.main().damaged())
         .is_some_and(|damage| {
             damage
                 .rects()

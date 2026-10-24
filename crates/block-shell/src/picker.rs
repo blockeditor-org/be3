@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use std::collections::{HashMap, HashSet};
 
 use block_editor_beui::be_block::{BlockContent, FolderContent};
@@ -415,7 +416,7 @@ pub(crate) struct TreeRow {
     pub(crate) key: TreeKey,
     pub(crate) block_type: Uuid,
     pub(crate) name: String,
-    pub(crate) icon: String,
+    pub(crate) icon: Option<Glyph>,
     pub(crate) detail: String,
     pub(crate) above: String,
     pub(crate) depth: usize,
@@ -491,7 +492,7 @@ impl Walk<'_> {
             TreeRow {
                 key,
                 block_type: block.block_type,
-                icon: label_glyph(&label).unwrap_or_default().to_owned(),
+                icon: label_glyph(&label),
                 detail: (self.detail)(block),
                 above: above.to_owned(),
                 depth,
@@ -529,7 +530,7 @@ impl Walk<'_> {
                 key,
                 block_type: Uuid::nil(),
                 name: "Shared with me".to_owned(),
-                icon: ICON_USERS.to_owned(),
+                icon: Some(ICON_USERS),
                 detail: String::new(),
                 above: String::new(),
                 depth: 0,
@@ -543,8 +544,8 @@ impl Walk<'_> {
 }
 
 fn section_icon(row: &mut TreeRow) {
-    if row.icon.is_empty() {
-        ICON_BOXES.clone_into(&mut row.icon);
+    if row.icon.is_none() {
+        row.icon = Some(ICON_BOXES);
     }
 }
 

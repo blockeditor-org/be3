@@ -17,7 +17,7 @@ fn content_both_sides_changed_is_left_for_its_content_type() {
 
     let plan = merge(&base, &ours, &theirs);
 
-    assert!(plan.conflicts.is_empty(), "{:?}", plan.conflicts);
+    assert!(plan.tree.conflicts.is_empty(), "{:?}", plan.tree.conflicts);
     assert_eq!(
         plan.contents,
         vec![ContentMerge {

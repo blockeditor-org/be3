@@ -9,6 +9,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use block_editor_beui::BlockParent;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
@@ -64,7 +65,7 @@ fn menu_actions(state: State, settings: Signal<bool>) {
     ]);
 }
 
-const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
+const FORMATS: [(&str, &str, Glyph, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.heading",
         "Heading",
@@ -151,7 +152,7 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
             let mut action = Action::new(*id, *label, move || {
                 state.text.execute(EditorCommand::Markdown(command))
             })
-            .glyph(glyph)
+            .glyph(*glyph)
             .enabled(markdown);
             if let Some(chord) = chord {
                 action = action.shortcut(*chord);

@@ -21,6 +21,7 @@ pub(crate) struct Node {
     pub(crate) metadata: BlockMetadata,
     pub(crate) head: Option<CommitId>,
     pub(crate) locked: bool,
+    pub(crate) held: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -141,7 +142,7 @@ impl Graph {
                 into.insert(Listing::Children(BlockParent::Root));
             }
             Query::Detached => {
-                into.insert(Listing::Children(BlockParent::Detached));
+                into.insert(Listing::Deleted);
             }
             Query::Shared => {
                 into.insert(Listing::Shared);
@@ -397,7 +398,17 @@ impl Graph {
             self.revision += 1;
             self.relist(Listing::References(block));
         }
+        self.placed(block, &references);
         self.referenced.insert(block, references);
+    }
+
+    fn placed(&mut self, parent: Uuid, references: &[Uuid]) {
+        let nodes = &self.nodes;
+        self.placing.retain(|child| {
+            !(references.contains(child)
+                && nodes.get(child).and_then(|node| node.parent)
+                    == Some(BlockParent::Block(parent)))
+        });
     }
 
     pub(crate) fn forget_references(&mut self, block: Uuid) {
@@ -418,6 +429,8 @@ impl Graph {
         {
             self.relist(Listing::References(node.id));
         }
+        let references = node.references.clone();
+        self.placed(node.id, &references);
         for (listing, listed) in &mut self.listings {
             match member(*listing, &node, &self.nodes) {
                 Some(true) => listed.members.insert(node.id),
@@ -463,7 +476,12 @@ impl Graph {
     pub(crate) fn query(&self, query: Query) -> Vec<Node> {
         let mut found: Vec<Node> = match query {
             Query::Roots => self.with_parent(BlockParent::Root),
-            Query::Detached => self.with_parent(BlockParent::Detached),
+            Query::Detached => self
+                .nodes
+                .values()
+                .filter(|node| node.parent.is_some() && !self.holds(node))
+                .cloned()
+                .collect(),
             Query::Shared => self
                 .listings
                 .get(&Listing::Shared)
@@ -572,14 +590,30 @@ impl Graph {
         }
     }
 
+    fn holds(&self, node: &Node) -> bool {
+        if self.placing.contains(&node.id) {
+            return true;
+        }
+        match node.parent {
+            Some(BlockParent::Root) | None => true,
+            Some(BlockParent::Detached) => false,
+            Some(BlockParent::Block(parent)) => match self.nodes.get(&parent) {
+                Some(parent) if parent.access.can_view() => parent.references.contains(&node.id),
+                _ => node.held,
+            },
+        }
+    }
+
     pub(crate) fn deleted_root(&self, block: Uuid) -> Option<Uuid> {
         let mut current = block;
         for _ in 0..=self.nodes.len() {
-            match self.nodes.get(&current)?.parent? {
-                BlockParent::Detached if self.placing.contains(&current) => return None,
-                BlockParent::Detached => return Some(current),
-                BlockParent::Root => return None,
+            let node = self.nodes.get(&current)?;
+            if !self.holds(node) {
+                return Some(current);
+            }
+            match node.parent? {
                 BlockParent::Block(parent) => current = parent,
+                BlockParent::Root | BlockParent::Detached => return None,
             }
         }
         None
@@ -617,6 +651,7 @@ impl Graph {
 fn member(listing: Listing, node: &Node, nodes: &HashMap<Uuid, Node>) -> Option<bool> {
     match listing {
         Listing::Children(parent) => Some(node.parent == Some(parent)),
+        Listing::Deleted => Some(node.parent.is_some() && !node.held),
         Listing::Block(block) => Some(block == node.id),
         Listing::Backrefs(block) => Some(node.references.contains(&block)),
         Listing::References(block) => nodes

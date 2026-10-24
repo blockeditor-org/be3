@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LINK,
     ICON_SEARCH,
@@ -294,13 +295,7 @@ fn TypeItem(
             .map(|[r, g, b]| Color32::from_rgb(r, g, b))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
-    let glyph = create_memo(move || {
-        entry
-            .get()
-            .and_then(|entry| entry.icon)
-            .unwrap_or_default()
-            .to_owned()
-    });
+    let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
         <unstyled::MenuItem
             label
@@ -414,7 +409,7 @@ fn PlaceItem(
 ) -> unstyled::MenuItem {
     let id = key.id();
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
-    let glyph = create_memo(move || row.get().map(|row| row.icon).unwrap_or_default());
+    let glyph = create_memo(move || row.get().and_then(|row| row.icon));
     let depth = create_memo(move || row.get().map(|row| row.depth));
     let unfolded = key.clone();
     let expanded = Binding::new(
@@ -552,7 +547,7 @@ fn SurfaceHeader(
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
                     <IconButton
                         @test_id={"picker.back"}
-                        glyph={ICON_ARROW_LEFT.to_owned()}
+                        glyph=ICON_ARROW_LEFT
                         label="Back to the menu"
                         variant=ButtonVariant::Ghost
                         on_click={move || act.call(PickAction::Stage(Stage::Menu))}
@@ -566,7 +561,7 @@ fn SurfaceHeader(
                     value={Binding::new(search, move |value: String| act.call(PickAction::Search(value)))}
                     placeholder
                     label="Search"
-                    glyph={ICON_SEARCH.to_owned()}
+                    glyph=ICON_SEARCH
                     @test_id={"picker.search"}
                 />
             </List>
@@ -689,13 +684,7 @@ fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId 
             .map(|[r, g, b]| Color32::from_rgb(r, g, b))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
-    let glyph = create_memo(move || {
-        entry
-            .get()
-            .and_then(|entry| entry.icon)
-            .unwrap_or_default()
-            .to_owned()
-    });
+    let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
         <unstyled::Button
             @test_id={format!("picker.more.{key}")}
@@ -722,7 +711,7 @@ fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId 
 fn ChoiceFace(
     handle: ButtonHandle,
     label: Memo<String>,
-    glyph: Memo<String>,
+    glyph: Memo<Option<Glyph>>,
     #[prop(default = TextColor::Muted)] glyph_color: Prop<TextColor>,
     detail: Memo<String>,
     enabled: Memo<bool>,
@@ -864,7 +853,7 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
                 <Show condition={has_above}>
                     <Text size=TextSize::Sm color=TextColor::Muted ellipsis=true>{above}</Text>
                     <Text size=TextSize::Sm color=TextColor::Muted>
-                        <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
+                        <Icon glyph=ICON_CHEVRON_RIGHT />
                     </Text>
                 </Show>
                 <Text size=TextSize::Sm ellipsis=true>{name}</Text>
@@ -893,7 +882,7 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
 
 #[component]
 fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
-    let glyph = create_memo(move || row.get().map(|row| row.icon).unwrap_or_default());
+    let glyph = create_memo(move || row.get().and_then(|row| row.icon));
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
     let detail = create_memo(move || row.get().map(|row| row.detail).unwrap_or_default());
     let section = create_memo(move || row.get().is_some_and(|row| row.section));

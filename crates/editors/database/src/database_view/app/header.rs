@@ -67,7 +67,7 @@ fn WideHeader(data: Data) -> NodeId {
                     <Text style=TextStyle::CAPTION>{count}</Text>
                     <Popover
                         label="Display"
-                        glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
+                        glyph=ICON_SLIDERS_HORIZONTAL
                         max_width=DISPLAY_WIDTH
                         @test_id={"database-view.display"}
                     >|_|
@@ -106,7 +106,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                     <SearchField @sizing=ItemSize::Percent(100.0) data={data} />
                     <Button
                         label={filtered}
-                        glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
+                        glyph=ICON_SLIDERS_HORIZONTAL
                         variant=ButtonVariant::Secondary
                         @test_id={"database-view.filter-and-display"}
                         on_click={open}
@@ -180,7 +180,7 @@ fn ViewTabs(data: Data) -> NodeId {
                 }
             }</ForEach>
             <IconButton
-                glyph={ICON_PLUS.to_owned()}
+                glyph=ICON_PLUS
                 label="New view"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}
@@ -199,7 +199,7 @@ fn SearchField(data: Data) -> NodeId {
         <TextInput
             value={Binding::new(query, typed)}
             placeholder="Search"
-            glyph={ICON_SEARCH.to_owned()}
+            glyph=ICON_SEARCH
             clearable=true
             @test_id={"database-view.search"}
         />
@@ -219,7 +219,7 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
     match compact {
         true => view! {
             <IconButton
-                glyph={ICON_PLUS.to_owned()}
+                glyph=ICON_PLUS
                 label="New"
                 variant=ButtonVariant::Primary
                 disabled={disabled}
@@ -230,7 +230,7 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
         false => view! {
             <Button
                 label="New"
-                glyph={ICON_PLUS.to_owned()}
+                glyph=ICON_PLUS
                 variant=ButtonVariant::Primary
                 disabled={disabled}
                 @test_id={"database-view.new"}

@@ -563,7 +563,7 @@ fn carry(drag: BlockDrag) {
         return;
     };
     let point = DragPoint::at(pointer.pos, Modifiers::NONE);
-    board.begin(Rc::new(drag), point, Rc::new(|_| {}));
+    board.begin(Rc::new(drag), point, Rc::new(|_| {}), Rc::new(|_| {}));
 }
 
 fn focus_when_asked(

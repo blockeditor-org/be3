@@ -1,21 +1,24 @@
 use super::*;
 
-fn paint(context: &beui::Context, square: bool) -> FrameOutput {
-    context.run(|context| {
-        let painter = context.painter();
-        painter.rect_filled(
-            Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0)),
-            0.0,
-            Color32::from_rgb(255, 0, 0),
-        );
-        if square {
+fn paint(context: &beui::Context, square: bool) -> beui::WindowOutput {
+    context
+        .run(|context| {
+            let painter = context.painter();
             painter.rect_filled(
-                Rect::from_min_size(pos2(20.0, 10.0), vec2(4.0, 4.0)),
+                Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0)),
                 0.0,
-                Color32::from_rgb(0, 0, 255),
+                Color32::from_rgb(255, 0, 0),
             );
-        }
-    })
+            if square {
+                painter.rect_filled(
+                    Rect::from_min_size(pos2(20.0, 10.0), vec2(4.0, 4.0)),
+                    0.0,
+                    Color32::from_rgb(0, 0, 255),
+                );
+            }
+        })
+        .main()
+        .clone()
 }
 
 #[test]

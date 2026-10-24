@@ -19,9 +19,9 @@ fn returning_to_the_inspector_tab_repaints_the_whole_panel() {
             button: PointerButton::Primary,
             pressed,
         }]);
-        damage.extend_from_slice(output.damage.rects());
+        damage.extend_from_slice(output.main().damage.rects());
     }
-    damage.extend_from_slice(harness.frame(Vec::new()).damage.rects());
+    damage.extend_from_slice(harness.frame(Vec::new()).main().damage.rects());
 
     let panel = harness
         .inspector()

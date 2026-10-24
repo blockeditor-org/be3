@@ -525,9 +525,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn wants_another_frame(&self) -> bool {
-        self.output
-            .as_ref()
-            .is_some_and(|output| output.changed || output.repaint_after < std::time::Duration::MAX)
+        self.output.as_ref().is_some_and(|output| {
+            output.main().changed || output.repaint_after < std::time::Duration::MAX
+        })
     }
 
     pub fn drawn(&self) -> Option<&beui::FrameOutput> {
@@ -614,7 +614,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 states: states
                     .into_iter()
                     .map(|(block, history)| block_plugin_api::HistoryState {
-                        head: None,
+                        head: history.head,
                         block_id: block.into_bytes(),
                         can_undo: history.can_undo,
                         can_redo: history.can_redo,
@@ -651,6 +651,26 @@ impl<A: BeuiApp> BeuiTest<A> {
                         value: peer.value,
                     })
                     .collect(),
+            }));
+    }
+
+    pub fn receive_from_peer<M: block_editor_beui::be_block::presence::ChannelKind>(
+        &mut self,
+        from: u64,
+        message: &M,
+    ) {
+        let block = self
+            .block_id()
+            .expect("this editor has no block of its own to hear peers on");
+        self.inbox
+            .push(Message::Editor(EditorMessage::PeerMessages {
+                instance: INSTANCE,
+                block_id: block.into_bytes(),
+                messages: vec![block_plugin_api::PeerMessage {
+                    from,
+                    channel: M::ID.into_bytes(),
+                    payload: message.encode(),
+                }],
             }));
     }
 
@@ -757,7 +777,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn settle(&mut self) {
         self.settle_until("its animations to finish", |test| {
             test.output.as_ref().is_none_or(|output| {
-                !output.changed && output.repaint_after > std::time::Duration::ZERO
+                !output.main().changed && output.repaint_after > std::time::Duration::ZERO
             })
         });
     }
@@ -775,7 +795,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 .output
                 .as_ref()
                 .map_or((false, std::time::Duration::MAX), |output| {
-                    (output.changed, output.repaint_after)
+                    (output.main().changed, output.repaint_after)
                 });
             if changed && eager < EAGER_FRAMES {
                 eager += 1;
@@ -1134,6 +1154,20 @@ impl<A: BeuiApp> BeuiTest<A> {
                 kind: Uuid::from_bytes(*kind),
                 value: value.as_ref().map(|value| value.to_vec()),
             }),
+            _ => None,
+        })
+    }
+
+    pub fn take_sent_to_peers<M: block_editor_beui::be_block::presence::ChannelKind>(
+        &mut self,
+    ) -> Vec<(Option<u64>, M)> {
+        self.take_where(|message| match message {
+            EditorMessage::SendToPeers {
+                to,
+                channel,
+                payload,
+                ..
+            } if *channel == M::ID.into_bytes() => M::decode(payload).map(|message| (*to, message)),
             _ => None,
         })
     }
@@ -1594,7 +1628,12 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     if document.node_kind(node) == "text" {
         let detail = document.node_detail(node).unwrap_or_default();
         let text = detail.trim_matches('"');
-        collected.extend(document.text_icons(node));
+        collected.extend(
+            document
+                .text_icons(node)
+                .into_iter()
+                .map(|glyph| glyph.as_str().to_owned()),
+        );
         if !text.is_empty() {
             collected.push(text.to_owned());
         }

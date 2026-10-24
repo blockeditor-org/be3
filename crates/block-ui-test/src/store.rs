@@ -680,6 +680,34 @@ impl ContentStore {
         }
     }
 
+    fn held(&self, nodes: &[BlockInfo], node: &BlockInfo) -> bool {
+        match node.parent {
+            Some(BlockParent::Root) | None => true,
+            Some(BlockParent::Detached) => false,
+            Some(BlockParent::Block(parent)) => {
+                !nodes.iter().any(|above| above.id == parent)
+                    || self.references_of(parent).contains(&node.id)
+            }
+        }
+    }
+
+    fn deleted(&self, nodes: &[BlockInfo], block: Uuid) -> bool {
+        let mut current = block;
+        for _ in 0..=nodes.len() {
+            let Some(node) = nodes.iter().find(|node| node.id == current) else {
+                return false;
+            };
+            if !self.held(nodes, node) {
+                return true;
+            }
+            match node.parent {
+                Some(BlockParent::Block(parent)) => current = parent,
+                Some(BlockParent::Root | BlockParent::Detached) | None => return false,
+            }
+        }
+        false
+    }
+
     fn references_of(&self, id: Uuid) -> Vec<Uuid> {
         let inner = self.0.borrow();
         inner
@@ -718,7 +746,7 @@ impl ContentStore {
                 .collect(),
             BlockQuery::Detached => nodes
                 .iter()
-                .filter(|node| node.parent == Some(BlockParent::Detached))
+                .filter(|node| node.parent.is_some() && !self.held(&nodes, node))
                 .cloned()
                 .collect(),
             BlockQuery::Children(parent) => nodes
@@ -756,24 +784,9 @@ impl ContentStore {
             .into_iter()
             .map(with_references)
             .map(|mut info| {
-                info.deleted = info.deleted || deleted(&nodes, info.id);
+                info.deleted = info.deleted || self.deleted(&nodes, info.id);
                 info
             })
             .collect()
     }
-}
-
-fn deleted(nodes: &[BlockInfo], block: Uuid) -> bool {
-    let mut current = block;
-    for _ in 0..=nodes.len() {
-        let Some(node) = nodes.iter().find(|node| node.id == current) else {
-            return false;
-        };
-        match node.parent {
-            Some(BlockParent::Detached) => return true,
-            Some(BlockParent::Block(parent)) => current = parent,
-            Some(BlockParent::Root) | None => return false,
-        }
-    }
-    false
 }

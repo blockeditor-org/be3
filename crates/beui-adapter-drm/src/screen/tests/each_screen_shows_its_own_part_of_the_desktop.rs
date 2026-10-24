@@ -31,8 +31,8 @@ fn each_screen_shows_its_own_part_of_the_desktop() {
     left.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0));
     let mut right = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Normal);
     right.rect = Rect::from_min_size(pos2(32.0, 0.0), vec2(32.0, 24.0));
-    left.prepare(&gpu, &output, 1.0);
-    right.prepare(&gpu, &output, 1.0);
+    left.prepare(&gpu, output.main(), 1.0);
+    right.prepare(&gpu, output.main(), 1.0);
     let frame = Frame {
         scale: 1.0,
         clear: Color32::BLACK,

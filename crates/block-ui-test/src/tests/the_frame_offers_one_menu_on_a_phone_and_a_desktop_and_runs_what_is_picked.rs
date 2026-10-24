@@ -33,7 +33,7 @@ fn Tidy(editor: Editor) -> NodeId {
     .register();
     add_to_menu(vec![
         MenuNode::action(&tidy),
-        MenuNode::submenu("tidy.more", "More", "", vec![MenuNode::action(&neatly)]),
+        MenuNode::submenu("tidy.more", "More", None, vec![MenuNode::action(&neatly)]),
     ]);
     view! {
         <Text @test_id={"tidy.state"}>{tidied}</Text>
@@ -99,7 +99,10 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
     );
 
     test.pick_menu("editor.rename");
-    assert_eq!(test.take_block_commands(), [(block, BlockCommand::Rename)]);
+    assert_eq!(
+        test.take_block_commands(),
+        [(block, BlockCommand::Rename { anchor: None })]
+    );
 
     test.pick_menu("editor.details");
     assert_eq!(test.take_bar_actions(), [BarAction::Details]);

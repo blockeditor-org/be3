@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -35,7 +36,7 @@ pub(crate) struct Row {
     pub(crate) id: Option<Uuid>,
     pub(crate) block_type: Uuid,
     pub(crate) label: String,
-    pub(crate) glyph: String,
+    pub(crate) glyph: Option<Glyph>,
     pub(crate) icon_color: Option<[u8; 3]>,
     pub(crate) automatic: bool,
     pub(crate) depth: usize,
@@ -82,7 +83,7 @@ impl Row {
             id: None,
             block_type: Uuid::nil(),
             label: label.to_owned(),
-            glyph: String::new(),
+            glyph: None,
             icon_color: None,
             automatic: true,
             depth,
@@ -503,7 +504,7 @@ impl Builder<'_> {
         self.rows.push(Row {
             key: RowKey::Orphans,
             label: "Recently Deleted".to_owned(),
-            glyph: ICON_ROTATE_CCW_CLOCK.to_owned(),
+            glyph: Some(ICON_ROTATE_CCW_CLOCK),
             section: true,
             expandable: true,
             expanded: open,
@@ -534,7 +535,7 @@ impl Builder<'_> {
             section: true,
             expandable: true,
             expanded: open,
-            glyph: ICON_DATABASE.to_owned(),
+            glyph: Some(ICON_DATABASE),
             ..Row::note_at(RowKey::System, 0, "System")
         });
         if !open {
@@ -570,8 +571,8 @@ impl Builder<'_> {
             |id| id.to_string(),
         );
         row.section = true;
-        if row.glyph.is_empty() {
-            ICON_BOXES.clone_into(&mut row.glyph);
+        if row.glyph.is_none() {
+            row.glyph = Some(ICON_BOXES);
         }
         row.expandable = true;
         row.expanded = open;
@@ -601,7 +602,7 @@ impl Builder<'_> {
             section: true,
             expandable: true,
             expanded: open,
-            glyph: ICON_USERS.to_owned(),
+            glyph: Some(ICON_USERS),
             ..Row::note_at(RowKey::Shared, 0, "Shared with me")
         });
         if !open {
@@ -725,14 +726,14 @@ pub(crate) fn describe(
         .label(types)
         .deleted(reference.deleted && !trashed);
     let ordinary = label.reach == block_editor_beui::block_ui::Reach::Open && !label.deleted;
-    let default_glyph = label_glyph(&label).unwrap_or_default().to_owned();
+    let default_glyph = label_glyph(&label);
     let (glyph, icon_color) = if ordinary {
         (
             reference
                 .metadata
                 .icon()
                 .and_then(|icon| named(&icon))
-                .map_or(default_glyph, str::to_owned),
+                .or(default_glyph),
             reference
                 .metadata
                 .get(&ICON_COLOR)
@@ -890,7 +891,7 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     }
 }
 
-pub(crate) fn access_marker(access: AccessLevel) -> Option<&'static str> {
+pub(crate) fn access_marker(access: AccessLevel) -> Option<Glyph> {
     match access {
         AccessLevel::Edit => None,
         AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_EYE),

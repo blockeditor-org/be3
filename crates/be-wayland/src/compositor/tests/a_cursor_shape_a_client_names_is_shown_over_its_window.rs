@@ -34,7 +34,7 @@ fn a_cursor_shape_a_client_names_is_shown_over_its_window() {
             harness
                 .output
                 .as_ref()
-                .map(|output| output.window.requests.cursor),
+                .map(|output| output.main().window.requests.cursor),
             Some(icon),
             "{shape:?} is shown as {icon:?}"
         );
@@ -47,7 +47,7 @@ fn a_cursor_shape_a_client_names_is_shown_over_its_window() {
         harness
             .output
             .as_ref()
-            .map(|output| output.window.requests.cursor),
+            .map(|output| output.main().window.requests.cursor),
         Some(CursorIcon::Default),
         "the shape is the window's alone"
     );

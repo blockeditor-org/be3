@@ -112,7 +112,7 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
         <Toolbar shown={shown}>
             <Button
                 label="Compile"
-                glyph={ICON_WRENCH.to_owned()}
+                glyph=ICON_WRENCH
                 variant=ButtonVariant::Secondary
                 disabled={read_only}
                 @test_id={"logic-grid.compile"}
@@ -134,14 +134,10 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
                 </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <IconButton glyph={ICON_ZOOM_OUT.to_owned()} label="Zoom out" on_click={zoom_out} />
+            <IconButton glyph=ICON_ZOOM_OUT label="Zoom out" on_click={zoom_out} />
             <Text style=TextStyle::CAPTION>{percent}</Text>
-            <IconButton glyph={ICON_ZOOM_IN.to_owned()} label="Zoom in" on_click={zoom_in} />
-            <IconButton
-                glyph={ICON_SCAN.to_owned()}
-                label="Return to the origin"
-                on_click={recenter}
-            />
+            <IconButton glyph=ICON_ZOOM_IN label="Zoom in" on_click={zoom_in} />
+            <IconButton glyph=ICON_SCAN label="Return to the origin" on_click={recenter} />
         </Toolbar>
     }
 }

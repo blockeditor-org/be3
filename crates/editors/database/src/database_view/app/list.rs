@@ -216,7 +216,7 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_CHEVRON_DOWN.to_owned()}
+                    glyph=ICON_CHEVRON_DOWN
                     label={chevron}
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -230,7 +230,7 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
                 <IconButton
-                    glyph={ICON_PLUS.to_owned()}
+                    glyph=ICON_PLUS
                     label="Add a row to this group"
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -485,7 +485,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                 match kind {
                     PartKind::Page => view! {
                         <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
-                            <Icon glyph={ICON_FILE_TEXT.to_owned()} />
+                            <Icon glyph=ICON_FILE_TEXT />
                         </Text>
                     },
                     PartKind::Plain => view! {
@@ -521,7 +521,7 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
                 </Show>
                 <Show condition={linked}>
                     <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
-                        <Icon glyph={ICON_LINK.to_owned()} />
+                        <Icon glyph=ICON_LINK />
                     </Text>
                 </Show>
                 <Text style=TextStyle::CAPTION align=TextAlign::Start>{text}</Text>

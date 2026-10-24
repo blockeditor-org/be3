@@ -32,11 +32,13 @@ fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes()
     let output = harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -40.0)))]);
     assert_eq!(harness.document().scroll_offset(scroll), 40.0);
     let moved = output
+        .main()
         .moved()
         .expect("scrolling moves what the scroll already showed");
     assert_eq!(moved.by, vec2(0.0, -40.0));
     assert_eq!(moved.to().height(), viewport.height() - 40.0);
     let damaged: f32 = output
+        .main()
         .damage
         .rects()
         .iter()

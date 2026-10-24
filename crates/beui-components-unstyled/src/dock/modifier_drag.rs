@@ -4,6 +4,7 @@ use std::cell::Cell;
 use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Modifiers, SecondaryDrag};
+use beui_view::primitives::WindowHandle;
 
 use super::{DockLayout, Grip, SplitId, State, SurfaceId, fraction_moved, layout_tree};
 
@@ -11,7 +12,7 @@ const EDGE_MARGIN: f32 = 4.0;
 
 #[derive(Clone, Copy)]
 pub(super) enum Resized {
-    Window(SurfaceId),
+    Window(SurfaceId, WindowHandle),
     Docked,
 }
 
@@ -39,7 +40,7 @@ impl State {
 
     fn resize_target(&self, resized: Resized, pos: Pos2) -> Option<Resize> {
         let state = self.state.get_untracked();
-        if let Resized::Window(surface) = resized {
+        if let Resized::Window(surface, _) = resized {
             let start = state.window_rect(surface)?;
             let shown = self.surface_rect(surface)?;
             return Some(Resize::Window {
@@ -126,7 +127,13 @@ pub(super) fn modifier_resize(dock: State, resized: Resized) -> impl Fn(Secondar
                 .modifier_held(drag.modifiers)
                 .then(|| dock.resize_target(resized, drag.from))
                 .flatten();
-            resizing.set(target);
+            let by_host = match (resized, target) {
+                (Resized::Window(_, handle), Some(Resize::Window { grip, .. })) => {
+                    handle.begin_resize(grip.edge())
+                }
+                _ => false,
+            };
+            resizing.set(target.filter(|_| !by_host));
         }
         let Some(target) = resizing.get() else {
             return;

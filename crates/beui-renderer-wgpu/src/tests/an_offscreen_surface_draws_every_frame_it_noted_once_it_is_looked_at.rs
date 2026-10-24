@@ -16,16 +16,20 @@ fn an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at() {
         })
     };
 
-    surface.note(&frame(Color32::WHITE), 1.0, Color32::BLACK);
+    surface.note(frame(Color32::WHITE).main(), 1.0, Color32::BLACK);
     assert!(
         !surface.present(Color32::BLACK),
         "presenting with nothing prepared does nothing"
     );
-    surface.note(&frame(Color32::from_rgb(255, 0, 0)), 1.0, Color32::BLACK);
+    surface.note(
+        frame(Color32::from_rgb(255, 0, 0)).main(),
+        1.0,
+        Color32::BLACK,
+    );
     surface.present(Color32::BLACK);
     let looked_at = frame(Color32::from_rgb(255, 0, 0));
     assert!(
-        surface.prepare(&looked_at, 1.0, Color32::BLACK),
+        surface.prepare(looked_at.main(), 1.0, Color32::BLACK),
         "the frames noted before are still waiting to be drawn"
     );
     surface.present(Color32::BLACK);

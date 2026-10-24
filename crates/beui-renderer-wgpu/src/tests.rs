@@ -188,11 +188,11 @@ impl Target {
         paint: impl FnOnce(&Painter),
     ) -> Option<beui_core::context::Moved> {
         let output = context.run(|context| paint(&context.painter()));
-        let (repaint, moved) = output.repaint_moving(background);
+        let (repaint, moved) = output.main().repaint_moving(background);
         let effective = self.renderer.prepare(
             &self.device,
             &self.queue,
-            &output,
+            output.main(),
             vec2(SIZE as f32, SIZE as f32),
             1.0,
             repaint,
@@ -228,15 +228,15 @@ impl Target {
         &mut self,
         context: &Context,
         background: Color32,
-        repaint: impl FnOnce(&beui_core::context::FrameOutput) -> Repaint,
+        repaint: impl FnOnce(&beui_core::context::WindowOutput) -> Repaint,
         paint: impl FnOnce(&Painter),
     ) {
         let output = context.run(|context| paint(&context.painter()));
-        let repaint = repaint(&output);
+        let repaint = repaint(output.main());
         let effective = self.renderer.prepare(
             &self.device,
             &self.queue,
-            &output,
+            output.main(),
             vec2(SIZE as f32, SIZE as f32),
             1.0,
             repaint,

@@ -455,7 +455,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Show condition={asking}>
                 <IconButton
-                    glyph={glyph.to_owned()}
+                    glyph={glyph}
                     label={label.clone()}
                     disabled={disabled}
                     @test_id={format!("game.control.{index}")}
@@ -467,14 +467,14 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Text style=TextStyle::CAPTION>{question}</Text>
                         <IconButton
-                            glyph={ICON_CHECK.to_owned()}
+                            glyph=ICON_CHECK
                             label={confirm}
                             disabled={disabled}
                             @test_id={format!("game.control.{index}.confirm")}
                             on_click={move || game.value().choose(effect.clone())}
                         />
                         <IconButton
-                            glyph={ICON_X.to_owned()}
+                            glyph=ICON_X
                             label="Cancel"
                             @test_id={format!("game.control.{index}.cancel")}
                             on_click={move || confirming.set(false)}
@@ -521,7 +521,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                         <Text size=TextSize::Lg weight=Weight::Bold color={color}>{text}</Text>
                         <IconButton
-                            glyph={ICON_X.to_owned()}
+                            glyph=ICON_X
                             label="Close"
                             size=IconButtonSize::Compact
                             capture_presses=true

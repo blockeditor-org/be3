@@ -109,7 +109,7 @@ pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
 pub use sheet::{ModalSheet, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::Slider;
-pub use software_keyboard::{SoftwareKeyboard, keyboard_height};
+pub use software_keyboard::SoftwareKeyboard;
 pub use spinner::Spinner;
 pub use split_button::SplitButton;
 pub use stack::Stack;
@@ -123,7 +123,7 @@ pub use text::{
 };
 pub use text_area::emoji::emoji_menu;
 pub use text_area::format_bar::FormatBar;
-pub use text_area::{TextArea, TextAreaSurfaceApi};
+pub use text_area::{DocumentLeaf, DocumentLine, DocumentMarker, TextArea, TextAreaSurfaceApi};
 pub use text_input::TextInput;
 pub use theme::{
     Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,

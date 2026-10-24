@@ -76,7 +76,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                 <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>"Moves"</Text>
                 <IconButton
-                    glyph={ICON_CHEVRON_FIRST.to_owned()}
+                    glyph=ICON_CHEVRON_FIRST
                     label="First move"
                     size=IconButtonSize::Compact
                     disabled={at_start}
@@ -84,7 +84,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     on_click={move || steps.first()}
                 />
                 <IconButton
-                    glyph={ICON_CHEVRON_LEFT.to_owned()}
+                    glyph=ICON_CHEVRON_LEFT
                     label="Previous move"
                     size=IconButtonSize::Compact
                     disabled={at_start}
@@ -92,7 +92,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     on_click={move || steps.previous()}
                 />
                 <IconButton
-                    glyph={ICON_CHEVRON_RIGHT.to_owned()}
+                    glyph=ICON_CHEVRON_RIGHT
                     label="Next move"
                     size=IconButtonSize::Compact
                     disabled={at_end}
@@ -100,7 +100,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     on_click={move || steps.next()}
                 />
                 <IconButton
-                    glyph={ICON_CHEVRON_LAST.to_owned()}
+                    glyph=ICON_CHEVRON_LAST
                     label="Latest move"
                     size=IconButtonSize::Compact
                     disabled={at_end}

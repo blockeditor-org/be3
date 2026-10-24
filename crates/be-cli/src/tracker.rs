@@ -10,7 +10,9 @@ use be_block::database_schema::{
 };
 use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use be_block::text::{TextBlock, TextContent};
-use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
+use be_block::{
+    BlockContent, BlockMetadata, ChildChange, FolderContent, LiveEdit, ObjectId, WorkspaceContent,
+};
 use be_client::{Peer, Saved};
 use be_graph::BlockParent;
 use be_protocol::BlockSummary;
@@ -296,6 +298,10 @@ impl<S: ObjectStore> Tracker<S> {
         &self.peer
     }
 
+    pub fn shared_peer(&self) -> Arc<Peer<S>> {
+        Arc::clone(&self.peer)
+    }
+
     async fn entries(&self, summaries: Vec<BlockSummary>) -> Result<Vec<Entry>, String> {
         self.peer.learn(&summaries).await.map_err(explain)?;
         Ok(summaries
@@ -358,21 +364,25 @@ impl<S: ObjectStore> Tracker<S> {
             return Ok(entry.clone());
         }
         let summary = self.peer.summary(id).await.map_err(explain)?;
+        let mut deleted = !summary.held;
         let mut entry = self
             .entries(vec![summary])
             .await?
             .pop()
             .ok_or_else(|| format!("this account cannot see {id}"))?;
         let mut parent = entry.parent;
-        while let BlockParent::Block(above) = parent {
+        while let BlockParent::Block(above) = parent
+            && !deleted
+        {
             match self.peer.summary(above).await {
                 Ok(summary) if summary.access.can_view() => {
+                    deleted = !summary.held;
                     parent = summary.parent.unwrap_or(BlockParent::Root);
                 }
                 _ => break,
             }
         }
-        entry.deleted = parent == BlockParent::Detached;
+        entry.deleted = deleted;
         self.index.lock().await.insert(entry.clone());
         Ok(entry)
     }
@@ -449,9 +459,48 @@ impl<S: ObjectStore> Tracker<S> {
             .unwrap_or_else(|| entry.clone()))
     }
 
+    pub async fn place(&self, parent: BlockParent, child: Uuid) -> Result<(), String> {
+        self.relist(parent, ChildChange::Add(child)).await
+    }
+
+    async fn relist(&self, parent: BlockParent, change: ChildChange) -> Result<(), String> {
+        let BlockParent::Block(parent) = parent else {
+            return Ok(());
+        };
+        let refused = || format!("{parent} cannot list blocks; do this in the app");
+        match self
+            .peer
+            .summary(parent)
+            .await
+            .map_err(explain)?
+            .content_type
+        {
+            kind if kind == FolderContent::CONTENT_TYPE => {
+                self.change::<FolderContent>(parent, |held| {
+                    held.child_operations(change).ok_or_else(refused)
+                })
+                .await?;
+            }
+            kind if kind == WorkspaceContent::CONTENT_TYPE => {
+                self.change::<WorkspaceContent>(parent, |held| {
+                    held.child_operations(change).ok_or_else(refused)
+                })
+                .await?;
+            }
+            _ => return Err(refused()),
+        }
+        Ok(())
+    }
+
     pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
         let deleted = &self.outermost(entry).await?;
-        self.peer.delete(deleted.id).await.map_err(explain)?;
+        match self.peer.summary(deleted.id).await.map_err(explain)?.parent {
+            Some(BlockParent::Block(parent)) => {
+                self.relist(BlockParent::Block(parent), ChildChange::Delete(deleted.id))
+                    .await?;
+            }
+            _ => self.peer.delete(deleted.id).await.map_err(explain)?,
+        }
         self.invalidate().await;
         Ok(format!(
             "deleted {} ({}) and everything inside it; the app lists it under Recently Deleted",
@@ -815,6 +864,7 @@ impl<S: ObjectStore> Tracker<S> {
             .save(view, &DatabaseViewContent::new(&shown), None)
             .await
             .map_err(explain)?;
+        self.place(parent, view).await?;
         let mut held = BlockMetadata::named(name);
         held.insert(&be_block::ROW_PREFIX, &prefix);
         self.peer
@@ -1780,35 +1830,5 @@ fn is_code(text: &str) -> bool {
 }
 
 fn replace_text(current: &TextContent, text: &str) -> Option<be_block::Edit> {
-    let now = TextBlock::text(current);
-    if now == text {
-        return None;
-    }
-    let start = now
-        .bytes()
-        .zip(text.bytes())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let start = (0..=start)
-        .rev()
-        .find(|index| now.is_char_boundary(*index) && text.is_char_boundary(*index))
-        .unwrap_or(0);
-    let tail = now[start..]
-        .bytes()
-        .rev()
-        .zip(text[start..].bytes().rev())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let tail = (0..=tail)
-        .rev()
-        .find(|length| {
-            now.is_char_boundary(now.len() - length) && text.is_char_boundary(text.len() - length)
-        })
-        .unwrap_or(0);
-    TextBlock::replace(
-        current,
-        CLIENT,
-        start..now.len() - tail,
-        &text.as_bytes()[start..text.len() - tail],
-    )
+    TextBlock::rewrite(current, CLIENT, text.as_bytes())
 }

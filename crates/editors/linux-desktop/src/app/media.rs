@@ -1,4 +1,5 @@
 use beui::KeyAt;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_MIC, ICON_MIC_OFF, ICON_PLAY, ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_SQUARE, ICON_SUN,
     ICON_SUN_DIM, ICON_VOLUME_1, ICON_VOLUME_2, ICON_VOLUME_X,
@@ -76,7 +77,7 @@ impl MediaKey {
         }
     }
 
-    fn glyph(self) -> &'static str {
+    fn glyph(self) -> Glyph {
         match self {
             Self::VolumeUp => ICON_VOLUME_2,
             Self::VolumeDown => ICON_VOLUME_1,
@@ -113,7 +114,7 @@ impl MediaKey {
     }
 }
 
-pub(crate) fn volume_glyph(level: MediaLevel) -> &'static str {
+pub(crate) fn volume_glyph(level: MediaLevel) -> Glyph {
     match level.level {
         _ if level.muted || level.level <= 0.0 => ICON_VOLUME_X,
         volume if volume < 0.5 => ICON_VOLUME_1,

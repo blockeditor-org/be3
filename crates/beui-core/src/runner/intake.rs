@@ -5,6 +5,7 @@ use crate::input::{
     Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta,
     TouchId, TouchPhase,
 };
+use crate::window::{WindowId, WindowReport};
 
 pub const SCROLL_LINE: f32 = 40.0;
 pub const SCROLL_PAGE: f32 = 800.0;
@@ -19,18 +20,44 @@ pub enum Units {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Incoming {
-    Input(Units, Input),
+    Input {
+        units: Units,
+        window: WindowId,
+        input: Input,
+    },
     FileDrag(FileDrag),
     Time(Instant),
+    Window(WindowReport),
 }
 
 impl Incoming {
+    pub fn new(units: Units, input: Input) -> Self {
+        Self::Input {
+            units,
+            window: WindowId::MAIN,
+            input,
+        }
+    }
+
     pub fn logical(input: Input) -> Self {
-        Self::Input(Units::Logical, input)
+        Self::new(Units::Logical, input)
     }
 
     pub fn points(input: Input) -> Self {
-        Self::Input(Units::Points, input)
+        Self::new(Units::Points, input)
+    }
+
+    pub fn in_window(mut self, id: WindowId) -> Self {
+        if let Self::Input { window, .. } = &mut self {
+            *window = id;
+        }
+        self
+    }
+}
+
+impl From<WindowReport> for Incoming {
+    fn from(report: WindowReport) -> Self {
+        Self::Window(report)
     }
 }
 
@@ -42,14 +69,16 @@ impl From<FileDrag> for Incoming {
 
 impl From<Input> for Incoming {
     fn from(input: Input) -> Self {
-        Self::Input(Units::Physical, input)
+        Self::new(Units::Physical, input)
     }
 }
 
 pub(crate) struct Intake {
     pub(crate) incoming: Vec<Incoming>,
+    pub(crate) reports: Vec<WindowReport>,
     modifiers: Modifiers,
     pointer: Pos2,
+    window: WindowId,
     held: u8,
     left: bool,
     emulated_touch: bool,
@@ -59,8 +88,10 @@ impl Default for Intake {
     fn default() -> Self {
         Self {
             incoming: Vec::new(),
+            reports: Vec::new(),
             modifiers: Modifiers::NONE,
             pointer: Pos2::ZERO,
+            window: WindowId::MAIN,
             held: 0,
             left: false,
             emulated_touch: false,
@@ -68,10 +99,11 @@ impl Default for Intake {
     }
 }
 
-pub(crate) struct Drain {
+pub(crate) struct Drain<'a> {
     pub pixels_per_point: f32,
     pub native_pixels_per_point: f32,
     pub touch_emulation: bool,
+    pub window_size: &'a dyn Fn(WindowId) -> Option<Vec2>,
 }
 
 impl Intake {
@@ -79,7 +111,7 @@ impl Intake {
         self.modifiers
     }
 
-    pub(crate) fn drain(&mut self, drain: &mut Drain, events: &mut Vec<Event>) {
+    pub(crate) fn drain(&mut self, drain: &mut Drain<'_>, events: &mut Vec<Event>) {
         if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
             events.push(self.touch(TouchPhase::Cancel));
         }
@@ -99,7 +131,16 @@ impl Intake {
                     });
                     produced = true;
                 }
-                Incoming::Input(units, input) => {
+                Incoming::Window(report) => self.reports.push(report),
+                Incoming::Input {
+                    units,
+                    window,
+                    input,
+                } => {
+                    if window != self.window && points_into_window(&input) {
+                        self.window = window;
+                        events.push(Event::PointerWindow(window));
+                    }
                     let scale = match units {
                         Units::Physical => drain.pixels_per_point,
                         Units::Logical => drain.pixels_per_point / drain.native_pixels_per_point,
@@ -113,7 +154,7 @@ impl Intake {
         }
     }
 
-    fn input(&mut self, input: Input, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
+    fn input(&mut self, input: Input, scale: f32, drain: &Drain<'_>, events: &mut Vec<Event>) {
         let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
         match input {
             Input::Key(stroke) => self.key(stroke, events),
@@ -126,6 +167,7 @@ impl Intake {
             Input::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
             Input::PointerMoved(pos) => {
                 self.pointer = points(pos);
+                self.back_inside(drain);
                 if !drain.touch_emulation {
                     events.push(Event::PointerMoved(self.pointer));
                 } else if self.emulated_touch {
@@ -166,7 +208,10 @@ impl Intake {
                 }
             }
             Input::PointerLeft => match self.emulated_touch || self.held != 0 {
-                true => self.left = true,
+                true => {
+                    self.left = true;
+                    events.push(Event::PointerOutside);
+                }
                 false => events.push(Event::PointerGone),
             },
             Input::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
@@ -218,6 +263,17 @@ impl Intake {
             Input::ScrollEnded => events.push(Event::ScrollEnded),
             Input::Zoom(factor) => events.push(Event::Zoom(factor)),
             Input::Back(gesture) => events.push(Event::Back(gesture)),
+        }
+    }
+
+    fn back_inside(&mut self, drain: &Drain<'_>) {
+        if self.left
+            && (drain.window_size)(self.window).is_some_and(|size| {
+                let pos = self.pointer;
+                pos.x >= 0.0 && pos.y >= 0.0 && pos.x < size.x && pos.y < size.y
+            })
+        {
+            self.left = false;
         }
     }
 
@@ -273,6 +329,22 @@ impl Intake {
             force: None,
         }
     }
+}
+
+fn points_into_window(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::PointerMoved(_)
+            | Input::PointerButton { .. }
+            | Input::PointerLeft
+            | Input::Touch { .. }
+            | Input::Pen { .. }
+            | Input::Predicted(_)
+            | Input::Scroll(_)
+            | Input::ScrollStarted
+            | Input::ScrollEnded
+            | Input::Zoom(_)
+    )
 }
 
 pub fn scrolled(delta: ScrollDelta, scale: f32) -> Vec2 {

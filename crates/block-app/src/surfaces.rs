@@ -160,11 +160,10 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let spinning =
         create_memo(move || matches!(content.get(), HostItem::Notice { spinner: true, .. }));
     let glyph = create_memo(move || match content.get() {
-        HostItem::Fallback { icon, .. } => icon.unwrap_or_default(),
-        HostItem::Notice { icon, .. } => icon.unwrap_or_default().to_owned(),
-        HostItem::Unsupported { .. } => String::new(),
+        HostItem::Fallback { icon, .. } | HostItem::Notice { icon, .. } => icon,
+        HostItem::Unsupported { .. } => None,
     });
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let has_glyph = create_memo(move || glyph.get().is_some());
     let (surface, outline, color) = match kind {
         HostItem::Fallback { .. } => (
             Color32::from_gray(28),
@@ -231,7 +230,6 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
                 command: BlockCommand::Delete {
                     block_type: block_type.into_bytes(),
                     source,
-                    is_reference: false,
                 },
             },
         );

@@ -12,10 +12,10 @@ use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
 use text_editor_core::schema::basic::{self, Basic};
-use text_editor_core::{CursorPosition, EditorCommand, MarkSet, TextLanguage, Value};
+use text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
 
 use super::{Caret, Side, SideDocument, Simulation};
-use crate::rich_text::{GLYPHS, mention_size, render_void};
+use crate::rich_text::{GLYPHS, render_marker};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
 
@@ -215,8 +215,8 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         ((right, left), false) => format!("In flight: {right} to the right, {left} to the left."),
     });
     let network = create_memo(move || match paused.get() {
-        true => ICON_PLAY.to_owned(),
-        false => ICON_PAUSE.to_owned(),
+        true => ICON_PLAY,
+        false => ICON_PAUSE,
     });
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
@@ -292,12 +292,12 @@ fn SendButtons(
         true => Direction::Horizontal,
         false => Direction::Vertical,
     });
-    let arrows = |wide: [&'static str; 4], stacked: [&'static str; 4]| {
+    let arrows = |wide: [beui::icons::Glyph; 4], stacked: [beui::icons::Glyph; 4]| {
         (0..4)
             .map(|index| {
                 create_memo(move || match narrow.get() {
-                    true => stacked[index].to_owned(),
-                    false => wide[index].to_owned(),
+                    true => stacked[index],
+                    false => wide[index],
                 })
             })
             .collect::<Vec<_>>()
@@ -388,8 +388,7 @@ fn EditorPane(
                     (Side::Left.client(), LEFT_COLOR),
                     (Side::Right.client(), RIGHT_COLOR),
                 ]}
-                render_void={render_void()}
-                void_size={Some(mention_size as fn(&MarkSet) -> beui::Vec2)}
+                marker={render_marker()}
             />
         </List>
     }

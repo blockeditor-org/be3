@@ -47,21 +47,21 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
                 <IconButton
-                    glyph={ICON_ARROW_LEFT.to_owned()}
+                    glyph=ICON_ARROW_LEFT
                     label="Back"
                     disabled={no_back}
                     @test_id={"browser.back"}
                     on_click={go_back}
                 />
                 <IconButton
-                    glyph={ICON_ARROW_RIGHT.to_owned()}
+                    glyph=ICON_ARROW_RIGHT
                     label="Forward"
                     disabled={no_forward}
                     @test_id={"browser.forward"}
                     on_click={go_forward}
                 />
                 <IconButton
-                    glyph={ICON_REFRESH_CW.to_owned()}
+                    glyph=ICON_REFRESH_CW
                     label="Reload"
                     @test_id={"browser.reload"}
                     on_click={reload}

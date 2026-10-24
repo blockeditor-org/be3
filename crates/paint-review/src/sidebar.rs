@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 use beui::icons::{ICON_CIRCLE_MINUS, ICON_CIRCLE_PLUS, ICON_DIFF, ICON_IMAGE_OFF};
 use beui::reactive::*;
 use beui::styled::*;
@@ -20,7 +21,7 @@ pub(crate) fn label(status: Status) -> &'static str {
     }
 }
 
-pub(crate) fn glyph(status: Status) -> &'static str {
+pub(crate) fn glyph(status: Status) -> Glyph {
     match status {
         Status::Changed => ICON_DIFF,
         Status::Added => ICON_CIRCLE_PLUS,

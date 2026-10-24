@@ -2,7 +2,7 @@ use std::error::Error;
 
 use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, RendererInfo};
+use beui_core::context::{RendererInfo, WindowOutput};
 use beui_core::geometry::Vec2;
 use beui_core::renderer;
 
@@ -186,7 +186,7 @@ impl renderer::Renderer for CanvasSurface {
             .then(|| Vec2::new(self.config.width as f32, self.config.height as f32))
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         let Some(physical) = self.physical() else {
             return false;
         };

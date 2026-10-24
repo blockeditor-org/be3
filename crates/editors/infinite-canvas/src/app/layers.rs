@@ -49,8 +49,8 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
     let selected = create_memo(move || state.selection.get().contains(&id));
     let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.hidden));
     let glyph = create_memo(move || match hidden.get() {
-        true => ICON_EYE_OFF.to_owned(),
-        false => ICON_EYE.to_owned(),
+        true => ICON_EYE_OFF,
+        false => ICON_EYE,
     });
     let toggle_label = create_memo(move || match hidden.get() {
         true => "Show".to_owned(),

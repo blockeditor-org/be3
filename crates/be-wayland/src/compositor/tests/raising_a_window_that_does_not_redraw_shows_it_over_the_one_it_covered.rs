@@ -64,10 +64,15 @@ impl Screen {
         use beui::Repainting as _;
         harness.frame(Vec::new());
         let output = harness.output.as_ref().expect("a frame ran");
-        let repaint = output.repaint(beui::Color32::BLACK);
-        let repaint =
-            self.renderer
-                .prepare(&self.device, &self.queue, output, SCREEN, 1.0, repaint);
+        let repaint = output.main().repaint(beui::Color32::BLACK);
+        let repaint = self.renderer.prepare(
+            &self.device,
+            &self.queue,
+            output.main(),
+            SCREEN,
+            1.0,
+            repaint,
+        );
         let load = match repaint {
             beui::Repaint::Region { .. } => wgpu::LoadOp::Load,
             beui::Repaint::Everything => wgpu::LoadOp::Clear(wgpu::Color::BLACK),

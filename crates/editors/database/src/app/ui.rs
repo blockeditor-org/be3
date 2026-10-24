@@ -4,7 +4,7 @@ use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockInfo, BlockList, BlockQuery};
+use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery};
 use block_editor_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
 use uuid::Uuid;
 
@@ -30,9 +30,32 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let block_id = editor.block_id();
     let new_view = move || {
-        editor.create_child(&DatabaseViewContent::new(&database_view::DatabaseView::of(
-            block_id,
-        )));
+        let blocks = editor.blocks();
+        let parent_of = |block: Uuid| blocks.info(block).and_then(|info| info.parent);
+        let container = match parent_of(block_id) {
+            Some(BlockParent::Block(above))
+                if blocks
+                    .info(above)
+                    .is_some_and(|info| info.block_type == DatabaseViewContent::CONTENT_TYPE) =>
+            {
+                parent_of(above)
+            }
+            other => other,
+        };
+        let created = blocks.create(
+            &DatabaseViewContent::new(&database_view::DatabaseView::of(block_id)),
+            BlockParent::Detached,
+        );
+        match container {
+            Some(BlockParent::Block(container)) => editor.host().place_block(
+                created,
+                DatabaseViewContent::CONTENT_TYPE,
+                container,
+                false,
+            ),
+            Some(other) => blocks.set_parent(created, other),
+            None => {}
+        }
     };
 
     let chrome = editor.chrome_shown();

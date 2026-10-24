@@ -1,5 +1,6 @@
 use crate::{Renderer, Screen, Terminal};
 
+mod a_repainted_screen_renders_as_the_original;
 mod answers_queries_through_the_reply_callback;
 mod renders_written_text;
 mod reports_cursor_position;

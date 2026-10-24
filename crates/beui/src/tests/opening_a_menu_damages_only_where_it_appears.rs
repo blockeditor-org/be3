@@ -29,7 +29,7 @@ fn opening_a_menu_damages_only_where_it_appears() {
         pressed: true,
     }]);
 
-    let damage = opened.damage().expect("opening a menu repaints");
+    let damage = opened.main().damage().expect("opening a menu repaints");
     assert!(
         damage.height() < VIEWPORT.y * 0.5,
         "the dismissal scrim covers the viewport without painting any of it, \

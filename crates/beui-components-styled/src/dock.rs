@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 mod stack;
 mod switch;
 
@@ -218,7 +219,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
 #[component]
 fn DockTabChrome(
     title: Prop<String>,
-    icon: Memo<String>,
+    icon: Memo<Option<Glyph>>,
     picture: Memo<Option<Image>>,
     grouped: bool,
     vertical: bool,
@@ -248,7 +249,7 @@ fn DockTabChrome(
         false => TextColor::Muted,
     });
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
-    let pictured = create_memo(move || !grouped && !shows_picture.get() && !icon.get().is_empty());
+    let pictured = create_memo(move || !grouped && !shows_picture.get() && icon.get().is_some());
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
         false => ItemSize::Intrinsic,
@@ -419,7 +420,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         body,
         ..
     } = handle;
-    let pictured = create_memo(move || !icon.get().is_empty());
+    let pictured = create_memo(move || icon.get().is_some());
     let width = create_memo(move || size.get().x + 2.0 * CHROME_BORDER);
     view! {
         <Frame
@@ -589,7 +590,11 @@ impl BarRoom {
     }
 
     fn shows(self, pin: Pin) -> bool {
-        self != BarRoom::Phone || pin == Pin::Icon
+        match pin {
+            Pin::Icon => true,
+            Pin::Label => self != BarRoom::Phone,
+            Pin::Title => self == BarRoom::Phone,
+        }
     }
 }
 
@@ -599,7 +604,11 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
         menu.with(|nodes| {
             pinned(nodes)
                 .into_iter()
-                .filter(|action| action.pinned().is_some_and(|pin| room.shows(pin)))
+                .filter(|action| {
+                    action
+                        .pinned()
+                        .is_some_and(|pin| pin != Pin::Title && room.shows(pin))
+                })
                 .collect::<Vec<_>>()
         })
     });
@@ -680,6 +689,12 @@ fn DockPin(action: Action, room: BarRoom) -> NodeId {
             />
         },
     }
+}
+
+pub(crate) fn title_action(nodes: &[MenuNode]) -> Option<Action> {
+    pinned(nodes)
+        .into_iter()
+        .find(|action| action.pinned() == Some(Pin::Title))
 }
 
 fn pinned(nodes: &[MenuNode]) -> Vec<Action> {
@@ -791,10 +806,10 @@ fn DockDropHighlight() -> NodeId {
 }
 
 #[component]
-fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> NodeId {
+fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool) -> NodeId {
     let theme = use_theme();
     let fill = create_memo(move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA));
-    let pictured = create_memo(move || !grouped && !icon.get().is_empty());
+    let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
         <Frame

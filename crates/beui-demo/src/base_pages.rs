@@ -7,6 +7,7 @@ use beui::primitives::Frame;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
+use beui::primitives::{Window, WindowHandle};
 use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
 
 const SWATCH: f32 = 72.0;
@@ -14,6 +15,7 @@ const BADGE: f32 = 22.0;
 const TILE_HEIGHT: f32 = 48.0;
 const CARD_HEIGHT: f32 = 96.0;
 const PANEL_WIDTH: f32 = 220.0;
+const WINDOW_HEIGHT: f32 = 120.0;
 const PLANETS: [&str; 8] = [
     "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune",
 ];
@@ -163,7 +165,7 @@ fn TextStyles() -> NodeId {
             <Text color={theme.text} font={FontId::monospace(14.0)}>"Monospace text"</Text>
             <Text color={theme.accent} font={FontId::proportional(24.0)}>"Large accent text"</Text>
             <Text color={theme.warning} font={FontId::proportional(24.0)}>
-                <Icon glyph={ICON_STAR.to_owned()} />
+                <Icon glyph=ICON_STAR />
             </Text>
         </List>
     }
@@ -511,6 +513,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Overlay" code={vec![AnchoredOverlay::SOURCE]}>
                 <AnchoredOverlay />
             </Sample>
+            <Sample title="Window" code={vec![FloatingWindow::SOURCE]}>
+                <FloatingWindow />
+            </Sample>
             <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
             </Sample>
@@ -681,6 +686,54 @@ fn AnchoredOverlay() -> NodeId {
                     </Frame>
                 </Frame>
             </Overlay>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FloatingWindow() -> NodeId {
+    let theme = use_theme();
+    let open = create_signal(false);
+    let at = create_signal(Pos2::ZERO);
+    let face = theme.surface_raised;
+    let ink = theme.text;
+    view! {
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Interactive
+                @test_id="demo.window.trigger"
+                on_click_at={move |press: beui::PointerPress| {
+                    at.set(press.pos + vec2(16.0, 16.0));
+                    open.update(|open| *open = !*open);
+                }}
+            >
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text color={ink}>"Open a window"</Text>
+                </Frame>
+            </Interactive>
+            <Window
+                size={vec2(PANEL_WIDTH, WINDOW_HEIGHT)}
+                at={at}
+                title={Some("A window".to_owned())}
+                open={open}
+                on_report={move |report: beui::WindowReport| {
+                    if matches!(report, beui::WindowReport::Closed(_)) {
+                        open.set(false);
+                    }
+                }}
+            >|_: WindowHandle|
+                <Frame
+                    @test_id="demo.window.panel"
+                    fill={theme.surface_raised}
+                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                    radius={Radius::Lg.px()}
+                    padding=12.0
+                >
+                    <Text color={theme.text} wrap=true>
+                        "A window of its own where a host opens windows, an overlay elsewhere."
+                    </Text>
+                </Frame>
+            </Window>
         </List>
     }
 }

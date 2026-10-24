@@ -6,6 +6,7 @@ mod ci;
 mod deploy;
 #[cfg(unix)]
 mod fuzz;
+mod icons;
 mod previews;
 mod rasterize;
 mod web_page;
@@ -19,11 +20,12 @@ pub fn run() -> ExitCode {
         "web-page" => web_page::main(rest),
         "rasterize" => rasterize::main(rest),
         "ci" => ci::main(rest),
+        "icons" => icons::main(rest),
         "deploy" => deploy::main(rest),
         #[cfg(unix)]
         "fuzz" => fuzz::main(rest),
         _ => {
-            eprintln!("usage: local-tools ci|deploy|fuzz|rasterize|web-page|apk-sign ...");
+            eprintln!("usage: local-tools ci|deploy|fuzz|rasterize|icons|web-page|apk-sign ...");
             ExitCode::FAILURE
         }
     }

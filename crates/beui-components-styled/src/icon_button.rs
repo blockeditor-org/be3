@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
@@ -66,7 +67,7 @@ impl IconButtonSize {
 
 #[component]
 pub fn IconButton(
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = ButtonVariant::Secondary)] variant: ButtonVariant,
     #[prop(default = IconButtonSize::Regular)] size: IconButtonSize,

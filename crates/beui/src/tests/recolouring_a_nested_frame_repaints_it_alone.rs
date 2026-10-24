@@ -35,7 +35,7 @@ fn recolouring_a_nested_frame_repaints_it_alone() {
         "the frame around the recoloured one keeps what it painted"
     );
     assert_eq!(
-        output.damage.rects(),
+        output.main().damage.rects(),
         [Rect::from_min_size(
             harness.rect(inner).min,
             Vec2::new(harness.rect(inner).width(), 40.0)

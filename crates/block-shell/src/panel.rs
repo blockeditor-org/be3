@@ -128,24 +128,13 @@ pub(crate) fn read_info(
         workspace.record_reference_types(reference);
     }
     let types = workspace.types();
-    let deleted =
-        own.filter(|info| info.deleted)
-            .map(|info| match parent == Some(BlockParent::Detached) {
-                true => Deleted {
-                    root: info.id,
-                    inside: None,
-                },
-                false => {
-                    let root = parents
-                        .list
-                        .iter()
-                        .find(|above| above.parent == Some(BlockParent::Detached));
-                    Deleted {
-                        root: root.map_or(info.id, |root| root.id),
-                        inside: root.map(|root| root.label(types.as_ref()).name),
-                    }
-                }
-            });
+    let deleted = own.filter(|info| info.deleted).map(|info| {
+        let root = parents.list.iter().find(|above| above.deleted);
+        Deleted {
+            root: root.map_or(info.id, |root| root.id),
+            inside: root.map(|root| root.label(types.as_ref()).name),
+        }
+    });
     let type_name = types
         .display_name(item.block_type)
         .map_or_else(|| item.block_type.to_string(), str::to_owned);
@@ -326,11 +315,13 @@ fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
         true => "Switch back to Can view or Can edit to see it.".to_owned(),
         false => "Ask someone who can edit it to share it with you.".to_owned(),
     });
-    let heading = format!("{ICON_LOCK} No access");
     view! {
         <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Text style=TextStyle::HEADING>{heading}</Text>
+                <Text style=TextStyle::HEADING>
+                    <Icon glyph=ICON_LOCK />
+                    "No access"
+                </Text>
                 <Text style=TextStyle::CAPTION>{first}</Text>
                 <Text style=TextStyle::CAPTION>{second}</Text>
             </List>

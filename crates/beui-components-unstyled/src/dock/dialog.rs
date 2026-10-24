@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use std::time::Duration;
 
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -26,7 +27,7 @@ pub enum DockDialogPresentation {
 pub(crate) struct DialogParts {
     pub(crate) presentation: DockDialogPresentation,
     pub(crate) title: Memo<String>,
-    pub(crate) icon: Memo<String>,
+    pub(crate) icon: Memo<Option<Glyph>>,
     pub(crate) size: Memo<Vec2>,
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
@@ -39,7 +40,7 @@ pub struct DockDialogHandle {
     pub tab: TabId,
     pub presentation: DockDialogPresentation,
     pub title: Memo<String>,
-    pub icon: Memo<String>,
+    pub icon: Memo<Option<Glyph>>,
     pub size: Memo<Vec2>,
     pub modal: Memo<bool>,
     pub focused: Memo<bool>,

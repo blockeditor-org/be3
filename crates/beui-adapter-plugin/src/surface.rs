@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, RendererInfo};
+use beui_core::context::{RendererInfo, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::geometry::{Rect, Vec2, vec2};
 use beui_core::renderer::Renderer;
@@ -93,7 +93,7 @@ impl Surface {
         self.pending.is_some()
     }
 
-    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         let look = (scale, self.laid, background);
         let moved = self.look.as_ref() != Some(&look);
         self.look = Some(look);
@@ -107,12 +107,12 @@ impl Surface {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn prepare(&mut self, _output: &FrameOutput, _scale: f32) -> bool {
+    fn prepare(&mut self, _output: &WindowOutput, _scale: f32) -> bool {
         self.pending.take().is_some()
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn prepare(&mut self, output: &FrameOutput, scale: f32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, scale: f32) -> bool {
         let Some((width, height)) = self.size else {
             return false;
         };
@@ -294,13 +294,13 @@ impl Renderer for SurfaceRenderer {
         Some(self.0.borrow().screens.clone())
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         let mut surface = self.0.borrow_mut();
         surface.note(output, scale, background);
         surface.prepare(output, scale)
     }
 
-    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.0.borrow_mut().note(output, scale, background);
     }
 

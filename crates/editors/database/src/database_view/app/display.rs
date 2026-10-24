@@ -3,6 +3,7 @@ use block_editor_beui::be_block::database_view::{
     DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,
 };
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN, ICON_LIST,
     ICON_TABLE_PROPERTIES,
@@ -17,7 +18,7 @@ use crate::database_view::groups::groupable;
 
 const SPACING: f32 = 10.0;
 const LABEL_WIDTH: f32 = 96.0;
-pub const KINDS: [(DatabaseViewKind, &str, &str); 4] = [
+pub const KINDS: [(DatabaseViewKind, &str, Glyph); 4] = [
     (DatabaseViewKind::List, "List", ICON_LIST),
     (DatabaseViewKind::Kanban, "Board", ICON_KANBAN),
     (DatabaseViewKind::Spreadsheet, "Table", ICON_GRID_3X3),
@@ -76,7 +77,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </List>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button
-                    glyph={ICON_TABLE_PROPERTIES.to_owned()}
+                    glyph=ICON_TABLE_PROPERTIES
                     label="Edit fields"
                     variant=ButtonVariant::Secondary
                     @test_id={"database-view.columns"}
@@ -111,7 +112,7 @@ fn KindSwitch(data: Data) -> NodeId {
                 view! {
                     <ToggleButton
                         label={label}
-                        glyph={glyph.to_owned()}
+                        glyph={glyph}
                         pressed={Binding::new(pressed, choose)}
                         @test_id={format!("database-view.kind.{label}")}
                     />

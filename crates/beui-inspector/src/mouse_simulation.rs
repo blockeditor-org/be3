@@ -35,7 +35,7 @@ const BUTTONS: [PointerButton; 3] = [
     PointerButton::Middle,
     PointerButton::Secondary,
 ];
-const BUTTON_ICONS: [&str; 4] = [
+const BUTTON_ICONS: [icons::Glyph; 4] = [
     icons::ICON_MOUSE_LEFT,
     icons::ICON_MOUSE,
     icons::ICON_MOUSE_RIGHT,
@@ -632,7 +632,8 @@ impl MouseSimulation {
             icon => {
                 let (text, hotspot, angle) = cursor_glyph(icon);
                 let painter = painter.rotated(at, angle);
-                let galley = painter.layout(text, FontId::icons(CURSOR_SIZE), f32::INFINITY);
+                let galley =
+                    painter.layout(text.as_str(), FontId::icons(CURSOR_SIZE), f32::INFINITY);
                 let origin = at - hotspot * CURSOR_SIZE;
                 painter.galley(origin + shadow, galley.clone(), SHADOW);
                 painter.galley(origin, galley, color);
@@ -642,7 +643,7 @@ impl MouseSimulation {
     }
 }
 
-fn cursor_glyph(icon: CursorIcon) -> (&'static str, Vec2, f32) {
+fn cursor_glyph(icon: CursorIcon) -> (icons::Glyph, Vec2, f32) {
     let center = vec2(0.48, 0.56);
     let diagonal = std::f32::consts::FRAC_PI_4;
     match icon {
@@ -700,8 +701,8 @@ fn ibeam(painter: &Painter, at: Pos2, color: Color32) {
     }
 }
 
-fn glyph(painter: &Painter, center: Pos2, text: &str, size: f32, color: Color32) {
-    let galley = painter.layout(text, FontId::icons(size), f32::INFINITY);
+fn glyph(painter: &Painter, center: Pos2, icon: icons::Glyph, size: f32, color: Color32) {
+    let galley = painter.layout(icon.as_str(), FontId::icons(size), f32::INFINITY);
     let extent = galley.size();
     painter.galley(center - extent * 0.5, galley, color);
 }

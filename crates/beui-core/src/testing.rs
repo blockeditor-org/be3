@@ -1,7 +1,9 @@
 use std::any::Any;
+use std::cell::RefCell;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::pin;
+use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
@@ -10,12 +12,13 @@ use crate::app::automation::{Inbox, Reply, Resize, Simulation, WindowSize, ask};
 use crate::app::{App, SafeArea, Setup, Waker};
 use crate::color::Color32;
 use crate::context::RendererInfo;
-use crate::context::{Context, FrameOutput};
+use crate::context::{Context, FrameOutput, WindowOutput};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
-use crate::runner::{Incoming, Launch, Platform, RunOptions, Runner};
+use crate::runner::{HostView, Hosted, Incoming, Launch, Platform, RunOptions, Runner, WindowHost};
+use crate::window::{HostPlacement, WindowId, WindowPlacement, WindowReport, WindowRequest};
 
 pub const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 const ANSWER_FRAMES: usize = 600;
@@ -39,7 +42,7 @@ impl Renderer for Screen {
         Some(self.0)
     }
 
-    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, _scale: f32, _background: Color32) -> bool {
         output.changed
     }
 
@@ -127,9 +130,112 @@ impl From<Pos2> for Target {
 
 type Observer = Box<dyn FnMut(&FrameOutput)>;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct HostedWindow {
+    pub id: WindowId,
+    pub size: Vec2,
+    pub placement: HostPlacement,
+}
+
+#[derive(Default)]
+pub struct Windows {
+    pub open: Vec<HostedWindow>,
+    pub requests: Vec<WindowRequest>,
+    pub outputs: Vec<WindowOutput>,
+    reports: Vec<WindowReport>,
+    main: Option<Vec2>,
+}
+
+impl Windows {
+    pub fn window(&self, id: WindowId) -> Option<&HostedWindow> {
+        self.open.iter().find(|window| window.id == id)
+    }
+
+    pub fn output(&self, id: WindowId) -> Option<&WindowOutput> {
+        self.outputs.iter().find(|output| output.id == id)
+    }
+
+    fn resized(&mut self, id: WindowId, size: Vec2) {
+        if let Some(window) = self.open.iter_mut().find(|window| window.id == id) {
+            window.size = size;
+            self.reports
+                .push(WindowReport::Resized { window: id, size });
+        }
+    }
+
+    fn opened(&mut self, id: WindowId, placement: &WindowPlacement, size: Vec2) {
+        let placement = match placement {
+            WindowPlacement::Host(placement) => placement.clone(),
+            WindowPlacement::AtPointer => HostPlacement("at the pointer".to_owned()),
+            WindowPlacement::Beside(window) => HostPlacement(format!("beside {}", window.raw())),
+        };
+        self.open.retain(|window| window.id != id);
+        self.open.push(HostedWindow {
+            id,
+            size,
+            placement: placement.clone(),
+        });
+        self.reports
+            .push(WindowReport::Resized { window: id, size });
+        self.reports.push(WindowReport::Placed {
+            window: id,
+            placement,
+        });
+    }
+}
+
+struct TestHost(Rc<RefCell<Windows>>);
+
+impl WindowHost for TestHost {
+    fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
+        let mut windows = self.0.borrow_mut();
+        let main = view.platform / view.pixels_per_point;
+        if windows.main != Some(main) {
+            windows.main = Some(main);
+            incoming.insert(
+                0,
+                Incoming::Window(WindowReport::Resized {
+                    window: WindowId::MAIN,
+                    size: main,
+                }),
+            );
+        }
+        incoming.extend(windows.reports.drain(..).map(Incoming::Window));
+    }
+
+    fn frame(&mut self, output: &FrameOutput, _view: &HostView) -> Hosted {
+        let mut windows = self.0.borrow_mut();
+        for request in &output.window_requests {
+            windows.requests.push(request.clone());
+            match request {
+                WindowRequest::Open {
+                    window,
+                    placement,
+                    size,
+                } => windows.opened(*window, placement, *size),
+                WindowRequest::Close(window) => {
+                    windows.open.retain(|open| open.id != *window);
+                    windows.outputs.retain(|output| output.id != *window);
+                }
+                WindowRequest::Resize { window, size } => windows.resized(*window, *size),
+                WindowRequest::BeginMove(_) | WindowRequest::BeginResize(..) => {}
+            }
+        }
+        for window in output.windows.iter().filter(|window| !window.id.is_main()) {
+            windows.outputs.retain(|output| output.id != window.id);
+            windows.outputs.push(window.clone());
+        }
+        Hosted {
+            window: output.main().clone(),
+            repaint_after: Duration::MAX,
+        }
+    }
+}
+
 pub struct Stepped<A: App = Showing> {
     app: PhantomData<A>,
     runner: Runner,
+    windows: Option<Rc<RefCell<Windows>>>,
     window: Window,
     size: Vec2,
     painted: bool,
@@ -142,13 +248,25 @@ pub struct Stepped<A: App = Showing> {
 
 impl<A: App + 'static> Stepped<A> {
     pub fn new(context: Context, app: A, window: WindowSize, screen: Option<Vec2>) -> Self {
-        Self::start(context, app, window.size, window.scale, |runner| {
+        Self::start(context, app, window.size, window.scale, None, |runner| {
             Window::Simulated(Simulation::new(window, screen, runner.reports().clone()))
         })
     }
 
+    pub fn hosting_windows(context: Context, app: A, window: WindowSize) -> Self {
+        let windows = Rc::new(RefCell::new(Windows::default()));
+        Self::start(
+            context,
+            app,
+            window.size,
+            window.scale,
+            Some(windows),
+            |runner| Window::Simulated(Simulation::new(window, None, runner.reports().clone())),
+        )
+    }
+
     pub fn on(context: Context, app: A, size: Vec2, platform: impl Platform + 'static) -> Self {
-        Self::start(context, app, size, 1.0, |_| {
+        Self::start(context, app, size, 1.0, None, |_| {
             Window::Other(Box::new(platform))
         })
     }
@@ -158,9 +276,13 @@ impl<A: App + 'static> Stepped<A> {
         app: A,
         size: Vec2,
         scale: f32,
+        windows: Option<Rc<RefCell<Windows>>>,
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
+        let host = windows
+            .clone()
+            .map(|windows| Box::new(TestHost(windows)) as Box<dyn WindowHost>);
         let mut runner = Runner::new(Launch {
             options: RunOptions {
                 automation: Some(inbox.clone()),
@@ -168,6 +290,7 @@ impl<A: App + 'static> Stepped<A> {
             },
             context,
             app: Box::new(app),
+            host,
         });
         let window = window(&runner);
         runner
@@ -183,6 +306,7 @@ impl<A: App + 'static> Stepped<A> {
         Self {
             app: PhantomData,
             runner,
+            windows,
             window,
             size,
             painted: false,
@@ -239,6 +363,59 @@ impl<A: App + 'static> Stepped<A> {
         self.runner
             .take_output()
             .expect("a started runner that has not exited draws every frame")
+    }
+
+    pub fn frame_in(&mut self, window: WindowId, inputs: Vec<Input>) -> FrameOutput {
+        for input in inputs {
+            self.runner.push(Incoming::points(input).in_window(window));
+        }
+        self.paint();
+        self.runner
+            .take_output()
+            .expect("a started runner that has not exited draws every frame")
+    }
+
+    pub fn windows(&self) -> std::cell::Ref<'_, Windows> {
+        self.windows
+            .as_ref()
+            .expect("only a harness made with hosting_windows hosts windows")
+            .borrow()
+    }
+
+    pub fn take_window_requests(&mut self) -> Vec<WindowRequest> {
+        std::mem::take(
+            &mut self
+                .windows
+                .as_ref()
+                .expect("only a harness made with hosting_windows hosts windows")
+                .borrow_mut()
+                .requests,
+        )
+    }
+
+    pub fn report_window(&mut self, report: WindowReport) {
+        let windows = self
+            .windows
+            .as_ref()
+            .expect("only a harness made with hosting_windows hosts windows");
+        let mut windows = windows.borrow_mut();
+        match &report {
+            WindowReport::Resized { window, size } => {
+                if let Some(open) = windows.open.iter_mut().find(|open| open.id == *window) {
+                    open.size = *size;
+                }
+            }
+            WindowReport::Placed { window, placement } => {
+                if let Some(open) = windows.open.iter_mut().find(|open| open.id == *window) {
+                    open.placement = placement.clone();
+                }
+            }
+            WindowReport::Closed(window) => {
+                windows.open.retain(|open| open.id != *window);
+                windows.outputs.retain(|output| output.id != *window);
+            }
+        }
+        windows.reports.push(report);
     }
 
     pub fn observe(&mut self, observer: impl FnMut(&FrameOutput) + 'static) {
@@ -400,6 +577,12 @@ impl<A: App + 'static> Stepped<A> {
         let scale = self.runner.context().pixels_per_point();
         let (down, right) = ((by.y * scale).to_string(), (by.x * scale).to_string());
         self.gesture(&["scroll"], &[target.into()], &[&down, &right])
+    }
+
+    pub fn motion(&mut self, by: Vec2) -> String {
+        let scale = self.runner.context().pixels_per_point();
+        let (right, down) = ((by.x * scale).to_string(), (by.y * scale).to_string());
+        self.gesture(&["motion"], &[], &[&right, &down])
     }
 
     pub fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) -> String {

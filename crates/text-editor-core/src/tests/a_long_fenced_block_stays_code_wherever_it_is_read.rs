@@ -23,6 +23,7 @@ fn a_long_fenced_block_stays_code_wherever_it_is_read() {
         highlight.style_at(heading).size,
         SynHlTextSize::Heading(1)
     ));
-    assert!(highlight.in_code_block(text.find("# not a heading 1500").unwrap()..text.len()));
-    assert!(!highlight.in_code_block(heading..heading + 1));
+    let inside = text.find("# not a heading 1500").unwrap();
+    assert!(highlight.line_look(inside).code_block);
+    assert!(!highlight.line_look(heading - 2).code_block);
 }

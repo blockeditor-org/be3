@@ -1,8 +1,7 @@
-use block_editor_beui::BlockParent;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{
-    ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK,
-    ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+    ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE, ICON_PENCIL_LINE,
+    ICON_ROTATE_CCW_CLOCK, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -64,7 +63,7 @@ fn ZoomIn(disabled: Memo<bool>) -> MenuItem {
     view! {
         <MenuItem
             label="Zoom in"
-            glyph={ICON_ZOOM_IN.to_owned()}
+            glyph=ICON_ZOOM_IN
             disabled={disabled}
             row_test_id={"file-tree.zoom-in".to_owned()}
         />
@@ -107,7 +106,7 @@ fn SectionMenu<F: Fn() + 'static>(
             [3] => editor.host().share_block(id),
             [4] => editor
                 .host()
-                .delete_block(id, shown.block_type, shown.source, false),
+                .delete_block(id, shown.block_type, shown.source),
             _ => {}
         }
     };
@@ -116,34 +115,34 @@ fn SectionMenu<F: Fn() + 'static>(
             <ZoomIn disabled={unzoomable} />
             <MenuItem
                 label="Add"
-                glyph={ICON_FILE_PLUS.to_owned()}
+                glyph=ICON_FILE_PLUS
                 disabled={unaddable}
                 row_test_id={"file-tree.section.add".to_owned()}
             />
             <MenuItem
                 label="Rename"
-                glyph={ICON_PENCIL_LINE.to_owned()}
+                glyph=ICON_PENCIL_LINE
                 disabled={edit}
                 row_test_id={"file-tree.section.rename".to_owned()}
             />
             <MenuItem
                 label="Share"
-                glyph={ICON_SHARE_2.to_owned()}
+                glyph=ICON_SHARE_2
                 disabled={edit}
                 row_test_id={"file-tree.section.share".to_owned()}
             />
             <MenuItem
                 label="Delete"
-                glyph={ICON_TRASH.to_owned()}
+                glyph=ICON_TRASH
                 disabled={deletable}
                 danger=true
                 row_test_id={"file-tree.section.delete".to_owned()}
             />
-            <Appearance editor row />
+            <Appearance editor picker row />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
-                    glyph={ICON_LOG_OUT.to_owned()}
+                    glyph=ICON_LOG_OUT
                     danger=true
                     row_test_id={"file-tree.section.leave".to_owned()}
                     on_click={leave}
@@ -196,12 +195,6 @@ fn BlockMenu<F: Fn() + 'static>(
         },
     );
     let rooted = create_memo(move || edit.get() || !row.get().is_some_and(|row| row.can_delete));
-    let orphaned = create_memo(move || {
-        edit.get()
-            || row
-                .get()
-                .is_some_and(|row| row.parent == Some(BlockParent::Detached))
-    });
     let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
     let rows = tree.rows();
     let destinations = create_memo(move || {
@@ -239,11 +232,9 @@ fn BlockMenu<F: Fn() + 'static>(
                     editor.host().unlink_block(id, container);
                 }
             }
-            [7] => {
-                editor
-                    .host()
-                    .delete_block(id, shown.block_type, shown.source, shown.is_reference)
-            }
+            [7] => editor
+                .host()
+                .delete_block(id, shown.block_type, shown.source),
             [8] => inspect.set(shown.inspection),
             _ => {}
         }
@@ -252,10 +243,10 @@ fn BlockMenu<F: Fn() + 'static>(
         items: view! {
             <ZoomIn disabled={unzoomable} />
             <OpenWith editor={editor} row={row} />
-            <MenuItem label="Add" glyph={ICON_FILE_PLUS.to_owned()} disabled={add} />
+            <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} />
             <MenuItem
                 label="Move to"
-                glyph={ICON_MOVE_UP.to_owned()}
+                glyph=ICON_MOVE_UP
                 disabled={rooted}
                 row_test_id={"file-tree.move-to".to_owned()}
             >
@@ -289,40 +280,26 @@ fn BlockMenu<F: Fn() + 'static>(
                         />
                     }
                 }</ForEach>
-                <MenuItem
-                    label="Recently Deleted"
-                    disabled={orphaned}
-                    on_click={move || {
-                        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
-                            tree.blocks().set_parent(id, BlockParent::Detached);
-                        }
-                    }}
-                />
             </MenuItem>
-            <MenuItem label="Rename" glyph={ICON_PENCIL_LINE.to_owned()} disabled={edit} />
-            <MenuItem label="Share" glyph={ICON_SHARE_2.to_owned()} disabled={edit} />
-            <MenuItem label="Unlink" glyph={ICON_UNLINK.to_owned()} disabled={unlinkable} />
-            <MenuItem
-                label={delete_label}
-                glyph={ICON_TRASH.to_owned()}
-                disabled={deletable}
-                danger=true
-            />
-            <MenuItem label="Inspect" glyph={ICON_INFO.to_owned()} disabled={uninspectable} />
+            <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} />
+            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={edit} />
+            <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} />
+            <MenuItem label={delete_label} glyph=ICON_TRASH disabled={deletable} danger=true />
+            <MenuItem label="Inspect" glyph=ICON_INFO disabled={uninspectable} />
             <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
             <Show condition={restorable}>
                 <MenuItem
                     label="Restore"
-                    glyph={ICON_ROTATE_CCW_CLOCK.to_owned()}
+                    glyph=ICON_ROTATE_CCW_CLOCK
                     row_test_id={"file-tree.restore".to_owned()}
                     on_click={restore}
                 />
             </Show>
-            <Appearance editor row />
+            <Appearance editor picker row />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
-                    glyph={ICON_LOG_OUT.to_owned()}
+                    glyph=ICON_LOG_OUT
                     danger=true
                     row_test_id={"file-tree.leave".to_owned()}
                     on_click={leave}
@@ -334,83 +311,24 @@ fn BlockMenu<F: Fn() + 'static>(
 }
 
 #[component]
-fn Appearance(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
-    use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON};
-    use block_editor_beui::beui::Color32;
-    use block_editor_beui::beui::icons::{ICON_CIRCLE, ICON_PALETTE, named};
+fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuItem {
     let disabled = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
-    let set_icon = move |icon: Option<&'static str>| {
-        if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
-            && let Some(id) = shown.id
-        {
-            let blocks = editor.blocks();
-            blocks.define(id, ICON.definition(icon.map(str::to_owned).as_ref()));
-            blocks.define(id, MATERIAL_ICON.definition(None));
-        }
-    };
-    let set_color = move |color: Option<[u8; 3]>| {
+    let open = move || {
         if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
             && let Some(id) = shown.id
         {
             editor
-                .blocks()
-                .define(id, ICON_COLOR.definition(color.as_ref()));
+                .host()
+                .rename_block(id, picker.row_anchor(&shown.key));
         }
     };
-    let icons = [
-        ("Document", "file-text"),
-        ("Folder", "folder"),
-        ("Star", "star"),
-        ("Favorite", "heart"),
-        ("Home", "house"),
-        ("Work", "briefcase"),
-        ("School", "graduation-cap"),
-        ("Book", "book"),
-        ("Code", "code"),
-        ("Idea", "lightbulb"),
-        ("Flag", "flag"),
-        ("Calendar", "calendar-days"),
-        ("Checklist", "list-checks"),
-        ("Image", "image"),
-        ("Music", "eighth-note"),
-        ("Public", "globe"),
-    ];
-    let colors = [
-        ("Blue", [65, 145, 210]),
-        ("Green", [44, 158, 128]),
-        ("Purple", [155, 112, 211]),
-        ("Orange", [211, 126, 59]),
-        ("Pink", [203, 91, 125]),
-        ("Teal", [64, 155, 173]),
-        ("Gold", [172, 145, 47]),
-        ("Gray", [135, 139, 148]),
-    ];
     view! {
-        <MenuItem label="Appearance" glyph=ICON_PALETTE disabled row_test_id="file-tree.appearance">
-            <MenuItem label="Icon" row_test_id="file-tree.appearance.icon">
-                <MenuItem label="Use block type icon" on_click={move || set_icon(None)} />
-                <ForEach keys={icons.to_vec()}>|(name, icon): (&'static str, &'static str)|
-                    <MenuItem
-                        label={name}
-                        glyph={named(icon).unwrap_or_default()}
-                        on_click={move || set_icon(Some(icon))}
-                    />
-                </ForEach>
-            </MenuItem>
-            <MenuItem label="Icon color" row_test_id="file-tree.appearance.color">
-                <MenuItem label="Use block type color" on_click={move || set_color(None)} />
-                <ForEach keys={colors.to_vec()}>|(name, color): (&'static str, [u8; 3])| {
-                    let [r, g, b] = color;
-                    view! {
-                        <MenuItem
-                            label={name}
-                            glyph=ICON_CIRCLE
-                            glyph_color={Some(Color32::from_rgb(r,g,b))}
-                            on_click={move || set_color(Some(color))}
-                        />
-                    }
-                }</ForEach>
-            </MenuItem>
-        </MenuItem>
+        <MenuItem
+            label="Icon and color…"
+            glyph=ICON_PALETTE
+            disabled
+            row_test_id="file-tree.appearance"
+            on_click={open}
+        />
     }
 }

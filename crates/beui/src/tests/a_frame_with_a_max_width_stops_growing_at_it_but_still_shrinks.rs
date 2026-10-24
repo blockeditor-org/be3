@@ -27,6 +27,7 @@ fn painted_width(container: f32) -> f32 {
     let mut harness = Harness::sized(document, Vec2::new(700.0, 300.0));
     let output = harness.frame(Vec::new());
     output
+        .main()
         .shapes()
         .iter()
         .find_map(|shape| match shape {

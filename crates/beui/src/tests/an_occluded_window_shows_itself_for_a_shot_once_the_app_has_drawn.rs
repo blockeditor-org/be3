@@ -27,12 +27,17 @@ impl Renderer for Screen {
         Some(vec2(20.0, 10.0))
     }
 
-    fn prepare(&mut self, _output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        _output: &crate::WindowOutput,
+        _scale: f32,
+        _background: Color32,
+    ) -> bool {
         self.prepared.set(self.prepared.get() + 1);
         true
     }
 
-    fn note(&mut self, _output: &FrameOutput, _scale: f32, _background: Color32) {}
+    fn note(&mut self, _output: &crate::WindowOutput, _scale: f32, _background: Color32) {}
 
     fn present(&mut self, _background: Color32) -> bool {
         false
@@ -93,6 +98,7 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
             seen: Rc::clone(&seen),
             drawing: Rc::clone(&drawing),
         }),
+        host: None,
     });
     runner.set_occluded(true);
     let mut window = Simulation::new(

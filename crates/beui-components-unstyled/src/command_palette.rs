@@ -20,7 +20,7 @@ use crate::text_input::{TextInputHandle, TextInputStyle};
 
 pub struct CommandRowHandle {
     pub label: Prop<String>,
-    pub glyph: String,
+    pub glyph: Option<beui_core::icons::Glyph>,
     pub shortcut: Option<String>,
     pub checked: Memo<Option<bool>>,
     pub disabled: Memo<bool>,
@@ -170,7 +170,7 @@ fn CommandRow(
             node
         }
     });
-    let glyph = action.glyph().to_owned();
+    let glyph = action.glyph();
     let shortcut = action.shortcut_label();
     view! {
         <unstyled::Button
@@ -189,7 +189,7 @@ fn CommandRow(
             create_effect(hovering);
             row.call(CommandRowHandle {
                 label: label.clone(),
-                glyph: glyph.clone(),
+                glyph,
                 shortcut: shortcut.clone(),
                 checked,
                 disabled,

@@ -20,7 +20,7 @@ pub(crate) struct ResolvedEmbed {
     pub id: Uuid,
     pub block_type: Uuid,
     pub label: String,
-    pub icon: Option<&'static str>,
+    pub icon: Option<block_editor_beui::beui::icons::Glyph>,
     pub automatic: bool,
     pub large: bool,
     pub available: bool,

@@ -129,6 +129,7 @@ pub enum MenuPin {
     None,
     Icon,
     Label,
+    Title,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -409,9 +410,12 @@ pub struct SettingsProgress {
     pub summary: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ShellDialog {
-    Rename,
+    Rename {
+        anchor: Option<Rect>,
+        within: Option<[u8; 16]>,
+    },
     Share,
 }
 
@@ -844,6 +848,19 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         peers: Vec<PeerPresence>,
     },
+    SendToPeers {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        to: Option<u64>,
+        channel: [u8; 16],
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
+    PeerMessages {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        messages: Vec<PeerMessage>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         view: Rect,
@@ -1230,6 +1247,8 @@ impl EditorMessage {
             | Self::ReplaceContent { instance, .. }
             | Self::ShowPresence { instance, .. }
             | Self::PeerPresence { instance, .. }
+            | Self::SendToPeers { instance, .. }
+            | Self::PeerMessages { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -1432,6 +1451,14 @@ pub struct PeerPresence {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerMessage {
+    pub from: u64,
+    pub channel: [u8; 16],
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentOperation {
     #[serde(with = "serde_bytes")]
     pub operation: Vec<u8>,
@@ -1459,7 +1486,9 @@ pub struct HistoryState {
 pub enum BlockCommand {
     Share,
     Leave,
-    Rename,
+    Rename {
+        anchor: Option<Rect>,
+    },
     Undo,
     Redo,
     Artifact {
@@ -1475,7 +1504,6 @@ pub enum BlockCommand {
     Delete {
         block_type: [u8; 16],
         source: BlockLocation,
-        is_reference: bool,
     },
     Move {
         block_type: [u8; 16],
@@ -1499,8 +1527,8 @@ pub enum VersionCommand {
     Adopt {
         block_id: [u8; 16],
     },
-    Commit {
-        message: String,
+    Finish {
+        description: String,
     },
     Update,
     Switch {
@@ -1509,12 +1537,18 @@ pub enum VersionCommand {
     CreateBranch {
         name: String,
     },
+    Merge {
+        branch: String,
+    },
     NewCheckout {
         branch: String,
     },
     Resolve {
         block_id: [u8; 16],
         take: ConflictSide,
+    },
+    Undo {
+        operation: [u8; 16],
     },
     Fork,
     PullUpstream,
@@ -1536,7 +1570,18 @@ pub struct VersionStatus {
     pub behind: bool,
     pub branches: Vec<VersionBranch>,
     pub changes: Vec<VersionChange>,
+    pub working: Option<VersionCommit>,
     pub log: Vec<VersionCommit>,
+    pub operations: Vec<VersionOperation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionOperation {
+    pub id: [u8; 16],
+    pub time: i64,
+    pub author: [u8; 16],
+    pub description: String,
+    pub undone: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1564,10 +1609,12 @@ pub enum VersionChangeKind {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VersionCommit {
     pub id: [u8; 32],
+    pub change: [u8; 16],
     pub parents: Vec<[u8; 32]>,
     pub author: [u8; 16],
     pub time: i64,
     pub message: String,
+    pub conflicted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1831,6 +1878,7 @@ impl EditorMessage {
             | Self::Content { .. }
             | Self::ContentOperations { .. }
             | Self::PeerPresence { .. }
+            | Self::PeerMessages { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1897,6 +1945,7 @@ impl EditorMessage {
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
             | Self::ShowPresence { .. }
+            | Self::SendToPeers { .. }
             | Self::Performance { .. }
             | Self::WatchBlocks { .. }
             | Self::VersionControl { .. }
@@ -2414,13 +2463,15 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             value: Some(value), ..
         } => descriptor(value),
         EditorMessage::VersionControl { command, .. } => match command {
-            VersionCommand::Commit { message: value }
+            VersionCommand::Finish { description: value }
             | VersionCommand::Switch { branch: value }
             | VersionCommand::CreateBranch { name: value }
+            | VersionCommand::Merge { branch: value }
             | VersionCommand::NewCheckout { branch: value } => string(value),
             VersionCommand::Adopt { .. }
             | VersionCommand::Update
             | VersionCommand::Resolve { .. }
+            | VersionCommand::Undo { .. }
             | VersionCommand::Fork
             | VersionCommand::PullUpstream
             | VersionCommand::PushUpstream => Ok(()),
@@ -2441,10 +2492,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                     .filter_map(|change| change.name.as_ref()),
             )?;
             collection(status.log.len())?;
-            for commit in &status.log {
+            for commit in status.log.iter().chain(&status.working) {
                 collection(commit.parents.len())?;
                 string(&commit.message)?;
             }
+            collection(status.operations.len())?;
+            strings(
+                status
+                    .operations
+                    .iter()
+                    .map(|operation| &operation.description),
+            )?;
             Ok(())
         }
         EditorMessage::ShowPresence {
@@ -2454,6 +2512,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             collection(peers.len())?;
             for peer in peers {
                 blob(&peer.value)?;
+            }
+            Ok(())
+        }
+        EditorMessage::SendToPeers { payload, .. } => blob(payload),
+        EditorMessage::PeerMessages { messages, .. } => {
+            collection(messages.len())?;
+            for message in messages {
+                blob(&message.payload)?;
             }
             Ok(())
         }

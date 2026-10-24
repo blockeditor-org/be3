@@ -30,7 +30,7 @@ fn a_change_inside_a_turned_child_still_paints_turned() {
     with_reactive_scope(harness.document_mut(), move || width.set(30.0));
     let output = harness.frame(Vec::new());
 
-    let angle = flatten(&output.layers)
+    let angle = flatten(&output.main().layers)
         .iter()
         .find_map(|shape| match shape {
             Shape::Rect {

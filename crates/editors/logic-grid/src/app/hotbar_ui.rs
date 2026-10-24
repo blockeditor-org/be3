@@ -125,7 +125,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                     <SlotDrop session={session} target={parent} folder=true>
                         <IconButton
-                            glyph={ICON_ARROW_UP.to_owned()}
+                            glyph=ICON_ARROW_UP
                             label="Up to the parent folder"
                             disabled={top}
                             @test_id={"logic-grid.hotbar-up"}
@@ -135,7 +135,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                     <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{title}</Text>
                     <MenuButton
                         label="Hotbar actions"
-                        glyph={ICON_PLUS.to_owned()}
+                        glyph=ICON_PLUS
                         icon_only=true
                         arrow=false
                         @test_id={"logic-grid.hotbar-actions"}

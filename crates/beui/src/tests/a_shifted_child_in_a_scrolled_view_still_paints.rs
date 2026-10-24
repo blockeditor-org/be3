@@ -28,7 +28,7 @@ fn a_shifted_child_in_a_scrolled_view_still_paints() {
         .document_mut()
         .set_scroll_offset(scroll.get(), 300.0);
     let output = harness.frame(Vec::new());
-    let marked = flatten(&output.layers)
+    let marked = flatten(&output.main().layers)
         .iter()
         .any(|shape| matches!(shape, Shape::Rect { color, .. } if *color == MARK));
     assert!(

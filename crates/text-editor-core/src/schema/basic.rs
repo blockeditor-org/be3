@@ -59,7 +59,7 @@ pub fn depth(props: &MarkSet) -> i64 {
 
 pub fn line_looks(formats: &Formats) -> Vec<LineLook> {
     let mut counts: Vec<(i64, Option<Value>, usize)> = Vec::new();
-    formats
+    let mut looks: Vec<LineLook> = formats
         .blocks
         .iter()
         .map(|block| {
@@ -92,16 +92,34 @@ pub fn line_looks(formats: &Formats) -> Vec<LineLook> {
                     _ => None,
                 });
             LineLook {
+                marker: block.start..block.start,
                 list,
                 depth: match list {
                     Some(_) => level.max(0) as usize,
                     None => 0,
                 },
+                continues: false,
                 quote: usize::from(on(props, QUOTE)),
                 code_block: props.get(CODE_BLOCK).is_some(),
+                heading: match props.get(CODE_BLOCK) {
+                    Some(_) => 0,
+                    None => props
+                        .get(HEADING)
+                        .and_then(Value::as_int)
+                        .filter(|level| (1..=6).contains(level))
+                        .map_or(0, |level| level as u8),
+                },
+                ..LineLook::at(block.start)
             }
         })
-        .collect()
+        .collect();
+    let code: Vec<Option<&Value>> = formats
+        .blocks
+        .iter()
+        .map(|block| block.props.get(CODE_BLOCK))
+        .collect();
+    super::join_neighbours(&mut looks, &code);
+    looks
 }
 
 fn on(selected: &MarkSet, key: &str) -> bool {
@@ -262,6 +280,7 @@ impl Schema for Basic {
             italic: on(marks, ITALIC),
             underline: on(marks, UNDERLINE) || link,
             strikethrough: on(marks, STRIKETHROUGH) || checked,
+            code: code && !code_block,
         }
     }
 

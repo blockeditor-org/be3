@@ -1,5 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Role;
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
@@ -19,7 +20,7 @@ pub fn ToggleButton(
 
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] pressed: Binding<bool>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     action: Option<Action>,
@@ -55,7 +56,7 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let has_glyph = create_memo(move || glyph.get().is_some());
     let named = create_memo(move || !icon_only.get());
     let padding = create_memo(move || match icon_only.get() {
         true => Sides::symmetric(8.0, 8.0),

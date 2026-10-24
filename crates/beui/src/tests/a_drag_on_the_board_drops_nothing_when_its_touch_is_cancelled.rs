@@ -31,6 +31,7 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
         Rc::new(7_u32),
         DragPoint::at(from, Modifiers::NONE),
         Rc::new(|_| {}),
+        Rc::new(|_| {}),
     );
     harness.touch(TouchPhase::Move, to);
     harness.touch(TouchPhase::Cancel, to);

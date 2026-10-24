@@ -4,6 +4,7 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
 use crate::input::BackGesture;
 use crate::node::{NodeId, NodeOf};
+use crate::window::WindowId;
 
 use crate::node::ANCESTOR_LIMIT;
 
@@ -64,6 +65,7 @@ pub struct Layer {
     pub traps: bool,
     pub dismissable: bool,
     pub locks: bool,
+    pub window: WindowId,
 }
 
 impl Layer {
@@ -145,6 +147,35 @@ impl Layers {
 
     pub fn takes_keyboard(&self) -> bool {
         self.keyboard() > 0
+    }
+
+    pub fn has_windows(&self) -> bool {
+        self.0.iter().any(|layer| !layer.window.is_main())
+    }
+
+    pub fn of_window(&self, window: WindowId) -> Option<Layers> {
+        if window.is_main() && !self.has_windows() {
+            return Some(self.clone());
+        }
+        let kept: Vec<usize> = (0..self.0.len())
+            .filter(|index| self.0[*index].window == window)
+            .collect();
+        let first = *kept.first()?;
+        let layers: Vec<Layer> = kept
+            .iter()
+            .map(|index| {
+                let mut layer = self.0[*index].clone();
+                layer.parent = layer
+                    .parent
+                    .and_then(|parent| kept.iter().position(|kept| *kept == parent));
+                if *index == first {
+                    layer.parent = None;
+                    layer.policy = LayerPolicy::Pass;
+                }
+                layer
+            })
+            .collect();
+        Some(Layers(layers.into()))
     }
 
     pub fn within(&self, index: usize, ancestor: usize) -> bool {
@@ -293,6 +324,7 @@ impl Document {
             traps: false,
             dismissable: false,
             locks: false,
+            window: WindowId::MAIN,
         });
         for ((level, _), index) in &keyed {
             let (overlay, _, hangs_from) = entries[*index];
@@ -308,6 +340,7 @@ impl Document {
                 traps: node.traps_focus && node.policy != LayerPolicy::Inert,
                 dismissable: !node.on_dismiss.is_empty() && !locks,
                 locks,
+                window: self.real_window(overlay).unwrap_or(WindowId::MAIN),
             });
         }
         for at in 1..layers.len() {
@@ -323,6 +356,11 @@ impl Document {
                     })
                     .unwrap_or(0),
             );
+            if layers[at].window.is_main()
+                && let Some(parent) = layers[at].parent
+            {
+                layers[at].window = layers[parent].window;
+            }
         }
         Layers(layers.into())
     }
@@ -731,6 +769,7 @@ impl Document {
         self.layers()
             .iter()
             .skip(1)
+            .filter(|layer| layer.window.is_main())
             .flat_map(|layer| self.layer_covers(layer))
             .collect()
     }
@@ -739,7 +778,7 @@ impl Document {
         self.layers()
             .iter()
             .skip(1)
-            .filter(|layer| layer.policy == LayerPolicy::Pass)
+            .filter(|layer| layer.window.is_main() && layer.policy == LayerPolicy::Pass)
             .filter_map(|layer| self.node_rect(layer.content?))
             .collect()
     }
@@ -749,6 +788,7 @@ impl Document {
             .iter()
             .enumerate()
             .skip(1)
+            .filter(|(_, layer)| layer.window.is_main())
             .flat_map(|(index, layer)| {
                 self.layer_covers(layer)
                     .into_iter()

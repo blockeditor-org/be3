@@ -61,6 +61,7 @@ be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
 be-vcs       snapshot trees, diff, tree merge      client
 be-client    a peer: local store, blocks, Live    client
+be-sync      a folder <-> a directory on disk      client (native)
 be-server    the always-online peer               server
 ```
 
@@ -138,14 +139,28 @@ Content-addressed, encrypted object storage.
 ### be-graph
 
 Liveness is hierarchical. A block is live when its parent chain reaches
-`BlockParent::Root`; a block with no parent is pending deletion **together with
-its subtree, even when something else still references it**. References are for
-navigation and access, never for liveness.
+`BlockParent::Root` and every link on the way holds: a parent holds a child
+only while the parent's references list it (`BlockGraph::holds`). A block whose
+parent is `Detached`, or whose parent no longer lists it, is in the trash
+**together with its subtree**, even when something else still references it,
+and it keeps its parent. So deleting a block is an edit to its parent's content
+that drops it (`ChildChange::Delete`), and listing it again, by undo or by
+Restore, brings it back. A reference from anything but the parent is a link,
+for navigation and access, and keeps nothing alive. `BlockGraph::deleted_roots`
+are the blocks whose own link does not hold; `deleted_root` finds the one a
+block is deleted under.
 
-That is what makes reclamation reference counting rather than tracing: a block
-holds its commits, a commit holds its chunk hashes, and `ObjectRefs` deletes an
+Each block still has one parent, so liveness is a walk up one chain, and that is
+what makes reclamation reference counting rather than tracing: a block holds
+its commits, a commit holds its chunk hashes, and `ObjectRefs` deletes an
 object when the last holder releases it. There is no cycle to trace and no mark
 and sweep. Do not reintroduce one.
+
+Every content type therefore lists the blocks it is the parent of among its
+references, and whatever makes a child under a parent also adds it to the
+parent's content. Until that edit is saved the child shows in the trash for
+the parent's other viewers; the app hides the window on its own side by
+treating the block as being placed (`Graph::placing`) until the parent lists it.
 
 ### be-server
 
@@ -651,22 +666,53 @@ or write between runs.
 Version control is two content types and a peer-side operation set, not a
 store of its own: history is be-store objects and be-commit commits.
 
-- A **repository** (`be_block::Repository`) holds branch heads and an optional
-  upstream repository in the same organization. It holds its history with
-  `Peer::hold` (`HoldObjects`): a block that holds objects keeps them alive
-  whatever its own commits' retention does, until it is collected.
-- A **snapshot** is a `be_commit::Commit` of kind `Snapshot(message)` whose
+The model is jj's (Jujutsu's): the working copy is a commit, a change keeps its
+identity when it is rewritten, conflicts are data, and every operation can be
+undone.
+
+- A **repository** (`be_block::Repository`) holds branch heads, an optional
+  upstream repository in the same organization, and the operation log. It
+  holds its history with `Peer::hold` (`HoldObjects`): a block that holds
+  objects keeps them alive whatever its own commits' retention does, until it
+  is collected.
+- A **snapshot** is a `be_commit::Commit` of kind `Snapshot(description)` whose
   manifest is a `be_vcs::Tree`: one entry per block of the versioned subtree,
   keyed by local id, with its content type, parent, metadata, references and
-  content manifest. The manifest is the block's own, so a snapshot of unchanged
-  content stores nothing new, and a checkout publishes a block's first commit
-  with that manifest without downloading it.
+  content manifest, and the tree's unresolved conflicts. The manifest is the
+  block's own, so a snapshot of unchanged content stores nothing new, and a
+  checkout publishes a block's first commit with that manifest without
+  downloading it.
+- A **change** is the line of snapshots that share a `ChangeId`
+  (`Commit::change`). Rewriting a change (new edits, bringing the branch in,
+  resolving) writes a new commit with the same change id; the commit id is the
+  hash of the stored bytes and differs. A commit saved before change ids has
+  none and is its own change (`Commit::change_id`).
 - A **checkout** (`be_block::Checkout`) is the parent of a working tree of
   ordinary blocks, which every editor opens and every session edits as usual.
   Sharing the checkout block is how two people work on one tree; two checkouts
-  are two people working apart. It records its repository, branch, base commit,
-  root, the head each block had at the base (so status is a comparison against
-  the mirror rather than a download) and any conflicts.
+  are two people working apart. It records its repository, the branch it
+  follows, `working` (the latest snapshot of the working change), root, the
+  head each block had at that snapshot (so status is a comparison against the
+  mirror rather than a download), and a view of each conflict (copies of its
+  sides to look at). There is no staging area and no uncommitted state: edits
+  are the working change, and every operation first snapshots it (amends it).
+  Saving a change (`Finish`) describes the working change, moves the branch to
+  it with a compare-and-swap, and starts a new empty working change on top.
+- **Conflicts are data.** `be_vcs::merge` records every conflict in the merged
+  tree's `conflicts` with the entry each side had, and carries conflicts the
+  sides already recorded until one side resolves them. Bringing changes in,
+  switching branch (the working change is rebased onto the other branch) and
+  combining a branch (the working change gains a second parent) never refuse
+  because of conflicts and never leave anything in progress: the result is
+  the new working change, conflicts and all, which can be saved as it is.
+  Resolving (`Tree::resolve`) is an ordinary rewrite of the working change.
+- **The operation log** (`Repository::operations`, the latest
+  `OPERATION_LIMIT`) records every operation: its action, the checkout it ran
+  in, and the view before and after (the branches, and that checkout's working
+  change and branch). Undoing one is itself an operation: it puts back the
+  branches it moved, where they have not moved since, and reverts its effect
+  on the checkout's working change by a three-way merge (the after view as
+  base), so edits made since stay. Undoing an undo redoes.
 - **Scopes.** A block's content stores the ids of the blocks it names, and
   those have to mean the same thing in every checkout, so they are *local* ids.
   A block copied into a checkout is created as `masked(local, scope_mask(checkout))`
@@ -680,11 +726,11 @@ store of its own: history is be-store objects and be-commit commits.
   and falls back to the block with that id, which is how a reference out of the
   tree keeps working.
 - `crates/block-app/src/be/version.rs` runs the operations in the worker:
-  adopting a block into a new checkout, committing (a compare-and-swap on the
-  branch), making a checkout, switching, branching, bringing the branch's
-  changes in (`be_vcs::merge` over the trees, then each content type's
-  `Merge::merge3` for a block both sides changed, with `base`, `yours` and
-  `theirs` copies of a conflicted block left under the checkout), resolving,
+  adopting a block into a new checkout, saving a change, making a checkout,
+  switching, branching, combining a branch, bringing the branch's changes in
+  (`be_vcs::merge` over the trees, then each content type's `Merge::merge3`
+  for a block both sides changed, with `before`, `yours` and `incoming` copies
+  of a conflicted block left under the checkout), resolving, undoing,
   forking, pulling and pushing. It pushes a `VersionStatus` for every
   repository and checkout an editor is showing, recomputed when the mirror
   changes; it watches the checkout's blocks and holds each followed checkout's
@@ -958,10 +1004,13 @@ names such a block "Locked" or "No access" in place of its name, and
 draws a referenced block from its label (text links and embeds, the files
 pane, database cells, canvas cards, pickers) shows it; a frame says so in
 place of an editor. `BlockInfo::deleted` is set on a block whose parent chain
-the host's mirror follows up to a `Detached` block (`Graph::deleted_root`): it
-is in Recently Deleted, itself or inside a deleted folder, though links to it
-still resolve. A chain that runs into a block the account cannot see counts as
-live. `BlockInfo::label` carries the flag, `label_glyph` gives such a block a
+the host's mirror follows up to a link that does not hold (`Graph::deleted_root`):
+it is in Recently Deleted, itself or inside a deleted folder, though links to it
+still resolve. Where the mirror cannot read a parent's references, it takes the
+server's word (`BlockSummary::held`); a chain that runs into a block the account
+cannot see counts as live. Recently Deleted is `Listing::Deleted`, the
+blocks whose own link does not hold, and a publish that changes a block's
+references re-announces the blocks it dropped or added so the listing follows. `BlockInfo::label` carries the flag, `label_glyph` gives such a block a
 trash icon, and the places that list references treat it as a link that will
 break: the files pane mutes it (but not inside Recently Deleted, where every
 row is deleted), the shell's reference menus and phone details sheet list it
@@ -969,10 +1018,11 @@ last as "In Recently Deleted" and leave it out of the counts and the linked
 bar, pickers never offer it, and a deleted block opened in a tab has a bar
 above it saying so. Anything may ask the host to bring one back with
 `EditorHost::restore_block` (`BlockCommand::Restore`): the host finds the
-`Detached` block at the top of its chain and puts it back where the
-`DELETED_FROM` metadata key says it was deleted from, which `be::set_parent`
-records when it detaches a block and clears when it gives it a parent again,
-or in My files when that place is gone, deleted or not editable. It changes the graph with
+block at the top of its chain and lists it in its parent again when that parent
+is live, editable and can add a child; a block with no parent goes back where
+the `DELETED_FROM` metadata key says it was deleted from (which `be::set_parent`
+records when it detaches a block, as deleting a top-level block does, and clears
+when it gives it a parent again), and otherwise into My files. It changes the graph with
 `CreateBlock { block_id, content_type, parent, name, artifact, content }`,
 `SetParent` and `SetName`, which the host takes only when the account may edit
 the block and the parent it names, and hands to `be::create`, `be::set_parent`
@@ -1634,6 +1684,27 @@ block is visible. The text editor's cursors and the canvas's pointers and
 selections work the same way, and each carries a colour of its own picked the
 same way rather than joining it to the peer's `UserActive` entry.
 
+### Peer messages
+
+Presence is state; a peer message is a message. `SessionMessage::Channel {
+channel, payload }` goes to one participant of a block's session or to all of
+them, sealed with the block's key like every other session message, so the
+server relays what it cannot read. A channel is a uuid naming what the payload
+means. `Live::send_channel(to, channel, payload)` sends one and
+`Live::take_channel` takes what other participants sent, in the order each of
+them sent it. Nothing is kept: a participant that was not in the session never
+hears it.
+
+The worker queues each block's messages in `Shared::peer_messages` (the last
+4096) and the host hands each instance holding the block the ones that arrived
+since it opened, as `EditorMessage::PeerMessages`; an instance sends with
+`EditorMessage::SendToPeers`, which the host takes from an instance that holds
+the block and may view it. On the plugin side that is
+`editor.send_to_peers(to, &message)` and `editor.on_peer_message(|from, message|
+..)` over a `ChannelKind` (`be_block::presence`), which names the channel and
+encodes with postcard. `to` is a client id from presence. The terminal block is
+built on it (guides/terminal.md).
+
 ### Editors with their own model
 
 The text editor cannot hand its state to a projection: `text_editor_core`
@@ -1698,12 +1769,13 @@ pixel art export regenerate this way.
   from content outside an editor and no search over it. Server-side search is
   impossible under end-to-end encryption, so it has to become client-side over
   the local cache, or a client-built encrypted index.
-- Detached blocks are never collected by the app. be-server's
-  `CollectDetached` (`Peer::collect_detached`) removes every detached block the
-  caller may edit, with its subtree and its objects, but nothing calls it. When
-  something does, it will remove a detached block that is still referenced and
-  leave the reference dangling: liveness is the parent chain, by design, so the
-  content that references it has to cope with a block that is gone.
+- Deleted blocks are never collected by the app. be-server's
+  `CollectDetached` (`Peer::collect_detached`) removes every deleted block the
+  caller may edit (`BlockGraph::detached`: each deleted root's subtree), with
+  its objects, but nothing calls it. When something does, it will remove a
+  deleted block that is still linked and leave the link dangling, so the
+  content that links it has to cope with a block that is gone, and it will race
+  a new child its parent has not listed yet.
 - The browser peer keeps its objects in memory, so a reload refetches everything
   and a tab that closes leaves whatever a session held since its last autosave
   behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what

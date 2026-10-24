@@ -8,6 +8,17 @@ fn shell_dialog_and_access_messages_round_trip() {
             block_id: [3; 16],
             dialog: ShellDialog::Share,
         }),
+        Message::Editor(EditorMessage::ShowDialog {
+            instance: EditorInstanceId(2),
+            block_id: [3; 16],
+            dialog: ShellDialog::Rename {
+                anchor: Some(Rect::from_min_size(
+                    Pos2::new(4.0, 8.0),
+                    Vec2::new(16.0, 24.0),
+                )),
+                within: Some([5; 16]),
+            },
+        }),
         Message::Editor(EditorMessage::SetAccess {
             instance: EditorInstanceId(2),
             block_id: [3; 16],

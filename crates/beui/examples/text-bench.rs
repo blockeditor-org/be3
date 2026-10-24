@@ -42,6 +42,7 @@ impl Bench {
             },
             context: beui::context(),
             app: Box::new(Showing(document)),
+            host: None,
         });
         runner
             .start(

@@ -35,7 +35,7 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
     view! {
         <BarPopup
             label="Rotate the screen"
-            glyph={ICON_ROTATE_CW_SQUARE.to_owned()}
+            glyph=ICON_ROTATE_CW_SQUARE
             icon_only=true
             width=PICKER_WIDTH
             @test_id={"desktop.rotate"}

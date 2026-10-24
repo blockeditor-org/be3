@@ -67,6 +67,30 @@ pub struct ShownPresence {
 
 type Peers = (u64, Vec<PeerPresence>);
 
+const PEER_MESSAGE_LIMIT: usize = 4096;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PeerMessage {
+    pub from: u64,
+    pub channel: Uuid,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SentToPeers {
+    pub block: Option<Uuid>,
+    pub to: Option<u64>,
+    pub channel: Uuid,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Default)]
+struct PeerMessages {
+    received: HashMap<Option<Uuid>, std::collections::VecDeque<(u64, PeerMessage)>>,
+    count: u64,
+    sent: Vec<SentToPeers>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PeerPresence {
     pub client: u64,
@@ -354,10 +378,11 @@ pub enum Pushed {
     Shows,
     Version,
     HostValues,
+    PeerMessages,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -369,6 +394,7 @@ impl Pushed {
         Self::Shows,
         Self::Version,
         Self::HostValues,
+        Self::PeerMessages,
     ];
 }
 
@@ -455,6 +481,7 @@ pub struct EditorHost {
     shown: Rc<RefCell<Vec<ShownPresence>>>,
     peers: Rc<RefCell<HashMap<Option<Uuid>, Peers>>>,
     next_peers: Rc<Cell<u64>>,
+    peer_messages: Rc<RefCell<PeerMessages>>,
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
@@ -801,10 +828,12 @@ impl EditorHost {
             .push((block_id, BlockCommand::AppMenu { anchor }));
     }
 
-    pub fn rename_block(&self, block_id: Uuid) {
+    pub fn rename_block(&self, block_id: Uuid, anchor: Option<Rect>) {
+        let origin = self.region.get().origin;
+        let anchor = anchor.map(|anchor| anchor.translate(-origin));
         self.block_commands
             .borrow_mut()
-            .push((block_id, BlockCommand::Rename));
+            .push((block_id, BlockCommand::Rename { anchor }));
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
@@ -822,19 +851,12 @@ impl EditorHost {
             .push((block_id, BlockCommand::Restore));
     }
 
-    pub fn delete_block(
-        &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        source: BlockParent,
-        is_reference: bool,
-    ) {
+    pub fn delete_block(&self, block_id: Uuid, block_type: Uuid, source: BlockParent) {
         self.block_commands.borrow_mut().push((
             block_id,
             BlockCommand::Delete {
                 block_type: block_type.into_bytes(),
                 source: source.encode(),
-                is_reference,
             },
         ));
     }
@@ -1075,6 +1097,65 @@ impl EditorHost {
         let peers = self.peers.borrow();
         let (revision, held) = peers.get(&block)?;
         (*revision != seen).then(|| (*revision, held.clone()))
+    }
+
+    pub fn send_to_peers(
+        &self,
+        block: Option<Uuid>,
+        to: Option<u64>,
+        channel: Uuid,
+        payload: Vec<u8>,
+    ) {
+        self.peer_messages.borrow_mut().sent.push(SentToPeers {
+            block,
+            to,
+            channel,
+            payload,
+        });
+        self.waker.wake();
+    }
+
+    pub fn take_sent_to_peers(&self) -> Vec<SentToPeers> {
+        std::mem::take(&mut self.peer_messages.borrow_mut().sent)
+    }
+
+    pub fn push_peer_messages(&self, block: Option<Uuid>, messages: Vec<PeerMessage>) {
+        if messages.is_empty() {
+            return;
+        }
+        {
+            let mut held = self.peer_messages.borrow_mut();
+            for message in messages {
+                held.count += 1;
+                let sequence = held.count;
+                let queue = held.received.entry(block).or_default();
+                queue.push_back((sequence, message));
+                if queue.len() > PEER_MESSAGE_LIMIT {
+                    queue.pop_front();
+                }
+            }
+        }
+        self.push(Pushed::PeerMessages);
+        self.waker.wake();
+    }
+
+    pub fn peer_messages_seen(&self) -> u64 {
+        self.peer_messages.borrow().count
+    }
+
+    pub fn peer_messages_since(&self, block: Option<Uuid>, seen: u64) -> Vec<(u64, PeerMessage)> {
+        self.peer_messages
+            .borrow()
+            .received
+            .get(&block)
+            .map(|queue| {
+                queue
+                    .iter()
+                    .filter(|(sequence, _)| *sequence > seen)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     pub fn take_seeded_content(&self) -> Vec<SeededContent> {

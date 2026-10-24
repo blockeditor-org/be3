@@ -27,7 +27,7 @@ use web as platform;
 pub(crate) use platform::sleep;
 
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
-pub(crate) use worker::{History, PairingRequest, Presence, Shared};
+pub(crate) use worker::{History, PairingRequest, PeerMessage, Presence, Shared};
 
 use worker::Command;
 
@@ -447,6 +447,7 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::DatabaseSchemaContent>(),
     kind_with_history::<be_block::DatabaseViewContent>(),
     kind_with_history::<be_block::DeterministicGameContent>(),
+    kind::<be_block::FileContent>(),
     kind::<be_block::GameModuleContent>(),
     kind_with_history::<be_block::HotbarContent>(),
     kind::<be_block::ImageContent>(),
@@ -473,6 +474,7 @@ const KINDS: &[Kind] = &[
     kind::<be_block::PanZoomContent>(),
     kind::<be_block::Scene3dContent>(),
     kind::<be_block::TriangleContent>(),
+    kind::<be_block::TerminalContent>(),
     kind::<be_block::RepositoryContent>(),
     kind::<be_block::CheckoutContent>(),
 ];
@@ -776,6 +778,33 @@ pub(crate) fn presence_since(block: Uuid, sent: Option<u64>) -> Option<(u64, Vec
     })?
 }
 
+pub(crate) fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload: Vec<u8>) {
+    send(Command::SendToPeers {
+        block,
+        to,
+        channel,
+        payload,
+    });
+}
+
+pub(crate) fn peer_messages_since(block: Uuid, seen: u64) -> Vec<(u64, PeerMessage)> {
+    with_shared(|shared| {
+        shared.peer_messages.get(&block).map(|queue| {
+            queue
+                .iter()
+                .filter(|(sequence, _)| *sequence > seen)
+                .cloned()
+                .collect()
+        })
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+pub(crate) fn peer_messages_seen() -> u64 {
+    with_shared(|shared| shared.peer_message_count).unwrap_or_default()
+}
+
 pub(crate) fn history(block: Uuid) -> History {
     with_shared(|shared| shared.histories.get(&block).copied())
         .flatten()
@@ -808,6 +837,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             metadata: metadata.clone(),
             head: None,
             locked: false,
+            held: true,
         });
     });
     send(Command::Duplicate {
@@ -1194,6 +1224,14 @@ pub(crate) fn create(
     }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
+        if let be_graph::BlockParent::Block(above) = parent
+            && shared
+                .graph
+                .get(above)
+                .is_some_and(|above| !above.references.contains(&block))
+        {
+            shared.graph.placing(block, true);
+        }
         shared.graph.change(Node {
             id: block,
             content_type,
@@ -1204,6 +1242,7 @@ pub(crate) fn create(
             metadata: metadata.clone(),
             head: None,
             locked: false,
+            held: true,
         });
     });
     send(Command::Create {
@@ -1250,6 +1289,14 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
         }
     }
     with_shared_mut(|shared| {
+        let placing = match parent {
+            be_graph::BlockParent::Block(above) => shared
+                .graph
+                .get(above)
+                .is_some_and(|above| !above.references.contains(&block)),
+            be_graph::BlockParent::Root | be_graph::BlockParent::Detached => false,
+        };
+        shared.graph.placing(block, placing);
         shared
             .graph
             .update(block, |node| node.parent = Some(parent))
@@ -1387,6 +1434,7 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 metadata: block.metadata.clone(),
                 head: None,
                 locked: false,
+                held: true,
             });
         });
         if let Some(bytes) = &block.content {

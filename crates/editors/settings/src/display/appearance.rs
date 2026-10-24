@@ -50,6 +50,31 @@ pub(super) fn AppearanceSection(
     });
     let scale_row = settings.row(&scale);
     let set_scale = settings.setter(&scale);
+    let keyboard = DisplaySettings::keyboard_setting();
+    let chosen_keyboard = settings.value(&keyboard);
+    let below_keyboard = settings.fallback(&keyboard);
+    let inherited_keyboard_label = create_memo(move || {
+        format!(
+            "Default ({}%)",
+            below_keyboard
+                .get()
+                .unwrap_or(DisplaySettings::DEFAULT_KEYBOARD_HEIGHT)
+        )
+    });
+    let selected_keyboard = create_memo(move || {
+        Some(
+            chosen_keyboard
+                .get()
+                .and_then(|percent| {
+                    DisplaySettings::KEYBOARD_HEIGHTS
+                        .iter()
+                        .position(|known| *known == percent)
+                })
+                .map_or(0, |index| index + 1),
+        )
+    });
+    let keyboard_row = settings.row(&keyboard);
+    let set_keyboard = settings.setter(&keyboard);
     view! {
         <SettingsSection title="Appearance">
             <LayeredSettingsRow
@@ -113,6 +138,34 @@ pub(super) fn AppearanceSection(
                     label="Scale"
                     disabled={read_only}
                     @test_id={"display.scale"}
+                />
+            </LayeredSettingsRow>
+            <LayeredSettingsRow
+                setting={keyboard_row}
+                label="On-screen keyboard height"
+                description="How much of the screen the app's own on-screen keyboard covers."
+                separated=true
+                locked={read_only}
+                id={"display.keyboard".to_owned()}
+            >
+                <Select
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ChoiceOption label={inherited_keyboard_label} />
+                        <ForEach keys={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}>|percent: u32|
+                            <ChoiceOption label={format!("{percent}%")} />
+                        </ForEach>
+                    }}
+                    selected={Binding::new(selected_keyboard, move |index: Option<usize>| {
+                        let percent = index
+                            .and_then(|index| index.checked_sub(1))
+                            .and_then(|index| DisplaySettings::KEYBOARD_HEIGHTS.get(index).copied());
+                        set_keyboard.call(percent);
+                    })}
+                    label="On-screen keyboard height"
+                    disabled={read_only}
+                    @test_id={"display.keyboard"}
                 />
             </LayeredSettingsRow>
         </SettingsSection>

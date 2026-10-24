@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, RendererInfo};
+use beui_core::context::{RendererInfo, WindowOutput};
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::geometry::Vec2;
 use beui_core::image::{Image, ImageId};
@@ -111,7 +111,7 @@ impl<D: Dom> DomRenderer<D> {
         &self.dom
     }
 
-    fn show(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn show(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         let ratio = self.dom.device_pixel_ratio();
         let zoom = scale / ratio;
         let prepared = Some((scale, zoom, background));
@@ -537,7 +537,7 @@ impl<D: Dom> Renderer for DomRenderer<D> {
             .map(|(width, height)| Vec2::new(width as f32, height as f32))
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         self.show(output, scale, background);
         false
     }

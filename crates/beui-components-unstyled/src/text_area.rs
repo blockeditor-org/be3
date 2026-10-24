@@ -2,13 +2,14 @@ mod actions;
 pub mod colors;
 mod completion;
 pub(crate) mod emoji;
+pub mod hooks;
 pub mod keys;
 mod lines;
 pub mod rows;
 pub mod state;
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
@@ -39,30 +40,19 @@ use beui_view::reactive::*;
 
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
-use rows::{
-    BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, RowOptions, TableSpacers,
-    galley, line_of, table_spacers,
-};
+use rows::{BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, galley, line_of};
 use state::{AreaGeometry, Grab};
+use text_editor_core::ListMarker;
 
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
-pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
-pub use state::{TextAreaLayout, TextAreaState};
-
-#[derive(Clone, Copy)]
-pub struct VoidView {
-    pub state: TextAreaState,
-    pub props: Memo<text_editor_core::MarkSet>,
-    pub size: Memo<Vec2>,
-}
-
-pub struct TextCheckbox {
-    pub checked: Binding<bool>,
-    pub disabled: Memo<bool>,
-    pub line: usize,
-}
+pub use hooks::{
+    LeafSpan, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, TableFill,
+    TableLines, TextLeaf, TextLine, TextMarker,
+};
+pub use rows::{Prose, RowTable, TextWidget};
+pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 pub const CARET_WIDTH: f32 = 2.0;
@@ -71,15 +61,9 @@ const GUTTER_PADDING_RIGHT: f32 = 10.0;
 const GUTTER_ARROW_SIZE: f32 = 14.0;
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
-const CHECKBOX_RADIUS: f32 = 3.0;
-const CHECKBOX_OUTLINE: f32 = 1.5;
 const INLINE_WIDGET_RADIUS: f32 = 5.0;
 const RUN_CHIP_RADIUS: f32 = 3.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
-const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
-const CODE_RADIUS: f32 = 3.0;
-const QUOTE_INDENT: f32 = 14.0;
-const QUOTE_BAR_WIDTH: f32 = 3.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -131,10 +115,10 @@ struct Held {
 struct Surface {
     state: TextAreaState,
     single_line: bool,
+    line_numbers: bool,
     held: Stored<Held>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
-    tables: Memo<Rc<TableSpacers>>,
     widgets: Memo<Vec<TextWidget>>,
     client_colors: Memo<Vec<(u64, Color32)>>,
     colors: Memo<TextAreaColors>,
@@ -163,9 +147,11 @@ struct Surface {
     text_extent: Signal<Vec2>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    checkbox: Option<RenderFn<TextCheckbox>>,
-    render_void: Option<RenderFn<VoidView>>,
-    void_size: Option<VoidSize>,
+    leaf: RenderFn<TextLeaf, beui_view::components::text::Span>,
+    marker: RenderFn<TextMarker>,
+    line: RenderFn<TextLine>,
+    rights: Signal<BTreeMap<u64, f32>>,
+    on_content_size: Callback<Vec2>,
     completion: Memo<Option<Query>>,
     completions: Memo<Vec<Completion>>,
     completing: Memo<bool>,
@@ -277,10 +263,13 @@ impl Surface {
     }
 
     fn below_end(&self, pos: Pos2) -> bool {
-        let last = self.starts.get_untracked().len().saturating_sub(1);
-        self.entry(last)
-            .and_then(|entry| entry.rect(&self.held.value().placements))
-            .is_some_and(|rect| pos.y > rect.max.y)
+        let held = self.held.value();
+        let rows = held.rows.borrow();
+        rows.values()
+            .filter_map(|entry| entry.rect(&held.placements))
+            .map(|rect| rect.max.y)
+            .reduce(f32::max)
+            .is_some_and(|bottom| pos.y > bottom)
     }
 
     fn hit(&self, pos: Pos2) -> Option<usize> {
@@ -810,7 +799,7 @@ fn hold(cx: &Context, press: PointerPress) {
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
     if let Some((entry, index, item)) = cx.inline_at(pos) {
         match item.inline {
-            Inline::Checkbox { .. } => {
+            Inline::Marker(ListMarker::Check(_)) => {
                 cx.state.set_selecting(false);
                 return;
             }
@@ -841,7 +830,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-            Inline::Run | Inline::Bullet | Inline::Quote => {}
+            Inline::Run | Inline::Marker(_) | Inline::Quote => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -869,7 +858,17 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
             metric: CursorHorizontalPositionMetric::Byte,
             stop: CursorLeftRightStop::UnicodeGraphemeCluster,
         });
-        cx.state.set_selecting(false);
+        let Some(&caret) = cx.state.caret_indices().first() else {
+            return;
+        };
+        let position = cx.state.with_core(|core| core.position(caret));
+        cx.state.execute(EditorCommand::Click {
+            position,
+            mode,
+            extend: false,
+            select_syntax_node: syntax,
+        });
+        cx.state.set_selecting(true);
         cx.state.reveal_cursor();
         return;
     }
@@ -896,8 +895,14 @@ fn extend(cx: &Context, press: PointerPress) {
         return;
     }
     let (inside, beyond) = cx.inside(press.pos);
-    let Some(target) = cx.hit(inside) else {
-        return;
+    let target = match cx.below_end(inside) {
+        true => usize::MAX,
+        false => {
+            let Some(target) = cx.hit(inside) else {
+                return;
+            };
+            target
+        }
     };
     let position = cx.state.with_core(|core| core.position(target));
     cx.state.execute(EditorCommand::Drag(position));
@@ -1034,7 +1039,6 @@ struct Field {
     described: Memo<Node>,
     frame: Stored<RefCell<Option<Render<Child>>>>,
     inner: NodeRef,
-    surface_color: Memo<Color32>,
     field_placed: Signal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
     hover_cursor: Signal<CursorIcon>,
@@ -1074,9 +1078,10 @@ pub fn TextArea(
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    checkbox: Option<RenderFn<TextCheckbox>>,
-    render_void: Option<RenderFn<VoidView>>,
-    #[prop(default = None)] void_size: Option<VoidSize>,
+    leaf: Option<RenderFn<TextLeaf, beui_view::components::text::Span>>,
+    marker: Option<RenderFn<TextMarker>>,
+    line: Option<RenderFn<TextLine>>,
+    on_content_size: Callback<Vec2>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
@@ -1196,41 +1201,6 @@ pub fn TextArea(
                         false => gutter_width(starts.get().len()),
                     }
                 });
-                let wrap_width = create_memo(move || {
-                    (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
-                });
-                let table_cache = std::cell::RefCell::new(rows::TableCache::default());
-                let tables = create_memo(
-                    move || {
-                        content.get();
-                        let scale = scale.get();
-                        let fonts = fonts.get();
-                        let wrap_width = wrap_width.get();
-                        let starts = starts.get();
-                        let widgets = widgets.get();
-                        let colors = colors.get();
-                        let options = RowOptions {
-                            body_size: font_size.get(),
-                            mask: masked.get(),
-                            single_line,
-                            prose: prose.get(),
-                        };
-                        Rc::new(state.with_snapshot(|snapshot| match snapshot.loaded && !single_line {
-                            true => table_spacers(&rows::TableInputs {
-                                wrap_width,
-                                snapshot,
-                                widgets: &widgets,
-                                colors: &colors,
-                                options,
-                                starts: &starts,
-                                scale,
-                                fonts,
-                                cache: &table_cache,
-                            }),
-                            false => HashMap::new(),
-                        }))
-                    },
-                );
                 let composition = create_memo(move || {
                     state.cursors().get();
                     state.content().get();
@@ -1274,6 +1244,7 @@ pub fn TextArea(
                 let cx = Surface {
                     state,
                     single_line,
+                    line_numbers,
                     held: store(Held {
                         rows: RefCell::new(BTreeMap::new()),
                         registered: Cell::new(0),
@@ -1283,7 +1254,6 @@ pub fn TextArea(
                     }),
                     starts,
                     visible,
-                    tables,
                     widgets,
                     client_colors,
                     colors,
@@ -1312,9 +1282,11 @@ pub fn TextArea(
                     text_extent,
                     block,
                     selected_widget,
-                    checkbox,
-                    render_void,
-                    void_size,
+                    leaf: leaf.unwrap_or_else(|| hooks::default_leaf(colors)),
+                    marker: marker.unwrap_or_else(|| hooks::default_marker(colors)),
+                    line: line.unwrap_or_else(|| hooks::default_line(colors)),
+                    rights: create_signal(BTreeMap::new()),
+                    on_content_size,
                     completion,
                     completions,
                     completing,
@@ -1400,16 +1372,10 @@ pub fn TextArea(
                     false => hover_cursor.get(),
                 });
                 let tab_stop = create_memo(move || !disabled.get());
-                let surface_color = create_memo(move || colors.get().surface);
-                let outer_color = create_memo(move || match single_line {
-                    true => Color32::TRANSPARENT,
-                    false => surface_color.get(),
-                });
                 let field = Field {
                     described,
                     frame: store(RefCell::new(frame)),
                     inner,
-                    surface_color,
                     field_placed,
                     cx,
                     cursor,
@@ -1425,10 +1391,8 @@ pub fn TextArea(
                     on_image_paste,
                 };
                 let multi_line = !single_line;
-                let strip_width = create_memo(move || gutter.get());
                 let width = create_memo(move || size.get().x);
                 let height = create_memo(move || size.get().y);
-                let gutter_color = create_memo(move || colors.get().gutter);
                 let border_color = create_memo(move || colors.get().gutter_border);
                 let border_x = create_memo(move || gutter.get() - 1.0);
                 let border_width = create_memo(move || match gutter.get() > 0.0 {
@@ -1443,7 +1407,7 @@ pub fn TextArea(
                 }
 
                 view! {
-                    <Frame @node_ref=&outer fill=outer_color>
+                    <Frame @node_ref=&outer>
                         <List spacing=0.0>
                             <Show condition={single_line}>
                                 <Editing @sizing=ItemSize::Percent(100.0) field={field} />
@@ -1454,9 +1418,6 @@ pub fn TextArea(
                                     width={width}
                                     height={height}
                                 >
-                                    <CanvasItem x=0.0 y=0.0 width={strip_width} height={height}>
-                                        <Frame fill=gutter_color />
-                                    </CanvasItem>
                                     <CanvasItem
                                         x={border_x}
                                         y=0.0
@@ -1499,7 +1460,6 @@ fn Editing(field: Field) -> NodeId {
         described,
         frame,
         inner,
-        surface_color,
         field_placed,
         cursor,
         hover_cursor: pointer_cursor,
@@ -1573,11 +1533,7 @@ fn Editing(field: Field) -> NodeId {
                     },
                     true => {
                         let field = view! {
-                            <FieldFrame
-                                @node_ref=&inner
-                                color={surface_color}
-                                report={field_placed}
-                            >
+                            <FieldFrame @node_ref=&inner report={field_placed}>
                                 <SingleLine cx={cx} />
                             </FieldFrame>
                         };
@@ -1608,16 +1564,12 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
 }
 
 #[component]
-fn FieldFrame(
-    color: Memo<Color32>,
-    report: Signal<Option<ReadSignal<Rect>>>,
-    children: Child,
-) -> NodeId {
+fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> NodeId {
     view! {
         <PlacementBuilder>|placed: ReadSignal<Rect>| {
             report.set_unconditionally(Some(placed));
             view! {
-                <Frame fill=color>{children}</Frame>
+                <Frame>{children}</Frame>
             }
         }</PlacementBuilder>
     }
@@ -1630,7 +1582,7 @@ fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
             _,
             _,
             InlineItem {
-                inline: Inline::Checkbox { .. },
+                inline: Inline::Marker(ListMarker::Check(_)),
                 ..
             }
         ))
