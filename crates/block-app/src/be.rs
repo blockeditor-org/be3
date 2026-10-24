@@ -28,8 +28,6 @@ pub(crate) use platform::sleep;
 
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
 pub(crate) use worker::{History, PairingRequest, Shared};
-#[cfg(test)]
-pub(crate) use worker::{PeerMessage, Presence};
 
 use worker::Command;
 
@@ -246,9 +244,6 @@ pub(crate) fn close(block: Uuid) {
 }
 
 pub(crate) fn hold(block: Uuid, content_type: Uuid) {
-    if !is_known(content_type) {
-        return;
-    }
     let fresh = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -376,14 +371,6 @@ pub(crate) fn show(block: Uuid, kind: Uuid, value: Option<Vec<u8>>) {
 }
 
 #[cfg(test)]
-pub(crate) fn presence_since(block: Uuid, sent: Option<u64>) -> Option<(u64, Vec<Presence>)> {
-    with_shared(|shared| {
-        let (revision, presence) = shared.presence.get(&block)?;
-        (sent != Some(*revision)).then(|| (*revision, presence.clone()))
-    })?
-}
-
-#[cfg(test)]
 pub(crate) fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload: Vec<u8>) {
     send(Command::SendToPeers {
         block,
@@ -391,26 +378,6 @@ pub(crate) fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload
         channel,
         payload,
     });
-}
-
-#[cfg(test)]
-pub(crate) fn peer_messages_since(block: Uuid, seen: u64) -> Vec<(u64, PeerMessage)> {
-    with_shared(|shared| {
-        shared.peer_messages.get(&block).map(|queue| {
-            queue
-                .iter()
-                .filter(|(sequence, _)| *sequence > seen)
-                .cloned()
-                .collect()
-        })
-    })
-    .flatten()
-    .unwrap_or_default()
-}
-
-#[cfg(test)]
-pub(crate) fn peer_messages_seen() -> u64 {
-    with_shared(|shared| shared.peer_message_count).unwrap_or_default()
 }
 
 pub(crate) fn history(block: Uuid) -> History {

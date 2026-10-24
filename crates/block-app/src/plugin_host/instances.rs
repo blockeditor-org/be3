@@ -757,7 +757,7 @@ impl Instances {
 
     fn replica_frame(&mut self, instance: EditorInstanceId, block: Uuid, frame: Vec<u8>) -> bool {
         let editable = self.editable(block);
-        let viewable = self.can_view(block) && crate::be::may_load(block);
+        let viewable = crate::be::may_load(block);
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
@@ -782,11 +782,12 @@ impl Instances {
             if resend {
                 link.awaiting_preview = true;
             }
-            return true;
+            return resend;
         }
         if !viewable {
             return false;
         }
+        let attaching = link.attached.is_none();
         if link.attached != Some(editable) {
             link.attached = Some(editable);
             crate::be::attach(block, link.content_type, instance.0, editable);
@@ -794,7 +795,9 @@ impl Instances {
         if resend && crate::be::snapshot_frame(block).is_some() {
             link.awaiting_preview = true;
         }
-        crate::be::from_editor(block, instance.0, &frame);
+        if !(resend && attaching) {
+            crate::be::from_editor(block, instance.0, &frame);
+        }
         true
     }
 

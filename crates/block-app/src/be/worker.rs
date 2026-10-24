@@ -549,7 +549,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 None => waited.await,
             }
         };
-        shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
+        let handled = replicas.handled;
+        if matches!(woken, Woken::Module) {
+            replicas.pump((&peer, shared)).await;
+        }
+        if !matches!(woken, Woken::Module) || replicas.handled != handled {
+            shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
+        }
         let mut ran = Ran {
             peer: &peer,
             replicas: &mut *replicas,
@@ -1376,7 +1382,10 @@ async fn apply(
             content_type,
             bytes,
         } => {
-            let outcome = match replicas.is_open(block) {
+            let unreadable = replicas
+                .status(block)
+                .is_some_and(|status| status.unreadable.is_some());
+            let outcome = match replicas.is_open(block) && !unreadable {
                 true => {
                     replicas
                         .change(ctx, block, Change::Replace(bytes))
@@ -1396,6 +1405,9 @@ async fn apply(
             };
             if let Err(error) = outcome {
                 record(shared, error);
+            }
+            if unreadable {
+                replicas.reopen(block);
             }
             remember_head(peer, shared, block);
             false
@@ -1708,7 +1720,10 @@ async fn export(
     let mut read = peer.read_contents(&wanted).await?.into_iter();
     for block in &mut blocks {
         block.content = match replicas.is_open(block.id) {
-            true => replicas.content((peer, shared), block.id).await,
+            true => match replicas.content((peer, shared), block.id).await {
+                Some(bytes) => Some(bytes),
+                None => stored(peer, block.id).await?,
+            },
             false => read.next().and_then(|(_, content)| content),
         };
         if let Some(derived) = shared

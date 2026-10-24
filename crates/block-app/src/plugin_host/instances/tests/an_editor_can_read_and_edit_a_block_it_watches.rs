@@ -3,7 +3,8 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, Counter, CounterContent, LiveEdit};
-use block_plugin_api::{ContentOperation, WatchedContent};
+use block_plugin_api::WatchedContent;
+use block_type_guest::editor::EditorOperation;
 
 fn counted(block: Uuid, expected: i64) {
     crate::be::wait_for(Duration::from_secs(20), |shared| {
@@ -12,20 +13,6 @@ fn counted(block: Uuid, expected: i64) {
         (counter.root().value() == expected).then_some(())
     })
     .expect("the new stack never reached the expected count");
-}
-
-fn about(instances: &mut Instances, block: Uuid) -> Vec<EditorMessage> {
-    next_screens(instances)
-        .opened
-        .into_iter()
-        .filter_map(|message| match message {
-            Message::Editor(
-                editor @ (EditorMessage::Content { block_id, .. }
-                | EditorMessage::ContentOperations { block_id, .. }),
-            ) if block_id == block.into_bytes() => Some(editor),
-            _ => None,
-        })
-        .collect()
 }
 
 #[test]
@@ -43,6 +30,7 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     );
     let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);
     next_screens(&mut instances);
+    assert!(to_replica(&mut instances, own, &FromEditor::Resend));
 
     assert!(instances.editor_message(EditorMessage::WatchContent {
         instance: INSTANCE,
@@ -57,32 +45,23 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
             },
         ],
     }));
-    next_screens(&mut instances);
+    assert!(to_replica(&mut instances, other, &FromEditor::Resend));
     counted(other, 0);
-    assert!(matches!(
-        about(&mut instances, other).as_slice(),
-        [EditorMessage::Content { .. }]
-    ));
+    let sent = replica_sent_until(&mut instances, other, |sent| !sent.is_empty());
+    assert!(matches!(sent.as_slice(), [ToEditor::Snapshot(_)]));
 
     let add = CounterContent::encode_operation(&Counter::add(3));
-    assert!(instances.editor_message(EditorMessage::Operate {
-        instance: INSTANCE,
-        block_id: other.into_bytes(),
-        operation: add.clone(),
-    }));
+    assert!(to_replica(&mut instances, other, &FromEditor::Operate(add.clone())));
     counted(other, 3);
+    let sent = replica_sent_until(&mut instances, other, |sent| !sent.is_empty());
     assert_eq!(
-        about(&mut instances, other),
-        [EditorMessage::ContentOperations {
-            instance: INSTANCE,
-            block_id: other.into_bytes(),
-            operations: vec![ContentOperation {
-                operation: add,
-                mine: true,
-                unsettled: 0,
-                beneath: None,
-            }],
-        }]
+        sent,
+        [ToEditor::Operations(vec![EditorOperation {
+            operation: add,
+            mine: true,
+            unsettled: 0,
+            beneath: None,
+        }])]
     );
 
     assert!(instances.editor_message(EditorMessage::WatchContent {

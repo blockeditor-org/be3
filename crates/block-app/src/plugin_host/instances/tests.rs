@@ -3,6 +3,7 @@ use crate::plugin_host::EditorBlock;
 use be_block::BlockContent as _;
 use beui::Pos2;
 use block_plugin_api::Input;
+use block_type_guest::editor::{FromEditor, ToEditor};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: EditorRegion = EditorRegion::Frame;
@@ -166,6 +167,58 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
 fn next_screens(instances: &mut Instances) -> NextScreens {
     instances.touch(&crate::be::take_touched());
     instances.next_screens(PASS)
+}
+
+fn to_replica(instances: &mut Instances, block: Uuid, message: &FromEditor) -> bool {
+    instances.editor_message(EditorMessage::Replica {
+        instance: INSTANCE,
+        block_id: block.into_bytes(),
+        frame: block_type_api::encode_frame(message),
+    })
+}
+
+fn from_replica(messages: &[Message], block: Uuid) -> Vec<ToEditor> {
+    messages
+        .iter()
+        .filter_map(|message| match message {
+            Message::Editor(EditorMessage::Replica {
+                block_id, frame, ..
+            }) if *block_id == block.into_bytes() => {
+                crate::be::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn replica_sends(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
+    let opened = next_screens(instances).opened;
+    from_replica(&opened, block)
+}
+
+fn replica_sent_until(
+    instances: &mut Instances,
+    block: Uuid,
+    done: impl Fn(&[ToEditor]) -> bool,
+) -> Vec<ToEditor> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let mut sent = Vec::new();
+    loop {
+        sent.extend(replica_sends(instances, block));
+        if done(&sent) {
+            return sent;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the replica never sent what was expected: {sent:?}"
+        );
+        crate::be::wait_for(std::time::Duration::from_millis(100), |shared| {
+            shared
+                .editor_frames
+                .contains_key(&INSTANCE.0)
+                .then_some(())
+        });
+    }
 }
 
 mod a_block_is_named_after_its_content_until_someone_names_it;

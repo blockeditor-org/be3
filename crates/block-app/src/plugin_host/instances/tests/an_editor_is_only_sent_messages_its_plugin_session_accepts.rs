@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use block_editor_plugin::session::{ClientSession, State};
 use block_plugin_api::{HelloAccepted, SurfaceFormat, SurfaceSpec};
+use block_type_guest::editor::FromEditor;
 
 #[test]
 fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
@@ -32,17 +33,26 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     for message in opened {
         session.receive(message);
     }
+    instances.editor_message(EditorMessage::Replica {
+        instance: INSTANCE,
+        block_id: block.into_bytes(),
+        frame: block_type_api::encode_frame(&FromEditor::Resend),
+    });
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         shared.blocks.contains_key(&block).then_some(())
     })
     .expect("the new stack never held the block's content");
+    crate::be::wait_for(Duration::from_secs(20), |shared| {
+        shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
+    })
+    .expect("the replica never answered the editor");
 
     let carried = next_screens(&mut instances).opened;
 
     assert!(
         carried
             .iter()
-            .any(|message| matches!(message, Message::Editor(EditorMessage::Content { .. }))),
+            .any(|message| matches!(message, Message::Editor(EditorMessage::Replica { .. }))),
         "the host never sent the block's content"
     );
     for message in carried {

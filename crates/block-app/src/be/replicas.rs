@@ -65,6 +65,7 @@ pub(super) struct Replicas {
     contents: HashMap<RequestId, ReplicaId>,
     replies: HashMap<RequestId, tokio::sync::oneshot::Sender<Reply>>,
     pending: Vec<Io>,
+    pub(super) handled: u64,
 }
 
 pub(super) type Ctx<'a> = (&'a Arc<Peer<Store>>, &'a Arc<Mutex<Shared>>);
@@ -82,6 +83,7 @@ impl Replicas {
             contents: HashMap::new(),
             replies: HashMap::new(),
             pending: Vec::new(),
+            handled: 0,
         }
     }
 
@@ -110,6 +112,7 @@ impl Replicas {
             if answers.is_empty() && commands.is_empty() {
                 return changed;
             }
+            self.handled += (answers.len() + commands.len()) as u64;
             for io in answers {
                 self.answered(io, ctx.1);
             }
@@ -120,6 +123,7 @@ impl Replicas {
     }
 
     pub(super) async fn ask(&mut self, ctx: Ctx<'_>, module: usize, request: Request) -> Reply {
+        eprintln!("DEBUG ask {module} {}", format!("{request:?}").chars().take(160).collect::<String>());
         let Some(answered) = self.ask_later(module, request) else {
             return Reply::Unknown;
         };
@@ -351,6 +355,21 @@ impl Replicas {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
+        if std::mem::replace(&mut open.closing, true) {
+            return;
+        }
+        let module = open.module;
+        self.modules.send(module, vec![Event::Close { replica }]);
+    }
+
+    pub(super) fn reopen(&mut self, block: Uuid) {
+        let Some(replica) = self.blocks.get(&block).copied() else {
+            return;
+        };
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        open.reopen = true;
         if std::mem::replace(&mut open.closing, true) {
             return;
         }
@@ -707,6 +726,7 @@ impl Replicas {
         module: usize,
         command: Command,
     ) -> bool {
+        eprintln!("DEBUG act {module} {}", format!("{command:?}").chars().take(160).collect::<String>());
         let replica_of = |replica: ReplicaId, open: &HashMap<ReplicaId, Open>| {
             open.get(&replica)
                 .map(|open| (open.block, open.content_type, open.module == module))

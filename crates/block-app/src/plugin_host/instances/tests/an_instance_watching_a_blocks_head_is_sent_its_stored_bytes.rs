@@ -37,10 +37,7 @@ fn stored(head: &Result<Option<StoredHead>, String>) -> (i64, [u8; 32]) {
 }
 
 fn add(block: Uuid, by: i64) {
-    crate::be::operate_from(
-        block,
-        0,
-        CounterContent::encode_operation(&Counter::add(by)),
+    crate::be::operate(block, CounterContent::encode_operation(&Counter::add(by)),
     );
     crate::be::flush();
 }

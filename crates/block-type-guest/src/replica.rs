@@ -402,8 +402,14 @@ where
     }
 
     fn release(&mut self) {
+        if self.released {
+            return;
+        }
         self.out.push(Command::Release { replica: self.id });
         self.released = true;
+        for job in std::mem::take(&mut self.jobs) {
+            self.job_while_unreadable(job);
+        }
     }
 
     fn handle(&mut self, input: Input) {

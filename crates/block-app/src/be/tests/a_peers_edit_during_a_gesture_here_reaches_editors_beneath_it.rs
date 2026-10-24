@@ -1,6 +1,5 @@
 use super::*;
 
-use be_block::{Landed, Settling};
 use be_client::Live;
 
 #[test]
@@ -25,10 +24,11 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
 
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);
-    wait_for_count(block, 0);
-    let sent = content(block).expect("the counter is held").revision;
+    let mut editor = Editor::<CounterContent>::attach(block);
+    editor.wait("was sent the counter", |counter| counter.root().value() == 0);
+    editor.take_received();
     for _ in 0..3 {
-        add(block, 1);
+        editor.operate(Counter::add(1));
     }
     wait_for_count(block, 3);
 
@@ -44,36 +44,26 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
     wait_until("took the owner's add beneath its own", |shared| {
         counted(shared, block) == Some(13) && shared.unsealed == 0
     });
+    editor.wait("followed the owner's add", |counter| {
+        counter.root().value() == 13
+    });
 
-    let held = content(block).expect("the counter is held");
-    let Update::Operations(operations) = held.since(TEST_ORIGIN, Some(sent)) else {
-        panic!("an editor that had the counter is sent operations, not a snapshot");
-    };
+    let operations: Vec<_> = editor
+        .take_received()
+        .into_iter()
+        .flat_map(|message| match message {
+            block_type_guest::editor::ToEditor::Operations(operations) => operations,
+            block_type_guest::editor::ToEditor::Snapshot(_) => {
+                panic!("an editor that had the counter is sent operations, not a snapshot")
+            }
+            _ => Vec::new(),
+        })
+        .collect();
     assert!(
         operations
             .iter()
             .any(|operation| operation.beneath.is_some()),
         "the owner's add goes beneath this peer's adds: {operations:?}"
     );
-    let mut editor = Settling::new(CounterContent::default(), Vec::new());
-    for operation in &operations {
-        let decode =
-            |bytes: &[u8]| CounterContent::decode_operation(bytes).expect("the operation decodes");
-        let landed = match &operation.beneath {
-            Some(local) => Landed::Beneath {
-                operation: decode(&operation.operation),
-                unsettled: operation.unsettled,
-                local: local.iter().map(|bytes| decode(bytes)).collect(),
-            },
-            None => Landed::On {
-                operation: decode(&operation.operation),
-                unsettled: operation.unsettled,
-            },
-        };
-        assert!(
-            editor.land(landed),
-            "each operation lands where the editor is"
-        );
-    }
-    assert_eq!(editor.visible().root().value(), 13);
+    assert_eq!(editor.mirror.pending(), 0);
 }

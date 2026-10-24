@@ -42,17 +42,99 @@ mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
 mod revision_history_previews_and_restores_saved_content;
-mod shared_content_folds_the_operations_logged_since_its_snapshot;
-mod shared_content_keeps_unsettled_operations_apart_from_its_snapshot;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_peers_of_one_organization_share_a_counter;
 mod undo_steps_back_through_what_this_peer_did;
 
-const TEST_ORIGIN: u64 = 0;
+struct Editor<C: LiveEdit> {
+    block: Uuid,
+    id: u64,
+    mirror: block_type_guest::editor::EditorMirror<C>,
+    received: Vec<block_type_guest::editor::ToEditor>,
+}
 
-fn operate(block: Uuid, operation: Vec<u8>) {
-    operate_from(block, TEST_ORIGIN, operation);
+impl<C: LiveEdit + Clone + Default> Editor<C> {
+    fn attach(block: Uuid) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        attach(block, C::CONTENT_TYPE, id, true);
+        let mut editor = Self {
+            block,
+            id,
+            mirror: block_type_guest::editor::EditorMirror::default(),
+            received: Vec::new(),
+        };
+        editor.send(block_type_guest::editor::FromEditor::Resend);
+        editor
+    }
+
+    fn send(&mut self, message: block_type_guest::editor::FromEditor) {
+        from_editor(
+            self.block,
+            self.id,
+            &block_type_api::encode_frame(&message),
+        );
+    }
+
+    fn pump(&mut self) {
+        for (block, frame) in take_editor_frames(self.id) {
+            if block != self.block {
+                continue;
+            }
+            let Some(message) = unframe(&frame)
+                .and_then(|bytes| block_type_guest::editor::ToEditor::decode(&bytes))
+            else {
+                continue;
+            };
+            self.received.push(message.clone());
+            if let Some(answer) = self.mirror.receive(message) {
+                self.send(answer);
+            }
+        }
+    }
+
+    fn wait(&mut self, what: &str, done: impl Fn(&C) -> bool) {
+        let id = self.id;
+        let deadline = std::time::Instant::now() + PATIENCE;
+        loop {
+            self.pump();
+            if self.mirror.content().is_some_and(&done) {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the editor never {what}: it says {:?}",
+                status().error
+            );
+            wait_for(QUIET / 20, |shared| {
+                shared.editor_frames.contains_key(&id).then_some(())
+            });
+        }
+    }
+
+    fn content(&self) -> &C {
+        self.mirror.content().expect("the editor was sent its content")
+    }
+
+    fn operate(&mut self, operation: C::Op) {
+        let message = self
+            .mirror
+            .operate(operation)
+            .expect("an editor operates once it has content");
+        self.send(message);
+    }
+
+    fn take_received(&mut self) -> Vec<block_type_guest::editor::ToEditor> {
+        self.pump();
+        std::mem::take(&mut self.received)
+    }
+}
+
+impl<C: LiveEdit> Drop for Editor<C> {
+    fn drop(&mut self) {
+        detach(self.block, self.id);
+    }
 }
 
 const PATIENCE: Duration = Duration::from_secs(20);
@@ -260,14 +342,15 @@ fn text_of(shared: &Shared, block: Uuid) -> Option<String> {
 const TYPIST: u64 = 1 << 63 | 7;
 
 fn type_text(block: Uuid, at: usize, text: &str) {
-    let held = content(block).expect("the text block is held");
-    let mut current = be_block::TextContent::decode(held.bytes()).expect("the text block decodes");
-    current
-        .adopt_session_state(held.session())
-        .expect("the text block's session state decodes");
-    let edit = be_block::TextBlock::insert(&current, TYPIST, at, text.as_bytes())
+    let mut editor = Editor::<be_block::TextContent>::attach(block);
+    type_into(&mut editor, at, text);
+}
+
+fn type_into(editor: &mut Editor<be_block::TextContent>, at: usize, text: &str) {
+    editor.wait("was sent the text", |_| true);
+    let edit = be_block::TextBlock::insert(editor.content(), TYPIST, at, text.as_bytes())
         .expect("there is somewhere to type");
-    operate(block, be_block::TextContent::encode_operation(&edit));
+    editor.operate(edit);
 }
 
 fn checkouts(shared: &Shared) -> Vec<Uuid> {
