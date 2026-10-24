@@ -271,10 +271,12 @@ impl EditorMessage {
                     | VersionCommand::Resolve { block_id, .. } => {
                         existing(block_id);
                     }
-                    VersionCommand::Commit { .. }
+                    VersionCommand::Finish { .. }
                     | VersionCommand::Update
                     | VersionCommand::Switch { .. }
                     | VersionCommand::CreateBranch { .. }
+                    | VersionCommand::Merge { .. }
+                    | VersionCommand::Undo { .. }
                     | VersionCommand::NewCheckout { .. }
                     | VersionCommand::Fork
                     | VersionCommand::PullUpstream

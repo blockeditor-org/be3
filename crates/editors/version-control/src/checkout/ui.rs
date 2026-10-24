@@ -1,11 +1,14 @@
 use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{CheckoutContent, ConflictKind, Repository};
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
+    ICON_ARROW_DOWN_TO_LINE, ICON_CHECK, ICON_GIT_BRANCH, ICON_GIT_MERGE,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
     BlockLink, ChildTarget, ConflictSide, Editor, VersionChangeKind, VersionCommand,
-    VersionHistory, short_id,
+    VersionHistory, VersionSteps, short_id,
 };
 use uuid::Uuid;
 
@@ -34,11 +37,11 @@ fn change_label(kind: VersionChangeKind) -> &'static str {
 
 fn conflict_label(kind: ConflictKind) -> &'static str {
     match kind {
-        ConflictKind::Content => "Both sides changed it",
-        ConflictKind::Placement => "Both sides moved it",
-        ConflictKind::Name => "Both sides renamed it",
+        ConflictKind::Content => "Changed here and in the incoming changes",
+        ConflictKind::Placement => "Moved to different places",
+        ConflictKind::Name => "Given different names",
         ConflictKind::EditedAndRemoved => "Changed on one side and removed on the other",
-        ConflictKind::Metadata => "Both sides changed its details",
+        ConflictKind::Metadata => "Its details were changed both ways",
     }
 }
 
@@ -49,13 +52,13 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     let status = editor.version_status();
     let editable = editor.editable();
     let summary = create_memo(move || {
-        state.with(|state| match state.base {
-            Some(base) => format!(
-                "On {}, at {}",
-                state.branch,
-                short_id(base.hash().as_bytes())
+        let branch = state.with(|state| state.branch.clone());
+        status.with(|status| match &status.working {
+            Some(working) => format!(
+                "Editing on {branch}, in change {}",
+                short_id(&working.change)
             ),
-            None => format!("On {}, with nothing committed yet", state.branch),
+            None => format!("Editing on {branch}"),
         })
     });
     let repository = create_memo(move || {
@@ -112,6 +115,16 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
         })
     });
     let conflicted = create_memo(move || !conflicts.with(Vec::is_empty));
+    let combining = create_memo(move || {
+        status.with(|status| {
+            status
+                .working
+                .as_ref()
+                .is_some_and(|working| working.parents.len() > 1)
+        })
+    });
+    let combined_note = create_memo(move || combining.get() && unchanged.get());
+    let empty_note = create_memo(move || !combining.get() && unchanged.get());
     let branches = create_memo(move || {
         let current = state.with(|state| state.branch.clone());
         status.with(|status| {
@@ -123,13 +136,13 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
         })
     });
     let log = create_memo(move || status.with(|status| status.log.clone()));
+    let operations = create_memo(move || status.with(|status| status.operations.clone()));
 
-    let message = create_signal(String::new());
-    let commit_blocked = create_memo(move || {
+    let description = create_signal(String::new());
+    let save_blocked = create_memo(move || {
         blocked.get()
-            || unchanged.get()
-            || conflicted.get()
-            || message.with(|message| message.trim().is_empty())
+            || (unchanged.get() && !combining.get())
+            || description.with(|description| description.trim().is_empty())
     });
     let branch_name = create_signal(String::new());
     let branch_blocked =
@@ -154,9 +167,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     };
 
     view! {
-        <Frame padding=PADDING>
-            <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
+        <List spacing=0.0>
+            <Scroll @sizing=ItemSize::Percent(100.0)>
+                <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
                             <Text style=TextStyle::HEADING>"Checkout"</Text>
@@ -181,11 +194,12 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     align=Align::Center
                                     spacing=10.0
                                 >
-                                    <Text @sizing=ItemSize::Percent(100.0)>
-                                        "The branch has moved on since this checkout's base."
+                                    <Text @sizing=ItemSize::Percent(100.0) wrap=true>
+                                        "Someone saved newer changes on this branch."
                                     </Text>
                                     <Button
-                                        label="Bring changes in"
+                                        label="Bring them in"
+                                        glyph=ICON_ARROW_DOWN_TO_LINE
                                         variant=ButtonVariant::Primary
                                         disabled={blocked}
                                         @test_id={"checkout.update"}
@@ -197,17 +211,28 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         <Show condition={conflicted}>
                             <Card>
                                 <List spacing=12.0>
-                                    <Text style=TextStyle::HEADING>"Conflicts"</Text>
+                                    <Text style=TextStyle::HEADING>"Clashing edits"</Text>
+                                    <Text style=TextStyle::CAPTION wrap=true>
+                                        "These blocks were changed in two ways at once. Choose a version for each, or edit it and keep it as it is. You can keep working and save changes before you decide."
+                                    </Text>
                                     <ForEach keys={conflicts} view={conflict_rows} />
                                 </List>
                             </Card>
                         </Show>
                         <Card>
                             <List spacing=10.0>
-                                <Text style=TextStyle::HEADING>"Changes"</Text>
-                                <Show condition={unchanged}>
+                                <Text style=TextStyle::HEADING>"Current change"</Text>
+                                <Text style=TextStyle::CAPTION wrap=true>
+                                    "Your edits are kept here as you make them. Describe them and save to start a new change on top."
+                                </Text>
+                                <Show condition={empty_note}>
                                     <Text style=TextStyle::CAPTION>
-                                        "Nothing has changed since the last commit."
+                                        "Nothing has changed since the last saved change."
+                                    </Text>
+                                </Show>
+                                <Show condition={combined_note}>
+                                    <Text style=TextStyle::CAPTION>
+                                        "This change combines another branch into this one."
                                     </Text>
                                 </Show>
                                 <ForEach keys={changes} view={change_rows} />
@@ -218,20 +243,21 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 >
                                     <TextInput
                                         @sizing=ItemSize::Percent(100.0)
-                                        value={message}
-                                        placeholder="What changed?"
-                                        label="Commit message"
-                                        @test_id={"checkout.message"}
+                                        value={description}
+                                        placeholder="What does this change do?"
+                                        label="Description"
+                                        @test_id={"checkout.description"}
                                     />
                                     <Button
-                                        label="Commit"
+                                        label="Save change"
+                                        glyph=ICON_CHECK
                                         variant=ButtonVariant::Primary
-                                        disabled={commit_blocked}
-                                        @test_id={"checkout.commit"}
+                                        disabled={save_blocked}
+                                        @test_id={"checkout.save"}
                                         on_click={move || {
-                                            let text = message.get().trim().to_owned();
-                                            editor.version(VersionCommand::Commit { message: text });
-                                            message.set(String::new());
+                                            let text = description.get().trim().to_owned();
+                                            editor.version(VersionCommand::Finish { description: text });
+                                            description.set(String::new());
                                         }}
                                     />
                                 </List>
@@ -255,6 +281,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     />
                                     <Button
                                         label="Make branch"
+                                        glyph=ICON_GIT_BRANCH
                                         variant=ButtonVariant::Secondary
                                         disabled={branch_blocked}
                                         @test_id={"checkout.make-branch"}
@@ -269,14 +296,27 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         </Card>
                         <Card>
                             <List spacing=10.0>
-                                <Text style=TextStyle::HEADING>"History"</Text>
+                                <Text style=TextStyle::HEADING>"Saved changes"</Text>
                                 <VersionHistory log={log} />
                             </List>
                         </Card>
+                        <Card>
+                            <List spacing=10.0>
+                                <Text style=TextStyle::HEADING>"What was done"</Text>
+                                <Text style=TextStyle::CAPTION wrap=true>
+                                    "Every step is kept here, so any of them can be undone."
+                                </Text>
+                                <VersionSteps
+                                    editor={editor}
+                                    operations={operations}
+                                    blocked={blocked}
+                                />
+                            </List>
+                        </Card>
                     </List>
-                </Scroll>
-            </List>
-        </Frame>
+                </Frame>
+            </Scroll>
+        </List>
     }
 }
 
@@ -333,46 +373,40 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                 <BlockLink editor={editor} block={working} />
                 <Text style=TextStyle::CAPTION>{label}</Text>
             </List>
-            <List spacing=8.0>
-                <Show condition={compared}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <Text style=TextStyle::CAPTION>"Base"</Text>
-                        <BlockLink editor={editor} block={base} fallback="none" />
-                        <Text style=TextStyle::CAPTION>"Yours"</Text>
-                        <BlockLink editor={editor} block={ours} fallback="none" />
-                        <Text style=TextStyle::CAPTION>"Theirs"</Text>
-                        <BlockLink editor={editor} block={theirs} fallback="none" />
-                    </List>
-                </Show>
-                <Show condition={compared}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Button
-                            label="Take base"
-                            variant=ButtonVariant::Secondary
-                            disabled={blocked}
-                            @test_id={format!("checkout.base.{block}")}
-                            on_click={take_base}
-                        />
-                        <Button
-                            label="Take yours"
-                            variant=ButtonVariant::Secondary
-                            disabled={blocked}
-                            @test_id={format!("checkout.ours.{block}")}
-                            on_click={take_ours}
-                        />
-                        <Button
-                            label="Take theirs"
-                            variant=ButtonVariant::Secondary
-                            disabled={blocked}
-                            @test_id={format!("checkout.theirs.{block}")}
-                            on_click={take_theirs}
-                        />
-                    </List>
-                </Show>
-            </List>
+            <Show condition={compared}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                    <Text style=TextStyle::CAPTION>"Before"</Text>
+                    <BlockLink editor={editor} block={base} fallback="none" />
+                    <Text style=TextStyle::CAPTION>"Yours"</Text>
+                    <BlockLink editor={editor} block={ours} fallback="none" />
+                    <Text style=TextStyle::CAPTION>"Incoming"</Text>
+                    <BlockLink editor={editor} block={theirs} fallback="none" />
+                </List>
+            </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
-                    label="Keep as merged"
+                    label="Use before"
+                    variant=ButtonVariant::Secondary
+                    disabled={blocked}
+                    @test_id={format!("checkout.base.{block}")}
+                    on_click={take_base}
+                />
+                <Button
+                    label="Use yours"
+                    variant=ButtonVariant::Secondary
+                    disabled={blocked}
+                    @test_id={format!("checkout.ours.{block}")}
+                    on_click={take_ours}
+                />
+                <Button
+                    label="Use incoming"
+                    variant=ButtonVariant::Secondary
+                    disabled={blocked}
+                    @test_id={format!("checkout.theirs.{block}")}
+                    on_click={take_theirs}
+                />
+                <Button
+                    label="Keep as it is"
                     variant=ButtonVariant::Secondary
                     disabled={blocked}
                     @test_id={format!("checkout.keep.{block}")}
@@ -385,14 +419,15 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
 
 #[component]
 fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) -> NodeId {
-    let branch = name.clone();
+    let (switched, merged) = (name.clone(), name.clone());
     let disabled = create_memo(move || blocked.get() || current);
     let label = match current {
-        true => "Current",
-        false => "Switch",
+        true => "You are here",
+        false => "Move here",
     };
     let branch_test_id = format!("checkout.branch.{name}");
     let switch_test_id = format!("checkout.switch.{name}");
+    let merge_test_id = format!("checkout.merge.{name}");
     view! {
         <List
             direction=Direction::Horizontal
@@ -401,12 +436,25 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
             @test_id=branch_test_id
         >
             <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
+            <Show condition={!current}>|| {
+                let (merged, merge_test_id) = (merged.clone(), merge_test_id.clone());
+                view! {
+                    <Button
+                        label="Combine into this"
+                        glyph=ICON_GIT_MERGE
+                        variant=ButtonVariant::Ghost
+                        disabled={blocked}
+                        @test_id=merge_test_id
+                        on_click={move || editor.version(VersionCommand::Merge { branch: merged.clone() })}
+                    />
+                }
+            }</Show>
             <Button
                 label={label}
                 variant=ButtonVariant::Secondary
                 disabled={disabled}
                 @test_id=switch_test_id
-                on_click={move || editor.version(VersionCommand::Switch { branch: branch.clone() })}
+                on_click={move || editor.version(VersionCommand::Switch { branch: switched.clone() })}
             />
         </List>
     }

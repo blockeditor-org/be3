@@ -117,13 +117,15 @@ plugin never sees the translation and needs nothing to take part in it.
 
 An editor of a repository or a checkout asks the host to act on it with a
 version control command naming that block: adopting a block as the tree to
-version, committing, bringing the branch's changes in, switching, making a
-branch or a checkout, resolving a conflict by taking one side, and forking,
-pulling or pushing an upstream in the same organization. The host answers every
-instance whose block is a repository or a checkout with that block's status
-whenever it changes: whether it is busy, the last error, the branches, what
-the working tree changed since its base, whether the branch has moved past the
-base, and the history.
+version, saving the working change with a description, bringing the branch's
+changes in, switching, making a branch or a checkout, combining another branch
+in, resolving a conflict by taking one side or keeping the block as it is,
+undoing any recorded operation, and forking, pulling or pushing an upstream in
+the same organization. The host answers every instance whose block is a
+repository or a checkout with that block's status whenever it changes: whether
+it is busy, the last error, the branches, the working change and what it
+changed since its parent, whether the branch has moved past that parent, the
+history, and the operation log.
 
 An editor instance may ask for the cursor shown over one of its regions,
 which only the host can put on the window. The request names what the cursor

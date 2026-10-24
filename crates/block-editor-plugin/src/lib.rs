@@ -41,9 +41,9 @@ pub use block_plugin_api::{
     SettingsProgress, ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory,
     TemplateDescriptor, TimedInput, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest,
     TrayStatus, TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
-    VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, Wifi,
-    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
-    WindowRequests,
+    VersionCommit, VersionOperation, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
+    WebViewId, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction,
+    WindowOrigin, WindowRequests,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,

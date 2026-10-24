@@ -404,7 +404,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let root = self.root();
         let mut tree = Tree {
             root: Some(root),
-            entries: BTreeMap::new(),
+            ..Tree::default()
         };
         for (id, record) in &self.index.records {
             if *id != root {
@@ -419,7 +419,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let root = self.root();
         let mut tree = Tree {
             root: Some(root),
-            entries: BTreeMap::new(),
+            ..Tree::default()
         };
         tree.entries.insert(root, self.root_entry());
         let assigned: Vec<(String, Uuid)> = self
@@ -528,7 +528,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         }
         let mut tree = Tree {
             root: Some(root),
-            entries: BTreeMap::new(),
+            ..Tree::default()
         };
         tree.entries.insert(root, self.root_entry());
         for (id, block) in &self.remote {
@@ -586,8 +586,8 @@ impl<S: ObjectStore> Pass<'_, S> {
     }
 
     fn conflicts(&mut self, plan: &be_vcs::Plan, theirs: &Tree) {
-        for conflict in &plan.conflicts {
-            let label = self.label(&plan.tree, conflict.block);
+        for (block, conflict) in &plan.tree.conflicts {
+            let label = self.label(&plan.tree, *block);
             let text = match conflict.kind {
                 ConflictKind::Name => {
                     format!("{label} was renamed here and in block-app; the name here was kept")
@@ -595,16 +595,14 @@ impl<S: ObjectStore> Pass<'_, S> {
                 ConflictKind::Placement => format!(
                     "{label} was moved here and in block-app, or its folder went away; it was put where it is now"
                 ),
-                ConflictKind::EditedAndRemoved => {
-                    match theirs.entries.contains_key(&conflict.block) {
-                        true => format!(
-                            "{label} was deleted here and changed in block-app; it was kept"
-                        ),
-                        false => format!(
-                            "{label} was deleted in block-app and changed here; it was kept"
-                        ),
+                ConflictKind::EditedAndRemoved => match theirs.entries.contains_key(block) {
+                    true => {
+                        format!("{label} was deleted here and changed in block-app; it was kept")
                     }
-                }
+                    false => {
+                        format!("{label} was deleted in block-app and changed here; it was kept")
+                    }
+                },
                 ConflictKind::Metadata => format!(
                     "{label} was made executable or not, here and in block-app; this side was kept"
                 ),
