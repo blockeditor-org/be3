@@ -167,11 +167,11 @@ pub(crate) fn instantiate<T>(
             Import::Elsewhere => match linker.get_by_import(&mut *store, &import) {
                 Some(answered) => answered,
                 None if module == ENV => sdk
-                    .get_func(&mut *store, name)
+                    .get_export(&mut *store, name)
+                    .filter(|export| matches!(export, Extern::Func(_) | Extern::Tag(_)))
                     .ok_or_else(|| {
                         format!("the plugin imports {name}, which the plugin SDK does not export")
-                    })?
-                    .into(),
+                    })?,
                 None => {
                     let signature = import.ty().func().cloned().ok_or_else(|| {
                         format!(

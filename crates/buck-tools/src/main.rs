@@ -4,7 +4,7 @@ fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let Some((command, rest)) = arguments.split_first() else {
         eprintln!(
-            "usage: buck-tools generate|clippy|compile-fail|rust-project|resolve|apk|archive ..."
+            "usage: buck-tools generate|clippy|compile-fail|rust-project|resolve|apk|archive|pdfium ..."
         );
         return ExitCode::FAILURE;
     };
@@ -16,6 +16,7 @@ fn main() -> ExitCode {
         "resolve" => buck_tools::resolve::run(rest),
         "apk" => buck_tools::apk::run(rest),
         "archive" => buck_tools::archive::run(rest),
+        "pdfium" => buck_tools::pdfium::run(rest),
         other => Err(format!("unknown command {other}")),
     };
     match result {

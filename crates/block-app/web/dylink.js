@@ -95,7 +95,7 @@ export function instantiate(sdk, plugin, layout, host) {
             own.push([module, name]);
         } else if (module !== "env" || type === "memory") {
             group[name] = host[module]?.[name];
-        } else if (typeof sdk.exports[name] === "function") {
+        } else if (typeof sdk.exports[name] === "function" || sdk.exports[name] instanceof WebAssembly.Tag) {
             group[name] = sdk.exports[name];
         } else {
             throw new Error(`the plugin imports ${name}, which the plugin SDK does not export`);

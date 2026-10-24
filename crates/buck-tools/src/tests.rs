@@ -50,3 +50,5 @@ fn run_clippy(name: &str, source: &str, diagnostics: &[Value]) -> String {
 
 mod clippy_applies_no_fix_to_a_crate_that_failed_to_compile;
 mod clippy_removes_an_unused_import;
+mod pdfium_libraries_are_the_compiled_targets_under_the_root;
+mod pdfium_repositories_are_kept_for_what_the_libraries_use;

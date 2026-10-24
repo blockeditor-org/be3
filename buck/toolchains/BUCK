@@ -110,7 +110,7 @@ _wasi_flags = [
     "--target=wasm32-wasip1-threads",
     "--sysroot=$(location root//third-party/wasi:sysroot)",
     "-isystem",
-    "$(location root//third-party/wasi:sysroot)/include/c++/v1",
+    "$(location root//third-party/wasi:sysroot)/include/wasm32-wasip1-threads/noeh/c++/v1",
     "-pthread",
     "-mllvm",
     "-wasm-enable-sjlj",
