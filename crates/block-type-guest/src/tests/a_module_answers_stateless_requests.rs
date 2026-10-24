@@ -6,6 +6,18 @@ crate::be_block_types![ChecklistContent { undo }, TextContent { undo, file }];
 
 #[test]
 fn a_module_answers_stateless_requests() {
+    let mut outbound = Vec::new();
+    let mut guest =
+        <BlockTypes as crate::abi::Guest>::start(crate::abi::Waker::new(|| {}), &mut outbound)
+            .unwrap();
+    let hello = block_type_api::decode_frame::<Command>(&outbound[0]).unwrap();
+    assert!(matches!(hello, Command::Hello { ref types } if types.len() == 2));
+    let tick = block_type_api::encode_frame(&Event::Tick { now: 5 });
+    outbound.clear();
+    assert_eq!(
+        crate::abi::Guest::step(&mut guest, vec![tick], false, &mut outbound),
+        Ok(crate::abi::Flow::Running)
+    );
     let mut module = block_types();
     let Command::Hello { types } = module.hello() else {
         panic!("a module greets with its types");

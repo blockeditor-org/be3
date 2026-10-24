@@ -122,8 +122,12 @@ image, PDF, audio and file types from `be_block::plain`). The order is the order
 
 `Module::handle(Event) -> Vec<Command>` is the whole interface; `Module::hello()` is
 the `Hello` that lists the module's types (content type, frozen, schema fingerprint,
-undo, file). The `Guest` trait (`start`, `step(frames) -> frames`) is the byte-level
-form the wasm glue calls. The undo stack is `History<C, u64>`: `History` is generic
+undo, file). The macro also defines `BlockTypes`, a `block_guest_abi::Guest` over that module
+(`start` sends `Hello`; `step` decodes each event frame, handles it and encodes the
+commands, `Module::step`), and exports it with `block_guest_abi::guest!`, so a type
+module crate is that one macro call plus guest-abi's `cdylib` and BUCK set-up. The
+waker is unused: the replica asks for time with `WakeAt` and the host ticks it.
+The undo stack is `History<C, u64>`: `History` is generic
 over its clock (`history::Moment`, for `Instant` and frame-clock milliseconds), and
 `Recorder` is what a replica asks of it, with `NoHistory` for a type without undo.
 

@@ -9,6 +9,7 @@ be-block = { path = "../be-block" }
 be-commit = { path = "../be-commit" }
 be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session" }
+block-guest-abi = { path = "../block-guest-abi" }
 block-type-api = { path = "../block-type-api" }
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }

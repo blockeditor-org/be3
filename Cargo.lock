@@ -1652,6 +1652,7 @@ dependencies = [
  "be-protocol",
  "be-session",
  "be-store",
+ "block-guest-abi",
  "block-type-api",
  "postcard",
  "serde",

@@ -13,6 +13,7 @@ mod record;
 mod replica;
 mod wire;
 
+pub use block_guest_abi as abi;
 pub use block_type_api as api;
 pub use file::FileForm;
 pub use record::{NoHistory, Recorder};
@@ -328,19 +329,12 @@ impl Module {
     }
 }
 
-pub trait Guest {
-    fn start(&mut self) -> Vec<Vec<u8>>;
-
-    fn step(&mut self, frames: Vec<Vec<u8>>) -> Vec<Vec<u8>>;
-}
-
-impl Guest for Module {
-    fn start(&mut self) -> Vec<Vec<u8>> {
-        vec![encode_frame(&self.hello())]
+impl Module {
+    pub fn hello_frame(&self) -> Vec<u8> {
+        encode_frame(&self.hello())
     }
 
-    fn step(&mut self, frames: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-        let mut outbound = Vec::new();
+    pub fn step(&mut self, frames: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) {
         for frame in frames {
             match decode_frame::<Event>(&frame) {
                 Ok(event) => outbound.extend(self.handle(event).iter().map(encode_frame)),
@@ -350,7 +344,6 @@ impl Guest for Module {
                 })),
             }
         }
-        outbound
     }
 }
 
@@ -362,6 +355,31 @@ macro_rules! be_block_types {
                 $($crate::Registration::of::<$kind>()$($(.$part::<$kind>())*)?),*
             ])
         }
+
+        pub struct BlockTypes($crate::Module);
+
+        impl $crate::abi::Guest for BlockTypes {
+            fn start(
+                _: $crate::abi::Waker,
+                outbound: &mut ::std::vec::Vec<::std::vec::Vec<u8>>,
+            ) -> ::std::result::Result<Self, ::std::string::String> {
+                let module = block_types();
+                outbound.push(module.hello_frame());
+                ::std::result::Result::Ok(Self(module))
+            }
+
+            fn step(
+                &mut self,
+                inbound: ::std::vec::Vec<::std::vec::Vec<u8>>,
+                _: bool,
+                outbound: &mut ::std::vec::Vec<::std::vec::Vec<u8>>,
+            ) -> ::std::result::Result<$crate::abi::Flow, ::std::string::String> {
+                self.0.step(inbound, outbound);
+                ::std::result::Result::Ok($crate::abi::Flow::Running)
+            }
+        }
+
+        $crate::abi::guest!(BlockTypes);
     };
 }
 
