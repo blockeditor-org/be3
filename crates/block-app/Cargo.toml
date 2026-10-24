@@ -58,6 +58,7 @@ block-plugin-api = { path = "../block-plugin-api" }
 # applies itself, which run in process, and the protocol of every module.
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
+be-types-host = { path = "../be-types-host" }
 build-id = { path = "../build-id" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 futures-util = { version = "0.3", features = ["io"] }

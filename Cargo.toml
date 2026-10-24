@@ -17,6 +17,7 @@ members = [
     "crates/be-server",
     "crates/be-session",
     "crates/be-sync",
+    "crates/be-types-host",
     "crates/be-store",
     "crates/be-vcs",
     "crates/be-wayland",

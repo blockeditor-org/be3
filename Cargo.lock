@@ -992,6 +992,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-types-host"
+version = "0.1.0"
+dependencies = [
+ "be-client",
+ "be-commit",
+ "be-graph",
+ "be-protocol",
+ "be-session",
+ "be-store",
+ "block-guest-abi",
+ "block-guest-host",
+ "block-type-api",
+ "block-type-guest",
+ "block-wasm-host",
+ "build-id",
+ "futures-util",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "be-vcs"
 version = "0.1.0"
 dependencies = [
@@ -1428,6 +1449,7 @@ dependencies = [
  "be-server",
  "be-session",
  "be-store",
+ "be-types-host",
  "be-vcs",
  "be-wayland",
  "beui",
