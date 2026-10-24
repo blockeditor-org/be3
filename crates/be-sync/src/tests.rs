@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use be_block::{
     BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, FileContent, FolderContent,
-    ImageContent, TextBlock, TextContent, WorkspaceContent,
+    ImageContent, LiveEdit, TextBlock, TextContent, WorkspaceContent,
 };
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
@@ -117,7 +117,32 @@ async fn folder(peer: &Peer<MemoryStore>, parent: Uuid, name: &str) -> Uuid {
     )
     .await
     .unwrap();
+    list_in(peer, parent, id).await;
     id
+}
+
+async fn list_in(peer: &Peer<MemoryStore>, parent: Uuid, child: Uuid) {
+    let summary = peer.summary(parent).await.unwrap();
+    match summary.content_type == WorkspaceContent::CONTENT_TYPE {
+        true => add_to::<WorkspaceContent>(peer, parent, child).await,
+        false => add_to::<FolderContent>(peer, parent, child).await,
+    }
+}
+
+async fn add_to<C: BlockContent + LiveEdit + Default>(
+    peer: &Peer<MemoryStore>,
+    parent: Uuid,
+    child: Uuid,
+) {
+    let mut content = peer.open::<C>(parent).await.unwrap().unwrap_or_default();
+    let head = peer.local_head(parent);
+    for operation in content
+        .child_operations(be_block::ChildChange::Add(child))
+        .unwrap()
+    {
+        content.apply(&operation);
+    }
+    peer.save(parent, &content, head).await.unwrap();
 }
 
 async fn block<C: BlockContent>(
@@ -136,6 +161,7 @@ async fn block<C: BlockContent>(
     .await
     .unwrap();
     peer.save(id, content, None).await.unwrap();
+    list_in(peer, parent, id).await;
     id
 }
 

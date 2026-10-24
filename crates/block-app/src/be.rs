@@ -1289,14 +1289,14 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
         }
     }
     with_shared_mut(|shared| {
-        if let be_graph::BlockParent::Block(above) = parent
-            && shared
+        let placing = match parent {
+            be_graph::BlockParent::Block(above) => shared
                 .graph
                 .get(above)
-                .is_some_and(|above| !above.references.contains(&block))
-        {
-            shared.graph.placing(block, true);
-        }
+                .is_some_and(|above| !above.references.contains(&block)),
+            be_graph::BlockParent::Root | be_graph::BlockParent::Detached => false,
+        };
+        shared.graph.placing(block, placing);
         shared
             .graph
             .update(block, |node| node.parent = Some(parent))
