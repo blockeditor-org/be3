@@ -589,8 +589,9 @@ as the demo's Paths page does) rather than spilling past it.
 Text is never one of those. A base `Text` takes concrete values and knows
 nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
 given), a `color` and `underline`, and the props that shape the paragraph -
-alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`,
-`glyphs` and `carets`. Its content is its children: string literals and
+alignment, `wrap` (a `Wrap`: `Off`, the default, lays each line out
+unbroken; `Words` and `Anywhere` below), `ellipsis`, `clip`, `line_height`,
+`line_padding`, `marks`, `glyphs` and `carets`. Its content is its children: string literals and
 `Prop<String>`s in its own style, `Span`s - value children with no node, each
 overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 `italic`, and its `color`, `underline` or `strikethrough`, giving it a
@@ -598,7 +599,11 @@ overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 marking a wrap opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
 inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
 given width that holds no bytes, so the indices on either side of one are the
-same. A tab in a span's text is laid out as its own run that reaches the next
+same, and `Break`s, which end the visual line wrapped or not and likewise hold
+no bytes: the index at a break starts the next line, the caret steps over it,
+and a selection or copy across one carries no newline, so a soft-wrapped
+terminal row drawn with `wrap=Wrap::Off` copies as one line. A newline in a
+span's text is a real line break that a copy keeps. A tab in a span's text is laid out as its own run that reaches the next
 tab stop, every `TAB_COLUMNS` (4) spaces of its span's font from the start of
 its line. An unset span prop takes its Text's. A Text whose only child is a
 string or `Prop<String>` keeps it as its own content rather than as a span,
@@ -616,9 +621,14 @@ icon and its label is layout rather than a space a selection could take, and
 an icon alone keeps none; an icon whose glyph is empty takes no room at all.
 Underline and strikethrough never cross one. Computed runs are a
 `ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
-and wraps them itself, breaking after whitespace, `-`, `/` or `\`, or after a
-`break_after` span, and between letters when no such break fits,
-with `line_padding` above and below each line, and aligns, truncates with an
+and wraps them itself: `Wrap::Words` breaks after whitespace, `-`, `/` or `\`,
+or after a `break_after` span, and between letters when no such break fits;
+`Wrap::Anywhere` breaks between any two grapheme clusters, so each line holds
+as many as fit (in a monospace font at a width of `cols` advances, exactly
+`cols` characters; measure the advance as `cursor_pos(_, 1).x` of one
+character, since a galley's `size()` is rounded up to a pixel). Each run is as
+wide as its text's advance, so spans in a monospace font stay on its grid.
+It lays text out with `line_padding` above and below each line, and aligns, truncates with an
 ellipsis and spaces lines by `line_height` whatever its content. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
 line breaking resumes from the line that span is on; a colour or decoration
@@ -3579,7 +3589,7 @@ resolve their tokens into a base `Text`'s `font` and `color`:
   returns a `TextColor`.
 - `style`, a `TextStyle` preset: `BODY`, `CAPTION` (small and muted),
   `HEADING`, `TITLE`, `DISPLAY`, `CODE` (small and monospace) and `PARAGRAPH`
-  (muted); give a paragraph `wrap=true` as well. A prop given beside a preset
+  (muted); give a paragraph `wrap=Wrap::Words` as well. A prop given beside a preset
   wins over it.
 
 A styled `Icon` is sized from the text it sits in, `ICON_SCALE` times its font

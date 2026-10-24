@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::display_settings::Rotation;
 use block_editor_beui::beui::NodeId;
@@ -46,7 +47,7 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
             });
             view! {
                 <List spacing=SPACING>
-                    <Text wrap=true>"Tap the one that's right side up"</Text>
+                    <Text wrap=Wrap::Words>"Tap the one that's right side up"</Text>
                     <RotationPicker
                         test_id={"desktop.rotate".to_owned()}
                         display={display}

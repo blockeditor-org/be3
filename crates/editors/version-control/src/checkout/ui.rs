@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{CheckoutContent, ConflictKind, Repository};
 use block_editor_beui::beui::NodeId;
@@ -182,7 +183,11 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 @test_id={"checkout.repository"}
                             />
                             <Show condition={has_note}>
-                                <Text style=TextStyle::CAPTION wrap=true @test_id={"checkout.note"}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    wrap=Wrap::Words
+                                    @test_id={"checkout.note"}
+                                >
                                     {note}
                                 </Text>
                             </Show>
@@ -194,7 +199,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     align=Align::Center
                                     spacing=10.0
                                 >
-                                    <Text @sizing=ItemSize::Percent(100.0) wrap=true>
+                                    <Text @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
                                         "Someone saved newer changes on this branch."
                                     </Text>
                                     <Button
@@ -212,7 +217,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             <Card>
                                 <List spacing=12.0>
                                     <Text style=TextStyle::HEADING>"Clashing edits"</Text>
-                                    <Text style=TextStyle::CAPTION wrap=true>
+                                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                                         "These blocks were changed in two ways at once. Choose a version for each, or edit it and keep it as it is. You can keep working and save changes before you decide."
                                     </Text>
                                     <ForEach keys={conflicts} view={conflict_rows} />
@@ -222,7 +227,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         <Card>
                             <List spacing=10.0>
                                 <Text style=TextStyle::HEADING>"Current change"</Text>
-                                <Text style=TextStyle::CAPTION wrap=true>
+                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                                     "Your edits are kept here as you make them. Describe them and save to start a new change on top."
                                 </Text>
                                 <Show condition={empty_note}>
@@ -303,7 +308,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         <Card>
                             <List spacing=10.0>
                                 <Text style=TextStyle::HEADING>"What was done"</Text>
-                                <Text style=TextStyle::CAPTION wrap=true>
+                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                                     "Every step is kept here, so any of them can be undone."
                                 </Text>
                                 <VersionSteps

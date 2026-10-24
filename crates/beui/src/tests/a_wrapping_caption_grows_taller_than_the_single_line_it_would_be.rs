@@ -3,6 +3,7 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Text;
 use crate::styled::*;
+use beui::Wrap;
 
 const FRAME_WIDTH: f32 = 90.0;
 const LONG_CAPTION: &str = "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom.";
@@ -10,10 +11,10 @@ const LONG_CAPTION: &str = "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or
 #[test]
 fn a_wrapping_caption_grows_taller_than_the_single_line_it_would_be() {
     let _root = crate::reactive::RootScope::new();
-    assert!(caption_height(true) > caption_height(false));
+    assert!(caption_height(Wrap::Words) > caption_height(Wrap::Off));
 }
 
-fn caption_height(wrap: bool) -> f32 {
+fn caption_height(wrap: Wrap) -> f32 {
     let frame = NodeRef::new();
     let document = build_node(move || {
         view! {

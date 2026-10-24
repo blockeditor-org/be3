@@ -1,6 +1,7 @@
 use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
+use beui::Wrap;
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
@@ -82,40 +83,40 @@ pub(crate) fn DockingPage() -> NodeId {
         <ScrollPage>
             <Sample title="The dock around this page" code={vec![DemoShell::SOURCE]}>
                 <List spacing=SECTION_SPACING>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "Drag a tab by its label. Drop it over the middle of a pane to join \
                          that pane, over an edge to split it, or over a tab bar to land between the \
                          tabs there. With a finger, pull the tab down out of its bar first: sliding \
                          along the bar scrolls it. The arrow keys walk a tab bar, and Ctrl+Tab and \
                          Ctrl+Shift+Tab walk the tabs of whichever pane you are in."
                     </Text>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "Drag the bar between two panes to resize them, or focus it with Tab \
                          and use the arrow keys. Drag the grip at the start of a pane's bar to move \
                          the whole pane, or right-click it to move the tabs into a sidebar and back."
                     </Text>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "Hold Alt while dragging a tab, or right-click one and pop it out, to \
                          float it in a window. A window moves by the grip at the left of its bar and \
                          resizes from any edge."
                     </Text>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "Drop a tab onto the middle of another tab to group them: the group \
                          becomes one tab, and choosing it shows a second tab bar holding the tabs \
                          inside. A group ungroups from its own right-click menu."
                     </Text>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "A page picked in Components takes the place of the page shown, in \
                          the same tab. Hold Ctrl (Cmd on a Mac) while picking one to open it in a \
                          tab of its own instead."
                     </Text>
-                    <Text style=TextStyle::CAPTION wrap=true>
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                         "A dock narrower than a phone's width stacks its panes: one tab fills it, and the bar goes back or switches tabs."
                     </Text>
                 </List>
             </Sample>
             <Sample title="Switching tabs" code={vec![switch_tabs_with_alt_q::SOURCE]}>
-                <Text style=TextStyle::PARAGRAPH wrap=true>
+                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                     "Hold Alt and press Q to switch between the tabs you looked at last, \
                      in every pane and window: each Q moves one further back, Shift+Q one \
                      forward, letting go of Alt shows the one chosen, and Escape with Alt still \
@@ -194,20 +195,20 @@ fn AttachedDialogs() -> NodeId {
                     }}
                 />
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A dialog hangs from the tab that opened it: it floats in the middle of \
                  that tab, hides when another tab is shown in its place and comes back with it, \
                  and is never a tab of its own. A modal one takes every press and key meant \
                  for its tab until it closes, and the focus goes back to the tab when it does."
             </Text>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A card floats just under the tab bar, centred on the tab but free to \
                  reach past its pane, dims the tab and waits for a choice, with a dot on the tab \
                  meanwhile. Pressing the dimmed tab closes it. Other tabs and panes stay usable, \
                  and the card keeps what was done in it while another tab is shown. On a phone it \
                  is a sheet from the bottom of the screen."
             </Text>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A card opened from a control points at it instead, like a popover: it \
                  opens under the control, or above it where there is no room below, and leaves \
                  the tab undimmed. Pressing elsewhere on the tab closes it, and it keeps its \
@@ -295,7 +296,7 @@ pub(crate) fn AttachedCard() -> NodeId {
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
-                        <Text wrap=true>
+                        <Text wrap=Wrap::Words>
                             "Only the tab under this card waits for it. Show another tab \
                              and come back: the count below is kept."
                         </Text>
@@ -335,7 +336,7 @@ fn ContentDrag() -> NodeId {
                 />
                 <Text>"Alt moves and resizes windows"</Text>
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A dock can be given a drag modifier, which is off unless asked for. \
                  While it is held, dragging anywhere in a window, its bar and tabs included, \
                  moves the whole window, and dragging with the right button resizes it from \
@@ -368,7 +369,7 @@ fn EditCounter() -> NodeId {
                 <Text style=TextStyle::CAPTION>{counted}</Text>
             </List>
             <Show condition={moved}>
-                <Text style=TextStyle::CAPTION wrap=true>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                     "Drag this tab somewhere else: the count comes with it."
                 </Text>
             </Show>
@@ -413,7 +414,7 @@ fn FullscreenTab() -> NodeId {
                     }}
                 />
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "The tab covers the whole window, its bar and every pane around it. \
                  Escape or the same button brings it back. Full screen in the tab's \
                  right-click menu shows it the same way."
@@ -467,7 +468,7 @@ fn TypeScale() -> NodeId {
             <Text style=TextStyle::HEADING>"Heading"</Text>
             <Text>"Body text for labels and values."</Text>
             <Text style=TextStyle::CAPTION>"Caption text, muted, for secondary details."</Text>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 "A paragraph wraps to the width it is given, so it reads well \
                  in a narrow pane as well as a wide one."
             </Text>
@@ -482,7 +483,7 @@ fn TextSizes() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <ForEach keys={TextSize::ALL.to_vec()}>|size: TextSize|
-                <Text size wrap=true>
+                <Text size wrap=Wrap::Words>
                     <Icon glyph=ICON_TYPE />
                     {format!("{} {}", size.name(), size.px())}
                 </Text>
@@ -533,7 +534,7 @@ fn InlineIcons() -> NodeId {
                 "Open"
                 <Icon glyph=ICON_EXTERNAL_LINK color=TextColor::Accent />
             </Text>
-            <Text wrap=true>
+            <Text wrap=Wrap::Words>
                 "An icon sits in a sentence like a word: the "
                 <Icon glyph=ICON_FOLDER />
                 "folder and the "
@@ -621,7 +622,7 @@ fn Links() -> NodeId {
 fn SelectableParagraph() -> NodeId {
     view! {
         <SelectableText child_size=ItemSize::Percent(100.0)>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 <Icon glyph=ICON_INFO />
                 "Drag across this paragraph to select it, or long-press a word with a finger. \
                  Right-click it for Copy and Select All. The icon is not part of the text, so a \
@@ -838,7 +839,7 @@ fn NameInput() -> NodeId {
         <List spacing=SECTION_SPACING>
             <TextInput value={name} placeholder="Type a name" />
             <Text style=TextStyle::CAPTION>{greeting}</Text>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Click to place the caret, drag to select, and Ctrl+Z to undo."
             </Text>
             <TextInput
@@ -864,7 +865,7 @@ fn KeyboardInput() -> NodeId {
             <Frame height=240.0>
                 <SoftwareKeyboard />
             </Frame>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Tap a key, or drag toward a corner for what it shows there. Circle up, right and down for a capital."
             </Text>
             <Button
@@ -1192,7 +1193,7 @@ fn PeriodTabs() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Tabs that turn into a select when there is no room for them"
             </Text>
             <ResponsiveTabs
@@ -1316,7 +1317,7 @@ fn MeetingField() -> NodeId {
                 clearable=true
                 step_minutes=30
             />
-            <Text style=TextStyle::CAPTION wrap=true>{meeting_text}</Text>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>{meeting_text}</Text>
         </List>
     }
 }
@@ -1475,7 +1476,7 @@ fn GlobalActions() -> NodeId {
     let locked = create_memo(move || format!("Locked {} times", locks.get()));
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 "A global action answers its chord wherever the focus is, even in a text \
                  field or under an open menu; Super chords count like Ctrl and Alt. While a \
                  program's window or a plugin editor has the focus, its keys are its own, unless \
@@ -1567,7 +1568,7 @@ fn ActionMenu() -> NodeId {
                 }}
             >
                 <Card @test_id="demo.actions">
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "One description of actions, separators and submenus fills this menu, a \
                          plugin's frame menu and the command palette. Each row shows its action's \
                          shortcut, a checkbox ticks while its action is checked, and a radio group \
@@ -1626,7 +1627,7 @@ fn CardMenu() -> NodeId {
                 <Card>
                     <List spacing=4.0>
                         <Text style=TextStyle::CAPTION>"Right-click or long-press this card"</Text>
-                        <Text style=TextStyle::PARAGRAPH wrap=true>
+                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                             "A mouse opens the menu at the pointer and a finger opens \
                              it as a sheet. Paste stays disabled until Copy is chosen; Share \
                              opens a submenu on hover or Right Arrow, and Left Arrow closes it."
@@ -1698,7 +1699,7 @@ fn TrayIcons() -> NodeId {
                     }}
                 />
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A picture, or a glyph without one. Chat activates on a click and shows \
                  its menu on a right click; Sync shows its menu on either."
             </Text>
@@ -1911,7 +1912,7 @@ fn NewBlockMenu() -> NodeId {
                     }}
                 />
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "New in opens a page of folders in place of the menu: arrows walk the \
                  tree, Right and Left open and close a folder, and choosing one comes back \
                  with it. More blocks opens a page long enough to scroll. Left or Escape goes \
@@ -1954,7 +1955,7 @@ fn HeldMenu() -> NodeId {
                     <unstyled::MenuItem label="Blue" lead="Paint it" />
                 }}
             />
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "The menu shows while a signal says so, at whatever node or point it is anchored to, and reports Escape or a press outside so the owner can close it. A lead is a few words before the label."
             </Text>
             <Text style=TextStyle::CAPTION>{chosen}</Text>
@@ -1999,7 +2000,7 @@ fn NewSlideMenu() -> NodeId {
                     }}
                 />
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A caption heads a grid of layouts; arrow keys move across and down the \
                  grid and on into the rows below it."
             </Text>
@@ -2196,7 +2197,7 @@ fn DiscardDialog() -> NodeId {
                 }}
                 on_dismiss={move || dialog.set(false)}
             >
-                <Text style=TextStyle::PARAGRAPH wrap=true>
+                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                     "Escape, a click outside or the back gesture dismisses a dialog."
                 </Text>
             </Dialog>
@@ -2439,7 +2440,7 @@ fn LongSheet() -> NodeId {
                     on_click={move || sheet.set(true)}
                 />
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Swipe up on the sheet to raise it, then keep swiping to scroll its rows."
             </Text>
             <Text style=TextStyle::CAPTION>{picked}</Text>
@@ -2492,7 +2493,7 @@ fn ActionsSheet() -> NodeId {
                     }}
                 />
             </List>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Tap the button to see its menu as a sheet; swipe it down, or tap above \
                  it, to close it. A click opens the same menu under the button."
             </Text>
@@ -2682,7 +2683,7 @@ fn FullscreenBody(on_close: ClickCallback) -> NodeId {
                     </Text>
                     <Button label="Close" variant=ButtonVariant::Secondary on_click={on_close} />
                 </List>
-                <Text style=TextStyle::PARAGRAPH wrap=true>
+                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                     "This covers the whole window. Escape closes it too."
                 </Text>
             </List>
@@ -2715,7 +2716,7 @@ pub(crate) fn RowsPage() -> NodeId {
 fn CardStrip() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A horizontal list scrolls with Shift+scroll, a sideways swipe, a touch \
                  drag, or the arrow keys once something in it has focus."
             </Text>
@@ -2739,7 +2740,7 @@ fn FittedScroll() -> NodeId {
     let rows = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "With max_length a scroll is as long as what it holds, up to that length, \
                  and scrolls from there on."
             </Text>
@@ -2945,7 +2946,7 @@ fn ProjectTree() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press; F2 or Rename edits a name in place, Enter or clicking away keeps it and Escape puts it back"
             </Text>
             <LabelledSwitch
@@ -3154,7 +3155,7 @@ fn FrameTokens() -> NodeId {
 fn StackedCards() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "A stack lays its children side by side, and one above the other once it is narrow."
             </Text>
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
@@ -3182,7 +3183,7 @@ fn Accordions() -> NodeId {
         <Card>
             <List spacing=ROW_SPACING>
                 <Accordion title="About" open=true>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "beui keeps a retained tree of nodes. Base nodes carry \
                          behaviour only, unstyled components compose them, and the \
                          styled components paint them."
@@ -3190,7 +3191,7 @@ fn Accordions() -> NodeId {
                 </Accordion>
                 <Separator />
                 <Accordion title="Layout" open=false>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "Layout is linear in the number of nodes, and only the \
                          parts of the tree whose inputs changed are laid out again."
                     </Text>
@@ -3499,7 +3500,7 @@ fn ZoomableStage() -> NodeId {
                 />
             </List>
             <CanvasStage @sizing=ItemSize::Fixed(STAGE_HEIGHT) view={stage_view} />
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
                  and drag with the middle button. Tab to it for arrows, + and -."
             </Text>
@@ -3595,7 +3596,7 @@ pub(crate) fn ThemesPage() -> NodeId {
 fn PreferenceSettings() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 "The theme and motion this app chooses, over what the system prefers. \
                  The demo saves them in its config folder; the inspector's Simulation tab \
                  overrides them until it is set back to no override."
@@ -3610,7 +3611,7 @@ fn PreferenceSettings() -> NodeId {
 fn ThemedSamples() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 "Theme, in the toolbar, changes the theme of the whole document. \
                  A theme provider restyles only what it holds, as the samples below show."
             </Text>
@@ -3640,7 +3641,7 @@ fn WindowSample() -> NodeId {
     let window = use_context::<DemoWindow>().expect("the demo provides its window");
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 "The Root at the top of the document sets the window's title and the \
                  colour it is cleared to, which shows wherever nothing paints over it."
             </Text>
@@ -3665,7 +3666,7 @@ fn ThemeSample(name: &'static str) -> NodeId {
             <Card>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::HEADING>{name}</Text>
-                    <Text style=TextStyle::CAPTION wrap=true>
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                         "Every styled component reads its colors from the theme."
                     </Text>
                     <Checkbox label="A checkbox" checked=true />

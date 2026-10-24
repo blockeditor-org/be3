@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{Repository, RepositoryContent};
 use block_editor_beui::beui::NodeId;
@@ -82,7 +83,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             <Show condition={has_note}>
                                 <Text
                                     style=TextStyle::CAPTION
-                                    wrap=true
+                                    wrap=Wrap::Words
                                     @test_id={"repository.note"}
                                 >
                                     {note}
@@ -93,7 +94,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             <Card>
                                 <List spacing=10.0>
                                     <Text>"Nothing is versioned here yet."</Text>
-                                    <Text style=TextStyle::CAPTION wrap=true>
+                                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                                         "Choose a block, and everything inside it is saved as the first change. From then on its edits gather into changes you describe and save, and any step can be undone."
                                     </Text>
                                     <Button
@@ -126,7 +127,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     />
                                 </Show>
                                 <Show condition={no_upstream}>
-                                    <Text style=TextStyle::CAPTION wrap=true>
+                                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                                         "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."
                                     </Text>
                                 </Show>

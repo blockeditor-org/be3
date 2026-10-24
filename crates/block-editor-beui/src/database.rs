@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::collections::BTreeMap;
 
 use be_block::database::{
@@ -584,7 +585,7 @@ fn RelationValue(
     view! {
         <List spacing=SPACING>
             <Show condition={unlinked}>
-                <Text style=TextStyle::CAPTION wrap=true>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                     "Choose the database this column links to."
                 </Text>
             </Show>

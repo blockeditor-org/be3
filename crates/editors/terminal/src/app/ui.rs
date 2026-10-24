@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -16,7 +17,7 @@ pub(crate) fn TerminalBlock(editor: Editor) -> NodeId {
         Err(error) => {
             return view! {
                 <Frame padding=24.0>
-                    <Text wrap=true>{error}</Text>
+                    <Text wrap=Wrap::Words>{error}</Text>
                 </Frame>
             };
         }

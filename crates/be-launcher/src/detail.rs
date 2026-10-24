@@ -1,4 +1,5 @@
 use beui::NodeId;
+use beui::Wrap;
 use beui::icons::{ICON_EXTERNAL_LINK, ICON_GIT_COMMIT_HORIZONTAL, ICON_REFRESH_CW};
 use beui::reactive::*;
 use beui::styled::*;
@@ -102,13 +103,13 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List spacing=0.0>
                 <Frame padding={Sides::symmetric(PADDING, 4.0)}>
                     <List spacing=SPACING>
-                        <Text size=TextSize::Xl wrap=true>{title}</Text>
+                        <Text size=TextSize::Xl wrap=Wrap::Words>{title}</Text>
                         <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <StateBadge state />
                             <Text
                                 style=TextStyle::CAPTION
                                 @sizing=ItemSize::Percent(100.0)
-                                wrap=true
+                                wrap=Wrap::Words
                             >
                                 {summary}
                             </Text>
@@ -144,7 +145,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                             </List>
                         </Show>
                         <Show condition={failed}>
-                            <Text color=TextColor::Danger wrap=true>{error}</Text>
+                            <Text color=TextColor::Danger wrap=Wrap::Words>{error}</Text>
                         </Show>
                     </List>
                 </Frame>
@@ -325,7 +326,7 @@ fn EventRow(actor: String, text: String, when: i64) -> NodeId {
     let line = format!("{actor} {text} · {}", relative(now(), when));
     view! {
         <Frame padding={Sides::symmetric(EVENT_INDENT, 3.0)}>
-            <Text style=TextStyle::CAPTION wrap=true>{line}</Text>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>{line}</Text>
         </Frame>
     }
 }
@@ -367,7 +368,7 @@ fn BlockView(model: Model, block: Block) -> NodeId {
             <Dynamic value={block}>|block: Block| {
                 match block {
                     Block::Heading(text) => view! {
-                        <Text size=TextSize::Lg weight=Weight::Bold wrap=true>{text}</Text>
+                        <Text size=TextSize::Lg weight=Weight::Bold wrap=Wrap::Words>{text}</Text>
                     },
                     Block::Paragraph(text) => view! {
                         <Prose text />
@@ -419,7 +420,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
 #[component]
 fn Prose(text: String) -> NodeId {
     view! {
-        <Text wrap=true>{text}</Text>
+        <Text wrap=Wrap::Words>{text}</Text>
     }
 }
 
@@ -427,7 +428,7 @@ fn Prose(text: String) -> NodeId {
 fn CodeBlock(text: String) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background radius=Radius::Md padding={Sides::symmetric(10.0, 8.0)}>
-            <Text size=TextSize::Sm family=Family::Mono wrap=true>{text}</Text>
+            <Text size=TextSize::Sm family=Family::Mono wrap=Wrap::Words>{text}</Text>
         </Frame>
     }
 }
@@ -437,7 +438,9 @@ fn Quote(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=10.0>
             <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) fill=ColorRole::Border />
-            <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Muted wrap=true>{text}</Text>
+            <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Muted wrap=Wrap::Words>
+                {text}
+            </Text>
         </List>
     }
 }
@@ -454,7 +457,7 @@ fn Item(text: String) -> NodeId {
                     fill=ColorRole::TextMuted
                 />
             </Frame>
-            <Text @sizing=ItemSize::Percent(100.0) wrap=true>{text}</Text>
+            <Text @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>{text}</Text>
         </List>
     }
 }

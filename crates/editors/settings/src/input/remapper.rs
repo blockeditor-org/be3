@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::input_settings::RemapperChoice;
 use block_editor_beui::be_block::{InputRemapper, InputRemapperContent, InputSettings, Root};
 use block_editor_beui::beui::NodeId;
@@ -162,7 +163,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                 on_confirm={confirmed}
                 on_dismiss={move || asking.set(false)}
             >
-                <Text style=TextStyle::PARAGRAPH wrap=true>
+                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                     "Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
                 </Text>
             </Dialog>
