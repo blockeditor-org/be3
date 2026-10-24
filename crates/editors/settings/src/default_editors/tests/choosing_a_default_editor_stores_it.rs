@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::EditorSettingsContent;
+use settings_types::EditorSettingsContent;
 use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
 
 use block_editor_beui::beui::{Key, Modifiers};

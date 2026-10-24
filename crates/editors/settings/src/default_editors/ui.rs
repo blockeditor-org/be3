@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::EditorSettings;
+use settings_types::EditorSettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

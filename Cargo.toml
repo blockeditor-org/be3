@@ -94,6 +94,7 @@ members = [
     "crates/editors/presentation",
     "crates/editors/scene-3d",
     "crates/editors/settings",
+    "crates/editors/settings/types",
     "crates/editors/terminal",
     "crates/editors/text-block",
     "crates/editors/triangle",

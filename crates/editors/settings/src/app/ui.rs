@@ -1,6 +1,7 @@
+use settings_types::EditorSettingsContent;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
-    BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
+    BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit,
     SettingsContent, SettingsProfileContent,
 };
 use block_editor_beui::beui::icons::Glyph;

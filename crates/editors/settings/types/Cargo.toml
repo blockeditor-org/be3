@@ -1,0 +1,20 @@
+[package]
+name = "settings-types"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-block = { path = "../../../be-block" }
+be-model = { path = "../../../be-model" }
+block-type-guest = { path = "../../../block-type-guest" }
+uuid = "1"
+
+[features]
+module = []
+
+[lints]
+workspace = true

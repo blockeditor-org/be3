@@ -1,7 +1,7 @@
 use be_block::{
     BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent, CompiledLogicContent,
     CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
-    DeterministicGameContent, EditorSettingsContent, FileContent, FolderContent, GameModuleContent,
+    DeterministicGameContent, FileContent, FolderContent, GameModuleContent,
     HotbarContent, LogicGameContent, LogicGridContent, MapContent, PanZoomContent, PixelArtContent,
     PixelRayTracerContent, PresentationContent, Scene3dContent, TerminalContent, TextContent,
     TriangleContent, VideoContent, WorkspaceContent,
@@ -25,7 +25,6 @@ be_block_types![
     DatabaseSchemaContent { undo },
     DatabaseViewContent { undo },
     DeterministicGameContent { undo },
-    EditorSettingsContent,
     FolderContent { directory },
     GameModuleContent,
     HotbarContent { undo },

@@ -1682,6 +1682,7 @@ dependencies = [
  "block-editor-beui",
  "serde",
  "serde_json",
+ "settings-types",
  "uuid",
 ]
 
@@ -6825,7 +6826,18 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "settings-types",
  "text-editor-core",
+ "uuid",
+]
+
+[[package]]
+name = "settings-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
