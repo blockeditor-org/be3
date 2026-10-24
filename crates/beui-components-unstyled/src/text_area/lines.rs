@@ -21,7 +21,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
-use super::hooks::{MARGIN_EM, MarkerKind, TextLeaf, TextLine, TextMarker};
+use super::hooks::{MARGIN_EM, MARGIN_MIN_WIDTH_EM, MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
     BODY_SIZE, DOCUMENT_PADDING, Inline, InlineItem, LINE_PADDING, RUN_CHIP_SIZE, Row, RowInputs,
     RowKey, RowOptions, SpanKind, TableColumns, build_row, galley, line_range, row_key,
@@ -244,8 +244,10 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                 TextLanguage::Markdown | TextLanguage::RichText
             )
         });
-        match document && cx.line_numbers && cx.prose.get().is_none() && !cx.single_line {
-            true => cx.font_size.get() * MARGIN_EM,
+        let size = cx.font_size.get();
+        let wide = cx.view_width.get() >= size * MARGIN_MIN_WIDTH_EM;
+        match document && wide && cx.line_numbers && cx.prose.get().is_none() && !cx.single_line {
+            true => size * MARGIN_EM,
             false => 0.0,
         }
     });

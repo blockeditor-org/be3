@@ -25,6 +25,7 @@ pub const MARKER_GAP_EM: f32 = 0.55;
 pub const LIST_INDENT_EM: f32 = MARKER_COLUMN_EM + MARKER_GAP_EM;
 pub const QUOTE_INDENT_EM: f32 = 1.4;
 pub const MARGIN_EM: f32 = 3.1;
+pub const MARGIN_MIN_WIDTH_EM: f32 = 40.0;
 pub const CODE_PADDING_EM: f32 = 1.0;
 pub const RULE_WIDTH: f32 = 1.0;
 pub const QUOTE_BAR_WIDTH: f32 = 3.0;
