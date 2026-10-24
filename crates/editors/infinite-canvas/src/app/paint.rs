@@ -165,7 +165,7 @@ impl EntityPaint {
         }
         self.sketch
             .draw_only(painter, color, fill, |part| match part.mark {
-                Mark::Fill(_) => false,
+                Mark::Fill(_) | Mark::Painted(..) => false,
                 Mark::Stroke(..) => part.ink == Ink::Fill || !solid,
             });
         if solid {

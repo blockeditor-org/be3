@@ -56,7 +56,9 @@ pub use beui_core::overflow;
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::painting;
-pub use beui_core::path::{FillRule, LineCap, LineJoin, Path, PathElement, Stroke};
+pub use beui_core::path::{
+    FillRule, LineCap, LineJoin, Path, PathElement, PathPaint, PathStyle, Stroke,
+};
 pub use beui_core::performance::{
     FramePerformance, FrameWork, PerformanceSnapshot, PerformanceTimings,
 };

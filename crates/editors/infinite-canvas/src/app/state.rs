@@ -419,6 +419,7 @@ struct CanvasCells {
     shown: RefCell<Option<CanvasCursor>>,
     writing: Cell<bool>,
     scrubbing: Cell<bool>,
+    written_points: Cell<usize>,
     drafting: Cell<Option<Uuid>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
@@ -541,6 +542,7 @@ impl CanvasState {
             shown: RefCell::new(None),
             writing: Cell::new(false),
             scrubbing: Cell::new(false),
+            written_points: Cell::new(0),
             drafting: Cell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
@@ -937,11 +939,22 @@ impl CanvasState {
                 pressures,
                 ..
             } => {
-                if let [start, _, ..] = points[..] {
+                let written = &self.cells.value().written_points;
+                let from = written.get();
+                if from >= 2 && self.holds(*id) {
+                    if from < points.len() {
+                        self.operate(&InfiniteCanvasOperation::Extend {
+                            id: *id,
+                            points: points[from..].to_vec(),
+                            pressures: pressures[from..].to_vec(),
+                        });
+                    }
+                } else if let [start, _, ..] = points[..] {
                     let entity =
                         pen_entity(points.clone(), pressures.clone(), self.default_style());
                     self.put_live(vec![seeded(entity, *id, start)]);
                 }
+                written.set(points.len());
             }
             Gesture::Move {
                 duplicate: true, ..
@@ -1073,6 +1086,7 @@ impl CanvasState {
 
     pub(crate) fn begin_gesture(&self, gesture: Option<Gesture>) {
         self.cancel_writes();
+        self.cells.value().written_points.set(0);
         self.gesture.set(gesture);
         self.write_gesture();
     }

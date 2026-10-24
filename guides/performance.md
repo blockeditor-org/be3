@@ -23,9 +23,10 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   around the app's update; the open bench takes the renderer's `prepare` out of it.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
-- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink]` opens the
-  canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes. It
-  pans and zooms by the host's view, drags a shape back and forth, and draws pen strokes, and
+- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`
+  opens the canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes
+  (or only COUNT). It pans and zooms by the host's view, drags a shape back and forth, draws pen
+  strokes, and draws one stroke of 2,000 samples (`long`, timing its first and last 200), and
   prints each frame's wall time (the whole host round trip, including the test host applying
   each edit, keeping its undo history and answering the canvas's references query), beui's
   layout, paint, interaction and accessibility, and the most nodes one frame measured, placed,
@@ -47,6 +48,7 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 | drag, p50 wall | 0.17 ms (interaction 0.09 ms) | 0.54 ms (interaction 0.31 ms) |
 | pen move, p50 wall | 0.21 ms (interaction 0.12 ms) | 0.42 ms (interaction 0.22 ms) |
 | pen lift, p50 wall | 0.13 ms | 0.24 ms (interaction 0.13 ms) |
+| long stroke, p50 wall of its first and last 200 samples | 0.22 ms, 0.47 ms | 2.7 ms, 3.2 ms |
 | frames from pen event to ink | 0 | 0 |
 
 `camera()` centres a world point in the canvas: a view is where the content sits on
@@ -71,6 +73,14 @@ transform and sends nothing else. A pan at scale 0.1 still walks the canvas's sh
 (cheaply, from what each held) when items come into view, and describes only those. The test
 host's accessibility dump renders its text and test id rects only when something reads them,
 so the bench reads the canvas's rect once rather than every frame.
+
+A pen move costs the same at the end of a long stroke as at its start. The pen writes only
+the new points (`InfiniteCanvasOperation::Extend`, a `Series` append, a stroke keeping its points
+as drawn in a `points_frame`), the projection re-reads only what was appended
+(`Model::reread`), the block-ref index re-walks only the changed field, and the canvas draws a
+stroke being drawn with `freehand::LiveStroke`: it keeps the settled outline, recomputes only
+the end, and paints the settled part as pieces whose meshes are kept (`Painter::paint_path`),
+joined on seams that are not antialiased (`PathPaint::with_seams`) so they paint as one fill.
 
 A pan, zoom or pen move places and paints only what is in view. A canvas
 finds the items near its view through a grid of world cells, so only what is in view costs
