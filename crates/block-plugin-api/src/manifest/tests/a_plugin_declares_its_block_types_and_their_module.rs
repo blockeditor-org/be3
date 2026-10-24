@@ -68,7 +68,10 @@ fn a_plugin_declares_its_block_types_and_their_module() {
         manifest_from_json(&twice),
         Err(ManifestError::DuplicateBlockType)
     );
-    let without = TYPES.replace(",\n            \"module\": \"checklist_types.wasm\"\n        }\n    },", "\n        }\n    },");
+    let without = TYPES.replace(
+        ",\n            \"module\": \"checklist_types.wasm\"\n        }\n    },",
+        "\n        }\n    },",
+    );
     assert_ne!(without, TYPES);
     assert!(
         manifest_from_json(&without).is_err(),

@@ -7,9 +7,9 @@ fn two_hosts_in_one_process_each_send_a_type_to_their_own_module() {
         in_process::<checklist_types::BlockTypes>("be3.checklist"),
         in_process::<counter_types::BlockTypes>("be3.counter"),
     ]));
-    let mut alone = pollster::block_on(started(vec![in_process::<
-        counter_types::BlockTypes,
-    >("be3.counter")]));
+    let mut alone = pollster::block_on(started(vec![in_process::<counter_types::BlockTypes>(
+        "be3.counter",
+    )]));
     assert_eq!(both.module_of(counter), Some(1));
     assert_eq!(alone.module_of(counter), Some(0));
     for modules in [&mut both, &mut alone] {
