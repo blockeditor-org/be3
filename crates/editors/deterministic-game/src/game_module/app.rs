@@ -1,5 +1,5 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::GameModuleContent;
+use deterministic_game_types::{GameModuleContent, GameModuleFile};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -44,13 +44,13 @@ impl block_editor_beui::BeuiApp for GameModuleApp {
 pub(crate) fn filter() -> FileFilter {
     FileFilter::new(
         "Game modules",
-        GameModuleContent::FILE_EXTENSIONS,
-        GameModuleContent::MIME_TYPES,
+        GameModuleFile::FILE_EXTENSIONS,
+        GameModuleFile::MIME_TYPES,
     )
 }
 
 pub(crate) fn imported(file: PickedFile) -> Result<GameModuleContent, String> {
     let PickedFile { name, data } = file;
     Game::load(&data).map_err(|error| format!("Could not import {name}: {error}"))?;
-    Ok(GameModuleContent::from_file(name, data))
+    Ok(GameModuleFile::from_file(name, data))
 }

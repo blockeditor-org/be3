@@ -1,7 +1,6 @@
 use be_block::{
     CanvasContent, CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
-    DeterministicGameContent, GameModuleContent, HotbarContent, PresentationContent, TextContent,
-    VideoContent,
+    HotbarContent, PresentationContent, TextContent, VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -16,8 +15,6 @@ be_block_types![
     DatabaseContent { undo },
     DatabaseSchemaContent { undo },
     DatabaseViewContent { undo },
-    DeterministicGameContent { undo },
-    GameModuleContent,
     HotbarContent { undo },
     PresentationContent { undo },
     VideoContent { undo },

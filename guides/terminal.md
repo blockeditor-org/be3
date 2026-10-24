@@ -8,7 +8,8 @@ from inside block-app.
 
 ## The pieces
 
-- `be_block::terminal`: the block (`TerminalContent`, which holds nothing),
+- `terminal_types` (`crates/editors/terminal/types`, the terminal plugin's
+  type module): the block (`TerminalContent`, which holds nothing),
   the `TerminalHost` presence a host shows (its machine and user), and
   `TerminalMessage`, everything host and viewers say to each other.
 - `be TARGET terminal-host [-- PROGRAM ARGUMENTS...]` (`crates/be-cli`,

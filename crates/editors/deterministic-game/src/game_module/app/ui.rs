@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::GameModuleContent;
+use deterministic_game_types::GameModuleContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};

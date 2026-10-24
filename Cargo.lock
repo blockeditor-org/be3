@@ -2938,12 +2938,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "deterministic-game-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "deterministic_game"
 version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "deterministic-game-types",
  "game-api",
  "game-host",
  "uuid",
@@ -4829,6 +4842,19 @@ dependencies = [
  "block-ui-test",
  "flate2",
  "image-block-types",
+ "map-types",
+ "uuid",
+]
+
+[[package]]
+name = "map-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
  "uuid",
 ]
 
@@ -5802,6 +5828,7 @@ dependencies = [
  "block-ui-test",
  "image",
  "image-block-types",
+ "pixel-art-types",
  "serde",
  "serde_json",
  "uuid",

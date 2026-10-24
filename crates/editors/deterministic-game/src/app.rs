@@ -4,7 +4,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use block_editor_beui::ContentProjection;
-use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
+use deterministic_game_types::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{
@@ -415,7 +415,7 @@ impl GameCreation {
                 };
                 let blocks = self.creation.blocks();
                 let module = blocks.create(
-                    &GameModuleContent::from_file(file_name(&game.file), data.to_vec()),
+                    &GameModuleFile::from_file(file_name(&game.file), data.to_vec()),
                     BlockParent::Detached,
                 );
                 let block =

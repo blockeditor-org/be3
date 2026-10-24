@@ -2,8 +2,8 @@ use be_model::{Anchor, Bytes, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Root;
-use crate::blob::{Blob, BlobKind};
+use be_block::Root;
+use be_block::blob::{Blob, BlobKind};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GameModuleHeader {
@@ -24,12 +24,12 @@ impl BlobKind for GameModuleFile {
 
 pub type GameModuleContent = Blob<GameModuleFile>;
 
-impl Blob<GameModuleFile> {
+impl GameModuleFile {
     pub const FILE_EXTENSIONS: &'static [&'static str] = &["wasm"];
     pub const MIME_TYPES: &'static [&'static str] = &["application/wasm"];
 
-    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> Self {
-        Self::new(
+    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> GameModuleContent {
+        Blob::new(
             GameModuleHeader {
                 source_name: source_name.into(),
             },
