@@ -26,10 +26,10 @@ should use the same requests rather than writing another mapping.
   body, the data of an image, PDF, audio or file block (a file block holds any
   bytes, such as `snapshots/*.paint`).
 - A new file on disk becomes a block of the first type that `Request::Claims`
-  it by its name and first 64 KiB: with builtin-types an image, PDF or audio
-  block by its extension (and a PDF's magic), a text block when it is UTF-8
-  without a NUL byte (its language from the extension), and a file block
-  otherwise. Its content is `Request::Apply` of `Change::FromFile` on no
+  it by its name and first 64 KiB, asking the plugins' modules before
+  builtin-types: an image, PDF or audio block by its extension (and a PDF's
+  magic), a text block when it is UTF-8 without a NUL byte (its language from
+  the extension), and builtin-types' file block otherwise. Its content is `Request::Apply` of `Change::FromFile` on no
   content, and its references and derived metadata are `Request::Describe`.
   A changed file keeps its block's type: `FromFile` is applied to the content
   it replaces, so a text block keeps its language and indentation. A new

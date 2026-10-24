@@ -144,12 +144,20 @@ block_type_guest::abi::guest!(BlockTypes);
 Each entry is `Registration::of::<C>()` (`C: LiveEdit + Merge + Clone + Default`),
 then `.undo::<C>()` for a type whose session keeps an undo stack (what
 `undo` in a module's list) and `.file::<C>()` for one with a plain-file form
-(`FileForm`: `to_file`, `from_file`, `claims`; implemented in the library's
-`file.rs` for the be-block text, image, PDF, audio and file types, with
-`be_block::plain`'s file-name and media-type helpers). `directory` makes a
+(`FileForm`: `to_file`, `from_file`, `claims`). A types crate cannot implement
+`FileForm` for `Blob<Kind>` or `Document<Root>` itself (the orphan rule), so it
+implements `BlobFile` on its blob kind (`header` for a file's name and bytes,
+`claims`) or `DocumentFile` on its root (`to_file`, `from_file`, `claims`), and
+the library's blanket impls make that the content's `FileForm`; for the same
+reason a blob type's constructors are associated functions of its kind
+(`ImageFile::from_file`). `be_block::plain` has the file-name and media-type
+helpers they share. `directory` makes a
 type's plain form a directory that takes new directories (a folder), and `root`
 one that is only ever the root of one (a workspace); `Hello`'s `TypeInfo::plain`
-says which form each type has. The order is the order `Claims` asks in.
+says which form each type has. The order is the order `Claims` asks in within a
+module; across modules, a host asks every module that declares its types
+(`Source::declaring`, a plugin's) before the built-in one, whose file type
+claims any file.
 
 `Module::handle(Event) -> Vec<Command>` is the whole interface (`register` adds or
 replaces a type, `knows` asks for one, as block-ui-test does for a test's own types); `Module::hello()` is

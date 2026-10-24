@@ -78,8 +78,8 @@ Only add:
 ## The tests
 
 - The `tests/frozen_*.rs` of the crate that holds a frozen block type (be-block
-  for text and the database types, `crates/editors/workspace-ui/types` for the
-  folder and the workspace) hold its registry and a document it saved, checked
+  for the database types, `crates/editors/text-block/types` for text,
+  `crates/editors/workspace-ui/types` for the folder and the workspace) hold its registry and a document it saved, checked
   by `be_model::schema::check_frozen` (the stack guide's "Freezing a
   version"), and a test there checks its registers read without any one field.
   Moving a type into its plugin moves these with it.

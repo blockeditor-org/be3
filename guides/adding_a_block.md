@@ -53,7 +53,7 @@ block_type_guest::be_block_types![MyBlockContent { undo }];
 block_type_guest::abi::guest!(BlockTypes);
 ```
 
-Leave out `{ undo }` for a type without undo, and add `file` for one with a plain-file form. The macro defines `registrations()`, `block_types()` (the `Module`) and `BlockTypes`, the guest.
+Leave out `{ undo }` for a type without undo, and add `file` for one with a plain-file form, which the crate gives by implementing `block_type_guest::DocumentFile` on its root (`crates/editors/text-block/types/src/text.rs`) or `BlobFile` on its blob kind (`crates/editors/image-block/types/src/image.rs`); guides/type_modules.md says why not `FileForm` itself. The macro defines `registrations()`, `block_types()` (the `Module`) and `BlockTypes`, the guest.
 
 ## 2. Define the model
 
@@ -126,7 +126,7 @@ Every object in a `List` has an `ObjectId`, and an edit names the object, never 
 
 ## 4. References
 
-If the content holds the ids of other blocks, store each as a `be_model::BlockRef` (or mark a `Uuid` inside a register with `#[serde(with = "be_model::references::block_ref")]`): the content's references are then every one of them, found wherever it is stored. References are recorded with every commit and drive the graph: backlinks, the `References` and `Backrefs` queries editors watch, and the `KnowExists` access a member gets to a block something they can see refers to. be-block's `folder.rs` and `canvas.rs` hold theirs this way.
+If the content holds the ids of other blocks, store each as a `be_model::BlockRef` (or mark a `Uuid` inside a register with `#[serde(with = "be_model::references::block_ref")]`): the content's references are then every one of them, found wherever it is stored. References are recorded with every commit and drive the graph: backlinks, the `References` and `Backrefs` queries editors watch, and the `KnowExists` access a member gets to a block something they can see refers to. be-block's `folder.rs` and `crates/editors/infinite-canvas/types/src/canvas.rs` hold theirs this way.
 
 Override `Root::references` only for references the content does not hold as ids, such as the block URLs in a text block's body; its result comes first, followed by the `BlockRef`s it did not name.
 
@@ -170,7 +170,7 @@ fn child_edit(&self, change: ChildChange) -> Option<Edit> {
 }
 ```
 
-The app calls it through `be::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. be-block's `presentation.rs`, `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
+The app calls it through `be::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `crates/editors/presentation/types/src/presentation.rs` and be-block's `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
 
 ## 7. Undo
 
