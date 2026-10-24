@@ -11,6 +11,7 @@ beui-adapter-plugin = { path = "../beui-adapter-plugin" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-ui = { path = "../block-ui" }
+database-types = { path = "../editors/database/types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 text-editor-core = { path = "../text-editor-core" }

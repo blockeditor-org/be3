@@ -4,7 +4,7 @@ use uuid::Uuid;
 use std::time::Duration;
 
 use be_block::BlockContent;
-use be_block::database_view::{DatabaseView, DatabaseViewContent};
+use database_types::database_view::{DatabaseView, DatabaseViewContent};
 
 fn seed(instances: &mut Instances, block: Uuid, database: Uuid) {
     instances.editor_message(EditorMessage::SeedContent {

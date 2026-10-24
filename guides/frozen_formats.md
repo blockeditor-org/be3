@@ -77,7 +77,7 @@ Only add:
 
 ## The tests
 
-- The `tests/frozen_*.rs` of the crate that holds a frozen block type (be-block
+- The `tests/frozen_*.rs` of the crate that holds a frozen block type (`crates/editors/database/types`
   for the database types, `crates/editors/text-block/types` for text,
   `crates/editors/workspace-ui/types` for the folder and the workspace) hold its registry and a document it saved, checked
   by `be_model::schema::check_frozen` (the stack guide's "Freezing a

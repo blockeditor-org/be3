@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use be_block::database::{Database, DatabaseContent};
-use be_block::database_schema::{
+use database_types::database::{Database, DatabaseContent};
+use database_types::database_schema::{
     DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
 };
 use be_block::{BlockContent, BlockMetadata};
@@ -69,6 +69,7 @@ fn sources() -> crate::tracker::Sources {
         vec![
             be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
             be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+            be_types_host::in_process::<database_types::BlockTypes>("be3.database"),
             be_types_host::in_process::<terminal_types::BlockTypes>("be3.terminal"),
             be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
         ]

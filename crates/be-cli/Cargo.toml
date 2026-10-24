@@ -23,6 +23,7 @@ block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
 block-ui = { path = "../block-ui" }
 build-id = { path = "../build-id" }
+database-types = { path = "../editors/database/types" }
 futures-util = "0.3"
 ghostty-vt = { path = "../ghostty-vt" }
 portable-pty = "0.9"

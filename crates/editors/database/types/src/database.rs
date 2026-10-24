@@ -4,7 +4,7 @@ use be_model::{Anchor, BlockRef, Change, Document, Edit, Item, List, Map, Model,
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 
 const ROWS: Uuid = Uuid::from_u128(0x7a1c_52e0_9b4d_4f36_8d2a_6c1e_0f93_b5d7);
 
@@ -571,17 +571,17 @@ impl Root for Database {
         )
     }
 
-    fn describe(&self, metadata: &mut crate::BlockMetadata) {
-        metadata.insert(&crate::metadata::ROW_PREFIX, &self.prefix.trim().to_owned());
+    fn describe(&self, metadata: &mut be_block::BlockMetadata) {
+        metadata.insert(&be_block::metadata::ROW_PREFIX, &self.prefix.trim().to_owned());
     }
 
     fn name_in(_document: &Document<Self>) -> Option<String> {
         None
     }
 
-    fn describe_in(document: &Document<Self>, metadata: &mut crate::BlockMetadata) {
+    fn describe_in(document: &Document<Self>, metadata: &mut be_block::BlockMetadata) {
         let prefix = document.field(ObjectId::ROOT, Self::PREFIX);
-        metadata.insert(&crate::metadata::ROW_PREFIX, &prefix.trim().to_owned());
+        metadata.insert(&be_block::metadata::ROW_PREFIX, &prefix.trim().to_owned());
     }
 
     fn references(&self) -> Vec<Uuid> {

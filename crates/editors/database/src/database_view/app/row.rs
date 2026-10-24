@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::database::{DatabaseValue, RowRef, short_id};
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use database_types::database::{DatabaseValue, RowRef, short_id};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::be_block::{BlockContent, ObjectId};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{

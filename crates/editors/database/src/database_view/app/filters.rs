@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
-use block_editor_beui::be_block::database_schema::{
+use database_types::database::{DatabaseColor, DatabaseValue};
+use database_types::database_schema::{
     DatabaseEnumOption, DatabaseField, DatabaseFieldType,
 };
-use block_editor_beui::be_block::database_view::{DatabaseView, FilterCondition, ViewFilter};
+use database_types::database_view::{DatabaseView, FilterCondition, ViewFilter};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;

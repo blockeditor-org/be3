@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::be_block::database_view::{
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
+use database_types::database_view::{
     DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,
 };
 use block_editor_beui::beui::NodeId;

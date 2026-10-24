@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::BlockContent;
 
-use block_editor_beui::be_block::database::DatabaseValue;
-use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
+use database_types::database::DatabaseValue;
+use database_types::database_schema::DatabaseSchemaContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

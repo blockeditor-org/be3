@@ -835,6 +835,7 @@ fn sources() -> be_cli::tracker::Sources {
         vec![
             be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
             be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+            be_types_host::in_process::<database_types::BlockTypes>("be3.database"),
             be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
         ]
     })

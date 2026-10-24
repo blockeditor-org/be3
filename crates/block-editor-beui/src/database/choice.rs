@@ -1,4 +1,4 @@
-use be_block::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
+use database_types::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{

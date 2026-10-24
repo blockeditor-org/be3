@@ -2,7 +2,7 @@ use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Root;
+use be_block::Root;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub enum DatabaseFieldType {

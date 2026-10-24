@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::database_schema::DatabaseField;
-use block_editor_beui::be_block::database_view::DatabaseViewKind;
+use database_types::database_schema::DatabaseField;
+use database_types::database_view::DatabaseViewKind;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};

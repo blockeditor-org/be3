@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use block_editor_beui::be_block::database::DatabaseValue;
+use database_types::database::DatabaseValue;
 use block_editor_beui::be_block::presence::PresenceKind;
 use block_editor_beui::be_block::{
     DisplaySettings, Root, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,

@@ -4,7 +4,7 @@ use crate::{
     CanvasComponent, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
     InfiniteCanvasOperation,
 };
-use be_block::database::DatabaseValue;
+use database_types::database::DatabaseValue;
 use be_block::{ChildChange, Root};
 use uuid::Uuid;
 

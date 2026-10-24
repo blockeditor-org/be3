@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::database::DatabaseValue;
+use database_types::database::DatabaseValue;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_PLUS, ICON_SEARCH, ICON_SLIDERS_HORIZONTAL};
 use block_editor_beui::beui::reactive::*;

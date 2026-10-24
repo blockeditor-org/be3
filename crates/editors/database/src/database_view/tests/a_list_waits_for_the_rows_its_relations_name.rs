@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::be_block::database::RowRef;
-use block_editor_beui::be_block::database_schema::DatabaseRelationOptions;
+use database_types::database::RowRef;
+use database_types::database_schema::DatabaseRelationOptions;
 use block_editor_beui::{BlockInfo, BlockParent};
 
 use super::*;

@@ -165,7 +165,7 @@ them in the handoff.
   module's `Describe`. An editor with the block open takes the new head the way
   it takes any outside publish, merging it with what it has not saved yet.
   Only databases, their schemas and views are edited as types: `be` links the
-  database format's crate (`be_block::database*`) the way the database editor
+  database plugin's types crate (`database_types`) the way the database editor
   does, decodes rows, applies the same `Edit` the editor would and encodes
   them, since a tracker is an editor of rows with a command line rather than a
   host. Everything else goes through the type module as bytes: a page is read

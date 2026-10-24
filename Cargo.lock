@@ -738,6 +738,7 @@ dependencies = [
  "block-ui",
  "build-id",
  "builtin-types",
+ "database-types",
  "futures-util",
  "ghostty-vt",
  "portable-pty",
@@ -827,6 +828,7 @@ dependencies = [
  "be-types-host",
  "build-id",
  "builtin-types",
+ "database-types",
  "rusqlite",
  "text-block-types",
  "tokio",
@@ -1512,6 +1514,7 @@ dependencies = [
  "bytemuck",
  "calendar-types",
  "checklist-types",
+ "database-types",
  "directories-next",
  "futures-util",
  "image",
@@ -1575,6 +1578,7 @@ dependencies = [
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
+ "database-types",
  "presentation-types",
  "serde",
  "serde_json",
@@ -1751,6 +1755,7 @@ name = "block-ui"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "database-types",
  "lucide",
  "uuid",
 ]
@@ -2866,7 +2871,20 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "database-types",
  "text-block-types",
+ "uuid",
+]
+
+[[package]]
+name = "database-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
  "uuid",
 ]
 
@@ -4251,6 +4269,7 @@ dependencies = [
  "be-commit",
  "be-model",
  "block-type-guest",
+ "database-types",
  "serde",
  "uuid",
 ]
@@ -4262,6 +4281,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "database-types",
  "image",
  "image-block-types",
  "infinite-canvas-types",

@@ -3,15 +3,12 @@ use be_block::{
     InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
 };
 use be_block::{
-    CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, 
+    CounterContent, 
 };
 use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
     CounterContent { undo },
-    DatabaseContent { undo },
-    DatabaseSchemaContent { undo },
-    DatabaseViewContent { undo },
 ];
 
 #[cfg(feature = "module")]

@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::database_schema::{DatabaseSchema, DatabaseSchemaContent};
+use database_types::database_schema::{DatabaseSchema, DatabaseSchemaContent};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;

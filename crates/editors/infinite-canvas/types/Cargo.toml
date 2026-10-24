@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 be-block = { path = "../../../be-block" }
 be-model = { path = "../../../be-model" }
 block-type-guest = { path = "../../../block-type-guest" }
+database-types = { path = "../../database/types" }
 serde = { version = "1", features = ["derive"] }
 uuid = "1"
 

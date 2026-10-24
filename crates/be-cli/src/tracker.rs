@@ -1,14 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use be_block::database::{
+use database_types::database::{
     Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
 };
-use be_block::database_schema::{
+use database_types::database_schema::{
     ChoiceColor, ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
     DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
 };
-use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
+use database_types::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_client::{Peer, Saved};
 use be_commit::CommitId;
@@ -241,7 +241,7 @@ impl Loaded {
         self.schema.title_field()
     }
 
-    fn row(&self, row: ObjectId) -> Option<be_block::database::DatabaseRow> {
+    fn row(&self, row: ObjectId) -> Option<database_types::database::DatabaseRow> {
         let entry = self.database.rows.get(row)?;
         Some(
             self.inverses
@@ -1297,7 +1297,7 @@ impl<S: ObjectStore> Tracker<S> {
         &self,
         loaded: &Loaded,
         row: ObjectId,
-        current: &be_block::database::DatabaseRow,
+        current: &database_types::database::DatabaseRow,
         field: &DatabaseField,
         assignment: &Assignment,
         labels: &Labels,
@@ -1327,7 +1327,7 @@ impl<S: ObjectStore> Tracker<S> {
 
     fn wanted_links(
         &self,
-        current: &be_block::database::DatabaseRow,
+        current: &database_types::database::DatabaseRow,
         field: &DatabaseField,
         assignment: &Assignment,
         labels: &Labels,

@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::database_schema::DatabaseField;
+use database_types::database_schema::DatabaseField;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::context_menu::menu_style;

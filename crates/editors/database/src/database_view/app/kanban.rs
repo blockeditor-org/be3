@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::be_block::database::{DatabaseValue, short_id};
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use database_types::database::{DatabaseValue, short_id};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CHEVRONS_UP_DOWN, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;

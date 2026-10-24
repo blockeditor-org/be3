@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue, short_id};
-use block_editor_beui::be_block::database_schema::{
+use database_types::database::{DatabaseRow, DatabaseValue, short_id};
+use database_types::database_schema::{
     ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
 };
 use block_editor_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICON_PLUS};
@@ -103,7 +103,7 @@ pub fn RowBeside(
     let selected = create_memo(move || {
         match enabled
             && data.kind.get()
-                != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet
+                != database_types::database_view::DatabaseViewKind::Spreadsheet
         {
             true => data.selected_row(),
             false => None,

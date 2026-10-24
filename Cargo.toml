@@ -81,6 +81,7 @@ members = [
     "crates/editors/checklist/types",
     "crates/editors/counter",
     "crates/editors/database",
+    "crates/editors/database/types",
     "crates/editors/deterministic-game",
     "crates/editors/deterministic-game/types",
     "crates/editors/file-tree",

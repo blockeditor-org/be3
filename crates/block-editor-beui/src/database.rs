@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use be_block::database::{
+use database_types::database::{
     Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
 };
-use be_block::database_schema::{
+use database_types::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
     DatabaseSchemaContent,
 };
@@ -1046,8 +1046,8 @@ fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
 
 pub fn create_database(creation: &crate::Creation) -> Uuid {
     use crate::BlockParent;
-    use be_block::database::{Database, DatabaseContent};
-    use be_block::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
+    use database_types::database::{Database, DatabaseContent};
+    use database_types::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
 
     let blocks = creation.blocks();
     let mut fields = DatabaseSchemaContent::default();

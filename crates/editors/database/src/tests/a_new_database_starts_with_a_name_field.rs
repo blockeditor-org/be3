@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
+use database_types::database_schema::DatabaseSchemaContent;
 use block_editor_beui::be_block::{BlockContent, Root};
 use block_editor_beui::{BeuiApp, BlockParent, GraphCommand};
 

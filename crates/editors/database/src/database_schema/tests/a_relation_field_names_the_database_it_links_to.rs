@@ -1,7 +1,7 @@
 use super::*;
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::be_block::database::DatabaseContent;
-use block_editor_beui::be_block::database_schema::{DatabaseFieldType, DatabaseRelationOptions};
+use database_types::database::DatabaseContent;
+use database_types::database_schema::{DatabaseFieldType, DatabaseRelationOptions};
 use block_editor_beui::{BlockInfo, BlockParent};
 
 #[test]

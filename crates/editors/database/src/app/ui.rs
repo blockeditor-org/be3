@@ -1,6 +1,7 @@
-use block_editor_beui::be_block::database::DatabaseContent;
-use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
-use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use database_types::DatabaseSchemaContent;
+use database_types::database::DatabaseContent;
+use database_types::database_view::{self, DatabaseViewContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};

@@ -7,12 +7,12 @@ use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::be_block::database::Inverse;
-use block_editor_beui::be_block::database::{
+use database_types::database::Inverse;
+use database_types::database::{
     Database, DatabaseContent, DatabaseRow, DatabaseValue, RowRef, short_id,
 };
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
-use block_editor_beui::be_block::database_view::{
+use database_types::database_schema::{DatabaseField, DatabaseSchemaContent};
+use database_types::database_view::{
     DatabaseView, DatabaseViewContent, DatabaseViewKind, DatabaseViewSort, ViewFilter,
 };
 use block_editor_beui::beui::reactive::*;

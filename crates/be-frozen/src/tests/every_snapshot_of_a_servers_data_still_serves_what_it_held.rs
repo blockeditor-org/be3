@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use be_block::{
-    MY_FILES, NAME, ROW_PREFIX,
+use be_block::{MY_FILES, NAME, ROW_PREFIX};
+use database_types::{
     database::DatabaseContent,
     database_schema::{ChoiceColor, ChoiceIcon, DatabaseSchemaContent},
     database_view::{DatabaseViewContent, DatabaseViewKind},

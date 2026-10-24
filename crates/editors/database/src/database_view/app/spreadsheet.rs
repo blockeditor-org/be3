@@ -1,6 +1,6 @@
-use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
+use database_types::database::{DatabaseColor, DatabaseValue};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
+use database_types::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_SQUARE, ICON_SQUARE_CHECK,
 };

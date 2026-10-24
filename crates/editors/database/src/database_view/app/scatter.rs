@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
-use block_editor_beui::be_block::database_schema::DatabaseField;
+use database_types::database::{DatabaseRow, DatabaseValue};
+use database_types::database_schema::DatabaseField;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Pos2, TextAlign, Vec2};

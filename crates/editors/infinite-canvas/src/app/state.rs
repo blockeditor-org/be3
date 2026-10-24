@@ -1,11 +1,12 @@
-use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use database_types::DatabaseSchemaContent;
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
 use block_editor_beui::ContentProjection;
-use block_editor_beui::be_block::database::DatabaseValue;
+use database_types::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::icons::{

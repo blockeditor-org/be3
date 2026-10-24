@@ -109,6 +109,7 @@ terminal-types = { path = "../editors/terminal/types" }
 browser-tab-types = { path = "../editors/browser-tab/types" }
 image-block-types = { path = "../editors/image-block/types" }
 workspace-ui-types = { path = "../editors/workspace-ui/types" }
+database-types = { path = "../editors/database/types" }
 text-block-types = { path = "../editors/text-block/types" }
 presentation-types = { path = "../editors/presentation/types" }
 pollster = "0.4"
