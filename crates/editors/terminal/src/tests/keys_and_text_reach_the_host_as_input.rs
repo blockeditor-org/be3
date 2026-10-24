@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn keys_and_text_reach_the_host_as_input() {
     let mut harness = Harness::new(true);
+    harness.show(&[prompt()]);
     harness.connect_host();
-    harness.snapshot_of("$ ");
     harness.sent();
 
     harness.editor.click("terminal.screen");
@@ -22,20 +22,30 @@ fn keys_and_text_reach_the_host_as_input() {
     );
     harness.editor.run();
 
-    let typed: Vec<u8> = harness
+    let keys: Vec<_> = harness
         .sent()
         .into_iter()
         .filter_map(|message| match message {
-            TerminalMessage::Input(bytes) => Some(bytes),
+            TerminalMessage::Key(key) => Some(key),
             _ => None,
         })
-        .flatten()
         .collect();
-    assert_eq!(typed, b"ls\r\x03");
+    let typed: String = keys
+        .iter()
+        .filter(|key| key.key == Key::Unidentified)
+        .map(|key| key.text.as_str())
+        .collect();
+    assert_eq!(typed, "ls");
+    let pressed: Vec<_> = keys
+        .iter()
+        .filter(|key| key.key != Key::Unidentified)
+        .map(|key| (key.key, key.modifiers.ctrl))
+        .collect();
+    assert_eq!(pressed, vec![(Key::Enter, false), (Key::C, true)]);
 
     let mut viewer = Harness::new(false);
+    viewer.show(&[prompt()]);
     viewer.connect_host();
-    viewer.snapshot_of("$ ");
     viewer.sent();
     viewer.editor.click("terminal.screen");
     viewer.editor.run();

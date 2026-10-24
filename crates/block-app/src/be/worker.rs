@@ -6,7 +6,9 @@ use std::{
 
 use be_block::history::History as UndoHistory;
 use be_block::{BlockContent, BlockMetadata, Landed, LiveEdit, Merge, Undo};
-use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
+use be_client::{
+    ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, SEAL_INTERVAL, Saved,
+};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
@@ -23,7 +25,6 @@ mod uploads;
 
 use uploads::Uploads;
 
-const SEAL_INTERVAL: Duration = Duration::from_millis(750);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;

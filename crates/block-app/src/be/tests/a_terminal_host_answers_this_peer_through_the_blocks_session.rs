@@ -1,7 +1,9 @@
 use super::*;
 
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
+use be_block::terminal::{
+    Key, Modifiers, TerminalContent, TerminalHost, TerminalKey, TerminalMessage, TerminalSize,
+};
 use be_cli::terminal_host::{Host, HostOptions};
 
 fn host_of(shared: &Shared, block: Uuid) -> Option<u64> {
@@ -13,27 +15,30 @@ fn host_of(shared: &Shared, block: Uuid) -> Option<u64> {
     })
 }
 
-fn heard(shared: &Shared, block: Uuid) -> Vec<TerminalMessage> {
-    shared
-        .peer_messages
-        .get(&block)
-        .into_iter()
-        .flatten()
-        .filter(|(_, message)| message.channel == TerminalMessage::ID)
-        .filter_map(|(_, message)| TerminalMessage::decode(&message.payload))
-        .collect()
+fn terminal_text(shared: &Shared, block: Uuid) -> String {
+    let Some(held) = shared.blocks.get(&block) else {
+        return String::new();
+    };
+    let Ok(content) = TerminalContent::decode(held.bytes()) else {
+        return String::new();
+    };
+    let root = content.root();
+    root.history
+        .iter()
+        .chain(root.shown().iter())
+        .map(|line| line.text.clone())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
-fn output(shared: &Shared, block: Uuid) -> String {
-    let bytes: Vec<u8> = heard(shared, block)
-        .into_iter()
-        .flat_map(|message| match message {
-            TerminalMessage::Snapshot { screen, .. } => screen,
-            TerminalMessage::Output { bytes, .. } => bytes,
-            _ => Vec::new(),
-        })
-        .collect();
-    String::from_utf8_lossy(&bytes).into_owned()
+fn writer_of(shared: &Shared, block: Uuid) -> Option<u64> {
+    let held = shared.blocks.get(&block)?;
+    let content = TerminalContent::decode(held.bytes()).ok()?;
+    content.root().host
+}
+
+fn send(block: Uuid, host: u64, message: TerminalMessage) {
+    send_to_peers(block, Some(host), TerminalMessage::ID, message.encode());
 }
 
 #[test]
@@ -77,27 +82,31 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
         .flatten()
         .expect("the host is there");
 
-    let size = TerminalSize { cols: 60, rows: 12 };
-    send_to_peers(
-        block,
-        Some(host),
-        TerminalMessage::ID,
-        TerminalMessage::Attach(size).encode(),
-    );
-    wait_until("was sent the host's screen", |shared| {
-        heard(shared, block)
-            .iter()
-            .any(|message| matches!(message, TerminalMessage::Snapshot { size: sent, .. } if *sent == size))
+    wait_until("saw the host write the terminal", |shared| {
+        writer_of(shared, block) == Some(host)
     });
-
-    send_to_peers(
+    send(
         block,
-        Some(host),
-        TerminalMessage::ID,
-        TerminalMessage::Input(b"echo from-the-app-$((40+2))\r".to_vec()).encode(),
+        host,
+        TerminalMessage::Resize(TerminalSize { cols: 60, rows: 12 }),
     );
-    wait_until("saw the shell run what it typed", |shared| {
-        output(shared, block).contains("from-the-app-42")
+    send(
+        block,
+        host,
+        TerminalMessage::Paste("echo from-the-app-$((40+2))".to_owned()),
+    );
+    send(
+        block,
+        host,
+        TerminalMessage::Key(TerminalKey {
+            key: Key::Enter,
+            modifiers: Modifiers::NONE,
+            text: String::new(),
+            pressed: true,
+        }),
+    );
+    wait_until("read what the shell ran in the block's content", |shared| {
+        terminal_text(shared, block).contains("\nfrom-the-app-42")
     });
 
     stop.send(()).expect("the host is still serving");

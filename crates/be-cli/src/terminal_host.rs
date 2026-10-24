@@ -1,28 +1,33 @@
-use std::cell::RefCell;
 use std::future::Future;
 use std::io::{Read, Write};
-use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use be_block::ObjectId;
 use be_block::presence::{ChannelKind, PresenceKind};
 use be_block::terminal::{
-    LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
+    Terminal, TerminalContent, TerminalHost, TerminalMessage, TerminalShell, TerminalSize,
 };
-use be_client::{ClientError, Live, Peer};
-use be_protocol::ClientId;
+use be_client::{Live, Peer, SEAL_INTERVAL};
 use be_store::ObjectStore;
-use ghostty_vt::{Renderer, Terminal};
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use tokio::sync::{broadcast::error::RecvError, mpsc};
+use tokio::time::Instant;
 use uuid::Uuid;
 
 use crate::session::explain;
 
+mod document;
+mod emulator;
+mod keys;
+
+use emulator::Emulator;
+
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
-const MAX_SCROLLBACK: usize = 1_000;
 const READ_CHUNK: usize = 16 * 1024;
 const LONGEST_RETRY: Duration = Duration::from_secs(30);
+const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, Default)]
 pub struct HostOptions {
@@ -68,11 +73,10 @@ pub struct Host {
     options: HostOptions,
     size: TerminalSize,
     shell: Option<Shell>,
-    shells: u64,
-    sequence: u64,
-    mirror: Terminal,
-    renderer: Renderer,
-    replies: Rc<RefCell<Vec<u8>>>,
+    record: Option<TerminalShell>,
+    emulator: Emulator,
+    writing: bool,
+    dirty: bool,
     sender: mpsc::UnboundedSender<Event>,
     events: mpsc::UnboundedReceiver<Event>,
 }
@@ -83,27 +87,47 @@ enum Ended {
     Disconnected(String),
 }
 
+struct Schedule {
+    unsealed_since: Option<Instant>,
+    heartbeat: Instant,
+    claim: Instant,
+}
+
+impl Schedule {
+    fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            unsealed_since: None,
+            heartbeat: now + HEARTBEAT_INTERVAL,
+            claim: now,
+        }
+    }
+
+    fn next(&self, owner: bool, standing_by: bool) -> Instant {
+        let mut next = Instant::now() + HEARTBEAT_INTERVAL;
+        if let Some(since) = self.unsealed_since {
+            next = next.min(since + SEAL_INTERVAL);
+        }
+        match owner {
+            true => next = next.min(self.heartbeat),
+            false if !standing_by => next = next.min(self.claim),
+            false => {}
+        }
+        next
+    }
+}
+
 impl Host {
     pub fn new(options: HostOptions) -> Result<Self, String> {
-        let mut mirror = Terminal::new(DEFAULT_SIZE.cols, DEFAULT_SIZE.rows, MAX_SCROLLBACK)
-            .map_err(|error| format!("could not make a terminal emulator: {error}"))?;
-        let replies = Rc::new(RefCell::new(Vec::new()));
-        let held = Rc::clone(&replies);
-        mirror
-            .on_reply(move |reply| held.borrow_mut().extend_from_slice(reply))
-            .map_err(|error| format!("could not answer the terminal's queries: {error}"))?;
-        let renderer = Renderer::new()
-            .map_err(|error| format!("could not read the terminal's screen: {error}"))?;
         let (sender, events) = mpsc::unbounded_channel();
         Ok(Self {
             options,
             size: DEFAULT_SIZE,
             shell: None,
-            shells: 0,
-            sequence: 0,
-            mirror,
-            renderer,
-            replies,
+            record: None,
+            emulator: Emulator::new(DEFAULT_SIZE)?,
+            writing: false,
+            dirty: false,
             sender,
             events,
         })
@@ -144,9 +168,7 @@ impl Host {
                 tokio::select! {
                     () = &mut wait => break,
                     () = shutdown.as_mut() => return Ok(()),
-                    Some(event) = self.events.recv() => {
-                        let _ = self.take(event);
-                    }
+                    Some(event) = self.events.recv() => self.take(event),
                 }
             }
             retry = (retry * 2).min(LONGEST_RETRY);
@@ -186,9 +208,15 @@ impl Host {
             return Ended::Refused(explain(error));
         }
         eprintln!("be: hosting a terminal for block {block}");
+        self.writing = false;
+        let mut schedule = Schedule::new();
         let outcome = loop {
+            if let Err(error) = self.step(&mut live, &mut schedule).await {
+                break Err(error);
+            }
+            let next = schedule.next(live.is_owner(), standing_by(&live));
             tokio::select! {
-                () = shutdown.as_mut() => break Ok(true),
+                () = shutdown.as_mut() => break Ok(()),
                 rung = doorbell.recv() => match rung {
                     Ok(_) | Err(RecvError::Lagged(_)) => {
                         if let Err(error) = self.answer(&mut live).await {
@@ -198,14 +226,20 @@ impl Host {
                     Err(RecvError::Closed) => break Err("the connection to the server closed".to_owned()),
                 },
                 Some(event) = self.events.recv() => {
-                    if let Err(error) = self.forward(&live, event).await {
-                        break Err(error);
+                    self.take(event);
+                    while let Ok(event) = self.events.try_recv() {
+                        self.take(event);
                     }
                 }
+                () = tokio::time::sleep_until(next) => {}
             }
         };
         match outcome {
-            Ok(_) => {
+            Ok(()) => {
+                if live.is_owner() && self.writing {
+                    let _ = self.write(&mut live).await;
+                    let _ = live.seal().await;
+                }
                 let _ = live.set_presence(TerminalHost::ID, None).await;
                 let _ = peer.leave_session(block).await;
                 Ended::Shutdown
@@ -214,161 +248,199 @@ impl Host {
         }
     }
 
+    async fn step<S: ObjectStore>(
+        &mut self,
+        live: &mut Live<S, TerminalContent>,
+        schedule: &mut Schedule,
+    ) -> Result<(), String> {
+        let now = Instant::now();
+        if !live.is_owner() {
+            if self.writing {
+                eprintln!("be: another client took over the terminal; standing by");
+                self.writing = false;
+            }
+            if standing_by(live) || now < schedule.claim {
+                return Ok(());
+            }
+            schedule.claim = now + CLAIM_INTERVAL;
+            if !live.claim().await.map_err(explain)? {
+                return Ok(());
+            }
+        }
+        if !self.writing {
+            self.take_over(live).await?;
+            schedule.heartbeat = now + HEARTBEAT_INTERVAL;
+        }
+        if self.dirty {
+            self.write(live).await?;
+        }
+        if live.is_clean() {
+            schedule.unsealed_since = None;
+        } else {
+            let since = *schedule.unsealed_since.get_or_insert(now);
+            if now >= since + SEAL_INTERVAL {
+                live.seal().await.map_err(explain)?;
+                schedule.unsealed_since = None;
+                schedule.heartbeat = now + HEARTBEAT_INTERVAL;
+            }
+        }
+        if now >= schedule.heartbeat {
+            schedule.heartbeat = now + HEARTBEAT_INTERVAL;
+            live.heartbeat().await.map_err(explain)?;
+        }
+        Ok(())
+    }
+
+    async fn take_over<S: ObjectStore>(
+        &mut self,
+        live: &mut Live<S, TerminalContent>,
+    ) -> Result<(), String> {
+        let document = live.content();
+        let recorded = document.field(ObjectId::ROOT, Terminal::SHELL);
+        let ours = self.shell.is_some()
+            && recorded.map(|shell| shell.id) == self.record.map(|shell| shell.id);
+        let mut changes = Vec::new();
+        if !ours {
+            let empty = document.ids(ObjectId::ROOT, Terminal::HISTORY).is_empty()
+                && document.ids(ObjectId::ROOT, Terminal::SCREEN).is_empty();
+            let marker = (!empty).then(|| format!("Restored session: {}", now_utc()));
+            changes = document::retire(document, marker);
+        }
+        if document.field(ObjectId::ROOT, Terminal::HOST) != Some(live.client()) {
+            changes.push(Terminal::HOST.set(ObjectId::ROOT, &Some(live.client())));
+        }
+        if self.shell.is_none() {
+            let size = document.field(ObjectId::ROOT, Terminal::SIZE);
+            if size.cols > 0 && size.rows > 0 {
+                self.size = size;
+            }
+        }
+        for edit in document::edits(changes) {
+            live.edit(edit).await.map_err(explain)?;
+        }
+        self.writing = true;
+        self.dirty = true;
+        if self.shell.is_none() {
+            self.emulator.reset(self.size);
+            self.start_shell()?;
+        }
+        Ok(())
+    }
+
+    async fn write<S: ObjectStore>(
+        &mut self,
+        live: &mut Live<S, TerminalContent>,
+    ) -> Result<(), String> {
+        self.dirty = false;
+        let (returned, scrolled) = self.emulator.take_scrolled();
+        let shown = self.emulator.shown();
+        let changes = document::sync(live.content(), &returned, scrolled, &shown, self.record);
+        for edit in document::edits(changes) {
+            live.edit(edit).await.map_err(explain)?;
+        }
+        Ok(())
+    }
+
     async fn answer<S: ObjectStore>(
         &mut self,
         live: &mut Live<S, TerminalContent>,
     ) -> Result<(), String> {
         live.poll().await.map_err(explain)?;
         live.catch_up().await.map_err(explain)?;
-        if live.is_owner() && !live.is_clean() {
-            live.seal().await.map_err(explain)?;
-        }
         for message in live.take_channel() {
-            if message.channel != TerminalMessage::ID {
+            if message.channel != TerminalMessage::ID || !self.writing {
                 continue;
             }
             let Some(decoded) = TerminalMessage::decode(&message.payload) else {
                 continue;
             };
-            self.receive(live, message.from, decoded).await?;
+            self.receive(live, decoded).await?;
         }
         Ok(())
     }
 
     async fn receive<S: ObjectStore>(
         &mut self,
-        live: &Live<S, TerminalContent>,
-        from: ClientId,
+        live: &mut Live<S, TerminalContent>,
         message: TerminalMessage,
     ) -> Result<(), String> {
-        match message {
-            TerminalMessage::Attach(size) => {
-                let started = self.ensure_shell()?;
-                let resized = self.resize(size);
-                let to = match started || resized {
-                    true => None,
-                    false => Some(from),
-                };
-                send(live, to, &self.snapshot()).await
-            }
-            TerminalMessage::Resize(size) => {
-                if self.resize(size) {
-                    send(live, None, &self.snapshot()).await?;
-                }
-                Ok(())
-            }
-            TerminalMessage::Input(bytes) => {
-                if self.ensure_shell()? {
-                    return send(live, None, &self.snapshot()).await;
-                }
-                if let Some(shell) = &mut self.shell {
-                    let _ = shell.writer.write_all(&bytes);
-                    let _ = shell.writer.flush();
-                }
-                Ok(())
-            }
-            TerminalMessage::Snapshot { .. }
-            | TerminalMessage::Output { .. }
-            | TerminalMessage::Exited { .. } => Ok(()),
-        }
-    }
-
-    async fn forward<S: ObjectStore>(
-        &mut self,
-        live: &Live<S, TerminalContent>,
-        event: Event,
-    ) -> Result<(), String> {
-        let Some(message) = self.take(event) else {
+        if let TerminalMessage::Resize(size) = message {
+            self.resize(size);
             return Ok(());
-        };
-        let messages = match message {
-            TerminalMessage::Output {
-                shell,
-                sequence,
-                bytes,
-            } => {
-                let chunks = bytes.chunks(LARGEST_OUTPUT).count() as u64;
-                bytes
-                    .chunks(LARGEST_OUTPUT)
-                    .enumerate()
-                    .map(|(index, chunk)| TerminalMessage::Output {
-                        shell,
-                        sequence: sequence + 1 - chunks + index as u64,
-                        bytes: chunk.to_vec(),
-                    })
-                    .collect()
-            }
-            other => vec![other],
-        };
-        for message in &messages {
-            send(live, None, message).await?;
         }
+        if self.shell.is_none() {
+            self.write(live).await?;
+            let changes = document::retire(live.content(), None);
+            for edit in document::edits(changes) {
+                live.edit(edit).await.map_err(explain)?;
+            }
+            self.emulator.reset(self.size);
+            return self.start_shell();
+        }
+        let bytes = match &message {
+            TerminalMessage::Key(key) => self.emulator.key(key),
+            TerminalMessage::Paste(text) => self.emulator.paste(text),
+            TerminalMessage::Wheel(wheel) => self.emulator.wheel(wheel),
+            TerminalMessage::Resize(_) => Vec::new(),
+        };
+        self.type_into(&bytes);
         Ok(())
     }
 
-    fn take(&mut self, event: Event) -> Option<TerminalMessage> {
+    fn type_into(&mut self, bytes: &[u8]) {
+        if bytes.is_empty() {
+            return;
+        }
+        if let Some(shell) = &mut self.shell {
+            let _ = shell.writer.write_all(bytes);
+            let _ = shell.writer.flush();
+        }
+    }
+
+    fn take(&mut self, event: Event) {
         match event {
             Event::Output(shell, bytes) => {
                 if self.shell.as_ref().map(|running| running.id) != Some(shell) {
-                    return None;
+                    return;
                 }
-                self.mirror.write(&bytes);
-                let replies = std::mem::take(&mut *self.replies.borrow_mut());
-                if !replies.is_empty()
-                    && let Some(running) = &mut self.shell
-                {
-                    let _ = running.writer.write_all(&replies);
-                    let _ = running.writer.flush();
-                }
-                self.sequence += bytes.len().div_ceil(LARGEST_OUTPUT) as u64;
-                Some(TerminalMessage::Output {
-                    shell,
-                    sequence: self.sequence,
-                    bytes,
-                })
+                self.emulator.feed(&bytes);
+                let replies = self.emulator.take_replies();
+                self.type_into(&replies);
+                self.dirty = true;
             }
             Event::Ended(shell) => {
-                let running = self.shell.take_if(|running| running.id == shell)?;
+                let Some(running) = self.shell.take_if(|running| running.id == shell) else {
+                    return;
+                };
                 let mut child = running.child;
                 let status = child.wait().ok().map(|status| status.exit_code());
-                Some(TerminalMessage::Exited { shell, status })
+                self.record = Some(TerminalShell {
+                    id: shell,
+                    running: false,
+                    status,
+                });
+                self.dirty = true;
             }
         }
     }
 
-    fn snapshot(&mut self) -> TerminalMessage {
-        let screen = match self.renderer.update(&mut self.mirror) {
-            Ok(screen) => screen.repaint(),
-            Err(_) => Vec::new(),
-        };
-        TerminalMessage::Snapshot {
-            shell: self.shell.as_ref().map_or(self.shells, |shell| shell.id),
-            sequence: self.sequence,
-            size: self.size,
-            screen,
-        }
-    }
-
-    fn resize(&mut self, size: TerminalSize) -> bool {
+    fn resize(&mut self, size: TerminalSize) {
         let size = TerminalSize {
             cols: size.cols.max(1),
             rows: size.rows.max(1),
         };
         if size == self.size {
-            return false;
+            return;
         }
         self.size = size;
-        let _ = self.mirror.resize(size.cols, size.rows, 1, 1);
+        self.emulator.resize(size);
         if let Some(shell) = &self.shell {
             let _ = shell.master.resize(pty_size(size));
         }
-        true
+        self.dirty = true;
     }
 
-    fn ensure_shell(&mut self) -> Result<bool, String> {
-        if self.shell.is_some() {
-            return Ok(false);
-        }
+    fn start_shell(&mut self) -> Result<(), String> {
         let pair = native_pty_system()
             .openpty(pty_size(self.size))
             .map_err(|error| format!("could not open a terminal: {error}"))?;
@@ -398,11 +470,7 @@ impl Host {
             .master
             .take_writer()
             .map_err(|error| format!("could not write to the terminal: {error}"))?;
-        self.shells += 1;
-        let id = self.shells;
-        self.sequence = 0;
-        self.mirror.reset();
-        let _ = self.mirror.resize(self.size.cols, self.size.rows, 1, 1);
+        let id = Uuid::new_v4().as_u64_pair().0;
         read(reader, id, self.sender.clone());
         self.shell = Some(Shell {
             id,
@@ -410,23 +478,20 @@ impl Host {
             writer,
             child,
         });
-        Ok(true)
+        self.record = Some(TerminalShell {
+            id,
+            running: true,
+            status: None,
+        });
+        self.dirty = true;
+        Ok(())
     }
 }
 
-async fn send<S: ObjectStore>(
-    live: &Live<S, TerminalContent>,
-    to: Option<ClientId>,
-    message: &TerminalMessage,
-) -> Result<(), String> {
-    match live
-        .send_channel(to, TerminalMessage::ID, message.encode())
-        .await
-    {
-        Ok(()) => Ok(()),
-        Err(ClientError::Refused(..)) if to.is_some() => Ok(()),
-        Err(error) => Err(explain(error)),
-    }
+fn standing_by<S: ObjectStore>(live: &Live<S, TerminalContent>) -> bool {
+    live.state()
+        .owner
+        .is_some_and(|owner| live.presence().contains_key(&(owner, TerminalHost::ID)))
 }
 
 impl Drop for Host {
@@ -460,4 +525,31 @@ fn pty_size(size: TerminalSize) -> PtySize {
         pixel_width: 0,
         pixel_height: 0,
     }
+}
+
+fn now_utc() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs()) as i64;
+    let days = seconds.div_euclid(86_400);
+    let minutes = seconds.rem_euclid(86_400) / 60;
+    let shifted = days + 719_468;
+    let era = shifted.div_euclid(146_097);
+    let day_of_era = shifted.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_index = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_index + 2) / 5 + 1;
+    let month = if month_index < 10 {
+        month_index + 3
+    } else {
+        month_index - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02} UTC",
+        minutes / 60,
+        minutes % 60
+    )
 }

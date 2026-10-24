@@ -1,9 +1,13 @@
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::terminal::{TerminalHost, TerminalMessage, TerminalSize};
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::terminal::{
+    Terminal, TerminalColor, TerminalContent, TerminalHost, TerminalLine, TerminalMessage,
+    TerminalShell, TerminalSize,
+};
+use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::reactive::*;
-use terminal_view::{Emulator, Fit, TerminalScreen};
+use terminal_view::{Emulator, Fit, Row, Span, TerminalInput, TerminalScreen};
 
-const SCROLLBACK: usize = 1_000;
 const FIRST_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 
 #[derive(Clone, Copy)]
@@ -11,45 +15,44 @@ pub(crate) struct Session {
     editor: Editor,
     pub(crate) screen: TerminalScreen,
     pub(crate) host: Memo<Option<(u64, TerminalHost)>>,
-    pub(crate) running: Signal<Option<(u64, u64)>>,
-    pub(crate) exited: Signal<Option<Option<u32>>>,
-    asked: Signal<bool>,
+    pub(crate) shell: ReadSignal<Option<TerminalShell>>,
     wanted: Signal<TerminalSize>,
-    cell: Signal<(u32, u32)>,
 }
 
 impl Session {
     pub(crate) fn new(editor: Editor) -> Result<Self, String> {
-        let screen = TerminalScreen::new(
-            Emulator::new(FIRST_SIZE.cols, FIRST_SIZE.rows, SCROLLBACK)?.with_cursor(),
-        );
+        let screen = TerminalScreen::new(Emulator::new(FIRST_SIZE.cols, FIRST_SIZE.rows, 0)?);
+        let content = editor.block_content::<TerminalContent>();
+        let writer = content.project(|document| document.field(ObjectId::ROOT, Terminal::HOST));
+        let shell = content.project(|document| document.field(ObjectId::ROOT, Terminal::SHELL));
         let peers = editor.peers::<TerminalHost>();
-        let host = create_memo(move || peers.with(|hosts| hosts.first().cloned()));
+        let host = create_memo(move || {
+            let writer = writer.get();
+            peers.with(|hosts| {
+                hosts
+                    .iter()
+                    .find(|(client, _)| Some(*client) == writer)
+                    .cloned()
+            })
+        });
+        let shown = content.project(shown);
+        create_effect(move || {
+            let (rows, background) = shown.get();
+            screen.show(rows, background);
+        });
         let session = Self {
             editor,
             screen,
             host,
-            running: create_signal(None),
-            exited: create_signal(None),
-            asked: create_signal(false),
+            shell,
             wanted: create_signal(FIRST_SIZE),
-            cell: create_signal((1, 1)),
         };
         let client =
             create_memo(move || host.with(|host| host.as_ref().map(|(client, _)| *client)));
         create_effect(move || {
-            let client = client.get();
-            untrack(|| {
-                session.running.set(None);
-                session.exited.set(None);
-                session.asked.set(false);
-                if client.is_some() {
-                    session.attach();
-                }
-            });
-        });
-        editor.on_peer_message(move |from, message: TerminalMessage| {
-            session.receive(from, message);
+            if client.get().is_some() {
+                untrack(|| session.resized());
+            }
         });
         Ok(session)
     }
@@ -60,67 +63,23 @@ impl Session {
         }
     }
 
-    fn attach(&self) {
-        self.asked.set(true);
-        self.send(TerminalMessage::Attach(self.wanted.get_untracked()));
+    fn resized(&self) {
+        if self.editor.editable().get_untracked() {
+            self.send(TerminalMessage::Resize(self.wanted.get_untracked()));
+        }
     }
 
-    fn receive(&self, from: u64, message: TerminalMessage) {
-        if self
-            .host
-            .with_untracked(|host| host.as_ref().map(|(client, _)| *client))
-            != Some(from)
-        {
+    pub(crate) fn input(&self, input: TerminalInput) {
+        if !self.editor.editable().get_untracked() {
             return;
         }
-        match message {
-            TerminalMessage::Snapshot {
-                shell,
-                sequence,
-                size,
-                screen,
-            } => {
-                let (width, height) = self.cell.get_untracked();
-                self.screen.reset();
-                self.screen.resize(size.cols, size.rows, width, height);
-                self.screen.write(&screen);
-                self.screen.refresh();
-                self.asked.set(false);
-                self.exited.set(None);
-                self.running.set(Some((shell, sequence)));
-            }
-            TerminalMessage::Output {
-                shell,
-                sequence,
-                bytes,
-            } => match self.running.get_untracked() {
-                Some((running, last)) if running == shell && sequence == last + 1 => {
-                    self.screen.write(&bytes);
-                    self.screen.refresh();
-                    self.running.set(Some((shell, sequence)));
-                }
-                Some((running, last)) if running == shell && sequence <= last => {}
-                _ if self.asked.get_untracked() => {}
-                _ => self.attach(),
-            },
-            TerminalMessage::Exited { shell, status } => {
-                if self.running.get_untracked().map(|(running, _)| running) == Some(shell) {
-                    self.exited.set(Some(status));
-                }
-            }
-            TerminalMessage::Attach(_) | TerminalMessage::Resize(_) | TerminalMessage::Input(_) => {
-            }
-        }
-    }
-
-    pub(crate) fn input(&self, bytes: Vec<u8>) {
-        if self.editor.editable().get_untracked() {
-            self.send(TerminalMessage::Input(bytes));
-        }
+        self.send(match input {
+            TerminalInput::Key(key) => TerminalMessage::Key(key),
+            TerminalInput::Paste(text) => TerminalMessage::Paste(text),
+        });
     }
 
     pub(crate) fn fit(&self, fit: Fit) {
-        self.cell.set((fit.cell_width, fit.cell_height));
         let size = TerminalSize {
             cols: fit.cols,
             rows: fit.rows,
@@ -129,8 +88,88 @@ impl Session {
             return;
         }
         self.wanted.set(size);
-        if self.editor.editable().get_untracked() {
-            self.send(TerminalMessage::Resize(size));
+        self.resized();
+    }
+}
+
+fn shown(document: &TerminalContent) -> (Vec<Row>, Color32) {
+    let colors = document.field(ObjectId::ROOT, Terminal::COLORS);
+    let cursor = document.field(ObjectId::ROOT, Terminal::CURSOR);
+    let alternate = document.field(ObjectId::ROOT, Terminal::ALTERNATE_ACTIVE);
+    let field = match alternate {
+        true => Terminal::ALTERNATE,
+        false => Terminal::SCREEN,
+    };
+    let rows = document
+        .ids(ObjectId::ROOT, field)
+        .into_iter()
+        .enumerate()
+        .map(|(index, id)| {
+            let line = document.read::<TerminalLine>(id).unwrap_or_default();
+            let caret = (cursor.visible && usize::from(cursor.row) == index)
+                .then_some(cursor.byte as usize);
+            spans(&line, caret, colors.foreground, colors.background)
+        })
+        .collect();
+    (rows, color_of(colors.background))
+}
+
+fn spans(
+    line: &TerminalLine,
+    caret: Option<usize>,
+    foreground: TerminalColor,
+    background: TerminalColor,
+) -> Row {
+    let mut text = line.text.clone();
+    if let Some(caret) = caret {
+        while text.len() <= caret {
+            text.push(' ');
         }
     }
+    let mut padded = line.clone();
+    padded.text = text;
+    let mut row = Vec::new();
+    let mut at = 0;
+    for (piece, style) in padded.spans() {
+        let mut span = |text: &str, inverted: bool| {
+            let mut color = color_of(style.foreground.unwrap_or(foreground));
+            let mut fill = style.background.map(color_of);
+            if inverted {
+                fill = Some(color);
+                color = color_of(style.background.unwrap_or(background));
+            }
+            row.push(Span {
+                text: text.to_owned(),
+                color,
+                background: fill,
+                bold: style.bold,
+                italic: style.italic,
+                underline: style.underline || style.strikethrough,
+            });
+        };
+        let end = at + piece.len();
+        match caret.filter(|caret| (at..end).contains(caret)) {
+            Some(caret) => {
+                let split = caret - at;
+                let after = piece[split..]
+                    .char_indices()
+                    .nth(1)
+                    .map_or(piece.len(), |(index, _)| split + index);
+                if split > 0 {
+                    span(&piece[..split], false);
+                }
+                span(&piece[split..after], true);
+                if after < piece.len() {
+                    span(&piece[after..], false);
+                }
+            }
+            None => span(piece, false),
+        }
+        at = end;
+    }
+    row
+}
+
+fn color_of(color: TerminalColor) -> Color32 {
+    Color32::from_rgb(color.r, color.g, color.b)
 }

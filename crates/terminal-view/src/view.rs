@@ -5,7 +5,7 @@ use beui::{
     Vec2,
 };
 
-use crate::keys::key_bytes;
+use crate::keys::{TerminalInput, key_event, text_event};
 use crate::screen::{Span, TerminalScreen};
 
 const FONT_SIZE: f32 = 13.0;
@@ -23,13 +23,13 @@ pub struct Fit {
 #[component]
 pub fn TerminalView(
     screen: TerminalScreen,
-    on_input: Callback<Vec<u8>>,
+    on_input: Callback<TerminalInput>,
     on_fit: Callback<Fit>,
     #[prop(default = false)] pastes: bool,
 ) -> NodeId {
-    let typed = move |bytes: Vec<u8>| {
+    let typed = move |input: TerminalInput| {
         screen.scroll_to_bottom();
-        on_input.call(bytes);
+        on_input.call(input);
     };
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
@@ -62,21 +62,21 @@ pub fn TerminalView(
                 <Interactive
                     focusable=true
                     @test_id={"terminal.screen"}
-                    on_text={move |text: String| typed(text.into_bytes())}
+                    on_text={move |text: String| typed(TerminalInput::Key(text_event(&text)))}
                     on_key={move |press: KeyPress| {
                         if !press.pressed {
                             return false;
                         }
-                        let Some(bytes) = key_bytes(press.key, press.modifiers) else {
+                        let Some(key) = key_event(press) else {
                             return false;
                         };
-                        typed(bytes);
+                        typed(TerminalInput::Key(key));
                         true
                     }}
                     pastes
                     on_paste={move |pasted: Pasted| {
                         if let Pasted::Text(text) = pasted {
-                            typed(text.replace("\r\n", "\r").replace('\n', "\r").into_bytes());
+                            typed(TerminalInput::Paste(text));
                         }
                     }}
                     on_scroll={move |gesture: ScrollGesture| {

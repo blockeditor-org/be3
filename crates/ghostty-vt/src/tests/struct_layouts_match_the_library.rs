@@ -15,6 +15,58 @@ fn struct_layouts_match_the_library() {
     assert_size::<sys::StyleColor>(types, "GhosttyStyleColor");
     assert_size::<sys::Style>(types, "GhosttyStyle");
     assert_size::<sys::RenderStateColors>(types, "GhosttyRenderStateColors");
+    assert_size::<sys::GridRef>(types, "GhosttyGridRef");
+    assert_size::<sys::Point>(types, "GhosttyPoint");
+    assert_size::<sys::PointCoordinate>(types, "GhosttyPointCoordinate");
+    assert_size::<sys::TerminalModeConfig>(types, "GhosttyTerminalModeConfig");
+    assert_size::<sys::GhosttyString>(types, "GhosttyString");
+    assert_size::<sys::Writer>(types, "GhosttyWriter");
+    assert_size::<sys::MimeReader>(types, "GhosttyMimeReader");
+    assert_size::<sys::Paste>(types, "GhosttyPaste");
+    assert_size::<sys::MousePosition>(types, "GhosttyMousePosition");
+    assert_size::<sys::MouseEncoderSize>(types, "GhosttyMouseEncoderSize");
+
+    let reference = sys::GridRef::default();
+    let base = std::ptr::from_ref(&reference).addr();
+    assert_offset(
+        types,
+        "GhosttyGridRef",
+        "x",
+        std::ptr::from_ref(&reference.x).addr() - base,
+    );
+
+    let point = sys::PointCoordinate::default();
+    let base = std::ptr::from_ref(&point).addr();
+    assert_offset(
+        types,
+        "GhosttyPointCoordinate",
+        "y",
+        std::ptr::from_ref(&point.y).addr() - base,
+    );
+
+    let paste = sys::Paste {
+        size: 0,
+        location: 0,
+        source: 0,
+        mimes: std::ptr::null(),
+        mimes_len: 0,
+        reader: sys::MimeReader {
+            read: None,
+            userdata: std::ptr::null_mut(),
+        },
+        allow_unsafe: false,
+    };
+    let base = std::ptr::from_ref(&paste).addr();
+    for (field, offset) in [
+        ("mimes", std::ptr::from_ref(&paste.mimes).addr() - base),
+        ("reader", std::ptr::from_ref(&paste.reader).addr() - base),
+        (
+            "allow_unsafe",
+            std::ptr::from_ref(&paste.allow_unsafe).addr() - base,
+        ),
+    ] {
+        assert_offset(types, "GhosttyPaste", field, offset);
+    }
 
     let style = sys::Style::default();
     let base = std::ptr::from_ref(&style).addr();

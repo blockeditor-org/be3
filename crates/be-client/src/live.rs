@@ -19,6 +19,8 @@ use crate::{ClientError, Peer, Saved};
 const JOURNAL_LIMIT: usize = 1024;
 const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 
+pub const SEAL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(750);
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Journaled<Op> {
     Edited {
@@ -792,6 +794,21 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         Ok(granted)
     }
 
+    pub async fn heartbeat(&mut self) -> Result<(), ClientError> {
+        if !self.is_owner() {
+            return Ok(());
+        }
+        let clean_at = match self.has_unsealed_work() {
+            true => None,
+            false => self.base,
+        };
+        let state = self
+            .peer
+            .heartbeat(self.block, self.state.generation, clean_at)
+            .await?;
+        self.adopt(state).await
+    }
+
     pub async fn replace(&mut self, content: C) -> Result<bool, ClientError> {
         self.refuse_if_diverged()?;
         let mut expected = self.base;
@@ -897,7 +914,14 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         message: &SessionMessage,
     ) -> Result<(), ClientError> {
         let payload = be_protocol::encode(message).map_err(|_| ClientError::Unexpected)?;
-        self.peer.relay(self.block, to, &payload).await
+        match self.peer.relay(self.block, to, &payload).await {
+            Err(ClientError::Refused(be_protocol::ErrorCode::InvalidRequest, _))
+                if to.is_some() =>
+            {
+                Ok(())
+            }
+            result => result,
+        }
     }
 }
 

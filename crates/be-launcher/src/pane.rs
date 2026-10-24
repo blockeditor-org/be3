@@ -1,6 +1,6 @@
 use beui::NodeId;
 use beui::reactive::*;
-use terminal_view::{Emulator, Fit, TerminalScreen, TerminalView};
+use terminal_view::{Emulator, Fit, TerminalInput, TerminalScreen, TerminalView};
 
 const DEFAULT_COLS: u16 = 100;
 const DEFAULT_ROWS: u16 = 30;
@@ -57,7 +57,7 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
     view! {
         <TerminalView
             screen={pane.screen}
-            on_input={|_: Vec<u8>| {}}
+            on_input={|_: TerminalInput| {}}
             on_fit={move |fit: Fit| pane.fit(fit)}
         />
     }

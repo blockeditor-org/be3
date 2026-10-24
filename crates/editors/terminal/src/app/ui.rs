@@ -3,7 +3,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, icons::*};
-use terminal_view::{Fit, TerminalView};
+use terminal_view::{Fit, TerminalInput, TerminalView};
 
 use super::offline::Offline;
 use super::session::Session;
@@ -47,15 +47,17 @@ fn Running(session: Session, editor: Editor) -> NodeId {
     });
     let status = create_memo(move || {
         let read_only = editor.read_only().get();
-        match (session.exited.get(), session.running.get(), read_only) {
-            (Some(Some(code)), _, false) => {
-                format!("The shell exited with status {code}. Type to start a new one.")
-            }
-            (Some(_), _, false) => "The shell exited. Type to start a new one.".to_owned(),
-            (Some(_), _, true) => "The shell exited.".to_owned(),
-            (None, None, _) => "Connecting…".to_owned(),
-            (None, Some(_), true) => "View only".to_owned(),
-            (None, Some(_), false) => String::new(),
+        match (session.shell.get(), read_only) {
+            (Some(shell), false) if !shell.running => match shell.status {
+                Some(code) => {
+                    format!("The shell exited with status {code}. Type to start a new one.")
+                }
+                None => "The shell exited. Type to start a new one.".to_owned(),
+            },
+            (Some(shell), true) if !shell.running => "The shell exited.".to_owned(),
+            (None, _) => "Connecting…".to_owned(),
+            (Some(_), true) => "View only".to_owned(),
+            (Some(_), false) => String::new(),
         }
     });
     let content = NodeRef::new();
@@ -75,7 +77,7 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                 <TerminalView
                     screen={session.screen}
                     pastes=true
-                    on_input={move |bytes: Vec<u8>| session.input(bytes)}
+                    on_input={move |input: TerminalInput| session.input(input)}
                     on_fit={move |fit: Fit| session.fit(fit)}
                 />
             </Frame>

@@ -132,6 +132,11 @@ impl TerminalScreen {
             .unwrap_or_default()
     }
 
+    pub fn show(&self, rows: Vec<Row>, background: Color32) {
+        self.rows.set(rows);
+        self.background.set(background);
+    }
+
     pub fn refresh(&self) {
         let state = self.state.value();
         let mut state = state.borrow_mut();

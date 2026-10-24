@@ -15934,6 +15934,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],
@@ -15945,6 +15946,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],
@@ -15956,6 +15958,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],
@@ -15967,6 +15970,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],
@@ -15978,6 +15982,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],
@@ -15989,6 +15994,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],
@@ -16000,6 +16006,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],
@@ -16011,6 +16018,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
                     "//crates/ghostty-vt:ghostty-vt",
                 ],

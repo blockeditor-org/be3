@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn the_terminal_switches_to_its_setup_when_the_host_leaves() {
     let mut harness = Harness::new(true);
+    harness.show(&[prompt()]);
     harness.connect_host();
-    harness.snapshot_of("$ ");
     assert!(
         harness
             .editor
@@ -18,10 +18,9 @@ fn the_terminal_switches_to_its_setup_when_the_host_leaves() {
 
     harness.sent();
     harness.connect_host();
-    assert_eq!(
-        attaches(&harness.sent()),
-        1,
-        "a host that comes back is asked for its screen"
+    assert!(
+        resizes(&harness.sent()) >= 1,
+        "a host that comes back is told the size again"
     );
-    assert_eq!(harness.shown("terminal.status"), "\"Connecting…\"");
+    assert_eq!(harness.shown("terminal.status"), "\"\"");
 }

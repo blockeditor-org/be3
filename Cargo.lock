@@ -7186,6 +7186,7 @@ dependencies = [
 name = "terminal-view"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "beui",
  "ghostty-vt",
 ]

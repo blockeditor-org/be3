@@ -15,7 +15,7 @@ mod transport;
 pub use connection::Connection;
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
-pub use live::{ChannelMessage, Conflict, Journaled, Live};
+pub use live::{ChannelMessage, Conflict, Journaled, Live, SEAL_INTERVAL};
 pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
 
 pub fn socket_url(server_url: &str) -> String {
