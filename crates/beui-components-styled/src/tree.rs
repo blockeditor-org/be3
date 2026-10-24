@@ -227,7 +227,7 @@ where
     let renaming = edit_id(&named);
     let body = match menu {
         None => view! {
-            <List align=Align::Stretch spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <ShowKeepAlive condition={shown}>
                     <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
                         {content.call(face)}

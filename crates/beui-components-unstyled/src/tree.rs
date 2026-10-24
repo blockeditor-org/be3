@@ -247,7 +247,11 @@ where
     );
     let (nodes_key, cleanup_key) = (row_key.clone(), row_key.clone());
     let (select_key, toggle_key, open_key) = (row_key.clone(), row_key.clone(), row_key.clone());
-    let chosen = ClickCallback::new(move || select(state, &select_key));
+    let chosen = ClickCallback::new(move || {
+        if !editing.get_untracked() {
+            select(state, &select_key);
+        }
+    });
     let opened = ClickCallback::new(move || state.on_open.call(open_key.clone()));
     let expand = ClickCallback::new(move || toggle(state, &toggle_key));
     let hover_key = row_key.clone();

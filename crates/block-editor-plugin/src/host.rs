@@ -1059,6 +1059,10 @@ impl EditorHost {
         self.write_content(block, content, true);
     }
 
+    pub fn replace_bytes(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+        self.seed_bytes(block, content_type, bytes, true);
+    }
+
     fn write_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C, replace: bool) {
         self.seed_bytes(block, C::CONTENT_TYPE, content.encode(), replace);
     }
