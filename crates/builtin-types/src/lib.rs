@@ -62,3 +62,6 @@ pub fn host() -> Vec<Registration> {
         Registration::of::<CheckoutContent>(),
     ]
 }
+
+#[cfg(test)]
+mod tests;

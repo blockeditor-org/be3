@@ -12461,7 +12461,10 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -12472,7 +12475,10 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -12483,7 +12489,10 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -12494,7 +12503,10 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -12505,7 +12517,10 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
                 "test_features": [],
             },
             "wasi": {
@@ -12549,7 +12564,10 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -12560,7 +12578,10 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
                 "test_features": [],
             },
         },

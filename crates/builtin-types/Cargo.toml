@@ -11,6 +11,10 @@ crate-type = ["cdylib", "rlib"]
 be-block = { path = "../be-block" }
 block-type-guest = { path = "../block-type-guest" }
 
+[dev-dependencies]
+block-plugin-api = { path = "../block-plugin-api" }
+uuid = "1"
+
 [features]
 module = []
 

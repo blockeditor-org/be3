@@ -608,7 +608,8 @@ values, and every algorithm is written once against that table:
 `Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
 `be-block` (`model.rs`), so a type built this way is registered with
 `undo` in `be_block_types!` and has undo from the start. Almost every content type is
-built this way: the counter, the checklist, the calendar, the browser
+built this way: the counter, the checklist (the one first-party type already in
+its plugin's types crate, `crates/editors/checklist/types`), the calendar, the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
 the deterministic game, the map, the video, the logic game, the logic grid,
 compiled logic, the infinite canvas, pixel art and text. Implementing the
@@ -779,11 +780,19 @@ and hands back operations and graph commands.
 ### The peer and its registry
 
 The app's peer names no content type. Every block type runs in a type module
-(guides/type_modules.md): `crates/builtin-types` for every type the app does not
-apply itself, staged beside the plugins as `builtin-types.wasm` with its `.cwasm`
-and its SHA-256 (`builtin-types.sha256`, the tag of its sessions), and
-`be::types::host_types`, the settings types, the editor view, the repository and
-the checkout, which the app reads itself and runs in process.
+(guides/type_modules.md): a plugin's own, which its manifest's `block_types` name
+and the app runs one instance of per plugin; `crates/builtin-types` for the
+first-party types no plugin brings a module for yet; each staged beside the plugins
+as `NAME.wasm` with its `.cwasm` and its SHA-256 (`NAME.sha256`, the tag of its
+sessions); and `builtin_types::host()`, the settings types, the editor view, the
+repository and the checkout, which the app reads itself and runs in process
+(`be::types::HostTypes`). What a type is called, its icon, color, child edits and
+press come from the manifest that declares it, or for the host's own types from
+`be::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
+holds that catalog, so a type is known before its module has said `Hello`, and
+refuses a plugin that declares a type someone else already has or edits one
+nobody declares. `be::provided` is whether some module will hold a content type,
+which is what the plugin host checks before following a block's content.
 The registry (`be_types_host::modules`, re-exported by `be/types.rs`, which
 lists the app's module sources) holds each module's `Hello`, with every type's blank
 content and its description asked for once at start, answers `be::kind_of` and

@@ -1869,7 +1869,9 @@ name = "builtin-types"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "block-plugin-api",
  "block-type-guest",
+ "uuid",
 ]
 
 [[package]]

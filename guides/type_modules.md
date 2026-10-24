@@ -5,8 +5,10 @@ module that holds the device's one replica of every open block of its types (con
 live session, undo stack) and talks to its host only through messages. Two crates
 define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
 block through them (guides/the_new_block_stack.md, "How the app hosts content";
-"Hosts" below): `crates/builtin-types` is the first-party module, and the types
-the app applies itself run in process.
+"Hosts" below): each plugin that brings types names its module in its manifest's
+`block_types` (guides/adding_a_block.md), `crates/builtin-types` holds the
+first-party types not moved into their plugins yet, and the types the app applies
+itself run in process.
 
 - `crates/block-type-api`: the messages between a host and a type module. No GUI types.
 - `crates/block-type-guest`: the replica library a be-model-based type module links.
@@ -130,7 +132,11 @@ gesture is an editor message because it groups that editor's own edits.
 
 ```rust
 be_block_types![ChecklistContent { undo }, TextContent { undo, file }, FolderContent];
-// expands to: pub fn block_types() -> block_type_guest::Module
+// expands to: pub fn registrations() -> Vec<Registration>,
+//             pub fn block_types() -> block_type_guest::Module,
+//             pub struct BlockTypes (the guest)
+#[cfg(feature = "module")]
+block_type_guest::abi::guest!(BlockTypes);
 ```
 
 Each entry is `Registration::of::<C>()` (`C: LiveEdit + Merge + Clone + Default`),
@@ -148,8 +154,15 @@ replaces a type, `knows` asks for one, as block-ui-test does for a test's own ty
 the `Hello` that lists the module's types (content type, frozen, schema fingerprint,
 undo, file). The macro also defines `BlockTypes`, a `block_guest_abi::Guest` over that module
 (`start` sends `Hello`; `step` decodes each event frame, handles it and encodes the
-commands, `Module::step`), and exports it with `block_guest_abi::guest!`, so a type
-module crate is that one macro call plus guest-abi's `cdylib` and BUCK set-up. The
+commands, `Module::step`). It does not export it: a types crate is a plain library
+that editors, tests and other crates depend on, and only its `:wasm` build, with
+the crate's `module` feature, calls `block_guest_abi::guest!`, since a second set of
+guest exports in one wasm (an editor's own) would clash. So a type module crate is
+that macro call, the export line and guest-abi's `cdylib` and BUCK set-up
+(`crates/editors/checklist/types`, `crates/builtin-types`).
+`Registration::without_undo` drops a registration's undo stack, which is how
+block-ui-test hosts every type (`ContentStore::register` takes a types crate's
+`registrations()` for a test that needs a plugin's types it never names). The
 waker is unused: the replica asks for time with `WakeAt` and the host ticks it.
 The undo stack is `History<C, u64>`: `History` is generic
 over its clock (`history::Moment`, for `Instant` and frame-clock milliseconds), and
