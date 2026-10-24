@@ -1759,17 +1759,19 @@ impl BlockApp {
             _ => node.metadata.get(&be_block::DELETED_FROM),
         };
         let destination = match from {
-            Some(be_block::DeletedFrom::Root) => {
+            Some(be_block::DeletedFrom::Root) if addable(root) => {
                 be::set_parent(root, BlockParent::Root);
                 return;
             }
             Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
                 parent
             }
-            Some(be_block::DeletedFrom::Block(_)) | None => match self.root_settings.my_files() {
-                Some(files) => files,
-                None => return,
-            },
+            Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
+                match self.root_settings.my_files() {
+                    Some(files) => files,
+                    None => return,
+                }
+            }
         };
         let listed = be::node(destination).is_some_and(|parent| parent.references.contains(&root));
         match listed {

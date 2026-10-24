@@ -6,7 +6,12 @@ use super::*;
 fn linking_a_block_in_the_picker_answers_the_pick() {
     let (mut fixture, _) = editor();
     let linked = Uuid::new_v4();
-    let mut info = BlockInfo::new(linked, SHOWN_TYPE, BlockParent::Root);
+    let space = Uuid::new_v4();
+    let mut workspace = BlockInfo::new(space, Uuid::new_v4(), BlockParent::Root);
+    workspace.set_name("Team space");
+    workspace.references = vec![linked];
+    fixture.test.store().add_block(workspace);
+    let mut info = BlockInfo::new(linked, SHOWN_TYPE, BlockParent::Block(space));
     info.set_intrinsic_name("Notes".to_owned());
     fixture.test.store().add_block(info);
 

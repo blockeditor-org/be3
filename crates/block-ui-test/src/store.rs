@@ -538,10 +538,11 @@ impl ContentStore {
     pub fn own(&self, block: Uuid, block_type: Uuid) {
         let mut inner = self.0.borrow_mut();
         inner.own = Some(block);
-        inner
-            .graph
-            .entry(block)
-            .or_insert_with(|| BlockInfo::new(block, block_type, BlockParent::Root));
+        inner.graph.entry(block).or_insert_with(|| {
+            let mut info = BlockInfo::new(block, block_type, BlockParent::Root);
+            info.parent = None;
+            info
+        });
     }
 
     pub fn add_block(&self, info: BlockInfo) {

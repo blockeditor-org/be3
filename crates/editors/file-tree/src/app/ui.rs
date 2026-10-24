@@ -171,7 +171,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         };
         picker.open(
             editor,
-            Some(id),
+            id,
             [id].into_iter().collect::<HashSet<Uuid>>(),
             node_anchor(&new_button),
         );
@@ -456,7 +456,7 @@ fn TreeRow(
         };
         picker.open(
             editor,
-            Some(id),
+            id,
             [id].into_iter().collect::<HashSet<Uuid>>(),
             picker.row_anchor(&row.key),
         );
@@ -609,7 +609,7 @@ fn glyph_size() -> Memo<TextSize> {
 pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: Option<Rect>) {
     picker.open(
         editor,
-        Some(id),
+        id,
         [editor.block_id(), id]
             .into_iter()
             .collect::<HashSet<Uuid>>(),
@@ -868,14 +868,14 @@ impl Picker {
     pub(crate) fn open(
         &self,
         editor: Editor,
-        parent: Option<Uuid>,
+        parent: Uuid,
         excluded: HashSet<Uuid>,
         anchor: Option<Rect>,
     ) {
         self.error.set(None);
         let inner = self.inner.value();
-        inner.target.set(parent);
-        let place = parent.map_or(BlockParent::Root, BlockParent::Block);
+        inner.target.set(Some(parent));
+        let place = BlockParent::Block(parent);
         inner.picker.borrow_mut().open(
             &editor.host(),
             BlockFilter {
@@ -938,12 +938,7 @@ fn picker(
             return;
         }
         match target {
-            None => {
-                if !picked.linked {
-                    tree.blocks().set_parent(picked.id, BlockParent::Root);
-                }
-                host.open_block(picked.id, picked.block_type);
-            }
+            None => host.open_block(picked.id, picked.block_type),
             Some(parent) => {
                 host.place_block(picked.id, picked.block_type, parent, picked.linked);
                 host.open_block_via(picked.id, picked.block_type, parent);

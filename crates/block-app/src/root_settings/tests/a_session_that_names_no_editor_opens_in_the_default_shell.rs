@@ -1,3 +1,5 @@
+use be_block::EditorViewContent;
+
 use super::*;
 
 #[test]

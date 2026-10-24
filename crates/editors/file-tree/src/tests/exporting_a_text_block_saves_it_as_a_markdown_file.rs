@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::{BlockContent, ImageContent, TextBlock, TextContent};
-use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, FileSave, HostReply, HostRequest};
+use block_editor_beui::{BlockInfo, BlockParent, FileSave, HostReply, HostRequest};
 
 use super::*;
 
@@ -8,13 +8,19 @@ fn exporting_a_text_block_saves_it_as_a_markdown_file() {
     let mut fixture = editor();
     let notes = Uuid::from_u128(2);
     let photo = Uuid::from_u128(3);
-    let mut text = BlockInfo::new(notes, TextContent::CONTENT_TYPE, BlockParent::Root);
+    let mut text = BlockInfo::new(
+        notes,
+        TextContent::CONTENT_TYPE,
+        BlockParent::Block(MY_FILES),
+    );
     text.set_name("Trip notes".to_owned());
-    let mut image = BlockInfo::new(photo, ImageContent::CONTENT_TYPE, BlockParent::Root);
+    let mut image = BlockInfo::new(
+        photo,
+        ImageContent::CONTENT_TYPE,
+        BlockParent::Block(MY_FILES),
+    );
     image.set_intrinsic_name("Beach".to_owned());
-    fixture
-        .host
-        .set_blocks(BlockQuery::Roots, vec![text, image]);
+    my_files(&mut fixture, vec![text, image]);
     fixture
         .test
         .hold(Some(notes), TextBlock::of("# Day one\nSand."));

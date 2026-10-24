@@ -280,17 +280,21 @@ fn filter() -> block_editor_beui::BlockFilter {
 
 fn catalog() -> block_editor_beui::Catalog {
     use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
-    let kind = |block_type: Uuid, name: &str, icon: &str| block_editor_beui::BlockTypeDescriptor {
-        block_type: block_type.into_bytes(),
-        display_name: name.to_owned(),
-        color: None,
-        icon_codepoint: icon.to_owned(),
-        children: block_plugin_api::ChildOperations {
-            add: true,
-            delete: true,
-            replace: true,
-        },
-        press: block_plugin_api::Press::Open,
+    let kind = |block_type: Uuid, name: &str, icon: &str| {
+        let holds =
+            [FolderContent::CONTENT_TYPE, WorkspaceContent::CONTENT_TYPE].contains(&block_type);
+        block_editor_beui::BlockTypeDescriptor {
+            block_type: block_type.into_bytes(),
+            display_name: name.to_owned(),
+            color: None,
+            icon_codepoint: icon.to_owned(),
+            children: block_plugin_api::ChildOperations {
+                add: holds,
+                delete: holds,
+                replace: holds,
+            },
+            press: block_plugin_api::Press::Open,
+        }
     };
     block_editor_beui::Catalog {
         types: vec![

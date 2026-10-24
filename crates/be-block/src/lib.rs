@@ -80,7 +80,7 @@ pub use map::{Map, MapContent};
 pub use metadata::{
     ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE,
     Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME,
-    Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
+    Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
 pub use pdf::{PdfContent, PdfHeader};

@@ -1213,18 +1213,21 @@ history (with the 750 ms bursts on the test's frame clock) for a block a test ca
 
 The account switcher picks an account, the Organizations screen one of its
 organizations (it opens the only one by itself), and everything below happens
-inside that one organization. A workspace is a block of its own content type,
-`be_block::Workspace` (shaped like a folder: an ordered list of children),
-whose parent is `BlockParent::Root`; its name is its `NAME` and its members are
-the grants on it. Only workspaces and an account's own `Settings` belong at
-the root. Opening an organization makes sure the account has a "My files"
+inside that one organization. A workspace is any root block
+(`BlockParent::Root`) that is not a system block
+(`block_editor_beui::sections::is_workspace`); its name is its `NAME` and its
+members are the grants on it. New ones are `be_block::Workspace` (shaped like a
+folder: an ordered list of children). Only workspaces and an account's own
+`Settings` belong at the root: nothing places another block there, and a block
+deleted from the root that cannot hold children is restored into My files. The
+server still accepts any block at the root, so an older one left there shows
+as a workspace. Opening an organization makes sure the account has a "My files"
 workspace it authored, marked with the `MY_FILES` metadata key
 (`RootSettings::ensure_my_files`, beside the settings it ensures).
 
 The files pane (crates/editors/file-tree) shows a section per workspace the
 account can see (My files first, then by name; another account's My files is
-never listed), then Shared with me (`BlockQuery::Shared`, plus any root block
-that is not a system block), then Recently Deleted, then
+never listed), then Shared with me (`BlockQuery::Shared`), then Recently Deleted, then
 System: the account's own internal root blocks, the content types in
 `SYSTEM_TYPES` (today `Settings` and settings profiles), which open in their
 editors and expand to what they hold; another account's are never listed. It is
@@ -1387,7 +1390,10 @@ block it shows (none for the file tree or workspace-ui itself), and a
 `LatestMap` of opaque `ViewState { bytes, refs }` the editor owns. `refs` are the
 blocks an entry points at; `references()` is `content` plus every entry's refs,
 and a deleted or replaced child is blanked or repointed in place, so the bytes
-can index into `refs`.
+can index into `refs`. Whoever makes a view block also defines the
+`VIEW_EDITOR` metadata key to that editor (`EditorView::metadata`), and the host
+reads which editor opens a session from that key (`RootSettings::session_editor`)
+rather than decoding the view; a session without it opens in the shell asking.
 
 Both shells are built from `crates/block-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;

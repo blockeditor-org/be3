@@ -52,6 +52,13 @@ impl EditorView {
         Document::new(&Self::new(editor, content))
     }
 
+    pub fn metadata(editor: Uuid, name: Option<String>) -> crate::BlockMetadata {
+        let mut metadata = crate::BlockMetadata::default();
+        metadata.put(&crate::NAME, name.as_ref());
+        metadata.insert(&crate::metadata::VIEW_EDITOR, &editor);
+        metadata
+    }
+
     pub fn state(&self, key: &str) -> Option<&ViewState> {
         self.state.get(key)
     }

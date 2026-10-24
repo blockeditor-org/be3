@@ -1,6 +1,5 @@
 use block_editor_beui::{
-    BlockInfo, BlockParent, BlockQuery, BlockTypeDescriptor, Catalog, ChildOperations,
-    EditorDescriptor,
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor,
 };
 
 use super::*;
@@ -36,9 +35,9 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
             },
         ],
     });
-    let mut listed = BlockInfo::new(block, block_type, BlockParent::Root);
+    let mut listed = BlockInfo::new(block, block_type, BlockParent::Block(MY_FILES));
     listed.set_name("Notes".to_owned());
-    fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
+    my_files(&mut fixture, vec![listed]);
     fixture.settle();
 
     fixture.choose(block, "Open with");

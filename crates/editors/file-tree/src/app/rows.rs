@@ -191,7 +191,6 @@ pub(crate) struct Tree {
 }
 
 struct Inner {
-    client: Blocks,
     watched: Rc<RefCell<Watched>>,
 }
 
@@ -283,9 +282,7 @@ impl Tree {
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
-            let loose = clock
-                .listed(&shared)
-                .map(|shared| shared_with_me(held, shared));
+            let loose = clock.listed(&shared).map(shared_with_me);
             watched.system = system.iter().flatten().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
             let shown: HashSet<Uuid> = sections
@@ -359,7 +356,7 @@ impl Tree {
         });
 
         Self {
-            inner: store(Inner { client, watched }),
+            inner: store(Inner { watched }),
             rows: create_memo(move || rows.get()),
             folded,
             expanded,
@@ -386,10 +383,6 @@ impl Tree {
                 .insert(id, block_type)
         });
         self.remembered.update(|count| *count += 1);
-    }
-
-    pub(crate) fn blocks(&self) -> Blocks {
-        self.inner.with(|inner| inner.client.clone())
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {

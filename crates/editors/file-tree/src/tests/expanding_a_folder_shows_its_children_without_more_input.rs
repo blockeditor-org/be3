@@ -8,9 +8,9 @@ fn expanding_a_folder_shows_its_children_without_more_input() {
     let block_type = Uuid::new_v4();
     let folder = Uuid::new_v4();
     let child = Uuid::new_v4();
-    let mut listed = BlockInfo::new(folder, block_type, BlockParent::Root);
+    let mut listed = BlockInfo::new(folder, block_type, BlockParent::Block(MY_FILES));
     listed.references = vec![child];
-    fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
+    my_files(&mut fixture, vec![listed]);
     fixture.settle();
 
     fixture.test.click(format!("file-tree.{folder}.chevron"));

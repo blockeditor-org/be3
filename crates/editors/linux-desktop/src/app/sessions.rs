@@ -43,10 +43,11 @@ impl Sessions {
         };
         let editor = self.workspace.editor();
         let count = self.listed.with_untracked(Vec::len);
-        let session = editor.blocks().create_named(
-            &EditorView::document(WORKSPACE_EDITOR, None),
+        let session = editor.blocks().create_with(
+            EditorViewContent::CONTENT_TYPE,
+            Some(EditorView::document(WORKSPACE_EDITOR, None).encode()),
             BlockParent::Block(settings),
-            format!("Session {}", count + 1),
+            EditorView::metadata(WORKSPACE_EDITOR, Some(format!("Session {}", count + 1))),
         );
         editor
             .content_of::<SettingsContent>(settings)

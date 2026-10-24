@@ -4,9 +4,9 @@ use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use super::*;
 
 fn with_folder(fixture: &mut Fixture, folder: Uuid) {
-    let mut listed = BlockInfo::new(folder, Uuid::nil(), BlockParent::Root);
+    let mut listed = BlockInfo::new(folder, Uuid::nil(), BlockParent::Block(MY_FILES));
     listed.references = vec![Uuid::new_v4()];
-    fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
+    my_files(fixture, vec![listed]);
     fixture.settle();
 }
 

@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, EditorView,
-    EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit, MY_FILES, NAME, Root, SettingsContent,
-    SettingsProfileContent, WORKSPACE_EDITOR, WorkspaceContent,
+    LINUX_DESKTOP_EDITOR, LiveEdit, MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent,
+    VIEW_EDITOR, WORKSPACE_EDITOR, WorkspaceContent,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -165,9 +165,7 @@ impl RootSettings {
         let found = be::query(be::Query::Roots)
             .into_iter()
             .filter(|node| {
-                node.content_type == WorkspaceContent::CONTENT_TYPE
-                    && node.author == Some(account)
-                    && node.metadata.get(&MY_FILES) == Some(true)
+                node.author == Some(account) && node.metadata.get(&MY_FILES) == Some(true)
             })
             .map(|node| node.id)
             .min();
@@ -232,11 +230,12 @@ impl RootSettings {
         Cache::read(
             &mut cache.editors,
             session,
-            EditorViewContent::CONTENT_TYPE,
+            EditorView::CONTENT_TYPE,
             || {
                 Some(
-                    decode::<EditorViewContent>(session)
-                        .map(|document| document.root().editor)
+                    be::node(session)?
+                        .metadata
+                        .get(&VIEW_EDITOR)
                         .filter(|editor| !editor.is_nil())
                         .unwrap_or(self.shell),
                 )
@@ -331,9 +330,9 @@ impl RootSettings {
         let session = Uuid::new_v4();
         be::create(
             session,
-            EditorViewContent::CONTENT_TYPE,
+            EditorView::CONTENT_TYPE,
             BlockParent::Block(settings),
-            BlockMetadata::named(name),
+            EditorView::metadata(editor, Some(name)),
             Some(EditorView::document(editor, None).encode()),
         );
         Some(session)

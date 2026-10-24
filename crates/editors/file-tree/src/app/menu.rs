@@ -221,7 +221,7 @@ fn BlockMenu<F: Fn() + 'static>(
             [0] => zoom_in(),
             [2] => picker.open(
                 editor,
-                Some(id),
+                id,
                 [id].into_iter().collect(),
                 picker.row_anchor(&shown.key),
             ),
