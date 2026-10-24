@@ -19,10 +19,8 @@ use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
 use crate::plugin::{Frame, Instance, Region, RegionMonitor};
-use crate::{
-    EditorHost, Waker,
-    host::{BlockDrag, HostContent},
-};
+use crate::{EditorHost, Waker, host::BlockDrag};
+use block_type_guest::editor::FromEditor;
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -165,32 +163,12 @@ impl EditorSession {
         self.host.set_editable(editable);
     }
 
-    pub(crate) fn set_block_content(&self, block: Uuid, content: HostContent) {
-        match self.own_block == Some(block) {
-            true => self.host.set_block_content(content),
-            false => self.host.set_content_of(block, content),
-        }
-    }
-
-    pub(crate) fn set_peers(&self, block: Uuid, peers: Vec<crate::PeerPresence>) {
+    pub(crate) fn receive_from_replica(&self, block: Uuid, frame: &[u8]) {
+        let Some(message) = block_type_guest::editor::ToEditor::from_frame(frame) else {
+            return;
+        };
         let block = (self.own_block != Some(block)).then_some(block);
-        self.host.set_peers(block, peers);
-    }
-
-    pub(crate) fn push_peer_messages(&self, block: Uuid, messages: Vec<crate::PeerMessage>) {
-        let block = (self.own_block != Some(block)).then_some(block);
-        self.host.push_peer_messages(block, messages);
-    }
-
-    pub(crate) fn push_content_operations(
-        &self,
-        block: Uuid,
-        operations: Vec<block_plugin_api::ContentOperation>,
-    ) {
-        match self.own_block == Some(block) {
-            true => self.host.push_content_operations(operations),
-            false => self.host.push_content_operations_of(block, operations),
-        }
+        self.host.receive_from_replica(block, message);
     }
 
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
@@ -433,32 +411,19 @@ impl EditorSession {
                 queries: queries.into_iter().map(crate::BlockQuery::encode).collect(),
             }));
         }
-        for (block, outgoing) in self.host.take_all_content_operations() {
-            let Some(block) = block.or(self.own_block) else {
-                continue;
-            };
-            let block_id = block.into_bytes();
-            messages.push(Message::Editor(match outgoing {
-                crate::host::Outgoing::Operation(operation) => EditorMessage::Operate {
-                    instance,
-                    block_id,
-                    operation,
-                },
-                crate::host::Outgoing::Gesture(phase) => EditorMessage::Gesture {
-                    instance,
-                    block_id,
-                    phase,
-                },
-            }));
-        }
-        for block in self.host.take_content_resend_requests() {
-            let Some(block) = block.or(self.own_block) else {
-                continue;
-            };
-            messages.push(Message::Editor(EditorMessage::ResendContent {
+        let replica = |block: Option<Uuid>, message: FromEditor| {
+            let block = block.or(self.own_block)?;
+            Some(Message::Editor(EditorMessage::Replica {
                 instance,
                 block_id: block.into_bytes(),
-            }));
+                frame: message.frame(),
+            }))
+        };
+        for block in self.host.take_content_resend_requests() {
+            messages.extend(replica(block, FromEditor::Resend));
+        }
+        for (block, message) in self.host.take_all_content_operations() {
+            messages.extend(replica(block, message));
         }
         if let Some(watched) = self.host.take_content_watch() {
             messages.push(Message::Editor(EditorMessage::WatchContent {
@@ -563,27 +528,23 @@ impl EditorSession {
             }));
         }
         for shown in self.host.take_shown_presence() {
-            let Some(block) = shown.block.or(self.own_block) else {
-                continue;
-            };
-            messages.push(Message::Editor(EditorMessage::ShowPresence {
-                instance,
-                block_id: block.into_bytes(),
-                kind: shown.kind.into_bytes(),
-                value: shown.value.map(serde_bytes::ByteBuf::from),
-            }));
+            messages.extend(replica(
+                shown.block,
+                FromEditor::ShowPresence {
+                    kind: shown.kind,
+                    value: shown.value,
+                },
+            ));
         }
         for sent in self.host.take_sent_to_peers() {
-            let Some(block) = sent.block.or(self.own_block) else {
-                continue;
-            };
-            messages.push(Message::Editor(EditorMessage::SendToPeers {
-                instance,
-                block_id: block.into_bytes(),
-                to: sent.to,
-                channel: sent.channel.into_bytes(),
-                payload: sent.payload,
-            }));
+            messages.extend(replica(
+                sent.block,
+                FromEditor::SendToPeers {
+                    to: sent.to,
+                    channel: sent.channel,
+                    payload: sent.payload,
+                },
+            ));
         }
         for seeded in self.host.take_seeded_content() {
             let (block_id, content_type, bytes) = (

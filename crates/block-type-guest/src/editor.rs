@@ -84,6 +84,14 @@ impl FromEditor {
     pub fn decode(bytes: &[u8]) -> Option<Self> {
         decode(bytes)
     }
+
+    pub fn frame(&self) -> Vec<u8> {
+        block_type_api::encode_frame(self)
+    }
+
+    pub fn from_frame(frame: &[u8]) -> Option<Self> {
+        block_type_api::decode_frame(frame).ok()
+    }
 }
 
 impl ToEditor {
@@ -94,6 +102,20 @@ impl ToEditor {
     pub fn decode(bytes: &[u8]) -> Option<Self> {
         decode(bytes)
     }
+
+    pub fn frame(&self) -> Vec<u8> {
+        block_type_api::encode_frame(self)
+    }
+
+    pub fn from_frame(frame: &[u8]) -> Option<Self> {
+        block_type_api::decode_frame(frame).ok()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Projected<Op> {
+    Applied(Op),
+    Rebuilt,
 }
 
 pub struct EditorMirror<C: LiveEdit> {
@@ -105,6 +127,8 @@ pub struct EditorMirror<C: LiveEdit> {
     touched: Vec<Touched>,
     presence: Vec<PeerPresence>,
     peer_messages: Vec<PeerMessage>,
+    revision: u64,
+    projected: Option<Vec<Projected<C::Op>>>,
 }
 
 impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
@@ -118,6 +142,8 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             touched: Vec::new(),
             presence: Vec::new(),
             peer_messages: Vec::new(),
+            revision: 0,
+            projected: None,
         }
     }
 }
@@ -125,6 +151,40 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
 impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     pub fn content(&self) -> Option<&C> {
         self.confirmed.as_ref().map(|_| &self.visible)
+    }
+
+    pub fn visible(&self) -> &C {
+        &self.visible
+    }
+
+    pub fn is_loaded(&self) -> bool {
+        self.confirmed.is_some()
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    pub fn record(&mut self) {
+        self.projected.get_or_insert_with(Vec::new);
+    }
+
+    pub fn stop_recording(&mut self) {
+        self.projected = None;
+    }
+
+    pub fn take_projected(&mut self) -> Vec<Projected<C::Op>> {
+        self.projected
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    fn changed(&mut self, projected: Projected<C::Op>) {
+        self.revision += 1;
+        if let Some(log) = &mut self.projected {
+            log.push(projected);
+        }
     }
 
     pub fn pending(&self) -> usize {
@@ -146,6 +206,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     pub fn operate(&mut self, operation: C::Op) -> Option<FromEditor> {
         self.confirmed.as_ref()?;
         self.visible.apply_touching(&operation, &mut self.touched);
+        self.revision += 1;
         let message = FromEditor::Operate(C::encode_operation(&operation));
         self.pending.push_back(operation);
         Some(message)
@@ -223,7 +284,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             else {
                 return false;
             };
-            return confirmed.beneath(
+            let landed = confirmed.beneath(
                 &mut self.visible,
                 &operation,
                 landed.unsettled,
@@ -231,6 +292,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.pending.iter().cloned(),
                 &mut self.touched,
             );
+            if landed {
+                self.changed(Projected::Rebuilt);
+            }
+            return landed;
         }
         if landed.mine {
             self.pending.pop_front();
@@ -240,7 +305,8 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         }
         if self.pending.is_empty() {
             self.visible.apply_touching(&operation, &mut self.touched);
-            confirmed.push(operation, landed.unsettled);
+            confirmed.push(operation.clone(), landed.unsettled);
+            self.changed(Projected::Applied(operation));
             return true;
         }
         if landed.unsettled == 0 {
@@ -253,6 +319,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.pending.iter().cloned(),
                 &mut self.touched,
             );
+            self.changed(Projected::Rebuilt);
             return true;
         }
         confirmed.push(operation, landed.unsettled);
@@ -270,5 +337,6 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         }
         self.visible = visible;
         self.touched.push(Touched::Everything);
+        self.changed(Projected::Rebuilt);
     }
 }

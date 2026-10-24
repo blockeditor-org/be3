@@ -655,11 +655,15 @@ and a new file for an existing block from `ReplaceContent` (below).
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
 in `crates/be-client/src/tests/`. An editor's tests stand in for the host with
-`block_ui_test::BeuiTest`, which holds the content of the editor's block and of
-any block it watches through `WatchContent`, applies the `Operate` messages the
-editor sends and echoes them back as operations marked as its own, the way the
-app's host does; `store()` hands a test fixture the same `ContentStore` to read
-or write between runs.
+`block_ui_test::BeuiTest`, whose `ContentStore` hosts every block a test holds
+through one in-process `block_type_guest::Module` (every be-block type is
+registered, and `hold::<C>` registers a type it does not know): one replica per
+block, owned by this device, a store of commits that takes every publish, the test's
+frame clock as the replica's time, and editors attached as endpoints on their first
+`Replica` frame, the way the app's host does. `edit` and `apply_elsewhere` are edits
+submitted by another participant, `set_peers` and `receive_from_peer` are presence and
+channel messages from one; `store()` hands a test fixture the same `ContentStore` to
+read or write between runs.
 
 ## Version control
 
@@ -914,23 +918,32 @@ changes (`Graph::derive`), until the save that publishes it.
 
 ### Content on the plugin protocol
 
-Content crosses the plugin protocol in four messages. Each names the block it is
-about, because an editor can work on more than its own block.
+An editor is a follower of the block's replica (guides/type_modules.md, "Editors
+are endpoints"), and everything about a block's content crosses the plugin protocol
+in one message, `EditorMessage::Replica { block_id, frame }`, in both directions.
+`frame` is one `block_type_api::encode_frame` of a `block_type_guest::editor::ToEditor`
+(host to plugin) or `FromEditor` (plugin to host) (`ToEditor::frame`, `from_frame`), and
+the host relays it unread between the instance and the block's replica.
 
-- `EditorMessage::Content { block_id, content_type, bytes, unsettled, applied }` - host to
-  plugin, a snapshot: the settled content in `bytes`, and the operations on top of it the
-  host still holds unsettled (see below) in `unsettled`. `applied` counts the operations
-  *this instance* sent that the snapshot already contains, which is what lets a plugin tell
-  its own unacknowledged edits from everyone else's.
-- `EditorMessage::ContentOperations { block_id, operations }` - host to plugin, every
-  operation since the last thing the instance was sent, in order, each marked
-  `mine` when this instance is the one that sent it, with how many of the operations
-  sent so far the host still holds unsettled after it (`unsettled`), and, for a peer's
-  operation that goes beneath those, the unsettled operations as the host rebased them
-  (`beneath`).
-- `EditorMessage::Operate { block_id, operation }` - plugin to host.
-- `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks
-  (and their content types) the editor wants to follow.
+- Plugin to host: `Operate`, `Gesture` (`Begin`, `Commit`, `Cancel`), `ShowPresence`,
+  `SendToPeers` and `Resend`. An instance asks for a block's content by sending
+  `Resend` when it first follows the block, and the host attaches the instance to the
+  replica on the first frame it sends for a block (its own or one in `WatchContent`),
+  with `editable` from the account's access, which it sends again when that changes.
+- Host to plugin: `Snapshot { content_type, bytes, session, unsettled, applied }`, the
+  settled content and the operations still unsettled on top of it; `applied` counts the
+  operations *this instance* sent that the snapshot already holds, which is what lets a
+  plugin tell its own unacknowledged edits from everyone else's. `Operations`, every
+  operation since the last frame, in order, each marked `mine` when this instance sent
+  it, with how many operations are still unsettled after it (`unsettled`) and, for a
+  peer's operation that goes beneath those, the unsettled operations as rebased
+  (`beneath`). `Presence` and `PeerMessages` from the other participants.
+- `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks (and their
+  content types) the editor wants to follow. The host detaches the instance from a
+  block it drops, and from every block when it closes.
+- `SeedContent` and `ReplaceContent` write a block's content outright as host requests,
+  since they may name a block nothing follows; `ReplaceContent` becomes the replica's
+  `Change::Replace`.
 
 `editor.content_of::<C>(block)` is how an editor reads and edits another block:
 it registers the block with `WatchContent` and hands back the same
@@ -968,7 +981,9 @@ for a peer's operation until its unsettled operations drain; the worker likewise
 snapshots a block whose `Content` could not land a `Beneath`.
 
 On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
-per editor. `operate` applies an operation to what the view sees and queues it
+per editor, built on `block_type_guest::editor::EditorMirror<C>` (which keeps the
+settled content, the unsettled and pending operations, what an update touched,
+`revision()` and the `Projected` log `LiveText` reads), plus the reactive watchers. `operate` applies an operation to what the view sees and queues it
 for the host. An operation that comes back `mine` only confirms what is already
 shown; one from anyone else is applied on top of it, unless an edit of this
 instance's is still in flight, in which case it goes beneath that edit
@@ -1166,7 +1181,7 @@ within 750 ms of the last one, by beui's frame clock (`be::operate` stamps it),
 may be absorbed into it, and `be::undo` and
 `be::redo` turn a step into operations the session applies like any other edit.
 An editor groups the edits of one gesture into one step, however long it takes, with
-`EditorMessage::Gesture` (`GesturePhase::Begin`, `Commit`, `Cancel`; on the plugin side
+`FromEditor::Gesture` (`Gesture::Begin`, `Commit`, `Cancel`; on the plugin side
 `ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`): every edit from
 that instance until the commit folds into one step (`Undo::then`, which keeps one value
 per register however many frames wrote it), and a cancel reverts the step and leaves
@@ -1175,8 +1190,9 @@ one another before it publishes, so a gesture written every frame costs one publ
 batch rather than one per frame.
 Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
-answers with `HistoryStates` whenever they change. block-ui-test keeps the same history
-for a block a test calls `ContentStore::keep_history::<C>` on, without the 750 ms bursts.
+answers with `HistoryStates` whenever they change. block-ui-test's replica keeps the same
+history (with the 750 ms bursts on the test's frame clock) for a block a test calls
+`ContentStore::keep_history::<C>` on, and none otherwise.
 
 ### Organizations and workspaces
 
@@ -1673,9 +1689,10 @@ participant leaves, what it showed is dropped.
 
 The worker publishes each block's peers into `Shared::presence` when a session
 says they changed, and the host passes them to the instances holding that block
-as `EditorMessage::PeerPresence`. A plugin shows presence with
-`EditorMessage::ShowPresence`, which the host takes from any instance that holds
-the block and may view it, and takes away again when the instance closes. On the
+as `ToEditor::Presence` in a `Replica` frame. A plugin shows presence with
+`FromEditor::ShowPresence`, which the replica sends to the other participants.
+`editor.peers` and `editor.on_peer_message` send `Resend` once, so an editor that
+never reads its content is still attached and hears its peers. On the
 plugin side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
 signal of every peer's value of one `PresenceKind` (`be_block::presence`). The
 framework shows a `UserActive` value of its own, with a colour picked by
@@ -1697,9 +1714,8 @@ hears it.
 
 The worker queues each block's messages in `Shared::peer_messages` (the last
 4096) and the host hands each instance holding the block the ones that arrived
-since it opened, as `EditorMessage::PeerMessages`; an instance sends with
-`EditorMessage::SendToPeers`, which the host takes from an instance that holds
-the block and may view it. On the plugin side that is
+since it opened, as `ToEditor::PeerMessages`; an instance sends with
+`FromEditor::SendToPeers`. On the plugin side that is
 `editor.send_to_peers(to, &message)` and `editor.on_peer_message(|from, message|
 ..)` over a `ChannelKind` (`be_block::presence`), which names the channel and
 encodes with postcard. `to` is a client id from presence. The terminal block is

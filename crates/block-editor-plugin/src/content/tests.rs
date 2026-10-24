@@ -8,8 +8,8 @@ use reactive::Scope;
 use super::{ContentProjection, OwnedContentProjection};
 use crate::{EditorHost, HostContent};
 
-fn arrived(operation: Vec<u8>, mine: bool) -> block_plugin_api::ContentOperation {
-    block_plugin_api::ContentOperation {
+fn arrived(operation: Vec<u8>, mine: bool) -> crate::EditorOperation {
+    crate::EditorOperation {
         operation,
         mine,
         unsettled: 0,
@@ -67,6 +67,7 @@ impl Fixture {
             }
         });
         projection.pump();
+        assert_eq!(host.take_content_resend_requests(), [None]);
         let fixture = Self {
             host,
             projection,

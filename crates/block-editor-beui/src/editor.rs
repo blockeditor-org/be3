@@ -973,6 +973,7 @@ impl Editor {
     {
         let peers = create_signal(Vec::new());
         let host = self.state().host.clone();
+        host.ask_for_peers(None);
         let revision = self.pushed(Pushed::Peers);
         let seen = Cell::new(0);
         create_effect(move || {
@@ -1006,6 +1007,7 @@ impl Editor {
         M: ChannelKind + 'static,
     {
         let host = self.state().host.clone();
+        host.ask_for_peers(None);
         let revision = self.pushed(Pushed::PeerMessages);
         let seen = Cell::new(host.peer_messages_seen());
         create_effect(move || {

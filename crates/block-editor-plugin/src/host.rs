@@ -12,11 +12,12 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult,
-    FilePick, FileSave, FitArea, GesturePhase, HostAction, HostPanel, HostReply, HostRequest,
-    HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size,
-    ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host, encode_host,
+    FilePick, FileSave, FitArea, HostAction, HostPanel, HostReply, HostRequest, HostValue,
+    HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange,
+    WebViewCommand, WebViewEvent, WebViewId, decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
+use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2};
 use uuid::Uuid;
@@ -48,15 +49,19 @@ impl HostContent {
             applied: 0,
         }
     }
+
+    pub fn snapshot(self) -> Snapshot {
+        Snapshot {
+            content_type: self.content_type,
+            bytes: self.bytes,
+            session: self.session,
+            unsettled: self.unsettled,
+            applied: self.applied,
+        }
+    }
 }
 
-type ContentOperation = (Option<Uuid>, Outgoing);
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Outgoing {
-    Operation(Vec<u8>),
-    Gesture(GesturePhase),
-}
+type ContentOperation = (Option<Uuid>, FromEditor);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShownPresence {
@@ -96,12 +101,6 @@ pub struct PeerPresence {
     pub client: u64,
     pub kind: Uuid,
     pub value: Vec<u8>,
-}
-
-#[derive(Clone)]
-pub enum ContentUpdate {
-    Snapshot(HostContent),
-    Operations(Vec<block_plugin_api::ContentOperation>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -487,7 +486,9 @@ pub struct EditorHost {
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
     next_frame: Rc<Cell<Option<Duration>>>,
-    content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
+    content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
+    followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
+    asked: Rc<RefCell<HashSet<Option<Uuid>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
     resend_requests: Rc<RefCell<Vec<Option<Uuid>>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
@@ -981,26 +982,54 @@ impl EditorHost {
     }
 
     pub fn set_block_content(&self, content: HostContent) {
-        self.update_content(None, ContentUpdate::Snapshot(content));
+        self.update_content(None, ToEditor::Snapshot(content.snapshot()));
     }
 
     pub fn set_content_of(&self, block: Uuid, content: HostContent) {
-        self.update_content(Some(block), ContentUpdate::Snapshot(content));
+        self.update_content(Some(block), ToEditor::Snapshot(content.snapshot()));
     }
 
-    pub fn push_content_operations(&self, operations: Vec<block_plugin_api::ContentOperation>) {
-        self.update_content(None, ContentUpdate::Operations(operations));
+    pub fn push_content_operations(&self, operations: Vec<EditorOperation>) {
+        self.update_content(None, ToEditor::Operations(operations));
     }
 
-    pub fn push_content_operations_of(
-        &self,
-        block: Uuid,
-        operations: Vec<block_plugin_api::ContentOperation>,
-    ) {
-        self.update_content(Some(block), ContentUpdate::Operations(operations));
+    pub fn push_content_operations_of(&self, block: Uuid, operations: Vec<EditorOperation>) {
+        self.update_content(Some(block), ToEditor::Operations(operations));
     }
 
-    fn update_content(&self, block: Option<Uuid>, update: ContentUpdate) {
+    pub fn receive_from_replica(&self, block: Option<Uuid>, message: ToEditor) {
+        match message {
+            ToEditor::Presence(peers) => self.set_peers(
+                block,
+                peers
+                    .into_iter()
+                    .map(|peer| PeerPresence {
+                        client: peer.client,
+                        kind: peer.kind,
+                        value: peer.value,
+                    })
+                    .collect(),
+            ),
+            ToEditor::PeerMessages(messages) => self.push_peer_messages(
+                block,
+                messages
+                    .into_iter()
+                    .map(|message| PeerMessage {
+                        from: message.from,
+                        channel: message.channel,
+                        payload: message.payload,
+                    })
+                    .collect(),
+            ),
+            content @ (ToEditor::Snapshot(_) | ToEditor::Operations(_)) => {
+                if self.followed.borrow().contains_key(&block) {
+                    self.update_content(block, content);
+                }
+            }
+        }
+    }
+
+    fn update_content(&self, block: Option<Uuid>, update: ToEditor) {
         self.content_updates
             .borrow_mut()
             .entry(block)
@@ -1013,27 +1042,55 @@ impl EditorHost {
         self.content_updates.borrow().keys().copied().collect()
     }
 
-    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
+    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ToEditor> {
         self.content_updates
             .borrow_mut()
             .remove(&block)
             .unwrap_or_default()
     }
 
+    pub(crate) fn follow(&self, block: Option<Uuid>) {
+        *self.followed.borrow_mut().entry(block).or_default() += 1;
+        self.asked.borrow_mut().insert(block);
+        self.request_content_resend(block);
+    }
+
+    pub(crate) fn unfollow(&self, block: Option<Uuid>) {
+        let mut followed = self.followed.borrow_mut();
+        let Some(count) = followed.get_mut(&block) else {
+            return;
+        };
+        *count -= 1;
+        if *count == 0 {
+            followed.remove(&block);
+            self.content_updates.borrow_mut().remove(&block);
+        }
+    }
+
+    pub fn ask_for_peers(&self, block: Option<Uuid>) {
+        if self.asked.borrow_mut().insert(block) {
+            self.request_content_resend(block);
+        }
+    }
+
+    pub(crate) fn send_to_replica(&self, block: Option<Uuid>, message: FromEditor) {
+        match message {
+            FromEditor::Resend => self.request_content_resend(block),
+            FromEditor::ShowPresence { kind, value } => self.show_presence(block, kind, value),
+            FromEditor::SendToPeers {
+                to,
+                channel,
+                payload,
+            } => self.send_to_peers(block, to, channel, payload),
+            message
+            @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
+                self.content_operations.borrow_mut().push((block, message));
+            }
+        }
+    }
+
     pub fn operate_content(&self, operation: Vec<u8>) {
-        self.operate_content_at(None, operation);
-    }
-
-    pub(crate) fn operate_content_at(&self, block: Option<Uuid>, operation: Vec<u8>) {
-        self.content_operations
-            .borrow_mut()
-            .push((block, Outgoing::Operation(operation)));
-    }
-
-    pub(crate) fn gesture_at(&self, block: Option<Uuid>, phase: GesturePhase) {
-        self.content_operations
-            .borrow_mut()
-            .push((block, Outgoing::Gesture(phase)));
+        self.send_to_replica(None, FromEditor::Operate(operation));
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
@@ -1053,8 +1110,8 @@ impl EditorHost {
         taken
             .into_iter()
             .filter_map(|(_, outgoing)| match outgoing {
-                Outgoing::Operation(operation) => Some(operation),
-                Outgoing::Gesture(_) => None,
+                FromEditor::Operate(operation) => Some(operation),
+                _ => None,
             })
             .collect()
     }

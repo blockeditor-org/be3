@@ -98,11 +98,13 @@ as `Message { from: Editor(instance) }` and are `editor::FromEditor`: `Operate`,
   them, the unsettled operations as rebased (`beneath`).
 - `Presence` and `PeerMessages` from the peers.
 
-These are `EditorMessage::Content` and `ContentOperations` without the host's log:
+On the plugin protocol both directions travel in `EditorMessage::Replica` frames
+(guides/the_new_block_stack.md, "Content on the plugin protocol"). The replica keeps no log either:
 the replica keeps `projected`, a `Settling` of what its editors hold, lands every
 journaled change in it and snapshots when one cannot land. `editor::EditorMirror` is
-the editor's side, `ContentProjection`'s adopt-and-take logic without the reactive
-parts, for a projection to be built on. Undo and redo are host `Change`s, not editor
+the editor's side, which `ContentProjection` is built on: the settled content, the
+pending operations, what each update touched, a `revision()` count and the
+`Projected` log (`record`, `take_projected`) a mirrored copy such as `LiveText` reads. Undo and redo are host `Change`s, not editor
 messages, since a shortcut or menu may undo a block no editor is attached to; a
 gesture is an editor message because it groups that editor's own edits.
 
@@ -120,7 +122,8 @@ then `.undo::<C>()` for a type whose session keeps an undo stack (what
 image, PDF, audio and file types from `be_block::plain`). The order is the order
 `Claims` asks in.
 
-`Module::handle(Event) -> Vec<Command>` is the whole interface; `Module::hello()` is
+`Module::handle(Event) -> Vec<Command>` is the whole interface (`register` adds or
+replaces a type, `knows` asks for one, as block-ui-test does for a test's own types); `Module::hello()` is
 the `Hello` that lists the module's types (content type, frozen, schema fingerprint,
 undo, file). The macro also defines `BlockTypes`, a `block_guest_abi::Guest` over that module
 (`start` sends `Hello`; `step` decodes each event frame, handles it and encodes the

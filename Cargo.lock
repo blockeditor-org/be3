@@ -1509,6 +1509,7 @@ dependencies = [
  "block-gpu-guest",
  "block-guest-abi",
  "block-plugin-api",
+ "block-type-guest",
  "block-ui",
  "geometry",
  "lucide",
@@ -1672,11 +1673,14 @@ dependencies = [
 name = "block-ui-test"
 version = "0.1.0"
 dependencies = [
+ "be-session",
+ "be-store",
  "beui",
  "beui-core",
  "beui-renderer-dom",
  "block-editor-beui",
  "block-plugin-api",
+ "block-type-guest",
  "image",
  "paint-snapshot",
  "uuid",

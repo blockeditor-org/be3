@@ -11,7 +11,7 @@ pub mod editor;
 mod file;
 mod record;
 mod replica;
-mod wire;
+pub mod wire;
 
 pub use block_guest_abi as abi;
 pub use block_type_api as api;
@@ -141,6 +141,22 @@ impl Module {
         Command::Hello {
             types: self.types.iter().map(|kind| kind.info.clone()).collect(),
         }
+    }
+
+    pub fn register(&mut self, registration: Registration) {
+        let content_type = registration.info.content_type;
+        match self
+            .types
+            .iter_mut()
+            .find(|kind| kind.info.content_type == content_type)
+        {
+            Some(held) => *held = registration,
+            None => self.types.push(registration),
+        }
+    }
+
+    pub fn knows(&self, content_type: Uuid) -> bool {
+        self.kind(content_type).is_some()
     }
 
     pub fn is_open(&self, replica: ReplicaId) -> bool {

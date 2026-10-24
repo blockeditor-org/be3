@@ -48,17 +48,18 @@ pub use block_plugin_api::{
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
 };
+pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
 pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
 pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
-    Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
-    ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HeadRead,
-    HostContent, OpenRequest, PeerMessage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
-    SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
+    Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker, EditorHost,
+    FileDrop, FileFilter, FileSaver, FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage,
+    PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedBlock,
+    PickedFile, Pushed, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence,
+    StoredHead, Waker,
 };
 pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};
 #[cfg(target_arch = "wasm32")]

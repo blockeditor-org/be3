@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::{
     Waker,
     editor_session::{EditorSession, Open},
-    host::{BlockDrag, HostContent},
+    host::BlockDrag,
 };
 
 pub(crate) type Opener = Open;
@@ -291,31 +291,15 @@ impl Screens {
                     session.set_editable(*editable);
                 }
             }
-            Message::Editor(EditorMessage::Content {
+            Message::Editor(EditorMessage::Replica {
                 instance,
                 block_id,
-                content_type,
-                bytes,
-                session: state,
-                unsettled,
-                applied,
+                frame,
             }) => {
                 let Some(session) = self.sessions.get(instance) else {
                     return false;
                 };
-                session.set_block_content(
-                    Uuid::from_bytes(*block_id),
-                    HostContent {
-                        content_type: Uuid::from_bytes(*content_type),
-                        bytes: bytes.clone(),
-                        session: state.clone(),
-                        unsettled: unsettled
-                            .iter()
-                            .map(|operation| operation.to_vec())
-                            .collect(),
-                        applied: *applied,
-                    },
-                );
+                session.receive_from_replica(Uuid::from_bytes(*block_id), frame);
             }
             Message::Editor(EditorMessage::Blocks {
                 instance,
@@ -343,56 +327,6 @@ impl Screens {
                     return false;
                 };
                 session.fail_blocks(crate::BlockQuery::decode(*query), error.clone());
-            }
-            Message::Editor(EditorMessage::PeerPresence {
-                instance,
-                block_id,
-                peers,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.set_peers(
-                    Uuid::from_bytes(*block_id),
-                    peers
-                        .iter()
-                        .map(|peer| crate::PeerPresence {
-                            client: peer.client,
-                            kind: Uuid::from_bytes(peer.kind),
-                            value: peer.value.clone(),
-                        })
-                        .collect(),
-                );
-            }
-            Message::Editor(EditorMessage::PeerMessages {
-                instance,
-                block_id,
-                messages,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.push_peer_messages(
-                    Uuid::from_bytes(*block_id),
-                    messages
-                        .iter()
-                        .map(|message| crate::PeerMessage {
-                            from: message.from,
-                            channel: Uuid::from_bytes(message.channel),
-                            payload: message.payload.clone(),
-                        })
-                        .collect(),
-                );
-            }
-            Message::Editor(EditorMessage::ContentOperations {
-                instance,
-                block_id,
-                operations,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.push_content_operations(Uuid::from_bytes(*block_id), operations.clone());
             }
             Message::Editor(EditorMessage::FocusChanged {
                 instance,
