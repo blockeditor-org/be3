@@ -5,8 +5,8 @@ use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, SessionState};
 use be_session::{Follower, OpId, Resume, Sequencer, SessionMessage, SessionOp};
 use block_type_api::{
-    Change, ChildChange, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, ReplicaId,
-    Reply, RequestId, SessionTag, Status, Token, Written,
+    Change, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, ReplicaId, Reply,
+    RequestId, SessionTag, Status, Token, Written,
 };
 use uuid::Uuid;
 
@@ -1148,14 +1148,8 @@ where
     fn change(&mut self, id: RequestId, change: Change) {
         match change {
             Change::Child(change) => {
-                let change = match change {
-                    ChildChange::Add(block) => be_block::ChildChange::Add(block),
-                    ChildChange::Delete(block) => be_block::ChildChange::Delete(block),
-                    ChildChange::Replace { old, new } => {
-                        be_block::ChildChange::Replace { old, new }
-                    }
-                };
-                let Some(operations) = self.visible.child_operations(change) else {
+                let Some(operations) = self.visible.child_operations(crate::be_child(change))
+                else {
                     return self.reply(id, Reply::Changed(false));
                 };
                 for operation in operations {

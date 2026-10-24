@@ -368,6 +368,7 @@ async fn check(snapshot: &Snapshot) {
         })
         .await
         .unwrap(),
+        sources(),
     );
     assert_eq!(agent.peer().keys().escrow(), latest);
     let listed = run(&agent, &["ls"]).await;

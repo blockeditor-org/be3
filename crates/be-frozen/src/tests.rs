@@ -14,6 +14,14 @@ mod every_snapshot_of_a_servers_data_still_serves_what_it_held;
 
 const TRACKER: &[u8] = include_bytes!("fixtures/tracker.block");
 
+pub(crate) fn sources() -> be_cli::tracker::Sources {
+    Box::new(|| {
+        vec![be_types_host::in_process::<builtin_types::BlockTypes>(
+            "builtin-types",
+        )]
+    })
+}
+
 struct Server {
     url: String,
     data: PathBuf,
@@ -64,6 +72,7 @@ impl Server {
             )
             .await
             .unwrap(),
+            sources(),
         )
     }
 

@@ -27,7 +27,7 @@ be_block_types![
     DatabaseViewContent { undo },
     DeterministicGameContent { undo },
     EditorSettingsContent,
-    FolderContent,
+    FolderContent { directory },
     GameModuleContent,
     HotbarContent { undo },
     LogicGameContent { undo },
@@ -41,5 +41,5 @@ be_block_types![
     TerminalContent,
     TriangleContent,
     VideoContent { undo },
-    WorkspaceContent,
+    WorkspaceContent { root },
 ];

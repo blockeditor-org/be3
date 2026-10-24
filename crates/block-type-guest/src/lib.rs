@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
-    Command, Description, Event, ReplicaId, Reply, Request, TypeInfo, decode_frame, encode_frame,
+    Change, ChildChange, Command, Description, Event, Plain, ReplicaId, Reply, Request, TypeInfo,
+    decode_frame, encode_frame,
 };
 use uuid::Uuid;
 
@@ -27,6 +28,8 @@ type FromFileFn = fn(Option<&[u8]>, &str, Vec<u8>, u64) -> Option<Vec<u8>>;
 
 type MergeFn = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8>, usize), String>;
 
+type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>;
+
 type ToFileFn = fn(&[u8]) -> Result<Option<Vec<u8>>, String>;
 
 pub struct Registration {
@@ -35,9 +38,11 @@ pub struct Registration {
     blank: fn() -> Vec<u8>,
     merge: MergeFn,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
+    child: ChildFn,
     to_file: Option<ToFileFn>,
     from_file: Option<FromFileFn>,
     claims: Option<fn(&str, &[u8]) -> bool>,
+    claims_directories: bool,
 }
 
 impl Registration {
@@ -48,15 +53,17 @@ impl Registration {
                 frozen: C::FROZEN,
                 schema: be_block::schema_fingerprint::<C>(),
                 undo: false,
-                file: false,
+                plain: Plain::None,
             },
             open: open::<C, NoHistory>,
             blank: || C::default().encode(),
             merge: merge::<C>,
             describe: describe_bytes::<C>,
+            child: child::<C>,
             to_file: None,
             from_file: None,
             claims: None,
+            claims_directories: false,
         }
     }
 
@@ -69,10 +76,22 @@ impl Registration {
 
     pub fn file<C: FileForm + LiveEdit>(mut self) -> Self {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
-        self.info.file = true;
+        self.info.plain = Plain::File;
         self.to_file = Some(file::to_file::<C>);
         self.from_file = Some(file::from_file::<C>);
         self.claims = Some(C::claims);
+        self
+    }
+
+    pub fn directory<C: LiveEdit>(mut self) -> Self {
+        self = self.root::<C>();
+        self.claims_directories = true;
+        self
+    }
+
+    pub fn root<C: LiveEdit>(mut self) -> Self {
+        assert_eq!(self.info.content_type, C::CONTENT_TYPE);
+        self.info.plain = Plain::Directory;
         self
     }
 
@@ -104,6 +123,31 @@ fn merge<C: Merge + Default>(
             MergeResult::Conflicted { value, conflicts } => (value.encode(), conflicts.max(1)),
         },
     )
+}
+
+fn child<C: LiveEdit + Default>(
+    bytes: Option<&[u8]>,
+    change: ChildChange,
+) -> Result<Option<Vec<u8>>, String> {
+    let mut content = match bytes {
+        Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
+        None => C::default(),
+    };
+    let Some(operations) = content.child_operations(be_child(change)) else {
+        return Ok(None);
+    };
+    for operation in &operations {
+        content.apply(operation);
+    }
+    Ok(Some(content.encode()))
+}
+
+pub(crate) fn be_child(change: ChildChange) -> be_block::ChildChange {
+    match change {
+        ChildChange::Add(block) => be_block::ChildChange::Add(block),
+        ChildChange::Delete(block) => be_block::ChildChange::Delete(block),
+        ChildChange::Replace { old, new } => be_block::ChildChange::Replace { old, new },
+    }
 }
 
 pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
@@ -302,12 +346,28 @@ impl Module {
             Request::Seal { replica, force } => {
                 return self.input(replica, Input::Seal { id, force }, out);
             }
-            Request::Claims { name, first } => Reply::Claimed(
+            Request::Claims {
+                name,
+                first,
+                directory,
+            } => Reply::Claimed(
                 self.types
                     .iter()
-                    .find(|kind| kind.claims.is_some_and(|claims| claims(&name, &first)))
+                    .find(|kind| match directory {
+                        true => kind.claims_directories,
+                        false => kind.claims.is_some_and(|claims| claims(&name, &first)),
+                    })
                     .map(|kind| kind.info.content_type),
             ),
+            Request::Apply {
+                content_type,
+                bytes,
+                client,
+                change,
+            } => match self.kind(content_type) {
+                Some(kind) => apply(kind, bytes.as_deref(), client, change),
+                None => Reply::Unknown,
+            },
             Request::Blank { content_type } => match self.kind(content_type) {
                 Some(kind) => Reply::Blank((kind.blank)()),
                 None => Reply::Unknown,
@@ -350,6 +410,22 @@ impl Module {
             },
         };
         out.push(Command::Reply { id, reply });
+    }
+}
+
+fn apply(kind: &Registration, bytes: Option<&[u8]>, client: u64, change: Change) -> Reply {
+    let applied = match change {
+        Change::Child(change) => (kind.child)(bytes, change),
+        Change::FromFile { name, bytes: file } => match kind.from_file {
+            Some(from_file) => Ok(from_file(bytes, &name, file, client)),
+            None => Ok(None),
+        },
+        Change::Replace(_) | Change::Undo | Change::Redo => return Reply::Unknown,
+    };
+    match applied {
+        Ok(Some(bytes)) => Reply::Content(bytes),
+        Ok(None) => Reply::Changed(false),
+        Err(error) => Reply::Malformed(error),
     }
 }
 

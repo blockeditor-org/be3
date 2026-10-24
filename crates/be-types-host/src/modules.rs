@@ -8,8 +8,8 @@ use std::{
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
 use block_type_api::{
-    Command, Description, Event, Reply, Request, RequestId, SessionTag, TypeInfo, decode_frame,
-    encode_frame,
+    Change, ClientId, Command, Description, Event, Plain, Reply, Request, RequestId, SessionTag,
+    TypeInfo, decode_frame, encode_frame,
 };
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -19,6 +19,7 @@ pub struct Kind {
     pub content_type: Uuid,
     pub frozen: bool,
     pub schema: String,
+    pub plain: Plain,
     pub module: usize,
     pub blank: Vec<u8>,
     pub described: Description,
@@ -89,6 +90,7 @@ pub fn in_process<G: Guest + 'static>(name: &'static str) -> Source {
 pub fn wasm(
     name: &'static str,
     tag: Result<SessionTag, String>,
+    cache: Option<std::path::PathBuf>,
     load: impl Fn(&block_wasm_host::PureHost) -> Result<block_wasm_host::PureGuest, String>
     + Clone
     + Send
@@ -99,7 +101,7 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = block_wasm_host::PureHost::new(None)?;
+            let host = block_wasm_host::PureHost::new(cache.as_deref())?;
             let channel = host.spawn(name.to_owned(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
@@ -281,6 +283,7 @@ impl Modules {
                 content_type: info.content_type,
                 frozen: info.frozen,
                 schema: info.schema,
+                plain: info.plain,
                 module,
                 blank,
                 described: match described {
@@ -449,4 +452,115 @@ impl Modules {
             .map(|id| replies.remove(id).unwrap_or(Reply::Unknown))
             .collect()
     }
+
+    pub async fn ask(&mut self, content_type: Uuid, request: Request) -> Reply {
+        let Some(kind) = kind_of(content_type) else {
+            return Reply::Unknown;
+        };
+        self.requests_all(kind.module, vec![request])
+            .await
+            .pop()
+            .unwrap_or(Reply::Unknown)
+    }
+
+    pub async fn to_files(
+        &mut self,
+        blocks: Vec<(Uuid, Vec<u8>)>,
+    ) -> Vec<Result<Option<Vec<u8>>, String>> {
+        let mut answers: Vec<Result<Option<Vec<u8>>, String>> = Vec::with_capacity(blocks.len());
+        let mut asked: HashMap<usize, (Vec<usize>, Vec<Request>)> = HashMap::new();
+        for (index, (content_type, bytes)) in blocks.into_iter().enumerate() {
+            answers.push(Err(format!(
+                "no type module has the block type {content_type}"
+            )));
+            if let Some(kind) = kind_of(content_type) {
+                let (indices, requests) = asked.entry(kind.module).or_default();
+                indices.push(index);
+                requests.push(Request::ToFile {
+                    content_type,
+                    bytes,
+                });
+            }
+        }
+        for (module, (indices, requests)) in asked {
+            for (index, reply) in indices
+                .into_iter()
+                .zip(self.requests_all(module, requests).await)
+            {
+                answers[index] = match reply {
+                    Reply::File(file) => Ok(file),
+                    Reply::Malformed(error) => Err(error),
+                    other => Err(format!("the type module answered {other:?}")),
+                };
+            }
+        }
+        answers
+    }
+
+    pub async fn claims(&mut self, name: &str, first: &[u8], directory: bool) -> Option<Uuid> {
+        for module in 0..self.modules.len() {
+            let request = Request::Claims {
+                name: name.to_owned(),
+                first: first.to_vec(),
+                directory,
+            };
+            if let Some(Reply::Claimed(Some(content_type))) =
+                self.requests_all(module, vec![request]).await.pop()
+            {
+                return Some(content_type);
+            }
+        }
+        None
+    }
+
+    pub async fn apply(
+        &mut self,
+        content_type: Uuid,
+        bytes: Option<Vec<u8>>,
+        client: ClientId,
+        change: Change,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let request = Request::Apply {
+            content_type,
+            bytes,
+            client,
+            change,
+        };
+        match self.ask(content_type, request).await {
+            Reply::Content(bytes) => Ok(Some(bytes)),
+            Reply::Changed(false) => Ok(None),
+            Reply::Malformed(error) => Err(error),
+            Reply::Unknown => Err(format!("no type module has the block type {content_type}")),
+            other => Err(format!("the type module answered {other:?}")),
+        }
+    }
+
+    pub async fn describe(
+        &mut self,
+        content_type: Uuid,
+        bytes: &[u8],
+        organization: Uuid,
+    ) -> Result<Description, String> {
+        let request = Request::Describe {
+            content_type,
+            bytes: bytes.to_vec(),
+            organization,
+        };
+        match self.ask(content_type, request).await {
+            Reply::Described(description) => Ok(description),
+            Reply::Malformed(error) => Err(error),
+            Reply::Unknown => Err(format!("no type module has the block type {content_type}")),
+            other => Err(format!("the type module answered {other:?}")),
+        }
+    }
+}
+
+pub fn plain_of(content_type: Uuid) -> Plain {
+    kind_of(content_type).map_or(Plain::None, |kind| kind.plain)
+}
+
+pub async fn started(sources: Vec<Source>) -> Modules {
+    let mut modules = Modules::new(sources);
+    modules.ready().await;
+    modules
 }

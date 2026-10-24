@@ -1,4 +1,4 @@
-use crate::plain::name_problem;
+use crate::disk::name_problem;
 
 #[test]
 fn a_file_name_must_work_on_every_system() {

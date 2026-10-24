@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use be_block::BlockContent;
 use be_block::presence::{ChannelKind, PresenceKind};
 use be_block::terminal::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
-use be_client::Live;
 use be_graph::Access;
 use ghostty_vt::{Renderer, Terminal};
 
 use super::*;
+use crate::replica::Session;
 use crate::session::connect_live;
 use crate::terminal_host::{Host, HostOptions};
 
@@ -14,7 +15,7 @@ const PATIENCE: std::time::Duration = std::time::Duration::from_secs(30);
 const SIZE: TerminalSize = TerminalSize { cols: 60, rows: 12 };
 
 struct Viewer {
-    live: Live<MemoryStore, TerminalContent>,
+    session: Session<MemoryStore>,
     screen: Terminal,
     renderer: Renderer,
     shell: Option<(u64, u64)>,
@@ -22,8 +23,16 @@ struct Viewer {
 
 impl Viewer {
     async fn join(peer: &Arc<Peer<MemoryStore>>, block: Uuid) -> Self {
+        let sources = sources()();
         Self {
-            live: Live::join(Arc::clone(peer), block).await.unwrap(),
+            session: Session::open(
+                Arc::clone(peer),
+                block,
+                TerminalContent::CONTENT_TYPE,
+                sources,
+            )
+            .await
+            .unwrap(),
             screen: Terminal::new(SIZE.cols, SIZE.rows, 100).unwrap(),
             renderer: Renderer::new().unwrap(),
             shell: None,
@@ -31,19 +40,18 @@ impl Viewer {
     }
 
     fn host(&self) -> Option<u64> {
-        self.live
+        self.session
             .presence()
-            .keys()
-            .find(|(_, kind)| *kind == TerminalHost::ID)
-            .map(|(client, _)| *client)
+            .iter()
+            .find(|peer| peer.kind == TerminalHost::ID)
+            .map(|peer| peer.client)
     }
 
-    async fn send(&self, message: TerminalMessage) {
+    async fn send(&mut self, message: TerminalMessage) {
         let host = self.host().expect("a host is in the session");
-        self.live
-            .send_channel(Some(host), TerminalMessage::ID, message.encode())
-            .await
-            .unwrap();
+        self.session
+            .send(Some(host), TerminalMessage::ID, message.encode());
+        self.session.settle().await;
     }
 
     fn text(&mut self) -> String {
@@ -53,12 +61,12 @@ impl Viewer {
     async fn until(&mut self, what: &str, ready: impl Fn(&mut Self) -> bool) {
         let reached = tokio::time::timeout(PATIENCE, async {
             loop {
-                self.live.poll().await.unwrap();
                 self.take();
                 if ready(self) {
                     return;
                 }
-                self.live.wait().await.unwrap();
+                let woken = self.session.next().await;
+                self.session.handle(woken).await.unwrap();
             }
         })
         .await;
@@ -70,7 +78,7 @@ impl Viewer {
     }
 
     fn take(&mut self) {
-        for message in self.live.take_channel() {
+        for message in self.session.take_messages() {
             match TerminalMessage::decode(&message.payload) {
                 Some(TerminalMessage::Snapshot {
                     shell,
@@ -99,8 +107,12 @@ impl Viewer {
 
 #[tokio::test]
 async fn a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_that_returns() {
+    tokio::task::LocalSet::new().run_until(hosted()).await;
+}
+
+async fn hosted() {
     let harness = Harness::start().await;
-    let owner = Tracker::new(harness.owner().await);
+    let owner = Tracker::new(harness.owner().await, sources());
     let block = Uuid::now_v7();
     owner
         .peer()
@@ -118,7 +130,7 @@ async fn a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_th
         .share(block, account, Access::Edit, &public)
         .await
         .unwrap();
-    let agent = Tracker::new(connect_live(&settings).await.unwrap());
+    let agent = Tracker::new(connect_live(&settings).await.unwrap(), sources());
     let mut host = Host::new(HostOptions {
         command: vec!["sh".to_owned()],
         machine: "build-box".to_owned(),
@@ -129,7 +141,7 @@ async fn a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_th
     let viewing = owner.shared_peer();
 
     let (served, ()) = tokio::join!(
-        host.serve_until(agent.shared_peer(), block, async {
+        host.serve_until(agent.shared_peer(), block, sources()(), async {
             let _ = stopped.await;
         }),
         async {
@@ -138,11 +150,11 @@ async fn a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_th
                 .until("saw the host arrive", |viewer| viewer.host().is_some())
                 .await;
             let shown = viewer
-                .live
+                .session
                 .presence()
                 .iter()
-                .find(|((_, kind), _)| *kind == TerminalHost::ID)
-                .map(|(_, value)| serde_json::from_slice::<TerminalHost>(value).unwrap());
+                .find(|peer| peer.kind == TerminalHost::ID)
+                .map(|peer| serde_json::from_slice::<TerminalHost>(&peer.value).unwrap());
             assert_eq!(shown.unwrap().machine, "build-box");
 
             viewer.send(TerminalMessage::Attach(SIZE)).await;
@@ -158,8 +170,7 @@ async fn a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_th
                 })
                 .await;
 
-            viewing.leave_session(block).await.unwrap();
-            drop(viewer);
+            viewer.session.close().await;
             let mut returned = Viewer::join(&viewing, block).await;
             returned
                 .until("saw the host again", |viewer| viewer.host().is_some())

@@ -19,6 +19,7 @@ use crate::{
 };
 
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
+mod a_file_maps_to_a_block_and_back;
 mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;

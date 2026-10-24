@@ -89,7 +89,7 @@ async fn write(url: &str, data: &std::path::Path) -> Result<Vec<u8>, String> {
         .published()
         .ok_or("a save was rejected")?;
 
-    let tracker = Tracker::new(owner);
+    let tracker = Tracker::new(owner, sources());
     let (view, _) = tracker
         .create_database(scene::DATABASE, scene::PREFIX, BlockParent::Block(notes))
         .await?;
@@ -192,4 +192,12 @@ async fn run(tracker: &Tracker<MemoryStore>, arguments: &[&str]) -> Result<Strin
 
 fn text(error: impl Display) -> String {
     error.to_string()
+}
+
+fn sources() -> be_cli::tracker::Sources {
+    Box::new(|| {
+        vec![be_types_host::in_process::<builtin_types::BlockTypes>(
+            "builtin-types",
+        )]
+    })
 }

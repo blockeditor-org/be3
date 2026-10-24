@@ -23,8 +23,8 @@ fn a_module_answers_stateless_requests() {
         panic!("a module greets with its types");
     };
     assert_eq!(types.len(), 2);
-    assert!(types[0].undo && !types[0].file);
-    assert!(types[1].undo && types[1].file);
+    assert!(types[0].undo && types[0].plain == block_type_api::Plain::None);
+    assert!(types[1].undo && types[1].plain == block_type_api::Plain::File);
     let mut ask =
         |request: Request| match module.handle(Event::Request { id: 1, request }).as_slice() {
             [Command::Reply { id: 1, reply }] => reply.clone(),
@@ -77,6 +77,7 @@ fn a_module_answers_stateless_requests() {
         ask(Request::Claims {
             name: "notes.txt".into(),
             first: b"hello".to_vec(),
+            directory: false,
         }),
         Reply::Claimed(Some(TextContent::CONTENT_TYPE))
     );
@@ -84,6 +85,7 @@ fn a_module_answers_stateless_requests() {
         ask(Request::Claims {
             name: "photo.bin".into(),
             first: vec![0, 1, 2],
+            directory: false,
         }),
         Reply::Claimed(None)
     );

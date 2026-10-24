@@ -9,6 +9,8 @@ license.workspace = true
 [dev-dependencies]
 be-block = { path = "../be-block" }
 be-cli = { path = "../be-cli" }
+be-types-host = { path = "../be-types-host" }
+builtin-types = { path = "../builtin-types" }
 be-client = { path = "../be-client" }
 be-graph = { path = "../be-graph" }
 be-keys = { path = "../be-keys" }

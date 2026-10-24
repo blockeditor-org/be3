@@ -157,6 +157,13 @@ pub enum Request {
     Claims {
         name: String,
         first: Vec<u8>,
+        directory: bool,
+    },
+    Apply {
+        content_type: Uuid,
+        bytes: Option<Vec<u8>>,
+        client: ClientId,
+        change: Change,
     },
     Change {
         replica: ReplicaId,
@@ -217,7 +224,15 @@ pub struct TypeInfo {
     pub frozen: bool,
     pub schema: String,
     pub undo: bool,
-    pub file: bool,
+    pub plain: Plain,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Plain {
+    #[default]
+    None,
+    File,
+    Directory,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

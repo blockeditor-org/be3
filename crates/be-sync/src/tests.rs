@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{Report, Target};
 
+mod a_file_name_must_work_on_every_system;
 mod a_folder_is_written_as_files_and_directories;
 mod a_rename_on_disk_moves_the_same_block;
 mod a_skipped_block_is_never_deleted_or_replaced;
@@ -170,10 +171,22 @@ async fn text_block(peer: &Peer<MemoryStore>, parent: Uuid, name: &str, text: &s
     block(peer, parent, name, &TextBlock::of(text)).await
 }
 
+async fn types() -> be_types_host::Modules {
+    be_types_host::started(vec![
+        be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
+    ])
+    .await
+}
+
 async fn sync(peer: &Peer<MemoryStore>, directory: &Path, root: Uuid) -> Report {
-    crate::sync(peer, directory, &Target { root: Some(root) })
-        .await
-        .unwrap()
+    crate::sync(
+        peer,
+        &mut types().await,
+        directory,
+        &Target { root: Some(root) },
+    )
+    .await
+    .unwrap()
 }
 
 #[derive(Debug)]

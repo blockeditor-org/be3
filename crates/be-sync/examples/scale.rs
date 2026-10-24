@@ -62,9 +62,15 @@ async fn main() {
     .await
     .unwrap();
     let target = Target { root: Some(root) };
-    let time = async |label: &str, peer: &Peer<FileStore>, directory: &Path| {
+    let mut types = be_types_host::started(vec![be_types_host::in_process::<
+        builtin_types::BlockTypes,
+    >("builtin-types")])
+    .await;
+    let mut time = async |label: &str, peer: &Peer<FileStore>, directory: &Path| {
         let started = Instant::now();
-        let report = be_sync::sync(peer, directory, &target).await.unwrap();
+        let report = be_sync::sync(peer, &mut types, directory, &target)
+            .await
+            .unwrap();
         println!(
             "{label}: {:.2?}\n  {}",
             started.elapsed(),

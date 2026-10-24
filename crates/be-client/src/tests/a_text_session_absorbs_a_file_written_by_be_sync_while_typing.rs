@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent, plain};
+use be_block::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_text_session_absorbs_a_file_written_by_be_sync_while_typing() {
@@ -30,25 +30,12 @@ async fn a_text_session_absorbs_a_file_written_by_be_sync_while_typing() {
 
     let read = sync.open::<TextContent>(block).await.unwrap().unwrap();
     let head = sync.local_head(block);
-    let file = plain::update_block(
-        TextContent::CONTENT_TYPE,
-        Some(&read.encode()),
-        "notes.txt",
-        b"first line\nmiddle line\nlast line, from disk\n".to_vec(),
-        7,
-        sync.organization(),
-    )
-    .unwrap();
+    let mut file = read.clone();
+    let rewrite =
+        TextBlock::rewrite(&file, 7, b"first line\nmiddle line\nlast line, from disk\n").unwrap();
+    file.apply(&rewrite);
     let published = sync
-        .save_encoded(
-            block,
-            file.block_type,
-            &file.content,
-            file.references,
-            file.derived,
-            head,
-            None,
-        )
+        .save(block, &file, head)
         .await
         .unwrap()
         .published()

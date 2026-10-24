@@ -343,7 +343,13 @@ async fn sync<S: ObjectStore>(
             every: std::time::Duration::from_secs(seconds),
         });
     }
-    let report = be_sync::sync(tracker.peer(), &directory, &be_sync::Target { root }).await?;
+    let report = be_sync::sync(
+        tracker.peer(),
+        &mut *tracker.types().await,
+        &directory,
+        &be_sync::Target { root },
+    )
+    .await?;
     tracker.invalidate().await;
     Ok(Outcome::Print(report.to_string()))
 }

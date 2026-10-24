@@ -784,7 +784,8 @@ apply itself, staged beside the plugins as `builtin-types.wasm` with its `.cwasm
 and its SHA-256 (`builtin-types.sha256`, the tag of its sessions), and
 `be::types::host_types`, the settings types, the editor view, the repository and
 the checkout, which the app reads itself and runs in process.
-`be/types.rs` is the registry: each module's `Hello`, with every type's blank
+The registry (`be_types_host::modules`, re-exported by `be/types.rs`, which
+lists the app's module sources) holds each module's `Hello`, with every type's blank
 content and its description asked for once at start, answers `be::kind_of` and
 `be::is_known` (frozen, schema fingerprint, blank, which module). Everything else
 about a type, merging, describing, validating bytes, is a request to its module,
@@ -810,8 +811,10 @@ publishes the type's blank content and opens the replica again. The
 app also deletes its local caches (`be-objects/`, `plugin-cache/`) whenever its
 build id changes; when the app becomes offline-first, those will have to stay.
 
-`crates/block-app/src/be/worker.rs` is the peer's loop and `be/replicas.rs` the
-host half of every open block's replica: it opens a replica (joins the session,
+`crates/block-app/src/be/worker.rs` is the peer's loop and
+`be_types_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
+`be/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
+half of every open block's replica: it opens a replica (joins the session,
 watches the block, sends `Open` with the head and `Moved` for a later one), answers
 its commands with the real primitives (`Read`, `Publish` and `Stash` through
 `Peer::publish_encoded` and `stash_encoded`, `Resume`, the lease, relaying

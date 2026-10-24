@@ -5,7 +5,13 @@ cargo_library()
 
 cargo_test()
 
-cargo_binary()
+# be carries the first-party type module in its executable, so a release is one
+# file (guides/type_modules.md, "Hosts").
+cargo_binary(
+    env = {
+        "BUILTIN_TYPES_WASM": "$(location //crates/builtin-types:module)",
+    },
+)
 
 # be with its build-info.json file beside it, which it greets the server with:
 # `./scripts/buck run //crates/be-cli:native -- ARGS`.

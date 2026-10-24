@@ -3,9 +3,10 @@
 A block type is moving out of the app into a plugin's *type module*: a pure wasm
 module that holds the device's one replica of every open block of its types (content,
 live session, undo stack) and talks to its host only through messages. Two crates
-define it. block-app's peer hosts every block through them
-(guides/the_new_block_stack.md, "How the app hosts content"): `crates/builtin-types`
-is its first-party module, and the types it applies itself run in process.
+define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
+block through them (guides/the_new_block_stack.md, "How the app hosts content";
+"Hosts" below): `crates/builtin-types` is the first-party module, and the types
+the app applies itself run in process.
 
 - `crates/block-type-api`: the messages between a host and a type module. No GUI types.
 - `crates/block-type-guest`: the replica library a be-model-based type module links.
@@ -31,7 +32,11 @@ A host gives each open block a `ReplicaId` and addresses it in every event. Some
 events are stateless requests answered by `Command::Reply { id }`: `Blank`, `Merge3`
 (a `None` side is the type's default; `conflicts: 0` is clean), `Describe` (name,
 derived metadata, references in an organization), `ToFile`, `Claims` (which of the
-module's types takes a file by name and first bytes). The replica-addressed requests
+module's types takes a file by name and first bytes, or with `directory` a new
+directory), and `Apply` (a `Child` or `FromFile` change made to content bytes,
+or to the type's default for `None`, answered `Content`, or `Changed(false)` when
+it does not apply), which is how a host that publishes commits rather than
+joining a session edits a block. The replica-addressed requests
 are `Change` (`Child`, `FromFile`, `Replace`, `Undo`, `Redo`), `Content` (the visible
 bytes, for export and duplication) and `Seal` (`force` is a rekey: publish even when
 clean). A request for a replica that is not open is answered `Unknown`.
@@ -76,7 +81,7 @@ What the host owes a replica:
 ## Peers
 
 Peers exchange `wire::Wire`, which is be-session's `SessionMessage` encoded exactly
-as `Live` sends it, so a replica and a `Live` peer (be's terminal host) share a
+as `Live` sends it, so a replica and a `be_client::Live` peer share a
 session. A follower sends `Wire::Tag` (its `SessionTag`, on a channel a `Live` peer
 passes over) ahead of each `Catchup`; an owner answers another tag with
 `Wire::Incompatible` and then ignores that peer's submits and catch-ups, and the
@@ -131,9 +136,12 @@ be_block_types![ChecklistContent { undo }, TextContent { undo, file }, FolderCon
 Each entry is `Registration::of::<C>()` (`C: LiveEdit + Merge + Clone + Default`),
 then `.undo::<C>()` for a type whose session keeps an undo stack (what
 `undo` in a module's list) and `.file::<C>()` for one with a plain-file form
-(`FileForm`: `to_file`, `from_file`, `claims`; implemented for the be-block text,
-image, PDF, audio and file types from `be_block::plain`). The order is the order
-`Claims` asks in.
+(`FileForm`: `to_file`, `from_file`, `claims`; implemented in the library's
+`file.rs` for the be-block text, image, PDF, audio and file types, with
+`be_block::plain`'s file-name and media-type helpers). `directory` makes a
+type's plain form a directory that takes new directories (a folder), and `root`
+one that is only ever the root of one (a workspace); `Hello`'s `TypeInfo::plain`
+says which form each type has. The order is the order `Claims` asks in.
 
 `Module::handle(Event) -> Vec<Command>` is the whole interface (`register` adds or
 replaces a type, `knows` asks for one, as block-ui-test does for a test's own types); `Module::hello()` is
@@ -156,3 +164,31 @@ be-session `Lease`, follows each attached editor with an `EditorMirror`, and mov
 time only through `advance`. `quiet` holds back `Moved` so a seal is rejected;
 `crash` drops a device without its seal; `publish_elsewhere` is a publish from
 outside the session, as be sync makes.
+
+## Hosts
+
+`crates/be-types-host` is the host half every host shares, natively under
+wasmtime and in process in tests:
+
+- `modules`: the registry (`kind_of`, `is_known`, `plain_of`: each type's
+  `Kind`, filled from every module's `Hello` with its blank content and
+  description), and `Modules`, which starts each `Source` (`in_process::<G>`,
+  natively `wasm(name, tag, cache, load)` on a `PureHost` thread, on the web
+  `web(name, url, tag)`), restarts one that stops, ticks it and collects its
+  commands. `started(sources)` waits for every `Hello`. Its stateless helpers
+  (`ask`, `to_files`, `claims`, `apply`, `describe`) are what a host that holds
+  no replica uses.
+- `replicas`: `Replicas<H: Host>`, the replica IO of
+  guides/the_new_block_stack.md ("The peer and its registry") for any host.
+  `Host` is what the host does with what a replica reports (its error log,
+  frames for an editor, status, description, history, conflicts) and how it
+  spawns IO, each an associated function of the host's shared state.
+
+Where the modules come from: block-app stages `builtin-types.wasm` (and its
+`.cwasm` and `.sha256`) beside its plugins; `be` (and so `be sync`) carries it
+in its executable (`include_bytes!` of `BUILTIN_TYPES_WASM`, set in
+`crates/be-cli/BUCK`), so its release stays the one file guides/bootstrap.md
+pins, and compiles it once into `BE3_CACHE/modules` through wasmtime's cache.
+Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
+and an app built from one tree share sessions. Tests run `builtin_types` in
+process.

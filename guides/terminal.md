@@ -12,9 +12,17 @@ from inside block-app.
   the `TerminalHost` presence a host shows (its machine and user), and
   `TerminalMessage`, everything host and viewers say to each other.
 - `be TARGET terminal-host [-- PROGRAM ARGUMENTS...]` (`crates/be-cli`,
-  `terminal_host.rs`): the host. It signs in as an agent, joins the block's live
-  session, shows `TerminalHost`, and runs the shell (the user's default one, or
-  PROGRAM) in a PTY when a viewer first attaches.
+  `terminal_host.rs`): the host. It signs in as an agent, opens the block's
+  replica in the type module (`replica::Session`, below), shows `TerminalHost`,
+  and runs the shell (the user's default one, or PROGRAM) in a PTY when a
+  viewer first attaches.
+- `be_cli::replica::Session`: one block's replica as `be` holds it, the same
+  `be_types_host::Replicas` the app's peer runs, attached as the host's own
+  editor (`HOST_EDITOR`). `show` and `send` are `FromEditor::ShowPresence` and
+  `SendToPeers`, `presence` and `take_messages` what came back as
+  `ToEditor::Presence` and `PeerMessages`; `next` waits for the server, the
+  module or a deadline without losing anything when dropped, and `handle` acts
+  on it. It needs a tokio `LocalSet`, where the replica's IO runs.
 - `crates/editors/terminal`: the editor. It draws the setup page while no host
   is in the session and the terminal while one is, switching as the
   `TerminalHost` presence comes and goes.
@@ -30,7 +38,10 @@ from inside block-app.
 
 Host and viewers speak peer messages on the block's live session
 (guides/the_new_block_stack.md, Peer messages), so the server relays them
-sealed and cannot read the terminal. A viewer sends the host
+sealed and cannot read the terminal. Host and app are replicas of one session,
+so both must run the same build of the module that holds `TerminalContent`
+(the session's tag, guides/type_modules.md): `be` carries that build in its
+executable. A viewer sends the host
 `Attach(size)` when it sees the host, `Resize(size)` when its view changes and
 `Input(bytes)` for keys, text and pastes. The host answers an attach with a
 `Snapshot` (the shell's id, the last output sequence, the PTY's size and a
@@ -66,7 +77,8 @@ whose proxy refuses websockets cannot run a host.
 ## Tests
 
 - `be-cli`'s `a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_that_returns`:
-  a real host running `sh` for an agent and a viewer on a real server.
+  a real host running `sh` for an agent and a viewer (a `Session` of its own) on
+  a real server.
 - `block-app`'s `a_terminal_host_answers_this_peer_through_the_blocks_session`:
   a real host against the app's own stack, through the worker's peer messages.
 - The editor's tests drive it with presence and peer messages through

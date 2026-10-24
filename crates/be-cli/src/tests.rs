@@ -39,6 +39,14 @@ mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod two_databases_may_share_a_prefix_and_each_resolves_its_own_rows;
 
+fn sources() -> crate::tracker::Sources {
+    Box::new(|| {
+        vec![be_types_host::in_process::<builtin_types::BlockTypes>(
+            "builtin-types",
+        )]
+    })
+}
+
 struct Harness {
     url: String,
     directory: PathBuf,

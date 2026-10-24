@@ -463,8 +463,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     fill(&owner, notes, &[shopping, program, archive]).await?;
     fill_workspace(&owner, my_files, &[notes]).await?;
 
-    let tracker =
-        Tracker::new(reopen(&socket, &owner, organization, ChunkerConfig::DEFAULT).await?);
+    let tracker = Tracker::new(
+        reopen(&socket, &owner, organization, ChunkerConfig::DEFAULT).await?,
+        sources(),
+    );
     let (view, database) = tracker
         .create_database(scene::DATABASE, scene::PREFIX, BlockParent::Block(team))
         .await?;
@@ -827,4 +829,12 @@ fn source(name: &str, written: &Written, backup_key: &BackupKey) -> String {
 
 fn text(error: impl Display) -> String {
     error.to_string()
+}
+
+fn sources() -> be_cli::tracker::Sources {
+    Box::new(|| {
+        vec![be_types_host::in_process::<builtin_types::BlockTypes>(
+            "builtin-types",
+        )]
+    })
 }

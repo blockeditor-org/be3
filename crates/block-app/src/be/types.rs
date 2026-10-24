@@ -92,7 +92,7 @@ async fn builtin() -> Source {
 #[cfg(all(not(test), not(target_arch = "wasm32")))]
 async fn builtin() -> Source {
     let entry = format!("{BUILTIN}.wasm");
-    be_types_host::modules::wasm(BUILTIN, staged_tag().await, move |host| {
+    be_types_host::modules::wasm(BUILTIN, staged_tag().await, None, move |host| {
         host.load_from(&entry, crate::editors::plugin::discovery::read)
     })
 }
