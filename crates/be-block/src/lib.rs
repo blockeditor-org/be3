@@ -23,7 +23,6 @@ pub mod input_remapper;
 pub mod input_settings;
 pub mod logic_game;
 pub mod logic_grid;
-pub mod map;
 pub mod metadata;
 pub mod model;
 pub mod pixel_art;
@@ -59,7 +58,6 @@ pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
-pub use map::{Map, MapContent};
 pub use metadata::{
     ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE,
     Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME,

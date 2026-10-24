@@ -2,8 +2,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
-use block_editor_beui::be_block::{Edit, Map, MapContent};
+use block_editor_beui::be_block::Edit;
+use map_types::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::BlockLabel;

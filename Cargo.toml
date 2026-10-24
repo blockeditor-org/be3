@@ -88,6 +88,7 @@ members = [
     "crates/editors/linux-desktop",
     "crates/editors/logic-grid",
     "crates/editors/map",
+    "crates/editors/map/types",
     "crates/editors/pan-zoom",
     "crates/editors/pan-zoom/types",
     "crates/editors/pdf",

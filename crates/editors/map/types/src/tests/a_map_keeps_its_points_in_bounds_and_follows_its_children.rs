@@ -1,6 +1,6 @@
 use super::*;
 use crate::map::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 use uuid::Uuid;
 
 #[test]

@@ -30,7 +30,8 @@
       "display_name": "Map",
       "icon": "\ue110",
       "color": [64, 155, 173],
-      "children": {"add": true, "delete": true, "replace": true}
+      "children": {"add": true, "delete": true, "replace": true},
+      "module": "map_types.wasm"
     }
   },
   "entry_point": "map.wasm",

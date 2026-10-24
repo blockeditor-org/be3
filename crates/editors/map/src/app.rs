@@ -1,5 +1,5 @@
 use block_editor_beui::Fit;
-use block_editor_beui::be_block::MapContent;
+use map_types::MapContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::reactive::*;

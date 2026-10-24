@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::map::{MapColor, MapPoint};
+use map_types::{MapColor, MapPoint};
 use block_editor_beui::beui::icons::ICON_MAP_PIN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
