@@ -743,6 +743,7 @@ dependencies = [
  "portable-pty",
  "serde_json",
  "terminal-types",
+ "text-block-types",
  "tokio",
  "uuid",
  "workspace-ui-types",
@@ -769,6 +770,7 @@ dependencies = [
  "js-sys",
  "rusqlite",
  "rustls",
+ "text-block-types",
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
@@ -826,6 +828,7 @@ dependencies = [
  "build-id",
  "builtin-types",
  "rusqlite",
+ "text-block-types",
  "tokio",
  "uuid",
  "workspace-ui-types",
@@ -1015,6 +1018,7 @@ dependencies = [
  "notify",
  "serde",
  "serde_json",
+ "text-block-types",
  "tokio",
  "uuid",
  "workspace-ui-types",
@@ -1528,6 +1532,7 @@ dependencies = [
  "serde_json",
  "sqlite-schema",
  "terminal-types",
+ "text-block-types",
  "tokio",
  "ureq",
  "uuid",
@@ -1765,6 +1770,7 @@ dependencies = [
  "builtin-types",
  "image",
  "paint-snapshot",
+ "text-block-types",
  "uuid",
 ]
 
@@ -2860,6 +2866,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "text-block-types",
  "uuid",
 ]
 
@@ -3325,6 +3332,7 @@ dependencies = [
  "image-block-types",
  "pdf-types",
  "serde",
+ "text-block-types",
  "uuid",
  "workspace-ui-types",
 ]
@@ -7553,6 +7561,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "text-block-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
@@ -7583,6 +7603,7 @@ dependencies = [
  "image-block-types",
  "serde",
  "serde_json",
+ "text-block-types",
  "text-editor-core",
  "uuid",
 ]

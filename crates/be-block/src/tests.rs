@@ -119,5 +119,3 @@ fn reverted<C: Undo>(content: &mut C, step: &C::Step) {
         content.apply(&operation);
     }
 }
-
-}

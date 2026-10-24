@@ -1,5 +1,5 @@
 use be_block::{
-    HotbarContent,
+    CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, HotbarContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
