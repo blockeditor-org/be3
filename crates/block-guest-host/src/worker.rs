@@ -97,6 +97,22 @@ pub trait Channel {
     }
 }
 
+impl<C: Channel + ?Sized> Channel for Box<C> {
+    type Presented = C::Presented;
+
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> bool {
+        (**self).step(frames)
+    }
+
+    fn receive(&mut self) -> Received<Self::Presented> {
+        (**self).receive()
+    }
+
+    fn wait(&mut self, timeout: Duration) -> Option<Received<Self::Presented>> {
+        (**self).wait(timeout)
+    }
+}
+
 pub struct Worker<C: Channel> {
     pub channel: C,
     pending: Vec<Vec<u8>>,

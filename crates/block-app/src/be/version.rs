@@ -23,11 +23,11 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use super::graph::{Graph, Owner, Query, Scope};
-use super::worker::{Session, Shared, Store, node_of};
+use super::replicas::Replicas;
+use super::worker::{Shared, Store, node_of};
 
 const LOG_LENGTH: usize = 100;
 
-type Sessions = HashMap<Uuid, Box<dyn Session>>;
 
 #[derive(Default)]
 pub(crate) struct VersionState {
@@ -93,7 +93,7 @@ struct Step {
 pub(super) struct Context<'a> {
     pub(super) peer: &'a Arc<Peer<Store>>,
     pub(super) shared: &'a Arc<Mutex<Shared>>,
-    pub(super) sessions: &'a mut Sessions,
+    pub(super) replicas: &'a mut Replicas,
 }
 
 fn failed(error: ClientError) -> String {
@@ -402,7 +402,7 @@ impl Versions {
 
     async fn merged(
         &mut self,
-        context: &Context<'_>,
+        context: &mut Context<'_>,
         checkout: Uuid,
         base: &Tree,
         ours: &Tree,
@@ -411,7 +411,7 @@ impl Versions {
         let mut plan = be_vcs::merge(base, ours, theirs);
         for merge in std::mem::take(&mut plan.contents) {
             let (manifest, references, derived, conflicted) =
-                merge_content(context.peer, checkout, &merge).await?;
+                merge_content(context, checkout, &merge).await?;
             if let Some(entry) = plan.tree.entries.get_mut(&merge.block) {
                 entry.content = manifest;
                 entry.references = references;
@@ -1390,12 +1390,15 @@ impl Versions {
         state: &Checkout,
         repository: Uuid,
     ) {
-        if !context.sessions.contains_key(&repository)
-            && let Some(join) = super::join_for(Repository::CONTENT_TYPE)
-            && let Ok(session) = join(context.peer, repository).await
-        {
-            context.sessions.insert(repository, session);
-        }
+        context
+            .replicas
+            .open(
+                (context.peer, context.shared),
+                repository,
+                Repository::CONTENT_TYPE,
+                true,
+            )
+            .await;
         let mut blocks = vec![checkout, repository];
         if let Some(root) = state.root {
             if self.roots.insert(root) {
@@ -1786,9 +1789,7 @@ async fn save_new<R: Root + Model + Default + Clone>(
 }
 
 async fn settle(context: &mut Context<'_>, block: Uuid, head: CommitId) -> Result<(), String> {
-    if let Some(session) = context.sessions.get_mut(&block) {
-        session.published_elsewhere(head).await.map_err(failed)?;
-    }
+    context.replicas.moved_here(block, head);
     context
         .shared
         .lock()
@@ -1998,35 +1999,44 @@ fn placement_order(tree: &Tree) -> Vec<Uuid> {
 }
 
 async fn merge_content(
-    peer: &Peer<Store>,
+    context: &mut Context<'_>,
     checkout: Uuid,
     merge: &be_vcs::ContentMerge,
 ) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
     let mut sides = Vec::new();
     for manifest in [&merge.base, &merge.ours, &merge.theirs] {
         sides.push(match manifest {
-            Some(manifest) => Some(peer.read_manifest(manifest).await.map_err(failed)?),
+            Some(manifest) => Some(context.peer.read_manifest(manifest).await.map_err(failed)?),
             None => None,
         });
     }
-    let merged = super::merge_for(merge.content_type).and_then(|merge| {
-        merge(
+    let merged = context
+        .replicas
+        .merge(
+            (context.peer, context.shared),
+            merge.content_type,
             sides[0].as_deref(),
             sides[1].as_deref(),
             sides[2].as_deref(),
         )
-    });
+        .await;
     let Some((bytes, conflicted)) = merged else {
         return Ok((merge.ours.clone(), Vec::new(), None, true));
     };
-    let manifest = peer
+    let manifest = context
+        .peer
         .write_content(checkout, merge.content_type, &bytes)
         .await
         .map_err(failed)?;
-    let references = super::references_for(merge.content_type)
-        .map(|references| references(&bytes, peer.organization()))
+    let description = context
+        .replicas
+        .describe((context.peer, context.shared), merge.content_type, &bytes)
+        .await;
+    let references = description
+        .as_ref()
+        .map(|description| description.references.clone())
         .unwrap_or_default();
-    let derived = super::derived_for(merge.content_type, &bytes);
+    let derived = description.map(|description| description.derived);
     Ok((Some(manifest), references, derived, conflicted))
 }
 
@@ -2043,7 +2053,12 @@ async fn version_block(
     let mut metadata = BlockMetadata::named(name);
     if let Some(manifest) = &manifest {
         let bytes = context.peer.read_manifest(manifest).await.map_err(failed)?;
-        metadata.derived = super::derived_for(content_type, &bytes).unwrap_or_default();
+        metadata.derived = context
+            .replicas
+            .describe((context.peer, context.shared), content_type, &bytes)
+            .await
+            .map(|description| description.derived)
+            .unwrap_or_default();
     }
     create(
         context,

@@ -48,10 +48,16 @@ be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
+be-session = { path = "../be-session" }
 be-vcs = { path = "../be-vcs" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
+block-guest-abi = { path = "../block-guest-abi" }
 block-guest-host = { path = "../block-guest-host" }
 block-plugin-api = { path = "../block-plugin-api" }
+# Block types run as type modules: the replica library for the types the app
+# applies itself, which run in process, and the protocol of every module.
+block-type-api = { path = "../block-type-api" }
+block-type-guest = { path = "../block-type-guest" }
 build-id = { path = "../build-id" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 futures-util = { version = "0.3", features = ["io"] }
@@ -93,6 +99,8 @@ rodio = "0.20"
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
+# The first-party type module, which the unit tests run in process.
+builtin-types = { path = "../builtin-types" }
 pollster = "0.4"
 paint-snapshot = { path = "../paint-snapshot" }
 

@@ -248,11 +248,7 @@ impl RootSettings {
         let Some(block) = self.find() else {
             return;
         };
-        be::operate_from(
-            block,
-            be::next_origin(),
-            SettingsContent::encode_operation(edit),
-        );
+        be::operate(block, SettingsContent::encode_operation(edit));
     }
 
     fn named(block: Uuid, fallback: &str) -> String {

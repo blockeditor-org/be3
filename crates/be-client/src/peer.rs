@@ -564,6 +564,22 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    pub async fn ensure_type(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+    ) -> Result<(), ClientError> {
+        match self
+            .create_block(block, content_type, parent, &BlockMetadata::default())
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         let response = self
             .connection
@@ -874,6 +890,75 @@ impl<S: ObjectStore> Peer<S> {
             defined,
         )
         .await
+    }
+
+    /// A compare-and-swap of `expected` with encoded content. With `merging`
+    /// (the merge base and our side), our side becomes a second parent and
+    /// defined metadata is merged from the three; otherwise it is `expected`'s.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn publish_encoded(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: &[u8],
+        references: Vec<Uuid>,
+        derived: Entries,
+        expected: Option<CommitId>,
+        merging: Option<(Option<CommitId>, CommitId)>,
+    ) -> Result<Saved, ClientError> {
+        let (parents, defined) = match merging {
+            Some((base, ours)) => {
+                let mut sides = Vec::new();
+                for commit in [base, Some(ours), expected] {
+                    sides.push(match commit {
+                        Some(commit) => self.metadata_of(commit).await?,
+                        None => BlockMetadata::default(),
+                    });
+                }
+                let defined = BlockMetadata::merge_defined(&sides[0], &sides[2], &sides[1]).0;
+                (vec![ours], Some(defined))
+            }
+            None => (Vec::new(), None),
+        };
+        self.save_bytes(
+            block,
+            content_type,
+            bytes,
+            references,
+            derived,
+            expected,
+            now_milliseconds(),
+            false,
+            parents,
+            defined,
+        )
+        .await
+    }
+
+    /// A commit of encoded content that moves no head, with `parent`'s
+    /// defined metadata.
+    pub async fn stash_encoded(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: &[u8],
+        references: Vec<Uuid>,
+        derived: Entries,
+        parent: Option<CommitId>,
+    ) -> Result<CommitId, ClientError> {
+        let references = deduplicated(self.resolve(block, references));
+        let metadata = self.metadata_at(block, parent).await?.with_derived(derived);
+        let key = self.sealing_key(block).await?;
+        let manifest = self.commits.vault().write(key, content_type, bytes)?;
+        let commit = Commit::new(manifest, self.account, now_milliseconds())
+            .with_parent(parent)
+            .with_references(references)
+            .with_metadata(metadata.encode());
+        let id = self.commits.put(key, &commit)?;
+        let mut objects = vec![id.hash()];
+        objects.extend(commit.manifest.chunk_hashes());
+        self.push(&objects).await?;
+        Ok(id)
     }
 
     pub async fn save_encoded(
