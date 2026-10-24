@@ -257,7 +257,7 @@ impl Host {
                 eprintln!("be: another client took over the terminal; standing by");
                 self.writing = false;
             }
-            if standing_by(live) || now < schedule.claim {
+            if standing_by(live) || live.is_catching_up() || now < schedule.claim {
                 return Ok(());
             }
             schedule.claim = now + CLAIM_INTERVAL;

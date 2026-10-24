@@ -106,7 +106,9 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
         }),
     );
     wait_until("read what the shell ran in the block's content", |shared| {
-        terminal_text(shared, block).contains("\nfrom-the-app-42")
+        terminal_text(shared, block)
+            .lines()
+            .any(|line| line.ends_with("from-the-app-42"))
     });
 
     stop.send(()).expect("the host is still serving");

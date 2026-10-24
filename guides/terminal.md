@@ -81,7 +81,9 @@ Ownership of the live session is the lock between hosts. A host writes only
 while `live.is_owner()`. When another client that shows `TerminalHost` owns the
 session it stands by; otherwise it calls `claim()` every 3 seconds until it is
 granted (a viewer that owns the session seals nothing, so its 30 second lease
-lapses). While it owns the session it heartbeats every 10 seconds
+lapses), and first as soon as it has caught up after joining, since `claim()`
+refuses until then. The viewer then follows the host like any old owner
+(guides/the_new_block_stack.md). While it owns the session it heartbeats every 10 seconds
 (`Live::heartbeat`) so a quiet shell keeps the lease.
 
 When a host becomes the writer it sets `host`, and unless the document's

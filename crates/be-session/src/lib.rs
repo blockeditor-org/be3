@@ -4,7 +4,7 @@ pub mod sequencer;
 
 pub use lease::{Claim, LEASE_MILLISECONDS, Lease};
 pub use resume::{Resume, resume, takeover_needs_merge};
-pub use sequencer::{Follower, OpId, Sequencer, SessionMessage, SessionOp};
+pub use sequencer::{Follower, Inherited, OpId, Sequencer, SessionMessage, SessionOp};
 
 #[cfg(test)]
 mod tests;

@@ -6,19 +6,24 @@ use be_session::{Claim, Lease};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-#[derive(Default)]
 pub struct SessionRegistry {
     sessions: Mutex<HashMap<Uuid, Lease>>,
+    lease: i64,
 }
 
 impl SessionRegistry {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(lease: std::time::Duration) -> Self {
+        Self {
+            sessions: Mutex::new(HashMap::new()),
+            lease: i64::try_from(lease.as_millis()).unwrap_or(i64::MAX),
+        }
     }
 
     pub async fn join(&self, block: Uuid, client: ClientId) -> SessionState {
         let mut sessions = self.sessions.lock().await;
-        let lease = sessions.entry(block).or_default();
+        let lease = sessions
+            .entry(block)
+            .or_insert_with(|| Lease::lasting(self.lease));
         lease.join(client, now_milliseconds());
         lease.state().clone()
     }
@@ -62,7 +67,9 @@ impl SessionRegistry {
         generation: u64,
     ) -> (Claim, SessionState) {
         let mut sessions = self.sessions.lock().await;
-        let lease = sessions.entry(block).or_default();
+        let lease = sessions
+            .entry(block)
+            .or_insert_with(|| Lease::lasting(self.lease));
         let claim = lease.claim(client, generation, now_milliseconds());
         (claim, lease.state().clone())
     }

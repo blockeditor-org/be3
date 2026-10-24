@@ -6,7 +6,7 @@ use std::{
 use be_block::{BlockMetadata, Entries, Landed, LiveEdit, Merge};
 use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, ServerMessage, SessionState};
-use be_session::{Follower, Resume, Sequencer, SessionMessage, SessionOp, resume};
+use be_session::{Follower, Inherited, Resume, Sequencer, SessionMessage, SessionOp, resume};
 use be_store::ObjectStore;
 use tokio::sync::broadcast::{
     Receiver,
@@ -128,7 +128,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         } else {
             Role::Follower(Follower::new(client))
         };
-        let live = Self {
+        let mut live = Self {
             peer,
             block,
             client,
@@ -157,6 +157,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         };
         if let Role::Follower(follower) = &live.role {
             let catchup = follower.catchup();
+            live.catching_up = true;
             live.send(live.state.owner, &catchup).await?;
         }
         Ok(live)
@@ -176,6 +177,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
 
     pub fn is_owner(&self) -> bool {
         matches!(self.role, Role::Owner(_))
+    }
+
+    pub fn is_catching_up(&self) -> bool {
+        self.catching_up
     }
 
     pub fn content(&self) -> &C {
@@ -486,8 +491,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 self.broadcast(&SessionMessage::Accepted { op }).await
             }
             SessionMessage::Accepted { op } => {
-                if !self.catching_up || self.is_owner() {
-                    self.apply_accepted(&op);
+                match self.role {
+                    Role::Owner(_) => self.inherit_accepted(&op),
+                    Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
+                    Role::Follower(_) => {}
                 }
                 Ok(())
             }
@@ -638,10 +645,32 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         self.send(owner, &message).await
     }
 
+    fn inherit_accepted(&mut self, op: &SessionOp) {
+        let Role::Owner(sequencer) = &mut self.role else {
+            return;
+        };
+        let inherited = sequencer.inherit(op);
+        if matches!(inherited, Inherited::Renumbered | Inherited::Unnumbered) {
+            sequencer.carry_unsealed();
+            self.reload = true;
+        }
+        if matches!(inherited, Inherited::Duplicate | Inherited::Renumbered) {
+            return;
+        }
+        let Ok(operation) = C::decode_operation(&op.payload) else {
+            self.unreadable_message();
+            return;
+        };
+        self.confirmed.apply(&operation);
+        self.visible.apply(&operation);
+        self.journal(Journaled::Applied(operation));
+    }
+
     fn apply_accepted(&mut self, op: &SessionOp) {
-        if let Role::Follower(follower) = &self.role
-            && op.sequence <= follower.applied()
-        {
+        let Role::Follower(follower) = &self.role else {
+            return;
+        };
+        if op.sequence <= follower.applied() {
             return;
         }
         let Ok(operation) = C::decode_operation(&op.payload) else {
@@ -649,9 +678,6 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             return;
         };
         let Role::Follower(follower) = &mut self.role else {
-            self.confirmed.apply(&operation);
-            self.visible.apply(&operation);
-            self.journal(Journaled::Applied(operation));
             return;
         };
         let unchanged = follower.is_mine(op.id)
@@ -733,12 +759,20 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         for client in joined {
             self.show_presence_to(client).await?;
         }
-        let Role::Follower(follower) = &mut self.role else {
-            return Ok(());
-        };
         if !owner_changed {
             return Ok(());
         }
+        let follower = match &mut self.role {
+            Role::Owner(_) if self.state.is_owner(self.client) => return Ok(()),
+            Role::Owner(sequencer) => {
+                let sequence = sequencer.sequence();
+                self.role = Role::Follower(Follower::continuing(self.client, sequence));
+                self.reload = false;
+                self.moved = false;
+                return Ok(());
+            }
+            Role::Follower(follower) => follower,
+        };
         if !self.state.is_owner(self.client) {
             let applied = follower.applied();
             let mut resubmit = follower.resynchronize(applied);
@@ -766,6 +800,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             }
         }
         self.in_flight = 0;
+        if std::mem::take(&mut self.catching_up) {
+            sequencer.carry_unsealed();
+            self.reload = true;
+        }
         for (operation, ..) in std::mem::take(&mut self.unsent) {
             let id = be_session::OpId {
                 client: self.client,
@@ -785,6 +823,9 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     }
 
     pub async fn claim(&mut self) -> Result<bool, ClientError> {
+        if self.catching_up {
+            return Ok(false);
+        }
         let state = self
             .peer
             .claim_ownership(self.block, self.state.generation)
