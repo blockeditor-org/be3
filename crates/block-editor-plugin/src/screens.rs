@@ -429,6 +429,15 @@ impl Screens {
                     session.set_histories(states);
                 }
             }
+            Message::Editor(EditorMessage::Head {
+                instance,
+                block_id,
+                head,
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_head(*block_id, head);
+                }
+            }
             Message::Editor(EditorMessage::VersionStatus {
                 instance, status, ..
             }) => {

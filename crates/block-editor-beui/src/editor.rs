@@ -119,12 +119,6 @@ pub struct Drag {
     pub dropped: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RawContent {
-    pub content_type: Uuid,
-    pub bytes: Vec<u8>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChildTarget {
     pub id: Uuid,
@@ -597,51 +591,19 @@ impl Editor {
             .create(content, BlockParent::Block(self.state().block))
     }
 
-    pub fn raw_block_content(&self) -> ReadSignal<Option<RawContent>> {
-        let raw = self.raw_content();
-        wait_for(move || match raw.with(Option::is_some) {
+    pub fn stored_head(&self, block: Uuid) -> Memo<crate::HeadRead> {
+        let host = self.state().host.clone();
+        host.watch_head(block);
+        let revision = self.pushed(Pushed::Heads);
+        let read = create_memo(move || {
+            revision.get();
+            host.head(block)
+        });
+        wait_for(move || match read.with(Option::is_some) {
             true => Ok(()),
             false => Err(Pending::Loading),
         });
-        raw
-    }
-
-    fn raw_content(&self) -> ReadSignal<Option<RawContent>> {
-        let state = self.state();
-        let cached = state
-            .contents
-            .projections
-            .borrow()
-            .get(&None)
-            .and_then(|held| held.downcast_ref::<OwnedSignal<Option<RawContent>>>())
-            .map(|owned| owned.read_only());
-        if let Some(read) = cached {
-            return read;
-        }
-        let owned = OwnedSignal::new(None::<RawContent>);
-        let raw = owned.handle();
-        let host = state.host.clone();
-        state.contents.pumps.borrow_mut().insert(
-            None,
-            Rc::new(move || {
-                for update in host.take_content_updates(None) {
-                    match update {
-                        crate::ContentUpdate::Snapshot(content) => raw.set(Some(RawContent {
-                            content_type: content.content_type,
-                            bytes: content.bytes,
-                        })),
-                        crate::ContentUpdate::Operations(_) => host.request_content_resend(None),
-                    }
-                }
-            }),
-        );
-        state.contents.due.borrow_mut().push(None);
-        state
-            .contents
-            .projections
-            .borrow_mut()
-            .insert(None, Box::new(owned));
-        raw.read_only()
+        create_memo(move || read.get().unwrap_or(Ok(None)))
     }
 
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>

@@ -12,6 +12,7 @@ mod backend;
 mod description;
 mod fonts;
 pub(crate) mod graph;
+mod heads;
 mod host_values;
 mod input;
 mod instances;

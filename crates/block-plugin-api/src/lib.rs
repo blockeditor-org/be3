@@ -1039,7 +1039,6 @@ pub enum EditorMessage {
     },
     PlayAudio {
         instance: EditorInstanceId,
-        block_id: [u8; 16],
         command: AudioCommand,
     },
     AudioStatus {
@@ -1143,6 +1142,15 @@ pub enum EditorMessage {
     HistoryStates {
         instance: EditorInstanceId,
         states: Vec<HistoryState>,
+    },
+    WatchHeads {
+        instance: EditorInstanceId,
+        blocks: Vec<[u8; 16]>,
+    },
+    Head {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        head: Result<Option<StoredHead>, String>,
     },
     Presence {
         instance: EditorInstanceId,
@@ -1309,6 +1317,8 @@ impl EditorMessage {
             | Self::ArtifactStates { instance, .. }
             | Self::WatchHistory { instance, .. }
             | Self::HistoryStates { instance, .. }
+            | Self::WatchHeads { instance, .. }
+            | Self::Head { instance, .. }
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
@@ -1488,6 +1498,14 @@ pub struct HistoryState {
     pub block_id: [u8; 16],
     pub can_undo: bool,
     pub can_redo: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoredHead {
+    pub commit: [u8; 32],
+    pub content_type: [u8; 16],
+    #[serde(with = "serde_bytes")]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -1764,10 +1782,18 @@ pub struct DroppedFile {
     pub data: Vec<u8>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AudioCommand {
+    Load(AudioSource),
     Toggle,
     Reset,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioSource {
+    pub media_type: String,
+    #[serde(with = "serde_bytes")]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1907,6 +1933,7 @@ impl EditorMessage {
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
+            | Self::Head { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
@@ -1940,6 +1967,7 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
+            | Self::WatchHeads { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
             | Self::CopyImage { .. }
@@ -2439,6 +2467,19 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
+        EditorMessage::WatchHeads { blocks, .. } => collection(blocks.len()),
+        EditorMessage::Head { head, .. } => match head {
+            Ok(Some(head)) => blob(&head.bytes),
+            Ok(None) => Ok(()),
+            Err(error) => string(error),
+        },
+        EditorMessage::PlayAudio {
+            command: AudioCommand::Load(source),
+            ..
+        } => {
+            string(&source.media_type)?;
+            blob(&source.bytes)
+        }
         EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
         EditorMessage::ContentOperations { operations, .. } => {
             collection(operations.len())?;

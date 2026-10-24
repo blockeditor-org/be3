@@ -23,12 +23,12 @@ mod wasm;
 
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction, AudioOutput,
-    AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation, BlockPick,
-    BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
-    ChildPlacement, ChildStatus, ConflictSide, ContactLinkResult, Contacts, CreationProgress,
-    CursorIcon, DataListing, DescribedAction, Description, DisplayMode, Displays,
-    EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Edits, Epaper,
+    AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction, AudioCommand,
+    AudioOutput, AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport,
+    BlockLocation, BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer,
+    ChildMode, ChildOperations, ChildPlacement, ChildStatus, ConflictSide, ContactLinkResult,
+    Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction, Description, DisplayMode,
+    Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Edits, Epaper,
     EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact,
     HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
     HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
@@ -55,10 +55,10 @@ pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
-    ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    OpenRequest, PeerMessage, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter,
-    PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, SentToPeers,
-    ShowRequest, ShownPresence, Waker,
+    ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HeadRead,
+    HostContent, OpenRequest, PeerMessage, PeerPresence, PerformanceMeasurementGuard,
+    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
+    SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
 pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};
 #[cfg(target_arch = "wasm32")]

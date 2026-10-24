@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::app::{AudioApp, guess_media_type};
 
 mod a_playing_track_shows_its_position;
+mod play_hands_the_host_the_tracks_bytes_once;
 mod the_media_type_follows_the_file_name;
 mod the_replace_panel_goes_away_with_the_chrome;
 

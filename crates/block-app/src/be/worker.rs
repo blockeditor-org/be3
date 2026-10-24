@@ -30,6 +30,8 @@ type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
 type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
 
+type HeadReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
+
 pub(super) enum Command {
     PreviewChild {
         alias: Uuid,
@@ -109,6 +111,11 @@ pub(super) enum Command {
         block: Uuid,
         reply: AccessReply,
     },
+    ReadHead {
+        block: Uuid,
+        commit: CommitId,
+        reply: HeadReply,
+    },
     Export {
         block: Uuid,
         reply: ExportReply,
@@ -172,6 +179,7 @@ impl Command {
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
+            | Command::ReadHead { block, .. }
             | Command::Version { block, .. }
             | Command::WatchVersion(block)
             | Command::Leave(block)
@@ -2115,6 +2123,16 @@ async fn apply(
                 .await
                 .map_err(|error| error.to_string());
             reply(listed);
+            crate::host::wake();
+            false
+        }
+        Command::ReadHead { commit, reply, .. } => {
+            let read = async {
+                let commit = peer.load_commit(commit).await?;
+                peer.read_manifest(&commit.manifest).await
+            }
+            .await;
+            reply(read.map_err(|error| error.to_string()));
             crate::host::wake();
             false
         }

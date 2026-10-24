@@ -1404,6 +1404,18 @@ pub(crate) fn list_access(
     });
 }
 
+pub(crate) fn read_head(
+    block: Uuid,
+    commit: be_commit::CommitId,
+    reply: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
+) {
+    send(Command::ReadHead {
+        block,
+        commit,
+        reply: Box::new(reply),
+    });
+}
+
 type Exported = Result<(String, Vec<u8>), String>;
 
 pub(crate) fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static) {

@@ -1,5 +1,6 @@
 use super::*;
 use crate::plugin_host::EditorBlock;
+use be_block::BlockContent as _;
 use beui::Pos2;
 use block_plugin_api::Input;
 
@@ -192,6 +193,7 @@ mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_plugin_never_opened_is_not_closed;
+mod an_instance_watching_a_blocks_head_is_sent_its_stored_bytes;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod clearing_a_name_names_the_block_after_its_content_at_once;

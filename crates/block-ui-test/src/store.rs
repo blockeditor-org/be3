@@ -8,6 +8,7 @@ use block_editor_beui::be_block::{BlockContent, LiveEdit, Undo};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use block_plugin_api::{
     BlockCommand, ContentOperation, EditorInstanceId, EditorMessage, GesturePhase, Message,
+    StoredHead,
 };
 use uuid::Uuid;
 
@@ -316,6 +317,8 @@ struct Inner {
     graph: BTreeMap<Uuid, BlockInfo>,
     created: Vec<Uuid>,
     watched_content: BTreeSet<Uuid>,
+    watched_heads: BTreeSet<Uuid>,
+    heads_sent: BTreeMap<Uuid, u64>,
     watched_queries: Vec<BlockQuery>,
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
     deferred: Option<Vec<(Uuid, Vec<u8>)>>,
@@ -621,6 +624,10 @@ impl ContentStore {
                     )]);
                 }
             }
+            EditorMessage::WatchHeads { blocks, .. } => {
+                self.0.borrow_mut().watched_heads =
+                    blocks.iter().copied().map(Uuid::from_bytes).collect();
+            }
             EditorMessage::WatchBlocks { queries, .. } => {
                 self.0.borrow_mut().watched_queries =
                     queries.iter().copied().map(BlockQuery::decode).collect();
@@ -642,6 +649,27 @@ impl ContentStore {
                 if let Some(held) = inner.blocks.get_mut(&block) {
                     messages.extend(held.update(instance, block));
                 }
+            }
+            let watched: Vec<Uuid> = inner.watched_heads.iter().copied().collect();
+            for block in watched {
+                let revision = inner.blocks.get(&block).map_or(0, |held| held.revision);
+                if inner.heads_sent.insert(block, revision) == Some(revision) {
+                    continue;
+                }
+                let head = inner.blocks.get(&block).map(|held| {
+                    let mut commit = [0; 32];
+                    commit[..8].copy_from_slice(&revision.to_be_bytes());
+                    StoredHead {
+                        commit,
+                        content_type: held.content.content_type().into_bytes(),
+                        bytes: held.content.bytes(),
+                    }
+                });
+                messages.push(Message::Editor(EditorMessage::Head {
+                    instance,
+                    block_id: block.into_bytes(),
+                    head: Ok(head),
+                }));
             }
         }
         let queries = self.0.borrow().watched_queries.clone();
@@ -670,6 +698,10 @@ impl ContentStore {
                 .chain(inner.watched_content.iter())
                 .filter_map(|block| inner.blocks.get(block))
                 .any(|held| held.sent != Some(held.revision))
+                || inner.watched_heads.iter().any(|block| {
+                    let revision = inner.blocks.get(block).map_or(0, |held| held.revision);
+                    inner.heads_sent.get(block) != Some(&revision)
+                })
         };
         owed || {
             let queries = self.0.borrow().watched_queries.clone();

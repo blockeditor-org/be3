@@ -9,12 +9,12 @@ use std::{
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
-    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
-    BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    FitArea, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId,
-    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, decode_host, encode_host,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
+    BlockCommand, BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
+    ChildPlacement, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult,
+    FilePick, FileSave, FitArea, GesturePhase, HostAction, HostPanel, HostReply, HostRequest,
+    HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size,
+    ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -150,6 +150,15 @@ pub struct BlockHistory {
     pub can_undo: bool,
     pub can_redo: bool,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredHead {
+    pub commit: [u8; 32],
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
+}
+
+pub type HeadRead = Result<Option<StoredHead>, String>;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtifactState {
@@ -379,10 +388,11 @@ pub enum Pushed {
     Version,
     HostValues,
     PeerMessages,
+    Heads,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -395,6 +405,7 @@ impl Pushed {
         Self::Version,
         Self::HostValues,
         Self::PeerMessages,
+        Self::Heads,
     ];
 }
 
@@ -429,6 +440,9 @@ pub struct EditorHost {
     histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
     watched_history: Rc<RefCell<Vec<Uuid>>>,
     reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
+    heads: Rc<RefCell<HashMap<Uuid, HeadRead>>>,
+    watched_heads: Rc<RefCell<Vec<Uuid>>>,
+    reported_heads: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
@@ -453,7 +467,7 @@ pub struct EditorHost {
     region: Rc<Cell<Region>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
-    audio_commands: Rc<RefCell<Vec<(Uuid, AudioCommand)>>>,
+    audio_commands: Rc<RefCell<Vec<AudioCommand>>>,
     audio_status: Rc<RefCell<AudioStatus>>,
     web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
@@ -747,6 +761,36 @@ impl EditorHost {
     pub fn set_histories(&self, states: impl IntoIterator<Item = (Uuid, BlockHistory)>) {
         *self.histories.borrow_mut() = states.into_iter().collect();
         self.push(Pushed::Histories);
+    }
+
+    pub fn watch_head(&self, block: Uuid) {
+        let mut watched = self.watched_heads.borrow_mut();
+        if !watched.contains(&block) {
+            watched.push(block);
+            watched.sort();
+        }
+    }
+
+    pub fn head(&self, block: Uuid) -> Option<HeadRead> {
+        self.heads.borrow().get(&block).cloned()
+    }
+
+    pub(crate) fn take_head_watch(&self) -> Option<Vec<Uuid>> {
+        let blocks = self.watched_heads.borrow().clone();
+        let mut reported = self.reported_heads.borrow_mut();
+        if reported
+            .as_ref()
+            .map_or(blocks.is_empty(), |reported| *reported == blocks)
+        {
+            return None;
+        }
+        *reported = Some(blocks.clone());
+        Some(blocks)
+    }
+
+    pub fn set_head(&self, block: Uuid, head: HeadRead) {
+        self.heads.borrow_mut().insert(block, head);
+        self.push(Pushed::Heads);
     }
 
     pub fn undo(&self, block_id: Uuid) {
@@ -1401,23 +1445,28 @@ impl EditorHost {
         }
     }
 
-    pub fn play_audio(&self, block_id: Uuid) {
+    pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
         self.audio_commands
             .borrow_mut()
-            .push((block_id, AudioCommand::Toggle));
+            .push(AudioCommand::Load(AudioSource {
+                media_type: media_type.into(),
+                bytes,
+            }));
     }
 
-    pub fn reset_audio(&self, block_id: Uuid) {
-        self.audio_commands
-            .borrow_mut()
-            .push((block_id, AudioCommand::Reset));
+    pub fn play_audio(&self) {
+        self.audio_commands.borrow_mut().push(AudioCommand::Toggle);
+    }
+
+    pub fn reset_audio(&self) {
+        self.audio_commands.borrow_mut().push(AudioCommand::Reset);
     }
 
     pub fn audio(&self) -> AudioStatus {
         self.audio_status.borrow().clone()
     }
 
-    pub(crate) fn take_audio_commands(&self) -> Vec<(Uuid, AudioCommand)> {
+    pub(crate) fn take_audio_commands(&self) -> Vec<AudioCommand> {
         std::mem::take(&mut self.audio_commands.borrow_mut())
     }
 

@@ -1,4 +1,3 @@
-use be_block::BlockContent as _;
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
@@ -21,6 +20,7 @@ use super::{
     BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
+    heads::{HeadReads, Heads},
     host_values::{Published, Watched},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
@@ -66,6 +66,7 @@ pub(super) struct Instances {
     epoch: u64,
     graph_seen: Option<u64>,
     audio_changes: AudioChanges,
+    head_reads: HeadReads,
     published: Published,
     shell: Option<EditorInstanceId>,
     waiting: HashMap<EditorInstanceId, Vec<Message>>,
@@ -125,6 +126,7 @@ struct Instance {
     artifact_watch: Option<Vec<Uuid>>,
     reported_artifacts: Vec<block_plugin_api::ArtifactState>,
     history_watch: Vec<Uuid>,
+    heads: Heads,
     revision_previews: HashSet<Uuid>,
     reported_history: Option<Vec<block_plugin_api::HistoryState>>,
     drag_accepted: bool,
@@ -327,6 +329,7 @@ impl Instance {
             artifact_watch: None,
             reported_artifacts: Vec::new(),
             history_watch: Vec::new(),
+            heads: Heads::default(),
             revision_previews: HashSet::new(),
             reported_history: None,
             drag_accepted: false,
@@ -523,6 +526,7 @@ impl Instance {
             own.id == block || crate::be::revisions::source(own.id) == Some(block)
         }) || self.watched.contains_key(&block)
             || self.history_watch.contains(&block)
+            || self.heads.follows(block)
     }
 }
 
@@ -1404,6 +1408,7 @@ impl Instances {
             entry.reported_presenting = false;
             entry.host_values.forget_reported();
             entry.reported_history = None;
+            entry.heads.forget_sent();
             entry.reported_artifacts.clear();
             entry.reported_size = None;
             entry.sent_blocks.clear();
@@ -1547,6 +1552,11 @@ impl Instances {
                 && let Some(message) = entry.history_message(instance)
             {
                 opened.push(message);
+            }
+            if stale || graph_moved {
+                entry
+                    .heads
+                    .request(instance, self.epoch, &self.head_reads, &mut opened);
             }
             if stale || graph_moved {
                 entry.name_content();
@@ -2555,6 +2565,16 @@ impl Instances {
                 crate::be::revisions::release(Uuid::from_bytes(preview));
             }
         }
+        let entries = &self.entries;
+        self.head_reads.arrived(
+            self.epoch,
+            |instance, block, commit| {
+                entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.heads.wants(block, commit))
+            },
+            &mut messages,
+        );
         let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
         played.sort_by_key(|instance| instance.0);
         played.dedup();
@@ -2738,6 +2758,7 @@ impl Instances {
                     | EditorMessage::WatchBlocks { .. }
                     | EditorMessage::ResendContent { .. }
                     | EditorMessage::WatchHistory { .. }
+                    | EditorMessage::WatchHeads { .. }
                     | EditorMessage::WatchArtifacts { .. }
                     | EditorMessage::WatchHostValue { .. }
                     | EditorMessage::Focused { .. }
@@ -2851,6 +2872,16 @@ impl Instances {
                     return false;
                 };
                 entry.history_watch = blocks.into_iter().map(Uuid::from_bytes).collect();
+                entry.stale = true;
+                true
+            }
+            EditorMessage::WatchHeads { instance, blocks } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry
+                    .heads
+                    .watch(blocks.into_iter().map(Uuid::from_bytes).collect());
                 entry.stale = true;
                 true
             }
@@ -3117,11 +3148,7 @@ impl Instances {
                 entry.drag_accepted = accepted;
                 changed
             }
-            EditorMessage::PlayAudio {
-                instance,
-                block_id,
-                command,
-            } => {
+            EditorMessage::PlayAudio { instance, command } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
@@ -3132,14 +3159,9 @@ impl Instances {
                     })
                 });
                 match command {
+                    AudioCommand::Load(source) => player.load(source),
+                    AudioCommand::Toggle => player.toggle(),
                     AudioCommand::Reset => player.reset(),
-                    AudioCommand::Toggle => {
-                        let audio = crate::be::content(Uuid::from_bytes(block_id))
-                            .and_then(|held| be_block::AudioContent::decode(held.bytes()).ok());
-                        if let Some(audio) = audio {
-                            player.toggle(&audio);
-                        }
-                    }
                 }
                 true
             }

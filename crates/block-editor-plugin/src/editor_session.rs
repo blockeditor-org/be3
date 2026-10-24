@@ -254,6 +254,21 @@ impl EditorSession {
         }));
     }
 
+    pub(crate) fn set_head(
+        &self,
+        block_id: [u8; 16],
+        head: &Result<Option<block_plugin_api::StoredHead>, String>,
+    ) {
+        let head = head.clone().map(|head| {
+            head.map(|head| crate::host::StoredHead {
+                commit: head.commit,
+                content_type: Uuid::from_bytes(head.content_type),
+                bytes: head.bytes,
+            })
+        });
+        self.host.set_head(Uuid::from_bytes(block_id), head);
+    }
+
     pub(crate) fn set_view(&self, view: Rect, scale: f32) {
         self.host.set_view(view, scale);
     }
@@ -650,10 +665,9 @@ impl EditorSession {
                 name: commit.name,
             }));
         }
-        for (block_id, command) in self.host.take_audio_commands() {
+        for command in self.host.take_audio_commands() {
             messages.push(Message::Editor(EditorMessage::PlayAudio {
                 instance,
-                block_id: block_id.into_bytes(),
                 command,
             }));
         }
@@ -728,6 +742,12 @@ impl EditorSession {
         }
         if let Some(blocks) = self.host.take_history_watch() {
             messages.push(Message::Editor(EditorMessage::WatchHistory {
+                instance,
+                blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
+            }));
+        }
+        if let Some(blocks) = self.host.take_head_watch() {
+            messages.push(Message::Editor(EditorMessage::WatchHeads {
                 instance,
                 blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
             }));

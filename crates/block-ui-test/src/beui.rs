@@ -1060,6 +1060,13 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn take_audio_commands(&mut self) -> Vec<block_plugin_api::AudioCommand> {
+        self.take_where(|message| match message {
+            EditorMessage::PlayAudio { command, .. } => Some(command.clone()),
+            _ => None,
+        })
+    }
+
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
         self.take_where(|message| match message {
             EditorMessage::ChangeView { change, .. } => Some(*change),

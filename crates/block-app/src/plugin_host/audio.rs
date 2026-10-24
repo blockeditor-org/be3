@@ -2,8 +2,21 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, time::Duration};
 
-use be_block::AudioContent as Audio;
-use block_plugin_api::AudioStatus;
+use block_plugin_api::{AudioSource, AudioStatus};
+
+struct Source {
+    media_type: String,
+    bytes: Arc<[u8]>,
+}
+
+impl From<AudioSource> for Source {
+    fn from(source: AudioSource) -> Self {
+        Self {
+            media_type: source.media_type,
+            bytes: source.bytes.into(),
+        }
+    }
+}
 
 #[derive(Clone)]
 struct Changed(Arc<dyn Fn() + Send + Sync>);
@@ -19,6 +32,11 @@ impl Changed {
 }
 
 impl AudioPlayer {
+    pub(super) fn load(&mut self, source: AudioSource) {
+        self.reset();
+        self.source = Some(source.into());
+    }
+
     pub(super) fn status(&self) -> AudioStatus {
         AudioStatus {
             playing: self.is_playing(),
@@ -31,6 +49,7 @@ impl AudioPlayer {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) struct AudioPlayer {
+    source: Option<Source>,
     stream: Option<(rodio::OutputStream, rodio::OutputStreamHandle)>,
     sink: Option<rodio::Sink>,
     duration: Option<Duration>,
@@ -43,6 +62,7 @@ pub(super) struct AudioPlayer {
 impl AudioPlayer {
     pub(super) fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
+            source: None,
             stream: None,
             sink: None,
             duration: None,
@@ -80,6 +100,7 @@ impl AudioPlayer {
     }
 
     pub(super) fn reset(&mut self) {
+        self.source = None;
         self.sink = None;
         self.duration = None;
         self.changed.mark();
@@ -98,7 +119,7 @@ impl AudioPlayer {
         true
     }
 
-    pub(super) fn toggle(&mut self, audio: &Audio) {
+    pub(super) fn toggle(&mut self) {
         self.changed.mark();
         if let Some(sink) = &self.sink
             && !self.finished.load(Ordering::Acquire)
@@ -112,6 +133,10 @@ impl AudioPlayer {
         }
         self.sink = None;
         self.error = None;
+        let Some(source) = &self.source else {
+            return;
+        };
+        let (media_type, bytes) = (source.media_type.clone(), Arc::clone(&source.bytes));
         if !self.ensure_stream() {
             return;
         }
@@ -123,11 +148,11 @@ impl AudioPlayer {
                 return;
             }
         };
-        let cursor = std::io::Cursor::new(audio.data().to_vec());
+        let cursor = std::io::Cursor::new(bytes);
         let source = match rodio::Decoder::new(cursor) {
             Ok(source) => source,
             Err(error) => {
-                self.error = Some(format!("Could not decode audio: {error}"));
+                self.error = Some(format!("Could not decode {media_type}: {error}"));
                 return;
             }
         };
@@ -171,6 +196,7 @@ impl Drop for Element {
 
 #[cfg(target_arch = "wasm32")]
 pub(super) struct AudioPlayer {
+    source: Option<Source>,
     element: Option<Element>,
     error: Option<String>,
     changed: Changed,
@@ -180,6 +206,7 @@ pub(super) struct AudioPlayer {
 impl AudioPlayer {
     pub(super) fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
+            source: None,
             element: None,
             error: None,
             changed: Changed::new(notify),
@@ -208,6 +235,7 @@ impl AudioPlayer {
     }
 
     pub(super) fn reset(&mut self) {
+        self.source = None;
         if let Some(held) = self.element.take() {
             let _ = held.element.pause();
             let _ = web_sys::Url::revoke_object_url(&held.url);
@@ -215,7 +243,7 @@ impl AudioPlayer {
         self.changed.mark();
     }
 
-    pub(super) fn toggle(&mut self, audio: &Audio) {
+    pub(super) fn toggle(&mut self) {
         self.changed.mark();
         if let Some(held) = &self.element {
             let result = if held.element.paused() {
@@ -229,7 +257,10 @@ impl AudioPlayer {
             return;
         }
         self.error = None;
-        match create_element(audio, &self.changed) {
+        let Some(source) = &self.source else {
+            return;
+        };
+        match create_element(source, &self.changed) {
             Ok(held) => {
                 let _ = held.element.play();
                 self.element = Some(held);
@@ -245,15 +276,15 @@ fn duration_from_seconds(seconds: f64) -> Duration {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn create_element(audio: &Audio, changed: &Changed) -> Result<Element, String> {
+fn create_element(source: &Source, changed: &Changed) -> Result<Element, String> {
     use wasm_bindgen::{JsCast, closure::Closure};
 
-    let bytes = js_sys::Uint8Array::from(audio.data());
+    let bytes = js_sys::Uint8Array::from(&source.bytes[..]);
     let parts = js_sys::Array::new();
     parts.push(&bytes.buffer());
 
     let properties = web_sys::BlobPropertyBag::new();
-    properties.set_type(&audio.header().media_type);
+    properties.set_type(&source.media_type);
     let blob = web_sys::Blob::new_with_buffer_source_sequence_and_options(&parts, &properties)
         .map_err(|_| "Could not create an audio blob".to_owned())?;
 
