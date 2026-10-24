@@ -477,6 +477,13 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
             &heard_by_manager,
             &format!("Add Home wpa-psk correct horse {DEVICE_PATH} {HOME_POINT}"),
         );
+        until(
+            &published,
+            "the network being joined while the device still shows the last failure",
+            |status| {
+                status.failed.is_none() && status.link == WifiLink::Connecting("Home".to_owned())
+            },
+        );
         server
             .interface::<_, FakeActive>(ACTIVE_PATH)
             .await
