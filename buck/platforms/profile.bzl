@@ -25,3 +25,28 @@ def dev_only(flags):
         "DEFAULT": flags,
         "root//buck/constraints:release": [],
     })
+
+# A target in cargo's release profile whatever the command asked for, for what
+# a command downloads: crates/verify, which it runs here, and the paint review
+# page, a quarter the size of its dev build.
+def _release_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    release = refs.release[ConstraintValueInfo]
+    if platform.configuration.constraints.get(release.setting.label) == release:
+        return platform
+    constraints = dict(platform.configuration.constraints)
+    constraints[release.setting.label] = release
+    return PlatformInfo(
+        configuration = ConfigurationInfo(constraints = constraints, values = platform.configuration.values),
+        label = platform.label + "_release",
+    )
+
+_release = transition(impl = _release_impl, refs = PROFILE_REFS)
+
+def _released_impl(ctx: AnalysisContext) -> list[Provider]:
+    actual = ctx.attrs.actual
+    return [actual[DefaultInfo]] + ([actual[RunInfo]] if RunInfo in actual else [])
+
+released = rule(
+    attrs = {"actual": attrs.transition_dep(cfg = _release)},
+    impl = _released_impl,
+)

@@ -43,7 +43,10 @@ cxx_tools_info_toolchain(
 # the link alone), Linux on arm64 against buck/sysroot's arm64 packages, a Mac
 # against Apple's SDK with ld64.lld, Windows against xwin's MSVC runtime and SDK
 # with lld-link. Windows' headers go after clang's own (-idirafter), since
-# MSVC's intrinsics headers only declare what clang's define.
+# MSVC's intrinsics headers only declare what clang's define. /Brepro has
+# lld-link write a hash of the output where it would write the time, so that a
+# binary built again is the same file, which the bootstrap's pins rely on
+# (guides/bootstrap.md).
 [
     [
         host_cxx_tools(
@@ -97,7 +100,7 @@ cxx_tools_info_toolchain(
                 "-idirafter$(location root//buck/tools:windows-sdk-{})/{}".format(arch, include)
                 for include in ["crt/include", "sdk/include/ucrt", "sdk/include/um", "sdk/include/shared", "sdk/include/winrt"]
             ],
-            ["/libpath:$(location root//buck/tools:windows-sdk-{})/{}/{}".format(arch, lib, arch) for lib in ["crt/lib", "sdk/lib/um", "sdk/lib/ucrt"]],
+            ["/Brepro"] + ["/libpath:$(location root//buck/tools:windows-sdk-{})/{}/{}".format(arch, lib, arch) for lib in ["crt/lib", "sdk/lib/um", "sdk/lib/ucrt"]],
         )
         for cpu, arch in [("arm64", "aarch64"), ("x86_64", "x86_64")]
     ]

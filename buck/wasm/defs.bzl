@@ -1,7 +1,14 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/app:defs.bzl", "plugin_data")
 load(
-    "@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_library_sources", "cargo_manifest_sources", "cargo_test_sources", "cargo_wasm_facts"
+    "@root//buck/cargo:defs.bzl",
+    "RemoteTestInfo",
+    "cargo_example",
+    "cargo_library",
+    "cargo_library_sources",
+    "cargo_manifest_sources",
+    "cargo_test_sources",
+    "cargo_wasm_facts",
 )
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "dev_only", "keep_profile")
@@ -270,25 +277,45 @@ def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
     command = cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module))
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
-    return inject_test_run_info(
-        ctx,
-        ExternalRunnerTestInfo(
-            command = [command],
-            env = env,
-            # They run here and accept paintings, where the rest run on a
-            # worker.
-            labels = ctx.attrs.labels + ["plugin"],
-            run_from_project_root = True,
-            type = "rust",
-            use_project_relative_paths = False,
-        ),
-    ) + [DefaultInfo(default_output = module)]
+    remote_command, remote_env = _on_worker(ctx, command, env)
+    remote = RemoteTestInfo(command = remote_command, env = remote_env, hidden = ctx.attrs._inputs[DefaultInfo].default_outputs)
+    return (
+        [remote]
+        + inject_test_run_info(
+            ctx,
+            ExternalRunnerTestInfo(
+                command = [command],
+                env = env,
+                # They run here and accept paintings, where the rest run on a
+                # worker.
+                labels = ctx.attrs.labels + ["plugin"],
+                run_from_project_root = True,
+                type = "rust",
+                use_project_relative_paths = False,
+            ),
+        )
+        + [DefaultInfo(default_output = module)]
+    )
+
+# A plugin test's command and environment on a worker, where it draws through
+# lavapipe, as the renderer's tests do, with LD_LIBRARY_PATH carried as
+# BE3_LD_LIBRARY_PATH for the same reason (library_path_test in
+# buck/cargo/defs.bzl).
+def _on_worker(ctx: AnalysisContext, command: cmd_args, env: dict) -> (cmd_args, dict):
+    sysroot = ctx.attrs._sysroot[DefaultInfo].default_outputs[0]
+    return cmd_args("sh", "-c", 'LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export LD_LIBRARY_PATH && exec "$@"', "sh", command), env | {
+        "BE3_LD_LIBRARY_PATH": cmd_args(sysroot, format = "{}/usr/lib/x86_64-linux-gnu"),
+        "VK_ICD_FILENAMES": ctx.attrs._lavapipe,
+    }
 
 # What a plugin test runs, for buck2 test and for ./scripts/verify alike.
 _plugin_test_attrs = {
     "manifest": attrs.source(),
     "module": attrs.transition_dep(cfg = wasi_transition),
     "precompile": attrs.bool(default = True),
+    "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
+    "_lavapipe": attrs.source(default = "root//buck/sysroot:lavapipe_icd.json"),
+    "_sysroot": attrs.dep(default = "root//buck/sysroot:amd64-test"),
 }
 
 wasi_test = rule(
@@ -305,34 +332,28 @@ wasi_test = rule(
 # The plugin tests as an action, which is how ./scripts/verify runs them: on a worker,
 # and answered from the cache when nothing they read has changed, which a test
 # never is. They read the accepted paintings from snapshots/ and accept every
-# painting, writing the ones that changed or are new to changed/ and each
-# accepted painting they compared, as they read it, to used/ (empty when there
-# was none); ./scripts/verify copies into snapshots/ the paintings in changed/
-# whose accepted painting still reads the same, or under --check fails on them. They draw through lavapipe, as the renderer's tests
-# do, with LD_LIBRARY_PATH carried as BE3_LD_LIBRARY_PATH for the same reason
-# (library_path_test in buck/cargo/defs.bzl).
+# painting, writing the ones that changed or are new to changed/ and, for each
+# accepted painting they compared, the SHA-256 of what they read to used/ (that
+# of nothing when there was none), so that the paintings themselves are never
+# downloaded; ./scripts/verify copies into snapshots/ the paintings in changed/
+# whose accepted painting still has that hash, or under --check fails on them.
 def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
     paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
-    sysroot = ctx.attrs._sysroot[DefaultInfo].default_outputs[0]
+    env = {"CARGO_MANIFEST_DIR": cmd_args(ctx.attrs.manifest, parent = 1), "UPDATE_SNAPSHOTS": "1"}
+    command, env = _on_worker(ctx, cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module)), env)
     ctx.actions.run(
         cmd_args(
             "sh",
             "-c",
-            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export USED_PAINTINGS CHANGED_PAINTINGS LD_LIBRARY_PATH && shift && exec "$@"',
+            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
             "sh",
             paintings.as_output(),
-            ctx.attrs.runner[RunInfo],
-            _precompiled(ctx, module),
+            command,
             hidden = ctx.attrs._inputs[DefaultInfo].default_outputs,
         ),
         category = "plugin_test",
-        env = {
-            "BE3_LD_LIBRARY_PATH": cmd_args(sysroot, format = "{}/usr/lib/x86_64-linux-gnu"),
-            "CARGO_MANIFEST_DIR": cmd_args(ctx.attrs.manifest, parent = 1),
-            "UPDATE_SNAPSHOTS": "1",
-            "VK_ICD_FILENAMES": ctx.attrs._lavapipe,
-        },
+        env = env,
     )
     return [DefaultInfo(default_output = paintings)]
 
@@ -340,9 +361,6 @@ plugin_test_run = rule(
     attrs = _plugin_test_attrs
     | {
         "runner": attrs.exec_dep(providers = [RunInfo]),
-        "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
-        "_lavapipe": attrs.source(default = "root//buck/sysroot:lavapipe_icd.json"),
-        "_sysroot": attrs.dep(default = "root//buck/sysroot:amd64-test"),
     },
     impl = _plugin_test_run_impl,
 )

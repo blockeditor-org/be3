@@ -1,15 +1,8 @@
-#[cfg(not(target_os = "android"))]
-use std::io::Write;
-use std::path::Path;
-#[cfg(not(target_os = "android"))]
-use std::process::Stdio;
-
 use beui::Color32;
 use serde_json::Value;
 
 use crate::markdown::{self, Block, blocks};
-#[cfg(not(target_os = "android"))]
-use crate::tasks::{capture, command};
+use crate::net::{Network, get};
 use crate::time::parse_timestamp;
 
 const API: &str = "https://api.github.com";
@@ -132,7 +125,6 @@ pub(crate) fn timeline_images(entries: &[Entry]) -> Vec<String> {
 pub(crate) const BRANCH_DELETED: &str = "deleted the branch";
 pub(crate) const BRANCH_RESTORED: &str = "restored the branch";
 
-#[cfg(not(target_os = "android"))]
 pub(crate) fn branch_deleted(entries: &[Entry]) -> bool {
     entries
         .iter()
@@ -151,30 +143,14 @@ pub(crate) struct GitHub {
 }
 
 impl GitHub {
-    #[cfg(target_os = "android")]
-    pub(crate) fn connect(_root: &Path) -> Result<Self, String> {
+    pub(crate) fn connect() -> Result<Self, String> {
         Ok(Self {
             repository: Repository {
                 owner: "blockeditor-org".to_owned(),
                 name: "be3".to_owned(),
             },
-            token: None,
+            token: token(),
         })
-    }
-
-    #[cfg(not(target_os = "android"))]
-    pub(crate) fn connect(root: &Path) -> Result<Self, String> {
-        let remote = capture(root, "git", &["remote", "get-url", "origin"])?;
-        let repository = parse_remote(&remote)
-            .ok_or_else(|| format!("origin is not a GitHub repository: {}", remote.trim()))?;
-        let token = ["GITHUB_TOKEN", "GH_TOKEN"]
-            .iter()
-            .filter_map(|name| std::env::var(name).ok())
-            .find(|token| !token.trim().is_empty())
-            .or_else(|| capture(root, "gh", &["auth", "token"]).ok())
-            .map(|token| token.trim().to_owned())
-            .filter(|token| !token.is_empty());
-        Ok(Self { repository, token })
     }
 
     pub(crate) fn repository(&self) -> &Repository {
@@ -215,7 +191,6 @@ impl GitHub {
         ))
     }
 
-    #[cfg(target_os = "android")]
     pub(crate) fn branch_head(&self, branch: &str) -> Result<String, String> {
         let described = self.api(&format!(
             "repos/{}/branches/{branch}",
@@ -244,28 +219,14 @@ impl GitHub {
     }
 }
 
-#[cfg(target_os = "android")]
 pub(crate) fn download(url: &str, token: Option<&str>) -> Result<Vec<u8>, String> {
-    use std::io::Read;
-
-    let mut request = crate::android::agent()
-        .get(url)
-        .set("User-Agent", "be-launcher")
-        .set("Accept", "application/vnd.github+json");
-    if let Some(token) = token {
-        request = request.set("Authorization", &format!("Bearer {token}"));
+    let authorization = token.map(|token| format!("Bearer {token}"));
+    let mut headers = vec![("Accept", "application/vnd.github+json")];
+    if let Some(authorization) = &authorization {
+        headers.push(("Authorization", authorization.as_str()));
     }
-    let (response, success) = match request.call() {
-        Ok(response) => (response, true),
-        Err(ureq::Error::Status(_, response)) => (response, false),
-        Err(error) => return Err(format!("{error}.")),
-    };
-    let mut body = Vec::new();
-    response
-        .into_reader()
-        .read_to_end(&mut body)
-        .map_err(|error| format!("{error}."))?;
-    if success {
+    let (status, body) = get(&mut Network, url, &headers)?;
+    if (200..300).contains(&status) {
         return Ok(body);
     }
     let message = serde_json::from_slice::<Value>(&body)
@@ -275,55 +236,20 @@ pub(crate) fn download(url: &str, token: Option<&str>) -> Result<Vec<u8>, String
     Err(format!("{message}."))
 }
 
-#[cfg(not(target_os = "android"))]
-pub(crate) fn download(url: &str, token: Option<&str>) -> Result<Vec<u8>, String> {
-    let mut child = command("curl")
-        .args([
-            "--silent",
-            "--show-error",
-            "--location",
-            "--compressed",
-            "--fail-with-body",
-            "--user-agent",
-            "be-launcher",
-            "--header",
-            "Accept: application/vnd.github+json",
-            "--config",
-            "-",
-            url,
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("could not run curl: {error}"))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        let config = token
-            .map(|token| format!("header = \"Authorization: Bearer {token}\"\n"))
-            .unwrap_or_default();
-        let _ = stdin.write_all(config.as_bytes());
-    }
-    let output = child
-        .wait_with_output()
-        .map_err(|error| format!("curl failed: {error}"))?;
-    if output.status.success() {
-        return Ok(output.stdout);
-    }
-    let message = serde_json::from_slice::<Value>(&output.stdout)
-        .ok()
-        .and_then(|body| body["message"].as_str().map(str::to_owned))
-        .unwrap_or_else(|| String::from_utf8_lossy(&output.stderr).trim().to_owned());
-    Err(format!("{message}."))
+#[cfg(target_os = "android")]
+fn token() -> Option<String> {
+    None
 }
 
 #[cfg(not(target_os = "android"))]
-pub(crate) fn parse_remote(remote: &str) -> Option<Repository> {
-    let trimmed = remote.trim().trim_end_matches('/');
-    let trimmed = trimmed.strip_suffix(".git").unwrap_or(trimmed);
-    let mut parts = trimmed.rsplit(['/', ':']).filter(|part| !part.is_empty());
-    let name = parts.next()?.to_owned();
-    let owner = parts.next()?.to_owned();
-    Some(Repository { owner, name })
+fn token() -> Option<String> {
+    ["GITHUB_TOKEN", "GH_TOKEN"]
+        .iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .find(|token| !token.trim().is_empty())
+        .or_else(|| crate::tasks::capture("gh", &["auth", "token"]).ok())
+        .map(|token| token.trim().to_owned())
+        .filter(|token| !token.is_empty())
 }
 
 pub(crate) fn parse_pull_requests(listed: &Value, repository: &Repository) -> Vec<PullRequest> {

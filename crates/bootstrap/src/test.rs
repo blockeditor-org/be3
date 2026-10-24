@@ -62,19 +62,92 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         }
     }
 
-    let mut arguments = vec!["test".to_owned()];
-    arguments.extend(targets.iter().cloned());
-    arguments.extend(["--".to_owned(), "--test-arg=--nocapture".to_owned()]);
-    if !name.is_empty() {
-        arguments.push(format!("--test-arg={name}"));
+    let mut arguments: Vec<String> = ["bxl", "--keep-going", "//buck/dev/test.bxl:main", "--"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    for target in &targets {
+        arguments.extend(["--target".to_owned(), target.clone()]);
     }
-    if update {
-        arguments.extend(["--env".to_owned(), "UPDATE_SNAPSHOTS=1".to_owned()]);
+    arguments.extend([
+        "--name".to_owned(),
+        name,
+        "--update".to_owned(),
+        update.to_string(),
+    ]);
+    let failures = repository().join("target/test-failed");
+    let asked = arguments.join(" ");
+    if std::fs::read_to_string(&failures).is_ok_and(|last| last == asked) {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_nanos())
+            .unwrap_or_default();
+        arguments.extend(["--nonce".to_owned(), nonce.to_string()]);
     }
     eprintln!("Running {}", targets.join(" "));
     // unsafe(env)
     unsafe { std::env::set_var("BE3_VERBOSE", "1") };
-    buck::main(arguments)
+    let buck2 = buck::prepare()?;
+    buck::write_build_id()?;
+    let (status, output) = buck::retrying(&buck2, &arguments, false, true, None)?;
+    let mut failed = status != 0;
+    for line in String::from_utf8_lossy(&output).lines() {
+        let Some((target, directory)) = line.trim_end_matches('\r').split_once('\t') else {
+            continue;
+        };
+        failed |= !report(target, Path::new(directory), update);
+    }
+    let _ = if failed {
+        std::fs::write(&failures, asked)
+    } else {
+        std::fs::remove_file(&failures)
+    };
+    Ok(if failed {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    })
+}
+
+fn report(target: &str, directory: &Path, update: bool) -> bool {
+    let status = std::fs::read_to_string(directory.join("status")).unwrap_or_default();
+    let passed = status.trim() == "0";
+    println!("\n{target} {}:", if passed { "passed" } else { "failed" });
+    let log = std::fs::read(directory.join("log")).unwrap_or_default();
+    println!("{}", String::from_utf8_lossy(&log).trim_end());
+    if !update {
+        return passed;
+    }
+    let mut accepted = passed;
+    let mut paintings: Vec<_> = std::fs::read_dir(directory.join("changed"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "paint")
+        })
+        .collect();
+    paintings.sort();
+    for painting in paintings {
+        let Some(name) = painting.file_name() else {
+            continue;
+        };
+        let mut why = painting.clone().into_os_string();
+        why.push(".why");
+        let why = std::fs::read_to_string(why).unwrap_or_default();
+        let to = repository().join("snapshots").join(name);
+        let name = name.to_string_lossy();
+        match std::fs::copy(&painting, &to) {
+            Ok(_) => println!("Accepted snapshots/{name}: {}", why.trim_end()),
+            Err(error) => {
+                println!("Could not write snapshots/{name}: {error}");
+                accepted = false;
+            }
+        }
+    }
+    accepted
 }
 
 fn crates_with(name: &str) -> BTreeSet<String> {

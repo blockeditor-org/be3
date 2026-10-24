@@ -81,6 +81,23 @@ deb_sysroot(
     visibility = ["PUBLIC"],
 )
 
+# What a program run here from :amd64 loads, for `:dev` (buck/app/drive.bzl) to
+# download: its shared libraries, without the headers, static libraries and
+# sanitizer runtimes only a link needs: 258 MB of its 361.
+genrule(
+    name = "amd64-libraries",
+    cmd = """
+        set -eu
+        cp -RP $(location :amd64)/usr/lib/x86_64-linux-gnu/. $OUT/
+        find $OUT -name '*.a' -delete
+        find $OUT -name '*.o' -delete
+        rm -rf $OUT/pkgconfig
+        rm -f $OUT/libasan.so* $OUT/libtsan.so* $OUT/liblsan.so* $OUT/libubsan.so* $OUT/libhwasan.so*
+    """,
+    out = "lib",
+    visibility = ["PUBLIC"],
+)
+
 deb_sysroot(
     name = "arm64",
     packages = [":arm64-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["arm64"]],

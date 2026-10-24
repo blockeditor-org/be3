@@ -12,16 +12,15 @@ use beui::unstyled::BackSlide;
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, Document, NodeId};
 
+use crate::actions::MainActions;
 #[cfg(target_os = "android")]
 use crate::detail::{Detail, placeholder};
 use crate::github::{Filter, Label, PullRequest, State};
 use crate::model::{Loaded, Model};
-#[cfg(target_os = "android")]
-use crate::phone::MainActions;
 use crate::time::{now, relative};
 use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
-use crate::workspace::{MainActions, Workspace};
+use crate::workspace::Workspace;
 use beui::TextAlign;
 
 #[cfg(not(target_os = "android"))]
@@ -34,7 +33,7 @@ const CHIP_PADDING_VERTICAL: f32 = 1.0;
 const CHIP_RADIUS: f32 = 9.0;
 pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
 #[cfg(not(target_os = "android"))]
-const CURRENT: &str = "checked out";
+const CURRENT: &str = "last run";
 #[cfg(target_os = "android")]
 const CURRENT: &str = "installed";
 

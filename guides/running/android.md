@@ -98,7 +98,7 @@ adds `assets/build-info.json` and signs locally, writing
 `buck build --out` copies an unsigned template, not an installable APK.
 
 The finalizer is `local-tools apk-sign` (`crates/local-tools/src/apk_sign.rs`),
-shared by local runs, `./scripts/ci --android DIR` on the CI runner, and
+shared by local runs, the build helper (guides/build_server.md), and
 `./scripts/deploy` before hashing and uploading the release APK. It writes the
 v2 signing block itself, with RSA keys read through `p12-keystore` and `jks`.
 No Java or Android SDK is needed to produce signed APKs. `--install` needs adb,
@@ -107,8 +107,9 @@ PATH.
 
 The dev key is `target/android-debug.keystore`, generated on first use.
 `--keystore FILE` overrides it; `--password-file FILE` overrides password
-`android`. Keys are RSA, in binary JKS/PKCS12 or base64 of either. CI reads
-`BE3_ANDROID_CI_KEYSTORE` or `buck/android/ci-keystore.base64`. Release reads
+`android`. Keys are RSA, in binary JKS/PKCS12 or base64 of either. `--signing
+ci` reads `BE3_ANDROID_CI_KEYSTORE` or `buck/android/ci-keystore.base64`; the
+build helper passes CI's key as `--keystore` instead. Release reads
 `BE3_ANDROID_RELEASE_KEYSTORE` or
 `~/.config/be3/android-release-keystore.base64` (under `XDG_CONFIG_HOME` when
 set), asking at a terminal to generate or import a key when missing. Existing

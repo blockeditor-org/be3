@@ -2,8 +2,6 @@ use beui::NodeId;
 use beui::reactive::*;
 use terminal_view::{Emulator, Fit, TerminalScreen, TerminalView};
 
-use crate::tasks::Tasks;
-
 const DEFAULT_COLS: u16 = 100;
 const DEFAULT_ROWS: u16 = 30;
 const MAX_SCROLLBACK: usize = 10_000;
@@ -15,22 +13,20 @@ pub(crate) struct Session {
 #[derive(Clone, Copy)]
 pub(crate) struct Pane {
     screen: TerminalScreen,
-    tasks: Stored<Tasks>,
 }
 
 impl Session {
-    pub(crate) fn new(tasks: Tasks) -> Result<Self, String> {
-        let mut emulator = Emulator::new(DEFAULT_COLS, DEFAULT_ROWS, MAX_SCROLLBACK)?;
-        emulator.on_reply(move |reply| tasks.input(reply))?;
-        Ok(Self { emulator })
+    pub(crate) fn new() -> Result<Self, String> {
+        Ok(Self {
+            emulator: Emulator::new(DEFAULT_COLS, DEFAULT_ROWS, MAX_SCROLLBACK)?,
+        })
     }
 }
 
 impl Pane {
-    pub(crate) fn new(session: Session, tasks: Tasks) -> Self {
+    pub(crate) fn new(session: Session) -> Self {
         Self {
             screen: TerminalScreen::new(session.emulator),
-            tasks: store(tasks),
         }
     }
 
@@ -51,7 +47,6 @@ impl Pane {
             .screen
             .resize(fit.cols, fit.rows, fit.cell_width, fit.cell_height)
         {
-            self.tasks.value().resize(fit.cols, fit.rows);
             self.refresh();
         }
     }
@@ -62,7 +57,7 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
     view! {
         <TerminalView
             screen={pane.screen}
-            on_input={move |bytes: Vec<u8>| pane.tasks.value().input(&bytes)}
+            on_input={|_: Vec<u8>| {}}
             on_fit={move |fit: Fit| pane.fit(fit)}
         />
     }
