@@ -640,10 +640,7 @@ fn DockSideBar(
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
-    let header = create_memo(move || match icons_only.get() {
-        true => Direction::Vertical,
-        false => Direction::Horizontal,
-    });
+    let titles = create_memo(move || !icons_only.get());
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
@@ -653,16 +650,22 @@ fn DockSideBar(
             >
                 <List spacing=BAR_SPACING>
                     <List
-                        direction={header}
+                        direction=Direction::Horizontal
                         align=Align::Center
                         justify=Justify::SpaceBetween
                         spacing=BAR_SPACING
                     >
                         {grip}
-                        <List direction={header} align=Align::Center spacing=BAR_SPACING>
-                            <DockMenu menu room=BarRoom::Narrow />
-                            <DockClose closable close={close} />
-                        </List>
+                        <Show condition={titles}>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=BAR_SPACING
+                            >
+                                <DockMenu menu room=BarRoom::Narrow />
+                                <DockClose closable close={close} />
+                            </List>
+                        </Show>
                     </List>
                     {tabs} @sizing=ItemSize::Percent(100.0)
                     <Show condition={titled}>|| {
@@ -670,6 +673,12 @@ fn DockSideBar(
                             <Text>{title}</Text>
                         }
                     }</Show>
+                    <Show condition={icons_only}>
+                        <List align=Align::Center spacing=BAR_SPACING>
+                            <DockMenu menu room=BarRoom::Column />
+                            <DockClose closable close={close} />
+                        </List>
+                    </Show>
                 </List>
             </Frame>
         </List>
@@ -680,14 +689,22 @@ fn DockSideBar(
 pub(crate) enum BarRoom {
     Wide,
     Narrow,
+    Column,
     Phone,
 }
 
 impl BarRoom {
     fn button(self) -> IconButtonSize {
         match self {
-            BarRoom::Wide | BarRoom::Narrow => IconButtonSize::Toolbar,
+            BarRoom::Wide | BarRoom::Narrow | BarRoom::Column => IconButtonSize::Toolbar,
             BarRoom::Phone => IconButtonSize::Regular,
+        }
+    }
+
+    fn direction(self) -> Direction {
+        match self {
+            BarRoom::Column => Direction::Vertical,
+            BarRoom::Wide | BarRoom::Narrow | BarRoom::Phone => Direction::Horizontal,
         }
     }
 
@@ -745,7 +762,7 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
         }
     };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+        <List direction={room.direction()} align=Align::Center spacing=BAR_SPACING>
             <ForEach keys={icons}>|key: u64| { pin(key) }</ForEach>
             <Show condition={divided}>
                 <Frame padding={Sides::horizontal(DIVIDER_MARGIN)}>

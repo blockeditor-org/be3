@@ -30,7 +30,7 @@ use crate::DropTarget;
 use crate::Scroll;
 use crate::back_slide::BackSlide;
 use crate::context_menu::ContextMenu;
-use crate::menu::MenuItem;
+use crate::menu::{MenuItem, MenuNodes};
 use crate::menu_popup::MenuStyle;
 use crate::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -2039,6 +2039,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     let icons_only = dock.icons_only(Some(leaf));
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
+    let closable = dock.all_closable(contents);
     let claimed = dock.drag_modifier;
     let resized = modifier_resize(dock, Resized::Docked);
     view! {
@@ -2070,14 +2071,20 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         icons_only,
                         focused,
                         grip: view! {
-                            <DockPaneGrip dock={dock} leaf vertical focused={focused} />
+                            <DockPaneGrip
+                                dock={dock}
+                                leaf
+                                vertical
+                                focused={focused}
+                                pane={GripPane { menu, closable, close }}
+                            />
                         },
                         tabs: Some(view! {
                             <DockTabBar dock={dock} leaf vertical />
                         }),
                         title: create_memo(String::new),
                         vacant,
-                        closable: dock.all_closable(contents),
+                        closable,
                         menu,
                         close,
                     });
@@ -2105,7 +2112,13 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
 }
 
 #[component]
-fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) -> NodeId {
+fn DockPaneGrip(
+    dock: State,
+    leaf: LeafId,
+    vertical: bool,
+    focused: Memo<bool>,
+    pane: GripPane,
+) -> NodeId {
     let face = dock.grip.call(DockGripHandle {
         floating: false,
         vertical,
@@ -2136,6 +2149,7 @@ fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) 
                 menu
                 vertical
                 icons_only={dock.icons_only(Some(leaf))}
+                pane
                 toggle={move || dock.toggle_vertical(leaf)}
                 toggle_icons={move || dock.toggle_icons_only(leaf)}
             >
@@ -2524,11 +2538,19 @@ fn TabMenu(
     }
 }
 
+#[derive(Clone, Copy)]
+struct GripPane {
+    menu: Memo<Vec<MenuNode>>,
+    closable: Memo<bool>,
+    close: ClickCallback,
+}
+
 #[component]
 fn GripMenu(
     menu: MenuStyle,
     vertical: bool,
     icons_only: Memo<bool>,
+    pane: GripPane,
     toggle: ClickCallback,
     toggle_icons: ClickCallback,
     children: Child,
@@ -2538,16 +2560,32 @@ fn GripMenu(
         false => "Show tabs in a sidebar",
     };
     let checked = create_memo(move || Some(icons_only.get()));
+    let GripPane {
+        menu: tab_menu,
+        closable,
+        close,
+    } = pane;
+    let unclosable = create_memo(move || !closable.get());
+    let tab_menu = create_memo(move || {
+        let mut nodes = tab_menu.get();
+        if !nodes.is_empty() {
+            nodes.insert(0, MenuNode::Separator);
+        }
+        nodes
+    });
     view! {
         <ContextMenu
             menu
             items={view! {
                 <MenuItem label />
                 <MenuItem label="Icons only" checked />
+                <MenuItem label="Close all tabs" disabled={unclosable} />
+                <MenuNodes nodes={tab_menu} />
             }}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => toggle.call(),
                 Some(1) => toggle_icons.call(),
+                Some(2) => close.call(),
                 _ => {}
             }}
         >
@@ -2837,6 +2875,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
     });
     let menu = dock.leaf_menu(hoisted);
+    let closable = dock.all_closable(contents);
     let overlay = NodeRef::new();
     let shows = dock.state;
     create_effect(move || {
@@ -2946,6 +2985,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                 menu={dock.menu}
                                                                 vertical
                                                                 icons_only
+                                                                pane={GripPane { menu, closable, close }}
                                                                 toggle={move || {
                                                                     if let Some(leaf) = hoisted {
                                                                         dock.toggle_vertical(leaf);
@@ -3003,7 +3043,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                 tabs,
                                                                 title,
                                                                 vacant,
-                                                                closable: dock.all_closable(contents),
+                                                                closable,
                                                                 menu,
                                                                 close,
                                                             }),

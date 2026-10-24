@@ -54,4 +54,15 @@ fn dock_tabs_shown_as_icons_only_leave_out_their_titles() {
         "choosing it again shows the titles"
     );
     assert!(text_within(harness.document(), dock, "Tab 2").is_some());
+
+    choose(&mut harness, dock, grip, "Close all tabs");
+    assert!(
+        harness
+            .document()
+            .api::<DockApi>(dock)
+            .state()
+            .all_tabs()
+            .is_empty(),
+        "the grip's menu closes every tab in the pane"
+    );
 }
