@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{CalendarEvent, Item, ObjectId};
+use block_editor_beui::be_block::{Item, ObjectId};
+use calendar_types::CalendarEvent;
 use block_editor_beui::beui::datetime::DateTime;
 pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
 use block_ui::datetime::{MONTH_NAMES, civil_from_days, days_from_civil};

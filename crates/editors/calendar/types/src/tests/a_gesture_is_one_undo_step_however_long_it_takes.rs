@@ -1,5 +1,5 @@
 use super::*;
-use crate::history::{EDIT_BURST, History};
+use be_block::history::{EDIT_BURST, History};
 use std::time::Instant;
 
 fn titled(content: &CalendarContent) -> Vec<String> {

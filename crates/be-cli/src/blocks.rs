@@ -171,10 +171,9 @@ fn is_settings(block_type: Uuid) -> bool {
 }
 
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 6] = [
+    let known: [(Uuid, &str); 5] = [
         (TextContent::CONTENT_TYPE, "text"),
         (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
-        (be_block::CalendarContent::CONTENT_TYPE, "calendar"),
         (be_block::PresentationContent::CONTENT_TYPE, "presentation"),
         (be_block::SettingsContent::CONTENT_TYPE, "settings"),
         (

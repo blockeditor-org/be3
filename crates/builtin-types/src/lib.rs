@@ -1,8 +1,8 @@
 use be_block::{
-    BrowserTabContent, CalendarContent, CanvasContent, CompiledLogicContent, CounterContent,
-    DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, DeterministicGameContent,
-    GameModuleContent, HotbarContent, LogicGameContent, LogicGridContent, MapContent,
-    PixelArtContent, PresentationContent, TerminalContent, TextContent, VideoContent,
+    BrowserTabContent, CanvasContent, CompiledLogicContent, CounterContent, DatabaseContent,
+    DatabaseSchemaContent, DatabaseViewContent, DeterministicGameContent, GameModuleContent,
+    HotbarContent, LogicGameContent, LogicGridContent, MapContent, PixelArtContent,
+    PresentationContent, TerminalContent, TextContent, VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -13,7 +13,6 @@ use block_type_guest::{Registration, be_block_types};
 be_block_types![
     TextContent { undo, file },
     BrowserTabContent,
-    CalendarContent { undo },
     CanvasContent { undo },
     CompiledLogicContent,
     CounterContent { undo },

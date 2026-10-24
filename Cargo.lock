@@ -1504,6 +1504,7 @@ dependencies = [
  "build-id",
  "builtin-types",
  "bytemuck",
+ "calendar-types",
  "checklist-types",
  "directories-next",
  "futures-util",
@@ -1967,6 +1968,18 @@ dependencies = [
  "block-editor-beui",
  "block-ui",
  "block-ui-test",
+ "calendar-types",
+ "uuid",
+]
+
+[[package]]
+name = "calendar-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -4648,6 +4661,7 @@ dependencies = [
  "block-plugin-api",
  "block-shell",
  "block-ui-test",
+ "calendar-types",
  "uuid",
 ]
 

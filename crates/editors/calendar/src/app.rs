@@ -1,5 +1,5 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::CalendarContent;
+use calendar_types::CalendarContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};

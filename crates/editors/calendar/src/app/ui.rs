@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::{Calendar, CalendarContent};
+use calendar_types::{Calendar, CalendarContent};
 use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;

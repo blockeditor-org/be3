@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{Calendar, CalendarContent, Root, ViewState};
+use block_editor_beui::be_block::{Root, ViewState};
+use calendar_types::{Calendar, CalendarContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

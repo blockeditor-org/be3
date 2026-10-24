@@ -1,5 +1,5 @@
 use super::*;
-use crate::history::History;
+use be_block::history::History;
 use std::time::Instant;
 
 #[test]

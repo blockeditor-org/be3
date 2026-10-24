@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::CalendarContent;
+use calendar_types::CalendarContent;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -22,6 +22,10 @@ impl Harness {
         let mut harness = Self {
             editor: BeuiTest::new(editor),
         };
+        harness
+            .editor
+            .store()
+            .register(calendar_types::registrations());
         harness.editor.hold(None, CalendarContent::default());
         harness.run();
         harness

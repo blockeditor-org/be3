@@ -5,7 +5,6 @@ use crate::canvas::{
 };
 use crate::{
     browser_tab::{BrowserTabContent, HistoryItem},
-    calendar::{Calendar, CalendarContent, CalendarEvent},
     counter::{Counter, CounterContent},
     database::{Database, DatabaseContent, DatabaseValue},
     database_schema::{
@@ -28,9 +27,6 @@ use uuid::Uuid;
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;
-mod a_calendar_undo_keeps_what_someone_else_changed_since;
-mod a_calendar_update_writes_only_the_fields_that_changed;
-mod a_cancelled_gesture_is_reverted_and_leaves_no_step;
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
 mod a_canvas_profile_is_kept_but_never_undone;
 mod a_cell_set_while_someone_clears_the_last_one_in_its_row_is_kept;
@@ -46,7 +42,6 @@ mod a_database_is_described_by_its_prefix;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
-mod a_gesture_is_one_undo_step_however_long_it_takes;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
 mod a_map_keeps_its_points_in_bounds_and_follows_its_children;
@@ -67,12 +62,9 @@ mod a_wire_cut_on_one_side_stays_cut_when_the_other_extends_it;
 mod a_wire_cut_stays_cut_when_someone_extends_it_at_once;
 mod a_wire_removed_on_one_side_stays_removed_when_the_other_branches_off_it;
 mod an_arrow_end_bound_to_a_shape_follows_it_and_stays_when_it_is_removed;
-mod an_event_rescheduled_on_both_sides_conflicts_and_keeps_ours;
 mod an_icon_saved_as_a_material_codepoint_reads_as_its_lucide_name;
-mod an_update_for_an_event_someone_removed_does_not_bring_it_back;
 mod block_metadata_keeps_keys_it_does_not_know_and_reads_each_key_alone;
 mod block_urls_include_organization_and_reject_malformed_paths;
-mod calendars_merge_each_event_field_by_field;
 mod canvas_children_are_removed_repointed_or_merged;
 mod canvas_layers_reorder_and_keep_unlisted_slots;
 mod canvases_merge_a_move_and_a_restyle_of_one_entity;
@@ -127,7 +119,6 @@ mod undoing_a_component_removal_brings_it_back_with_its_wires_untouched;
 mod undoing_a_reset_restores_only_what_was_reset;
 mod undoing_a_wire_cut_joins_the_wire_again;
 mod undoing_a_wire_keeps_the_part_someone_else_drew_onto_it;
-mod undoing_an_event_removal_restores_it_with_its_id;
 mod unpinning_a_component_removes_it_from_every_folder;
 mod video_clips_attach_ripple_and_refuse_cycles;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
@@ -170,11 +161,6 @@ fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>
         content.apply(&edit);
     }
     content
-}
-
-fn scheduled() -> (CalendarContent, crate::ObjectId) {
-    let (id, add) = Calendar::add(&CalendarEvent::new("Standup", 540, 555));
-    (edited(&CalendarContent::default(), [add]), id)
 }
 
 fn merged<C: Merge>(base: &C, ours: &C, theirs: &C) -> (C, usize) {
