@@ -14,4 +14,14 @@ fn keys_reach_the_running_program_as_terminal_input() {
         Some(b"\x1b[A".to_vec())
     );
     assert_eq!(key_bytes(Key::C, Modifiers::NONE), None);
+    let paste = Modifiers {
+        ctrl: true,
+        shift: true,
+        ..Modifiers::NONE
+    };
+    assert_eq!(
+        key_bytes(Key::V, paste),
+        None,
+        "Ctrl+Shift+V is left to paste"
+    );
 }

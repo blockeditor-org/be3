@@ -296,6 +296,10 @@ impl<S: ObjectStore> Tracker<S> {
         &self.peer
     }
 
+    pub fn shared_peer(&self) -> Arc<Peer<S>> {
+        Arc::clone(&self.peer)
+    }
+
     async fn entries(&self, summaries: Vec<BlockSummary>) -> Result<Vec<Entry>, String> {
         self.peer.learn(&summaries).await.map_err(explain)?;
         Ok(summaries

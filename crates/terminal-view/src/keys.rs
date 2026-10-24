@@ -29,7 +29,13 @@ const LETTERS: [Key; 26] = [
     Key::Z,
 ];
 
-pub(crate) fn key_bytes(key: Key, modifiers: Modifiers) -> Option<Vec<u8>> {
+pub fn key_bytes(key: Key, modifiers: Modifiers) -> Option<Vec<u8>> {
+    if modifiers.ctrl && modifiers.shift {
+        return None;
+    }
+    if modifiers.shift && key == Key::Tab {
+        return Some(b"\x1b[Z".to_vec());
+    }
     if modifiers.ctrl
         && let Some(letter) = LETTERS.iter().position(|candidate| *candidate == key)
     {

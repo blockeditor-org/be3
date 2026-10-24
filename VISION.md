@@ -260,7 +260,13 @@ linux-desktop shell is the editor that makes block-app a desktop.
 
 ### Terminal
 
-Planned for the desktop session, through ghostty-vt.
+A terminal block runs its shell on a machine its owner chose, reached through
+the server, so any client can use a real terminal on a real machine, the web
+and Android included (`guides/terminal.md`). The traffic is sealed like every
+other session message. Sharing one hands out a shell as the host's user, so
+sharing it needs warnings and a read-only default before a public release.
+A terminal in the desktop session, running on the machine itself, is still
+planned.
 
 ### Debug and example editors
 

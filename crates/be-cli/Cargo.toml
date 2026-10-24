@@ -19,9 +19,11 @@ be-store = { path = "../be-store" }
 be-sync = { path = "../be-sync" }
 build-id = { path = "../build-id" }
 futures-util = "0.3"
+ghostty-vt = { path = "../ghostty-vt" }
+portable-pty = "0.9"
 block-ui = { path = "../block-ui" }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 uuid = { version = "1", features = ["v4", "v7"] }
 
 [dev-dependencies]

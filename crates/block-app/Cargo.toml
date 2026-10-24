@@ -95,6 +95,10 @@ block-editor-plugin = { path = "../block-editor-plugin" }
 pollster = "0.4"
 paint-snapshot = { path = "../paint-snapshot" }
 
+# The terminal host, for the test that runs a real one against the app's stack.
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dev-dependencies]
+be-cli = { path = "../be-cli" }
+
 # The native file dialog. Android and the browser reach their own pickers
 # instead, from platform/file_picker.rs, and Linux asks xdg-desktop-portal and
 # then zenity itself, so it can say when neither is there.

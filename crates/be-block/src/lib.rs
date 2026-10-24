@@ -46,6 +46,7 @@ pub mod setting;
 pub mod settings;
 pub mod settling;
 pub mod streamed;
+pub mod terminal;
 pub mod text;
 pub mod version_control;
 pub mod video;
@@ -99,6 +100,7 @@ pub use settling::{Landed, Settling};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
+pub use terminal::{Terminal, TerminalContent};
 pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,

@@ -177,6 +177,11 @@ impl EditorSession {
         self.host.set_peers(block, peers);
     }
 
+    pub(crate) fn push_peer_messages(&self, block: Uuid, messages: Vec<crate::PeerMessage>) {
+        let block = (self.own_block != Some(block)).then_some(block);
+        self.host.push_peer_messages(block, messages);
+    }
+
     pub(crate) fn push_content_operations(
         &self,
         block: Uuid,
@@ -551,6 +556,18 @@ impl EditorSession {
                 block_id: block.into_bytes(),
                 kind: shown.kind.into_bytes(),
                 value: shown.value.map(serde_bytes::ByteBuf::from),
+            }));
+        }
+        for sent in self.host.take_sent_to_peers() {
+            let Some(block) = sent.block.or(self.own_block) else {
+                continue;
+            };
+            messages.push(Message::Editor(EditorMessage::SendToPeers {
+                instance,
+                block_id: block.into_bytes(),
+                to: sent.to,
+                channel: sent.channel.into_bytes(),
+                payload: sent.payload,
             }));
         }
         for seeded in self.host.take_seeded_content() {

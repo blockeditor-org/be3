@@ -169,6 +169,7 @@ struct ContentLink {
     origin: u64,
     sent: Option<u64>,
     peers_sent: Option<u64>,
+    messages_seen: u64,
     described: Option<u64>,
 }
 
@@ -180,6 +181,7 @@ impl ContentLink {
             origin: crate::be::next_origin(),
             sent: None,
             peers_sent: None,
+            messages_seen: crate::be::peer_messages_seen(),
             described: None,
         }
     }
@@ -248,6 +250,24 @@ impl ContentLink {
                         client: peer.client,
                         kind: peer.kind.into_bytes(),
                         value: peer.value,
+                    })
+                    .collect(),
+            }));
+        }
+        let received = crate::be::peer_messages_since(block, self.messages_seen);
+        if let Some((last, _)) = received.last() {
+            self.messages_seen = *last;
+        }
+        for chunk in received.chunks(block_plugin_api::MAX_COLLECTION_ITEMS) {
+            out.push(Message::Editor(EditorMessage::PeerMessages {
+                instance,
+                block_id: block.into_bytes(),
+                messages: chunk
+                    .iter()
+                    .map(|(_, message)| block_plugin_api::PeerMessage {
+                        from: message.from,
+                        channel: message.channel.into_bytes(),
+                        payload: message.payload.clone(),
                     })
                     .collect(),
             }));
@@ -3050,6 +3070,26 @@ impl Instances {
                     false => entry.shown.remove(&(block, kind)),
                 };
                 crate::be::show(block, kind, value.map(|value| value.into_vec()));
+                false
+            }
+            EditorMessage::SendToPeers {
+                instance,
+                block_id,
+                to,
+                channel,
+                payload,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                if !self.can_view(block) {
+                    return false;
+                }
+                let holds = self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.holds(block));
+                if holds {
+                    crate::be::send_to_peers(block, to, Uuid::from_bytes(channel), payload);
+                }
                 false
             }
             EditorMessage::SeedContent {

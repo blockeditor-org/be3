@@ -10,6 +10,7 @@ mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
+mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_commit_in_one_checkout_is_brought_into_another;
@@ -26,6 +27,8 @@ mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+#[cfg(not(target_os = "android"))]
+mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
@@ -150,21 +153,28 @@ impl Harness {
         self.phrase.secret().to_bytes()
     }
 
-    async fn outside_peer(&self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+    fn outside_config(&self) -> be_client::PeerConfig {
         let config = self.config(self.directory.join("outside"));
-        let peer = be_client::Peer::connect(
-            be_client::PeerConfig::new(
-                config.socket_url(),
-                be_keys::RecoverySecret::from_bytes(config.identity),
-                be_client::Credentials::Token(self.token.clone()),
-            )
-            .organization(Some(self.organization)),
-            be_store::MemoryStore::new(),
+        be_client::PeerConfig::new(
+            config.socket_url(),
+            be_keys::RecoverySecret::from_bytes(config.identity),
+            be_client::Credentials::Token(self.token.clone()),
         )
+        .organization(Some(self.organization))
+    }
+
+    async fn outside_peer(&self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+        outside_peer(self.outside_config()).await
+    }
+}
+
+async fn outside_peer(
+    config: be_client::PeerConfig,
+) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+    let peer = be_client::Peer::connect(config, be_store::MemoryStore::new())
         .await
         .expect("a second peer joins the organization");
-        std::sync::Arc::new(peer)
-    }
+    std::sync::Arc::new(peer)
 }
 
 impl Drop for Harness {
