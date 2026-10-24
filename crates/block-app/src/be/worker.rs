@@ -327,6 +327,7 @@ pub(crate) struct Shared {
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
     pub(crate) pending: usize,
+    pub(crate) typing: bool,
     pub(crate) uploading: usize,
     pub(crate) previewed: std::collections::HashSet<Uuid>,
     pub(crate) staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
@@ -647,8 +648,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 let _ = done.send(());
             }
         }
+        let typing = !replicas.modules.settled();
+        let was_typing = std::mem::replace(
+            &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
+            typing,
+        );
         changed.notify_all();
-        if moved {
+        if moved || was_typing != typing {
             crate::host::wake();
         }
     }
@@ -803,6 +809,7 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
+            held.typing = !self.replicas.modules.settled();
         }
         crate::host::wake();
     }

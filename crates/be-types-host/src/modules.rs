@@ -231,6 +231,14 @@ impl Modules {
         self.routes.get(&content_type).copied()
     }
 
+    pub fn settled(&self) -> bool {
+        self.backlog.is_empty()
+            && self
+                .modules
+                .iter()
+                .all(|module| module.worker.as_ref().is_none_or(Worker::settled))
+    }
+
     pub fn tag(&self, module: usize) -> SessionTag {
         self.modules[module].tag
     }

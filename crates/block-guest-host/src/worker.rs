@@ -177,8 +177,8 @@ impl<C: Channel> Worker<C> {
         if !self.ready || self.stepping {
             return None;
         }
-        self.waiting.store(false, Ordering::SeqCst);
         let carrying = !self.pending.is_empty();
+        self.waiting.store(carrying, Ordering::SeqCst);
         if !self.channel.step(std::mem::take(&mut self.pending)) {
             return Some(STOPPED.to_owned());
         }

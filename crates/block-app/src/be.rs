@@ -600,7 +600,11 @@ fn send(command: Command) {
 
 pub(crate) fn busy() -> bool {
     with_shared(|shared| {
-        shared.pending > 0 || shared.uploading > 0 || shared.owing > 0 || shared.graph.fetching()
+        shared.pending > 0
+            || shared.typing
+            || shared.uploading > 0
+            || shared.owing > 0
+            || shared.graph.fetching()
     })
     .unwrap_or_default()
 }
