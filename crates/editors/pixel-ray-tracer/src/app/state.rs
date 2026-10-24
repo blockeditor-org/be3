@@ -3,8 +3,8 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::PixelRayTracerContent;
-use block_editor_beui::be_block::pixel_ray_tracer::{
+use pixel_ray_tracer_types::PixelRayTracerContent;
+use pixel_ray_tracer_types::{
     PIXEL_RAY_TRACER_SIZE, PixelRayTracerOperation, PixelUpdate, Point, RayEntity, RaySettings,
     Scene,
 };

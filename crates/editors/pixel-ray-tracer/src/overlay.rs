@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::pixel_ray_tracer::{
+use pixel_ray_tracer_types::{
     PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE, Point, RayEntity,
 };
 use block_editor_beui::beui::reactive::*;

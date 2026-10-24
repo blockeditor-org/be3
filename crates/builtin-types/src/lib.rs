@@ -2,8 +2,7 @@ use be_block::{
     BrowserTabContent, CalendarContent, CanvasContent, CompiledLogicContent, CounterContent,
     DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, DeterministicGameContent,
     GameModuleContent, HotbarContent, LogicGameContent, LogicGridContent, MapContent,
-    PixelArtContent, PixelRayTracerContent, PresentationContent, TerminalContent, TextContent,
-    VideoContent,
+    PixelArtContent, PresentationContent, TerminalContent, TextContent, VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -28,7 +27,6 @@ be_block_types![
     LogicGridContent { undo },
     MapContent { undo },
     PixelArtContent { undo },
-    PixelRayTracerContent { undo },
     PresentationContent { undo },
     TerminalContent,
     VideoContent { undo },

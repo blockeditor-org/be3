@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::pixel_ray_tracer::{
+use pixel_ray_tracer_types::{
     PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings,
 };
 use block_editor_beui::beui::Color32;

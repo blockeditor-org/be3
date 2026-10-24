@@ -28,7 +28,6 @@ pub mod map;
 pub mod metadata;
 pub mod model;
 pub mod pixel_art;
-pub mod pixel_ray_tracer;
 pub mod plain;
 pub mod presence;
 pub mod presentation;
@@ -70,7 +69,6 @@ pub use metadata::{
 };
 pub use model::Root;
 pub use pixel_art::{PixelArtContent, PixelArtDocument};
-pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
 pub use profile::{
     FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR, WORKSPACE_TYPE,

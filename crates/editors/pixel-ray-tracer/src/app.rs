@@ -1,8 +1,8 @@
 use block_editor_beui::Fit;
-use block_editor_beui::be_block::PixelRayTracerContent;
+use pixel_ray_tracer_types::PixelRayTracerContent;
 
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
+use pixel_ray_tracer_types::PIXEL_RAY_TRACER_SIZE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;

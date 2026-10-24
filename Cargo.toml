@@ -93,6 +93,7 @@ members = [
     "crates/editors/pdf/types",
     "crates/editors/pixel-art",
     "crates/editors/pixel-ray-tracer",
+    "crates/editors/pixel-ray-tracer/types",
     "crates/editors/presentation",
     "crates/editors/scene-3d",
     "crates/editors/scene-3d/types",

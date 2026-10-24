@@ -2,7 +2,7 @@ use be_model::{Bounds, Document, Edit, Grid, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Root;
+use be_block::Root;
 
 pub const PIXEL_RAY_TRACER_SIZE: u16 = 128;
 pub const PIXEL_RAY_TRACER_BACKGROUND: u8 = 7;
