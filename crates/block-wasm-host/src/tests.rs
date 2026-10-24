@@ -182,7 +182,9 @@ fn settled(plugin: &mut Plugin, wanted: u8) -> Result<bool, String> {
 const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));
 
 fn echo_frames(
-    worker: &mut block_guest_host::Worker<block_guest_host::thread::Threaded<std::convert::Infallible>>,
+    worker: &mut block_guest_host::Worker<
+        block_guest_host::thread::Threaded<std::convert::Infallible>,
+    >,
     wanted: &[&[u8]],
 ) -> Result<Vec<Vec<u8>>, String> {
     let mut received = Vec::new();

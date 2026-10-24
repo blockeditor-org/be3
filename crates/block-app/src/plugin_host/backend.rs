@@ -2,9 +2,9 @@ use std::{sync::Arc, time::Duration};
 
 use block_plugin_api::{Message, PluginManifest, ScreenDamage, decode_frame, encode_frame};
 
-pub(super) use block_guest_host::{Deadline, StepTime};
-use block_guest_host::Worker;
 use crate::{editors::plugin::discovery, host};
+use block_guest_host::Worker;
+pub(super) use block_guest_host::{Deadline, StepTime};
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::wasm as platform;
@@ -15,7 +15,6 @@ pub(super) const NOT_INSTALLED: &str = "The plugin host is not installed.";
 const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
 
 pub(super) type Frame = platform::Frame;
-
 
 pub(super) trait ShownFrame {
     fn presents(&self) -> u64;

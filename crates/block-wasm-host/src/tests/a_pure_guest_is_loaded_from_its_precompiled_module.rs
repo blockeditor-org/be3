@@ -17,5 +17,8 @@ fn a_pure_guest_is_loaded_from_its_precompiled_module() {
         })
         .expect("the precompiled module is used, without the module it was compiled from");
     guest.start().unwrap();
-    assert_eq!(guest.take_outbound(), vec![block_guest_echo::STARTED.to_vec()]);
+    assert_eq!(
+        guest.take_outbound(),
+        vec![block_guest_echo::STARTED.to_vec()]
+    );
 }

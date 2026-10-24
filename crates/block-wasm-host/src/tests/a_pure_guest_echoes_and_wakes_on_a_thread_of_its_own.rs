@@ -22,7 +22,10 @@ fn a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own() {
         )
         .unwrap();
     let mut worker = block_guest_host::Worker::new(channel, waiting);
-    assert_eq!(worker.queue(vec![b"hello".to_vec(), block_guest_echo::WAKE.to_vec()]), None);
+    assert_eq!(
+        worker.queue(vec![b"hello".to_vec(), block_guest_echo::WAKE.to_vec()]),
+        None
+    );
     let received = echo_frames(
         &mut worker,
         &[block_guest_echo::STARTED, b"hello", block_guest_echo::WOKEN],
@@ -33,5 +36,8 @@ fn a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own() {
         Some(block_guest_echo::STARTED),
         "what the guest sent as it started comes first"
     );
-    assert!(wakes.load(Ordering::SeqCst) > 0, "the guest's wake reached the host");
+    assert!(
+        wakes.load(Ordering::SeqCst) > 0,
+        "the guest's wake reached the host"
+    );
 }

@@ -297,7 +297,10 @@ fn link(linker: &mut Linker<PureState>) -> Result<(), String> {
         .func_wrap(
             abi::HOST_MODULE,
             abi::HOST_SEND,
-            |mut caller: Caller<'_, PureState>, pointer: u32, length: u32| -> wasmtime::Result<()> {
+            |mut caller: Caller<'_, PureState>,
+             pointer: u32,
+             length: u32|
+             -> wasmtime::Result<()> {
                 let frame = read(&mut caller, pointer, length)?;
                 caller.data_mut().outbox.push(frame);
                 Ok(())
@@ -308,7 +311,10 @@ fn link(linker: &mut Linker<PureState>) -> Result<(), String> {
         .func_wrap(
             abi::HOST_MODULE,
             abi::HOST_RECEIVE,
-            |mut caller: Caller<'_, PureState>, pointer: u32, capacity: u32| -> wasmtime::Result<i64> {
+            |mut caller: Caller<'_, PureState>,
+             pointer: u32,
+             capacity: u32|
+             -> wasmtime::Result<i64> {
                 let Some(needed) = caller.data().inbox.front().map(Vec::len) else {
                     return Ok(abi::NO_MESSAGE);
                 };
@@ -318,7 +324,9 @@ fn link(linker: &mut Linker<PureState>) -> Result<(), String> {
                 let frame = caller.data_mut().inbox.pop_front().unwrap_or_default();
                 memory(&mut caller)?
                     .write(&mut caller, pointer as usize, &frame)
-                    .map_err(|_| wasmtime::Error::msg("the guest's receive buffer is outside its memory"))?;
+                    .map_err(|_| {
+                        wasmtime::Error::msg("the guest's receive buffer is outside its memory")
+                    })?;
                 Ok(needed as i64)
             },
         )
@@ -327,7 +335,10 @@ fn link(linker: &mut Linker<PureState>) -> Result<(), String> {
         .func_wrap(
             abi::HOST_MODULE,
             abi::HOST_PANIC,
-            |mut caller: Caller<'_, PureState>, pointer: u32, length: u32| -> wasmtime::Result<()> {
+            |mut caller: Caller<'_, PureState>,
+             pointer: u32,
+             length: u32|
+             -> wasmtime::Result<()> {
                 let message = match read(&mut caller, pointer, length) {
                     Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
                     Err(error) => format!("the guest panicked, and its message was lost: {error}"),
@@ -339,7 +350,11 @@ fn link(linker: &mut Linker<PureState>) -> Result<(), String> {
     Ok(())
 }
 
-fn read(caller: &mut Caller<'_, PureState>, pointer: u32, length: u32) -> wasmtime::Result<Vec<u8>> {
+fn read(
+    caller: &mut Caller<'_, PureState>,
+    pointer: u32,
+    length: u32,
+) -> wasmtime::Result<Vec<u8>> {
     let memory = memory(caller)?;
     let mut bytes = vec![0u8; length as usize];
     memory

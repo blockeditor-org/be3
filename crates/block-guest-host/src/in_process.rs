@@ -72,7 +72,10 @@ impl<G: Guest> Channel for InProcess<G> {
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> bool {
         let Some(guest) = self.guest.as_mut() else {
-            self.report(Event::Stepped(Produced::sent(Vec::new(), StepTime::default())));
+            self.report(Event::Stepped(Produced::sent(
+                Vec::new(),
+                StepTime::default(),
+            )));
             return true;
         };
         let woken = self.woken.swap(false, Ordering::AcqRel);

@@ -16,6 +16,9 @@ fn an_in_process_guest_echoes_and_wakes() {
             block_guest_echo::WOKEN.to_vec(),
         ]
     );
-    assert!(wakes.load(Ordering::SeqCst) > 0, "the guest's wake reached the host");
+    assert!(
+        wakes.load(Ordering::SeqCst) > 0,
+        "the guest's wake reached the host"
+    );
     assert!(worker.settled());
 }
