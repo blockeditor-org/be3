@@ -312,12 +312,12 @@ pub(crate) enum HostItem {
     Notice {
         text: String,
         spinner: bool,
-        icon: Option<&'static str>,
+        icon: Option<beui::icons::Glyph>,
     },
     Fallback {
         name: String,
         automatic: bool,
-        icon: Option<String>,
+        icon: Option<beui::icons::Glyph>,
     },
     Unsupported {
         block: Uuid,

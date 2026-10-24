@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use beui_core::node::NodeId;
 use beui_macros::component;
 use beui_view::reactive::*;
@@ -6,7 +7,7 @@ use super::{State, TabId};
 
 pub struct DockAwayHandle {
     pub title: Memo<String>,
-    pub icon: Memo<String>,
+    pub icon: Memo<Option<Glyph>>,
     pub leave: ClickCallback,
 }
 

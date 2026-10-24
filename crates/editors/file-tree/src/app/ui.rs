@@ -188,7 +188,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Toolbar shown={toolbar}>
                 <IconButton
-                    glyph={ICON_BOXES.to_owned()}
+                    glyph=ICON_BOXES
                     label="New workspace"
                     @test_id={"file-tree.new-workspace"}
                     on_click={new_workspace}
@@ -196,7 +196,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <IconButton
                     @node_ref={&desktop_menu}
-                    glyph={ICON_CIRCLE_USER_ROUND.to_owned()}
+                    glyph=ICON_CIRCLE_USER_ROUND
                     label="Account and settings"
                     @test_id={"file-tree.desktop-app-menu"}
                     on_click={app_menu(desktop_menu)}
@@ -298,14 +298,14 @@ fn PhoneTitle(
                 </Frame>
                 <IconButton
                     @test_id={"file-tree.new-workspace"}
-                    glyph={ICON_BOXES.to_owned()}
+                    glyph=ICON_BOXES
                     label="New workspace"
                     on_click={on_new_workspace}
                 />
                 <IconButton
                     @node_ref={&menu_button}
                     @test_id={"file-tree.app-menu"}
-                    glyph={ICON_CIRCLE_USER_ROUND.to_owned()}
+                    glyph=ICON_CIRCLE_USER_ROUND
                     label="Account and settings"
                     on_click={on_menu}
                 />
@@ -431,15 +431,13 @@ fn TreeRow(
     let (hovered, row_focused) = (face.hovered, face.focused);
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let add_label = create_memo(move || format!("Add to {}", label.get()));
-    let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
+    let has_glyph = create_memo(move || glyph.get().is_some());
     let generated = create_memo(move || row.get().is_some_and(|row| row.dynamic_artifact));
     let access = create_memo(move || {
         row.get()
             .filter(|row| row.id.is_some())
             .and_then(|row| access_marker(row.access))
-            .unwrap_or_default()
-            .to_owned()
     });
     let access_label = create_memo(move || {
         row.get()
@@ -447,7 +445,7 @@ fn TreeRow(
             .unwrap_or_default()
             .to_owned()
     });
-    let restricted = create_memo(move || !access.get().is_empty());
+    let restricted = create_memo(move || access.get().is_some());
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
     let muted = create_memo(move || {
         row.get()
@@ -502,7 +500,7 @@ fn TreeRow(
             <Show condition={generated}>
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_SPARKLES.to_owned()} />
+                        <Icon glyph=ICON_SPARKLES />
                     </Text>
                 </Tooltip>
             </Show>
@@ -537,8 +535,8 @@ fn SectionRow(
     let (hovered, row_focused) = (face.hovered, face.focused);
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let add_label = create_memo(move || format!("Add to {}", label.get()));
-    let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
+    let has_glyph = create_memo(move || glyph.get().is_some());
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
     let glyph_size = glyph_size();
     let (detail, detailed) = detail(editor, row);
@@ -647,7 +645,7 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     view! {
         <MenuItem
             label="Open with"
-            glyph={ICON_MOVE.to_owned()}
+            glyph=ICON_MOVE
             disabled={none}
             row_test_id={"file-tree.open-with".to_owned()}
         >
@@ -701,7 +699,7 @@ pub(crate) fn ExportAs(
     view! {
         <MenuItem
             label="Export as"
-            glyph={ICON_DOWNLOAD.to_owned()}
+            glyph=ICON_DOWNLOAD
             disabled={none}
             row_test_id={row_test_id}
         >
@@ -798,7 +796,7 @@ fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) ->
                 radius={Radius::custom(3.0)}
             >
                 <Text size=TextSize::Xs color={color} align=TextAlign::Center>
-                    <Icon glyph={ICON_PLUS.to_owned()} />
+                    <Icon glyph=ICON_PLUS />
                 </Text>
             </Frame>
         </Tooltip>

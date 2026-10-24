@@ -162,8 +162,8 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
         reveal,
     } = handle;
     let glyph = create_memo(move || match edge.get() {
-        Edge::Top | Edge::TopEnd => ICON_ARROW_UP.to_owned(),
-        Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWN.to_owned(),
+        Edge::Top | Edge::TopEnd => ICON_ARROW_UP,
+        Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWN,
     });
     view! {
         <Frame padding=REVEAL_PADDING>
@@ -386,7 +386,7 @@ fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
                 radius={Radius::custom(CHEVRON_RADIUS)}
             >
                 <Text size={glyph_size} color={color} align=TextAlign::Center>
-                    <Icon glyph={ICON_ELLIPSIS.to_owned()} />
+                    <Icon glyph=ICON_ELLIPSIS />
                 </Text>
             </Frame>
         </Tooltip>
@@ -452,8 +452,8 @@ fn ChevronFace(
         false => TextColor::Muted,
     });
     let glyph = create_memo(move || match expanded.get() {
-        true => ICON_CHEVRON_DOWN.to_owned(),
-        false => ICON_CHEVRON_RIGHT.to_owned(),
+        true => ICON_CHEVRON_DOWN,
+        false => ICON_CHEVRON_RIGHT,
     });
     let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * sized.get().indent));
     let width = create_memo(move || Extent::px(sized.get().chevron));

@@ -198,7 +198,7 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
                     @test_id={"presentation.add"}
                 />
                 <IconButton
-                    glyph={ICON_MAXIMIZE.to_owned()}
+                    glyph=ICON_MAXIMIZE
                     label="Present"
                     disabled={empty}
                     on_click={present}
@@ -242,7 +242,7 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                                 <IconButton
-                                    glyph={ICON_ARROW_LEFT.to_owned()}
+                                    glyph=ICON_ARROW_LEFT
                                     label="Previous slide"
                                     disabled={at_start}
                                     on_click={previous}
@@ -255,14 +255,14 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                                     {position}
                                 </Text>
                                 <IconButton
-                                    glyph={ICON_ARROW_RIGHT.to_owned()}
+                                    glyph=ICON_ARROW_RIGHT
                                     label="Next slide"
                                     disabled={at_end}
                                     on_click={next}
                                     @test_id={"presentation.next"}
                                 />
                                 <IconButton
-                                    glyph={ICON_X.to_owned()}
+                                    glyph=ICON_X
                                     label="Stop presenting"
                                     on_click={stop}
                                     @test_id={"presentation.stop"}
@@ -409,7 +409,7 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                             {name}
                         </Text>
                         <IconButton
-                            glyph={ICON_TRASH.to_owned()}
+                            glyph=ICON_TRASH
                             label="Detach slide"
                             disabled={read_only}
                             on_click={remove}

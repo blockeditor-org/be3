@@ -165,7 +165,7 @@ fn TextStyles() -> NodeId {
             <Text color={theme.text} font={FontId::monospace(14.0)}>"Monospace text"</Text>
             <Text color={theme.accent} font={FontId::proportional(24.0)}>"Large accent text"</Text>
             <Text color={theme.warning} font={FontId::proportional(24.0)}>
-                <Icon glyph={ICON_STAR.to_owned()} />
+                <Icon glyph=ICON_STAR />
             </Text>
         </List>
     }

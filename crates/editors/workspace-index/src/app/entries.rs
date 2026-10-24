@@ -35,7 +35,7 @@ pub(crate) struct Entry {
     pub(crate) block_type: Option<Uuid>,
     pub(crate) name: String,
     pub(crate) type_name: String,
-    pub(crate) glyph: String,
+    pub(crate) glyph: Option<block_editor_beui::beui::icons::Glyph>,
     pub(crate) automatic: bool,
     pub(crate) loaded: bool,
 }
@@ -121,8 +121,7 @@ impl Folder {
                         ),
                         glyph: label
                             .as_ref()
-                            .and_then(block_editor_beui::label_glyph)
-                            .map_or_else(String::new, str::to_owned),
+                            .and_then(block_editor_beui::label_glyph),
                         automatic: label.as_ref().is_some_and(|label| label.automatic),
                         loaded: found.is_some(),
                     }

@@ -1389,8 +1389,6 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
             .and_then(|item| {
                 block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
             })
-            .unwrap_or_default()
-            .to_owned()
     });
     view! {
         <DockTab id=tab title icon on_close={move || workspace.close(tab)}>

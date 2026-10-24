@@ -89,7 +89,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             <Toolbar shown={chrome}>
                 <Text>"PDF"</Text>
                 <block_editor_beui::beui::styled::IconButton
-                    glyph={ICON_ARROW_LEFT.to_owned()}
+                    glyph=ICON_ARROW_LEFT
                     label="Previous page"
                     disabled={first}
                     @test_id={"pdf.previous"}
@@ -97,7 +97,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                 />
                 <Text style=TextStyle::CAPTION>{page_label}</Text>
                 <block_editor_beui::beui::styled::IconButton
-                    glyph={ICON_ARROW_RIGHT.to_owned()}
+                    glyph=ICON_ARROW_RIGHT
                     label="Next page"
                     disabled={last}
                     @test_id={"pdf.next"}

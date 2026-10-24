@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::canvas::{
@@ -79,7 +80,7 @@ pub(crate) struct EntityPaint {
     pub(crate) camera: Camera,
     pub(crate) palette: Palette,
     pub(crate) title: String,
-    pub(crate) glyph: Option<String>,
+    pub(crate) glyph: Option<Glyph>,
     pub(crate) automatic: bool,
     pub(crate) covered: bool,
     pub(crate) placeholder: Option<Image>,
@@ -249,8 +250,8 @@ impl EntityPaint {
         let padding = (6.0 * scale * self.camera.scale).clamp(3.0, 12.0);
         let painter = painter.with_clip_rect(title_bar);
         let mut x = title_bar.left() + padding;
-        if let Some(glyph) = &self.glyph {
-            let icon = painter.layout(glyph.clone(), FontId::icons(font_size), f32::INFINITY);
+        if let Some(glyph) = self.glyph {
+            let icon = painter.layout(glyph.as_str(), FontId::icons(font_size), f32::INFINITY);
             painter.galley(
                 pos2(x, title_bar.center().y - icon.size().y / 2.0),
                 icon,

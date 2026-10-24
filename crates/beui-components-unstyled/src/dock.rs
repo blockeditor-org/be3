@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 mod dialog;
 mod docking;
 mod documents;
@@ -94,7 +95,7 @@ pub struct DockTabHandle {
     pub pinned: bool,
     pub vertical: bool,
     pub title: Memo<String>,
-    pub icon: Memo<String>,
+    pub icon: Memo<Option<Glyph>>,
     pub picture: Memo<Option<Image>>,
     pub tabs: Memo<Vec<TabId>>,
     pub has_next: Memo<bool>,
@@ -117,7 +118,7 @@ pub enum DockDragged {
 pub struct DockPreviewHandle {
     pub dragged: DockDragged,
     pub title: Memo<String>,
-    pub icon: Memo<String>,
+    pub icon: Memo<Option<Glyph>>,
 }
 
 pub struct DockChromeHandle {
@@ -155,7 +156,7 @@ pub struct DockGripHandle {
 
 pub struct DockStackHandle {
     pub title: Memo<String>,
-    pub icon: Memo<String>,
+    pub icon: Memo<Option<Glyph>>,
     pub backward: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
@@ -175,7 +176,7 @@ pub struct DockSwitcherHandle {
 pub struct DockSwitcherCardHandle {
     pub tab: TabId,
     pub title: Memo<String>,
-    pub icon: Memo<String>,
+    pub icon: Memo<Option<Glyph>>,
     pub current: Memo<bool>,
     pub closable: bool,
     pub menu: Memo<Vec<MenuNode>>,
@@ -357,7 +358,7 @@ struct State {
     drag: Signal<Option<Drag>>,
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
-    icon: Func<TabId, String>,
+    icon: Func<TabId, Option<Glyph>>,
     picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
     menu: MenuStyle,
@@ -428,7 +429,7 @@ impl State {
         })
     }
 
-    fn icon(&self, tab: TabId) -> String {
+    fn icon(&self, tab: TabId) -> Option<Glyph> {
         self.icon.call(tab)
     }
 
@@ -439,20 +440,20 @@ impl State {
         }
     }
 
-    fn entry_icon(&self, entry: Entry) -> String {
+    fn entry_icon(&self, entry: Entry) -> Option<Glyph> {
         match entry {
             Entry::Tab(tab) => self.icon(tab),
-            Entry::Group(_) => String::new(),
+            Entry::Group(_) => None,
         }
     }
 
-    fn dragged_icon(&self, dragged: DockDragged) -> String {
+    fn dragged_icon(&self, dragged: DockDragged) -> Option<Glyph> {
         match dragged {
             DockDragged::Entry(entry) => self.entry_icon(entry),
             DockDragged::Pane(leaf) => {
                 match self.state.with(|state| state.entries(leaf)).as_slice() {
                     [entry] => self.entry_icon(*entry),
-                    _ => String::new(),
+                    _ => None,
                 }
             }
         }
@@ -1203,7 +1204,7 @@ pub(crate) struct DockConfig {
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
-    pub(crate) icon: Func<TabId, String>,
+    pub(crate) icon: Func<TabId, Option<Glyph>>,
     pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,

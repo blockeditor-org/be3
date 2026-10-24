@@ -218,7 +218,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
                     padding=TRIGGER_PADDING
                 >
                     <Text color={ink} align=TextAlign::Center>
-                        <Icon glyph={glyph.to_owned()} />
+                        <Icon glyph={glyph} />
                     </Text>
                 </Frame>
             </FocusRing>

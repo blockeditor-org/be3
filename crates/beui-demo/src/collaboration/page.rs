@@ -215,8 +215,8 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         ((right, left), false) => format!("In flight: {right} to the right, {left} to the left."),
     });
     let network = create_memo(move || match paused.get() {
-        true => ICON_PLAY.to_owned(),
-        false => ICON_PAUSE.to_owned(),
+        true => ICON_PLAY,
+        false => ICON_PAUSE,
     });
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
@@ -292,12 +292,12 @@ fn SendButtons(
         true => Direction::Horizontal,
         false => Direction::Vertical,
     });
-    let arrows = |wide: [&'static str; 4], stacked: [&'static str; 4]| {
+    let arrows = |wide: [beui::icons::Glyph; 4], stacked: [beui::icons::Glyph; 4]| {
         (0..4)
             .map(|index| {
                 create_memo(move || match narrow.get() {
-                    true => stacked[index].to_owned(),
-                    false => wide[index].to_owned(),
+                    true => stacked[index],
+                    false => wide[index],
                 })
             })
             .collect::<Vec<_>>()

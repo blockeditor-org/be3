@@ -252,7 +252,7 @@ fn CheckboxBox(colors: Memo<TextAreaColors>, handle: ToggleHandle) -> NodeId {
                         color={Color32::WHITE}
                         align=TextAlign::Center
                     >
-                        <Icon glyph={ICON_CHECK.to_owned()} />
+                        <Icon glyph=ICON_CHECK />
                     </Text>
                 </Show>
             </List>

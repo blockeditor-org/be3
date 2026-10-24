@@ -112,7 +112,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 <Text style=TextStyle::CAPTION color={parent_color}>{parent_name}</Text>
                 <Show condition={hanging}>
                     <IconButton
-                        glyph={ICON_UNLINK.to_owned()}
+                        glyph=ICON_UNLINK
                         label="Move this clip onto the base track"
                         @test_id={"video.detach"}
                         on_click={move || {

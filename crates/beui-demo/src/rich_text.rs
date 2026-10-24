@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -30,7 +31,7 @@ const EDITOR_HEIGHT: f32 = 420.0;
 const MENTION_PADDING: f32 = 6.0;
 const MENTION_HEIGHT: f32 = 20.0;
 
-pub(crate) const GLYPHS: [(&str, &str); 12] = [
+pub(crate) const GLYPHS: [(&str, Glyph); 12] = [
     (basic::BOLD, ICON_BOLD),
     (basic::ITALIC, ICON_ITALIC),
     (basic::UNDERLINE, ICON_UNDERLINE),

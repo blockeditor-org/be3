@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use beui::Key;
 use beui::NodeId;
 use beui::icons::{
@@ -64,7 +65,7 @@ fn menu_actions(state: State, settings: Signal<bool>) {
     ]);
 }
 
-const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
+const FORMATS: [(&str, &str, Glyph, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.heading",
         "Heading",
@@ -151,7 +152,7 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
             let mut action = Action::new(*id, *label, move || {
                 state.text.execute(EditorCommand::Markdown(command))
             })
-            .glyph(glyph)
+            .glyph(*glyph)
             .enabled(markdown);
             if let Some(chord) = chord {
                 action = action.shortcut(*chord);

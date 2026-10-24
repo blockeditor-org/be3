@@ -994,7 +994,7 @@ impl Document {
         &self.arena.get_as::<TextNode>(id).content
     }
 
-    pub fn text_icons(&self, id: NodeId) -> Vec<String> {
+    pub fn text_icons(&self, id: NodeId) -> Vec<crate::icons::Glyph> {
         let Some(text) = self.arena.kind_of::<TextNode>(id) else {
             return Vec::new();
         };
@@ -1006,7 +1006,7 @@ impl Document {
                 TextPart::Span(span)
                     if span.content().icon.is_some() && !span.content().text.is_empty() =>
                 {
-                    Some(span.content().text.clone())
+                    crate::icons::Glyph::from_codepoint(&span.content().text)
                 }
                 _ => None,
             })

@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
@@ -28,7 +29,7 @@ const FOCUS_RING_OFFSET: f32 = 2.0;
 pub fn SplitButton(
     label: Prop<String>,
     #[prop(default = ButtonVariant::Secondary)] variant: ButtonVariant,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = String::from("More options"))] menu_label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     items: Children<MenuItem>,
@@ -81,7 +82,7 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
         half_fill(&theme, variant, disabled.get(), hovered.get(), active.get())
     });
     let ink = create_memo(move || variant.label(disabled.get()));
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
@@ -131,7 +132,7 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                         <Text color={ink} align=TextAlign::Center>
-                            <Icon glyph={ICON_CHEVRON_DOWN.to_owned()} />
+                            <Icon glyph=ICON_CHEVRON_DOWN />
                         </Text>
                     </List>
                 </HalfFace>

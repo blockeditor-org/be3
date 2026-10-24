@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
@@ -166,7 +167,7 @@ enum Shape {
     Command {
         id: String,
         label: Option<String>,
-        glyph: String,
+        glyph: Option<Glyph>,
         check: Option<bool>,
         shortcut: Option<KeyChord>,
         pin: MenuPin,
@@ -174,7 +175,7 @@ enum Shape {
     Submenu {
         id: String,
         label: String,
-        glyph: String,
+        glyph: Option<Glyph>,
         entries: Vec<Shape>,
     },
     Separator,
@@ -253,7 +254,7 @@ impl MenuMirror {
                     Shape::Command {
                         id: command.id.clone(),
                         label: None,
-                        glyph: command.glyph.clone(),
+                        glyph: Glyph::from_codepoint(&command.glyph),
                         check,
                         shortcut: command.shortcut,
                         pin: command.pin,
@@ -262,7 +263,7 @@ impl MenuMirror {
                 MenuEntry::Submenu(submenu) => Shape::Submenu {
                     id: submenu.id.clone(),
                     label: submenu.label.clone(),
-                    glyph: submenu.glyph.clone(),
+                    glyph: Glyph::from_codepoint(&submenu.glyph),
                     entries: self.shape_of(&submenu.entries),
                 },
                 MenuEntry::Separator => Shape::Separator,
@@ -293,7 +294,7 @@ impl MenuMirror {
                     let mut action = Action::new(id.clone(), label, move || {
                         host.pick_child_menu(child, picked.clone())
                     })
-                    .glyph(glyph)
+                    .glyph(*glyph)
                     .enabled(enabled);
                     action = match check {
                         None => action,
@@ -318,7 +319,7 @@ impl MenuMirror {
                 } => Some(MenuNode::submenu(
                     id.clone(),
                     label.clone(),
-                    glyph,
+                    *glyph,
                     self.nodes(child, entries),
                 )),
                 Shape::Separator => Some(MenuNode::Separator),

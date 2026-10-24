@@ -100,8 +100,8 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let empty = create_memo(move || entries.with(Vec::is_empty));
     let unordered = create_memo(move || sort.get() == FolderSort::Intrinsic);
     let direction_glyph = create_memo(move || match descending.get() {
-        true => ICON_ARROW_DOWN.to_owned(),
-        false => ICON_ARROW_UP.to_owned(),
+        true => ICON_ARROW_DOWN,
+        false => ICON_ARROW_UP,
     });
     let direction_label = create_memo(move || match descending.get() {
         true => "Descending".to_owned(),
@@ -293,11 +293,10 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
 #[component]
 fn EntryGlyph(entry: Memo<Option<Entry>>, size: TextSize) -> NodeId {
     let glyph = create_memo(move || {
-        let glyph = entry.get().map(|entry| entry.glyph).unwrap_or_default();
-        match glyph.is_empty() {
-            true => ICON_FOLDER.to_owned(),
-            false => glyph,
-        }
+        entry
+            .get()
+            .and_then(|entry| entry.glyph)
+            .unwrap_or(ICON_FOLDER)
     });
     view! {
         <Text size={size} align=TextAlign::Center>

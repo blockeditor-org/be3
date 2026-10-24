@@ -140,7 +140,6 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
             Direction::Vertical => ICON_MOVE_VERTICAL,
             Direction::Horizontal => ICON_MOVE_HORIZONTAL,
         }
-        .to_string()
     });
     view! {
         <Frame

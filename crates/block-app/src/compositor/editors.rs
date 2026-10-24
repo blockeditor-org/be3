@@ -1748,7 +1748,7 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
                 .as_ref()
                 .map_or_else(|| "Loading…".to_owned(), |label| label.name.clone()),
             automatic: label.as_ref().is_some_and(|label| label.automatic),
-            icon: label.and_then(|label| label.icon).map(str::to_owned),
+            icon: label.and_then(|label| label.icon),
         }
     });
     let child_view = child_view(block, EditorRegion::Preview);

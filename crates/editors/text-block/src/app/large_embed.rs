@@ -35,13 +35,13 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     });
     let unavailable = !available;
     let has_icon = embed.icon.is_some();
-    let icon = embed.icon.unwrap_or_default().to_owned();
+    let icon = embed.icon;
     let label = embed.label.clone();
     let automatic = embed.automatic;
     let deleted = embed.deleted;
 
     let icon_row = move || {
-        let glyph = icon.clone();
+        let glyph = icon;
         view! {
             <Text align=TextAlign::Center>
                 <Icon glyph={glyph} />

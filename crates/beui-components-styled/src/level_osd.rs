@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::time::{Duration, Instant};
@@ -31,7 +32,7 @@ const BAR_RADIUS: f32 = 3.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OsdLevel {
-    pub glyph: String,
+    pub glyph: Glyph,
     pub label: String,
     pub level: f32,
     pub muted: bool,
@@ -148,8 +149,7 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
         level.with(|level| {
             level
                 .as_ref()
-                .map(|level| level.glyph.clone())
-                .unwrap_or_default()
+                .map(|level| level.glyph)
         })
     });
     let filled = create_memo(move || {

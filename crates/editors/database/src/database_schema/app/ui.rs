@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::database::DatabaseContent;
@@ -55,7 +56,7 @@ const NUMBER_WIDTH: f32 = 120.0;
 const INTRINSIC_WIDTH: f32 = 600.0;
 const ROW_HEIGHT: f32 = 40.0;
 
-const FIELD_TYPES: [(DatabaseFieldType, &str, &str); 8] = [
+const FIELD_TYPES: [(DatabaseFieldType, &str, Glyph); 8] = [
     (DatabaseFieldType::String, "Text", ICON_TEXT_ALIGN_START),
     (DatabaseFieldType::Number, "Number", ICON_HASH),
     (DatabaseFieldType::Enum, "Choice", ICON_CIRCLE_CHEVRON_DOWN),
@@ -177,8 +178,7 @@ fn FieldRow(
     let glyph = create_memo(move || {
         kind.get()
             .and_then(|kind| FIELD_TYPES.iter().find(|(value, _, _)| *value == kind))
-            .map_or("", |(_, _, glyph)| glyph)
-            .to_owned()
+            .map(|(_, _, glyph)| *glyph)
     });
     let order = schema.project(|schema| {
         schema
@@ -235,7 +235,7 @@ fn FieldRow(
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <IconButton
-                    glyph={ICON_ARROW_UP.to_owned()}
+                    glyph=ICON_ARROW_UP
                     label="Move up"
                     variant=ButtonVariant::Ghost
                     disabled={read_only}
@@ -243,7 +243,7 @@ fn FieldRow(
                     on_click={move || mover(-1)}
                 />
                 <IconButton
-                    glyph={ICON_ARROW_DOWN.to_owned()}
+                    glyph=ICON_ARROW_DOWN
                     label="Move down"
                     variant=ButtonVariant::Ghost
                     disabled={read_only}
@@ -251,7 +251,7 @@ fn FieldRow(
                     on_click={move || mover(1)}
                 />
                 <IconButton
-                    glyph={ICON_TRASH.to_owned()}
+                    glyph=ICON_TRASH
                     label="Delete field"
                     disabled={read_only}
                     @test_id={format!("database-schema.delete.{id}")}
@@ -497,7 +497,7 @@ fn EnumOptions(
                 </ForEach>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <IconButton
-                        glyph={ICON_PLUS.to_owned()}
+                        glyph=ICON_PLUS
                         label="Add option"
                         disabled={read_only}
                         @test_id={format!("database-schema.enum.{id}.add")}
@@ -593,7 +593,7 @@ fn EnumOptionRow(
                         view! {
                             <MenuItem
                                 label={choice_icon_label(icon)}
-                                glyph={choice_glyph(icon).to_owned()}
+                                glyph={choice_glyph(icon)}
                                 row_test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
                                 on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
                             />
@@ -664,7 +664,7 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
             />
             <IconButton
-                glyph={ICON_ARROW_UP.to_owned()}
+                glyph=ICON_ARROW_UP
                 label="Move up"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}
@@ -672,7 +672,7 @@ fn EnumOptionRow(
                 on_click={move || mover(-1)}
             />
             <IconButton
-                glyph={ICON_ARROW_DOWN.to_owned()}
+                glyph=ICON_ARROW_DOWN
                 label="Move down"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}
@@ -680,7 +680,7 @@ fn EnumOptionRow(
                 on_click={move || mover(1)}
             />
             <IconButton
-                glyph={ICON_TRASH.to_owned()}
+                glyph=ICON_TRASH
                 label="Delete option"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}

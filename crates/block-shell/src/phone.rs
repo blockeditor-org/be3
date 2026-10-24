@@ -75,8 +75,6 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                         &workspace.label(info.item.id, info.item.block_type),
                     )
                 })
-                .unwrap_or_default()
-                .to_owned()
         })
     });
     let kind = create_memo(move || {
@@ -156,20 +154,20 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                 <ActionRow
                     @test_id={"workspace.details.new"}
                     label="New file here"
-                    glyph={ICON_FILE_PLUS.to_owned()}
+                    glyph=ICON_FILE_PLUS
                     on_click={new_here}
                 />
                 <ActionRow
                     @test_id={"workspace.details.rename"}
                     label="Rename"
-                    glyph={ICON_PENCIL_LINE.to_owned()}
+                    glyph=ICON_PENCIL_LINE
                     disabled={rename_off}
                     on_click={move || act(Action::Rename)}
                 />
                 <ActionRow
                     @test_id={"workspace.details.share"}
                     label="Share"
-                    glyph={ICON_SHARE_2.to_owned()}
+                    glyph=ICON_SHARE_2
                     disabled={rename_off}
                     on_click={move || act(Action::Share)}
                 />
@@ -177,14 +175,14 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     <ActionRow
                         @test_id={"workspace.details.unlink"}
                         label="Unlink"
-                        glyph={ICON_UNLINK.to_owned()}
+                        glyph=ICON_UNLINK
                         on_click={move || act(Action::Unlink)}
                     />
                 </Show>
                 <ActionRow
                     @test_id={"workspace.details.delete"}
                     label={delete_label}
-                    glyph={ICON_TRASH.to_owned()}
+                    glyph=ICON_TRASH
                     disabled={delete_off}
                     danger=true
                     on_click={move || act(Action::Delete)}
@@ -256,8 +254,6 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
         label
             .get()
             .and_then(|label| block_editor_beui::label_glyph(&label))
-            .unwrap_or_default()
-            .to_owned()
     });
     let detail = create_memo(move || {
         match reference.with(|reference| {

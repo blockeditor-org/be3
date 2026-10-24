@@ -433,8 +433,9 @@ pub(crate) fn HoverLabel(tools: Tools, hovered: ReadSignal<Option<(u16, u16)>>) 
         };
         match source.get() {
             Some(source) => format!(
-                "{x}, {y} · {} {ICON_ARROW_RIGHT} {}",
+                "{x}, {y} · {} {} {}",
                 format_hex_color(source),
+                ICON_ARROW_RIGHT.as_str(),
                 format_hex_color(color.get())
             ),
             None => format!("{x}, {y}"),

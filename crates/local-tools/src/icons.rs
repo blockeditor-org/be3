@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use serde_json::Value;
 
-const LIST: &str = "crates/beui-core/src/icons/list.rs";
+const LIST: &str = "crates/lucide/src/list.rs";
 const FONT: &str = "crates/beui-font-freetype/src/assets/icons/lucide.ttf";
 
 pub fn main(arguments: Vec<String>) -> ExitCode {

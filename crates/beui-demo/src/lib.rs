@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
@@ -213,7 +214,7 @@ impl Page {
         }
     }
 
-    fn icon(self) -> &'static str {
+    fn icon(self) -> Glyph {
         match self {
             Page::Docking => ICON_LAYOUT_PANEL_LEFT,
             Page::Text => ICON_TYPE,

@@ -64,7 +64,7 @@ fn ZoomIn(disabled: Memo<bool>) -> MenuItem {
     view! {
         <MenuItem
             label="Zoom in"
-            glyph={ICON_ZOOM_IN.to_owned()}
+            glyph=ICON_ZOOM_IN
             disabled={disabled}
             row_test_id={"file-tree.zoom-in".to_owned()}
         />
@@ -116,25 +116,25 @@ fn SectionMenu<F: Fn() + 'static>(
             <ZoomIn disabled={unzoomable} />
             <MenuItem
                 label="Add"
-                glyph={ICON_FILE_PLUS.to_owned()}
+                glyph=ICON_FILE_PLUS
                 disabled={unaddable}
                 row_test_id={"file-tree.section.add".to_owned()}
             />
             <MenuItem
                 label="Rename"
-                glyph={ICON_PENCIL_LINE.to_owned()}
+                glyph=ICON_PENCIL_LINE
                 disabled={edit}
                 row_test_id={"file-tree.section.rename".to_owned()}
             />
             <MenuItem
                 label="Share"
-                glyph={ICON_SHARE_2.to_owned()}
+                glyph=ICON_SHARE_2
                 disabled={edit}
                 row_test_id={"file-tree.section.share".to_owned()}
             />
             <MenuItem
                 label="Delete"
-                glyph={ICON_TRASH.to_owned()}
+                glyph=ICON_TRASH
                 disabled={deletable}
                 danger=true
                 row_test_id={"file-tree.section.delete".to_owned()}
@@ -143,7 +143,7 @@ fn SectionMenu<F: Fn() + 'static>(
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
-                    glyph={ICON_LOG_OUT.to_owned()}
+                    glyph=ICON_LOG_OUT
                     danger=true
                     row_test_id={"file-tree.section.leave".to_owned()}
                     on_click={leave}
@@ -252,10 +252,10 @@ fn BlockMenu<F: Fn() + 'static>(
         items: view! {
             <ZoomIn disabled={unzoomable} />
             <OpenWith editor={editor} row={row} />
-            <MenuItem label="Add" glyph={ICON_FILE_PLUS.to_owned()} disabled={add} />
+            <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} />
             <MenuItem
                 label="Move to"
-                glyph={ICON_MOVE_UP.to_owned()}
+                glyph=ICON_MOVE_UP
                 disabled={rooted}
                 row_test_id={"file-tree.move-to".to_owned()}
             >
@@ -299,21 +299,21 @@ fn BlockMenu<F: Fn() + 'static>(
                     }}
                 />
             </MenuItem>
-            <MenuItem label="Rename" glyph={ICON_PENCIL_LINE.to_owned()} disabled={edit} />
-            <MenuItem label="Share" glyph={ICON_SHARE_2.to_owned()} disabled={edit} />
-            <MenuItem label="Unlink" glyph={ICON_UNLINK.to_owned()} disabled={unlinkable} />
+            <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} />
+            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={edit} />
+            <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} />
             <MenuItem
                 label={delete_label}
-                glyph={ICON_TRASH.to_owned()}
+                glyph=ICON_TRASH
                 disabled={deletable}
                 danger=true
             />
-            <MenuItem label="Inspect" glyph={ICON_INFO.to_owned()} disabled={uninspectable} />
+            <MenuItem label="Inspect" glyph=ICON_INFO disabled={uninspectable} />
             <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
             <Show condition={restorable}>
                 <MenuItem
                     label="Restore"
-                    glyph={ICON_ROTATE_CCW_CLOCK.to_owned()}
+                    glyph=ICON_ROTATE_CCW_CLOCK
                     row_test_id={"file-tree.restore".to_owned()}
                     on_click={restore}
                 />
@@ -322,7 +322,7 @@ fn BlockMenu<F: Fn() + 'static>(
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
-                    glyph={ICON_LOG_OUT.to_owned()}
+                    glyph=ICON_LOG_OUT
                     danger=true
                     row_test_id={"file-tree.leave".to_owned()}
                     on_click={leave}

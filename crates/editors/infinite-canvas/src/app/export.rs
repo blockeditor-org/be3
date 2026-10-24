@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -85,7 +86,7 @@ impl Default for ExportOptions {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Embed {
     pub(crate) title: String,
-    pub(crate) glyph: Option<String>,
+    pub(crate) glyph: Option<Glyph>,
     pub(crate) image: bool,
 }
 
@@ -179,8 +180,7 @@ impl Scene {
                             .unwrap_or_else(|| state.unlabeled()),
                         glyph: label
                             .as_ref()
-                            .and_then(block_editor_beui::label_glyph)
-                            .map(str::to_owned),
+                            .and_then(block_editor_beui::label_glyph),
                         image: state.block_type_of(block) == Some(ImageContent::CONTENT_TYPE),
                     },
                 ))

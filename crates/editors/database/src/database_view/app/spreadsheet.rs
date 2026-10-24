@@ -161,9 +161,9 @@ fn HeaderCell(
 ) -> NodeId {
     let sorted = create_memo(move || sorted.get());
     let glyph = create_memo(move || match sorted.get() {
-        Some(SortDirection::Ascending) => ICON_ARROW_UP.to_owned(),
-        Some(SortDirection::Descending) => ICON_ARROW_DOWN.to_owned(),
-        None => String::new(),
+        Some(SortDirection::Ascending) => Some(ICON_ARROW_UP),
+        Some(SortDirection::Descending) => Some(ICON_ARROW_DOWN),
+        None => None,
     });
     let marked = create_memo(move || sorted.get().is_some());
     view! {
@@ -288,8 +288,8 @@ fn Cell(
     });
     let checked = create_memo(move || matches!(value.get(), Some(DatabaseValue::Boolean(true))));
     let check_glyph = create_memo(move || match checked.get() {
-        true => ICON_SQUARE_CHECK.to_owned(),
-        false => ICON_SQUARE.to_owned(),
+        true => ICON_SQUARE_CHECK,
+        false => ICON_SQUARE,
     });
     let colored = create_memo(move || matches!(value.get(), Some(DatabaseValue::Color(_))));
     let swatch = create_memo(move || match value.get() {

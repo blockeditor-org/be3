@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
@@ -14,7 +15,7 @@ pub struct ButtonHandle {
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
     pub label: Memo<String>,
-    pub glyph: Memo<String>,
+    pub glyph: Memo<Option<Glyph>>,
     pub tooltip: Memo<String>,
 }
 
@@ -29,7 +30,7 @@ pub fn Button(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ButtonApi>,
     #[prop(children)] content: Option<Render<ButtonHandle>>,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = Role::Button)] role: Role,
     action: Option<Action>,
     #[prop(default = false)] disabled: Prop<bool>,

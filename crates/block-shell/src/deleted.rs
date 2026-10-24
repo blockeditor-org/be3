@@ -49,14 +49,14 @@ pub(crate) fn DeletedBar(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text size=TextSize::Xs align=TextAlign::Center>
-                        <Icon glyph={ICON_TRASH.to_owned()} />
+                        <Icon glyph=ICON_TRASH />
                     </Text>
                     <Text>"Deleted block"</Text>
                     <Text style=TextStyle::CAPTION>{caption}</Text>
                     <Button
                         @test_id={"workspace.deleted.restore"}
                         label="Restore"
-                        glyph={ICON_ROTATE_CCW_CLOCK.to_owned()}
+                        glyph=ICON_ROTATE_CCW_CLOCK
                         variant=ButtonVariant::Secondary
                         disabled={locked}
                         on_click={move || {

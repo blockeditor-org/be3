@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use accesskit::{HasPopup, Node, Role};
 use beui_macros::{component, view};
 
@@ -21,7 +22,7 @@ pub fn MenuButton(
     trigger: Render<MenuButtonHandle>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = false)] secondary_opens: Prop<bool>,

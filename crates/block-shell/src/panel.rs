@@ -326,11 +326,13 @@ fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
         true => "Switch back to Can view or Can edit to see it.".to_owned(),
         false => "Ask someone who can edit it to share it with you.".to_owned(),
     });
-    let heading = format!("{ICON_LOCK} No access");
     view! {
         <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Text style=TextStyle::HEADING>{heading}</Text>
+                <Text style=TextStyle::HEADING>
+                    <Icon glyph=ICON_LOCK />
+                    "No access"
+                </Text>
                 <Text style=TextStyle::CAPTION>{first}</Text>
                 <Text style=TextStyle::CAPTION>{second}</Text>
             </List>

@@ -15,7 +15,7 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
     assert!(fixture.test.shown("desktop.wifi"));
     assert_eq!(
         fixture.test.label("desktop.wifi"),
-        ICON_WIFI,
+        ICON_WIFI.as_str(),
         "the bar shows the strength of the network joined"
     );
     fixture.test.snapshot("the_wifi_in_the_bar");
@@ -51,7 +51,7 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
         fixture
             .test
             .label("desktop.wifi")
-            .starts_with(ICON_WIFI_OFF)
+            .starts_with(ICON_WIFI_OFF.as_str())
     );
 
     fixture.wifi(WifiStatus::default());

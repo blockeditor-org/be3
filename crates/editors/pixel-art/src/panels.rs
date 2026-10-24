@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::Toolbar;
 use block_editor_beui::be_block::pixel_art::{
     MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
@@ -26,7 +27,7 @@ const SWATCH: f32 = 20.0;
 const TOOL_WIDTH: f32 = 76.0;
 const DIALOG_WIDTH: f32 = 300.0;
 
-const TOOLS: [(PixelTool, &str, &str); 8] = [
+const TOOLS: [(PixelTool, Glyph, &str); 8] = [
     (PixelTool::Pencil, ICON_PENCIL, "B or P"),
     (PixelTool::Eraser, ICON_ERASER, "E"),
     (PixelTool::Fill, ICON_PAINT_BUCKET, "G"),
@@ -37,7 +38,7 @@ const TOOLS: [(PixelTool, &str, &str); 8] = [
     (PixelTool::Ellipse, ICON_CIRCLE, "O"),
 ];
 
-const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
+const ANCHORS: [(PixelArtAnchor, Glyph, &str); 9] = [
     (PixelArtAnchor::TopLeft, ICON_ARROW_UP_LEFT, "Top left"),
     (PixelArtAnchor::Top, ICON_ARROW_UP, "Top"),
     (PixelArtAnchor::TopRight, ICON_ARROW_UP_RIGHT, "Top right"),
@@ -101,7 +102,7 @@ pub(crate) fn TopBar(
             <Text>{label}</Text>
             <Text style=TextStyle::CAPTION>{dimensions}</Text>
             <IconButton
-                glyph={ICON_ZOOM_OUT.to_owned()}
+                glyph=ICON_ZOOM_OUT
                 label="Zoom out"
                 @test_id={"pixel-art.zoom-out"}
                 on_click={zoom_out}
@@ -113,13 +114,13 @@ pub(crate) fn TopBar(
                 on_click={reset}
             />
             <IconButton
-                glyph={ICON_ZOOM_IN.to_owned()}
+                glyph=ICON_ZOOM_IN
                 label="Zoom in"
                 @test_id={"pixel-art.zoom-in"}
                 on_click={zoom_in}
             />
             <IconButton
-                glyph={ICON_SCAN.to_owned()}
+                glyph=ICON_SCAN
                 label="Fit the canvas to the viewport"
                 @test_id={"pixel-art.fit"}
                 on_click={fit}
@@ -130,21 +131,21 @@ pub(crate) fn TopBar(
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
-                glyph={ICON_SCALING.to_owned()}
+                glyph=ICON_SCALING
                 label="Resize"
                 disabled={read_only}
                 @test_id={"pixel-art.resize"}
                 on_click={resize}
             />
             <IconButton
-                glyph={ICON_TRASH.to_owned()}
+                glyph=ICON_TRASH
                 label="Clear"
                 disabled={read_only}
                 @test_id={"pixel-art.clear"}
                 on_click={clear}
             />
             <IconButton
-                glyph={ICON_DOWNLOAD.to_owned()}
+                glyph=ICON_DOWNLOAD
                 label="Export a PNG"
                 disabled={read_only}
                 @test_id={"pixel-art.export"}
@@ -198,13 +199,13 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ToggleButton
-                    glyph={ICON_SQUARE.to_owned()}
+                    glyph=ICON_SQUARE
                     label="Square brush"
                     icon_only=true
                     pressed={Binding::new(square, move |_| shape.set(BrushShape::Square))}
                 />
                 <ToggleButton
-                    glyph={ICON_CIRCLE.to_owned()}
+                    glyph=ICON_CIRCLE
                     label="Circle brush"
                     icon_only=true
                     pressed={Binding::new(circle, move |_| shape.set(BrushShape::Circle))}
@@ -212,7 +213,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <ToggleButton
-                glyph={ICON_PAINT_BUCKET.to_owned()}
+                glyph=ICON_PAINT_BUCKET
                 label="Filled shapes"
                 pressed={filled}
                 disabled={shapes}
@@ -225,14 +226,14 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
 }
 
 #[component]
-fn ToolButton(tools: Tools, entry: (PixelTool, &'static str, &'static str)) -> NodeId {
+fn ToolButton(tools: Tools, entry: (PixelTool, Glyph, &'static str)) -> NodeId {
     let (tool, glyph, shortcut) = entry;
     let chosen = tools.tool;
     let pressed = create_memo(move || chosen.get() == tool);
     let select = move |_| tools.select_tool(tool);
     view! {
         <ToggleButton
-            glyph={glyph.to_owned()}
+            glyph={glyph}
             label={format!("{} ({shortcut})", tool.label())}
             icon_only=true
             pressed={Binding::new(pressed, select)}
@@ -308,14 +309,14 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <IconButton
-                    glyph={ICON_PLUS.to_owned()}
+                    glyph=ICON_PLUS
                     label="Add the active colour to the palette"
                     disabled={can_add}
                     @test_id={"pixel-art.palette-add"}
                     on_click={add}
                 />
                 <IconButton
-                    glyph={ICON_TRASH.to_owned()}
+                    glyph=ICON_TRASH
                     label="Remove the active colour from the palette"
                     disabled={can_remove}
                     @test_id={"pixel-art.palette-remove"}
@@ -503,7 +504,7 @@ fn AnchorRow(tools: Tools, row: usize) -> NodeId {
                 let set = tools.resize_anchor;
                 view! {
                     <ToggleButton
-                        glyph={glyph.to_owned()}
+                        glyph={glyph}
                         label={label}
                         icon_only=true
                         pressed={Binding::new(pressed, move |_| set.set(anchor))}

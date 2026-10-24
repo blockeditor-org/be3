@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::canvas::{CanvasLayerMove, CanvasProfile};
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::{
@@ -138,10 +139,10 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
             .radio(create_memo(move || state.tool.get() == tool))
             .enabled(free)
     };
-    let command = |id: &str, label: &'static str, glyph: &str, command: CanvasCommand| {
+    let command = |id: &str, label: &'static str, glyph: Glyph, command: CanvasCommand| {
         Action::new(id, label, move || state.run(command)).glyph(glyph)
     };
-    let add = |id: &str, label: &'static str, glyph: &str, tool: Tool| {
+    let add = |id: &str, label: &'static str, glyph: Glyph, tool: Tool| {
         Action::new(id, label, move || {
             let at = state
                 .take_context_position()
@@ -152,7 +153,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         .enabled(free)
     };
     let layer =
-        |id: &str, label: &'static str, glyph: &str, movement: CanvasLayerMove, chord: Chord| {
+        |id: &str, label: &'static str, glyph: Glyph, movement: CanvasLayerMove, chord: Chord| {
             Action::new(id, label, move || state.reorder(movement))
                 .glyph(glyph)
                 .shortcut(chord)
@@ -184,7 +185,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     );
     let drawn = when(|state| state.entities.ids().with(|ids| !ids.is_empty()));
     let export =
-        |id: &str, label: &'static str, glyph: &str, format: ExportFormat, to: ExportTo| {
+        |id: &str, label: &'static str, glyph: Glyph, format: ExportFormat, to: ExportTo| {
             Action::new(id, label, move || match to {
                 ExportTo::Clipboard => exporter.run(format, to),
                 ExportTo::File => exporter.ask(format),
@@ -292,7 +293,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .glyph(ICON_SCAN)
     .enabled(framed)
     .register();
-    let profile = |id: &str, label: &'static str, glyph: &str, profile: CanvasProfile| {
+    let profile = |id: &str, label: &'static str, glyph: Glyph, profile: CanvasProfile| {
         Action::new(id, label, move || state.switch_profile(profile))
             .glyph(glyph)
             .radio(create_memo(move || state.profile.get() == profile))

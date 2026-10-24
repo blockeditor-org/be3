@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
@@ -18,7 +19,7 @@ const SPACING: f32 = 14.0;
 #[component]
 pub fn ActionRow(
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = None)] glyph_color: Prop<Option<TextColor>>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -67,7 +68,7 @@ pub(crate) fn ActionRowFace(
     focused: ReadSignal<bool>,
     label: Prop<String>,
     #[prop(default = String::new())] lead: Prop<String>,
-    glyph: Prop<String>,
+    glyph: Prop<Option<Glyph>>,
     #[prop(default = None)] glyph_color: Prop<Option<TextColor>>,
     detail: Prop<String>,
     disabled: Prop<bool>,
@@ -105,7 +106,7 @@ pub(crate) fn ActionRowFace(
         _ => glyph_color.get().unwrap_or(TextColor::Muted),
     });
     let glyph = create_memo(move || glyph.get());
-    let has_glyph = create_memo(move || !glyph.get().is_empty() || glyphs.get());
+    let has_glyph = create_memo(move || glyph.get().is_some() || glyphs.get());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
@@ -146,7 +147,7 @@ pub(crate) fn ActionRowFace(
                 </Show>
                 <Show condition={submenu}>
                     <Text color={chevron_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
+                        <Icon glyph=ICON_CHEVRON_RIGHT />
                     </Text>
                 </Show>
             </List>

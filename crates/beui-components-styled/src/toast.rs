@@ -153,7 +153,7 @@ fn ToastCard(
             </Show>
             <Show condition={!pictured}>
                 <Text color={tint} align=TextAlign::Center>
-                    <Icon glyph={glyph.to_owned()} />
+                    <Icon glyph={glyph} />
                 </Text>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
@@ -194,7 +194,7 @@ fn ToastCard(
                     <Frame @sizing=ItemSize::Percent(100.0)>{body}</Frame>
                     <IconButton
                         @test_id={format!("toast.{id}.dismiss")}
-                        glyph={ICON_X.to_owned()}
+                        glyph=ICON_X
                         label="Dismiss"
                         size=IconButtonSize::Compact
                         press_focus=false

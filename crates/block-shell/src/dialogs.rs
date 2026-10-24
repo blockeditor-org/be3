@@ -384,7 +384,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                     >
                                         <Chip label={name} />
                                         <IconButton
-                                            glyph={ICON_X.to_owned()}
+                                            glyph=ICON_X
                                             label="Do not add"
                                             size=IconButtonSize::Compact
                                             on_click={move || act.call(ShareAction::Unpick(id))}
@@ -410,7 +410,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                             <Button
                                 label="Add"
-                                glyph={ICON_USER_PLUS.to_owned()}
+                                glyph=ICON_USER_PLUS
                                 variant=ButtonVariant::Primary
                                 @test_id={"share.add"}
                                 on_click={move || act.call(ShareAction::AddPending)}
@@ -421,7 +421,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
                         label="Invite someone new"
-                        glyph={ICON_LINK.to_owned()}
+                        glyph=ICON_LINK
                         variant=ButtonVariant::Secondary
                         disabled={inviting}
                         @test_id={"share.invite"}
@@ -482,7 +482,7 @@ fn SuggestionButton(person: Memo<Option<Person>>, act: ShareAct) -> NodeId {
     view! {
         <Button
             label={label}
-            glyph={ICON_USER.to_owned()}
+            glyph=ICON_USER
             variant=ButtonVariant::Ghost
             on_click={move || {
                 if let Some(person) = person.get_untracked() {
@@ -523,7 +523,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                             <Text align=TextAlign::Center>
-                                <Icon glyph={ICON_USER.to_owned()} />
+                                <Icon glyph=ICON_USER />
                             </Text>
                             <Text style=TextStyle::HEADING>{name}</Text>
                         </List>
@@ -531,7 +531,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         <Show condition={is_fixed}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                                 <Text size=TextSize::Sm align=TextAlign::Center>
-                                    <Icon glyph={ICON_LOCK.to_owned()} />
+                                    <Icon glyph=ICON_LOCK />
                                 </Text>
                                 <Text style=TextStyle::CAPTION>{fixed_text}</Text>
                             </List>
@@ -571,7 +571,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                     </Show>
                     <Show condition={removable}>
                         <IconButton
-                            glyph={ICON_X.to_owned()}
+                            glyph=ICON_X
                             label="Remove access"
                             size=IconButtonSize::Compact
                             on_click={move || {

@@ -858,10 +858,8 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         widget
             .get()
             .and_then(|widget| widget.icon)
-            .unwrap_or("")
-            .to_owned()
     });
-    let has_icon = create_memo(move || !icon.get().is_empty());
+    let has_icon = create_memo(move || icon.get().is_some());
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
     let font = create_memo(move || {
@@ -951,8 +949,6 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                 true => ICON_CHEVRON_RIGHT,
                 false => ICON_CHEVRON_DOWN,
             })
-            .unwrap_or("")
-            .to_owned()
     });
     let arrow_color = create_memo(move || cx.colors.get().gutter_arrow);
     let number_color = create_memo(move || cx.colors.get().gutter_text);

@@ -16,7 +16,7 @@ fn appearance_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() {
             block_type: kind.into_bytes(),
             display_name: "Note".to_owned(),
             color: Some([65, 145, 210]),
-            icon_codepoint: ICON_FILE_TEXT.to_owned(),
+            icon_codepoint: ICON_FILE_TEXT.as_str().to_owned(),
             children: ChildOperations::default(),
         }],
         ..Catalog::default()

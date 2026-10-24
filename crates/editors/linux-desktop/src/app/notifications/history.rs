@@ -25,8 +25,8 @@ fn received_at(received: u64) -> String {
 pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId {
     let listed = notifications.listed();
     let glyph = create_memo(move || match listed.with(Vec::is_empty) {
-        true => ICON_BELL.to_owned(),
-        false => ICON_BELL_RING.to_owned(),
+        true => ICON_BELL,
+        false => ICON_BELL_RING,
     });
     let label = create_memo(move || match listed.with(Vec::len) {
         0 => "Notifications".to_owned(),
@@ -144,7 +144,7 @@ fn NotificationRow(
                 </List>
             </ListRow>
             <IconButton
-                glyph={ICON_X.to_owned()}
+                glyph=ICON_X
                 label="Dismiss"
                 variant=ButtonVariant::Ghost
                 size=IconButtonSize::Compact

@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 mod switch;
 
 use std::any::Any;
@@ -71,7 +72,7 @@ enum EntryKind<K: 'static> {
     Tab {
         id: K,
         title: Memo<String>,
-        icon: Memo<String>,
+        icon: Memo<Option<Glyph>>,
         picture: Memo<Option<Image>>,
         on_close: Option<ClickCallback>,
         content: RenderFn<()>,
@@ -150,7 +151,7 @@ pub fn DockDialog<K>(
     id: K,
     parent: K,
     title: Prop<String>,
-    #[prop(default = String::new())] icon: Prop<String>,
+    #[prop(default = None)] icon: Prop<Option<Glyph>>,
     size: Prop<Vec2>,
     #[prop(default = false)] modal: Prop<bool>,
     #[prop(default = DockDialogPresentation::Window)] presentation: DockDialogPresentation,
@@ -186,7 +187,7 @@ where
 pub fn DockTab<K>(
     id: K,
     title: Prop<String>,
-    #[prop(default = String::new())] icon: Prop<String>,
+    #[prop(default = None)] icon: Prop<Option<Glyph>>,
     #[prop(default = None)] picture: Prop<Option<Image>>,
     on_close: Option<ClickCallback>,
     #[prop(children)] content: RenderFn<()>,
@@ -647,7 +648,7 @@ impl<K: 'static> Found<K> {
     fn tab<R>(
         &self,
         tab: TabId,
-        read: impl FnOnce(&Memo<String>, &Memo<String>, &Option<ClickCallback>, &RenderFn<()>) -> R,
+        read: impl FnOnce(&Memo<String>, &Memo<Option<Glyph>>, &Option<ClickCallback>, &RenderFn<()>) -> R,
     ) -> Option<R> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab {

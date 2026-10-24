@@ -158,7 +158,7 @@ pub fn SettingsRow(
             >
                 <IconMenuButton
                     label="More"
-                    glyph={ICON_ELLIPSIS.to_owned()}
+                    glyph=ICON_ELLIPSIS
                     size=IconButtonSize::Compact
                     disabled={locked}
                     @test_id={menu_test_id}
@@ -307,7 +307,7 @@ fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -
                             </Show>
                         </List>
                         <Text color=TextColor::Muted>
-                            <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
+                            <Icon glyph=ICON_CHEVRON_RIGHT />
                         </Text>
                     </List>
                 </Frame>

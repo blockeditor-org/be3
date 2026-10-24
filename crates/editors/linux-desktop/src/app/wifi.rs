@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_WIFI, ICON_WIFI_HIGH, ICON_WIFI_LOCK, ICON_WIFI_LOW, ICON_WIFI_OFF, ICON_WIFI_SYNC,
@@ -16,7 +17,7 @@ const SPACING: f32 = 8.0;
 const ROW_SPACING: f32 = 2.0;
 const MIN_PASSWORD: usize = 8;
 
-fn bars(strength: u8, locked: bool) -> &'static str {
+fn bars(strength: u8, locked: bool) -> Glyph {
     match (strength, locked) {
         (0..=5, true) => ICON_WIFI_LOCK,
         (0..=5, false) => ICON_WIFI_ZERO,
@@ -39,7 +40,7 @@ fn strength_of(status: &WifiStatus, ssid: &str) -> u8 {
         .map_or(100, |network| network.strength)
 }
 
-fn glyph(status: &WifiStatus) -> &'static str {
+fn glyph(status: &WifiStatus) -> Glyph {
     if !status.enabled {
         return ICON_WIFI_OFF;
     }

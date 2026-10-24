@@ -13,7 +13,7 @@ fn a_link_to_a_deleted_block_is_marked_and_can_restore_it() {
             block_type: text_type.into_bytes(),
             display_name: "Text".to_owned(),
             color: None,
-            icon_codepoint: block_editor_beui::beui::icons::ICON_FILE_TEXT.to_owned(),
+            icon_codepoint: block_editor_beui::beui::icons::ICON_FILE_TEXT.as_str().to_owned(),
             children: ChildOperations::default(),
         }],
         templates: Vec::new(),

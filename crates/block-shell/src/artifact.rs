@@ -98,7 +98,7 @@ pub(crate) fn ArtifactBar(
                 <List spacing=PADDING_VERTICAL>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
-                            <Icon glyph={ICON_SPARKLES.to_owned()} />
+                            <Icon glyph=ICON_SPARKLES />
                         </Text>
                         <Text>"Dynamic artifact"</Text>
                         <Show condition={waiting}>
@@ -130,21 +130,21 @@ pub(crate) fn ArtifactBar(
                         </Show>
                         <IconButton
                             @test_id={"workspace.artifact.settings"}
-                            glyph={ICON_SETTINGS.to_owned()}
+                            glyph=ICON_SETTINGS
                             label="Settings"
                             disabled={settings_off}
                             on_click={settings}
                         />
                         <IconButton
                             @test_id={"workspace.artifact.regenerate"}
-                            glyph={ICON_REFRESH_CW.to_owned()}
+                            glyph=ICON_REFRESH_CW
                             label="Regenerate"
                             disabled={regenerate_off}
                             on_click={regenerate}
                         />
                         <IconButton
                             @test_id={"workspace.artifact.unlink"}
-                            glyph={ICON_UNLINK.to_owned()}
+                            glyph=ICON_UNLINK
                             label="Unlink from the source block"
                             disabled={unlink_off}
                             on_click={unlink}

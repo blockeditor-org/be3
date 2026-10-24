@@ -34,7 +34,7 @@ const DELETED_PREVIEW: usize = 48;
 pub struct TextWidget {
     pub range: Range<usize>,
     pub label: String,
-    pub icon: Option<&'static str>,
+    pub icon: Option<beui_core::icons::Glyph>,
     pub italic: bool,
     pub broken: bool,
     pub block_size: Option<Vec2>,

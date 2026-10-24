@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
@@ -14,7 +15,7 @@ use beui_view::reactive::*;
 #[component]
 pub fn SplitButton(
     label: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = String::from("More options"))] menu_label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     items: Children<MenuItem>,

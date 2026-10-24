@@ -7,7 +7,7 @@ use crate::unstyled::MenuItem;
 fn shown(harness: &Harness, text: &str) -> Option<Pos2> {
     let root = harness.document().root().expect("the document has a root");
     text_within(harness.document(), root, text)
-        .or_else(|| icon_within(harness.document(), root, text))
+        .or_else(|| icon_within(harness.document(), root, crate::icons::Glyph::from_codepoint(text)?))
         .map(|node| harness.center(node))
 }
 
@@ -30,7 +30,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
                 items={view! {
                     <MenuItem
                         label="Rename"
-                        glyph={ICON_PENCIL.to_owned()}
+                        glyph=ICON_PENCIL
                         detail="Ctrl+R"
                         on_click={move || clicks.update(|clicks| *clicks += 1)}
                     />
@@ -45,7 +45,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
     harness.settle();
     assert!(!sheet_shown(&harness), "a click opens a dropdown");
     assert!(
-        shown(&harness, ICON_PENCIL).is_some(),
+        shown(&harness, ICON_PENCIL.as_str()).is_some(),
         "the dropdown shows the icon"
     );
     assert!(
@@ -62,7 +62,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
     harness.settle();
     assert!(sheet_shown(&harness), "a tap opens a sheet");
     assert!(
-        shown(&harness, ICON_PENCIL).is_some(),
+        shown(&harness, ICON_PENCIL.as_str()).is_some(),
         "the sheet shows the icon"
     );
     assert!(

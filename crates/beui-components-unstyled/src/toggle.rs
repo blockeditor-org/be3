@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use accesskit::{Node, Role, Toggled};
 use beui_macros::{component, view};
 
@@ -15,7 +16,7 @@ pub struct ToggleHandle {
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
     pub label: Memo<String>,
-    pub glyph: Memo<String>,
+    pub glyph: Memo<Option<Glyph>>,
     pub tooltip: Memo<String>,
 }
 
@@ -25,7 +26,7 @@ pub fn Toggle(
     checked: Binding<bool>,
     #[prop(default = false)] mixed: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = Role::CheckBox)] role: Role,
     action: Option<Action>,
     #[prop(default = false)] disabled: Prop<bool>,

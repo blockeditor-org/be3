@@ -31,7 +31,7 @@ pub fn StaleNotice(
         <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
                 <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={ICON_ROTATE_CCW_CLOCK.to_owned()} />
+                    <Icon glyph=ICON_ROTATE_CCW_CLOCK />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
                 <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center wrap=true>
@@ -41,14 +41,14 @@ pub fn StaleNotice(
                     <Button
                         @test_id={reset_id}
                         label="Reset"
-                        glyph={ICON_ROTATE_CCW.to_owned()}
+                        glyph=ICON_ROTATE_CCW
                         variant=ButtonVariant::Primary
                         on_click={on_reset}
                     />
                     <Button
                         @test_id={delete_id}
                         label="Delete"
-                        glyph={ICON_TRASH.to_owned()}
+                        glyph=ICON_TRASH
                         variant=ButtonVariant::Secondary
                         on_click={on_delete}
                     />

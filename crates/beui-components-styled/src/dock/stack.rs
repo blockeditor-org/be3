@@ -50,7 +50,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         switch_label,
         open_switcher,
     } = handle;
-    let pictured = create_memo(move || !icon.get().is_empty());
+    let pictured = create_memo(move || icon.get().is_some());
     view! {
         <List spacing=0.0>
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>

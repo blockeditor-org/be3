@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Pos2;
 use beui_core::input::Key;
@@ -20,7 +21,7 @@ pub struct DockSwitchHandle {
 pub struct DockSwitchRowHandle {
     pub tab: TabId,
     pub title: Memo<String>,
-    pub icon: Memo<String>,
+    pub icon: Memo<Option<Glyph>>,
     pub chosen: Memo<bool>,
     pub pick: ClickCallback,
 }

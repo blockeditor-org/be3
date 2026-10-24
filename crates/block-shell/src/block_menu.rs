@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWN_LEFT, ICON_ARROW_UP_RIGHT, ICON_EYE};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockParent, label_glyph};
@@ -42,7 +43,7 @@ fn related(
     workspace: Workspace,
     id: &str,
     title: &str,
-    glyph: &str,
+    glyph: Glyph,
     refs: &Refs,
 ) -> Option<MenuNode> {
     refs.state.as_ref().ok()?;
@@ -53,7 +54,7 @@ fn related(
         .into_iter()
         .map(|reference| {
             let label = reference.label(types.as_ref());
-            let glyph = label_glyph(&label).unwrap_or_default();
+            let glyph = label_glyph(&label);
             let name = match reference.deleted {
                 true => format!("{} (in Recently Deleted)", label.name),
                 false => label.name,

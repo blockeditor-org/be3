@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CHECK, ICON_CONTACT, ICON_INFO, ICON_KEY,
     ICON_LAYOUT_PANEL_LEFT, ICON_POWER, ICON_REFRESH_CCW, ICON_SHIELD_ALERT, ICON_USER_COG,
@@ -77,8 +78,8 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
         false => "Submitting changes…".to_owned(),
     });
     let saved_glyph = create_memo(move || match saved.get() {
-        true => ICON_CHECK.to_owned(),
-        false => ICON_REFRESH_CCW.to_owned(),
+        true => ICON_CHECK,
+        false => ICON_REFRESH_CCW,
     });
     let organization = create_memo(move || status.get().organization);
     let signed_in_as = create_memo(move || status.get().signed_in_as);
@@ -105,7 +106,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                     <MenuItem
                         row_test_id={"app.menu.escrow-warning".to_owned()}
                         label="Escrow key not verified"
-                        glyph={ICON_SHIELD_ALERT.to_owned()}
+                        glyph=ICON_SHIELD_ALERT
                         detail={escrow_warning}
                         disabled=true
                     />
@@ -113,7 +114,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 <MenuItem
                     row_test_id={"app.menu.contacts".to_owned()}
                     label="Contacts"
-                    glyph={ICON_CONTACT.to_owned()}
+                    glyph=ICON_CONTACT
                     separated=true
                     on_click={|| pick(UiCommand::OpenContacts)}
                 />
@@ -121,7 +122,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                     <MenuItem
                         row_test_id={"app.menu.invite".to_owned()}
                         label="Invite member"
-                        glyph={ICON_USER_PLUS.to_owned()}
+                        glyph=ICON_USER_PLUS
                         detail={organization}
                         on_click={|| pick(UiCommand::InviteMember)}
                     />
@@ -130,37 +131,37 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                     <MenuItem
                         row_test_id={"app.menu.members".to_owned()}
                         label="Members"
-                        glyph={ICON_USERS.to_owned()}
+                        glyph=ICON_USERS
                         on_click={|| pick(UiCommand::OpenMembers)}
                     />
                 </Show>
                 <MenuItem
                     row_test_id={"app.menu.agents".to_owned()}
                     label="Agents"
-                    glyph={ICON_BOT.to_owned()}
+                    glyph=ICON_BOT
                     on_click={|| pick(UiCommand::OpenAgents)}
                 />
                 <MenuItem
                     row_test_id={"app.menu.switch-session".to_owned()}
                     label="Sessions and profiles"
-                    glyph={ICON_LAYOUT_PANEL_LEFT.to_owned()}
+                    glyph=ICON_LAYOUT_PANEL_LEFT
                     on_click={|| pick(UiCommand::SwitchSession)}
                 />
                 <MenuItem
                     row_test_id={"app.menu.switch-organization".to_owned()}
                     label="Switch organization"
-                    glyph={ICON_ARROW_LEFT_RIGHT.to_owned()}
+                    glyph=ICON_ARROW_LEFT_RIGHT
                     on_click={|| pick(UiCommand::SwitchOrganization)}
                 />
                 <MenuItem
                     label="New recovery phrase"
-                    glyph={ICON_KEY.to_owned()}
+                    glyph=ICON_KEY
                     on_click={|| pick(UiCommand::NewRecoveryPhrase)}
                 />
                 <MenuItem
                     row_test_id={"app.menu.accounts".to_owned()}
                     label="Manage accounts"
-                    glyph={ICON_USER_COG.to_owned()}
+                    glyph=ICON_USER_COG
                     detail={signed_in_as}
                     disabled={unsaved}
                     on_click={|| pick(UiCommand::ManageAccounts)}
@@ -168,14 +169,14 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 <MenuItem
                     row_test_id={"app.menu.about".to_owned()}
                     label="About"
-                    glyph={ICON_INFO.to_owned()}
+                    glyph=ICON_INFO
                     on_click={|| pick(UiCommand::About(true))}
                 />
                 <Show condition={can_close}>
                     <MenuItem
                         row_test_id={"app.menu.close".to_owned()}
                         label="Close block-app"
-                        glyph={ICON_POWER.to_owned()}
+                        glyph=ICON_POWER
                         on_click={|| pick(UiCommand::CloseApp)}
                     />
                 </Show>
@@ -190,7 +191,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 </ForEach>
                 <MenuItem
                     label="Inspector"
-                    glyph={ICON_BUG.to_owned()}
+                    glyph=ICON_BUG
                     on_click={|| pick(UiCommand::OpenInspector)}
                 />
             }}
@@ -198,7 +199,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
     }
 }
 
-fn panel_icon(panel: HostPanel) -> &'static str {
+fn panel_icon(panel: HostPanel) -> Glyph {
     match panel {
         HostPanel::BlockStack => beui::icons::ICON_LAYERS,
         HostPanel::Performance => beui::icons::ICON_GAUGE,

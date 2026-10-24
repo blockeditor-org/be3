@@ -1158,6 +1158,7 @@ dependencies = [
  "geometry",
  "grapheme-segmentation",
  "kurbo",
+ "lucide",
  "lyon_tessellation",
  "paint-format",
  "raw-window-handle",
@@ -1483,6 +1484,7 @@ dependencies = [
  "block-plugin-api",
  "block-ui",
  "geometry",
+ "lucide",
  "paint-format",
  "reactive",
  "serde_bytes",
@@ -1582,6 +1584,7 @@ name = "block-ui"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "lucide",
  "uuid",
 ]
 
@@ -4428,6 +4431,10 @@ dependencies = [
  "serde_json",
  "uuid",
 ]
+
+[[package]]
+name = "lucide"
+version = "0.1.0"
 
 [[package]]
 name = "lyon_geom"

@@ -1,3 +1,4 @@
+use beui_core::icons::Glyph;
 use accesskit::{HasPopup, Node, Role};
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_macros::{component, view};
@@ -41,7 +42,7 @@ pub fn Popover(
     #[prop(children)] content: Render<PopoverHandle>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] open: Binding<bool>,
     anchor: Option<NodeRef>,
     #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,

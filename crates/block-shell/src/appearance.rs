@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON};
 use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, ICON_X, named};
 use block_editor_beui::beui::reactive::*;
@@ -51,7 +52,7 @@ enum Tile {
 struct Look {
     icon: Option<&'static str>,
     color: Option<[u8; 3]>,
-    type_icon: Option<&'static str>,
+    type_icon: Option<Glyph>,
     type_color: Option<[u8; 3]>,
 }
 
@@ -166,7 +167,7 @@ fn AppearanceBody(workspace: Workspace, block: Uuid) -> NodeId {
                         </Text>
                         <IconButton
                             @test_id={"appearance.close"}
-                            glyph={ICON_X.to_owned()}
+                            glyph=ICON_X
                             label="Close"
                             variant=ButtonVariant::Ghost
                             on_click={move || workspace.close_appearance()}
@@ -208,7 +209,7 @@ fn AppearanceBody(workspace: Workspace, block: Uuid) -> NodeId {
                         value={search}
                         placeholder="Search icons"
                         label="Search icons"
-                        glyph={ICON_SEARCH.to_owned()}
+                        glyph=ICON_SEARCH
                         clearable=true
                         @test_id={"appearance.search"}
                     />
@@ -297,8 +298,8 @@ fn IconTile(
         Tile::Icon(name) => (name.to_owned(), name.replace('-', " ")),
     };
     let glyph = create_memo(move || match tile {
-        Tile::Default => look.get().type_icon.unwrap_or_default().to_owned(),
-        Tile::Icon(name) => named(name).unwrap_or_default().to_owned(),
+        Tile::Default => look.get().type_icon,
+        Tile::Icon(name) => named(name),
     });
     let chosen = create_memo(move || match tile {
         Tile::Default => look.get().icon.is_none(),

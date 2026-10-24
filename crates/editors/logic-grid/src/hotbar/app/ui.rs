@@ -156,7 +156,7 @@ fn SlotRow(
             <Spacer @sizing={indent} />
             <Show condition={is_folder}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={ICON_FOLDER.to_owned()} />
+                    <Icon glyph=ICON_FOLDER />
                 </Text>
             </Show>
             <Show condition={is_folder}>
@@ -174,7 +174,7 @@ fn SlotRow(
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={is_component}>
                 <IconButton
-                    glyph={ICON_TRASH.to_owned()}
+                    glyph=ICON_TRASH
                     label="Unpin"
                     disabled={read_only}
                     @test_id={format!("hotbar.slot.{index}.unpin")}
