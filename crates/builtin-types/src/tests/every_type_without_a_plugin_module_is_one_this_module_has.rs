@@ -43,7 +43,9 @@ fn every_type_without_a_plugin_module_is_one_this_module_has() {
         match declared.get(content_type) {
             None => panic!("{content_type} is in builtin-types, but no plugin declares it"),
             Some((plugin, true)) => {
-                panic!("{plugin} brings {content_type} in its own module; take it out of builtin-types")
+                panic!(
+                    "{plugin} brings {content_type} in its own module; take it out of builtin-types"
+                )
             }
             Some((_, false)) => {}
         }

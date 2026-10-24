@@ -53,7 +53,7 @@ async fn a_folder_is_written_as_files_and_directories() {
     assert!(!errors.contains("Sketch"), "{errors}");
     let unexported = read(&checkout, ".be/unexported.txt");
     assert!(
-        unexported.contains("Sketch") && unexported.contains("Canvas"),
+        unexported.contains("Sketch") && unexported.contains("no plain-file form"),
         "{unexported}"
     );
     assert_eq!(report.skipped.len(), 4, "{report}");

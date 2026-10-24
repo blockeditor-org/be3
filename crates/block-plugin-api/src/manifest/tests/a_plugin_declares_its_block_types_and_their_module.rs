@@ -58,7 +58,10 @@ fn a_plugin_declares_its_block_types_and_their_module() {
         manifest_from_json(&two_modules),
         Err(ManifestError::SeveralTypeModules)
     );
-    let twice = TYPES.replace("00000000-0000-4000-8000-000000000001", "63686563-6b6c-6973-742d-626c6f636b31");
+    let twice = TYPES.replace(
+        "00000000-0000-4000-8000-000000000001",
+        "63686563-6b6c-6973-742d-626c6f636b31",
+    );
     assert_eq!(
         manifest_from_json(&twice),
         Err(ManifestError::DuplicateBlockType)

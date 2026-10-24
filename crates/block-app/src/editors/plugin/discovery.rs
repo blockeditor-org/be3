@@ -117,8 +117,7 @@ impl Plugins {
     fn settle(&mut self) {
         loop {
             let Some(index) = self.manifests.iter().position(|manifest| {
-                Self::unprovided(manifest)
-                    .any(|block_type| !self.types.contains_key(&block_type))
+                Self::unprovided(manifest).any(|block_type| !self.types.contains_key(&block_type))
             }) else {
                 return;
             };

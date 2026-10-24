@@ -6,8 +6,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::{
-    BlockTypeDescriptor, BlockTypeManifest, ChildOperations, EditorCapabilities, EditorManifest, EditorRegion, Edits, InteractionMode, ManifestError,
-    PluginIdentity, PluginManifest, Press, ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
+    BlockTypeDescriptor, BlockTypeManifest, ChildOperations, EditorCapabilities, EditorManifest,
+    EditorRegion, Edits, InteractionMode, ManifestError, PluginIdentity, PluginManifest, Press,
+    ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 
 #[cfg(test)]

@@ -93,7 +93,7 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
             command.add(cmd_args("--data=", files, delimiter = ""))
         if ctx.attrs.precompiler:
             command.add(cmd_args("--artifact=", _precompile(ctx, wasm), delimiter = ""))
-        for type_module in (types[DefaultInfo].default_outputs if types else []):
+        for type_module in types[DefaultInfo].default_outputs if types else []:
             command.add(cmd_args("--plugin-type=", type_module, delimiter = ""))
             if ctx.attrs.precompiler:
                 command.add(cmd_args("--type-artifact=", _precompile(ctx, type_module), delimiter = ""))

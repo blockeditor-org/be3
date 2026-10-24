@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use be_block::{BlockContent, Counter, CounterContent, FolderContent, LiveEdit, Root};
-use be_model::{Anchor, Document, Edit, List, Model, ObjectId};
 use be_commit::CommitId;
+use be_model::{Anchor, Document, Edit, List, Model, ObjectId};
 use be_protocol::ClientId;
 use be_session::{Lease, Resume};
 use be_store::Hash;
