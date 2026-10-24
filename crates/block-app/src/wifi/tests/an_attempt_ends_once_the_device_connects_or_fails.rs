@@ -41,6 +41,12 @@ fn an_attempt_ends_once_the_device_connects_or_fails() {
 
     attempts.start("Flat".to_owned());
     assert_eq!(attempts.failed, None, "trying again clears the failure");
+    assert_eq!(
+        attempts.state(FAILED, None),
+        None,
+        "the device still failed from the last attempt is not this one failing"
+    );
+    attempts.state(PREPARE, None);
     assert_eq!(attempts.state(FAILED, None), Some(Outcome::Failed));
     attempts.cancel();
     assert_eq!(attempts.failed, None);
