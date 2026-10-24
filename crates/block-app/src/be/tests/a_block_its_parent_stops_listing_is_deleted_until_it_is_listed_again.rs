@@ -34,7 +34,11 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
     });
 
     assert_eq!(
-        change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Delete(note)),
+        change_child(
+            folder,
+            FolderContent::CONTENT_TYPE,
+            ChildChange::Delete(note)
+        ),
         Some(true)
     );
     wait_until("took the note out of the folder", |shared| {

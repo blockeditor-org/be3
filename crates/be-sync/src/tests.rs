@@ -122,24 +122,25 @@ async fn folder(peer: &Peer<MemoryStore>, parent: Uuid, name: &str) -> Uuid {
 }
 
 async fn list_in(peer: &Peer<MemoryStore>, parent: Uuid, child: Uuid) {
+    relist(peer, parent, be_block::ChildChange::Add(child)).await;
+}
+
+async fn relist(peer: &Peer<MemoryStore>, parent: Uuid, change: be_block::ChildChange) {
     let summary = peer.summary(parent).await.unwrap();
     match summary.content_type == WorkspaceContent::CONTENT_TYPE {
-        true => add_to::<WorkspaceContent>(peer, parent, child).await,
-        false => add_to::<FolderContent>(peer, parent, child).await,
+        true => relist_in::<WorkspaceContent>(peer, parent, change).await,
+        false => relist_in::<FolderContent>(peer, parent, change).await,
     }
 }
 
-async fn add_to<C: BlockContent + LiveEdit + Default>(
+async fn relist_in<C: BlockContent + LiveEdit + Default>(
     peer: &Peer<MemoryStore>,
     parent: Uuid,
-    child: Uuid,
+    change: be_block::ChildChange,
 ) {
     let mut content = peer.open::<C>(parent).await.unwrap().unwrap_or_default();
     let head = peer.local_head(parent);
-    for operation in content
-        .child_operations(be_block::ChildChange::Add(child))
-        .unwrap()
-    {
+    for operation in content.child_operations(change).unwrap() {
         content.apply(&operation);
     }
     peer.save(parent, &content, head).await.unwrap();
