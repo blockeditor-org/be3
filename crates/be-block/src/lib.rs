@@ -4,7 +4,6 @@ use be_commit::MergeResult;
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-pub mod audio;
 pub mod blob;
 pub mod block_url;
 pub mod browser_tab;
@@ -48,7 +47,6 @@ pub mod version_control;
 pub mod video;
 pub mod workspace;
 
-pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};

@@ -177,7 +177,7 @@ fn is_settings(block_type: Uuid) -> bool {
 }
 
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 13] = [
+    let known: [(Uuid, &str); 12] = [
         (DatabaseContent::CONTENT_TYPE, "database"),
         (DatabaseSchemaContent::CONTENT_TYPE, "schema"),
         (DatabaseViewContent::CONTENT_TYPE, "database view"),
@@ -192,7 +192,6 @@ pub fn type_name(block_type: Uuid) -> &'static str {
             be_block::SettingsProfileContent::CONTENT_TYPE,
             "settings profile",
         ),
-        (be_block::AudioContent::CONTENT_TYPE, "audio"),
         (be_block::FileContent::CONTENT_TYPE, "file"),
     ];
     known

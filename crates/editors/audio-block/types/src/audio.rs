@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::blob::{Blob, BlobKind};
+use be_block::blob::{Blob, BlobKind};
+use be_block::plain::media_type_of;
+use block_type_guest::BlobFile;
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AudioHeader {
@@ -23,21 +25,34 @@ impl BlobKind for AudioFile {
 
 pub type AudioContent = Blob<AudioFile>;
 
-impl Blob<AudioFile> {
+impl AudioFile {
     pub fn from_file(
         source_name: impl Into<String>,
         media_type: impl Into<String>,
         data: Vec<u8>,
-    ) -> Result<Self, String> {
+    ) -> Result<AudioContent, String> {
         if data.is_empty() {
             return Err("audio data must not be empty".into());
         }
-        Ok(Self::new(
+        Ok(AudioContent::new(
             AudioHeader {
                 source_name: source_name.into(),
                 media_type: media_type.into(),
             },
             data,
         ))
+    }
+}
+
+impl BlobFile for AudioFile {
+    fn header(name: &str, _: &[u8]) -> AudioHeader {
+        AudioHeader {
+            source_name: name.to_owned(),
+            media_type: media_type_of(name).to_owned(),
+        }
+    }
+
+    fn claims(name: &str, first: &[u8]) -> bool {
+        media_type_of(name).starts_with("audio/") && !first.is_empty()
     }
 }

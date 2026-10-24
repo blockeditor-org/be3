@@ -1,4 +1,3 @@
-use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::beui::icons::{ICON_FILE_HEADPHONE, ICON_PAUSE, ICON_PLAY};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -10,6 +9,7 @@ use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
+use audio_block_types::{AudioContent};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;

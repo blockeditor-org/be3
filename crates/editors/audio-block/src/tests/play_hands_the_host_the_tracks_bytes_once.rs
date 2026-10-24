@@ -1,6 +1,7 @@
 use super::*;
 
 use block_editor_beui::{AudioCommand, AudioSource};
+use audio_block_types::{AudioFile};
 
 fn played(test: &mut BeuiTest<AudioApp>) -> Vec<AudioCommand> {
     test.take_audio_commands()
@@ -28,7 +29,7 @@ fn play_hands_the_host_the_tracks_bytes_once() {
     test.run();
     assert_eq!(played(&mut test), [AudioCommand::Toggle]);
 
-    let replaced = AudioContent::from_file("other.wav", "audio/wav", vec![4, 5]).unwrap();
+    let replaced = AudioFile::from_file("other.wav", "audio/wav", vec![4, 5]).unwrap();
     test.hold(None, replaced.clone());
     test.run();
     assert_eq!(played(&mut test), [AudioCommand::Reset]);

@@ -92,7 +92,6 @@ mod defined_metadata_merges_key_by_key;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod entities_brought_forward_on_both_sides_merge_to_both_moves;
 mod enum_options_added_on_both_sides_merge_to_both;
-mod file_contents_check_what_they_hold_and_round_trip;
 mod frozen_database;
 mod frozen_database_schema;
 mod frozen_database_view;

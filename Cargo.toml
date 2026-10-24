@@ -69,6 +69,7 @@ members = [
     "crates/browser-rasterizer",
     "crates/cvl2",
     "crates/editors/audio-block",
+    "crates/editors/audio-block/types",
     "crates/editors/beui-gallery",
     "crates/editors/block-debug",
     "crates/editors/browser-tab",

@@ -1,5 +1,5 @@
 use be_block::{
-    AudioContent, BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent,
+    BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent,
     CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
     DatabaseViewContent, DeterministicGameContent, EditorSettingsContent, FileContent,
     FolderContent, GameModuleContent, HotbarContent, LogicGameContent,
@@ -14,7 +14,6 @@ use be_block::{
 use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
-    AudioContent { file },
     TextContent { undo, file },
     FileContent { file },
     BeuiDemoContent,

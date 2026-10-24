@@ -666,9 +666,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "audio-block-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "audio_block"
 version = "0.1.0"
 dependencies = [
+ "audio-block-types",
  "beui",
  "block-editor-beui",
  "block-ui-test",
@@ -3246,6 +3257,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 name = "file_tree"
 version = "0.1.0"
 dependencies = [
+ "audio-block-types",
  "beui",
  "block-editor-beui",
  "block-ui-test",

@@ -1,7 +1,6 @@
 use be_block::be_model::Document;
 use be_block::blob::{Blob, BlobKind};
 use be_block::file::{AnyFile, FileHeader};
-use be_block::audio::{AudioFile, AudioHeader};
 use be_block::plain::{extension, language_of, media_type_of};
 use be_block::{BlockContent, Root, TextBlock};
 
@@ -120,18 +119,5 @@ impl DocumentFile for TextBlock {
     fn claims(_: &str, first: &[u8]) -> bool {
         !first.contains(&0)
             && std::str::from_utf8(first).map_or_else(|error| error.error_len().is_none(), |_| true)
-    }
-}
-
-impl BlobFile for AudioFile {
-    fn header(name: &str, _: &[u8]) -> AudioHeader {
-        AudioHeader {
-            source_name: name.to_owned(),
-            media_type: media_type_of(name).to_owned(),
-        }
-    }
-
-    fn claims(name: &str, first: &[u8]) -> bool {
-        media_type_of(name).starts_with("audio/") && !first.is_empty()
     }
 }
