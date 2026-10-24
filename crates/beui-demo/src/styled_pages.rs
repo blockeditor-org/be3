@@ -2805,7 +2805,7 @@ fn FollowingLog() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "With follow_end a scroll stays at its end while what it holds grows, \
                  until you scroll away; scrolling back to the end follows again."
             </Text>
@@ -2835,7 +2835,7 @@ fn FollowingLog() -> NodeId {
                         >|line: ReadSignal<usize>| {
                             let text = create_memo(move || log_line(line.get()));
                             view! {
-                                <Text style=TextStyle::CODE wrap=true>{text}</Text>
+                                <Text style=TextStyle::CODE wrap=Wrap::Words>{text}</Text>
                             }
                         }</VirtualList>
                     </Frame>
