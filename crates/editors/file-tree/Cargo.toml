@@ -14,6 +14,7 @@ block-editor-beui = { path = "../../block-editor-beui" }
 image-block-types = { path = "../image-block/types" }
 pdf-types = { path = "../pdf/types" }
 serde = { version = "1", features = ["derive"] }
+text-block-types = { path = "../text-block/types" }
 uuid = { version = "1", features = ["v4"] }
 workspace-ui-types = { path = "../workspace-ui/types" }
 

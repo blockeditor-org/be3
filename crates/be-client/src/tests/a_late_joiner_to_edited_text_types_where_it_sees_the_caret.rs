@@ -1,6 +1,5 @@
 use super::*;
-
-use be_block::{TextBlock, TextContent};
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_late_joiner_to_edited_text_types_where_it_sees_the_caret() {

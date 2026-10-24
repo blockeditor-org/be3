@@ -26,7 +26,8 @@
       "display_name": "Text",
       "icon": "\ue0cc",
       "color": [203, 91, 125],
-      "children": {"replace": true}
+      "children": {"replace": true},
+      "module": "text_block_types.wasm"
     }
   },
   "entry_point": "text_block.wasm"

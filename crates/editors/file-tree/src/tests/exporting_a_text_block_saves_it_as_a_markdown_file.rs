@@ -1,8 +1,9 @@
-use block_editor_beui::be_block::{BlockContent, TextBlock, TextContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockInfo, BlockParent, FileSave, HostReply, HostRequest};
 
 use super::*;
 use image_block_types::{ImageContent, ImageFile};
+use text_block_types::{TextBlock, TextContent};
 
 #[test]
 fn exporting_a_text_block_saves_it_as_a_markdown_file() {

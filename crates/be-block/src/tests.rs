@@ -13,7 +13,6 @@ use crate::{
     database_view::{DatabaseView, DatabaseViewContent},
     display_settings::{DisplaySettings, DisplaySettingsContent},
     input_settings::{InputSettings, InputSettingsContent},
-    text::{TextBlock, TextContent, TextLanguage},
 };
 use be_model::ObjectId;
 use uuid::Uuid;
@@ -32,7 +31,6 @@ mod a_database_is_described_by_its_prefix;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
-mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_presentation_moves_slides_by_index_and_follows_its_children;
 mod a_profile_layers_its_settings_over_the_defaults;
 mod a_profile_picks_its_own_remapper_and_a_remapper_runs_once_it_names_a_module;
@@ -55,7 +53,6 @@ mod canvases_merge_a_move_and_a_restyle_of_one_entity;
 mod cells_set_in_a_new_row_by_two_peers_at_once_share_the_row;
 mod cells_set_on_both_sides_of_one_row_merge_to_both;
 mod clips_attached_to_each_other_on_each_side_merge_without_a_cycle;
-mod content_is_stamped_with_the_shape_it_was_saved_in;
 mod databases_saved_by_the_first_tracker_build_still_load;
 mod defined_metadata_merges_key_by_key;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
@@ -64,10 +61,8 @@ mod enum_options_added_on_both_sides_merge_to_both;
 mod frozen_database;
 mod frozen_database_schema;
 mod frozen_database_view;
-mod frozen_text;
 mod icon_overrides_round_trip_and_merge_independently;
 mod input_settings_keep_their_values_in_bounds;
-mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
 mod links_added_on_both_sides_are_both_kept_and_show_on_the_rows_they_point_at;
 mod screens_turn_off_after_ten_minutes_unless_told_otherwise;
 mod setting_every_pointer_replaces_what_each_device_overrode;
@@ -75,13 +70,8 @@ mod settings_split_across_two_blocks_read_as_one;
 mod slides_moved_by_two_peers_at_once_both_move;
 mod slides_moved_on_both_sides_merge_to_both_moves;
 mod streamed_content_separates_its_header_from_its_payload;
-mod text_edited_in_different_paragraphs_merges_cleanly;
-mod text_merges_line_by_line_and_marks_real_conflicts;
 mod text_retyped_in_one_canvas_entity_by_two_peers_keeps_both;
-mod text_saved_before_it_was_frozen_still_loads;
-mod text_typed_inside_a_range_someone_deletes_at_once_survives;
 mod the_frozen_blocks_read_every_register_without_any_one_field;
-mod the_same_range_deleted_by_two_peers_at_once_is_deleted_once;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
 mod two_peers_restyling_different_fields_of_one_shape_keep_both;
 mod undoing_a_reset_restores_only_what_was_reset;

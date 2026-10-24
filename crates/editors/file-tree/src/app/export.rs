@@ -3,12 +3,13 @@ use std::rc::Rc;
 use workspace_ui_types::FileContent;
 
 use audio_block_types::AudioContent;
-use block_editor_beui::be_block::plain::{export_name, extension_of, text_file_type};
-use block_editor_beui::be_block::{BlockContent, LiveEdit, TextContent};
+use block_editor_beui::be_block::plain::{export_name, extension_of};
+use block_editor_beui::be_block::{BlockContent, LiveEdit};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Editor, FileSaver, SavedFile};
 use image_block_types::ImageContent;
 use pdf_types::PdfContent;
+use text_block_types::{TextContent, text_file_type};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

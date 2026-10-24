@@ -1,9 +1,7 @@
 use std::path::{Path, PathBuf};
 use workspace_ui_types::{FileContent, FolderContent, WorkspaceContent};
 
-use be_block::{
-    BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, LiveEdit, TextBlock, TextContent,
-};
+use be_block::{BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, LiveEdit};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::MemoryStore;
@@ -11,6 +9,7 @@ use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use crate::{Report, Target};
+use text_block_types::{TextBlock, TextContent};
 
 mod a_file_name_must_work_on_every_system;
 mod a_folder_is_written_as_files_and_directories;
@@ -176,6 +175,7 @@ async fn types() -> be_types_host::Modules {
         be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
         be_types_host::in_process::<image_block_types::BlockTypes>("be3.image"),
         be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+        be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
     ])
     .await
 }

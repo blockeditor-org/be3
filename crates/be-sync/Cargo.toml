@@ -28,6 +28,7 @@ be-server = { path = "../be-server" }
 build-id = { path = "../build-id" }
 builtin-types = { path = "../builtin-types" }
 image-block-types = { path = "../editors/image-block/types" }
+text-block-types = { path = "../editors/text-block/types" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
 workspace-ui-types = { path = "../editors/workspace-ui/types" }
 

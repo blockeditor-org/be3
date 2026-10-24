@@ -1,5 +1,4 @@
 use be_block::BlockContent;
-use be_block::text::TextContent;
 use be_graph::{Access, BlockParent};
 use uuid::Uuid;
 
@@ -172,7 +171,7 @@ fn is_settings(block_type: Uuid) -> bool {
 
 pub fn type_name(block_type: Uuid) -> &'static str {
     let known: [(Uuid, &str); 5] = [
-        (TextContent::CONTENT_TYPE, "text"),
+        (text_block_types::TextContent::CONTENT_TYPE, "text"),
         (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
         (be_block::PresentationContent::CONTENT_TYPE, "presentation"),
         (be_block::SettingsContent::CONTENT_TYPE, "settings"),

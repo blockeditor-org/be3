@@ -1,6 +1,6 @@
 use be_block::{
     CanvasContent, CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
-    HotbarContent, PresentationContent, TextContent, VideoContent,
+    HotbarContent, PresentationContent, VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -9,7 +9,6 @@ use be_block::{
 use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
-    TextContent { undo, file },
     CanvasContent { undo },
     CounterContent { undo },
     DatabaseContent { undo },

@@ -1,6 +1,5 @@
 use super::*;
-
-use be_block::{TextBlock, TextContent};
+use text_block_types::{TextBlock, TextContent};
 
 #[test]
 fn a_paste_too_large_to_relay_is_acknowledged_to_its_editor() {

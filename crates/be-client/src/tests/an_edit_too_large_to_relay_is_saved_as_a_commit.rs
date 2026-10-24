@@ -1,6 +1,5 @@
 use super::*;
-
-use be_block::{TextBlock, TextContent};
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn an_edit_too_large_to_relay_is_saved_as_a_commit() {

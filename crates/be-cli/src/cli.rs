@@ -1,6 +1,5 @@
 use be_block::BlockContent;
 use be_block::database::DatabaseContent;
-use be_block::text::TextContent;
 use be_graph::BlockParent;
 use be_store::ObjectStore;
 use serde_json::{Value, json};
@@ -8,6 +7,7 @@ use uuid::Uuid;
 
 use crate::blocks::Entry;
 use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Tracker};
+use text_block_types::TextContent;
 
 pub const USAGE: &str = "\
 Usage: be TARGET [VERB] [ARGUMENTS]   or   be COMMAND

@@ -1,7 +1,6 @@
 use be_block::be_model::Document;
 use be_block::blob::{Blob, BlobKind};
-use be_block::plain::{extension, language_of};
-use be_block::{BlockContent, Root, TextBlock};
+use be_block::{BlockContent, Root};
 
 pub trait FileForm: BlockContent {
     fn to_file(&self) -> Option<Vec<u8>>;
@@ -75,35 +74,4 @@ pub(crate) fn from_file<C: FileForm>(
         None => None,
     };
     Some(C::from_file(current.as_ref(), name, bytes, client)?.encode())
-}
-
-impl DocumentFile for TextBlock {
-    fn to_file(content: &Document<Self>) -> Vec<u8> {
-        TextBlock::body(content)
-            .map(|body| body.items())
-            .unwrap_or_default()
-    }
-
-    fn from_file(
-        current: Option<&Document<Self>>,
-        name: &str,
-        bytes: Vec<u8>,
-        client: u64,
-    ) -> Option<Document<Self>> {
-        let mut text = match current {
-            Some(current) => current.clone(),
-            None => TextBlock::new("")
-                .with_language(language_of(&extension(name)))
-                .content(),
-        };
-        if let Some(edit) = TextBlock::rewrite(&text, client, &bytes) {
-            text.apply(&edit);
-        }
-        Some(text)
-    }
-
-    fn claims(_: &str, first: &[u8]) -> bool {
-        !first.contains(&0)
-            && std::str::from_utf8(first).map_or_else(|error| error.error_len().is_none(), |_| true)
-    }
 }

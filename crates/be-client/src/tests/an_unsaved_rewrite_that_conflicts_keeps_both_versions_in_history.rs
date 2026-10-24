@@ -1,6 +1,5 @@
 use super::*;
-
-use be_block::{TextBlock, TextContent};
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history() {

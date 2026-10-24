@@ -1,6 +1,5 @@
 use super::*;
-
-use be_block::{TextBlock, TextContent};
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_follower_stops_saving_after_a_message_it_cannot_read() {

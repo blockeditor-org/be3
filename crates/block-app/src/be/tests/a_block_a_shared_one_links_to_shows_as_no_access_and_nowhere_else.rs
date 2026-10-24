@@ -2,7 +2,7 @@ use super::*;
 use workspace_ui_types::WorkspaceContent;
 
 use be_block::block_url::block_url;
-use be_block::{TextBlock, TextContent};
+use text_block_types::{TextBlock, TextContent};
 
 #[test]
 fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {

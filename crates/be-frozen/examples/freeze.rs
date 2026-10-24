@@ -8,9 +8,7 @@ use std::{
 };
 use workspace_ui_types::{FolderContent, WorkspaceContent};
 
-use be_block::{
-    BlockContent, BlockMetadata, MY_FILES, TextBlock, TextContent, TextIndentation, TextLanguage,
-};
+use be_block::{BlockContent, BlockMetadata, MY_FILES};
 use be_cli::{cli, tracker::Tracker};
 use be_client::{Connection, Credentials, Peer, PeerConfig};
 use be_frozen::scene;
@@ -22,6 +20,7 @@ use be_server::{
     backup::{self, BackupKey, Directory},
 };
 use be_store::{ChunkerConfig, MemoryStore};
+use text_block_types::{TextBlock, TextContent, TextIndentation, TextLanguage};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -836,6 +835,7 @@ fn sources() -> be_cli::tracker::Sources {
         vec![
             be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
             be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+            be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
         ]
     })
 }

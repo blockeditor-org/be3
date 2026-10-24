@@ -19,6 +19,7 @@ paint-snapshot = { path = "../paint-snapshot" }
 uuid = "1"
 
 [dev-dependencies]
+text-block-types = { path = "../editors/text-block/types" }
 
 [lints]
 workspace = true

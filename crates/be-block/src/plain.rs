@@ -1,31 +1,9 @@
-use crate::TextLanguage;
-
 const FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
 pub fn extension(name: &str) -> String {
     match name.rsplit_once('.') {
         Some((stem, extension)) if !stem.is_empty() => extension.to_ascii_lowercase(),
         _ => String::new(),
-    }
-}
-
-pub fn language_of(extension: &str) -> TextLanguage {
-    match extension {
-        "md" | "markdown" => TextLanguage::Markdown,
-        "rs" => TextLanguage::Rust,
-        "zig" => TextLanguage::Zig,
-        "toml" => TextLanguage::Toml,
-        _ => TextLanguage::PlainText,
-    }
-}
-
-pub fn text_file_type(language: TextLanguage) -> (&'static str, &'static str) {
-    match language {
-        TextLanguage::Markdown => ("md", "text/markdown"),
-        TextLanguage::PlainText => ("txt", "text/plain"),
-        TextLanguage::Rust => ("rs", "text/x-rust"),
-        TextLanguage::Zig => ("zig", "text/x-zig"),
-        TextLanguage::Toml => ("toml", "application/toml"),
     }
 }
 

@@ -1,8 +1,6 @@
-use be_block::{TextBlock, TextContent};
-
 use super::*;
 
-crate::be_block_types![ChecklistContent { undo }, TextContent { undo, file }];
+crate::be_block_types![ChecklistContent { undo }, FileContent { file }];
 
 #[test]
 fn a_module_answers_stateless_requests() {
@@ -24,7 +22,7 @@ fn a_module_answers_stateless_requests() {
     };
     assert_eq!(types.len(), 2);
     assert!(types[0].undo && types[0].plain == block_type_api::Plain::None);
-    assert!(types[1].undo && types[1].plain == block_type_api::Plain::File);
+    assert!(!types[1].undo && types[1].plain == block_type_api::Plain::File);
     let mut ask =
         |request: Request| match module.handle(Event::Request { id: 1, request }).as_slice() {
             [Command::Reply { id: 1, reply }] => reply.clone(),
@@ -58,10 +56,10 @@ fn a_module_answers_stateless_requests() {
         panic!("a description");
     };
     assert_eq!(description.derived, be_block::derived_metadata(&ours));
-    let text = TextBlock::of("hello");
+    let text = FileContent::new("notes.txt".into(), b"hello".to_vec());
     assert_eq!(
         ask(Request::ToFile {
-            content_type: TextContent::CONTENT_TYPE,
+            content_type: FileContent::CONTENT_TYPE,
             bytes: text.encode(),
         }),
         Reply::File(Some(b"hello".to_vec()))
@@ -79,13 +77,13 @@ fn a_module_answers_stateless_requests() {
             first: b"hello".to_vec(),
             directory: false,
         }),
-        Reply::Claimed(Some(TextContent::CONTENT_TYPE))
+        Reply::Claimed(Some(FileContent::CONTENT_TYPE))
     );
     assert_eq!(
         ask(Request::Claims {
-            name: "photo.bin".into(),
-            first: vec![0, 1, 2],
-            directory: false,
+            name: "photos".into(),
+            first: Vec::new(),
+            directory: true,
         }),
         Reply::Claimed(None)
     );

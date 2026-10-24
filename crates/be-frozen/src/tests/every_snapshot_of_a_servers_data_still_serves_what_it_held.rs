@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use be_block::{
-    MY_FILES, NAME, ROW_PREFIX, TextBlock, TextContent, TextIndentation, TextLanguage,
+    MY_FILES, NAME, ROW_PREFIX,
     database::DatabaseContent,
     database_schema::{ChoiceColor, ChoiceIcon, DatabaseSchemaContent},
     database_view::{DatabaseViewContent, DatabaseViewKind},
@@ -11,6 +11,7 @@ use be_client::{Connection, contacts};
 use be_keys::{InviteCode, RecoveryPhrase};
 use be_protocol::{ClientMessage, KeyKind, OrganizationKind, OrganizationRole, ServerMessage};
 use be_server::backup::{self, BackupKey, Directory};
+use text_block_types::{TextBlock, TextContent, TextIndentation, TextLanguage};
 use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use super::*;

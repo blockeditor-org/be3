@@ -21,13 +21,14 @@ be-types-host = { path = "../be-types-host" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
+block-ui = { path = "../block-ui" }
 build-id = { path = "../build-id" }
 futures-util = "0.3"
 ghostty-vt = { path = "../ghostty-vt" }
 portable-pty = "0.9"
-block-ui = { path = "../block-ui" }
 serde_json = "1"
 terminal-types = { path = "../editors/terminal/types" }
+text-block-types = { path = "../editors/text-block/types" }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 uuid = { version = "1", features = ["v4", "v7"] }
 

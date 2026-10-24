@@ -15,7 +15,6 @@ use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseSchema
 use block_editor_beui::be_block::database_view::{
     DatabaseView, DatabaseViewContent, DatabaseViewKind, DatabaseViewSort, ViewFilter,
 };
-use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::database::DatabaseBlockPickRequest;
@@ -25,6 +24,7 @@ use uuid::Uuid;
 
 use crate::database_view::groups::{Group, GroupKey, group_rows, matches_search};
 use crate::database_view::sort::BlockLabels;
+use text_block_types::{TextBlock, TextContent};
 
 pub type Data = ViewData;
 

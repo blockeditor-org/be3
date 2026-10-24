@@ -108,6 +108,7 @@ members = [
     "crates/editors/terminal",
     "crates/editors/terminal/types",
     "crates/editors/text-block",
+    "crates/editors/text-block/types",
     "crates/editors/triangle",
     "crates/editors/triangle/types",
     "crates/editors/version-control",

@@ -1,9 +1,10 @@
 use be_model::{Document, Model};
 
-use super::BytesContent;
-use crate::{
-    BlockContent, Root, SCHEMA, TextBlock, TextContent, derived_metadata, schema_fingerprint,
+use be_block::{
+    BlockContent, Root, SCHEMA, derived_metadata, schema_fingerprint,
 };
+
+use crate::{TextBlock, TextContent};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 #[model(kind = "text")]
@@ -21,7 +22,7 @@ impl Root for GrownText {
 #[test]
 fn content_is_stamped_with_the_shape_it_was_saved_in() {
     let text = TextBlock::of("hello");
-    let stamped = crate::BlockMetadata {
+    let stamped = be_block::BlockMetadata {
         derived: derived_metadata(&text),
         ..Default::default()
     };
@@ -38,13 +39,5 @@ fn content_is_stamped_with_the_shape_it_was_saved_in() {
         schema_fingerprint::<TextContent>(),
         schema_fingerprint::<Document<GrownText>>(),
         "a new field did not change the shape"
-    );
-    assert_ne!(
-        schema_fingerprint::<TextContent>(),
-        schema_fingerprint::<BytesContent>()
-    );
-    assert_eq!(
-        schema_fingerprint::<BytesContent>(),
-        schema_fingerprint::<BytesContent>()
     );
 }

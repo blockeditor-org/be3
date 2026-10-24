@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_commit::MergeResult;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn an_offline_rewrite_conflicts_instead_of_interleaving() {

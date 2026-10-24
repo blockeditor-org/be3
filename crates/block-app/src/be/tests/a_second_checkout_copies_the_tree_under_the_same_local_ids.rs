@@ -25,7 +25,7 @@ fn a_second_checkout_copies_the_tree_under_the_same_local_ids() {
     );
 
     hold(folder, workspace_ui_types::FolderContent::CONTENT_TYPE);
-    hold(note, be_block::TextContent::CONTENT_TYPE);
+    hold(note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the copies", |shared| {
         text_of(shared, note).as_deref() == Some("hello\n") && shared.blocks.contains_key(&folder)
     });

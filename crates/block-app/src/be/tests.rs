@@ -334,21 +334,21 @@ fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block::Checkout> {
 
 fn text_of(shared: &Shared, block: Uuid) -> Option<String> {
     let held = shared.blocks.get(&block)?;
-    be_block::TextContent::decode(held.bytes())
+    text_block_types::TextContent::decode(held.bytes())
         .ok()
-        .map(|text| be_block::TextBlock::text(&text))
+        .map(|text| text_block_types::TextBlock::text(&text))
 }
 
 const TYPIST: u64 = 1 << 63 | 7;
 
 fn type_text(block: Uuid, at: usize, text: &str) {
-    let mut editor = Editor::<be_block::TextContent>::attach(block);
+    let mut editor = Editor::<text_block_types::TextContent>::attach(block);
     type_into(&mut editor, at, text);
 }
 
-fn type_into(editor: &mut Editor<be_block::TextContent>, at: usize, text: &str) {
+fn type_into(editor: &mut Editor<text_block_types::TextContent>, at: usize, text: &str) {
     editor.wait("was sent the text", |_| true);
-    let edit = be_block::TextBlock::insert(editor.content(), TYPIST, at, text.as_bytes())
+    let edit = text_block_types::TextBlock::insert(editor.content(), TYPIST, at, text.as_bytes())
         .expect("there is somewhere to type");
     editor.operate(edit);
 }
@@ -391,10 +391,10 @@ fn start_versioning(text: &str) -> Versioned {
     );
     create(
         note,
-        be_block::TextContent::CONTENT_TYPE,
+        text_block_types::TextContent::CONTENT_TYPE,
         be_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::named("Note"),
-        Some(be_block::TextBlock::of(text).encode()),
+        Some(text_block_types::TextBlock::of(text).encode()),
     );
     create(
         repository,
@@ -563,19 +563,19 @@ fn made_link(offer: Option<(Uuid, be_graph::Access)>) -> be_keys::InviteCode {
 fn written(block: Uuid, text: &str) {
     create(
         block,
-        be_block::TextContent::CONTENT_TYPE,
+        text_block_types::TextContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Plan"),
-        Some(be_block::TextBlock::of(text).encode()),
+        Some(text_block_types::TextBlock::of(text).encode()),
     );
     flush();
 }
 
 async fn read_text(peer: &be_client::Peer<be_store::MemoryStore>, block: Uuid) -> String {
     let text = peer
-        .open::<be_block::TextContent>(block)
+        .open::<text_block_types::TextContent>(block)
         .await
         .expect("the block opens with the keys it was given")
         .expect("the block has content");
-    be_block::TextBlock::text(&text)
+    text_block_types::TextBlock::text(&text)
 }

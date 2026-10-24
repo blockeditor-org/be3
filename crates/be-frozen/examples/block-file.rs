@@ -1,12 +1,13 @@
 use std::{fmt::Display, path::PathBuf, time::Duration};
 use workspace_ui_types::FolderContent;
 
-use be_block::{BlockContent, BlockMetadata, TextBlock, TextContent};
+use be_block::{BlockContent, BlockMetadata};
 use be_cli::{cli, tracker::Tracker};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_frozen::scene;
 use be_graph::BlockParent;
 use be_store::MemoryStore;
+use text_block_types::{TextBlock, TextContent};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -200,6 +201,7 @@ fn sources() -> be_cli::tracker::Sources {
         vec![
             be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
             be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+            be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
         ]
     })
 }

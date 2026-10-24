@@ -1,35 +1,51 @@
-use be_block::blob::{Blob, BlobKind};
-use be_block::{TextBlock, TextContent, TextLanguage};
 use block_type_api::{ChildChange, Plain};
 
 use super::*;
+use crate::DocumentFile;
 
-struct Bytes;
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+struct Note {
+    name: String,
+    body: String,
+}
 
-impl BlobKind for Bytes {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6279_7465_732d_6669_7874_7572_6500_0001);
+impl Root for Note {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6e6f_7465);
+}
 
-    type Header = String;
+impl DocumentFile for Note {
+    fn to_file(content: &Document<Self>) -> Vec<u8> {
+        content.root().body.clone().into_bytes()
+    }
 
-    fn name(header: &String) -> &str {
-        header
+    fn from_file(
+        current: Option<&Document<Self>>,
+        name: &str,
+        bytes: Vec<u8>,
+        _: u64,
+    ) -> Option<Document<Self>> {
+        let mut note = current.cloned().unwrap_or_else(|| {
+            Document::new(&Note {
+                name: name.to_owned(),
+                body: String::new(),
+            })
+        });
+        note.apply(&Edit::from(
+            Note::BODY.set(ObjectId::ROOT, &String::from_utf8(bytes).ok()?),
+        ));
+        Some(note)
+    }
+
+    fn claims(name: &str, _: &[u8]) -> bool {
+        name.ends_with(".note")
     }
 }
 
-impl crate::BlobFile for Bytes {
-    fn header(name: &str, _: &[u8]) -> String {
-        name.to_owned()
-    }
+type NoteContent = Document<Note>;
 
-    fn claims(_: &str, _: &[u8]) -> bool {
-        true
-    }
-}
-
-type FileContent = Blob<Bytes>;
 
 crate::be_block_types![
-    TextContent { undo, file },
+    NoteContent { undo, file },
     FileContent { file },
     FolderContent { directory },
 ];
@@ -107,26 +123,20 @@ fn a_file_maps_to_a_block_and_back() {
             .map(|info| info.plain)
     };
     assert_eq!(plain(FolderContent::CONTENT_TYPE), Some(Plain::Directory));
-    assert_eq!(plain(TextContent::CONTENT_TYPE), Some(Plain::File));
+    assert_eq!(plain(NoteContent::CONTENT_TYPE), Some(Plain::File));
 
-    let source = b"pub fn a() {}\n";
-    let text = claimed(&mut module, "lib.rs", source).unwrap();
-    assert_eq!(text, TextContent::CONTENT_TYPE);
-    let content = from_file(&mut module, text, None, "lib.rs", source);
-    let decoded = TextContent::decode(&content).unwrap();
-    assert_eq!(decoded.root().language, TextLanguage::Rust);
-    assert_eq!(to_file(&mut module, text, content.clone()).unwrap(), source);
-
-    let edited = from_file(
-        &mut module,
-        text,
-        Some(content),
-        "lib.rs",
-        b"pub fn a() {}\npub fn b() {}\n",
+    let note = claimed(&mut module, "plan.note", b"one").unwrap();
+    assert_eq!(note, NoteContent::CONTENT_TYPE);
+    let content = from_file(&mut module, note, None, "plan.note", b"one");
+    assert_eq!(
+        NoteContent::decode(&content).unwrap().root().name,
+        "plan.note"
     );
-    let edited = TextContent::decode(&edited).unwrap();
-    assert_eq!(TextBlock::text(&edited), "pub fn a() {}\npub fn b() {}\n");
-    assert_eq!(edited.root().language, TextLanguage::Rust);
+    assert_eq!(to_file(&mut module, note, content.clone()).unwrap(), b"one");
+    let edited = from_file(&mut module, note, Some(content), "renamed.note", b"two");
+    let edited = NoteContent::decode(&edited).unwrap();
+    assert_eq!(edited.root().name, "plan.note");
+    assert_eq!(edited.root().body, "two");
 
     let binary = claimed(&mut module, "frame.paint", &[0, 159, 255]).unwrap();
     assert_eq!(binary, FileContent::CONTENT_TYPE);

@@ -1,6 +1,7 @@
 use super::*;
 
-use block_editor_beui::be_block::{BlockContent, TextBlock, TextContent};
+use block_editor_beui::be_block::BlockContent;
+use text_block_types::{TextBlock, TextContent};
 
 #[test]
 fn edits_from_elsewhere_land_in_order() {

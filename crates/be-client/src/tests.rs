@@ -218,11 +218,11 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
 
 async fn text(peer: &Peer<MemoryStore>, block: Uuid) -> String {
     let opened = peer
-        .open::<be_block::TextContent>(block)
+        .open::<text_block_types::TextContent>(block)
         .await
         .unwrap()
         .expect("the block has content");
-    be_block::TextBlock::text(&opened)
+    text_block_types::TextBlock::text(&opened)
 }
 
 fn identity(email: &str) -> be_keys::RecoverySecret {
@@ -305,21 +305,29 @@ trait Texted {
     fn to_text(&self) -> String;
 }
 
-impl Texted for be_block::TextContent {
+impl Texted for text_block_types::TextContent {
     fn to_text(&self) -> String {
-        be_block::TextBlock::text(self)
+        text_block_types::TextBlock::text(self)
     }
 }
 
-async fn type_at(live: &mut Live<MemoryStore, be_block::TextContent>, at: usize, typed: &str) {
-    let edit = be_block::TextBlock::insert(live.content(), live.client(), at, typed.as_bytes())
-        .expect("there is somewhere to type");
+async fn type_at(
+    live: &mut Live<MemoryStore, text_block_types::TextContent>,
+    at: usize,
+    typed: &str,
+) {
+    let edit =
+        text_block_types::TextBlock::insert(live.content(), live.client(), at, typed.as_bytes())
+            .expect("there is somewhere to type");
     live.edit(edit).await.unwrap();
 }
 
-async fn erase(live: &mut Live<MemoryStore, be_block::TextContent>, range: std::ops::Range<usize>) {
-    let edit =
-        be_block::TextBlock::delete(live.content(), range).expect("there is something to erase");
+async fn erase(
+    live: &mut Live<MemoryStore, text_block_types::TextContent>,
+    range: std::ops::Range<usize>,
+) {
+    let edit = text_block_types::TextBlock::delete(live.content(), range)
+        .expect("there is something to erase");
     live.edit(edit).await.unwrap();
 }
 

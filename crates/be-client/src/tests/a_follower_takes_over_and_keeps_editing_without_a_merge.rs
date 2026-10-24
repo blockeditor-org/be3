@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_commit::MergeResult;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_follower_takes_over_and_keeps_editing_without_a_merge() {

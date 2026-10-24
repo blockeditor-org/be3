@@ -9,7 +9,6 @@ use be_block::database_schema::{
     DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
 };
 use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
-use be_block::text::TextContent;
 use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_client::{Peer, Saved};
 use be_commit::CommitId;
@@ -24,6 +23,7 @@ use uuid::Uuid;
 
 use crate::blocks::{Entry, Found, Index, find_in, is_top, short_of};
 use crate::session::explain;
+use text_block_types::TextContent;
 
 const ATTEMPTS: usize = 8;
 const CLIENT: u64 = 0x6265_2d63_6c69;

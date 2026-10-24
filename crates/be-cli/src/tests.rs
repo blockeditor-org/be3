@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
 use be_block::database::{Database, DatabaseContent};
-use be_block::database_schema::{
-    DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
-};
+use be_block::database_schema::{DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent};
 use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
@@ -70,6 +68,7 @@ fn sources() -> crate::tracker::Sources {
             be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
             be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
             be_types_host::in_process::<terminal_types::BlockTypes>("be3.terminal"),
+            be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
         ]
     })
 }

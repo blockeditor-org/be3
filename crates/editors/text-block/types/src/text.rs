@@ -4,7 +4,9 @@ use be_model::{Document, Edit, Model, ObjectId, Sequence, Text};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Root;
+use be_block::Root;
+use be_block::plain::extension;
+use block_type_guest::DocumentFile;
 
 const MAX_NAME_BYTES: usize = 128;
 
@@ -59,6 +61,26 @@ pub struct TextBlock {
 }
 
 pub type TextContent = Document<TextBlock>;
+
+pub fn language_of(extension: &str) -> TextLanguage {
+    match extension {
+        "md" | "markdown" => TextLanguage::Markdown,
+        "rs" => TextLanguage::Rust,
+        "zig" => TextLanguage::Zig,
+        "toml" => TextLanguage::Toml,
+        _ => TextLanguage::PlainText,
+    }
+}
+
+pub fn text_file_type(language: TextLanguage) -> (&'static str, &'static str) {
+    match language {
+        TextLanguage::Markdown => ("md", "text/markdown"),
+        TextLanguage::PlainText => ("txt", "text/plain"),
+        TextLanguage::Rust => ("rs", "text/x-rust"),
+        TextLanguage::Zig => ("zig", "text/x-zig"),
+        TextLanguage::Toml => ("toml", "application/toml"),
+    }
+}
 
 impl TextBlock {
     pub fn new(text: impl Into<Vec<u8>>) -> Self {
@@ -151,7 +173,7 @@ impl TextBlock {
 
     pub fn linked_blocks(&self, organization: Option<Uuid>) -> Vec<Uuid> {
         let mut seen = std::collections::HashSet::new();
-        crate::block_url::parse_block_urls(&self.body)
+        be_block::block_url::parse_block_urls(&self.body)
             .into_iter()
             .filter(|url| {
                 organization.is_none_or(|organization| url.organization_id == organization)
@@ -185,5 +207,36 @@ impl Root for TextBlock {
 
     fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
         self.linked_blocks(Some(organization))
+    }
+}
+
+impl DocumentFile for TextBlock {
+    fn to_file(content: &Document<Self>) -> Vec<u8> {
+        Self::body(content)
+            .map(|body| body.items())
+            .unwrap_or_default()
+    }
+
+    fn from_file(
+        current: Option<&Document<Self>>,
+        name: &str,
+        bytes: Vec<u8>,
+        client: u64,
+    ) -> Option<Document<Self>> {
+        let mut text = match current {
+            Some(current) => current.clone(),
+            None => Self::new("")
+                .with_language(language_of(&extension(name)))
+                .content(),
+        };
+        if let Some(edit) = Self::rewrite(&text, client, &bytes) {
+            text.apply(&edit);
+        }
+        Some(text)
+    }
+
+    fn claims(_: &str, first: &[u8]) -> bool {
+        !first.contains(&0)
+            && std::str::from_utf8(first).map_or_else(|error| error.error_len().is_none(), |_| true)
     }
 }

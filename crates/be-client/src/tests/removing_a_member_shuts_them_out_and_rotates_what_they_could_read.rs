@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_graph::Access;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn removing_a_member_shuts_them_out_and_rotates_what_they_could_read() {

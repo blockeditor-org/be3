@@ -1,9 +1,10 @@
-use block_editor_beui::be_block::{BlockContent, EditorView, FILES_EDITOR, TextContent};
+use block_editor_beui::be_block::{BlockContent, EditorView, FILES_EDITOR};
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use workspace_ui_types::WorkspaceContent;
 
 use super::*;
+use text_block_types::{TextContent};
 
 #[test]
 fn a_workspace_is_shown_with_what_it_holds_already_listed() {

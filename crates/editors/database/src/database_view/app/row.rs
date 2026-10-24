@@ -1,6 +1,5 @@
 use block_editor_beui::be_block::database::{DatabaseValue, RowRef, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::be_block::text::TextContent;
 use block_editor_beui::be_block::{BlockContent, ObjectId};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
@@ -19,6 +18,7 @@ use uuid::Uuid;
 use crate::database_view::app::controls::{ChoicePicker, MARK, MARK_SIZE};
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{iconic, row_title, visible_groups};
+use text_block_types::TextContent;
 
 const PADDING: f32 = 20.0;
 const SPACING: f32 = 8.0;

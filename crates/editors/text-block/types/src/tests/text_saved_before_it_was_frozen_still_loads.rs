@@ -18,7 +18,6 @@ fn text_saved_before_it_was_frozen_still_loads() {
         check_frozen::<TextBlock>(frozen_text::REGISTRY, frozen_text::DOCUMENT),
         Ok(())
     );
-
     let text = Document::<TextBlock>::from_bytes(&bytes(frozen_text::DOCUMENT)).unwrap();
     assert_eq!(
         TextBlock::text(&text),
