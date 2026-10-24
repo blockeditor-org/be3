@@ -326,8 +326,8 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         let pinned = doc.pinned_to_end() == Some(self.direction);
         let before = self.metrics.total();
         let rows = match pinned {
-            true => self.from_end(doc, list, painter, window, main.unwrap_or(before), cross),
-            false => self.from_anchor(doc, list, painter, window, main, cross, at_start),
+            true => self.rows_from_end(doc, list, painter, window, main.unwrap_or(before), cross),
+            false => self.rows_from_anchor(doc, list, painter, window, main, cross, at_start),
         };
         let mut held = self.holding(doc, &rows);
         self.measure_held(doc, list, painter, &mut held, cross);
@@ -350,7 +350,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         shift
     }
 
-    fn from_end(
+    fn rows_from_end(
         &mut self,
         doc: &mut Document,
         list: NodeId,
@@ -382,7 +382,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn from_anchor(
+    fn rows_from_anchor(
         &mut self,
         doc: &mut Document,
         list: NodeId,
