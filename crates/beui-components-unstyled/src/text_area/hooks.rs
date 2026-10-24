@@ -26,6 +26,7 @@ pub const LIST_INDENT_EM: f32 = MARKER_COLUMN_EM + MARKER_GAP_EM;
 pub const QUOTE_INDENT_EM: f32 = 1.4;
 pub const MARGIN_EM: f32 = 3.1;
 pub const MARGIN_MIN_WIDTH_EM: f32 = 40.0;
+pub const COLUMN_MAX_EM: f32 = 48.0;
 pub const CODE_PADDING_EM: f32 = 1.0;
 pub const RULE_WIDTH: f32 = 1.0;
 pub const QUOTE_BAR_WIDTH: f32 = 3.0;
@@ -117,6 +118,31 @@ pub fn MarkerColumn(marker: TextMarker, content: NodeId) -> NodeId {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+pub struct Margin {
+    pub left: f32,
+    pub column: f32,
+    pub right: f32,
+    pub hangs: bool,
+}
+
+impl Margin {
+    pub fn centered(width: f32, size: f32, hangs: bool) -> Self {
+        let lead = match hangs {
+            true => size * MARGIN_EM,
+            false => 0.0,
+        };
+        let column = (width - lead).min(size * COLUMN_MAX_EM).max(0.0);
+        let left = ((width - column) / 2.0).max(lead);
+        Self {
+            left,
+            column,
+            right: (width - column - left).max(0.0),
+            hangs,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct TextLine {
     pub state: TextAreaState,
@@ -125,7 +151,7 @@ pub struct TextLine {
     pub look: Memo<LineLook>,
     pub padding: Memo<f32>,
     pub size: Memo<f32>,
-    pub margin: Memo<f32>,
+    pub margin: Memo<Margin>,
     pub outdent: Memo<f32>,
     pub space: Memo<(f32, f32)>,
     pub table: Memo<Option<RowTable>>,
@@ -161,7 +187,21 @@ impl TextLine {
 
     pub fn column(&self) -> Memo<f32> {
         let (padding, margin) = (self.padding, self.margin);
-        create_memo(move || padding.get() + margin.get())
+        create_memo(move || padding.get() + margin.get().left)
+    }
+
+    pub fn right(&self) -> Memo<f32> {
+        let (padding, margin, table, size) = (self.padding, self.margin, self.table, self.size);
+        let left = self.left();
+        create_memo(move || {
+            let margin = margin.get();
+            let end = padding.get() + margin.left + margin.column;
+            let wanted = table
+                .get()
+                .and_then(|table| table.edges.last().map(|edge| edge.0))
+                .map_or(0.0, |last| left.get() + last + size.get() - end);
+            padding.get() + (margin.right - wanted.max(0.0)).max(0.0)
+        })
     }
 
     pub fn indent(&self) -> Memo<f32> {
@@ -173,10 +213,11 @@ impl TextLine {
                 true => look.depth as f32 + f32::from(u8::from(look.continues)),
                 false => 0.0,
             };
-            let hung = listed && look.quote == 0 && margin.get() > 0.0;
+            let margin = margin.get();
+            let hung = listed && look.quote == 0 && margin.hangs;
             let nested = (levels - f32::from(u8::from(hung))) * LIST_INDENT_EM;
             let indent = (look.quote as f32 * QUOTE_INDENT_EM + nested) * size.get();
-            margin.get() + indent - outdent.get()
+            margin.left + indent - outdent.get()
         })
     }
 
@@ -187,7 +228,7 @@ impl TextLine {
 
     pub fn code_padding(&self) -> Memo<f32> {
         let (look, size, margin) = (self.look, self.size, self.margin);
-        create_memo(move || match look.get().code_block && margin.get() > 0.0 {
+        create_memo(move || match look.get().code_block && margin.get().hangs {
             true => size.get() * CODE_PADDING_EM,
             false => 0.0,
         })
@@ -518,6 +559,7 @@ fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
     let look = line.look;
     let left = line.left();
     let column = line.column();
+    let right = line.right();
     let code_padding = line.code_padding();
     let outset = create_memo(move || match code_padding.get() > 0.0 {
         true => 0.0,
@@ -528,7 +570,7 @@ fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
         Sides::new(
             left.get() - outset,
             0.0,
-            (line.padding.get() - outset).max(0.0),
+            (right.get() - outset).max(0.0),
             0.0,
         )
     });
@@ -548,7 +590,7 @@ fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
     let width = create_memo(move || Extent::px(quote.get()));
     let room = create_memo(move || Sides::new(0.0, 0.0, quote.get() - QUOTE_BAR_WIDTH, 0.0));
     let bars = create_memo(move || Sides::new(column.get(), 0.0, 0.0, 0.0));
-    let ruled = create_memo(move || Sides::new(column.get(), 0.0, line.padding.get(), 0.0));
+    let ruled = create_memo(move || Sides::new(column.get(), 0.0, right.get(), 0.0));
     let rule = create_memo(move || match look.get().rule {
         true => colors.get().gutter_border,
         false => Color32::TRANSPARENT,
