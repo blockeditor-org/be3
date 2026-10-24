@@ -6,9 +6,9 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
 use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
+use image_block_types::{ImageContent, ImageFile};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use image_block_types::{ImageContent, ImageFile};
 
 const MAX_EXPORT_SCALE: u32 = 16;
 const SETTINGS_PADDING: f32 = 14.0;
@@ -74,10 +74,7 @@ fn generate(
             ExtendedColorType::Rgba8,
         )
         .map_err(|error| error.to_string())?;
-    Ok(ImageFile::from_file(
-        format!("{source_name} Export"),
-        png,
-    ))
+    Ok(ImageFile::from_file(format!("{source_name} Export"), png))
 }
 
 fn magnified(art: &Artwork, scale: u32) -> Vec<u8> {

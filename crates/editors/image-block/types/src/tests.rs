@@ -4,9 +4,9 @@ use block_type_guest::api::{Change, Command, Event, Reply, Request};
 
 use crate::{ImageContent, ImageFile, ImageHeader, ImageOp};
 
+mod a_picture_file_becomes_an_image_and_back;
 mod an_image_is_decoded_into_its_header_and_keeps_its_bytes;
 mod an_image_merges_only_when_one_side_changed_it;
-mod a_picture_file_becomes_an_image_and_back;
 
 fn image(name: &str, payload: &[u8]) -> ImageContent {
     ImageContent::new(

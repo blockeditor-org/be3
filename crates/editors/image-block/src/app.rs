@@ -39,11 +39,7 @@ impl block_editor_beui::BeuiApp for ImageApp {
 }
 
 pub(crate) fn filter() -> FileFilter {
-    FileFilter::new(
-        "Images",
-        ImageFile::FILE_EXTENSIONS,
-        ImageFile::MIME_TYPES,
-    )
+    FileFilter::new("Images", ImageFile::FILE_EXTENSIONS, ImageFile::MIME_TYPES)
 }
 
 pub(crate) fn imported(file: PickedFile) -> Result<ImageContent, String> {

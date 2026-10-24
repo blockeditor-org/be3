@@ -1,7 +1,7 @@
 use super::*;
 
+use audio_block_types::AudioFile;
 use block_editor_beui::{AudioCommand, AudioSource};
-use audio_block_types::{AudioFile};
 
 fn played(test: &mut BeuiTest<AudioApp>) -> Vec<AudioCommand> {
     test.take_audio_commands()

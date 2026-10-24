@@ -1,5 +1,5 @@
 use super::*;
-use pdf_types::{PdfFile};
+use pdf_types::PdfFile;
 
 #[test]
 fn a_page_is_rendered_with_pdfium() {

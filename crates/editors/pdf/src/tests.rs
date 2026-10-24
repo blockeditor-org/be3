@@ -3,7 +3,7 @@ use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::PdfApp;
-use pdf_types::{PdfContent};
+use pdf_types::PdfContent;
 
 mod a_page_is_rendered_with_pdfium;
 

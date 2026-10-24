@@ -1,6 +1,6 @@
 use super::*;
 use block_editor_beui::beui::Vec2;
-use image_block_types::{ImageFile};
+use image_block_types::ImageFile;
 
 #[test]
 fn a_narrow_image_folds_its_sidebar_under_the_picture() {

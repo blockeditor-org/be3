@@ -1,5 +1,5 @@
 use super::*;
-use image_block_types::{ImageFile};
+use image_block_types::ImageFile;
 
 #[tokio::test]
 async fn a_folder_is_written_as_files_and_directories() {

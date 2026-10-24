@@ -1,6 +1,4 @@
-use be_block::{
-    FileContent, TextBlock, TextContent, TextLanguage,
-};
+use be_block::{FileContent, TextBlock, TextContent, TextLanguage};
 use block_type_api::{ChildChange, Plain};
 
 use super::*;

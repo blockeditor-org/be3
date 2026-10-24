@@ -64,11 +64,7 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
     assert_ne!(head, Some(second));
 
     let third = phone
-        .save(
-            block,
-            &ImageFile::from_file("sand.png", vec![4, 5]),
-            head,
-        )
+        .save(block, &ImageFile::from_file("sand.png", vec![4, 5]), head)
         .await
         .unwrap()
         .published()

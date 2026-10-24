@@ -7,7 +7,7 @@ use block_editor_beui::{Editor, FileChooser, Sidebar, fit_content};
 
 use super::picture::{thumbhash, watch};
 use super::{filter, imported};
-use image_block_types::{ImageContent};
+use image_block_types::ImageContent;
 
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {

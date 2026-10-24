@@ -7,7 +7,7 @@ use block_editor_beui::{ContentProjection, PerformanceReporter, Waker};
 use crate::pane::Pane;
 
 use super::DEFAULT_PAGE_SIZE;
-use pdf_types::{PdfContent};
+use pdf_types::PdfContent;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Shown {

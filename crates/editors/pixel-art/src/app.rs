@@ -23,9 +23,9 @@ pub(crate) mod pane;
 pub(crate) mod state;
 
 use canvas::{ArtworkCanvas, HoverLabel};
+use image_block_types::ImageContent;
 use pane::Pane;
 use state::Tools;
-use image_block_types::{ImageContent};
 
 const EMBEDDED_LONG_SIDE: f32 = 256.0;
 const EMBEDDED_SHORT_SIDE: f32 = 24.0;

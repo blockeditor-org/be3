@@ -1,7 +1,6 @@
 use super::*;
 use image_block_types::{ImageContent, ImageFile};
 
-
 fn holds(shared: &Shared, block: Uuid, name: &str) -> bool {
     shared.blocks.get(&block).is_some_and(|held| {
         ImageContent::decode(held.bytes()).is_ok_and(|image| {

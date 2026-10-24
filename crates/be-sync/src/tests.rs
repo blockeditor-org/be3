@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use be_block::{BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, FileContent, FolderContent, LiveEdit, TextBlock, TextContent, WorkspaceContent};
+use be_block::{
+    BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, FileContent, FolderContent, LiveEdit,
+    TextBlock, TextContent, WorkspaceContent,
+};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::MemoryStore;

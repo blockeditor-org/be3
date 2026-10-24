@@ -9,7 +9,7 @@ use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
-use audio_block_types::{AudioContent};
+use audio_block_types::AudioContent;
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;

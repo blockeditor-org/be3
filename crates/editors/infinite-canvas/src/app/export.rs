@@ -3,8 +3,10 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::be_block::canvas::{
+    CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight,
+};
 use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};

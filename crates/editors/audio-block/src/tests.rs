@@ -3,7 +3,7 @@ use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::{AudioApp, guess_media_type};
-use audio_block_types::{AudioFile};
+use audio_block_types::AudioFile;
 
 mod a_playing_track_shows_its_position;
 mod play_hands_the_host_the_tracks_bytes_once;
