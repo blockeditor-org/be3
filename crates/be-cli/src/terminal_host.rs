@@ -18,10 +18,8 @@ use uuid::Uuid;
 use crate::session::explain;
 
 mod document;
-mod emulator;
-mod keys;
 
-use emulator::Emulator;
+use terminal_emulator::Emulator;
 
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const READ_CHUNK: usize = 16 * 1024;

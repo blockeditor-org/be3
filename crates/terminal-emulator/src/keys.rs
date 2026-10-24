@@ -1,7 +1,7 @@
 use be_block::terminal::{Key, TerminalKey};
 use ghostty_vt::{Key as Code, KeyInput, Mods};
 
-pub(crate) fn key_input(key: &TerminalKey) -> KeyInput<'_> {
+pub(super) fn key_input(key: &TerminalKey) -> KeyInput<'_> {
     let (code, unshifted) = code(key.key);
     KeyInput {
         key: code,

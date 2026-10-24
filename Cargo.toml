@@ -120,6 +120,7 @@ members = [
     "crates/tabletop-games/rules/connect-four",
     "crates/tabletop-games/rules/crazy-8s",
     "crates/tabletop-games/rules/tic-tac-toe",
+    "crates/terminal-emulator",
     "crates/terminal-view",
     "crates/text-editor-core",
     "crates/ui-types",

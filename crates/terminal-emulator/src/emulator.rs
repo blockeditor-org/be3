@@ -15,7 +15,7 @@ use super::keys::key_input;
 const SCROLLBACK: usize = 4_000;
 const FEED_CHUNK: usize = 256;
 
-pub(crate) struct Shown {
+pub struct Shown {
     pub rows: Vec<TerminalLine>,
     pub alternate: bool,
     pub cursor: TerminalCursor,
@@ -24,7 +24,7 @@ pub(crate) struct Shown {
     pub title: String,
 }
 
-pub(crate) struct Emulator {
+pub struct Emulator {
     terminal: Terminal,
     renderer: Renderer,
     anchor: Anchor,
@@ -235,7 +235,7 @@ fn style(cell: &Cell, colors: &Colors) -> TerminalStyle {
     }
 }
 
-pub(crate) fn line(row: &Row, colors: &Colors) -> TerminalLine {
+fn line(row: &Row, colors: &Colors) -> TerminalLine {
     let cells: Vec<&Cell> = row.cells.iter().filter(|cell| !cell.spacer).collect();
     let kept = match row.wrapped {
         true => cells.len(),

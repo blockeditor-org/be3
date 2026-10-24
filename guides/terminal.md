@@ -16,14 +16,19 @@ from inside block-app.
 - `be TARGET terminal-host [-- PROGRAM ARGUMENTS...]` (`crates/be-cli`,
   `terminal_host.rs` and `terminal_host/`): the host. It signs in as an agent,
   joins the block's live session, shows `TerminalHost`, runs the shell (the
-  user's default one, or PROGRAM) in a PTY, keeps a ghostty-vt emulator of it,
-  and writes what the emulator shows into the document.
+  user's default one, or PROGRAM) in a PTY, keeps an emulator of it, and writes
+  what the emulator shows into the document.
+- `crates/terminal-emulator`: that emulator (`Emulator`): ghostty-vt fed the
+  PTY's bytes, read back as `TerminalLine`s (the rows that scrolled off and the
+  shown rows, `Shown`), and the key, paste and wheel encoders. The host and
+  be-launcher's build output use it; viewers never do.
 - `crates/editors/terminal`: the editor. It renders the document, and draws the
-  setup page while no host is writing it.
-- `crates/terminal-view`: the beui terminal view (`TerminalView`,
-  `TerminalScreen`) and the mapping from beui key presses and text to
-  `TerminalKey` (`key_event`, `text_event`, reported as `TerminalInput`).
-  be-launcher's build output uses the view with its own emulator.
+  setup page while the block is empty and no host is connected.
+- `crates/terminal-view`: the beui view (`TerminalView`, below), which draws
+  lines and knows nothing of where they come from, and the mapping from beui key
+  presses and text to `TerminalKey` (`key_event`, `text_event`, reported as
+  `TerminalInput`). be-launcher's build output feeds it from its own local
+  `Emulator`, keeping the rows that scroll off in memory.
 - `crates/ghostty-vt`: the bindings. Besides the render state (`Renderer`) it
   reads rows anywhere on the screen through grid references
   (`Terminal::active_row`, `history_row`, each with its soft-wrap flag), follows
@@ -87,6 +92,45 @@ at the document's size (80x24 if it has none). When the shell exits, `shell`
 says so, and the next key or paste moves the screen into history and starts a
 new one.
 
+## The view
+
+`TerminalView` takes `history` and `rows` as `Lines` (line ids with shared
+`TerminalLine`s; equal when the ids and the `Rc`s are), the `cursor`, the
+default `colors`, and reports `TerminalInput`, `TerminalWheel` and `Fit`.
+
+- Every line is one `Text` of `Span`s (colour, background, bold, italic,
+  underline, strikethrough; faint is the colour halfway to the background) in
+  `TextStyle::CODE`, in one `VirtualList` keyed by line id, inside a
+  `SelectableText`, inside a `Scroll` with `follow_end` and the padding inside
+  it. A history line wraps with `Wrap::Anywhere` at the view's width, so in a
+  monospace font it breaks where the terminal did. Screen rows joined by
+  `wrapped` (`logical_lines`) are one `Text` with `Wrap::Off` and a `<Break/>`
+  at each wrap point, keyed by the first row's id, so a selection across the
+  wrap copies no newline. The list's `text` gives unbuilt rows' text to copy
+  and select-all.
+- The cursor is the row's caret (`TextCaret`, a bar) at `cursor.byte`, the row
+  padded with spaces when the byte is past its end.
+- Fit: columns and rows from the view's size and the cell, whose width is the
+  monospace advance (`galley.cursor_pos(Pos2::ZERO, 1).x`), not the rounded
+  galley width.
+- Keys: a focusable `Interactive` with `clipboard_keys` inside the selectable
+  region (its press handler takes the focus back from the `Selectable`, so typed
+  text reaches it and Ctrl+Shift+C bubbles to the selection). Ctrl+C, Ctrl+V and
+  Ctrl+A go to the shell; Ctrl+Shift+C copies (`copy_key`, no select-all key;
+  the context menu keeps Copy and Select All); Ctrl+Shift+V is not handled, so
+  the platform pastes and the paste arrives through `pastes`/`on_paste`. Typing
+  scrolls to the end (`ScrollApi::scroll_to_end`).
+- With `wheel` set the rows sit in an `Interactive` whose `on_scroll` reports
+  whole lines and the cell under the pointer instead of scrolling.
+
+The editor passes the main screen's history and rows, or, while
+`alternate_active`, only the alternate rows with `wheel` set (sent to the host
+as `Wheel`). The top bar's Main screen toggle shows the main screen read-only
+meanwhile. Input, `Resize` (when the host is found or the fit changes) and
+`Wheel` go only to the client in `host` while it shows `TerminalHost`, and only
+from a viewer that may edit. Without a host the document still renders, and the
+top bar says no machine is running it, with a popover of the setup steps.
+
 ## Messages
 
 Viewers send the client in `host`, while it shows `TerminalHost`, peer messages
@@ -132,5 +176,8 @@ come before a public release.
 - ghostty-vt's tests cover rows, history, the encoders and paste; be-block's
   cover the line helpers and the messages.
 - The editor's tests hold a document and drive presence and peer messages
-  through block-ui-test (`hold`, `set_peers`, `take_sent_to_peers`), and paint
-  the setup page and a running terminal.
+  through block-ui-test (`hold`, `set_peers`, `take_sent_to_peers`): input
+  routing, copying across a wrap and select-all over unbuilt history, the
+  alternate screen's wheel and peek, and paintings of each state, the setup
+  page included.
+- terminal-emulator's test reads rows that scrolled off the screen.

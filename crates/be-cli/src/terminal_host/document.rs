@@ -7,7 +7,7 @@ use be_block::terminal::{
 };
 use be_block::{Edit, ObjectId};
 
-use super::emulator::Shown;
+use terminal_emulator::Shown;
 
 const LARGEST_EDIT: usize = 256 * 1024;
 
