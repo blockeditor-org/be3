@@ -3,7 +3,9 @@
 A block type is moving out of the app into a plugin's *type module*: a pure wasm
 module that holds the device's one replica of every open block of its types (content,
 live session, undo stack) and talks to its host only through messages. Two crates
-define it; nothing in block-app uses them yet.
+define it. block-app's peer hosts every block through them
+(guides/the_new_block_stack.md, "How the app hosts content"): `crates/builtin-types`
+is its first-party module, and the types it applies itself run in process.
 
 - `crates/block-type-api`: the messages between a host and a type module. No GUI types.
 - `crates/block-type-guest`: the replica library a be-model-based type module links.
@@ -12,6 +14,14 @@ define it; nothing in block-app uses them yet.
   and every `Document<R>` and `Blob<K>` works with it unchanged.
 
 ## The protocol
+
+A pure guest has no entropy of its own, and a type module needs ids for the
+items its child edits add. The host sends `Entropy { seed }` first, and on
+wasm32-unknown-unknown the library is getrandom's custom backend, a generator
+seeded from it (`entropy.rs`; buck sets the `getrandom_backend` cfg for that plan).
+be-store's sealing (`vault`), be-commit's `CommitStore` and be-session's `resume`
+are default features a guest's dependencies leave off, so a module imports only
+the four `be3_host` functions.
 
 The module is a state machine: the host calls it with an `Event` and gets back
 `Command`s. Frames are postcard with a 4-byte big-endian length in front
@@ -65,10 +75,13 @@ What the host owes a replica:
 
 ## Peers
 
-Peers exchange `wire::Wire`: be-session's `SessionMessage`, plus `Greeting { tag, since }`
-in place of `Catchup`. An owner answers a greeting with another tag with
-`Incompatible`, and the follower then marks itself incompatible and diverged, so two
-builds of a type never edit one session. Everything else is `Live`'s behaviour,
+Peers exchange `wire::Wire`, which is be-session's `SessionMessage` encoded exactly
+as `Live` sends it, so a replica and a `Live` peer (be's terminal host) share a
+session. A follower sends `Wire::Tag` (its `SessionTag`, on a channel a `Live` peer
+passes over) ahead of each `Catchup`; an owner answers another tag with
+`Wire::Incompatible` and then ignores that peer's submits and catch-ups, and the
+follower marks itself incompatible and diverged, so two builds of a type never edit
+one session. Everything else is `Live`'s behaviour,
 message for message: owner sequencing, follower rebase and `apply_beneath`, the 1 MiB
 relay limit, `Snapshot`/`Sealed`/`reload`, `Replaced`, takeover with
 `Sequencer::continuing`, presence and channel messages. The worker's rules are here
@@ -117,7 +130,7 @@ be_block_types![ChecklistContent { undo }, TextContent { undo, file }, FolderCon
 
 Each entry is `Registration::of::<C>()` (`C: LiveEdit + Merge + Clone + Default`),
 then `.undo::<C>()` for a type whose session keeps an undo stack (what
-`kind_with_history` is in the app) and `.file::<C>()` for one with a plain-file form
+`undo` in a module's list) and `.file::<C>()` for one with a plain-file form
 (`FileForm`: `to_file`, `from_file`, `claims`; implemented for the be-block text,
 image, PDF, audio and file types from `be_block::plain`). The order is the order
 `Claims` asks in.

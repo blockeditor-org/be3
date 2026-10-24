@@ -118,11 +118,11 @@ fn child_edit(&self, change: ChildChange) -> Option<Edit> {
 }
 ```
 
-The app calls it through `be::change_child`, so the host makes the edit itself and the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `presentation.rs`, `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's entry in `be_block::BLOCK_TYPES` says which of these edits it accepts (`children`).
+The app calls it through `be::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `presentation.rs`, `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's entry in `be_block::BLOCK_TYPES` says which of these edits it accepts (`children`).
 
 ## 6. Undo
 
-A `Document` implements `Undo` already: every edit records a step that is taken against the state before it and reverted against the state as it is now, so undo leaves alone what someone else changed since. It is enabled per type in the app's registry (below) with `kind_with_history`. Undo belongs to the app's peer, not to the editor, so an editor gets it without writing anything.
+A `Document` implements `Undo` already: every edit records a step that is taken against the state before it and reverted against the state as it is now, so undo leaves alone what someone else changed since. It is enabled per type in its type module (below) with `undo`. Undo belongs to the block's replica, not to the editor, so an editor gets it without writing anything.
 
 A content type that does not fit a document - a file with a large payload (`Blob<K>`) - implements `BlockContent`, `LiveEdit` and `Merge` by hand in `be-block`, and `Undo` too if it wants one. Prefer a document whenever the content can be described as one. A blob kind bumps `BlobKind::SCHEMA` when its header changes so that an old header would be read wrongly, which offers its blocks saved before the change for reset (guides/the_new_block_stack.md, Blocks saved by another build); a document's schema is derived from its structs.
 
@@ -136,13 +136,13 @@ pub mod my_block;
 pub use my_block::{MyBlock, MyBlockContent};
 ```
 
-Then add it to `KINDS` in `crates/block-app/src/be.rs`, which is the only list of the content types the app opens, copies, seeds and names:
+Then add it to the app's type module, the `be_block_types!` list in `crates/builtin-types/src/lib.rs` (guides/type_modules.md), which is the only list of the content types the app opens, copies, seeds and names:
 
 ```rust
-kind_with_history::<be_block::MyBlockContent>(),
+MyBlockContent { undo },
 ```
 
-Use `kind::<C>()` for a type without undo. A block whose content type is not in `KINDS` has no content in the app: the host opens nothing for it and refuses content written to it.
+Leave out `{ undo }` for a type without undo, and add `file` for one with a plain-file form. A block whose content type no module has has no content in the app.
 
 Give it an entry in `BLOCK_TYPES` (`crates/be-block/src/block_types.rs`) too: the name, icon, color and child edits every editor of the type shares. The host refuses a plugin whose editor edits a type with no entry there.
 
