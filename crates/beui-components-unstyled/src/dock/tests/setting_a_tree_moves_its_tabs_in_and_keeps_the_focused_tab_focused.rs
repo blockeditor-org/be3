@@ -11,6 +11,7 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
         ],
         active: 1,
         vertical: false,
+        icons_only: false,
         sidebar: SIDEBAR_WIDTH,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
@@ -28,6 +29,7 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
             entries: vec![DockTreeEntry::Tab(TabId::new(10))],
             active: 0,
             vertical: false,
+            icons_only: false,
             sidebar: SIDEBAR_WIDTH,
         }),
         second: Box::new(DockTree::Tabs {
@@ -37,6 +39,7 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
             ],
             active: 0,
             vertical: false,
+            icons_only: false,
             sidebar: SIDEBAR_WIDTH,
         }),
     };

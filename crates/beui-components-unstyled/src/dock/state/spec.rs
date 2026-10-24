@@ -42,6 +42,7 @@ pub struct DockSpecPane {
     pub entries: Vec<DockSpecEntry>,
     pub active: Option<TabId>,
     pub vertical: bool,
+    pub icons_only: bool,
     pub sidebar: f32,
     pub keep: bool,
 }
@@ -378,6 +379,7 @@ impl DockState {
             })
             .unwrap_or(0);
         leaf.vertical = pane.vertical;
+        leaf.icons_only = pane.icons_only;
         leaf.sidebar = pane.sidebar.max(MIN_SIDEBAR_WIDTH);
         leaf.key = Some(pane.key.clone());
         leaf.keep = pane.keep;

@@ -123,6 +123,7 @@ pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
+pub const ICONS_BELOW: f32 = 64.0;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Leaf {
@@ -130,6 +131,7 @@ struct Leaf {
     entries: Vec<Entry>,
     active: usize,
     vertical: bool,
+    icons_only: bool,
     sidebar: f32,
     key: Option<String>,
     keep: bool,
@@ -142,6 +144,7 @@ impl Leaf {
             entries,
             active: 0,
             vertical: false,
+            icons_only: false,
             sidebar: SIDEBAR_WIDTH,
             key: None,
             keep: false,
@@ -293,6 +296,7 @@ pub enum DockTree {
         entries: Vec<DockTreeEntry>,
         active: usize,
         vertical: bool,
+        icons_only: bool,
         sidebar: f32,
     },
     Split {
@@ -315,6 +319,7 @@ impl Default for DockTree {
             entries: Vec::new(),
             active: 0,
             vertical: false,
+            icons_only: false,
             sidebar: SIDEBAR_WIDTH,
         }
     }
@@ -350,6 +355,7 @@ impl DockTree {
                 entries,
                 active,
                 vertical,
+                icons_only,
                 sidebar,
             } => {
                 let shown = entries.get(*active);
@@ -372,6 +378,7 @@ impl DockTree {
                     entries: kept,
                     active,
                     vertical: *vertical,
+                    icons_only: *icons_only,
                     sidebar: *sidebar,
                 }
             }
@@ -745,6 +752,31 @@ impl DockState {
     pub fn set_vertical(&mut self, leaf: LeafId, vertical: bool) {
         if let Some(leaf) = self.leaf_mut(leaf) {
             leaf.vertical = vertical;
+        }
+    }
+
+    pub fn is_icons_only(&self, leaf: LeafId) -> bool {
+        self.leaf(leaf).is_some_and(|leaf| leaf.icons_only)
+    }
+
+    pub fn set_icons_only(&mut self, leaf: LeafId, icons_only: bool) {
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.icons_only = icons_only;
+        }
+    }
+
+    pub fn drag_sidebar(&mut self, leaf: LeafId, width: f32) {
+        let Some(leaf) = self.leaf_mut(leaf) else {
+            return;
+        };
+        match leaf.icons_only {
+            true if width >= MIN_SIDEBAR_WIDTH => {
+                leaf.icons_only = false;
+                leaf.sidebar = width;
+            }
+            true => {}
+            false if width < ICONS_BELOW => leaf.icons_only = true,
+            false => leaf.sidebar = width.max(MIN_SIDEBAR_WIDTH),
         }
     }
 
@@ -1289,6 +1321,7 @@ impl DockState {
     fn dress(&mut self, leaf: LeafId, like: &Leaf, identity: bool) {
         if let Some(leaf) = self.leaf_mut(leaf) {
             leaf.vertical = like.vertical;
+            leaf.icons_only = like.icons_only;
             leaf.sidebar = like.sidebar;
             if identity {
                 leaf.key.clone_from(&like.key);
@@ -1725,6 +1758,7 @@ impl DockState {
                     .collect(),
                 active: leaf.active,
                 vertical: leaf.vertical,
+                icons_only: leaf.icons_only,
                 sidebar: leaf.sidebar,
             },
             Node::Split(split) => DockTree::Split {
@@ -1810,6 +1844,7 @@ impl DockState {
                 entries,
                 active,
                 vertical,
+                icons_only,
                 sidebar,
             } => {
                 let entries: Vec<Entry> = entries
@@ -1833,6 +1868,7 @@ impl DockState {
                 let mut leaf = self.new_leaf(entries);
                 leaf.active = (*active).min(leaf.entries.len().saturating_sub(1));
                 leaf.vertical = *vertical;
+                leaf.icons_only = *icons_only;
                 leaf.sidebar = sidebar.max(MIN_SIDEBAR_WIDTH);
                 Node::Leaf(leaf)
             }

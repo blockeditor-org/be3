@@ -8,6 +8,7 @@ fn tabs(ids: &[u64]) -> DockTree {
             .collect(),
         active: 0,
         vertical: false,
+        icons_only: false,
         sidebar: SIDEBAR_WIDTH,
     }
 }

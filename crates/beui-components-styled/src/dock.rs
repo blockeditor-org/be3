@@ -12,6 +12,7 @@ use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
+use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
@@ -47,6 +48,7 @@ const DIVIDER_MARGIN: f32 = 4.0;
 const SHARE_MARGIN: f32 = 2.0;
 const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 16.0;
+const ICON_SIDEBAR: f32 = TAB_HEIGHT + 2.0 * BAR_PADDING;
 const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const RULE: f32 = 1.0;
@@ -91,6 +93,7 @@ where
             drag_modifier
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
+            icon_sidebar_width=ICON_SIDEBAR
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
@@ -193,26 +196,132 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         waiting,
         close,
         vertical,
+        icons_only,
         ..
     } = handle;
+    let grouped = matches!(entry, Entry::Group(_));
     view! {
-        <DockTabChrome
-            title
-            icon
-            picture
-            grouped={matches!(entry, Entry::Group(_))}
-            vertical
-            selected
-            hovered
-            active
-            focused
-            dragged
-            closable
-            waiting
-            waiting_test_id={waiting_test_id(entry)}
-            close_test_id={close_test_id(entry)}
-            close={close}
-        />
+        <List spacing=0.0>
+            <Dynamic value={icons_only}>|icons_only: bool| {
+                match icons_only {
+                    true => view! {
+                        <DockIconTab
+                            title
+                            icon
+                            picture
+                            grouped
+                            selected
+                            hovered
+                            active
+                            focused
+                            dragged
+                            waiting
+                        />
+                    },
+                    false => view! {
+                        <DockTabChrome
+                            title
+                            icon
+                            picture
+                            grouped
+                            vertical
+                            selected
+                            hovered
+                            active
+                            focused
+                            dragged
+                            closable
+                            waiting
+                            waiting_test_id={waiting_test_id(entry)}
+                            close_test_id={close_test_id(entry)}
+                            close={close}
+                        />
+                    },
+                }
+            }</Dynamic>
+        </List>
+    }
+}
+
+fn tab_fill(
+    selected: Memo<bool>,
+    hovered: ReadSignal<bool>,
+    active: ReadSignal<bool>,
+    dragged: Memo<bool>,
+) -> Memo<Color32> {
+    let theme = use_theme();
+    create_memo(
+        move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
+            (_, _, true) => theme.accent_soft.get(),
+            (true, _, false) => theme.surface_raised.get(),
+            (false, true, false) => theme.hover.get(),
+            (false, false, false) => theme.surface.get(),
+        },
+    )
+}
+
+#[component]
+fn DockIconTab(
+    title: Memo<String>,
+    icon: Memo<Option<Glyph>>,
+    picture: Memo<Option<Image>>,
+    grouped: bool,
+    selected: Memo<bool>,
+    hovered: ReadSignal<bool>,
+    active: ReadSignal<bool>,
+    focused: ReadSignal<bool>,
+    dragged: Memo<bool>,
+    waiting: Memo<bool>,
+) -> NodeId {
+    let fill = tab_fill(selected, hovered, active, dragged);
+    let label = create_memo(move || match (waiting.get(), selected.get()) {
+        (true, _) => TextColor::Accent,
+        (false, true) => TextColor::Default,
+        (false, false) => TextColor::Muted,
+    });
+    let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
+    let glyph = create_memo(move || match grouped {
+        true => Some(ICON_APP_WINDOW),
+        false => icon.get(),
+    });
+    let pictured = create_memo(move || !shows_picture.get() && glyph.get().is_some());
+    let lettered = create_memo(move || !shows_picture.get() && glyph.get().is_none());
+    let initial = create_memo(move || {
+        title
+            .with(|title| {
+                title
+                    .chars()
+                    .next()
+                    .map(char::to_uppercase)
+                    .map(String::from_iter)
+            })
+            .unwrap_or_default()
+    });
+    view! {
+        <Tooltip label={title}>
+            <Frame
+                fill={ColorRole::custom(fill)}
+                radius=TAB_RADIUS
+                width=TAB_HEIGHT
+                height=TAB_HEIGHT
+                align=Align::Center
+                border={focus_border(focused, Border::FOCUS)}
+            >
+                <List align=Align::Center spacing=0.0>
+                    <Show condition={pictured}>
+                        <Text color={label} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
+                    </Show>
+                    <Show condition={shows_picture}>
+                        <TabPicture picture={picture} />
+                    </Show>
+                    <Show condition={lettered}>
+                        <Text color={label} align=TextAlign::Center>{initial}</Text>
+                    </Show>
+                </List>
+            </Frame>
+        </Tooltip>
     }
 }
 
@@ -234,16 +343,7 @@ fn DockTabChrome(
     close_test_id: String,
     close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
-    let fill =
-        create_memo(
-            move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
-                (_, _, true) => theme.accent_soft.get(),
-                (true, _, false) => theme.surface_raised.get(),
-                (false, true, false) => theme.hover.get(),
-                (false, false, false) => theme.surface.get(),
-            },
-        );
+    let fill = tab_fill(selected, hovered, active, dragged);
     let label = create_memo(move || match selected.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
@@ -466,6 +566,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
 fn DockBarFace(handle: DockBarHandle) -> NodeId {
     let DockBarHandle {
         vertical,
+        icons_only,
         grip,
         tabs,
         title,
@@ -478,7 +579,7 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
     let close = move || close.call();
     match vertical {
         true => view! {
-            <DockSideBar grip tabs title vacant menu closable close />
+            <DockSideBar grip tabs title vacant menu closable icons_only close />
         },
         false => view! {
             <DockTitleBar grip tabs title vacant menu closable close />
@@ -534,10 +635,15 @@ fn DockSideBar(
     vacant: Memo<bool>,
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
+    icons_only: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
+    let header = create_memo(move || match icons_only.get() {
+        true => Direction::Vertical,
+        false => Direction::Horizontal,
+    });
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
@@ -547,17 +653,13 @@ fn DockSideBar(
             >
                 <List spacing=BAR_SPACING>
                     <List
-                        direction=Direction::Horizontal
+                        direction={header}
                         align=Align::Center
                         justify=Justify::SpaceBetween
                         spacing=BAR_SPACING
                     >
                         {grip}
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=BAR_SPACING
-                        >
+                        <List direction={header} align=Align::Center spacing=BAR_SPACING>
                             <DockMenu menu room=BarRoom::Narrow />
                             <DockClose closable close={close} />
                         </List>

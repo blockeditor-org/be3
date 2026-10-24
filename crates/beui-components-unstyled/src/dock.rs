@@ -74,6 +74,8 @@ const GRIP_CORNER: f32 = 24.0;
 const MARKER_WIDTH: f32 = 3.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
+pub const ICON_SIDEBAR_WIDTH: f32 = 40.0;
+const SIDEBAR_SECONDS: f32 = 0.18;
 const FLOAT_INSET: Vec2 = Vec2::new(64.0, 48.0);
 const GRAB_OFFSET: Vec2 = Vec2::new(72.0, 14.0);
 const GROUP_ZONE: f32 = 0.3;
@@ -94,6 +96,7 @@ pub struct DockTabHandle {
     pub floating: bool,
     pub pinned: bool,
     pub vertical: bool,
+    pub icons_only: Memo<bool>,
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
     pub picture: Memo<Option<Image>>,
@@ -131,6 +134,7 @@ pub struct DockChromeHandle {
 pub struct DockBarHandle {
     pub floating: bool,
     pub vertical: bool,
+    pub icons_only: Memo<bool>,
     pub focused: Memo<bool>,
     pub grip: NodeId,
     pub tabs: Option<NodeId>,
@@ -368,6 +372,7 @@ struct State {
     thickness: f32,
     reach: f32,
     group_inset: f32,
+    icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
     opens: ReadSignal<bool>,
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
@@ -637,6 +642,72 @@ impl State {
             let vertical = state.is_vertical(leaf);
             state.set_vertical(leaf, !vertical);
         });
+    }
+
+    fn pane_test_id(&self, prefix: &str, leaf: LeafId) -> String {
+        match self
+            .state
+            .with_untracked(|state| state.pane_key(leaf).map(str::to_owned))
+        {
+            Some(key) => format!("{prefix}.{key}"),
+            None => prefix.to_owned(),
+        }
+    }
+
+    fn toggle_icons_only(&self, leaf: LeafId) {
+        self.edit(|state| {
+            let icons_only = state.is_icons_only(leaf);
+            state.set_icons_only(leaf, !icons_only);
+        });
+    }
+
+    fn icons_only(&self, leaf: Option<LeafId>) -> Memo<bool> {
+        let state = self.state;
+        create_memo(move || leaf.is_some_and(|leaf| state.with(|state| state.is_icons_only(leaf))))
+    }
+
+    fn sidebar_target(&self, leaf: Option<LeafId>) -> Memo<f32> {
+        let state = self.state;
+        let narrow = self.icon_sidebar_width;
+        create_memo(move || match leaf {
+            Some(leaf) => state.with(|state| match state.is_icons_only(leaf) {
+                true => narrow,
+                false => state.sidebar_width(leaf),
+            }),
+            None => SIDEBAR_WIDTH,
+        })
+    }
+
+    fn sidebar_width(&self, leaf: Option<LeafId>) -> Memo<f32> {
+        let icons_only = self.icons_only(leaf);
+        let target = self.sidebar_target(leaf);
+        let shown = create_signal(target.get_untracked());
+        let from = StoredCell::new(shown.get_untracked());
+        let animation = create_animation(
+            move |frame| {
+                let progress = tween(
+                    frame.elapsed.as_secs_f32(),
+                    SIDEBAR_SECONDS,
+                    Easing::OutCubic,
+                );
+                let start = from.get();
+                shown.set(start + (target.get_untracked() - start) * progress);
+                progress < 1.0
+            },
+            move || shown.set(target.get_untracked()),
+        );
+        let was = Cell::new(icons_only.get_untracked());
+        create_effect(move || {
+            let width = target.get();
+            if icons_only.get() != was.replace(icons_only.get()) {
+                from.set(shown.get_untracked());
+                animation.stop();
+                animation.start();
+            } else if !animation.running() {
+                shown.set(width);
+            }
+        });
+        create_memo(move || shown.get())
     }
 
     fn close_tab(&self, tab: TabId) {
@@ -1214,6 +1285,7 @@ pub(crate) struct DockConfig {
     pub(crate) splitter_thickness: f32,
     pub(crate) splitter_reach: f32,
     pub(crate) group_inset: f32,
+    pub(crate) icon_sidebar_width: f32,
     pub(crate) inset: Prop<f32>,
     pub(crate) tab: RenderFn<DockTabHandle>,
     pub(crate) content: RenderFn<TabId>,
@@ -1256,6 +1328,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         splitter_thickness,
         splitter_reach,
         group_inset,
+        icon_sidebar_width,
         inset,
         tab,
         content,
@@ -1333,6 +1406,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 thickness: splitter_thickness,
                 reach: splitter_reach,
                 group_inset,
+                icon_sidebar_width,
                 rect: dock_rect,
                 opens: opens_windows(),
                 placements: create_signal(HashMap::new()),
@@ -1961,7 +2035,8 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         })
     });
     let vacant = create_memo(move || contents.with(Vec::is_empty));
-    let sidebar_width = create_memo(move || state.with(|state| state.sidebar_width(leaf)));
+    let sidebar_width = dock.sidebar_width(Some(leaf));
+    let icons_only = dock.icons_only(Some(leaf));
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
     let claimed = dock.drag_modifier;
@@ -1992,6 +2067,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                     let bar = (!hoisted).then(|| DockBarHandle {
                         floating,
                         vertical,
+                        icons_only,
                         focused,
                         grip: view! {
                             <DockPaneGrip dock={dock} leaf vertical focused={focused} />
@@ -2041,6 +2117,7 @@ fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) 
     let preview = dock.preview;
     view! {
         <Draggable
+            @test_id={dock.pane_test_id("dock.grip", leaf)}
             payload={DockDragged::Pane(leaf)}
             cursor=CursorIcon::Grab
             touch_drags=true
@@ -2055,7 +2132,15 @@ fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) 
             }}
             on_drop_outside={move |_: DragPoint| dock.drop_outside(DockDragged::Pane(leaf))}
         >|_: DragHandle|
-            <GripMenu menu vertical toggle={move || dock.toggle_vertical(leaf)}>{face}</GripMenu>
+            <GripMenu
+                menu
+                vertical
+                icons_only={dock.icons_only(Some(leaf))}
+                toggle={move || dock.toggle_vertical(leaf)}
+                toggle_icons={move || dock.toggle_icons_only(leaf)}
+            >
+                {face}
+            </GripMenu>
         </Draggable>
     }
 }
@@ -2278,6 +2363,7 @@ fn DockTabView(
         !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
     });
     let waiting = create_memo(move || tabs.with(|tabs| dock.waiting(tabs)));
+    let icons_only = dock.icons_only(Some(leaf));
     let face = dock.tab.call(DockTabHandle {
         entry,
         leaf,
@@ -2285,6 +2371,7 @@ fn DockTabView(
         floating,
         pinned,
         vertical,
+        icons_only,
         title,
         icon,
         picture,
@@ -2438,18 +2525,31 @@ fn TabMenu(
 }
 
 #[component]
-fn GripMenu(menu: MenuStyle, vertical: bool, toggle: ClickCallback, children: Child) -> NodeId {
+fn GripMenu(
+    menu: MenuStyle,
+    vertical: bool,
+    icons_only: Memo<bool>,
+    toggle: ClickCallback,
+    toggle_icons: ClickCallback,
+    children: Child,
+) -> NodeId {
     let label = match vertical {
         true => "Show tabs across the top",
         false => "Show tabs in a sidebar",
     };
+    let checked = create_memo(move || Some(icons_only.get()));
     view! {
         <ContextMenu
             menu
             items={view! {
                 <MenuItem label />
+                <MenuItem label="Icons only" checked />
             }}
-            on_select={move |_: Vec<usize>| toggle.call()}
+            on_select={move |path: Vec<usize>| match path.first() {
+                Some(0) => toggle.call(),
+                Some(1) => toggle_icons.call(),
+                _ => {}
+            }}
         >
             {children}
         </ContextMenu>
@@ -2562,11 +2662,12 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     let active = create_signal(false);
     let focused = create_signal(false);
     let state = dock.state;
-    let width = create_memo(move || state.with(|state| state.sidebar_width(leaf)));
+    let width = dock.sidebar_target(Some(leaf));
+    let narrow = dock.icon_sidebar_width;
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Splitter);
         node.set_numeric_value(f64::from(width.get()));
-        node.set_min_numeric_value(f64::from(MIN_SIDEBAR_WIDTH));
+        node.set_min_numeric_value(f64::from(narrow));
         node
     }));
     let face = dock.splitter.call(DockSplitterHandle {
@@ -2579,19 +2680,31 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     let grabbed = held.clone();
     view! {
         <Interactive
+            @test_id={dock.pane_test_id("dock.sidebar", leaf)}
             focusable=true
             on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
                 }
-                let step = match press.key {
-                    Key::ArrowLeft => -SIDEBAR_STEP,
-                    Key::ArrowRight => SIDEBAR_STEP,
+                let icons_only = state.with_untracked(|state| state.is_icons_only(leaf));
+                let stored = state.with_untracked(|state| state.sidebar_width(leaf));
+                match (press.key, icons_only) {
+                    (Key::ArrowLeft, true) => {}
+                    (Key::ArrowLeft, false) if stored <= MIN_SIDEBAR_WIDTH => {
+                        dock.edit(|state| state.set_icons_only(leaf, true));
+                    }
+                    (Key::ArrowLeft, false) => {
+                        dock.edit(|state| state.set_sidebar_width(leaf, stored - SIDEBAR_STEP));
+                    }
+                    (Key::ArrowRight, true) => {
+                        dock.edit(|state| state.set_icons_only(leaf, false));
+                    }
+                    (Key::ArrowRight, false) => {
+                        dock.edit(|state| state.set_sidebar_width(leaf, stored + SIDEBAR_STEP));
+                    }
                     _ => return false,
-                };
-                let next = width.get_untracked() + step;
-                dock.edit(|state| state.set_sidebar_width(leaf, next));
+                }
                 true
             }}
             cursor=CursorIcon::ResizeHorizontal
@@ -2606,7 +2719,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
                     return;
                 };
                 let next = start + (press.pos.x - from.x);
-                dock.edit(|state| state.set_sidebar_width(leaf, next));
+                dock.edit(|state| state.drag_sidebar(leaf, next));
             }}
             children={face}
         />
@@ -2718,11 +2831,8 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         }
     });
     let hoisted = state.with_untracked(|state| state.leaves(surface).first().copied());
-    let sidebar_width = create_memo(move || {
-        hoisted.map_or(SIDEBAR_WIDTH, |leaf| {
-            state.with(|state| state.sidebar_width(leaf))
-        })
-    });
+    let sidebar_width = dock.sidebar_width(hoisted);
+    let icons_only = dock.icons_only(hoisted);
     let vertical = create_memo(move || {
         hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
     });
@@ -2835,9 +2945,15 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                             <GripMenu
                                                                 menu={dock.menu}
                                                                 vertical
+                                                                icons_only
                                                                 toggle={move || {
                                                                     if let Some(leaf) = hoisted {
                                                                         dock.toggle_vertical(leaf);
+                                                                    }
+                                                                }}
+                                                                toggle_icons={move || {
+                                                                    if let Some(leaf) = hoisted {
+                                                                        dock.toggle_icons_only(leaf);
                                                                     }
                                                                 }}
                                                             >
@@ -2881,6 +2997,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                             bar: Some(DockBarHandle {
                                                                 floating: true,
                                                                 vertical,
+                                                                icons_only,
                                                                 focused,
                                                                 grip,
                                                                 tabs,

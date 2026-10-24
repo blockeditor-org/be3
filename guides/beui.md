@@ -2013,7 +2013,15 @@ anywhere on it that is not a tab drags the window. Right-clicking a grip moves
 that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
-at its top. Windows resize from any of
+at its top. The grip's menu also turns on icons only (`set_icons_only`, or
+`icons_only` on a `DockPane`): `DockTabHandle::icons_only` asks the tab face for
+its icon alone, which the styled dock draws as a square with the title in a
+tooltip (the title's first letter where a tab has no icon). Dragging a sidebar's
+edge below `ICONS_BELOW` turns icons only on, and dragging it back out to
+`MIN_SIDEBAR_WIDTH` turns it off at the pointer (`DockState::drag_sidebar`); the
+drag carries on either way, and the sidebar slides to its new width, the
+`icon_sidebar_width` of the dock or the pointer, which it keeps following
+until it catches up. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. The grips lie
 wholly outside the window, in a ring `HANDLE_REACH` points wide (a window's overlay is that
 much larger than the window on every side), with each corner's grip running `GRIP_CORNER`
