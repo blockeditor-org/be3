@@ -1,4 +1,3 @@
-mod appearance;
 mod artifact;
 mod block_menu;
 mod deleted;
@@ -11,6 +10,7 @@ mod panel;
 mod phone;
 mod picker;
 mod picker_view;
+mod rename;
 mod revisions;
 mod saved;
 pub use revisions::RevisionHistoryPanel;
@@ -19,11 +19,11 @@ mod tab;
 mod window;
 mod workspace;
 
-pub use appearance::AppearanceDialog;
 pub use dialogs::WorkspaceDialogs;
 pub use kept::KeptWindow;
 pub use picker::PickAnchor;
 pub use picker_view::{PickerDialog, Pickers};
+pub use rename::RenameDialog;
 pub use saved::saved_windows;
 pub use window::{window_tab, window_title};
 pub use workspace::{

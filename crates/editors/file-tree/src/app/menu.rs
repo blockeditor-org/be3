@@ -319,12 +319,12 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
         {
             editor
                 .host()
-                .edit_appearance(id, picker.row_anchor(&shown.key));
+                .rename_block(id, picker.row_anchor(&shown.key));
         }
     };
     view! {
         <MenuItem
-            label="Appearance…"
+            label="Icon and color…"
             glyph=ICON_PALETTE
             disabled
             row_test_id="file-tree.appearance"

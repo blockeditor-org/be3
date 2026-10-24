@@ -24,8 +24,8 @@ use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_editor_beui::{Media, Power};
 use block_shell::{
-    AppearanceDialog, AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialog,
-    Pickers, Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialog, Pickers,
+    RenameDialog, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -88,7 +88,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     });
     let dialog_windows = workspace.dialogs();
     let picker_dialogs = workspace.picker_dialogs();
-    let appearance_dialogs = workspace.appearance_dialogs();
+    let rename_dialogs = workspace.rename_dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
     let launcher = ProgramLauncher::new(editor);
@@ -118,8 +118,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={picker_dialogs}>|(pick, tab): (u64, TabId)|
                         <PickerDialog workspace pick tab />
                     </ForEach>
-                    <ForEach keys={appearance_dialogs}>|(block, tab): (Uuid, TabId)|
-                        <AppearanceDialog workspace block tab />
+                    <ForEach keys={rename_dialogs}>|(block, tab): (Uuid, TabId)|
+                        <RenameDialog workspace block tab />
                     </ForEach>
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />

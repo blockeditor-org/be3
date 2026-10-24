@@ -1,4 +1,3 @@
-use block_editor_beui::be_block::metadata::MAX_NAME_BYTES;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_LOCK, ICON_USER, ICON_USER_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
@@ -20,7 +19,6 @@ type ShareAct = Callback<ShareAction>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum OpenDialog {
-    Rename(Uuid),
     Share(Uuid),
     ArtifactSettings(Uuid),
     Unlink(Uuid),
@@ -30,7 +28,6 @@ pub(crate) enum OpenDialog {
 pub fn WorkspaceDialogs(workspace: Workspace) -> NodeId {
     view! {
         <List spacing=0.0>
-            <RenameDialog workspace={workspace} />
             <ShareDialog workspace={workspace} />
             <ArtifactSettingsDialog workspace={workspace} />
             <UnlinkDialog workspace />
@@ -41,59 +38,6 @@ pub fn WorkspaceDialogs(workspace: Workspace) -> NodeId {
 fn opened(workspace: &Workspace, of: fn(OpenDialog) -> Option<Uuid>) -> Memo<Option<Uuid>> {
     let dialog = workspace.dialog;
     create_memo(move || dialog.get().and_then(of))
-}
-
-#[component]
-fn RenameDialog(workspace: Workspace) -> NodeId {
-    let block = opened(&workspace, |dialog| match dialog {
-        OpenDialog::Rename(block) => Some(block),
-        _ => None,
-    });
-    let open = create_memo(move || block.get().is_some());
-    let name = create_signal(String::new());
-    let initial = create_memo(move || {
-        block
-            .get()
-            .and_then(|block| workspace.info(block))
-            .map(|info| workspace.label(info.id, info.block_type).name)
-            .unwrap_or_default()
-    });
-    create_effect(move || {
-        let initial = initial.get();
-        untrack(|| name.set(initial));
-    });
-    let invalid = create_memo(move || name.get().len() > MAX_NAME_BYTES);
-    let error = create_memo(move || {
-        if invalid.get() {
-            format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.")
-        } else {
-            Default::default()
-        }
-    });
-    let submit = move || {
-        if let Some(block) = block.get_untracked()
-            && !invalid.get_untracked()
-        {
-            workspace.rename(block, &name.get_untracked());
-        }
-    };
-    view! {
-        <Dialog
-            open={open}
-            title="Rename block"
-            id="rename"
-            confirm="Rename"
-            cancel="Cancel"
-            confirm_disabled={invalid}
-            on_confirm={submit}
-            on_dismiss={move || workspace.close_dialog()}
-        >
-            <TextInput value={name} label="Name" focused=true @test_id={"rename.name"} />
-            <Show condition={invalid}>
-                <Text style=TextStyle::CAPTION>{error}</Text>
-            </Show>
-        </Dialog>
-    }
 }
 
 #[component]

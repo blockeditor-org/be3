@@ -32,7 +32,6 @@ mod the_add_menu_fits_a_short_window_and_scrolls_inside_itself;
 mod the_add_menu_opens_at_the_files_button_that_asked;
 mod the_app_menu_opens_under_its_button;
 mod the_app_opens_its_files_and_closes_cleanly;
-mod the_appearance_card_from_the_files_reaches_past_them;
 mod the_canvas_dock_opens_the_add_menu_at_its_block_button;
 mod the_canvas_menu_ticks_its_grid_and_profile_in_submenus;
 mod the_desktop_shell_opens_and_closes_cleanly;
@@ -40,6 +39,7 @@ mod the_members_dialog_lists_an_organizations_members_and_their_roles;
 mod the_more_card_from_the_files_reaches_over_the_block_beside_them;
 mod the_more_card_hangs_on_its_tab_and_leaves_the_files_usable;
 mod the_organizations_screen_takes_an_invite_link;
+mod the_rename_card_from_the_files_reaches_past_them;
 mod typing_after_a_pause_undoes_as_its_own_step;
 
 fn add_to_my_files(app: &mut AppTest, label: &str) {

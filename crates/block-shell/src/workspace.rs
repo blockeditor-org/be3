@@ -23,12 +23,12 @@ use block_editor_beui::{
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
-use super::appearance::Appearing;
 use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
 use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome, PickTree, Tree, TreeRow};
+use super::rename::Renaming;
 use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
@@ -85,7 +85,7 @@ pub struct Workspace {
     pub(crate) sheet: Signal<PhoneSheet>,
     pub(crate) picks: Signal<Vec<Pick>>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
-    appearance: Signal<Option<Appearing>>,
+    renaming: Signal<Option<Renaming>>,
     pub(crate) share: Signal<Option<Share>>,
     windows: Memo<Vec<HostWindow>>,
     keeps_windows: bool,
@@ -109,7 +109,7 @@ impl Workspace {
         let sheet = create_signal(PhoneSheet::Closed);
         let picks = create_signal(Vec::new());
         let dialog = create_signal(None);
-        let appearance = create_signal(None);
+        let renaming = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
         let windows = editor.host_value::<HostWindows>();
@@ -149,7 +149,7 @@ impl Workspace {
             picks,
             default_editors,
             dialog,
-            appearance,
+            renaming,
             share,
             windows,
             keeps_windows,
@@ -418,18 +418,10 @@ impl Workspace {
         }
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
-                ShellDialog::Rename => self.open_dialog(OpenDialog::Rename(block)),
-                ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
-                ShellDialog::Appearance { anchor, within } => {
-                    let tab = within
-                        .map(Uuid::from_bytes)
-                        .and_then(|within| self.tab_of_block(within))
-                        .or_else(|| inner.layout.focused());
-                    self.appearance.set(Some(Appearing {
-                        block,
-                        anchor: PickAnchor { rect: anchor, tab },
-                    }));
+                ShellDialog::Rename { anchor, within } => {
+                    self.open_rename(block, anchor, within.map(Uuid::from_bytes));
                 }
+                ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
             }
         }
         for panel in self.editor.take_panel_requests() {
@@ -452,10 +444,21 @@ impl Workspace {
         self.dialog.set(Some(dialog));
     }
 
-    pub fn appearance_dialogs(&self) -> Memo<Vec<(Uuid, TabId)>> {
-        let appearance = self.appearance;
+    pub(crate) fn open_rename(&self, block: Uuid, rect: Option<Rect>, within: Option<Uuid>) {
+        let tab = within
+            .or(Some(block))
+            .and_then(|within| self.tab_of_block(within))
+            .or_else(|| self.state.value().layout.focused());
+        self.renaming.set(Some(Renaming {
+            block,
+            anchor: PickAnchor { rect, tab },
+        }));
+    }
+
+    pub fn rename_dialogs(&self) -> Memo<Vec<(Uuid, TabId)>> {
+        let renaming = self.renaming;
         create_memo(move || {
-            appearance
+            renaming
                 .get()
                 .and_then(|shown| Some((shown.block, shown.anchor.tab?)))
                 .into_iter()
@@ -463,13 +466,13 @@ impl Workspace {
         })
     }
 
-    pub fn appearance_anchor(&self) -> Option<PickAnchor> {
-        self.appearance
+    pub fn rename_anchor(&self) -> Option<PickAnchor> {
+        self.renaming
             .with_untracked(|shown| shown.map(|shown| shown.anchor))
     }
 
-    pub(crate) fn close_appearance(&self) {
-        self.appearance.set(None);
+    pub(crate) fn close_rename(&self) {
+        self.renaming.set(None);
     }
 
     pub(crate) fn close_dialog(&self) {
@@ -490,7 +493,6 @@ impl Workspace {
         let name = name.trim().to_owned();
         self.blocks()
             .set_name(block, (!name.is_empty()).then_some(name));
-        self.close_dialog();
     }
 
     pub(crate) fn share_action(&self, action: ShareAction) {
@@ -1334,7 +1336,7 @@ impl Workspace {
                 }
                 workspace.open(TabItem::new(picked.id, picked.block_type), container);
                 if !picked.linked {
-                    workspace.open_dialog(OpenDialog::Rename(picked.id));
+                    workspace.open_rename(picked.id, None, None);
                 }
             },
         );

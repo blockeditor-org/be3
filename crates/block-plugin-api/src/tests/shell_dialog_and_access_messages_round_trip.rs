@@ -11,7 +11,7 @@ fn shell_dialog_and_access_messages_round_trip() {
         Message::Editor(EditorMessage::ShowDialog {
             instance: EditorInstanceId(2),
             block_id: [3; 16],
-            dialog: ShellDialog::Appearance {
+            dialog: ShellDialog::Rename {
                 anchor: Some(Rect::from_min_size(
                     Pos2::new(4.0, 8.0),
                     Vec2::new(16.0, 24.0),

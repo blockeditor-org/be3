@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate::action_row::ActionRow;
 use crate::border::Separator;
 use crate::button::ButtonVariant;
-use crate::dock::{BarRoom, DockMenu};
+use crate::dock::{BarRoom, DockMenu, title_action};
 use crate::icon_button::IconButton;
 use crate::list_row::ListRow;
 use crate::menu_button::IconMenuButton;
@@ -15,9 +15,10 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, SHEET_STOPS, TabId,
 };
+use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_ARROW_LEFT, ICON_ELLIPSIS_VERTICAL, ICON_X};
+use beui_core::icons::{Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -50,7 +51,8 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         switch_label,
         open_switcher,
     } = handle;
-    let pictured = create_memo(move || icon.get().is_some());
+    let action = create_memo(move || menu.with(|nodes| title_action(nodes)));
+    let titled = create_memo(move || action.with(Option::is_some));
     view! {
         <List spacing=0.0>
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
@@ -64,29 +66,20 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             on_click={back}
                         />
                     </Show>
-                    <Frame
-                        @sizing=ItemSize::Percent(100.0)
-                        padding={Sides::horizontal(TITLE_PADDING)}
-                    >
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=TITLE_SPACING
-                        >
-                            <Show condition={pictured}>
-                                <Text color=TextColor::Accent align=TextAlign::Center>
-                                    <Icon glyph={icon} />
-                                </Text>
-                            </Show>
-                            <Text
-                                @sizing=ItemSize::Percent(100.0)
-                                @test_id={"dock.title"}
-                                ellipsis=true
-                            >
-                                {title}
-                            </Text>
-                        </List>
-                    </Frame>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                        <Dynamic value={titled}>|titled: bool| {
+                            match titled {
+                                true => view! {
+                                    <DockTitleButton action title icon />
+                                },
+                                false => view! {
+                                    <Frame padding={Sides::horizontal(TITLE_PADDING)}>
+                                        <DockTitle title icon opens=false />
+                                    </Frame>
+                                },
+                            }
+                        }</Dynamic>
+                    </List>
                     <DockMenu menu room=BarRoom::Phone />
                     <DockTabCount
                         count={closable_tabs}
@@ -96,6 +89,77 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                 </List>
             </Frame>
             <Separator />
+        </List>
+    }
+}
+
+#[component]
+fn DockTitleButton(
+    action: Memo<Option<Action>>,
+    title: Memo<String>,
+    icon: Memo<Option<Glyph>>,
+) -> NodeId {
+    let theme = use_theme();
+    let disabled = create_memo(move || {
+        action.with(|action| action.as_ref().is_none_or(|action| !action.enabled().get()))
+    });
+    let label = create_memo(move || {
+        action.with(|action| {
+            action
+                .as_ref()
+                .map(|action| action.label().get())
+                .unwrap_or_default()
+        })
+    });
+    view! {
+        <unstyled::Button
+            @test_id={"dock.title"}
+            label
+            disabled
+            on_click={move || {
+                if let Some(action) = action.get_untracked() {
+                    action.run();
+                }
+            }}
+        >|handle: unstyled::ButtonHandle| {
+            let unstyled::ButtonHandle { hovered, focused, .. } = handle;
+            let fill = create_memo(move || match hovered.get() && !disabled.get() {
+                true => theme.hover.get(),
+                false => Color32::TRANSPARENT,
+            });
+            let opens = create_memo(move || !disabled.get());
+            view! {
+                <Frame
+                    fill={ColorRole::custom(fill)}
+                    radius={Radius::custom(COUNT_TARGET_RADIUS)}
+                    border={focus_border(focused, Border::FOCUS)}
+                    height=COUNT_TARGET
+                    padding={Sides::horizontal(TITLE_PADDING)}
+                    align={Align2::new(Align::Stretch, Align::Center)}
+                >
+                    <DockTitle title icon opens />
+                </Frame>
+            }
+        }</unstyled::Button>
+    }
+}
+
+#[component]
+fn DockTitle(title: Memo<String>, icon: Memo<Option<Glyph>>, opens: Prop<bool>) -> NodeId {
+    let pictured = create_memo(move || icon.get().is_some());
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
+            <Show condition={pictured}>
+                <Text color=TextColor::Accent align=TextAlign::Center>
+                    <Icon glyph={icon} />
+                </Text>
+            </Show>
+            <Text ellipsis=true>{title}</Text>
+            <Show condition={opens}>
+                <Text color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph=ICON_CHEVRON_DOWN />
+                </Text>
+            </Show>
         </List>
     }
 }

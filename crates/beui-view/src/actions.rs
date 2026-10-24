@@ -189,6 +189,7 @@ thread_local! {
 pub enum Pin {
     Icon,
     Label,
+    Title,
 }
 
 struct ActionData {

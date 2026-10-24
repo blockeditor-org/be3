@@ -99,7 +99,10 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
     );
 
     test.pick_menu("editor.rename");
-    assert_eq!(test.take_block_commands(), [(block, BlockCommand::Rename)]);
+    assert_eq!(
+        test.take_block_commands(),
+        [(block, BlockCommand::Rename { anchor: None })]
+    );
 
     test.pick_menu("editor.details");
     assert_eq!(test.take_bar_actions(), [BarAction::Details]);

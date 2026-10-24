@@ -7,7 +7,7 @@ use block_editor_beui::{
 use super::*;
 
 #[test]
-fn appearance_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() {
+fn icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() {
     let mut fixture = editor();
     let kind = Uuid::from_u128(1);
     let block = Uuid::from_u128(5);
@@ -31,17 +31,21 @@ fn appearance_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() {
     fixture.settle();
     fixture.test.snapshot("block_icons_inherit_the_type_color");
 
-    fixture.choose(block, "Appearance…");
+    fixture.choose(block, "Icon and color…");
     let asked: Vec<_> = fixture
         .test
         .take_block_commands()
         .into_iter()
         .filter_map(|(id, command)| match command {
-            BlockCommand::Appearance { anchor } => Some((id, anchor)),
+            BlockCommand::Rename { anchor } => Some((id, anchor)),
             _ => None,
         })
         .collect();
-    assert_eq!(asked.len(), 1, "choosing Appearance asks the host once");
+    assert_eq!(
+        asked.len(),
+        1,
+        "choosing Icon and color asks the host for its rename card once"
+    );
     assert_eq!(asked[0].0, block, "for the row's block");
     assert!(
         asked[0].1.is_some_and(|anchor| anchor.width() > 0.0),

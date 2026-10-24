@@ -171,6 +171,7 @@ pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
                     None => MenuPin::None,
                     Some(Pin::Icon) => MenuPin::Icon,
                     Some(Pin::Label) => MenuPin::Label,
+                    Some(Pin::Title) => MenuPin::Title,
                 },
             }),
             MenuNode::Submenu(submenu) => MenuEntry::Submenu(MenuSubmenu {
@@ -313,9 +314,10 @@ fn frame_actions(
         .enabled(can(|state| state.can_redo))
         .register(),
         rename: Action::new("editor.rename", "Rename", move || {
-            editor.host().rename_block(id)
+            editor.host().rename_block(id, None)
         })
         .glyph(ICON_PENCIL_LINE)
+        .pin(Pin::Title)
         .enabled(can(|state| state.can_rename))
         .register(),
         share: Action::new("editor.share", "Share", move || {

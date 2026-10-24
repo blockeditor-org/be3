@@ -2029,7 +2029,7 @@ impl BlockApp {
         }
     }
 
-    fn show_appearance(
+    fn show_rename(
         &mut self,
         from: Option<Uuid>,
         id: Uuid,
@@ -2052,7 +2052,7 @@ impl BlockApp {
         self.with_editor(handler, |handler| {
             handler.show_dialog(
                 id,
-                ShellDialog::Appearance {
+                ShellDialog::Rename {
                     anchor,
                     within: within.map(Uuid::into_bytes),
                 },
@@ -2488,8 +2488,7 @@ impl BlockApp {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
             BlockCommand::Leave => self.leaving = Some(id),
-            BlockCommand::Rename => self.show_dialog(from, id, ShellDialog::Rename),
-            BlockCommand::Appearance { anchor } => self.show_appearance(from, id, anchor),
+            BlockCommand::Rename { anchor } => self.show_rename(from, id, anchor),
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
