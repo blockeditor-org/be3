@@ -153,6 +153,7 @@ fn TextInputFrame(
                                 label="Clear"
                                 size=IconButtonSize::Compact
                                 press_focus=false
+                                capture_presses=true
                                 on_click={clear}
                             />
                         </Frame>
@@ -164,6 +165,7 @@ fn TextInputFrame(
                                 label={copy_label}
                                 size=IconButtonSize::Compact
                                 press_focus=false
+                                capture_presses=true
                                 on_click={move || copy_text(copied.get_untracked())}
                             />
                         </Frame>
