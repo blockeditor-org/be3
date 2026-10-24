@@ -1,8 +1,8 @@
 use super::*;
 
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
 use be_cli::terminal_host::{Host, HostOptions};
+use terminal_types::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
 
 fn host_of(shared: &Shared, block: Uuid) -> Option<u64> {
     shared.presence.get(&block).and_then(|(_, peers)| {
@@ -61,9 +61,7 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
             })
             .expect("the host starts");
             ready.send(()).expect("the test waits for the host");
-            let sources = vec![be_types_host::in_process::<builtin_types::BlockTypes>(
-                super::super::types::BUILTIN,
-            )];
+            let sources = super::super::types::sources().await;
             host.serve_until(peer, block, sources, async {
                 let _ = stopped.await;
             })

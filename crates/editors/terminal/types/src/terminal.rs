@@ -2,8 +2,8 @@ use be_model::{Document, Model};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Root;
-use crate::presence::{ChannelKind, PresenceKind};
+use be_block::Root;
+use be_block::presence::{ChannelKind, PresenceKind};
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Terminal {}

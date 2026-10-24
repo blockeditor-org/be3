@@ -27,6 +27,7 @@ ghostty-vt = { path = "../ghostty-vt" }
 portable-pty = "0.9"
 block-ui = { path = "../block-ui" }
 serde_json = "1"
+terminal-types = { path = "../editors/terminal/types" }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 uuid = { version = "1", features = ["v4", "v7"] }
 

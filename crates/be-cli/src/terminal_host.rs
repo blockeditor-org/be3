@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use be_block::BlockContent;
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{
+use terminal_types::{
     LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
 };
 use be_client::Peer;

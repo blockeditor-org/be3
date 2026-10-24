@@ -743,6 +743,7 @@ dependencies = [
  "ghostty-vt",
  "portable-pty",
  "serde_json",
+ "terminal-types",
  "tokio",
  "uuid",
  "workspace-ui-types",
@@ -1525,6 +1526,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlite-schema",
+ "terminal-types",
  "tokio",
  "ureq",
  "uuid",
@@ -7444,7 +7446,20 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "serde_json",
+ "terminal-types",
  "terminal-view",
+ "uuid",
+]
+
+[[package]]
+name = "terminal-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
  "uuid",
 ]
 

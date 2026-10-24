@@ -1,4 +1,4 @@
-use crate::presence::ChannelKind;
+use be_block::presence::ChannelKind;
 use crate::terminal::{TerminalMessage, TerminalSize};
 
 #[test]

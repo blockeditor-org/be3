@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::presence::PresenceKind;
-use block_editor_beui::be_block::terminal::{
+use terminal_types::{
     TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
 };
 use block_editor_beui::beui::{Key, Modifiers, Vec2};

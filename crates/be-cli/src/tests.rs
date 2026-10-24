@@ -69,6 +69,7 @@ fn sources() -> crate::tracker::Sources {
         vec![
             be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
             be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+            be_types_host::in_process::<terminal_types::BlockTypes>("be3.terminal"),
         ]
     })
 }

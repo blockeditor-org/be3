@@ -82,6 +82,7 @@ pub(crate) fn provided(content_type: Uuid) -> bool {
         builtin_types::block_types(),
         calendar_types::block_types(),
         checklist_types::block_types(),
+        terminal_types::block_types(),
         browser_tab_types::block_types(),
         image_block_types::block_types(),
         workspace_ui_types::block_types(),
@@ -141,6 +142,7 @@ pub(super) async fn sources() -> Vec<Source> {
         in_process::<HostTypes>("host-types"),
         plugin::<calendar_types::BlockTypes>("be3.calendar", calendar_types::registrations()),
         plugin::<checklist_types::BlockTypes>("be3.checklist", checklist_types::registrations()),
+        plugin::<terminal_types::BlockTypes>("be3.terminal", terminal_types::registrations()),
         plugin::<browser_tab_types::BlockTypes>("be3.browser-tab", browser_tab_types::registrations()),
         plugin::<image_block_types::BlockTypes>("be3.image", image_block_types::registrations()),
         plugin::<workspace_ui_types::BlockTypes>(

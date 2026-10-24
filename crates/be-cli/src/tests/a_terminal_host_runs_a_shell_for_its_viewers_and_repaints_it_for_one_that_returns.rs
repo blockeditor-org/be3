@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use be_block::BlockContent;
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
+use terminal_types::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
 use be_graph::Access;
 use ghostty_vt::{Renderer, Terminal};
 

@@ -163,7 +163,7 @@ async fn host_terminal(
     let connect = async || {
         let tracker = Tracker::new(connect_live(settings).await?, sources(settings));
         let entry = tracker.resolve(target).await?;
-        if entry.block_type != be_block::TerminalContent::CONTENT_TYPE {
+        if entry.block_type != terminal_types::TerminalContent::CONTENT_TYPE {
             return Err(format!("{} is not a terminal block", entry.label()));
         }
         Ok((tracker.shared_peer(), entry.id))

@@ -1,8 +1,8 @@
 use be_block::{
     CanvasContent, CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
     DatabaseViewContent, DeterministicGameContent, GameModuleContent, HotbarContent,
-    LogicGameContent, LogicGridContent, PixelArtContent, PresentationContent, TerminalContent,
-    TextContent, VideoContent,
+    LogicGameContent, LogicGridContent, PixelArtContent, PresentationContent, TextContent,
+    VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -25,7 +25,6 @@ be_block_types![
     LogicGridContent { undo },
     PixelArtContent { undo },
     PresentationContent { undo },
-    TerminalContent,
     VideoContent { undo },
 ];
 
