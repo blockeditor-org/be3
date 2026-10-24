@@ -231,11 +231,34 @@ command_alias(
 )
 
 # The app headless for an agent to drive, signed in with a workspace open:
-# guides/running/drive.md.
+# guides/running/drive.md. Each plugin is its precompiled module alone, half
+# of what :native downloads, and `-c be3.plugins=checklist,file-tree` stages
+# only the editors under crates/editors it names, and workspace-ui, which draws
+# the workspace itself.
+dev_plugins = [
+    package
+    for package in editor_packages()
+    if read_config("be3", "plugins", "") == "" or package.removeprefix("crates/editors/") in ["workspace-ui"] + read_config("be3", "plugins", "").split(",")
+]
+
+app(
+    name = "dev-app",
+    binary = ":bin",
+    compiled_only = True,
+    data = ["//{}:data".format(package) for package in dev_plugins],
+    executable_name = "block-app",
+    files = ["//buck/app:build-info.json"],
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in dev_plugins],
+    modules = ["//{}:module".format(package) for package in dev_plugins],
+    precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
+)
+
 headless(
     name = "dev",
     app_name = "dev",
     args = ["--dev-workspace"],
     data = True,
-    program = "$(location :native)/block-app",
+    program = "$(location :dev-app)/block-app",
 )
