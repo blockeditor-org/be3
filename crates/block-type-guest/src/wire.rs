@@ -2,10 +2,6 @@ use be_session::SessionMessage;
 use block_type_api::SessionTag;
 use uuid::Uuid;
 
-// Peers speak be-session's SessionMessage exactly as be-client's Live does, so
-// a replica and a Live peer of one build share a session. A replica says which
-// build it is on two channels a Live peer passes over: the tag ahead of each
-// Catchup, and the owner's answer to a tag that is not its own.
 const TAG_CHANNEL: Uuid = Uuid::from_u128(0x6be3_7a90_1d1c_4c5e_9a1b_0b1e_7a9c_0001);
 const INCOMPATIBLE_CHANNEL: Uuid = Uuid::from_u128(0x6be3_7a90_1d1c_4c5e_9a1b_0b1e_7a9c_0002);
 
