@@ -88,9 +88,10 @@ set_peers, report_children, resize and presence_visible each queue the message t
 would send. Setting the same state on the EditorHost directly skips the protocol, and the
 session overwrites what it owns - the chrome, the view, a drag - on the next frame.
 
-Call run() after
-every gesture — the view only sees an event on the frame it is delivered in — and click a
-text field before typing into it. click() first scrolls a target that is out of view into it
+A gesture only queues events: click() returns before the editor has seen the click, so
+nothing it does (a handler's effect, a row added, a dialog opened) shows in shown(), label()
+or the model until the next run(). Call run() after every gesture — the view only sees an
+event on the frame it is delivered in — and click a text field before typing into it. click() first scrolls a target that is out of view into it
 (`reveal`, every enclosing scroll, as a person would) and runs a frame, in BeuiTest and
 DocumentTest alike, so a test need not know how much fits on its screen. It panics when no
 node has that test id, which is usually a node that was never given one, or one a virtualized
@@ -333,10 +334,13 @@ compare a painting rather than making one nothing would agree with.
 
 While working on one editor, run its tests alone:
 
-  ./scripts/buck test //crates/editors/checklist:test
-  ./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
+  ./scripts/test //crates/editors/checklist:test
+  ./scripts/test //crates/editors/checklist:test --update
 
-The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
+The first compares, the second accepts. Both print everything the tests wrote, println! and
+eprintln! alike, the guest's stdout and stderr each under its own heading after the target's
+"✓ Pass" or "✗ Fail" line. ./scripts/buck test //crates/editors/checklist:test runs the same,
+but shows a passing test's output only when BE3_VERBOSE=1 is set. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
 reports every one that failed, each with its panic message and the functions it panicked in,
 innermost first, at the end of the output. Rust's own backtraces are not available in wasm, so
