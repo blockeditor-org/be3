@@ -3,7 +3,7 @@ use be_block::{
     CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
     DatabaseViewContent, DeterministicGameContent, EditorSettingsContent, FileContent,
     FolderContent, GameModuleContent, HotbarContent, LogicGameContent,
-    LogicGridContent, MapContent, PanZoomContent, PdfContent, PixelArtContent,
+    LogicGridContent, MapContent, PanZoomContent, PixelArtContent,
     PixelRayTracerContent, PresentationContent, Scene3dContent, TerminalContent, TextContent,
     TriangleContent, VideoContent, WorkspaceContent,
 };
@@ -14,7 +14,6 @@ use be_block::{
 use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
-    PdfContent { file },
     AudioContent { file },
     TextContent { undo, file },
     FileContent { file },

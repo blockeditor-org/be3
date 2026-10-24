@@ -3250,6 +3250,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "image-block-types",
+ "pdf-types",
  "serde",
  "uuid",
 ]
@@ -5549,6 +5550,17 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "pdf-types",
+ "uuid",
+]
+
+[[package]]
+name = "pdf-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "block-type-guest",
+ "serde",
  "uuid",
 ]
 

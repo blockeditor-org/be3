@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::blob::{Blob, BlobKind};
+use be_block::blob::{Blob, BlobKind};
+use be_block::plain::extension;
+use block_type_guest::BlobFile;
 
 const PDF_MAGIC: &[u8] = b"%PDF-";
 
@@ -24,16 +26,28 @@ impl BlobKind for PdfFile {
 
 pub type PdfContent = Blob<PdfFile>;
 
-impl Blob<PdfFile> {
-    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> Result<Self, String> {
+impl PdfFile {
+    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> Result<PdfContent, String> {
         if !data.starts_with(PDF_MAGIC) {
             return Err("data is not a PDF file".into());
         }
-        Ok(Self::new(
+        Ok(PdfContent::new(
             PdfHeader {
                 source_name: source_name.into(),
             },
             data,
         ))
+    }
+}
+
+impl BlobFile for PdfFile {
+    fn header(name: &str, _: &[u8]) -> PdfHeader {
+        PdfHeader {
+            source_name: name.to_owned(),
+        }
+    }
+
+    fn claims(name: &str, first: &[u8]) -> bool {
+        extension(name) == "pdf" && first.starts_with(PDF_MAGIC)
     }
 }

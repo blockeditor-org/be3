@@ -3,5 +3,6 @@ load("@root//buck/wasm:defs.bzl", "editor")
 editor(
     extra_deps = ["root//third-party/pdfium:pdfium"],
     module = "pdf",
+    types = "//crates/editors/pdf/types:module",
     shared_sdk = False,
 )

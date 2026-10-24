@@ -2,11 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::plain::{export_name, extension_of, text_file_type};
-use block_editor_beui::be_block::{AudioContent, BlockContent, FileContent, LiveEdit, PdfContent, TextContent};
+use block_editor_beui::be_block::{AudioContent, BlockContent, FileContent, LiveEdit, TextContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Editor, FileSaver, SavedFile};
 use uuid::Uuid;
 use image_block_types::{ImageContent};
+use pdf_types::{PdfContent};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ExportFormat {

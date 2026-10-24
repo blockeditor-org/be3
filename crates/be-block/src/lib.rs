@@ -32,7 +32,6 @@ pub mod logic_grid;
 pub mod map;
 pub mod metadata;
 pub mod model;
-pub mod pdf;
 pub mod pixel_art;
 pub mod pixel_ray_tracer;
 pub mod plain;
@@ -81,7 +80,6 @@ pub use metadata::{
     Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
-pub use pdf::{PdfContent, PdfHeader};
 pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};

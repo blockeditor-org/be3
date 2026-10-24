@@ -1,12 +1,11 @@
 use be_block::{
-    AudioContent, FileContent, PdfContent, TextBlock, TextContent, TextLanguage,
+    AudioContent, FileContent, TextBlock, TextContent, TextLanguage,
 };
 use block_type_api::{ChildChange, Plain};
 
 use super::*;
 
 crate::be_block_types![
-    PdfContent { file },
     AudioContent { file },
     TextContent { undo, file },
     FileContent { file },

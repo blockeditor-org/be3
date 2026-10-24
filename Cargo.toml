@@ -87,6 +87,7 @@ members = [
     "crates/editors/map",
     "crates/editors/pan-zoom",
     "crates/editors/pdf",
+    "crates/editors/pdf/types",
     "crates/editors/pixel-art",
     "crates/editors/pixel-ray-tracer",
     "crates/editors/presentation",
