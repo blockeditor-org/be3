@@ -10,10 +10,7 @@ use std::{
 use wasm_bindgen::{JsCast, prelude::*};
 
 use super::canvases::{Canvases, Placement};
-use crate::plugin_host::{
-    backend::StepTime,
-    worker::{self, Event, Produced, Received},
-};
+use block_guest_host::{Channel, Event, Produced, Received, StepTime};
 
 const WORKER_SOURCE: &str = r#"
 // The worker one plugin runs in.
@@ -170,7 +167,7 @@ impl Drop for WebProtocolAdapter {
     }
 }
 
-impl worker::Channel for WebProtocolAdapter {
+impl Channel for WebProtocolAdapter {
     type Presented = Infallible;
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> bool {

@@ -1,11 +1,9 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 use block_plugin_api::{Message, PluginManifest, ScreenDamage, decode_frame, encode_frame};
 
-use super::worker::Worker;
+pub(super) use block_guest_host::{Deadline, StepTime};
+use block_guest_host::Worker;
 use crate::{editors::plugin::discovery, host};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -18,12 +16,6 @@ const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
 
 pub(super) type Frame = platform::Frame;
 
-#[derive(Clone, Copy, Default)]
-pub(super) struct StepTime {
-    pub(super) step: Duration,
-    pub(super) gpu: Duration,
-    pub(super) submit: Duration,
-}
 
 pub(super) trait ShownFrame {
     fn presents(&self) -> u64;
@@ -31,23 +23,6 @@ pub(super) trait ShownFrame {
     fn damage(&self) -> Option<&[ScreenDamage]>;
 
     fn set_damage(&mut self, damage: Option<Vec<ScreenDamage>>);
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct Deadline {
-    at: Instant,
-}
-
-impl Deadline {
-    pub(super) fn after(budget: Duration) -> Self {
-        Self {
-            at: Instant::now() + budget,
-        }
-    }
-
-    pub(super) fn remaining(self) -> Option<Duration> {
-        self.at.checked_duration_since(Instant::now())
-    }
 }
 
 pub(super) struct Backend {

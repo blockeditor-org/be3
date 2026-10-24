@@ -50,6 +50,7 @@ be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 be-vcs = { path = "../be-vcs" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
+block-guest-host = { path = "../block-guest-host" }
 block-plugin-api = { path = "../block-plugin-api" }
 build-id = { path = "../build-id" }
 bytemuck = { version = "1.24.0", features = ["derive"] }

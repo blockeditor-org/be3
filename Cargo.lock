@@ -1432,6 +1432,7 @@ dependencies = [
  "beui",
  "beui-adapter-drm",
  "block-editor-plugin",
+ "block-guest-host",
  "block-plugin-api",
  "block-wasm-host",
  "build-id",
@@ -1505,8 +1506,8 @@ name = "block-editor-plugin"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "block-gpu-abi",
  "block-gpu-guest",
+ "block-guest-abi",
  "block-plugin-api",
  "block-ui",
  "geometry",
@@ -1542,6 +1543,7 @@ name = "block-gpu-host"
 version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
+ "block-guest-abi",
  "wgpu",
 ]
 
@@ -1551,6 +1553,7 @@ version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
  "block-gpu-host",
+ "block-guest-abi",
  "js-sys",
  "serde_json",
  "wasm-bindgen",
@@ -1558,6 +1561,28 @@ dependencies = [
  "wasm-dylink",
  "web-sys",
  "wgpu",
+]
+
+[[package]]
+name = "block-guest-abi"
+version = "0.1.0"
+
+[[package]]
+name = "block-guest-echo"
+version = "0.1.0"
+dependencies = [
+ "block-guest-abi",
+]
+
+[[package]]
+name = "block-guest-host"
+version = "0.1.0"
+dependencies = [
+ "block-guest-abi",
+ "block-guest-echo",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -1634,6 +1659,9 @@ version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
  "block-gpu-host",
+ "block-guest-abi",
+ "block-guest-echo",
+ "block-guest-host",
  "block-plugin-api",
  "bytes",
  "rustc-demangle",

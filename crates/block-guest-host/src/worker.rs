@@ -3,16 +3,38 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
-use super::backend::{Deadline, StepTime};
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StepTime {
+    pub step: Duration,
+    pub gpu: Duration,
+    pub submit: Duration,
+}
 
-pub(super) const STOPPED: &str = "The plugin worker stopped.";
-pub(super) const NOT_RESPONDING: &str = "The plugin stopped responding.";
-pub(super) const STEP_TIMEOUT: Duration = Duration::from_secs(10);
+#[derive(Clone, Copy, Debug)]
+pub struct Deadline {
+    at: Instant,
+}
 
-pub(super) trait Presented {
+impl Deadline {
+    pub fn after(budget: Duration) -> Self {
+        Self {
+            at: Instant::now() + budget,
+        }
+    }
+
+    pub fn remaining(self) -> Option<Duration> {
+        self.at.checked_duration_since(Instant::now())
+    }
+}
+
+pub const STOPPED: &str = "The plugin worker stopped.";
+pub const NOT_RESPONDING: &str = "The plugin stopped responding.";
+pub const STEP_TIMEOUT: Duration = Duration::from_secs(10);
+
+pub trait Presented {
     fn surface(&self) -> u32;
 }
 
@@ -22,39 +44,48 @@ impl Presented for std::convert::Infallible {
     }
 }
 
-pub(super) struct Produced<P> {
-    pub(super) outbound: Vec<Vec<u8>>,
-    pub(super) presented: Vec<P>,
-    pub(super) painted: bool,
-    pub(super) took: StepTime,
+pub struct Produced<P> {
+    pub outbound: Vec<Vec<u8>>,
+    pub presented: Vec<P>,
+    pub painted: bool,
+    pub took: StepTime,
 }
 
 impl<P> Produced<P> {
+    pub fn sent(outbound: Vec<Vec<u8>>, took: StepTime) -> Self {
+        Self {
+            outbound,
+            presented: Vec::new(),
+            painted: false,
+            took,
+        }
+    }
+
     fn is_empty(&self) -> bool {
         self.outbound.is_empty() && !self.painted
     }
 }
 
-pub(super) enum Event<P> {
+pub enum Event<P> {
     Ready(Produced<P>),
     Stepped(Produced<P>),
     Failed(String),
 }
 
 impl<P> Event<P> {
-    pub(super) fn wakes(&self, woken: bool, waiting: &AtomicBool) -> bool {
+    pub fn wakes(&self, woken: bool, waiting: &AtomicBool) -> bool {
         let quiet = !woken && matches!(self, Self::Stepped(produced) if produced.is_empty());
         !quiet || waiting.load(Ordering::SeqCst)
     }
 }
 
-pub(super) enum Received<P> {
+pub enum Received<P> {
     Event(Event<P>),
     Empty,
     Stopped,
 }
 
-pub(super) trait Channel {
+pub trait Channel {
     type Presented: Presented;
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> bool;
@@ -66,8 +97,8 @@ pub(super) trait Channel {
     }
 }
 
-pub(super) struct Worker<C: Channel> {
-    pub(super) channel: C,
+pub struct Worker<C: Channel> {
+    pub channel: C,
     pending: Vec<Vec<u8>>,
     waiting: Arc<AtomicBool>,
     received: Vec<Vec<u8>>,
@@ -82,7 +113,7 @@ pub(super) struct Worker<C: Channel> {
 }
 
 impl<C: Channel> Worker<C> {
-    pub(super) fn new(channel: C, waiting: Arc<AtomicBool>) -> Self {
+    pub fn new(channel: C, waiting: Arc<AtomicBool>) -> Self {
         Self {
             channel,
             pending: Vec::new(),
@@ -99,11 +130,11 @@ impl<C: Channel> Worker<C> {
         }
     }
 
-    pub(super) fn ready(&self) -> bool {
+    pub fn ready(&self) -> bool {
         self.ready
     }
 
-    pub(super) fn queue(&mut self, frames: Vec<Vec<u8>>) -> Option<String> {
+    pub fn queue(&mut self, frames: Vec<Vec<u8>>) -> Option<String> {
         self.pending.extend(frames);
         if self.pending.is_empty() {
             return None;
@@ -112,7 +143,7 @@ impl<C: Channel> Worker<C> {
         self.poll()
     }
 
-    pub(super) fn poll(&mut self) -> Option<String> {
+    pub fn poll(&mut self) -> Option<String> {
         loop {
             match self.channel.receive() {
                 Received::Event(event) => {
@@ -138,7 +169,7 @@ impl<C: Channel> Worker<C> {
         None
     }
 
-    pub(super) fn wait(&mut self, deadline: Deadline) -> Result<bool, String> {
+    pub fn wait(&mut self, deadline: Deadline) -> Result<bool, String> {
         let Some(timeout) = deadline.remaining() else {
             return Ok(false);
         };
@@ -152,7 +183,7 @@ impl<C: Channel> Worker<C> {
         }
     }
 
-    pub(super) fn hung(&mut self, now: Duration) -> Result<Option<Duration>, String> {
+    pub fn hung(&mut self, now: Duration) -> Result<Option<Duration>, String> {
         if !self.stepping {
             self.watched = None;
             return Ok(None);
@@ -170,22 +201,22 @@ impl<C: Channel> Worker<C> {
         }
     }
 
-    pub(super) fn settled(&self) -> bool {
+    pub fn settled(&self) -> bool {
         !self.ready || (self.pending.is_empty() && !(self.stepping && self.carrying))
     }
 
-    pub(super) fn take_received(&mut self) -> Vec<Vec<u8>> {
+    pub fn take_received(&mut self) -> Vec<Vec<u8>> {
         std::mem::take(&mut self.received)
     }
 
-    pub(super) fn take_presented(&mut self) -> Option<(Vec<C::Presented>, u64)> {
+    pub fn take_presented(&mut self) -> Option<(Vec<C::Presented>, u64)> {
         if self.presented.is_empty() {
             return None;
         }
         Some((std::mem::take(&mut self.presented), self.presents))
     }
 
-    pub(super) fn take_took(&mut self) -> Option<StepTime> {
+    pub fn take_took(&mut self) -> Option<StepTime> {
         self.took.take()
     }
 

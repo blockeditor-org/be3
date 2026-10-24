@@ -70,13 +70,3 @@ macro_rules! gpu_functions {
         }
     };
 }
-
-#[macro_export]
-macro_rules! transport_functions {
-    ($callback:path) => {
-        $callback! {
-            fn host_send(pointer: u32, length: u32);
-            fn host_receive(pointer: u32, capacity: u32) -> i64;
-        }
-    };
-}

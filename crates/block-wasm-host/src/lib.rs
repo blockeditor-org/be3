@@ -4,6 +4,7 @@ mod harness;
 mod interrupt;
 mod panic;
 mod precompile;
+mod pure;
 mod state;
 mod stderr;
 mod threads;
@@ -34,6 +35,7 @@ use wake::Wake;
 
 pub use interrupt::Interrupter;
 pub use precompile::{precompile, precompile_to};
+pub use pure::{MEMORY_LIMIT, PureGuest, PureHost};
 pub use state::{Connect, State};
 pub use wasm_dylink::sdk_file_name;
 
@@ -78,7 +80,7 @@ impl Host {
         queue: wgpu::Queue,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        let (engine, sdks) = engine(cache)?;
+        let (engine, sdks) = engine(cache, Flavor::Plugin)?;
         Ok(Self {
             interrupt: Interrupt::new(engine.clone()),
             engine,
@@ -91,7 +93,7 @@ impl Host {
         connect: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        let (engine, sdks) = engine(cache)?;
+        let (engine, sdks) = engine(cache, Flavor::Plugin)?;
         Ok(Self {
             interrupt: Interrupt::new(engine.clone()),
             engine,
@@ -393,7 +395,7 @@ impl Plugin {
     }
 }
 
-fn call_constructors(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
+fn call_constructors<T: 'static>(instance: &Instance, store: &mut Store<T>) -> Result<(), String> {
     let Ok(constructors) = instance.get_typed_func::<(), ()>(&mut *store, CONSTRUCTORS) else {
         return Ok(());
     };
@@ -458,18 +460,26 @@ fn precompiled_beside(engine: &Engine, path: &Path) -> Option<Module> {
     }
 }
 
-fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
-    static ENGINES: Mutex<Vec<(Option<PathBuf>, Engine, Sdks)>> = Mutex::new(Vec::new());
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Flavor {
+    Plugin,
+    Pure,
+}
+
+type Engines = Vec<(Flavor, Option<PathBuf>, Engine, Sdks)>;
+
+fn engine(cache: Option<&Path>, flavor: Flavor) -> Result<(Engine, Sdks), String> {
+    static ENGINES: Mutex<Engines> = Mutex::new(Vec::new());
     let mut engines = ENGINES
         .lock()
         .map_err(|_| "the wasm engines were poisoned".to_owned())?;
-    if let Some((_, engine, sdks)) = engines
+    if let Some((_, _, engine, sdks)) = engines
         .iter()
-        .find(|(directory, _, _)| directory.as_deref() == cache)
+        .find(|(kind, directory, _, _)| *kind == flavor && directory.as_deref() == cache)
     {
         return Ok((engine.clone(), Arc::clone(sdks)));
     }
-    let mut config = configuration();
+    let mut config = configuration(flavor);
     if let Some(directory) = cache {
         config.cache(Some(compilation_cache(directory)?));
     }
@@ -477,6 +487,7 @@ fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
         .map_err(|error| format!("the wasm engine could not start: {error}"))?;
     let sdks = Sdks::default();
     engines.push((
+        flavor,
         cache.map(Path::to_path_buf),
         engine.clone(),
         Arc::clone(&sdks),
@@ -484,12 +495,21 @@ fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
     Ok((engine, sdks))
 }
 
-fn configuration() -> Config {
+fn configuration(flavor: Flavor) -> Config {
     let mut config = Config::new();
-    config.wasm_threads(true);
-    config.shared_memory(true);
+    match flavor {
+        Flavor::Plugin => {
+            config.wasm_threads(true);
+            config.shared_memory(true);
+            config.wasm_exceptions(true);
+        }
+        Flavor::Pure => {
+            config.wasm_threads(false);
+            config.shared_memory(false);
+            config.wasm_relaxed_simd(false);
+        }
+    }
     config.wasm_bulk_memory(true);
-    config.wasm_exceptions(true);
     config.epoch_interruption(true);
     config.wasm_backtrace_max_frames(NonZeroUsize::new(BACKTRACE_FRAMES));
     if std::env::var_os("BE3_PERF_MAP").is_some() {
