@@ -32,6 +32,7 @@ mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
+mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;

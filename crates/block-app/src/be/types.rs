@@ -141,8 +141,33 @@ async fn staged_tag() -> Result<SessionTag, String> {
 }
 
 #[cfg(test)]
+pub(crate) static CRASH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
+struct Crashing(builtin_types::BlockTypes);
+
+#[cfg(test)]
+impl Guest for Crashing {
+    fn start(waker: Waker, outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+        Ok(Self(builtin_types::BlockTypes::start(waker, outbound)?))
+    }
+
+    fn step(
+        &mut self,
+        inbound: Vec<Vec<u8>>,
+        woken: bool,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<Flow, String> {
+        if CRASH.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            return Err("the test stopped the type module".to_owned());
+        }
+        self.0.step(inbound, woken, outbound)
+    }
+}
+
+#[cfg(test)]
 async fn builtin() -> Source {
-    in_process::<builtin_types::BlockTypes>(BUILTIN)
+    in_process::<Crashing>(BUILTIN)
 }
 
 #[cfg(all(not(test), not(target_arch = "wasm32")))]
