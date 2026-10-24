@@ -438,7 +438,7 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of nine things. A `Count` is a counter whose concurrent changes
+A field is one of ten things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
@@ -470,6 +470,13 @@ live marks with the positions. Undoing a format removes that mark only. An
 offline merge is a line diff3 where a line is its bytes and its formatting
 together, so formatting a line on one side and typing in it on the other
 conflicts and is rendered with the same markers as text.
+A `Series<T>` is a list of register values on the same `Sequence`, for data
+that grows at its end, like a stroke's points: `update` diffs what is wanted
+against what is held and sends only what changed after the common start
+(`Change::Series`), so appending costs the new items, not the whole list. It
+saves as an array of its values, the same as a `Vec<T>` register, so a
+register that becomes a series keeps reading what was saved; an offline merge
+keeps both sides' appends and otherwise picks one side as a register does.
 
 Client `0` (`sequence::LOADED`) belongs to the initial buffer; edits cannot
 allocate positions under it. The text editor anchors each boundary before one

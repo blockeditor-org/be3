@@ -194,6 +194,11 @@ fn walk_value(value: &Value, found: &mut Vec<Uuid>) {
                 }
             }
         }
+        Value::Series(items) => {
+            for item in items.iter() {
+                walk_bytes(item, found);
+            }
+        }
         Value::List(_) | Value::Count(_) | Value::Grid(_) | Value::Text(_) | Value::Rich(_) => {}
     }
 }

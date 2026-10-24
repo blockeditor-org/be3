@@ -1,3 +1,4 @@
+use crate::Series;
 use crate::marks::{Expand, Name, Scope, Seed, Value as MarkValue};
 use crate::{
     Anchor, Bounds, Change, Count, Document, Edit, Grid, Latest, LatestMap, List, Map, Model,
@@ -38,10 +39,14 @@ mod a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_ca
 mod a_renamed_property_still_reads_its_old_name;
 mod a_reshape_keeps_every_cell_at_its_coordinates;
 mod a_saved_document_names_its_kinds_properties_and_list_ids;
+mod a_series_appended_on_both_sides_merges_to_both;
+mod a_series_grows_by_sending_only_what_was_appended;
+mod a_series_saves_as_an_array_and_reads_a_list_saved_as_a_register;
 mod a_stored_grid_whose_size_overflows_reads_as_blank;
 mod a_text_field_keeps_bytes_that_are_not_utf8;
 mod a_text_field_saves_its_bytes_and_reloads_with_fresh_positions;
 mod adopting_session_state_carries_marks_to_a_reloaded_document;
+mod adopting_session_state_carries_series_positions_to_a_reloaded_document;
 mod adopting_session_state_carries_text_positions_to_a_reloaded_document;
 mod adopting_session_state_for_different_text_is_refused;
 mod an_edit_that_changes_nothing_has_no_step;
@@ -411,4 +416,27 @@ fn type_into(document: &Document<Caption>, client: u64, index: usize, typed: &st
         .insert(client, index, typed.as_bytes().to_vec())
         .expect("the index is in the text");
     Caption::WORDS.edit(ObjectId::ROOT, op).into()
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Trace {
+    points: Series<f32>,
+}
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+#[model(kind = "trace")]
+struct OldTrace {
+    points: Vec<f32>,
+}
+fn trace(points: &[f32]) -> Document<Trace> {
+    Document::new(&Trace {
+        points: points.to_vec().into(),
+    })
+}
+fn grown(document: &Document<Trace>, points: &[f32]) -> Change {
+    let held = document
+        .series(ObjectId::ROOT, Trace::POINTS)
+        .expect("the trace holds its points");
+    Trace::POINTS
+        .update(ObjectId::ROOT, held, points)
+        .expect("the points changed")
 }

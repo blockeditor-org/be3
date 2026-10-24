@@ -188,7 +188,8 @@ fn outline(content: &CanvasContent, id: Uuid) -> Option<CanvasEntity> {
         id,
         transform,
         shape: content.field(object, Entity::SHAPE)?,
-        points: content.field(object, Entity::POINTS),
+        points: content.field(object, Entity::POINTS).into_vec(),
+        points_frame: content.field(object, Entity::POINTS_FRAME),
         bindings: [
             content.field(object, Entity::START_BINDING),
             content.field(object, Entity::END_BINDING),
