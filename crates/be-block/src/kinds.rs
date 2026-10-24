@@ -17,11 +17,6 @@ macro_rules! kind {
 }
 
 kind!(
-    Scene3d,
-    Scene3dContent,
-    0x3364_2d73_6365_6e65_2d62_6c6f_636b_3031
-);
-kind!(
     BeuiDemo,
     BeuiDemoContent,
     0x6265_7569_2d64_656d_6f2d_626c_6f63_6b31

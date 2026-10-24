@@ -94,6 +94,7 @@ members = [
     "crates/editors/pixel-ray-tracer",
     "crates/editors/presentation",
     "crates/editors/scene-3d",
+    "crates/editors/scene-3d/types",
     "crates/editors/settings",
     "crates/editors/settings/types",
     "crates/editors/terminal",

@@ -61,7 +61,7 @@ pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, G
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
-pub use kinds::{BeuiDemoContent, Scene3dContent, };
+pub use kinds::{BeuiDemoContent, };
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
