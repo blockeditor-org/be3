@@ -280,7 +280,9 @@ impl Element for OffsetNode {
         let position = self.settled(main, content);
         let outer = doc.take_anchor_shift();
         let invalidated = doc.invalidated_after_layout();
+        let pinned = doc.replace_pinned_to_end(snapping.then_some(self.direction));
         self.place(doc, painter, rect, out, position, host);
+        doc.replace_pinned_to_end(pinned);
         let settling = doc.invalidated_after_layout() != invalidated;
         let shift = doc.take_anchor_shift() + self.drift(doc, out, host, anchor);
         let revealed = self.revealed(doc, out, host, main);

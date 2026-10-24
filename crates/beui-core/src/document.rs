@@ -134,6 +134,7 @@ pub struct Document {
     layout_pass: u64,
     focus_line: FocusLine,
     anchor_shift: f32,
+    pinned_to_end: Option<crate::base::list::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
@@ -358,6 +359,7 @@ impl Document {
             layout_pass: 0,
             focus_line: FocusLine::default(),
             anchor_shift: 0.0,
+            pinned_to_end: None,
             reveals: NodeMap::default(),
             viewport: None,
             hidden: false,
@@ -1973,6 +1975,17 @@ impl Document {
 
     pub fn report_anchor_shift(&mut self, shift: f32) {
         self.anchor_shift += shift;
+    }
+
+    pub(crate) fn replace_pinned_to_end(
+        &mut self,
+        pinned: Option<crate::base::list::Direction>,
+    ) -> Option<crate::base::list::Direction> {
+        std::mem::replace(&mut self.pinned_to_end, pinned)
+    }
+
+    pub fn pinned_to_end(&self) -> Option<crate::base::list::Direction> {
+        self.pinned_to_end
     }
 
     pub(crate) fn take_anchor_shift(&mut self) -> f32 {

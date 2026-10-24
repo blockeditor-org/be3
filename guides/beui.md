@@ -1068,8 +1068,13 @@ end on demand and, if it follows, follows again, which is what a terminal does
 when you type. Both are the base `Offset`'s (its `follow_end` prop and
 `Document::offset_to_end`): while it is pinned to the end it lays its content
 out from the end it measured, skipping the anchor and any shift its content
-reports, and a `VirtualList` whose rows measure differently from the estimate
-settles over the frame's layout passes as it would at any other offset. A
+reports. It tells the content so through `Document::pinned_to_end` while it
+places it, and a `VirtualList` along that direction then builds its rows from
+its last one upwards, measuring each, and lines the last up with its own end
+rather than walking down from the row it drew from last: rows that measure
+differently from the estimate change only the length above them, so the next
+layout of the frame, at the end of the corrected length, finds the same rows and
+settles. A
 `Frame` with `max_height` around a scroll does not do this: a `Frame` with a
 maximum fills the space it is offered up to it.
 
