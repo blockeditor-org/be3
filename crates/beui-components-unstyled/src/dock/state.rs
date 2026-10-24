@@ -123,7 +123,6 @@ pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
-pub const ICONS_BELOW: f32 = 64.0;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Leaf {
@@ -765,17 +764,17 @@ impl DockState {
         }
     }
 
-    pub fn drag_sidebar(&mut self, leaf: LeafId, width: f32) {
+    pub fn drag_sidebar(&mut self, leaf: LeafId, width: f32, moved: f32) {
         let Some(leaf) = self.leaf_mut(leaf) else {
             return;
         };
         match leaf.icons_only {
-            true if width >= MIN_SIDEBAR_WIDTH => {
+            true if moved > 0.0 => {
                 leaf.icons_only = false;
-                leaf.sidebar = width;
+                leaf.sidebar = width.max(MIN_SIDEBAR_WIDTH);
             }
             true => {}
-            false if width < ICONS_BELOW => leaf.icons_only = true,
+            false if moved < 0.0 && width < MIN_SIDEBAR_WIDTH => leaf.icons_only = true,
             false => leaf.sidebar = width.max(MIN_SIDEBAR_WIDTH),
         }
     }

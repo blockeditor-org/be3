@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, SIDEBAR_WIDTH};
+use crate::unstyled::{DockApi, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
 use std::time::Duration;
 
 fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
@@ -26,7 +26,7 @@ fn after(harness: &mut Harness, by: Duration, to: Option<Pos2>) {
 }
 
 #[test]
-fn a_sidebar_dragged_narrow_shows_icons_only_and_dragged_back_out_follows_the_pointer() {
+fn a_sidebar_dragged_past_its_narrowest_shows_icons_and_any_drag_back_shows_titles() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
@@ -44,6 +44,7 @@ fn a_sidebar_dragged_narrow_shows_icons_only_and_dragged_back_out_follows_the_po
             .state()
             .is_icons_only(leaf)
     };
+    let shrink = SIDEBAR_WIDTH - MIN_SIDEBAR_WIDTH;
 
     let edge = pos2(wide - 3.0, 300.0);
     harness.frame(vec![Input::PointerMoved(edge)]);
@@ -52,48 +53,64 @@ fn a_sidebar_dragged_narrow_shows_icons_only_and_dragged_back_out_follows_the_po
         button: PointerButton::Primary,
         pressed: true,
     }]);
-    let narrowed = edge - vec2(SIDEBAR_WIDTH - 10.0, 0.0);
-    harness.frame(vec![Input::PointerMoved(narrowed)]);
+    after(
+        &mut harness,
+        Duration::from_millis(16),
+        Some(edge - vec2(shrink, 0.0)),
+    );
+    assert!(
+        !icons_only(&harness),
+        "at its narrowest the sidebar keeps its titles"
+    );
+    assert_eq!(panel_left(&harness), wide - shrink);
+
+    after(
+        &mut harness,
+        Duration::from_millis(16),
+        Some(edge - vec2(shrink + 1.0, 0.0)),
+    );
     assert!(
         icons_only(&harness),
-        "dragging the edge past the narrowest a sidebar goes shows only icons"
+        "a point further left shows only icons"
     );
     after(&mut harness, Duration::from_millis(40), None);
     let moving = panel_left(&harness);
     assert!(
-        moving < wide && moving > narrowed.x,
+        moving < wide - shrink,
         "the sidebar slides narrower rather than jumping: {moving}"
     );
-    after(&mut harness, Duration::from_secs(1), None);
+    let far = edge - vec2(SIDEBAR_WIDTH - 10.0, 0.0);
+    after(&mut harness, Duration::from_secs(1), Some(far));
     let narrow = panel_left(&harness);
     assert!(
-        narrow < moving && narrow > narrowed.x,
+        narrow < moving && narrow > far.x + 3.0,
         "and settles as wide as an icon, not at the pointer: {narrow}"
     );
     assert!(text_within(harness.document(), dock, "Tab 1").is_none());
 
-    let out = edge - vec2(30.0, 0.0);
-    after(&mut harness, Duration::from_millis(16), Some(out));
+    let back = far + vec2(5.0, 0.0);
+    after(&mut harness, Duration::from_millis(16), Some(back));
     assert!(
         !icons_only(&harness),
-        "dragging back out, still holding the edge, shows the titles again"
+        "any drag to the right shows the titles again, wherever the pointer is"
     );
-    after(&mut harness, Duration::from_millis(40), None);
-    let growing = panel_left(&harness);
-    assert!(
-        growing > narrow && growing < out.x + 3.0,
-        "the sidebar slides out towards the pointer: {growing}"
-    );
-    let further = out + vec2(10.0, 0.0);
-    after(&mut harness, Duration::from_millis(16), Some(further));
     after(&mut harness, Duration::from_secs(1), None);
     assert_eq!(
         panel_left(&harness),
-        further.x + 3.0,
-        "and catches up with the pointer, following it as it goes on moving"
+        wide - shrink,
+        "at the narrowest width that fits them, well right of the pointer"
+    );
+
+    let out = edge - vec2(60.0, 0.0);
+    after(&mut harness, Duration::from_millis(16), Some(out));
+    after(&mut harness, Duration::from_secs(1), None);
+    assert_eq!(
+        panel_left(&harness),
+        out.x + 3.0,
+        "once the pointer passes that edge, the sidebar grows with it"
     );
     harness.frame(vec![Input::PointerButton {
-        pos: further,
+        pos: out,
         button: PointerButton::Primary,
         pressed: false,
     }]);
@@ -104,7 +121,7 @@ fn a_sidebar_dragged_narrow_shows_icons_only_and_dragged_back_out_follows_the_po
             .api::<DockApi>(dock)
             .state()
             .sidebar_width(leaf),
-        SIDEBAR_WIDTH - 20.0,
+        SIDEBAR_WIDTH - 60.0,
         "the sidebar keeps the width it was let go at"
     );
 }

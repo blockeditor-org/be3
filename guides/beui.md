@@ -2020,11 +2020,13 @@ menu of the tab the pane shows below its own rows, and turns on icons only (`set
 `icons_only` on a `DockPane`): `DockTabHandle::icons_only` asks the tab face for
 its icon alone, which the styled dock draws as a square with the title in a
 tooltip (the title's first letter where a tab has no icon); a sidebar of
-icons moves its More menu and close button below its tabs, in a column. Dragging a sidebar's
-edge below `ICONS_BELOW` turns icons only on, and dragging it back out to
-`MIN_SIDEBAR_WIDTH` turns it off at the pointer (`DockState::drag_sidebar`); the
-drag carries on either way, and the sidebar slides to its new width, the
-`icon_sidebar_width` of the dock or the pointer, which it keeps following
+icons moves its More menu and close button below its tabs, in a column. A sidebar's edge
+goes by the way the pointer moves as well as where it is
+(`DockState::drag_sidebar`): dragged left past `MIN_SIDEBAR_WIDTH` it turns icons
+only on at once, and while icons only, any move to the right turns it off at
+`MIN_SIDEBAR_WIDTH`, growing past that only once the pointer passes that edge. The drag
+carries on either way, and the sidebar slides to its new width (the dock's
+`icon_sidebar_width`, or the width under the pointer), following the pointer
 until it catches up. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. The grips lie
 wholly outside the window, in a ring `HANDLE_REACH` points wide (a window's overlay is that

@@ -2714,7 +2714,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
         active: active.read_only(),
         focused: focused.read_only(),
     });
-    let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
+    let held: Rc<Cell<Option<(f32, Pos2, f32)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
     view! {
         <Interactive
@@ -2750,14 +2750,24 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             on_hover_change={hovered}
             on_active_change={active}
             on_press={move |press: PointerPress| {
-                grabbed.set(Some((width.get_untracked(), press.pos)));
+                let start = state.with_untracked(|state| state.sidebar_width(leaf));
+                let start = match state.with_untracked(|state| state.is_icons_only(leaf)) {
+                    true => narrow,
+                    false => start,
+                };
+                grabbed.set(Some((start, press.pos, press.pos.x)));
             }}
             on_drag={move |press: PointerPress| {
-                let Some((start, from)) = held.get() else {
+                let Some((start, from, last)) = held.get() else {
                     return;
                 };
+                let moved = press.pos.x - last;
+                if moved == 0.0 {
+                    return;
+                }
+                held.set(Some((start, from, press.pos.x)));
                 let next = start + (press.pos.x - from.x);
-                dock.edit(|state| state.drag_sidebar(leaf, next));
+                dock.edit(|state| state.drag_sidebar(leaf, next, moved));
             }}
             children={face}
         />

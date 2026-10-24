@@ -65,7 +65,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     let edge = pos2(moved.left() - 3.0, moved.center().y);
     harness.drag(
         edge,
-        edge - vec2(SIDEBAR_WIDTH + 60.0 - MIN_SIDEBAR_WIDTH + 8.0, 0.0),
+        edge - vec2(SIDEBAR_WIDTH + 60.0 - MIN_SIDEBAR_WIDTH, 0.0),
     );
     harness.frame(Vec::new());
     let state = harness.document().api::<DockApi>(dock).state();
@@ -85,7 +85,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     let state = harness.document().api::<DockApi>(dock).state();
     assert!(
         state.is_icons_only(leaf),
-        "dragged narrower still, it shows only the icons of its tabs"
+        "dragged on past its narrowest, it shows only the icons of its tabs"
     );
     assert_eq!(
         state.window_rect(window),
