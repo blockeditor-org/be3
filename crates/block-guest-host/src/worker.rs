@@ -78,12 +78,6 @@ impl<P> Event<P> {
     }
 }
 
-// Whether the guest's side wakes the host for an event it has just delivered.
-// `waiting` is read only after the event is where `Channel::receive` finds it:
-// `Worker::queue` sets it before polling, so either that poll finds the event
-// or this read sees the flag. Reading it before delivering loses the wake when
-// the host queues in between, and the frames it queued then wait for some
-// other wake.
 pub fn wakes(quiet: bool, waiting: &AtomicBool) -> bool {
     !quiet || waiting.load(Ordering::SeqCst)
 }
