@@ -239,6 +239,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let look = line.look;
     let left = line.left();
     let column = line.column();
+    let right = line.right();
     let code_padding = line.code_padding();
     let outset = create_memo(move || match code_padding.get() > 0.0 {
         true => 0.0,
@@ -249,7 +250,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
         Sides::new(
             left.get() - outset,
             0.0,
-            (line.padding.get() - outset).max(0.0),
+            (right.get() - outset).max(0.0),
             0.0,
         )
     });
@@ -269,7 +270,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let width = create_memo(move || Extent::px(quote.get()));
     let room = create_memo(move || Sides::new(0.0, 0.0, quote.get() - QUOTE_BAR_WIDTH, 0.0));
     let bars = create_memo(move || Sides::new(column.get(), 0.0, 0.0, 0.0));
-    let ruled = create_memo(move || Sides::new(column.get(), 0.0, line.padding.get(), 0.0));
+    let ruled = create_memo(move || Sides::new(column.get(), 0.0, right.get(), 0.0));
     let rule = create_memo(move || match look.get().rule {
         true => ColorRole::Border,
         false => ColorRole::None,
@@ -277,7 +278,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let opens = line.opens_code();
     let language = line.code_language();
     let corner = create_memo(move || {
-        let right = (line.padding.get() - outset.get()).max(0.0) + COPY_INSET;
+        let right = (right.get() - outset.get()).max(0.0) + COPY_INSET;
         Sides::new(0.0, line.space.get().0 + COPY_INSET, right, 0.0)
     });
     let text = line.text;
