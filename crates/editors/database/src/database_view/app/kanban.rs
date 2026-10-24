@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::database::{DatabaseValue, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
@@ -40,7 +41,7 @@ pub fn Kanban(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding=PADDING>
-                        <Text style=TextStyle::CAPTION wrap=true>
+                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                             "Choose the choice field whose options make the columns, under Display."
                         </Text>
                     </Frame>
@@ -307,7 +308,7 @@ fn CardLines(data: Data, row: Prop<usize>) -> NodeId {
     view! {
         <List spacing=6.0>
             <Text style=TextStyle::CAPTION>{code}</Text>
-            <Text wrap=true>{title}</Text>
+            <Text wrap=Wrap::Words>{title}</Text>
             <Parts parts={parts} keys={keys} wrap=true />
         </List>
     }

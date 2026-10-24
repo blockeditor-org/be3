@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -227,9 +228,9 @@ fn NetworkRow(
                             <Icon glyph />
                         </Text>
                         <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                            <Text wrap=true>{ssid.clone()}</Text>
+                            <Text wrap=Wrap::Words>{ssid.clone()}</Text>
                             <Show condition={captioned}>
-                                <Text style=TextStyle::CAPTION wrap=true>{said}</Text>
+                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{said}</Text>
                             </Show>
                         </List>
                     </List>

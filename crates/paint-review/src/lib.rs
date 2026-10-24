@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::rc::Rc;
 
 use beui::reactive::*;
@@ -116,7 +117,11 @@ fn PaintReview(
                             >
                                 "The paintings could not be loaded"
                             </Text>
-                            <Text style=TextStyle::CAPTION wrap=true align=beui::TextAlign::Center>
+                            <Text
+                                style=TextStyle::CAPTION
+                                wrap=Wrap::Words
+                                align=beui::TextAlign::Center
+                            >
                                 {reason}
                             </Text>
                         </List>

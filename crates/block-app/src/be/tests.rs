@@ -30,8 +30,11 @@ mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod a_session_owned_here_follows_a_peer_that_claims_it;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
+#[cfg(not(target_os = "android"))]
+mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
@@ -66,11 +69,20 @@ pub(crate) struct Harness {
     token: String,
     organization: Uuid,
     phrase: be_keys::RecoveryPhrase,
+    lease: Duration,
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
 impl Harness {
     pub(crate) fn start() -> Self {
+        Self::leasing(be_server::ServerConfig::OPEN.lease)
+    }
+
+    pub(crate) fn lapsing() -> Self {
+        Self::leasing(Duration::ZERO)
+    }
+
+    fn leasing(lease: Duration) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
@@ -91,8 +103,9 @@ impl Harness {
             display_name: profile.display_name,
             token,
         };
-        let server = platform::start_embedded_server(directory.join("server"))
-            .expect("the embedded block server starts");
+        let server =
+            platform::start_embedded_server_at("127.0.0.1:0", directory.join("server"), lease)
+                .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
         let (account, token, organization) = runtime.block_on(async {
@@ -113,6 +126,7 @@ impl Harness {
             token,
             organization,
             phrase: be_keys::RecoveryPhrase::generate(),
+            lease,
             _one_stack: one_stack,
         }
     }
@@ -130,7 +144,7 @@ impl Harness {
 
     fn start_server(&mut self, address: &str) {
         self.server = Some(
-            platform::start_embedded_server_at(address, self.directory.join("server"))
+            platform::start_embedded_server_at(address, self.directory.join("server"), self.lease)
                 .expect("the embedded block server starts again"),
         );
     }

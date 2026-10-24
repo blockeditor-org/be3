@@ -28,10 +28,7 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
     harness.frame(Vec::new());
     harness.touch(TouchPhase::End, on_world);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "world",
         "a long press selects the word under the finger"
     );
@@ -72,10 +69,7 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
         "choosing an action puts the toolbar away"
     );
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "world",
         "and keeps the selection"
     );

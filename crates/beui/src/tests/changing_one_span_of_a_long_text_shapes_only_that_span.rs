@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Span;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::Wrap;
 
 const WORDS: usize = 60;
 
@@ -20,7 +21,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
         let keys = create_memo(move || (0..words.get().len()).collect::<Vec<usize>>());
         view! {
             <Frame width=200.0>
-                <Text @node_ref=&text wrap=true>
+                <Text @node_ref=&text wrap=Wrap::Words>
                     <ForEach keys={keys}>|index: usize| {
                         let word = create_memo(move || {
                             words.get().get(index).cloned().unwrap_or_default()

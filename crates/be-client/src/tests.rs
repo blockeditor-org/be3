@@ -17,6 +17,7 @@ mod a_follower_keeps_its_unconfirmed_typing_through_a_reload;
 mod a_follower_replaces_an_image_and_the_owner_takes_it;
 mod a_follower_stops_saving_after_a_message_it_cannot_read;
 mod a_follower_takes_over_and_keeps_editing_without_a_merge;
+mod a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up;
 mod a_follower_that_falls_behind_after_following_keeps_what_it_had;
 mod a_follower_that_falls_behind_catches_up;
 mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
@@ -40,6 +41,7 @@ mod an_idle_session_catches_up_with_a_publish_from_outside_it;
 mod an_image_round_trips_without_being_re_encoded;
 mod an_offline_edit_elsewhere_merges_cleanly;
 mod an_offline_rewrite_conflicts_instead_of_interleaving;
+mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod an_unsaved_edit_survives_a_publish_from_outside_the_session;
 mod an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history;
 mod channel_messages_reach_one_peer_or_all_of_them_sealed;
@@ -68,6 +70,14 @@ struct Harness {
 
 impl Harness {
     async fn start() -> Self {
+        Self::leasing(be_server::ServerConfig::OPEN.lease).await
+    }
+
+    async fn lapsing() -> Self {
+        Self::leasing(Duration::ZERO).await
+    }
+
+    async fn leasing(lease: Duration) -> Self {
         build_id::install("test");
         let directory = std::env::temp_dir().join(format!("be-client-test-{}", Uuid::new_v4()));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -78,7 +88,10 @@ impl Harness {
             let _ = be_server::serve_with_config(
                 listener,
                 data_dir,
-                be_server::ServerConfig::OPEN,
+                be_server::ServerConfig {
+                    lease,
+                    ..be_server::ServerConfig::OPEN
+                },
                 receiver,
             )
             .await;

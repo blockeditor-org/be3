@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -313,27 +314,29 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
         <Scroll @test_id={"workspace.revisions"}>
             <Frame padding=14.0>
                 <List spacing=8.0>
-                    <Text wrap=true style=TextStyle::HEADING>"Revision history"</Text>
+                    <Text wrap=Wrap::Words style=TextStyle::HEADING>"Revision history"</Text>
                     <Show condition={no_file}>
-                        <Text wrap=true style=TextStyle::CAPTION>
+                        <Text wrap=Wrap::Words style=TextStyle::CAPTION>
                             "Open a file to see its revision history."
                         </Text>
                     </Show>
                     <Show condition={has_file}>
-                        <Text wrap=true>{name}</Text>
+                        <Text wrap=Wrap::Words>{name}</Text>
                     </Show>
                     <Show condition={first_load}>
-                        <Text wrap=true style=TextStyle::CAPTION>"Loading revisions…"</Text>
+                        <Text wrap=Wrap::Words style=TextStyle::CAPTION>"Loading revisions…"</Text>
                     </Show>
                     <Show condition={history.busy}>
-                        <Text wrap=true style=TextStyle::CAPTION>"Working…"</Text>
+                        <Text wrap=Wrap::Words style=TextStyle::CAPTION>"Working…"</Text>
                     </Show>
                     <Show condition={empty}>
-                        <Text wrap=true style=TextStyle::CAPTION>"No saved revisions yet."</Text>
+                        <Text wrap=Wrap::Words style=TextStyle::CAPTION>
+                            "No saved revisions yet."
+                        </Text>
                     </Show>
                     <Show condition={failed}>
                         <List spacing=8.0>
-                            <Text wrap=true style=TextStyle::CAPTION>{error}</Text>
+                            <Text wrap=Wrap::Words style=TextStyle::CAPTION>{error}</Text>
                             <Button
                                 variant=ButtonVariant::Secondary
                                 label="Retry"
@@ -399,7 +402,7 @@ pub(crate) fn RevisionPreviewBar(
             <Show condition={visible}>
                 <Frame padding=14.0>
                     <List spacing=8.0>
-                        <Text wrap=true style=TextStyle::CAPTION>{label}</Text>
+                        <Text wrap=Wrap::Words style=TextStyle::CAPTION>{label}</Text>
                         <List direction=Direction::Horizontal spacing=8.0>
                             <Button
                                 label="Back to current"
@@ -419,11 +422,11 @@ pub(crate) fn RevisionPreviewBar(
                             </Show>
                         </List>
                         <Show condition={failed}>
-                            <Text wrap=true style=TextStyle::CAPTION>{error}</Text>
+                            <Text wrap=Wrap::Words style=TextStyle::CAPTION>{error}</Text>
                         </Show>
                         <Show condition={history.confirm}>
                             <List spacing=8.0>
-                                <Text wrap=true style=TextStyle::CAPTION>
+                                <Text wrap=Wrap::Words style=TextStyle::CAPTION>
                                     "Restore this file as a new revision? Current edits will be saved. Contained and linked files will stay unchanged."
                                 </Text>
                                 <List direction=Direction::Horizontal spacing=8.0>

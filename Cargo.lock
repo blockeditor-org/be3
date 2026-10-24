@@ -724,9 +724,9 @@ dependencies = [
  "block-ui",
  "build-id",
  "futures-util",
- "ghostty-vt",
  "portable-pty",
  "serde_json",
+ "terminal-emulator",
  "tokio",
  "uuid",
 ]
@@ -840,6 +840,7 @@ dependencies = [
 name = "be-launcher"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "beui",
  "block-ui-test",
  "comrak",
@@ -849,6 +850,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "terminal-emulator",
  "terminal-view",
  "ureq",
 ]
@@ -7183,11 +7185,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-emulator"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "ghostty-vt",
+]
+
+[[package]]
 name = "terminal-view"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "beui",
- "ghostty-vt",
 ]
 
 [[package]]

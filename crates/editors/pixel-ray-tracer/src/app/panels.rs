@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings,
 };
@@ -22,7 +23,7 @@ pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
             <ForEach keys={Tool::ALL.to_vec()}>|tool: Tool|
                 <ToolButton state tool />
             </ForEach>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
             </Text>
         </List>

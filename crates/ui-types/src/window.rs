@@ -31,5 +31,6 @@ pub struct WindowRequests {
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub pastes: Vec<PasteKind>,
+    pub clipboard_keys: bool,
     pub keyboard_toggles: u32,
 }

@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
@@ -76,7 +77,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
                     <Show condition={others}>
-                        <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
+                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>{NOT_OURS}</Text>
                     </Show>
                     <Show condition={here}>
                         <Section
@@ -250,7 +251,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         <SettingsPage>
             <Show condition={others}>
                 <Frame padding={Sides::horizontal(NOTICE_INSET)}>
-                    <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>{NOT_OURS}</Text>
                 </Frame>
             </Show>
             <Show condition={setting_up}>
@@ -305,7 +306,7 @@ fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeI
             <List spacing=CAPTION_SPACING>
                 <Text style=TextStyle::HEADING>{title}</Text>
                 <Show condition={captioned}>
-                    <Text style=TextStyle::CAPTION wrap=true>{caption}</Text>
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>{caption}</Text>
                 </Show>
             </List>
             {children}

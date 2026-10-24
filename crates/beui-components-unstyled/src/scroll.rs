@@ -428,6 +428,17 @@ impl Motion {
         );
     }
 
+    fn to_end(&self) {
+        let Some(node) = self.node else {
+            return;
+        };
+        if let Some(animation) = self.animation.get() {
+            animation.stop();
+        }
+        self.momentum.borrow_mut().rest();
+        node.offset_to_end();
+    }
+
     fn key(&self, press: KeyPress) -> bool {
         if press.modifiers.ctrl || press.modifiers.alt {
             return false;
@@ -721,6 +732,7 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
+    #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
@@ -755,6 +767,7 @@ pub fn Scroll(
                     offset
                     direction={direction}
                     fit
+                    follow_end
                     on_change={move |position: ScrollPosition| {
                         faded.set(Some(position));
                         report.call(position);
@@ -883,5 +896,9 @@ pub struct ScrollApi(Stored<Motion>);
 impl ScrollApi {
     pub fn animating(&self) -> bool {
         self.0.with(|motion| motion.momentum.borrow().moving())
+    }
+
+    pub fn scroll_to_end(&self) {
+        self.0.with(|motion| motion.to_end());
     }
 }

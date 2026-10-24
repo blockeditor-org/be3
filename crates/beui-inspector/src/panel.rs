@@ -1,3 +1,4 @@
+use beui_core::font::Wrap;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -716,7 +717,7 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
         <List spacing=FOOTER_SPACING>
             <Text style=TextStyle::CAPTION color=TextColor::Default>{title.to_owned()}</Text>
             <ForEach keys={lines.to_vec()}>|line: &'static str|
-                <Text style=TextStyle::CAPTION wrap=true>{line.to_owned()}</Text>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{line.to_owned()}</Text>
             </ForEach>
         </List>
     }
@@ -895,7 +896,7 @@ fn LabeledRow(label: String, value: String) -> NodeId {
                 style=TextStyle::CAPTION
                 @sizing=ItemSize::Percent(100.0)
                 color=TextColor::Default
-                wrap=true
+                wrap=Wrap::Words
             >
                 {value}
             </Text>

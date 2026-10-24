@@ -74,11 +74,13 @@ const fn inside_border(padding: f32) -> f32 {
 
 #[component]
 pub fn Scroll(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<unstyled::ScrollApi>,
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Option<f32>,
+    #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Bleed::NONE)] bleed: Prop<Bleed>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
@@ -86,10 +88,12 @@ pub fn Scroll(
     let theme = use_theme();
     let scroll = view! {
         <unstyled::Scroll
+            api
             offset
             reveal
             direction
             fit={fit || max_length.is_some()}
+            follow_end
             bleed={bleed.map(|bleed| bleed.reach)}
             focus_color={theme.accent}
             scrollbar={scrollbar_style()}

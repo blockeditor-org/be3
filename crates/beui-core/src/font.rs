@@ -18,6 +18,14 @@ pub enum TextAlign {
     End,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub enum Wrap {
+    #[default]
+    Off,
+    Words,
+    Anywhere,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum FontFamily {
     Proportional,
@@ -878,6 +886,7 @@ impl Fonts {
             padding: (0.0, 0.0),
             style,
             hang: 0,
+            anywhere: false,
         };
         let mut shaper = LineShaper {
             fonts: self,

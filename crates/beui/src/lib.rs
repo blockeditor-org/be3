@@ -37,7 +37,7 @@ pub use beui_core::file_picker::{
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
-    TextAlign, TextLayout, Wraps, line_height,
+    TextAlign, TextLayout, Wrap, Wraps, line_height,
 };
 pub use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use beui_core::icons;
