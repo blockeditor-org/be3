@@ -1,0 +1,21 @@
+[package]
+name = "block-type-guest"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-commit = { path = "../be-commit" }
+be-protocol = { path = "../be-protocol" }
+be-session = { path = "../be-session" }
+block-type-api = { path = "../block-type-api" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+be-store = { path = "../be-store" }
+
+[lints]
+workspace = true

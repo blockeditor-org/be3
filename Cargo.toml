@@ -55,6 +55,8 @@ members = [
     "crates/block-plugin-api",
     "crates/block-plugin-sdk",
     "crates/block-shell",
+    "crates/block-type-api",
+    "crates/block-type-guest",
     "crates/block-ui",
     "crates/block-ui-test",
     "crates/block-wasm-host",

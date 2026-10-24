@@ -1,0 +1,360 @@
+use std::collections::BTreeMap;
+
+use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
+use be_commit::MergeResult;
+use block_type_api::{
+    Command, Description, Event, Reply, ReplicaId, Request, TypeInfo, decode_frame, encode_frame,
+};
+use uuid::Uuid;
+
+pub mod editor;
+mod file;
+mod record;
+mod replica;
+mod wire;
+
+pub use block_type_api as api;
+pub use file::FileForm;
+pub use record::{NoHistory, Recorder};
+pub use replica::SEAL_INTERVAL;
+
+use replica::{AnyReplica, Input, Opened, Replica};
+
+type FromFileFn = fn(Option<&[u8]>, &str, Vec<u8>, u64) -> Option<Vec<u8>>;
+
+pub struct Registration {
+    info: TypeInfo,
+    open: fn(Opened) -> Box<dyn AnyReplica>,
+    blank: fn() -> Vec<u8>,
+    merge: fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8>, usize), String>,
+    describe: fn(&[u8], Uuid) -> Result<Description, String>,
+    to_file: Option<fn(&[u8]) -> Result<Option<Vec<u8>>, String>>,
+    from_file: Option<FromFileFn>,
+    claims: Option<fn(&str, &[u8]) -> bool>,
+}
+
+impl Registration {
+    pub fn of<C: LiveEdit + Merge + Clone + Default>() -> Self {
+        Self {
+            info: TypeInfo {
+                content_type: C::CONTENT_TYPE,
+                frozen: C::FROZEN,
+                schema: be_block::schema_fingerprint::<C>(),
+                undo: false,
+                file: false,
+            },
+            open: open::<C, NoHistory>,
+            blank: || C::default().encode(),
+            merge: merge::<C>,
+            describe: describe_bytes::<C>,
+            to_file: None,
+            from_file: None,
+            claims: None,
+        }
+    }
+
+    pub fn undo<C: Undo + Merge + Clone + Default>(mut self) -> Self {
+        assert_eq!(self.info.content_type, C::CONTENT_TYPE);
+        self.info.undo = true;
+        self.open = open::<C, History<C, u64>>;
+        self
+    }
+
+    pub fn file<C: FileForm + LiveEdit>(mut self) -> Self {
+        assert_eq!(self.info.content_type, C::CONTENT_TYPE);
+        self.info.file = true;
+        self.to_file = Some(file::to_file::<C>);
+        self.from_file = Some(file::from_file::<C>);
+        self.claims = Some(C::claims);
+        self
+    }
+
+    pub fn info(&self) -> &TypeInfo {
+        &self.info
+    }
+}
+
+fn open<C, H>(opened: Opened) -> Box<dyn AnyReplica>
+where
+    C: LiveEdit + Merge + Clone + Default,
+    H: Recorder<C> + 'static,
+{
+    Box::new(Replica::<C, H>::new(opened))
+}
+
+fn merge<C: Merge + Default>(
+    base: Option<&[u8]>,
+    ours: Option<&[u8]>,
+    theirs: Option<&[u8]>,
+) -> Result<(Vec<u8>, usize), String> {
+    let decode = |bytes: Option<&[u8]>| match bytes {
+        Some(bytes) => C::decode(bytes).map_err(|error| error.to_string()),
+        None => Ok(C::default()),
+    };
+    Ok(match C::merge3(&decode(base)?, &decode(ours)?, &decode(theirs)?) {
+        MergeResult::Clean(value) => (value.encode(), 0),
+        MergeResult::Conflicted { value, conflicts } => (value.encode(), conflicts.max(1)),
+    })
+}
+
+pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
+    Description {
+        name: content.name(),
+        derived: be_block::derived_metadata(content),
+        references: content.references_in(organization),
+    }
+}
+
+fn describe_bytes<C: BlockContent>(bytes: &[u8], organization: Uuid) -> Result<Description, String> {
+    let content = C::decode(bytes).map_err(|error| error.to_string())?;
+    Ok(describe(&content, organization))
+}
+
+pub struct Module {
+    types: Vec<Registration>,
+    replicas: BTreeMap<ReplicaId, Box<dyn AnyReplica>>,
+    now: u64,
+    wake: Option<u64>,
+}
+
+impl Module {
+    pub fn new(types: Vec<Registration>) -> Self {
+        Self {
+            types,
+            replicas: BTreeMap::new(),
+            now: 0,
+            wake: None,
+        }
+    }
+
+    pub fn hello(&self) -> Command {
+        Command::Hello {
+            types: self.types.iter().map(|kind| kind.info.clone()).collect(),
+        }
+    }
+
+    pub fn is_open(&self, replica: ReplicaId) -> bool {
+        self.replicas.contains_key(&replica)
+    }
+
+    pub fn handle(&mut self, event: Event) -> Vec<Command> {
+        let mut out = Vec::new();
+        match event {
+            Event::Tick { now } => {
+                self.now = self.now.max(now);
+                for replica in self.replicas.values_mut() {
+                    replica.tick(self.now, &mut out);
+                }
+            }
+            Event::Open {
+                replica,
+                block: _,
+                content_type,
+                organization,
+                client,
+                tag,
+                head,
+                session,
+            } => match self
+                .types
+                .iter()
+                .find(|kind| kind.info.content_type == content_type)
+            {
+                Some(kind) => {
+                    let mut opened = (kind.open)(Opened {
+                        replica,
+                        content_type,
+                        organization,
+                        client,
+                        tag,
+                        head,
+                        session,
+                        from_file: kind.from_file,
+                        now: self.now,
+                    });
+                    opened.start(&mut out);
+                    self.replicas.insert(replica, opened);
+                }
+                None => {
+                    out.push(Command::Error {
+                        replica,
+                        message: format!("this module has no block type {content_type}"),
+                    });
+                    out.push(Command::Release { replica });
+                }
+            },
+            Event::Message {
+                replica,
+                from,
+                bytes,
+            } => self.input(replica, Input::Message { from, bytes }, &mut out),
+            Event::Attach {
+                replica,
+                editor,
+                editable,
+            } => self.input(replica, Input::Attach { editor, editable }, &mut out),
+            Event::Detach { replica, editor } => {
+                self.input(replica, Input::Detach { editor }, &mut out);
+            }
+            Event::Head { replica, event } => self.input(replica, Input::Head(event), &mut out),
+            Event::Lease {
+                replica,
+                session,
+                resynchronize,
+            } => self.input(
+                replica,
+                Input::Lease {
+                    session,
+                    resynchronize,
+                },
+                &mut out,
+            ),
+            Event::Read {
+                replica,
+                token,
+                result,
+            } => self.input(replica, Input::Read { token, result }, &mut out),
+            Event::Resumed {
+                replica,
+                token,
+                result,
+            } => self.input(replica, Input::Resumed { token, result }, &mut out),
+            Event::Close { replica } => self.input(replica, Input::Close, &mut out),
+            Event::Request { id, request } => self.request(id, request, &mut out),
+        }
+        self.replicas.retain(|_, replica| !replica.released());
+        let wake = self
+            .replicas
+            .values()
+            .filter_map(|replica| replica.wake_at())
+            .min();
+        if wake.is_some() && wake != self.wake {
+            out.push(Command::WakeAt {
+                at: wake.unwrap_or_default(),
+            });
+        }
+        self.wake = wake;
+        out
+    }
+
+    fn input(&mut self, replica: ReplicaId, input: Input, out: &mut Vec<Command>) {
+        match self.replicas.get_mut(&replica) {
+            Some(open) => open.input(self.now, input, out),
+            None => {
+                if let Input::Change { id, .. } | Input::Content { id } | Input::Seal { id, .. } =
+                    input
+                {
+                    out.push(Command::Reply {
+                        id,
+                        reply: Reply::Unknown,
+                    });
+                }
+            }
+        }
+    }
+
+    fn kind(&self, content_type: Uuid) -> Option<&Registration> {
+        self.types
+            .iter()
+            .find(|kind| kind.info.content_type == content_type)
+    }
+
+    fn request(&mut self, id: u64, request: Request, out: &mut Vec<Command>) {
+        let reply = match request {
+            Request::Change { replica, change } => {
+                return self.input(replica, Input::Change { id, change }, out);
+            }
+            Request::Content { replica } => return self.input(replica, Input::Content { id }, out),
+            Request::Seal { replica, force } => {
+                return self.input(replica, Input::Seal { id, force }, out);
+            }
+            Request::Claims { name, first } => Reply::Claimed(
+                self.types
+                    .iter()
+                    .find(|kind| kind.claims.is_some_and(|claims| claims(&name, &first)))
+                    .map(|kind| kind.info.content_type),
+            ),
+            Request::Blank { content_type } => match self.kind(content_type) {
+                Some(kind) => Reply::Blank((kind.blank)()),
+                None => Reply::Unknown,
+            },
+            Request::Merge3 {
+                content_type,
+                base,
+                ours,
+                theirs,
+            } => match self.kind(content_type) {
+                Some(kind) => {
+                    match (kind.merge)(base.as_deref(), ours.as_deref(), theirs.as_deref()) {
+                        Ok((bytes, conflicts)) => Reply::Merged { bytes, conflicts },
+                        Err(error) => Reply::Malformed(error),
+                    }
+                }
+                None => Reply::Unknown,
+            },
+            Request::Describe {
+                content_type,
+                bytes,
+                organization,
+            } => match self.kind(content_type) {
+                Some(kind) => match (kind.describe)(&bytes, organization) {
+                    Ok(description) => Reply::Described(description),
+                    Err(error) => Reply::Malformed(error),
+                },
+                None => Reply::Unknown,
+            },
+            Request::ToFile {
+                content_type,
+                bytes,
+            } => match self.kind(content_type) {
+                Some(kind) => match kind.to_file.map(|to_file| to_file(&bytes)) {
+                    None => Reply::File(None),
+                    Some(Ok(file)) => Reply::File(file),
+                    Some(Err(error)) => Reply::Malformed(error),
+                },
+                None => Reply::Unknown,
+            },
+        };
+        out.push(Command::Reply { id, reply });
+    }
+}
+
+pub trait Guest {
+    fn start(&mut self) -> Vec<Vec<u8>>;
+
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> Vec<Vec<u8>>;
+}
+
+impl Guest for Module {
+    fn start(&mut self) -> Vec<Vec<u8>> {
+        vec![encode_frame(&self.hello())]
+    }
+
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+        let mut outbound = Vec::new();
+        for frame in frames {
+            match decode_frame::<Event>(&frame) {
+                Ok(event) => outbound.extend(self.handle(event).iter().map(encode_frame)),
+                Err(error) => outbound.push(encode_frame(&Command::Error {
+                    replica: 0,
+                    message: error.to_string(),
+                })),
+            }
+        }
+        outbound
+    }
+}
+
+#[macro_export]
+macro_rules! be_block_types {
+    ($($kind:ty $({ $($part:ident),* $(,)? })?),* $(,)?) => {
+        pub fn block_types() -> $crate::Module {
+            $crate::Module::new(::std::vec![
+                $($crate::Registration::of::<$kind>()$($(.$part::<$kind>())*)?),*
+            ])
+        }
+    };
+}
+
+#[cfg(test)]
+mod tests;

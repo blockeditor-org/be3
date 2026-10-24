@@ -801,7 +801,7 @@ build id changes; when the app becomes offline-first, those will have to stay.
 
 `crates/block-app/src/be/worker.rs` is the peer's loop, with a `Live` session
 per open block behind the `Session` trait, so the loop never names a content
-type; `be/native.rs` runs it on a thread of its own with a `FileStore` under it,
+type (guides/type_modules.md is the type-module replica that is to replace both); `be/native.rs` runs it on a thread of its own with a `FileStore` under it,
 and `be/web.rs` runs it on the browser's own executor with a `MemoryStore`,
 because there is no file system to keep objects in there and every open fetches
 what it needs.
