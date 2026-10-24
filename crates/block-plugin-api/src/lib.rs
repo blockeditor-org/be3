@@ -1246,6 +1246,12 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         status: VersionStatus,
     },
+    Replica {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        #[serde(with = "serde_bytes")]
+        frame: Vec<u8>,
+    },
 }
 
 impl EditorMessage {
@@ -1337,7 +1343,8 @@ impl EditorMessage {
             | Self::SetParent { instance, .. }
             | Self::Define { instance, .. }
             | Self::VersionControl { instance, .. }
-            | Self::VersionStatus { instance, .. } => *instance,
+            | Self::VersionStatus { instance, .. }
+            | Self::Replica { instance, .. } => *instance,
         }
     }
 }
@@ -1990,6 +1997,7 @@ impl EditorMessage {
             | Self::WatchHostValue { .. }
             | Self::HostAction { .. }
             | Self::Define { .. } => Direction::ToHost,
+            Self::Replica { .. } => Direction::Either,
         }
     }
 }
@@ -2481,6 +2489,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             blob(&source.bytes)
         }
         EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
+        EditorMessage::Replica { frame, .. } => blob(frame),
         EditorMessage::ContentOperations { operations, .. } => {
             collection(operations.len())?;
             for operation in operations {

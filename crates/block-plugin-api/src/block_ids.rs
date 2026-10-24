@@ -102,7 +102,8 @@ impl EditorMessage {
             | Self::OpenArtifact { block_id, .. }
             | Self::Define { block_id, .. }
             | Self::VersionStatus { block_id, .. }
-            | Self::Head { block_id, .. } => existing(block_id),
+            | Self::Head { block_id, .. }
+            | Self::Replica { block_id, .. } => existing(block_id),
             Self::ShowDialog {
                 block_id, dialog, ..
             } => {

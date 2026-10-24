@@ -152,6 +152,7 @@ mod rejects_truncated_frame;
 mod rejects_unknown_message_kind;
 mod rejects_unordered_occluders;
 mod replacing_a_child_round_trips;
+mod replica_frames_round_trip;
 mod resize_messages_round_trip;
 mod shell_dialog_and_access_messages_round_trip;
 mod show_block_request_round_trips;
