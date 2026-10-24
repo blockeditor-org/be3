@@ -180,6 +180,9 @@ view a canvas, not part of it. `plans/canvas.md` has the plan.
 
 Where you find and organize everything. The file tree is today's only entry
 point (see Extension). Search, history, trash and export (`plans/daily_driver.md`, phase 7) come next.
+`be sync` keeps a folder and a directory on disk in step both ways
+(`guides/sync.md`), so that block-app can one day hold its own source code while
+buck2, editors, CI and agents still read real files.
 
 ### Version control
 
@@ -277,7 +280,13 @@ linux-desktop shell is the editor that makes block-app a desktop.
 
 ### Terminal
 
-Planned for the desktop session, through ghostty-vt.
+A terminal block runs its shell on a machine its owner chose, reached through
+the server, so any client can use a real terminal on a real machine, the web
+and Android included (`guides/terminal.md`). The traffic is sealed like every
+other session message. Sharing one hands out a shell as the host's user, so
+sharing it needs warnings and a read-only default before a public release.
+A terminal in the desktop session, running on the machine itself, is still
+planned.
 
 ### Debug and example editors
 

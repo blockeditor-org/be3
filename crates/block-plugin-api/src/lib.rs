@@ -844,6 +844,19 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         peers: Vec<PeerPresence>,
     },
+    SendToPeers {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        to: Option<u64>,
+        channel: [u8; 16],
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
+    PeerMessages {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        messages: Vec<PeerMessage>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         view: Rect,
@@ -1230,6 +1243,8 @@ impl EditorMessage {
             | Self::ReplaceContent { instance, .. }
             | Self::ShowPresence { instance, .. }
             | Self::PeerPresence { instance, .. }
+            | Self::SendToPeers { instance, .. }
+            | Self::PeerMessages { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -1429,6 +1444,14 @@ pub struct PeerPresence {
     pub kind: [u8; 16],
     #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerMessage {
+    pub from: u64,
+    pub channel: [u8; 16],
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1850,6 +1873,7 @@ impl EditorMessage {
             | Self::Content { .. }
             | Self::ContentOperations { .. }
             | Self::PeerPresence { .. }
+            | Self::PeerMessages { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1916,6 +1940,7 @@ impl EditorMessage {
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
             | Self::ShowPresence { .. }
+            | Self::SendToPeers { .. }
             | Self::Performance { .. }
             | Self::WatchBlocks { .. }
             | Self::VersionControl { .. }
@@ -2482,6 +2507,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             collection(peers.len())?;
             for peer in peers {
                 blob(&peer.value)?;
+            }
+            Ok(())
+        }
+        EditorMessage::SendToPeers { payload, .. } => blob(payload),
+        EditorMessage::PeerMessages { messages, .. } => {
+            collection(messages.len())?;
+            for message in messages {
+                blob(&message.payload)?;
             }
             Ok(())
         }

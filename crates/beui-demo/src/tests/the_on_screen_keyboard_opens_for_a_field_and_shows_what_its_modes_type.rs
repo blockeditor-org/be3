@@ -87,6 +87,18 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
         "superscript turns the next key into its superscript"
     );
 
+    test.click(key(&test, Layer::Text, Value::Compose));
+    test.click(key(&test, Layer::Text, Value::Char('a')));
+    test.frame(Vec::new());
+    test.snapshot("software_keyboard_composing");
+    test.click(key(&test, Layer::Text, Value::Char('e')));
+    test.frame(Vec::new());
+    assert_eq!(
+        value_of(&test),
+        "Hi²æ",
+        "the key that showed æ while composing types it"
+    );
+
     swipe(
         &mut test,
         Layer::Text,

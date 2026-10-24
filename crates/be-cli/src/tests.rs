@@ -19,12 +19,14 @@ use crate::tracker::{Assignment, Body, RowView, Tracker};
 mod a_choice_option_takes_a_colour_an_icon_and_closes_rows;
 mod a_csv_export_is_imported_as_rows_with_pages;
 mod a_downloaded_block_uploads_as_a_copy_with_new_ids;
+mod a_folder_syncs_with_a_directory;
 mod a_merged_pull_request_closes_rows_without_a_done_status;
 mod a_new_row_takes_each_choice_fields_default;
 mod a_page_saved_elsewhere_keeps_both_changes;
 mod a_pull_request_moves_the_rows_it_names;
 mod a_row_blocked_by_another_shows_as_blocking_there;
 mod a_spreadsheet_escaped_cell_is_read_as_written;
+mod a_terminal_host_runs_a_shell_for_its_viewers_and_repaints_it_for_one_that_returns;
 mod a_token_is_never_sent_unencrypted_to_another_machine;
 mod agent_credentials_are_read_as_one_json_bundle;
 mod an_agent_reads_and_writes_the_rows_shared_with_it;
@@ -101,6 +103,54 @@ impl Harness {
         }
         let _ = std::fs::remove_dir_all(&self.directory);
     }
+}
+
+async fn agent(
+    harness: &Harness,
+    owner: &Tracker<MemoryStore>,
+) -> (Settings, Uuid, be_keys::RecoveryPublic) {
+    let phrase = be_keys::RecoveryPhrase::generate();
+    let public = phrase.secret().public();
+    let peer = owner.peer();
+    let organization = peer.organization();
+    let response = peer
+        .connection()
+        .request(|request| be_protocol::ClientMessage::CreateAgent {
+            request,
+            organization,
+            name: "Claude".into(),
+            recovery: public.0,
+            contact: be_client::contacts::card(
+                peer.account(),
+                peer.keys().identity(),
+                "Owner",
+                "owner@example.com",
+            )
+            .seal_own(&phrase.secret()),
+            escrow: peer.keys().escrow().map_or_else(Vec::new, |escrow| {
+                be_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
+            }),
+        })
+        .await
+        .unwrap();
+    let be_protocol::ServerMessage::AgentCreated { agent, token, .. } = response else {
+        panic!("creating the agent failed: {response:?}");
+    };
+    let credentials = serde_json::json!({
+        "server": harness.url,
+        "organization": organization,
+        "token": token,
+        "recovery_phrase": phrase.to_string(),
+    })
+    .to_string();
+    let cache = std::env::temp_dir().join(format!("be-cli-cache-{}", Uuid::new_v4()));
+    let settings = Settings::from_values(|name| match name {
+        "BE3_AGENT_CREDENTIALS" => Some(credentials.clone()),
+        "BE3_CACHE" => Some(cache.to_string_lossy().into_owned()),
+        _ => None,
+    })
+    .unwrap();
+    (settings, agent.account, public)
 }
 
 async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
@@ -236,5 +286,6 @@ async fn run<S: be_store::ObjectStore>(tracker: &Tracker<S>, line: &str) -> Resu
     match cli::run(tracker, &invocation).await? {
         Outcome::Print(text) => Ok(text),
         Outcome::Edit { .. } => Err("the command wanted an editor".to_owned()),
+        Outcome::Watch { .. } => Err("the command wanted to keep watching".to_owned()),
     }
 }

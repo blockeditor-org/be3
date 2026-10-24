@@ -71,6 +71,95 @@ impl Screen {
     }
 }
 
+impl Screen {
+    pub fn repaint(&self) -> Vec<u8> {
+        let mut out = b"\x1b[0m\x1b[H\x1b[2J".to_vec();
+        let mut style: Option<Style> = None;
+        for (y, row) in self.rows.iter().enumerate() {
+            let mut at: Option<usize> = None;
+            let mut after_wide = false;
+            for (x, cell) in row.cells.iter().enumerate() {
+                if cell.text.is_empty() && (cell.background.is_none() || after_wide) {
+                    after_wide = false;
+                    at = None;
+                    continue;
+                }
+                if at != Some(x) {
+                    out.extend_from_slice(format!("\x1b[{};{}H", y + 1, x + 1).as_bytes());
+                }
+                let wanted = Style::of(cell, self);
+                if style.as_ref() != Some(&wanted) {
+                    wanted.write(&mut out);
+                    style = Some(wanted);
+                }
+                let text = if cell.text.is_empty() {
+                    " "
+                } else {
+                    &cell.text
+                };
+                out.extend_from_slice(text.as_bytes());
+                after_wide = !text.is_ascii();
+                at = (!after_wide).then_some(x + 1);
+            }
+        }
+        out.extend_from_slice(b"\x1b[0m");
+        match self.cursor {
+            Some(cursor) => {
+                out.extend_from_slice(
+                    format!("\x1b[{};{}H\x1b[?25h", cursor.y + 1, cursor.x + 1).as_bytes(),
+                );
+            }
+            None => out.extend_from_slice(b"\x1b[?25l"),
+        }
+        out
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Style {
+    foreground: Option<Rgb>,
+    background: Option<Rgb>,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    strikethrough: bool,
+}
+
+impl Style {
+    fn of(cell: &Cell, screen: &Screen) -> Self {
+        Self {
+            foreground: (cell.foreground != screen.foreground).then_some(cell.foreground),
+            background: cell.background,
+            bold: cell.bold,
+            italic: cell.italic,
+            underline: cell.underline,
+            strikethrough: cell.strikethrough,
+        }
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        let mut sequence = String::from("\x1b[0");
+        for (on, code) in [
+            (self.bold, ";1"),
+            (self.italic, ";3"),
+            (self.underline, ";4"),
+            (self.strikethrough, ";9"),
+        ] {
+            if on {
+                sequence.push_str(code);
+            }
+        }
+        if let Some(Rgb { r, g, b }) = self.foreground {
+            sequence.push_str(&format!(";38;2;{r};{g};{b}"));
+        }
+        if let Some(Rgb { r, g, b }) = self.background {
+            sequence.push_str(&format!(";48;2;{r};{g};{b}"));
+        }
+        sequence.push('m');
+        out.extend_from_slice(sequence.as_bytes());
+    }
+}
+
 pub struct Renderer {
     state: sys::RenderState,
     rows: sys::RowIterator,

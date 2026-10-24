@@ -5,6 +5,18 @@ pub trait PresenceKind: Serialize + DeserializeOwned {
     const ID: Uuid;
 }
 
+pub trait ChannelKind: Serialize + DeserializeOwned {
+    const ID: Uuid;
+
+    fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).unwrap_or_default()
+    }
+
+    fn decode(bytes: &[u8]) -> Option<Self> {
+        postcard::from_bytes(bytes).ok()
+    }
+}
+
 pub const USER_ACTIVE: Uuid = Uuid::from_u128(0x7573_6572_5f61_6374_6976_655f_5f5f_5f5f);
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]

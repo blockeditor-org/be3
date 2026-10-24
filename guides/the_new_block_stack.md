@@ -61,6 +61,7 @@ be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
 be-vcs       snapshot trees, diff, tree merge      client
 be-client    a peer: local store, blocks, Live    client
+be-sync      a folder <-> a directory on disk      client (native)
 be-server    the always-online peer               server
 ```
 
@@ -1664,6 +1665,27 @@ framework shows a `UserActive` value of its own, with a colour picked by
 block is visible. The text editor's cursors and the canvas's pointers and
 selections work the same way, and each carries a colour of its own picked the
 same way rather than joining it to the peer's `UserActive` entry.
+
+### Peer messages
+
+Presence is state; a peer message is a message. `SessionMessage::Channel {
+channel, payload }` goes to one participant of a block's session or to all of
+them, sealed with the block's key like every other session message, so the
+server relays what it cannot read. A channel is a uuid naming what the payload
+means. `Live::send_channel(to, channel, payload)` sends one and
+`Live::take_channel` takes what other participants sent, in the order each of
+them sent it. Nothing is kept: a participant that was not in the session never
+hears it.
+
+The worker queues each block's messages in `Shared::peer_messages` (the last
+4096) and the host hands each instance holding the block the ones that arrived
+since it opened, as `EditorMessage::PeerMessages`; an instance sends with
+`EditorMessage::SendToPeers`, which the host takes from an instance that holds
+the block and may view it. On the plugin side that is
+`editor.send_to_peers(to, &message)` and `editor.on_peer_message(|from, message|
+..)` over a `ChannelKind` (`be_block::presence`), which names the channel and
+encodes with postcard. `to` is a client id from presence. The terminal block is
+built on it (guides/terminal.md).
 
 ### Editors with their own model
 

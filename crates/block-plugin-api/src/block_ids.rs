@@ -95,6 +95,8 @@ impl EditorMessage {
             | Self::ReplaceContent { block_id, .. }
             | Self::ShowPresence { block_id, .. }
             | Self::PeerPresence { block_id, .. }
+            | Self::SendToPeers { block_id, .. }
+            | Self::PeerMessages { block_id, .. }
             | Self::DragBlock { block_id, .. }
             | Self::DragOver { block_id, .. }
             | Self::PlayAudio { block_id, .. }

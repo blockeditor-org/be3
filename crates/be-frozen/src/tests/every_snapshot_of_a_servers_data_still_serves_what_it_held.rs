@@ -543,6 +543,8 @@ async fn run(tracker: &Tracker<be_store::FileStore>, arguments: &[&str]) -> Stri
     .unwrap();
     match cli::run(tracker, &invocation).await.unwrap() {
         cli::Outcome::Print(printed) => printed,
-        cli::Outcome::Edit { .. } => panic!("{arguments:?} asked for an editor"),
+        cli::Outcome::Edit { .. } | cli::Outcome::Watch { .. } => {
+            panic!("{arguments:?} asked for an editor or a watch")
+        }
     }
 }

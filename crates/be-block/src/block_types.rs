@@ -4,11 +4,12 @@ use crate::{
     AudioContent, BeuiDemoContent, BlockContent, BrowserTabContent, CalendarContent, CanvasContent,
     ChecklistContent, CheckoutContent, CompiledLogicContent, CounterContent, DatabaseContent,
     DatabaseSchemaContent, DatabaseViewContent, DeterministicGameContent, DisplaySettingsContent,
-    EditorSettingsContent, EditorViewContent, FolderContent, GameModuleContent, HotbarContent,
-    ImageContent, InputRemapperContent, InputSettingsContent, LogicGameContent, LogicGridContent,
-    MapContent, PanZoomContent, PdfContent, PixelArtContent, PixelRayTracerContent,
-    PresentationContent, RepositoryContent, Scene3dContent, SettingsContent,
-    SettingsProfileContent, TextContent, TriangleContent, VideoContent, WorkspaceContent,
+    EditorSettingsContent, EditorViewContent, FileContent, FolderContent, GameModuleContent,
+    HotbarContent, ImageContent, InputRemapperContent, InputSettingsContent, LogicGameContent,
+    LogicGridContent, MapContent, PanZoomContent, PdfContent, PixelArtContent,
+    PixelRayTracerContent, PresentationContent, RepositoryContent, Scene3dContent, SettingsContent,
+    SettingsProfileContent, TerminalContent, TextContent, TriangleContent, VideoContent,
+    WorkspaceContent,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -85,6 +86,7 @@ pub const BLOCK_TYPES: &[BlockType] = &[
     of::<DisplaySettingsContent>("Display", "\u{e603}", BLUE, ChildEdits::NONE),
     of::<EditorSettingsContent>("Default editors", "\u{e603}", ORANGE, ChildEdits::NONE),
     of::<EditorViewContent>("View", "\u{e0ba}", TEAL, ChildEdits::NONE),
+    of::<FileContent>("File", "\u{e0c0}", BLUE, ChildEdits::NONE),
     of::<FolderContent>("Folder", "\u{e0d7}", PURPLE, ChildEdits::ALL),
     of::<GameModuleContent>("Game Module", "\u{e29c}", ORANGE, ChildEdits::NONE),
     of::<HotbarContent>("Hotbar", "\u{e4fa}", ORANGE, ChildEdits::NONE),
@@ -103,6 +105,7 @@ pub const BLOCK_TYPES: &[BlockType] = &[
     of::<Scene3dContent>("3D scene", "\u{e061}", RED, ChildEdits::NONE),
     of::<SettingsContent>("Settings", "\u{e154}", TEAL, ChildEdits::NONE),
     of::<SettingsProfileContent>("Settings Profile", "\u{e154}", GOLD, ChildEdits::NONE),
+    of::<TerminalContent>("Terminal", "\u{e181}", GREEN, ChildEdits::NONE),
     of::<TextContent>("Text", "\u{e0cc}", RED, ChildEdits::REPLACE),
     of::<TriangleContent>("Triangle", "\u{e192}", TEAL, ChildEdits::NONE),
     of::<VideoContent>("Video Editor", "\u{e0d0}", GREEN, ChildEdits::ALL),

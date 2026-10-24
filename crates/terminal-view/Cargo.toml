@@ -1,0 +1,12 @@
+[package]
+name = "terminal-view"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui", default-features = false }
+ghostty-vt = { path = "../ghostty-vt" }
+
+[lints]
+workspace = true

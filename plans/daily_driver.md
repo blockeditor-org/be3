@@ -312,6 +312,11 @@ Needed before daily use:
   - Import a directory of `.md` files.
   - Being able to leave is part of trusting the app with notes, and this is
     also a second, plaintext backup.
+  - `be sync` (guides/sync.md) already writes a folder as a directory and
+    reads it back on native, with `be_block::plain` as the one mapping between
+    a block and a file. Build export and import on those; what is left is the
+    app's side (a directory picker, the web's download as a zip) and rewriting
+    links between notes as relative paths.
 - **Created and modified times** on `BlockInfo`, for sorting and recents.
 - **Linking.** `[[` autocomplete to link a note while typing.
 

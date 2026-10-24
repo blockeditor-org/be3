@@ -1,3 +1,7 @@
+use beui_core::input::Key;
+
+use super::layout::Value;
+
 pub const SEQUENCES: &[(&str, &str)] = &[
     ("  ", " "),
     (" (", "˘"),
@@ -1218,5 +1222,28 @@ pub fn compose(sequence: &str) -> Composed {
         },
         Some((held, _)) if held.starts_with(sequence) => Composed::Pending,
         _ => Composed::Failed,
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Preview {
+    Same,
+    Faded,
+    Becomes(&'static str),
+}
+
+pub fn preview(sequence: &str, value: Value) -> Preview {
+    match value {
+        Value::Char(character) => match compose(&format!("{sequence}{character}")) {
+            Composed::Pending => Preview::Same,
+            Composed::Done(result) => Preview::Becomes(result),
+            Composed::Failed => Preview::Faded,
+        },
+        Value::Key(Key::Escape)
+        | Value::Modifier(_)
+        | Value::CapsLock
+        | Value::Layer(_)
+        | Value::Compose => Preview::Same,
+        Value::Key(_) | Value::Action(_) | Value::Slider(_) => Preview::Faded,
     }
 }
