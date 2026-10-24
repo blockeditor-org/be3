@@ -155,6 +155,7 @@ struct Instance {
     leaving: bool,
     content: Option<ContentLink>,
     pending_frames: Vec<(Uuid, Vec<u8>)>,
+    early_frames: Vec<(Uuid, Vec<u8>)>,
     watched: HashMap<Uuid, ContentLink>,
     shown: std::collections::HashSet<(Uuid, Uuid)>,
     block_queries: Vec<block_plugin_api::BlockQuery>,
@@ -220,6 +221,8 @@ impl ContentLink {
         crate::be::detach(block, instance.0);
     }
 }
+
+const EARLY_FRAMES: usize = 64;
 
 pub(super) type OpenRequest = crate::editors::BlockOpen;
 
@@ -307,6 +310,7 @@ impl Instance {
             version_sent: None,
             stale: true,
             pending_frames: Vec::new(),
+            early_frames: Vec::new(),
             content: match role {
                 InstanceRole::Editor(_, block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
@@ -316,7 +320,7 @@ impl Instance {
 }
 
 fn own_content_type(block: EditorBlock) -> Option<Uuid> {
-    if crate::be::is_known(block.block_type) {
+    if be_block::block_type(block.block_type).is_some() {
         return Some(block.block_type);
     }
     (block.view_block == Some(block.id))
@@ -768,6 +772,12 @@ impl Instances {
                 false => entry.shown.remove(&(block, *kind)),
             };
         }
+        if entry.link_mut(block).is_none() {
+            if entry.early_frames.len() < EARLY_FRAMES {
+                entry.early_frames.push((block, frame));
+            }
+            return false;
+        }
         let Some(link) = entry.link_mut(block) else {
             return false;
         };
@@ -815,7 +825,7 @@ impl Instances {
                 )
             })
             .filter(|(block, content_type)| {
-                crate::be::is_known(*content_type) && crate::be::may_load(*block)
+                be_block::block_type(*content_type).is_some() && crate::be::may_load(*block)
             })
             .collect();
         let Some(entry) = self.entries.get_mut(&instance) else {
@@ -842,6 +852,10 @@ impl Instances {
             let shown = entry.shown_on(block);
             link.detach(instance, block, &shown);
             entry.shown.retain(|(on, _)| *on != block);
+        }
+        let early = std::mem::take(&mut entry.early_frames);
+        for (block, frame) in early {
+            self.replica_frame(instance, block, frame);
         }
         true
     }

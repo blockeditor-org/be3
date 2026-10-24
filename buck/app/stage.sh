@@ -8,7 +8,8 @@
 # finds it by, with --sdk-artifact, its .cwasm. --index writes plugins.json,
 # the list of manifests the app finds its plugins through. For the web bundle,
 # --tree copies in what wasm-bindgen wrote. --type stages a type module
-# (guides/type_modules.md) as NAME.wasm, with --type-artifact, its .cwasm.
+# (guides/type_modules.md) as NAME.wasm, its SHA-256 as NAME.sha256 (the tag of
+# its sessions) and, with --type-artifact, its .cwasm.
 # --compiled-only leaves out each module that has a .cwasm, for the APK,
 # which only falls back to one.
 #
@@ -65,6 +66,7 @@ for argument in "$@"; do
             pair="${argument#--type=}"
             staged="$out/${pair%%=*}.wasm"
             cp "${pair#*=}" "$staged"
+            sha256sum "$staged" | cut -d ' ' -f 1 > "${staged%.wasm}.sha256"
             ;;
         --type-artifact=*)
             cp "${argument#--type-artifact=}" "${staged%.wasm}.cwasm"

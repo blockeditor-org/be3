@@ -373,7 +373,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
-    let mut replicas = Replicas::new(Modules::new(types::sources()));
+    let mut replicas = Replicas::new(Modules::new(types::sources().await));
     replicas.modules.ready().await;
     crate::host::wake();
     let mut wanted = Wanted::default();

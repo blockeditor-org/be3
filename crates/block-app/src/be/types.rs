@@ -124,23 +124,36 @@ pub(super) fn in_process<G: Guest + 'static>(name: &'static str) -> Source {
 
 pub(super) const BUILTIN: &str = "builtin-types";
 
-pub(super) fn sources() -> Vec<Source> {
-    vec![builtin(), in_process::<HostTypes>("host-types")]
+pub(super) async fn sources() -> Vec<Source> {
+    vec![builtin().await, in_process::<HostTypes>("host-types")]
+}
+
+#[cfg(not(test))]
+async fn staged_tag() -> Result<SessionTag, String> {
+    let name = format!("{BUILTIN}.sha256");
+    #[cfg(not(target_arch = "wasm32"))]
+    let read = crate::editors::plugin::discovery::read(&name);
+    #[cfg(target_arch = "wasm32")]
+    let read = crate::platform::http::get(name.clone(), Vec::new()).await;
+    let hex = String::from_utf8(read?).map_err(|error| error.to_string())?;
+    let hash = be_store::Hash::from_hex(hex.trim()).ok_or(format!("{name} holds no hash"))?;
+    Ok(SessionTag(*hash.as_bytes()))
 }
 
 #[cfg(test)]
-fn builtin() -> Source {
+async fn builtin() -> Source {
     in_process::<builtin_types::BlockTypes>(BUILTIN)
 }
 
 #[cfg(all(not(test), not(target_arch = "wasm32")))]
-fn builtin() -> Source {
+async fn builtin() -> Source {
+    let tag = staged_tag().await;
     Source {
         name: BUILTIN,
-        start: Box::new(|wake, waiting| {
+        start: Box::new(move |wake, waiting| {
+            let tag = tag.clone()?;
             let entry = format!("{BUILTIN}.wasm");
             let read = crate::editors::plugin::discovery::read;
-            let tag = tag_of(&read(&entry)?);
             let host = block_wasm_host::PureHost::new(None)?;
             let channel = host.spawn(
                 BUILTIN.to_owned(),
@@ -154,11 +167,12 @@ fn builtin() -> Source {
 }
 
 #[cfg(all(not(test), target_arch = "wasm32"))]
-fn builtin() -> Source {
+async fn builtin() -> Source {
+    let tag = staged_tag().await;
     Source {
         name: BUILTIN,
-        start: Box::new(|wake, waiting| {
-            let tag = tag_of(format!("{BUILTIN} {}", build_id::current().unwrap_or_default()).as_bytes());
+        start: Box::new(move |wake, waiting| {
+            let tag = tag.clone()?;
             let channel =
                 block_guest_host::web::WebGuest::start(&format!("{BUILTIN}.wasm"), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
@@ -293,43 +307,51 @@ impl Modules {
 
     async fn hello(&mut self, module: usize, types: Vec<TypeInfo>) {
         self.modules[module].hello = true;
-        for info in types {
-            if kind_of(info.content_type).is_some_and(|kind| kind.module == module) {
-                continue;
+        let types: Vec<TypeInfo> = types
+            .into_iter()
+            .filter(|info| kind_of(info.content_type).is_none_or(|kind| kind.module != module))
+            .collect();
+        let blanks = self
+            .requests_all(
+                module,
+                types
+                    .iter()
+                    .map(|info| Request::Blank {
+                        content_type: info.content_type,
+                    })
+                    .collect(),
+            )
+            .await;
+        let mut blank = Vec::new();
+        for (info, reply) in types.into_iter().zip(blanks) {
+            if let Reply::Blank(bytes) = reply {
+                blank.push((info, bytes));
             }
-            let blank = match self
-                .request(
-                    module,
-                    Request::Blank {
+        }
+        let described = self
+            .requests_all(
+                module,
+                blank
+                    .iter()
+                    .map(|(info, bytes)| Request::Describe {
                         content_type: info.content_type,
-                    },
-                )
-                .await
-            {
-                Reply::Blank(bytes) => bytes,
-                _ => continue,
-            };
-            let described = match self
-                .request(
-                    module,
-                    Request::Describe {
-                        content_type: info.content_type,
-                        bytes: blank.clone(),
+                        bytes: bytes.clone(),
                         organization: Uuid::nil(),
-                    },
-                )
-                .await
-            {
-                Reply::Described(description) => description,
-                _ => Description::default(),
-            };
+                    })
+                    .collect(),
+            )
+            .await;
+        for ((info, blank), described) in blank.into_iter().zip(described) {
             register(Kind {
                 content_type: info.content_type,
                 frozen: info.frozen,
                 schema: info.schema,
                 module,
                 blank,
-                described,
+                described: match described {
+                    Reply::Described(description) => description,
+                    _ => Description::default(),
+                },
             });
         }
     }
@@ -461,31 +483,38 @@ impl Modules {
         self.requests
     }
 
-    pub(super) async fn request(&mut self, module: usize, request: Request) -> Reply {
-        let id = self.next_request();
+    async fn requests_all(&mut self, module: usize, requests: Vec<Request>) -> Vec<Reply> {
         let generation = self.modules[module].generation;
-        self.send(module, vec![Event::Request { id, request }]);
-        loop {
+        let ids: Vec<RequestId> = requests.iter().map(|_| self.next_request()).collect();
+        self.send(
+            module,
+            ids.iter()
+                .zip(requests)
+                .map(|(id, request)| Event::Request { id: *id, request })
+                .collect(),
+        );
+        let mut replies: HashMap<RequestId, Reply> = HashMap::new();
+        while replies.len() < ids.len() {
             let held = &self.modules[module];
             if held.worker.is_none() || held.generation != generation {
-                return Reply::Unknown;
+                break;
             }
-            let mut answered = None;
+            let mut answered = false;
             for (from, command) in self.collect() {
                 match command {
-                    Command::Reply { id: replied, reply } if from == module && replied == id => {
-                        answered = Some(reply);
+                    Command::Reply { id, reply } if from == module && ids.contains(&id) => {
+                        replies.insert(id, reply);
+                        answered = true;
                     }
                     command => self.backlog.push_back((from, command)),
                 }
             }
-            if let Some(reply) = answered {
-                return reply;
+            if !answered && replies.len() < ids.len() {
+                self.notified().await;
             }
-            if self.modules[module].generation != generation {
-                return Reply::Unknown;
-            }
-            self.notified().await;
         }
+        ids.iter()
+            .map(|id| replies.remove(id).unwrap_or(Reply::Unknown))
+            .collect()
     }
 }

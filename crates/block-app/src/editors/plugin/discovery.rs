@@ -52,7 +52,7 @@ impl Plugins {
                 .chain(editor.templates.iter().map(|template| template.block_type))
         }) {
             let block_type = Uuid::from_bytes(block_type);
-            if !crate::be::is_known(block_type) || be_block::block_type(block_type).is_none() {
+            if be_block::block_type(block_type).is_none() {
                 self.errors.push(format!(
                     "{source}: {block_type} is not a block type this app has"
                 ));
