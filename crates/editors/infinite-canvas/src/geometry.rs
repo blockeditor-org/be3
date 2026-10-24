@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::{
     CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
     CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
 };

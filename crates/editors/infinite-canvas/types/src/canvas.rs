@@ -6,8 +6,8 @@ use be_model::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::database::DatabaseValue;
-use crate::{ChildChange, Root};
+use be_block::database::DatabaseValue;
+use be_block::{ChildChange, Root};
 
 pub const BINDING_GAP: f32 = 4.0;
 
@@ -1004,7 +1004,7 @@ impl Root for Canvas {
         Vec::new()
     }
 
-    fn describe_in(_: &be_model::Document<Self>, _: &mut crate::BlockMetadata) {}
+    fn describe_in(_: &be_model::Document<Self>, _: &mut be_block::BlockMetadata) {}
 
     fn undoable(change: &Change) -> bool {
         !matches!(

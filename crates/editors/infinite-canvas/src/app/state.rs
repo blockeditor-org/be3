@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
 use block_editor_beui::ContentProjection;
-use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::{
     Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
     CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
     CanvasTransform, InfiniteCanvasOperation,
@@ -623,18 +623,18 @@ impl CanvasState {
         self.preview
     }
 
-    pub(crate) fn grid(&self) -> ReadSignal<block_editor_beui::be_block::canvas::CanvasGrid> {
+    pub(crate) fn grid(&self) -> ReadSignal<infinite_canvas_types::CanvasGrid> {
         self.cells.value().content.field(
             block_editor_beui::be_block::be_model::ObjectId::ROOT,
-            block_editor_beui::be_block::canvas::Canvas::GRID,
+            infinite_canvas_types::Canvas::GRID,
         )
     }
 
-    pub(crate) fn set_grid(&self, grid: block_editor_beui::be_block::canvas::CanvasGrid) {
+    pub(crate) fn set_grid(&self, grid: infinite_canvas_types::CanvasGrid) {
         self.cells
             .value()
             .content
-            .operate(block_editor_beui::be_block::canvas::Canvas::set_grid(grid));
+            .operate(infinite_canvas_types::Canvas::set_grid(grid));
     }
 
     pub(crate) fn block_id(&self) -> Uuid {

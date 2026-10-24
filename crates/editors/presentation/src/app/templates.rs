@@ -1,6 +1,6 @@
-use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::canvas::Canvas;
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::Canvas;
+use infinite_canvas_types::{
     CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextSize, CanvasTextStyle,
     CanvasTextVerticalAlign, CanvasTextWeight, CanvasTransform,
 };

@@ -1,5 +1,5 @@
 use super::*;
-use crate::canvas::{CanvasComponent, CanvasContent, InfiniteCanvasOperation};
+use crate::{CanvasComponent, CanvasContent, InfiniteCanvasOperation};
 
 #[test]
 fn a_component_added_to_one_entity_on_both_sides_is_kept_once() {

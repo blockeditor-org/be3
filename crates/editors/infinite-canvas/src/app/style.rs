@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::{
     CanvasColor, CanvasEntity, CanvasFill, CanvasHue, CanvasLook, CanvasShape, CanvasStrokeStyle,
     CanvasStyle, CanvasTextSize, CanvasTone,
 };

@@ -1,6 +1,6 @@
 use super::*;
 use block_editor_beui::be_block::be_model::RichText;
-use block_editor_beui::be_block::canvas::{CanvasStrokeStyle, CanvasTextSize};
+use infinite_canvas_types::{CanvasStrokeStyle, CanvasTextSize};
 use block_editor_beui::beui::{Key, Modifiers};
 use text_editor_core::schema::basic::{BOLD, ITALIC, STRIKETHROUGH, UNDERLINE, mark};
 

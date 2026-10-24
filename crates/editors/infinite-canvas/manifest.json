@@ -32,7 +32,8 @@
       "display_name": "Canvas",
       "icon": "\ue131",
       "color": [172, 145, 47],
-      "children": {"replace": true}
+      "children": {"replace": true},
+      "module": "infinite_canvas_types.wasm"
     }
   },
   "entry_point": "infinite_canvas.wasm"

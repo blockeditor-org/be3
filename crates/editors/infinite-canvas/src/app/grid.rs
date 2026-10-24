@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasGrid, CanvasGridSpacing};
+use infinite_canvas_types::{CanvasGrid, CanvasGridSpacing};
 use block_editor_beui::beui::icons::ICON_GRID_3X3;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

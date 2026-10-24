@@ -1,13 +1,10 @@
-use crate::Merge;
-use crate::canvas::{
-    CanvasColor, CanvasContent, CanvasEntity, CanvasFill, CanvasPoint, CanvasShape,
-    CanvasStrokeStyle, CanvasTextSize, CanvasTransform, InfiniteCanvasOperation,
-};
+use be_block::Merge;
+use crate::{CanvasColor, CanvasContent, CanvasEntity, CanvasFill, CanvasPoint, CanvasShape, CanvasStrokeStyle, CanvasTextSize, CanvasTransform, InfiniteCanvasOperation};
 use be_commit::MergeResult;
 
 fn run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {
     let mut changed = content.clone();
-    let edit = crate::canvas::Canvas::edit_in(content, &operation);
+    let edit = crate::Canvas::edit_in(content, &operation);
     changed.apply(&edit);
     changed
 }

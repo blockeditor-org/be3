@@ -1,7 +1,7 @@
 use block_editor_beui::beui::icons::Glyph;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::{
     CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLook, CanvasPoint, CanvasShape,
     CanvasStrokeStyle, CanvasStyle,
 };

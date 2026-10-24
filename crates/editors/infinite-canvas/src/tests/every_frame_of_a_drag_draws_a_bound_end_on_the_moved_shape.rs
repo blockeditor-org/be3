@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasBinding;
+use infinite_canvas_types::CanvasBinding;
 use block_editor_beui::beui::{Input, Pos2, Rect};
 
 use crate::app::canvas::item_bounds;

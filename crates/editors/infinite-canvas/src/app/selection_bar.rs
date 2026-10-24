@@ -3,7 +3,7 @@ use super::paint::resolve_color;
 use super::sidebar::{set_foreground, styled_entities};
 use super::state::{CanvasState, CommonValue, common_value};
 use super::style::{STROKES, StylePopover};
-use block_editor_beui::be_block::canvas::{CanvasColor, CanvasProfile};
+use infinite_canvas_types::{CanvasColor, CanvasProfile};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;

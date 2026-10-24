@@ -1,11 +1,8 @@
 use std::collections::BTreeMap;
 
-use crate::canvas::{
-    CanvasComponent, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
-    InfiniteCanvasOperation,
-};
-use crate::database::DatabaseValue;
-use crate::{ChildChange, Root};
+use crate::{CanvasComponent, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation};
+use be_block::database::DatabaseValue;
+use be_block::{ChildChange, Root};
 use uuid::Uuid;
 
 fn entity(shape: CanvasShape, components: Vec<CanvasComponent>) -> CanvasEntity {
@@ -56,7 +53,7 @@ fn canvas_children_are_removed_repointed_or_merged() {
         },
         tagged,
     ] {
-        let edit = crate::canvas::Canvas::edit_in(
+        let edit = crate::Canvas::edit_in(
             &content,
             &InfiniteCanvasOperation::Add {
                 entity: Box::new(entity),
@@ -65,7 +62,7 @@ fn canvas_children_are_removed_repointed_or_merged() {
         content.apply(&edit);
     }
     assert_eq!(
-        crate::BlockContent::references(&content),
+        be_block::BlockContent::references(&content),
         [shown, old, new, linked]
     );
 

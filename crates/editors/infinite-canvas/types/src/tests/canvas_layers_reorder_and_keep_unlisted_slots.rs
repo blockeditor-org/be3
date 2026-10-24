@@ -1,7 +1,4 @@
-use crate::canvas::{
-    CanvasContent, CanvasEntity, CanvasLayerMove, CanvasPoint, CanvasShape, CanvasTransform,
-    InfiniteCanvasOperation,
-};
+use crate::{CanvasContent, CanvasEntity, CanvasLayerMove, CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation};
 use uuid::Uuid;
 
 fn entity(id: Uuid) -> CanvasEntity {
@@ -15,7 +12,7 @@ fn entity(id: Uuid) -> CanvasEntity {
 }
 
 fn run(content: &mut CanvasContent, operation: InfiniteCanvasOperation) {
-    let edit = crate::canvas::Canvas::edit_in(content, &operation);
+    let edit = crate::Canvas::edit_in(content, &operation);
     content.apply(&edit);
 }
 

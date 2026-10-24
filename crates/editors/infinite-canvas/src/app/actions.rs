@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::{CanvasLayerMove, CanvasProfile};
+use infinite_canvas_types::{CanvasLayerMove, CanvasProfile};
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{

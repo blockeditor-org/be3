@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::{
     CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight,
 };
 use block_editor_beui::beui::painting::{Punches, painting, rasterize};
@@ -494,9 +494,9 @@ fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera:
 fn entity_corner(
     entity: &CanvasEntity,
     at: f32,
-) -> block_editor_beui::be_block::canvas::CanvasPoint {
+) -> infinite_canvas_types::CanvasPoint {
     let transform = entity.transform;
-    block_editor_beui::be_block::canvas::CanvasPoint::new(
+    infinite_canvas_types::CanvasPoint::new(
         transform.center.x + transform.size.x * at,
         transform.center.y + transform.size.y * at,
     )

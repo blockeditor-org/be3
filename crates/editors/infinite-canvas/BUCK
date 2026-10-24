@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "infinite_canvas",
+    types = "//crates/editors/infinite-canvas/types:module",
 )

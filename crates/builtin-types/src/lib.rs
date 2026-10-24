@@ -1,5 +1,4 @@
 use be_block::{
-    CanvasContent, CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
     HotbarContent,
 };
 use be_block::{
@@ -9,7 +8,6 @@ use be_block::{
 use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
-    CanvasContent { undo },
     CounterContent { undo },
     DatabaseContent { undo },
     DatabaseSchemaContent { undo },

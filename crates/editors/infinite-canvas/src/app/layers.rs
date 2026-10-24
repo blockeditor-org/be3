@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasShape};
+use infinite_canvas_types::{CanvasEntity, CanvasShape};
 use block_editor_beui::beui::icons::{ICON_EYE, ICON_EYE_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

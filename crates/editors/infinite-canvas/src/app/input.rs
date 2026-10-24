@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::{
     CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
 };
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::{
     Canvas, CanvasColor, CanvasEntity, CanvasFill, CanvasPathPoint, CanvasPoint, CanvasShape,
     CanvasTransform,
 };

@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::sync::Arc;
 
 use block_editor_beui::be_block::be_model::ObjectId;
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::{
     Canvas, CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextStyle,
     CanvasTextVerticalAlign, CanvasTextWeight, Entity,
 };

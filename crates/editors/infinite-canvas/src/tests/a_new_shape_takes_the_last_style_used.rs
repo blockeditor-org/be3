@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{CanvasHue, CanvasLook, CanvasTone};
+use infinite_canvas_types::{CanvasHue, CanvasLook, CanvasTone};
 use block_editor_beui::beui::Vec2;
 
 #[test]

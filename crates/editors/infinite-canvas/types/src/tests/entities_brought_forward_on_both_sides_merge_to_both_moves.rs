@@ -1,5 +1,5 @@
 use super::*;
-use crate::canvas::{CanvasContent, CanvasLayerMove, InfiniteCanvasOperation};
+use crate::{CanvasContent, CanvasLayerMove, InfiniteCanvasOperation};
 
 #[test]
 fn entities_brought_forward_on_both_sides_merge_to_both_moves() {

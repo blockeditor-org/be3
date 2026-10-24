@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 pub mod blob;
 pub mod block_url;
-pub mod canvas;
 pub mod counter;
 pub mod database;
 pub mod database_schema;
@@ -32,7 +31,6 @@ pub mod version_control;
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
-pub use canvas::CanvasContent;
 pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};

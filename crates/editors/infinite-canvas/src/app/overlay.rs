@@ -1,5 +1,5 @@
 use block_editor_beui::ResizeMode;
-use block_editor_beui::be_block::canvas::{CanvasPoint, CanvasStyle};
+use infinite_canvas_types::{CanvasPoint, CanvasStyle};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::{
     Color32, FillRule, FontId, LineCap, LineJoin, Painter, Path, Pos2, Rect, Stroke, TextAlign,

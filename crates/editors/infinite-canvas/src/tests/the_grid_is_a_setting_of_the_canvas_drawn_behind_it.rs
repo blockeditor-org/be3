@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{CanvasGrid, CanvasGridSpacing};
+use infinite_canvas_types::{CanvasGrid, CanvasGridSpacing};
 use block_editor_beui::beui::{Key, Modifiers, Rect, pos2};
 
 fn grid(editor: &BeuiTest<CanvasApp>) -> CanvasGrid {

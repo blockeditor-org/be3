@@ -1,5 +1,5 @@
 use super::*;
-use crate::canvas::{Canvas, CanvasContent, InfiniteCanvasOperation};
+use crate::{Canvas, CanvasContent, InfiniteCanvasOperation};
 
 fn text_of(content: &CanvasContent) -> String {
     content.root().entities()[0]

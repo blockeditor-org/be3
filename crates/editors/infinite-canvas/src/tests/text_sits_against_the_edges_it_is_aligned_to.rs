@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{
+use infinite_canvas_types::{
     CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
 };
 

@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::CanvasProfile;
+use infinite_canvas_types::CanvasProfile;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;

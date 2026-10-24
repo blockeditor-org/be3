@@ -1,5 +1,5 @@
 use super::*;
-use crate::canvas::{CanvasContent, CanvasPoint, InfiniteCanvasOperation};
+use crate::{CanvasContent, CanvasPoint, InfiniteCanvasOperation};
 
 #[test]
 fn a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed() {

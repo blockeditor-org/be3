@@ -1011,6 +1011,7 @@ dependencies = [
  "futures-util",
  "ignore",
  "image-block-types",
+ "infinite-canvas-types",
  "notify",
  "serde",
  "serde_json",
@@ -4235,6 +4236,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "infinite-canvas-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
@@ -4243,6 +4256,7 @@ dependencies = [
  "block-ui-test",
  "image",
  "image-block-types",
+ "infinite-canvas-types",
  "serde",
  "serde_json",
  "text-editor-core",
@@ -6074,6 +6088,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "infinite-canvas-types",
  "presentation-types",
  "uuid",
 ]

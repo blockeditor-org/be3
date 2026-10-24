@@ -1,7 +1,7 @@
 use super::*;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::be_model::ObjectId;
-use block_editor_beui::be_block::canvas::Entity;
+use infinite_canvas_types::Entity;
 use block_editor_beui::beui::{pos2, unstyled};
 
 fn peer_types(editor: &mut BeuiTest<CanvasApp>, entity: Uuid, at: usize, typed: &str) {
