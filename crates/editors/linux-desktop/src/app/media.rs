@@ -1,5 +1,5 @@
-use block_editor_beui::beui::icons::Glyph;
 use beui::KeyAt;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_MIC, ICON_MIC_OFF, ICON_PLAY, ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_SQUARE, ICON_SUN,
     ICON_SUN_DIM, ICON_VOLUME_1, ICON_VOLUME_2, ICON_VOLUME_X,

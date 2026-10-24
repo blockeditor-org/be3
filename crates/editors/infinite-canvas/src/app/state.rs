@@ -1,5 +1,5 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use block_editor_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 

@@ -35,7 +35,10 @@ fn regenerate(package: &Path) -> Result<String, String> {
         .ok_or("package.json names no version")?
         .to_owned();
     let list = list(&version, package)?;
-    let count = list.lines().filter(|line| line.starts_with("    ICON_")).count();
+    let count = list
+        .lines()
+        .filter(|line| line.starts_with("    ICON_"))
+        .count();
     std::fs::write(root.join(LIST), list).map_err(|error| format!("writing {LIST}: {error}"))?;
     std::fs::copy(package.join("font/lucide.ttf"), root.join(FONT))
         .map_err(|error| format!("copying the font to {FONT}: {error}"))?;
@@ -66,10 +69,9 @@ fn list(version: &str, package: &Path) -> Result<String, String> {
         .keys()
         .map(String::as_str)
         .collect();
-    let codepoints: BTreeMap<String, u64> = serde_json::from_value(read(
-        &package.join("font/codepoints.json"),
-    )?)
-    .map_err(|error| format!("font/codepoints.json: {error}"))?;
+    let codepoints: BTreeMap<String, u64> =
+        serde_json::from_value(read(&package.join("font/codepoints.json"))?)
+            .map_err(|error| format!("font/codepoints.json: {error}"))?;
     let tags: BTreeMap<String, Vec<String>> =
         serde_json::from_value(read(&package.join("tags.json"))?)
             .map_err(|error| format!("tags.json: {error}"))?;

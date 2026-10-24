@@ -1,9 +1,9 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::be_block::database_view::{
     DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,
 };
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN, ICON_LIST,
     ICON_TABLE_PROPERTIES,

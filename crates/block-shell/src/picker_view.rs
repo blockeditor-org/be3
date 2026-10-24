@@ -295,11 +295,7 @@ fn TypeItem(
             .map(|[r, g, b]| Color32::from_rgb(r, g, b))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
-    let glyph = create_memo(move || {
-        entry
-            .get()
-            .and_then(|entry| entry.icon)
-    });
+    let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
         <unstyled::MenuItem
             label
@@ -688,11 +684,7 @@ fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId 
             .map(|[r, g, b]| Color32::from_rgb(r, g, b))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
-    let glyph = create_memo(move || {
-        entry
-            .get()
-            .and_then(|entry| entry.icon)
-    });
+    let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
         <unstyled::Button
             @test_id={format!("picker.more.{key}")}

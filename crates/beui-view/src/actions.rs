@@ -2,9 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_core::callback::NodeRef;
-use beui_core::icons::Glyph;
 use beui_core::context::{ActionGroup, ActionInfo, Context};
 use beui_core::document::ActionsHook;
+use beui_core::icons::Glyph;
 use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
 use beui_core::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyPhase};
 use beui_core::node::NodeId;

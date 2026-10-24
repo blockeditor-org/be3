@@ -1,5 +1,5 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_LOCK, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW,
 };

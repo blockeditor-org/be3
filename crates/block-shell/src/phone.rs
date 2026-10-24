@@ -69,12 +69,9 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
     });
     let glyph = create_memo(move || {
         info.with(|info| {
-            info.as_ref()
-                .and_then(|info| {
-                    block_editor_beui::label_glyph(
-                        &workspace.label(info.item.id, info.item.block_type),
-                    )
-                })
+            info.as_ref().and_then(|info| {
+                block_editor_beui::label_glyph(&workspace.label(info.item.id, info.item.block_type))
+            })
         })
     });
     let kind = create_memo(move || {

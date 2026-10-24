@@ -9,8 +9,8 @@ use beui_core::base::text::{
     FontPatch, IconSpan, SpanContent, SpanHandle, TextNode, TextPart, TextStyle,
 };
 use beui_core::color::Color32;
-use beui_core::icons::Glyph;
 use beui_core::font::{FontFamily, FontId};
+use beui_core::icons::Glyph;
 use beui_core::node::{NodeId, NodeOf};
 use beui_core::rich::{SpanBackground, TextCaret, TextGlyph, TextMark};
 
@@ -396,7 +396,9 @@ pub fn Icon(
         }),
         color,
         icon: Some(IconSpan { scale, spacing_em }),
-        ..Span::plain(glyph.map(|glyph| glyph.map_or_else(String::new, |glyph| glyph.as_str().to_owned())))
+        ..Span::plain(
+            glyph.map(|glyph| glyph.map_or_else(String::new, |glyph| glyph.as_str().to_owned())),
+        )
     }
 }
 

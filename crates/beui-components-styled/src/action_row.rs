@@ -1,5 +1,5 @@
-use beui_core::icons::Glyph;
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::context_menu::{GlyphSlot, MenuTreeLead, SHEET_TREE_CHEVRON, SHEET_TREE_INDENT};

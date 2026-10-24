@@ -1,7 +1,7 @@
-use beui_core::icons::Glyph;
 use accesskit::{Node, Role, Toggled};
 use beui_core::base::grid::Track;
 use beui_core::base::overlay::Placement;
+use beui_core::icons::Glyph;
 use beui_core::input::{Key, KeyPress};
 use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
@@ -1167,7 +1167,7 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
         Some(MenuNode::Submenu(submenu)) => {
             let items = submenu.items.clone();
             view! {
-                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph.clone()} separated>
+                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph} separated>
                     <MenuNodes nodes={items} test_prefix />
                 </MenuItem>
             }

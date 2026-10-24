@@ -302,12 +302,7 @@ fn BlockMenu<F: Fn() + 'static>(
             <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} />
             <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={edit} />
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} />
-            <MenuItem
-                label={delete_label}
-                glyph=ICON_TRASH
-                disabled={deletable}
-                danger=true
-            />
+            <MenuItem label={delete_label} glyph=ICON_TRASH disabled={deletable} danger=true />
             <MenuItem label="Inspect" glyph=ICON_INFO disabled={uninspectable} />
             <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
             <Show condition={restorable}>

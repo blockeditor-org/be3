@@ -1,5 +1,5 @@
-use beui_core::icons::Glyph;
 use accesskit::{Node, Role};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate as unstyled;

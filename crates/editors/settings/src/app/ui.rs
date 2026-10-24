@@ -1,9 +1,9 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
     SettingsContent, SettingsProfileContent,
 };
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MONITOR, ICON_MONITOR_SMARTPHONE,
     ICON_PLUS,

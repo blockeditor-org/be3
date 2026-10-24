@@ -25,7 +25,9 @@ pub fn run() -> ExitCode {
         #[cfg(unix)]
         "fuzz" => fuzz::main(rest),
         _ => {
-            eprintln!("usage: local-tools verify|deploy|fuzz|rasterize|icons|web-page|apk-sign ...");
+            eprintln!(
+                "usage: local-tools verify|deploy|fuzz|rasterize|icons|web-page|apk-sign ..."
+            );
             ExitCode::FAILURE
         }
     }

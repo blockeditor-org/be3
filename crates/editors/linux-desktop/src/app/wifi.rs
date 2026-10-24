@@ -1,5 +1,5 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_WIFI, ICON_WIFI_HIGH, ICON_WIFI_LOCK, ICON_WIFI_LOW, ICON_WIFI_OFF, ICON_WIFI_SYNC,
     ICON_WIFI_ZERO,

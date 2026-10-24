@@ -1,5 +1,5 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::{PANEL_MAX_WIDTH, PANEL_PADDING};
 use block_editor_beui::beui::styled::*;

@@ -1,4 +1,3 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::database::DatabaseContent;
@@ -7,6 +6,7 @@ use block_editor_beui::be_block::database_schema::{
     DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseRelationOptions,
     DatabaseSchema, DatabaseSchemaContent,
 };
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, MenuButtonHandle, MenuItem};

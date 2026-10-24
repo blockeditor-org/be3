@@ -1,7 +1,7 @@
-use beui::icons::Glyph;
 use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
+use beui::icons::Glyph;
 use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
     ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE,
@@ -2968,11 +2968,7 @@ fn ProjectTree() -> NodeId {
                             glyph=ICON_PENCIL
                             row_test_id={"demo.tree.rename".to_owned()}
                         />
-                        <unstyled::MenuItem
-                            label="Delete"
-                            glyph=ICON_TRASH
-                            danger=true
-                        />
+                        <unstyled::MenuItem label="Delete" glyph=ICON_TRASH danger=true />
                     },
                     on_select: Callback::new(move |path: Vec<usize>| match path.as_slice() {
                         [0] => editing.set(Some(row)),

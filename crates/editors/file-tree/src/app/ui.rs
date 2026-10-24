@@ -697,12 +697,7 @@ pub(crate) fn ExportAs(
     let none = create_memo(move || keys.with(Vec::is_empty));
     let prefix = row_test_id.clone();
     view! {
-        <MenuItem
-            label="Export as"
-            glyph=ICON_DOWNLOAD
-            disabled={none}
-            row_test_id={row_test_id}
-        >
+        <MenuItem label="Export as" glyph=ICON_DOWNLOAD disabled={none} row_test_id={row_test_id}>
             <ForEach keys={keys}>|format: ExportFormat| {
                 let label = create_memo(move || {
                     shown.with(|shown| {

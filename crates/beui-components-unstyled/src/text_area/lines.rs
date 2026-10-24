@@ -854,11 +854,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             false => colors.widget,
         }
     });
-    let icon = create_memo(move || {
-        widget
-            .get()
-            .and_then(|widget| widget.icon)
-    });
+    let icon = create_memo(move || widget.get().and_then(|widget| widget.icon));
     let has_icon = create_memo(move || icon.get().is_some());
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));

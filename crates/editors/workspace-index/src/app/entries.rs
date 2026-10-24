@@ -119,9 +119,7 @@ impl Folder {
                             || "Loading…".to_owned(),
                             |found| type_name(types.as_ref(), found.block_type),
                         ),
-                        glyph: label
-                            .as_ref()
-                            .and_then(block_editor_beui::label_glyph),
+                        glyph: label.as_ref().and_then(block_editor_beui::label_glyph),
                         automatic: label.as_ref().is_some_and(|label| label.automatic),
                         loaded: found.is_some(),
                     }

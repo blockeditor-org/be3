@@ -1,5 +1,5 @@
-use beui::icons::Glyph;
 use beui::NodeId;
+use beui::icons::Glyph;
 use beui::reactive::*;
 use beui::styled::*;
 use std::cell::RefCell;

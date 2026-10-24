@@ -1,6 +1,6 @@
-use beui::icons::Glyph;
 use be_block::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 use beui::TextAlign;
+use beui::icons::Glyph;
 use beui::icons::{
     ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CIRCLE_DASHED, ICON_CIRCLE_DOT_DASHED,
     ICON_CIRCLE_ELLIPSIS, ICON_CIRCLE_X, ICON_FLAG, ICON_OCTAGON_ALERT, ICON_SIGNAL_HIGH,

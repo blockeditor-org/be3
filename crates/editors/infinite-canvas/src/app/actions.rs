@@ -1,6 +1,6 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::canvas::{CanvasLayerMove, CanvasProfile};
 use block_editor_beui::beui::Key;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_LEFT_RIGHT, ICON_ARROW_UP, ICON_BOXES, ICON_BRACES, ICON_CLIPBOARD,
     ICON_COMPONENT, ICON_COPY, ICON_COPY_PLUS, ICON_DOWNLOAD, ICON_EXTERNAL_LINK, ICON_FOCUS,

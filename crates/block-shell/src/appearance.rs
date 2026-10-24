@@ -1,5 +1,5 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON};
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, ICON_X, named};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

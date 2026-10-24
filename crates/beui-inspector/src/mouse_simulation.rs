@@ -632,7 +632,8 @@ impl MouseSimulation {
             icon => {
                 let (text, hotspot, angle) = cursor_glyph(icon);
                 let painter = painter.rotated(at, angle);
-                let galley = painter.layout(text.as_str(), FontId::icons(CURSOR_SIZE), f32::INFINITY);
+                let galley =
+                    painter.layout(text.as_str(), FontId::icons(CURSOR_SIZE), f32::INFINITY);
                 let origin = at - hotspot * CURSOR_SIZE;
                 painter.galley(origin + shadow, galley.clone(), SHADOW);
                 painter.galley(origin, galley, color);

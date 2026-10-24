@@ -2031,10 +2031,12 @@ pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Opti
         .find_map(|child| text_within(document, child, text))
 }
 
-pub(crate) fn icon_within(document: &Document, root: NodeId, glyph: crate::icons::Glyph) -> Option<NodeId> {
-    if document.text_icons(root).contains(&glyph)
-        && document.node_rect(root).is_some()
-    {
+pub(crate) fn icon_within(
+    document: &Document,
+    root: NodeId,
+    glyph: crate::icons::Glyph,
+) -> Option<NodeId> {
+    if document.text_icons(root).contains(&glyph) && document.node_rect(root).is_some() {
         return Some(root);
     }
     document

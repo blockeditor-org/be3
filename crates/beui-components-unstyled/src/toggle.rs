@@ -1,5 +1,5 @@
-use beui_core::icons::Glyph;
 use accesskit::{Node, Role, Toggled};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use beui_core::input::CursorIcon;

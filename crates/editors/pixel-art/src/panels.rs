@@ -1,9 +1,9 @@
-use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::Toolbar;
 use block_editor_beui::be_block::pixel_art::{
     MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
 };
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_DOWN_LEFT, ICON_ARROW_DOWN_RIGHT, ICON_ARROW_LEFT,
     ICON_ARROW_RIGHT, ICON_ARROW_UP, ICON_ARROW_UP_LEFT, ICON_ARROW_UP_RIGHT, ICON_CIRCLE,

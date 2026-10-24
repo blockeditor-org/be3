@@ -1,4 +1,3 @@
-use block_editor_beui::beui::icons::Glyph;
 use beui::Key;
 use beui::NodeId;
 use beui::icons::{
@@ -10,6 +9,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use block_editor_beui::BlockParent;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 

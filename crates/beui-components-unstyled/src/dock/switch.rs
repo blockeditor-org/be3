@@ -1,6 +1,6 @@
-use beui_core::icons::Glyph;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Pos2;
+use beui_core::icons::Glyph;
 use beui_core::input::Key;
 use beui_core::keys::KeyEvent;
 use beui_core::layer::{Dismiss, LayerPolicy};

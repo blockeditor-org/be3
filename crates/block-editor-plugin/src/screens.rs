@@ -1,9 +1,9 @@
-use lucide::Glyph;
 use block_plugin_api::{
     Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Edits, FrameCommit,
     Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
+use lucide::Glyph;
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,

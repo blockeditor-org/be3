@@ -1,5 +1,5 @@
-use beui_core::icons::Glyph;
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::time::{Duration, Instant};
 
@@ -145,13 +145,7 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
         true => text_muted.get(),
         false => accent.get(),
     }));
-    let glyph = create_memo(move || {
-        level.with(|level| {
-            level
-                .as_ref()
-                .map(|level| level.glyph)
-        })
-    });
+    let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
     let filled = create_memo(move || {
         level.with(|level| Extent {
             fraction: level.as_ref().map(|level| level.level.clamp(0.0, 1.0)),

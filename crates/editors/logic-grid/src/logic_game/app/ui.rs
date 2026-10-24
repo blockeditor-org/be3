@@ -248,11 +248,7 @@ fn SolutionRow(
                 </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <IconButton
-                glyph=ICON_TRASH
-                label="Remove from this level"
-                on_click={remove}
-            />
+            <IconButton glyph=ICON_TRASH label="Remove from this level" on_click={remove} />
         </List>
     }
 }

@@ -648,7 +648,12 @@ impl<K: 'static> Found<K> {
     fn tab<R>(
         &self,
         tab: TabId,
-        read: impl FnOnce(&Memo<String>, &Memo<Option<Glyph>>, &Option<ClickCallback>, &RenderFn<()>) -> R,
+        read: impl FnOnce(
+            &Memo<String>,
+            &Memo<Option<Glyph>>,
+            &Option<ClickCallback>,
+            &RenderFn<()>,
+        ) -> R,
     ) -> Option<R> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab {

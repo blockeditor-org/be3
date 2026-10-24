@@ -1,5 +1,5 @@
-use beui_core::icons::Glyph;
 use crate::frame::{ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::button::{ButtonFace, ButtonVariant};

@@ -135,11 +135,9 @@ pub fn scrollbar_style() -> ScrollbarStyle {
 
 #[component]
 fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
-    let glyph = axis.map(|axis| {
-        match axis {
-            Direction::Vertical => ICON_MOVE_VERTICAL,
-            Direction::Horizontal => ICON_MOVE_HORIZONTAL,
-        }
+    let glyph = axis.map(|axis| match axis {
+        Direction::Vertical => ICON_MOVE_VERTICAL,
+        Direction::Horizontal => ICON_MOVE_HORIZONTAL,
     });
     view! {
         <Frame

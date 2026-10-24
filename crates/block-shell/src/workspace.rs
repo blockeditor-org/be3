@@ -1384,11 +1384,9 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
         })
     });
     let icon = create_memo(move || {
-        workspace
-            .tab(tab)
-            .and_then(|item| {
-                block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
-            })
+        workspace.tab(tab).and_then(|item| {
+            block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
+        })
     });
     view! {
         <DockTab id=tab title icon on_close={move || workspace.close(tab)}>

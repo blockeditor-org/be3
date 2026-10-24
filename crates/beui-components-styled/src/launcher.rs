@@ -1,5 +1,5 @@
-use beui_core::icons::Glyph;
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_core::layer::Dismiss;
 use std::rc::Rc;
 
@@ -381,13 +381,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
                 }
             });
             view! {
-                <LauncherRowFace
-                    title={title}
-                    detail={detail}
-                    image={image}
-                    glyph
-                    lit={lit}
-                />
+                <LauncherRowFace title={title} detail={detail} image={image} glyph lit={lit} />
             }
         }</unstyled::Button>
     }
