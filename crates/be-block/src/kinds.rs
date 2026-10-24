@@ -17,11 +17,6 @@ macro_rules! kind {
 }
 
 kind!(
-    PanZoom,
-    PanZoomContent,
-    0x7061_6e5f_7a6f_6f6d_2d62_6c6f_636b_0001
-);
-kind!(
     Scene3d,
     Scene3dContent,
     0x3364_2d73_6365_6e65_2d62_6c6f_636b_3031
