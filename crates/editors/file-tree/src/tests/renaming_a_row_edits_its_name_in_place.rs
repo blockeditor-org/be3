@@ -62,7 +62,7 @@ fn renaming_a_row_edits_its_name_in_place() {
             .test
             .take_block_commands()
             .iter()
-            .any(|(_, command)| matches!(command, BlockCommand::Rename)),
+            .any(|(_, command)| matches!(command, BlockCommand::Rename { .. })),
         "the host's rename dialog is never asked for"
     );
 }

@@ -590,7 +590,11 @@ impl BarRoom {
     }
 
     fn shows(self, pin: Pin) -> bool {
-        self != BarRoom::Phone || pin == Pin::Icon
+        match pin {
+            Pin::Icon => true,
+            Pin::Label => self != BarRoom::Phone,
+            Pin::Title => self == BarRoom::Phone,
+        }
     }
 }
 
@@ -600,7 +604,11 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
         menu.with(|nodes| {
             pinned(nodes)
                 .into_iter()
-                .filter(|action| action.pinned().is_some_and(|pin| room.shows(pin)))
+                .filter(|action| {
+                    action
+                        .pinned()
+                        .is_some_and(|pin| pin != Pin::Title && room.shows(pin))
+                })
                 .collect::<Vec<_>>()
         })
     });
@@ -681,6 +689,12 @@ fn DockPin(action: Action, room: BarRoom) -> NodeId {
             />
         },
     }
+}
+
+pub(crate) fn title_action(nodes: &[MenuNode]) -> Option<Action> {
+    pinned(nodes)
+        .into_iter()
+        .find(|action| action.pinned() == Some(Pin::Title))
 }
 
 fn pinned(nodes: &[MenuNode]) -> Vec<Action> {

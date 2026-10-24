@@ -129,6 +129,7 @@ pub enum MenuPin {
     None,
     Icon,
     Label,
+    Title,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -411,12 +412,11 @@ pub struct SettingsProgress {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ShellDialog {
-    Rename,
-    Share,
-    Appearance {
+    Rename {
         anchor: Option<Rect>,
         within: Option<[u8; 16]>,
     },
+    Share,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1486,8 +1486,7 @@ pub struct HistoryState {
 pub enum BlockCommand {
     Share,
     Leave,
-    Rename,
-    Appearance {
+    Rename {
         anchor: Option<Rect>,
     },
     Undo,

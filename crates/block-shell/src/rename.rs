@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON};
+use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON, MAX_NAME_BYTES};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, ICON_X, named};
 use block_editor_beui::beui::reactive::*;
@@ -13,8 +13,8 @@ use uuid::Uuid;
 use super::picker::PickAnchor;
 use super::workspace::Workspace;
 
-pub(crate) const APPEARANCE: TabId = TabId::new((1 << 39) + 2);
-const SIZE: Vec2 = Vec2::new(392.0, 560.0);
+pub(crate) const RENAME: TabId = TabId::new((1 << 39) + 2);
+const SIZE: Vec2 = Vec2::new(392.0, 620.0);
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 10.0;
 const COLUMNS: usize = 8;
@@ -37,7 +37,7 @@ pub(crate) const COLORS: [(&str, [u8; 3]); 8] = [
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Appearing {
+pub(crate) struct Renaming {
     pub(crate) block: Uuid,
     pub(crate) anchor: PickAnchor,
 }
@@ -78,26 +78,47 @@ pub(crate) fn matching(search: &str) -> Vec<&'static str> {
 }
 
 #[component]
-pub fn AppearanceDialog(workspace: Workspace, block: Uuid, tab: TabId) -> DockNode<TabId> {
-    let anchor = workspace.appearance_anchor().and_then(|anchor| anchor.rect);
+pub fn RenameDialog(workspace: Workspace, block: Uuid, tab: TabId) -> DockNode<TabId> {
+    let anchor = workspace.rename_anchor().and_then(|anchor| anchor.rect);
+    let initial = untrack(|| {
+        workspace
+            .info(block)
+            .map(|info| workspace.label(info.id, info.block_type).name)
+            .unwrap_or_default()
+    });
+    let name = create_signal(initial.clone());
+    let invalid = create_memo(move || name.with(|name| name.len() > MAX_NAME_BYTES));
+    let done = Callback::new(move |()| {
+        let chosen = name.get_untracked();
+        if chosen != initial && !invalid.get_untracked() {
+            workspace.rename(block, &chosen);
+        }
+        workspace.close_rename();
+    });
     view! {
         <DockDialog
-            id=APPEARANCE
+            id=RENAME
             parent={tab}
-            title="Appearance"
+            title="Rename"
             size=SIZE
             presentation=DockDialogPresentation::Card
             anchor
             dismiss_on_outside_press=true
-            on_close={move || workspace.close_appearance()}
+            on_close={move || done.call(())}
         >
-            <AppearanceBody workspace block />
+            <RenameBody workspace block name invalid done />
         </DockDialog>
     }
 }
 
 #[component]
-fn AppearanceBody(workspace: Workspace, block: Uuid) -> NodeId {
+fn RenameBody(
+    workspace: Workspace,
+    block: Uuid,
+    name: Signal<String>,
+    invalid: Memo<bool>,
+    done: Callback<()>,
+) -> NodeId {
     let look = create_memo(move || {
         let types = workspace.types();
         let info = workspace.info(block);
@@ -156,6 +177,12 @@ fn AppearanceBody(workspace: Workspace, block: Uuid) -> NodeId {
             .collect::<Vec<_>>()
     });
     let empty = create_memo(move || rows.with(Vec::is_empty));
+    let error = create_memo(move || format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes."));
+    let pictured = create_memo(move || {
+        let look = look.get();
+        look.icon.and_then(named).or(look.type_icon)
+    });
+    let tinted = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
     let field = NodeRef::new();
     let built = view! {
         <List spacing=0.0>
@@ -163,16 +190,41 @@ fn AppearanceBody(workspace: Workspace, block: Uuid) -> NodeId {
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>
-                            "Appearance"
+                            "Rename"
                         </Text>
                         <IconButton
-                            @test_id={"appearance.close"}
+                            @test_id={"rename.close"}
                             glyph=ICON_X
                             label="Close"
                             variant=ButtonVariant::Ghost
-                            on_click={move || workspace.close_appearance()}
+                            on_click={move || done.call(())}
                         />
                     </List>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Frame
+                            width=TILE
+                            height=TILE
+                            radius=Radius::Md
+                            fill=ColorRole::SurfaceRaised
+                            align={Align2::CENTER}
+                        >
+                            <Text color={tinted} size=TextSize::Xl align=TextAlign::Center>
+                                <Icon glyph={pictured} />
+                            </Text>
+                        </Frame>
+                        <TextInput
+                            @sizing=ItemSize::Percent(100.0)
+                            @node_ref={&field}
+                            @test_id={"rename.name"}
+                            value={name}
+                            label="Name"
+                            select_on_focus=true
+                            on_submit={move |_: String| done.call(())}
+                        />
+                    </List>
+                    <Show condition={invalid}>
+                        <Text style=TextStyle::CAPTION>{error}</Text>
+                    </Show>
                     <Text style=TextStyle::CAPTION>"Color"</Text>
                     <List
                         direction=Direction::Horizontal
@@ -197,7 +249,7 @@ fn AppearanceBody(workspace: Workspace, block: Uuid) -> NodeId {
                         </ForEach>
                     </List>
                     <ColorInput
-                        @test_id={"appearance.custom"}
+                        @test_id={"rename.custom"}
                         value={custom}
                         label="Custom color"
                         alpha=false
@@ -205,13 +257,12 @@ fn AppearanceBody(workspace: Workspace, block: Uuid) -> NodeId {
                     />
                     <Text style=TextStyle::CAPTION>"Icon"</Text>
                     <TextInput
-                        @node_ref={&field}
                         value={search}
                         placeholder="Search icons"
                         label="Search icons"
                         glyph=ICON_SEARCH
                         clearable=true
-                        @test_id={"appearance.search"}
+                        @test_id={"rename.search"}
                     />
                 </List>
             </Frame>
@@ -256,7 +307,7 @@ fn Swatch<F: Fn() + 'static>(
     });
     view! {
         <unstyled::Button
-            @test_id={format!("appearance.color.{id}")}
+            @test_id={format!("rename.color.{id}")}
             label
             on_click={on_pick}
         >|handle: ButtonHandle| {
@@ -308,7 +359,7 @@ fn IconTile(
     let color = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
     view! {
         <unstyled::Button
-            @test_id={format!("appearance.icon.{id}")}
+            @test_id={format!("rename.icon.{id}")}
             label
             on_click={move || set_icon.call(match tile {
                 Tile::Default => None,

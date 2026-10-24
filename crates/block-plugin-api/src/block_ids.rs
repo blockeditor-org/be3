@@ -107,7 +107,7 @@ impl EditorMessage {
                 block_id, dialog, ..
             } => {
                 existing(block_id);
-                if let ShellDialog::Appearance {
+                if let ShellDialog::Rename {
                     within: Some(within),
                     ..
                 } = dialog
@@ -147,8 +147,7 @@ impl EditorMessage {
                     BlockCommand::Place { parent, .. } => existing(parent),
                     BlockCommand::Share
                     | BlockCommand::Leave
-                    | BlockCommand::Rename
-                    | BlockCommand::Appearance { .. }
+                    | BlockCommand::Rename { .. }
                     | BlockCommand::Undo
                     | BlockCommand::Redo
                     | BlockCommand::Artifact { .. }

@@ -308,6 +308,7 @@ impl MenuMirror {
                         MenuPin::None => action,
                         MenuPin::Icon => action.pin(Pin::Icon),
                         MenuPin::Label => action.pin(Pin::Label),
+                        MenuPin::Title => action.pin(Pin::Title),
                     };
                     Some(MenuNode::action(&action.detached()))
                 }

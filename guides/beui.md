@@ -1909,7 +1909,10 @@ tab bar or at the top of its sidebar, and so does a window. An action built with
 beside it. A tiled tab bar shows the icon pins, a divider, then the label pins as
 labelled buttons (the workspace's undo and redo, then Share); a sidebar shows every
 pin as an icon; the stacked bar shows only the icon pins and leaves the label pins
-in its menu. A tiled bar is 40 points with its rule, its tabs 30; its controls are
+in its menu. An action built with `.pin(Pin::Title)` belongs to the tab's name: the
+stacked bar draws the name as a button with a chevron after it that runs the
+action (the workspace's Rename), and leaves it out of its menu, while tiled bars
+keep it in theirs. A tiled bar is 40 points with its rule, its tabs 30; its controls are
 `IconButtonSize::Toolbar` buttons (30 square) and the labelled pins compact
 `Button`s of the same height, while a tab's own close button stays compact. The
 stacked bar keeps regular-sized buttons. Pinning is how a tab puts its few most used controls in reach without
