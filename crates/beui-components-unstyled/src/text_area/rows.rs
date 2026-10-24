@@ -1,8 +1,8 @@
 use std::ops::Range;
 
 use text_editor_core::{
-    LineLook, ListMarker, MarkSet, TableRow, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
-    TextLanguage, TextRun, VOID,
+    LineLook, ListMarker, MarkSet, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    TableRow, TextLanguage, TextRun, VOID,
 };
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
@@ -606,12 +606,18 @@ impl Builder<'_> {
 }
 
 fn marker_label(list: Option<ListMarker>, shown: &str) -> String {
-    let written = shown.trim_end().rsplit([' ', '\t', '>']).next().unwrap_or_default();
+    let written = shown
+        .trim_end()
+        .rsplit([' ', '\t', '>'])
+        .next()
+        .unwrap_or_default();
     match list {
         Some(ListMarker::Bullet) if matches!(written, "-" | "*" | "+") => written.to_owned(),
         Some(ListMarker::Number(_))
             if written.ends_with(['.', ')'])
-                && written[..written.len() - 1].bytes().all(|byte| byte.is_ascii_digit()) =>
+                && written[..written.len() - 1]
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit()) =>
         {
             written.to_owned()
         }
@@ -1002,7 +1008,10 @@ fn line_space(look: &LineLook, line: usize, scale: f32) -> (f32, f32) {
     if look.code_block && !look.code_below {
         below += CODE_SPACE;
     }
-    if look.table.is_some_and(|table| table.row != TableRow::Delimiter) {
+    if look
+        .table
+        .is_some_and(|table| table.row != TableRow::Delimiter)
+    {
         above += TABLE_SPACE;
         below += TABLE_SPACE;
     }

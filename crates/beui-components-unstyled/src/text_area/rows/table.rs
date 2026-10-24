@@ -242,7 +242,11 @@ impl Builder<'_> {
         let bytes = &inputs.snapshot.bytes;
         let scale = inputs.options.body_size / BODY_SIZE;
         let padding = CELL_PADDING * scale;
-        let pipe_font = font_of(inputs, table.row, SynHlStyle::plain(SynHlColorScope::MarkdownSymbol));
+        let pipe_font = font_of(
+            inputs,
+            table.row,
+            SynHlStyle::plain(SynHlColorScope::MarkdownSymbol),
+        );
         let pipe = text_width("|", pipe_font);
         let parsed = cells(bytes, content.clone());
         let count = columns.widths.len().max(parsed.cells.len());

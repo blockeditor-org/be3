@@ -1,6 +1,6 @@
 use super::*;
 
-const SECOND_ITEM: &str = "text.checkbox.8";
+const SECOND_ITEM: &str = "text.checkbox.10";
 
 fn checked(test: &DocumentTest) -> bool {
     let checkbox = test.document().find_test_id(SECOND_ITEM).unwrap();

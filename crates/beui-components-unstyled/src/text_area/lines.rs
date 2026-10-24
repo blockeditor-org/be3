@@ -244,7 +244,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                 TextLanguage::Markdown | TextLanguage::RichText
             )
         });
-        match document && cx.prose.get().is_none() && !cx.single_line {
+        match document && cx.line_numbers && cx.prose.get().is_none() && !cx.single_line {
             true => cx.font_size.get() * MARGIN_EM,
             false => 0.0,
         }
@@ -515,12 +515,12 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
             };
             let held = cx.held.value();
             if let Some(table) = snapshot.highlight().line_look(start).table {
-                let columns = held.row_cache.borrow_mut().table(
-                    &env,
-                    snapshot.revision,
-                    table.start,
-                    || table_columns(&inputs, table.start),
-                );
+                let columns =
+                    held.row_cache
+                        .borrow_mut()
+                        .table(&env, snapshot.revision, table.start, || {
+                            table_columns(&inputs, table.start)
+                        });
                 inputs.columns = Some(columns);
             }
             let key = row_key(&inputs, start, end, newline);
@@ -872,6 +872,7 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
         line: model.get_untracked().line,
         kind,
         label,
+        depth: create_memo(move || model.get().look.depth),
         style,
         checked,
         disabled: cx.disabled,

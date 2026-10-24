@@ -2,28 +2,28 @@ pub mod emoji;
 pub mod find;
 pub mod format_bar;
 
-use crate::frame::{Frame, Radius};
+use crate::frame::{Border, Frame, Radius};
 use beui_macros::{component, view};
 
+use crate::button::ButtonVariant;
 use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
-use crate::scroll::scrollbar_style;
-use crate::button::ButtonVariant;
 use crate::icon_button::{IconButton, IconButtonSize};
+use crate::scroll::scrollbar_style;
 use crate::text::{Text, TextColor, TextSize};
-use beui_core::icons::ICON_COPY;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor, TableFill, TableLines,
-    TextAreaColors,
-    TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget,
+    Completer, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor,
+    TableFill, TableLines, TextAreaColors, TextAreaState, TextLeaf, TextLine, TextMarker,
+    TextWidget,
 };
 use beui_core::base::{Align, Direction, ItemSize};
 use beui_core::color::Color32;
 use beui_core::file_picker::PickedFile;
 use beui_core::geometry::{Rect, Vec2};
+use beui_core::icons::ICON_COPY;
 use beui_core::node::NodeId;
 use beui_view::primitives::{self, *};
 use beui_view::reactive::*;
@@ -139,6 +139,7 @@ const CODE_RADIUS: Radius = Radius::Sm;
 const CODE_BLOCK_RADIUS: Radius = Radius::Md;
 const QUOTE_BAR_RADIUS: f32 = 1.5;
 const COPY_INSET: f32 = 4.0;
+const HOLLOW_BULLET_WIDTH: f32 = 1.25;
 const NUMBER_ALPHA: f32 = 0.6;
 
 #[component]
@@ -174,8 +175,24 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
             let size = marker.bullet();
             let side = create_memo(move || Extent::px(size.get()));
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
+            let hollow = marker.hollow();
+            let fill = create_memo(move || match hollow.get() {
+                true => Color32::TRANSPARENT,
+                false => color.get(),
+            });
+            let ring = create_memo(move || {
+                hollow
+                    .get()
+                    .then(|| Border::new(ColorRole::Custom(color.get())).width(HOLLOW_BULLET_WIDTH))
+            });
             view! {
-                <Frame width=side height=side fill={ColorRole::custom(color)} radius=Radius::Full />
+                <Frame
+                    width=side
+                    height=side
+                    fill={ColorRole::custom(fill)}
+                    border=ring
+                    radius=Radius::Full
+                />
             }
         }
         MarkerKind::Number(_) => {
@@ -229,7 +246,12 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     });
     let outer = create_memo(move || {
         let outset = outset.get();
-        Sides::new(left.get() - outset, 0.0, (line.padding.get() - outset).max(0.0), 0.0)
+        Sides::new(
+            left.get() - outset,
+            0.0,
+            (line.padding.get() - outset).max(0.0),
+            0.0,
+        )
     });
     let inner = create_memo(move || {
         let (above, below) = line.space.get();

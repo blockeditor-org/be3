@@ -67,6 +67,7 @@ pub struct TextMarker {
     pub line: usize,
     pub kind: Memo<MarkerKind>,
     pub label: Memo<String>,
+    pub depth: Memo<usize>,
     pub style: Memo<SpanStyle>,
     pub checked: Binding<bool>,
     pub disabled: Memo<bool>,
@@ -80,6 +81,11 @@ impl TextMarker {
             MarkerKind::Number(number) => format!("{number}."),
             _ => String::new(),
         })
+    }
+
+    pub fn hollow(&self) -> Memo<bool> {
+        let depth = self.depth;
+        create_memo(move || depth.get() % 2 == 1)
     }
 
     pub fn written(&self) -> Memo<bool> {
@@ -282,9 +288,14 @@ pub fn TableFill(line: TextLine, fill: Memo<Color32>) -> NodeId {
         let table = table.get()?;
         let first = table.edges.first()?.0;
         let last = table.edges.last()?.0;
-        Some((left.get() + first, last - first, table.row == TableRow::Header))
+        Some((
+            left.get() + first,
+            last - first,
+            table.row == TableRow::Header,
+        ))
     });
-    let padding = create_memo(move || Sides::new(span.get().map_or(0.0, |span| span.0), 0.0, 0.0, 0.0));
+    let padding =
+        create_memo(move || Sides::new(span.get().map_or(0.0, |span| span.0), 0.0, 0.0, 0.0));
     let width = create_memo(move || Extent::px(span.get().map_or(0.0, |span| span.1)));
     let color = create_memo(move || match span.get().is_some_and(|span| span.2) {
         true => fill.get(),
@@ -316,9 +327,14 @@ pub fn TableLines(line: TextLine, color: Memo<Color32>) -> NodeId {
         let table = table.get()?;
         let first = table.edges.first()?.0;
         let last = table.edges.last()?.0;
-        Some((left.get() + first, last - first + RULE_WIDTH, table.row == TableRow::Header))
+        Some((
+            left.get() + first,
+            last - first + RULE_WIDTH,
+            table.row == TableRow::Header,
+        ))
     });
-    let padding = create_memo(move || Sides::new(span.get().map_or(0.0, |span| span.0), 0.0, 0.0, 0.0));
+    let padding =
+        create_memo(move || Sides::new(span.get().map_or(0.0, |span| span.0), 0.0, 0.0, 0.0));
     let width = create_memo(move || Extent::px(span.get().map_or(0.0, |span| span.1)));
     let top = create_memo(move || match span.get().is_some_and(|span| span.2) {
         true => color.get(),
@@ -508,7 +524,12 @@ fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
     });
     let outer = create_memo(move || {
         let outset = outset.get();
-        Sides::new(left.get() - outset, 0.0, (line.padding.get() - outset).max(0.0), 0.0)
+        Sides::new(
+            left.get() - outset,
+            0.0,
+            (line.padding.get() - outset).max(0.0),
+            0.0,
+        )
     });
     let inner = create_memo(move || {
         let (above, below) = line.space.get();

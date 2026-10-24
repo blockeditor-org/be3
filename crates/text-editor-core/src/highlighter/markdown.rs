@@ -54,14 +54,16 @@ fn skip_spaces(source: &[u8], mut at: usize, end: usize) -> usize {
 
 fn heading_level(node: tree_sitter::Node<'_>) -> u8 {
     let mut child = node.walk();
-    let level = node.children(&mut child).find_map(|child| match child.kind() {
-        "setext_h1_underline" => Some(1),
-        "setext_h2_underline" => Some(2),
-        kind => kind
-            .strip_prefix("atx_h")
-            .and_then(|value| value.strip_suffix("_marker"))
-            .and_then(|value| value.parse().ok()),
-    });
+    let level = node
+        .children(&mut child)
+        .find_map(|child| match child.kind() {
+            "setext_h1_underline" => Some(1),
+            "setext_h2_underline" => Some(2),
+            kind => kind
+                .strip_prefix("atx_h")
+                .and_then(|value| value.strip_suffix("_marker"))
+                .and_then(|value| value.parse().ok()),
+        });
     level.unwrap_or(2)
 }
 
@@ -154,9 +156,11 @@ fn line_look(
     };
     let top = quote == 0 && lists == 0;
     let hang = match heading {
-        Some(heading) if top && heading.kind() == "atx_heading" => heading
-            .child(0)
-            .map_or(start..start, |mark| start..skip_spaces(source, mark.end_byte(), end)),
+        Some(heading) if top && heading.kind() == "atx_heading" => {
+            heading.child(0).map_or(start..start, |mark| {
+                start..skip_spaces(source, mark.end_byte(), end)
+            })
+        }
         _ if top && rule => start..end,
         _ => start..start,
     };

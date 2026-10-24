@@ -22,11 +22,11 @@ use crate::sample::{Sample, ScrollPage};
 const TEXT: &str = "Rich text\nThe document is plain text with marks beside it. Select words and \
 press a button above, or Ctrl+B, Ctrl+I, Ctrl+U and Ctrl+E.\nBlocks\nA heading, a list item \
 or a quote is a prop of its line, and the text area draws each line from it.\nPress \
-Enter to continue a list\nTab nests an item\nEnter on an empty item leaves the list\nWrite a \
-schema\nRender its blocks\nShip it\nA quote is drawn with a bar beside it.\nfn main() {\n    \
+Enter to continue a list\nTab nests an item\nEnter on an empty item leaves the list\nA bullet marks an item\nand a ring marks one \
+nested in it\nWrite a schema\nRender its blocks\nShip it\nA quote is drawn with a bar beside it.\nfn main() {\n    \
 println!(\"decorated by the rust highlighter\");\n}\nAsk \u{fffc} about voids: the caret steps \
 over one in a single move.\n";
-const EDITOR_HEIGHT: f32 = 420.0;
+const EDITOR_HEIGHT: f32 = 470.0;
 const MENTION_PADDING: f32 = 6.0;
 const MENTION_HEIGHT: f32 = 20.0;
 
@@ -89,6 +89,12 @@ pub(crate) fn editor_seeds() -> Vec<Seed> {
             Value::text(NUMBER),
         ),
         basic::block(line("Tab nests"), basic::INDENT, Value::Int(1)),
+        basic::block(
+            line("A bullet marks").start..line("nested in it").end,
+            LIST,
+            Value::text(basic::BULLET),
+        ),
+        basic::block(line("and a ring marks"), basic::INDENT, Value::Int(1)),
         basic::block(
             line("Write a schema").start..line("Ship it").end,
             LIST,
