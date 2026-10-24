@@ -22,7 +22,6 @@ pub mod history;
 pub mod hotbar;
 pub mod input_remapper;
 pub mod input_settings;
-pub mod kinds;
 pub mod logic_game;
 pub mod logic_grid;
 pub mod map;
@@ -61,7 +60,6 @@ pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, G
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
-pub use kinds::{BeuiDemoContent, };
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};

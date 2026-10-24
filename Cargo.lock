@@ -1278,6 +1278,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-gallery-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "uuid",
+]
+
+[[package]]
 name = "beui-html"
 version = "0.1.0"
 dependencies = [
@@ -1359,6 +1370,7 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-demo",
+ "beui-gallery-types",
  "block-editor-beui",
  "block-ui-test",
  "uuid",
