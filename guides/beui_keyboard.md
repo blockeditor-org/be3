@@ -60,7 +60,14 @@ presentation mode does); and the last host bubble listener is Tab,
 Escape (which cancels a held activation) and Back. So a window listener for
 Escape hears it only when no layer took it. Ctrl+V asks the host for a paste
 once the trip is over, only if nothing took the key (an app counts as nothing),
-or if what took it asked for a paste itself.
+or if what took it asked for a paste itself. Ctrl+Shift+V is no different, and
+Ctrl+Shift+C reaches the focus as a key like any other chord (beui's inspector
+takes it to pick a node unless the focus is in an `Interactive` with
+`clipboard_keys`). That prop is for a control that wants Ctrl+C, Ctrl+V, Ctrl+X
+and Ctrl+A as keys, such as a terminal: it does nothing to the trip, but tells
+the web adapter, which must decide in `keydown` whether the browser runs its own
+copy, paste, cut or select-all, to stop it for those keys and for Ctrl+Shift+C
+while leaving Ctrl+Shift+V to the browser's paste (guides/beui.md, the runner).
 
 A listener at the focused node itself is on the path in both phases, which is
 how a compound control steers keys before the control inside it handles them:

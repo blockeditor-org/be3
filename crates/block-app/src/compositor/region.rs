@@ -364,6 +364,7 @@ pub(crate) fn PluginRegion(
     let cursor = create_memo(move || state.with(|view| view.cursor.unwrap_or(CursorIcon::Default)));
     let handles_back = create_memo(move || state.with(|view| view.handles_back));
     let pastes = create_memo(move || state.with(|view| view.pastes.clone()));
+    let clipboard_keys = create_memo(move || state.with(|view| view.clipboard_keys));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let shell = super::shell();
     super::intercept::intercept_keys(plugin_id, instance, region, intercepted, move || {
@@ -529,6 +530,7 @@ pub(crate) fn PluginRegion(
                         ime_cursor={ime_cursor}
                         ime_text={ime_text}
                         pastes={pastes}
+                        clipboard_keys={clipboard_keys}
                         on_forward={forward}
                         hit_at={takes}
                         claim_at={claims}

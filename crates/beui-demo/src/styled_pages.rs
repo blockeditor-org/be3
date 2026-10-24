@@ -39,6 +39,13 @@ const STRIP_HEIGHT: f32 = 52.0;
 const STRIP_ITEM_WIDTH: f32 = 120.0;
 const FITTED_SCROLL_HEIGHT: f32 = 200.0;
 const FITTED_SCROLL_ROWS: usize = 3;
+const LOG_HEIGHT: f32 = 200.0;
+const LOG_LINE_ESTIMATE: f32 = 20.0;
+const LOG_FIRST_LINES: usize = 12;
+const LOG_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
+const LOG_WORDS: [&str; 8] = [
+    "fetched", "the index", "and compiled", "four crates,", "then linked", "the binary", "in", "a moment.",
+];
 const EDITOR_HEIGHT: f32 = 320.0;
 const STAGE_HEIGHT: f32 = 360.0;
 const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);
@@ -2701,6 +2708,9 @@ pub(crate) fn RowsPage() -> NodeId {
             <Sample title="A scroll that fits its rows" code={vec![FittedScroll::SOURCE]}>
                 <FittedScroll />
             </Sample>
+            <Sample title="A log that follows its end" code={vec![FollowingLog::SOURCE]}>
+                <FollowingLog />
+            </Sample>
             <Sample
                 title="Ten thousand rows"
                 code={vec![ThousandsOfRows::SOURCE, ScrollRow::SOURCE, ScrollRowFace::SOURCE]}
@@ -2769,6 +2779,70 @@ fn FittedScroll() -> NodeId {
             </Frame>
         </List>
     }
+}
+
+#[sample]
+#[component]
+fn FollowingLog() -> NodeId {
+    let count = create_signal(LOG_FIRST_LINES);
+    let lines = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
+    let running = create_signal(false);
+    let api = ComponentRef::<ScrollApi>::new();
+    let ticker = create_timer(move || {
+        count.update(|count| *count += 1);
+        Some(LOG_INTERVAL)
+    });
+    create_effect(move || match running.get() {
+        true => ticker.start(LOG_INTERVAL),
+        false => ticker.stop(),
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::CAPTION wrap=true>
+                "With follow_end a scroll stays at its end while what it holds grows, \
+                 until you scroll away; scrolling back to the end follows again."
+            </Text>
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
+                <LabelledSwitch label="Running" on={running} />
+                <Button
+                    label="Add a line"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || count.update(|count| *count += 1)}
+                />
+                <Button
+                    label="Jump to the end"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || api.get().scroll_to_end()}
+                />
+            </List>
+            <Frame
+                height=LOG_HEIGHT
+                border={Border::new(ColorRole::Border).width(1.0)}
+                radius=Radius::Md
+            >
+                <Scroll follow_end=true api>
+                    <Frame padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
+                        <VirtualList keys={lines} item_size=LOG_LINE_ESTIMATE>|line: ReadSignal<usize>| {
+                            let text = create_memo(move || log_line(line.get()));
+                            view! {
+                                <Text style=TextStyle::CODE wrap=true>{text}</Text>
+                            }
+                        }</VirtualList>
+                    </Frame>
+                </Scroll>
+            </Frame>
+        </List>
+    }
+}
+
+fn log_line(line: usize) -> String {
+    let words = LOG_WORDS.len();
+    let length = 1 + (line * 7) % (words * 3);
+    let text = (0..length)
+        .map(|word| LOG_WORDS[(line + word) % words])
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("{:>4}  {text}", line + 1)
 }
 
 #[sample]

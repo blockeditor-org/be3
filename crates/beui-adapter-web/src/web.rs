@@ -80,6 +80,7 @@ thread_local! {
     static MIRROR: RefCell<ImeMirror> = RefCell::new(ImeMirror::default());
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
+    static CLIPBOARD_KEYS: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
     static PINCH: RefCell<Pinch> = RefCell::new(Pinch::default());
     static TOUCHES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
@@ -271,6 +272,7 @@ impl Platform for WebPlatform {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        CLIPBOARD_KEYS.set(window.requests.clipboard_keys);
         if window.requests.pastes != shown.requests.pastes {
             PASTE_KINDS.with(|pastes| pastes.borrow_mut().clone_from(&window.requests.pastes));
         }
@@ -918,10 +920,7 @@ fn listen(
         let stroke = keystroke(&event, true);
         let key = stroke.key;
         push(Input::Key(stroke));
-        let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
-        let printable = event.key().chars().count() == 1 && !modifiers.command();
-        let passes = key.is_some_and(|key| key.is_media() || key.is_modifier());
-        if key.is_some() && !clipboard && !printable && !passes {
+        if crate::keys::prevents_default(key, &event.key(), modifiers, CLIPBOARD_KEYS.get()) {
             event.prevent_default();
         }
     })?;

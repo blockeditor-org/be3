@@ -366,6 +366,19 @@ hooks the higher crates fill in:
   browser, from its paste event's data and the window's `paste_kinds`, and a
   plugin's host) is not asked again for the shortcut. The winit
   adapter reads images too; Android and DRM read text only.
+  An `Interactive` with `clipboard_keys` (a terminal) takes Ctrl+C, Ctrl+V,
+  Ctrl+X and Ctrl+A as plain keys while it or a node inside it has the focus
+  (`Document::clipboard_keys`, sent as `WindowRequests::clipboard_keys`, which a
+  plugin's region passes on to its own catcher). Natively that changes nothing,
+  since those arrive as keys anyway; the web adapter, which decides in `keydown`
+  before the app has seen the key, keeps the last flag it was shown and stops
+  the browser's copy, paste and cut for them, and its inspector for Ctrl+Shift+C,
+  but leaves Ctrl+Shift+V to make the browser's `paste` event, so a node that
+  lets that key go gets its paste as everywhere else. beui's inspector leaves
+  Ctrl+Shift+C alone too. A copy the node makes on a key, through `copy_text`,
+  still reaches the web clipboard, since it is written within the key's user
+  gesture. A node that takes these keys and leaves Ctrl+V unanswered gets no
+  paste on the web.
   `Platform`'s methods all have defaults (no clipboard, no file picker), so a
   platform implements only what it has.
   A new platform implements those two traits and hands its window or element
@@ -1046,7 +1059,17 @@ past the frame. `on_change` still reports the position for anything else that wa
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 With `max_length` the scroll is as long as what it holds, up to that length, and
-scrolls from there on, which is what a popup listing a few rows or many wants. A
+scrolls from there on, which is what a popup listing a few rows or many wants.
+With `follow_end` (a log, a terminal) the scroll starts at its end and stays
+there while what it holds grows, as long as it was at the end: scrolling away
+leaves it where it was put, and scrolling back to within a point of the end
+follows again. `ScrollApi::scroll_to_end()` (from the `api` prop) puts it at the
+end on demand and, if it follows, follows again, which is what a terminal does
+when you type. Both are the base `Offset`'s (its `follow_end` prop and
+`Document::offset_to_end`): while it is pinned to the end it lays its content
+out from the end it measured, skipping the anchor and any shift its content
+reports, and a `VirtualList` whose rows measure differently from the estimate
+settles over the frame's layout passes as it would at any other offset. A
 `Frame` with `max_height` around a scroll does not do this: a `Frame` with a
 maximum fills the space it is offered up to it.
 

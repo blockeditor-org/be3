@@ -1371,6 +1371,7 @@ impl Document {
             ctx.request_paste();
         }
         ctx.accept_pastes(&self.paste_kinds());
+        ctx.take_clipboard_keys(self.clipboard_keys());
         if resized && self.focus_takes_text() {
             self.reveal_focus();
         }
@@ -1761,6 +1762,10 @@ impl Document {
 
     pub fn invalidate_after_layout(&mut self, id: NodeId) {
         self.invalidated.push(id);
+    }
+
+    pub(crate) fn invalidated_after_layout(&self) -> usize {
+        self.invalidated.len()
     }
 
     pub fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
