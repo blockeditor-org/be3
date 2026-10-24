@@ -12,11 +12,12 @@ use beui_view::components::text::Span;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use text_editor_core::schema::basic;
-use text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighlight};
+use text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighlight, TableRow};
 
 use crate::{Toggle, ToggleHandle};
 
 use super::colors::TextAreaColors;
+use super::rows::RowTable;
 use super::state::TextAreaState;
 
 pub const MARKER_COLUMN_EM: f32 = 1.15;
@@ -120,6 +121,7 @@ pub struct TextLine {
     pub margin: Memo<f32>,
     pub outdent: Memo<f32>,
     pub space: Memo<(f32, f32)>,
+    pub table: Memo<Option<RowTable>>,
     pub text: NodeId,
 }
 
@@ -270,6 +272,82 @@ fn code_block_text(bytes: &[u8], highlight: &SyntaxHighlight, start: usize) -> S
         })
         .collect();
     lines.join("\n")
+}
+
+#[component]
+pub fn TableFill(line: TextLine, fill: Memo<Color32>) -> NodeId {
+    let left = line.left();
+    let table = line.table;
+    let span = create_memo(move || {
+        let table = table.get()?;
+        let first = table.edges.first()?.0;
+        let last = table.edges.last()?.0;
+        Some((left.get() + first, last - first, table.row == TableRow::Header))
+    });
+    let padding = create_memo(move || Sides::new(span.get().map_or(0.0, |span| span.0), 0.0, 0.0, 0.0));
+    let width = create_memo(move || Extent::px(span.get().map_or(0.0, |span| span.1)));
+    let color = create_memo(move || match span.get().is_some_and(|span| span.2) {
+        true => fill.get(),
+        false => Color32::TRANSPARENT,
+    });
+    view! {
+        <Frame padding align={Align2::new(Align::Start, Align::Stretch)}>
+            <Frame width fill=color />
+        </Frame>
+    }
+}
+
+#[component]
+pub fn TableLines(line: TextLine, color: Memo<Color32>) -> NodeId {
+    let left = line.left();
+    let table = line.table;
+    let edges = create_memo(move || {
+        let left = left.get();
+        table.get().map_or_else(Vec::new, |table| {
+            table
+                .edges
+                .iter()
+                .filter(|(_, drawn)| *drawn)
+                .map(|(edge, _)| (left + edge).to_bits())
+                .collect::<Vec<u32>>()
+        })
+    });
+    let span = create_memo(move || {
+        let table = table.get()?;
+        let first = table.edges.first()?.0;
+        let last = table.edges.last()?.0;
+        Some((left.get() + first, last - first + RULE_WIDTH, table.row == TableRow::Header))
+    });
+    let padding = create_memo(move || Sides::new(span.get().map_or(0.0, |span| span.0), 0.0, 0.0, 0.0));
+    let width = create_memo(move || Extent::px(span.get().map_or(0.0, |span| span.1)));
+    let top = create_memo(move || match span.get().is_some_and(|span| span.2) {
+        true => color.get(),
+        false => Color32::TRANSPARENT,
+    });
+    let bottom = create_memo(move || match span.get() {
+        Some(_) => color.get(),
+        None => Color32::TRANSPARENT,
+    });
+    view! {
+        <Layers>
+            <Layers>
+                <ForEach keys={edges}>|edge: u32|
+                    <Frame
+                        padding={Sides::new(f32::from_bits(edge), 0.0, 0.0, 0.0)}
+                        align={Align2::new(Align::Start, Align::Stretch)}
+                    >
+                        <Frame width={Extent::px(RULE_WIDTH)} fill=color />
+                    </Frame>
+                </ForEach>
+            </Layers>
+            <Frame padding align={Align2::new(Align::Start, Align::Start)}>
+                <Frame width height={Extent::px(RULE_WIDTH)} fill=top />
+            </Frame>
+            <Frame padding align={Align2::new(Align::Start, Align::End)}>
+                <Frame width height={Extent::px(RULE_WIDTH)} fill=bottom />
+            </Frame>
+        </Layers>
+    }
 }
 
 impl QuoteBar {
@@ -454,11 +532,15 @@ fn DefaultLine(line: TextLine, colors: Memo<TextAreaColors>) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     let text = line.text;
+    let border = create_memo(move || colors.get().gutter_border);
+    let header = create_memo(move || colors.get().code_background);
     view! {
         <Layers>
+            <TableFill line fill=header />
             <Frame padding=outer>
                 <Frame fill=code radius padding=inner>{text}</Frame>
             </Frame>
+            <TableLines line color=border />
             <Frame padding=bars>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <ForEach keys={quotes}>|quote_bar: QuoteBar|

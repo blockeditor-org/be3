@@ -121,7 +121,7 @@ pub struct SynHlStyle {
 }
 
 impl SynHlStyle {
-    const fn plain(color: SynHlColorScope) -> Self {
+    pub const fn plain(color: SynHlColorScope) -> Self {
         Self {
             color,
             family: SynHlFontFamily::Proportional,

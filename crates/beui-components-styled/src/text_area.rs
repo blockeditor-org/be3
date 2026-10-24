@@ -16,7 +16,7 @@ use beui_core::icons::ICON_COPY;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor,
+    Completer, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor, TableFill, TableLines,
     TextAreaColors,
     TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget,
 };
@@ -259,11 +259,16 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
         Sides::new(0.0, line.space.get().0 + COPY_INSET, right, 0.0)
     });
     let text = line.text;
+    let theme = use_theme();
+    let border = create_memo(move || theme.border.get());
+    let header = create_memo(move || theme.surface.get());
     view! {
         <Layers>
+            <TableFill line fill=header />
             <Frame padding=outer>
                 <Frame fill=code radius padding=inner>{text}</Frame>
             </Frame>
+            <TableLines line color=border />
             <Show condition={opens}>
                 <Frame padding=corner align={Align2::new(Align::End, Align::Start)}>
                     <List direction=Direction::Horizontal spacing=COPY_INSET align=Align::Center>

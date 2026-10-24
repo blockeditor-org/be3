@@ -24,7 +24,8 @@ use super::colors::TextAreaColors;
 use super::hooks::{MARGIN_EM, MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
     BODY_SIZE, DOCUMENT_PADDING, Inline, InlineItem, LINE_PADDING, RUN_CHIP_SIZE, Row, RowInputs,
-    RowKey, RowOptions, SpanKind, build_row, galley, line_range, row_key,
+    RowKey, RowOptions, SpanKind, TableColumns, build_row, galley, line_range, row_key,
+    table_columns,
 };
 use super::{
     CARET_WIDTH, Context, GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT,
@@ -258,6 +259,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         margin,
         outdent: create_memo(move || model.get().outdent),
         space: create_memo(move || model.get().space),
+        table: create_memo(move || model.get().table.clone()),
         text: lines,
     });
     view! {
@@ -395,20 +397,51 @@ struct RowEnv {
 }
 
 const ROW_CACHE_LIMIT: usize = 1024;
+const TABLE_CACHE_LIMIT: usize = 64;
 
 #[derive(Default)]
 pub(super) struct RowCache {
     env: Option<RowEnv>,
     rows: HashMap<u64, Vec<(RowKey, Rc<Row>)>>,
     count: usize,
+    tables: HashMap<usize, (u64, Rc<TableColumns>)>,
 }
 
 impl RowCache {
+    fn refresh(&mut self, env: &RowEnv) -> bool {
+        if self.env.as_ref() == Some(env) {
+            return false;
+        }
+        self.env = Some(env.clone());
+        self.rows.clear();
+        self.tables.clear();
+        self.count = 0;
+        true
+    }
+
+    fn table(
+        &mut self,
+        env: &RowEnv,
+        revision: u64,
+        start: usize,
+        measure: impl FnOnce() -> TableColumns,
+    ) -> Rc<TableColumns> {
+        self.refresh(env);
+        if self.tables.len() >= TABLE_CACHE_LIMIT {
+            self.tables.clear();
+        }
+        match self.tables.get(&start) {
+            Some((held, columns)) if *held == revision => Rc::clone(columns),
+            _ => {
+                let columns = Rc::new(measure());
+                self.tables.insert(start, (revision, Rc::clone(&columns)));
+                columns
+            }
+        }
+    }
+
     fn find(&mut self, env: &RowEnv, key: &RowKey) -> Option<Rc<Row>> {
-        if self.env.as_ref() != Some(env) {
-            self.env = Some(env.clone());
-            self.rows.clear();
-            self.count = 0;
+        if self.refresh(env) {
             return None;
         }
         self.rows
@@ -470,7 +503,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                     ..Row::default()
                 });
             }
-            let inputs = RowInputs {
+            let mut inputs = RowInputs {
                 snapshot,
                 widgets: &widgets,
                 client_colors: &env.client_colors,
@@ -478,9 +511,19 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 colors: &env.colors,
                 options: env.options,
                 placeholder,
+                columns: None,
             };
-            let key = row_key(&inputs, start, end, newline);
             let held = cx.held.value();
+            if let Some(table) = snapshot.highlight().line_look(start).table {
+                let columns = held.row_cache.borrow_mut().table(
+                    &env,
+                    snapshot.revision,
+                    table.start,
+                    || table_columns(&inputs, table.start),
+                );
+                inputs.columns = Some(columns);
+            }
+            let key = row_key(&inputs, start, end, newline);
             if let Some(key) = &key
                 && let Some(row) = held.row_cache.borrow_mut().find(&env, key)
             {

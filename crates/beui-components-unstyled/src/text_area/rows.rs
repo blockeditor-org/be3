@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use text_editor_core::{
-    LineLook, ListMarker, MarkSet, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    LineLook, ListMarker, MarkSet, TableRow, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
     TextLanguage, TextRun, VOID,
 };
 
@@ -14,6 +14,10 @@ use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
 use super::state::Snapshot;
+
+mod table;
+
+pub use table::{CellAlign, RowTable, TableColumns, table_columns};
 
 pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
 pub const CODE_SIZE: f32 = BODY_SIZE;
@@ -164,6 +168,7 @@ pub struct Row {
     pub placeholder: bool,
     pub props: MarkSet,
     pub invisibles: Vec<Invisible>,
+    pub table: Option<RowTable>,
 }
 
 impl Row {
@@ -319,6 +324,7 @@ pub struct RowInputs<'a> {
     pub colors: &'a TextAreaColors,
     pub options: RowOptions,
     pub placeholder: Option<&'a str>,
+    pub columns: Option<std::rc::Rc<TableColumns>>,
 }
 
 pub fn style_size(style: SynHlStyle, body_size: f32) -> f32 {
@@ -349,6 +355,10 @@ pub fn mask(text: &str) -> String {
 
 pub fn galley(text: &str, font: FontId) -> Option<Galley> {
     layout_text(text, font, TextLayout::DEFAULT)
+}
+
+fn line_start_of(bytes: &[u8], at: usize) -> usize {
+    memchr::memrchr(b'\n', &bytes[..at.min(bytes.len())]).map_or(0, |newline| newline + 1)
 }
 
 pub fn line_starts(bytes: &[u8]) -> Vec<usize> {
@@ -643,6 +653,7 @@ pub struct RowKey {
     props: MarkSet,
     look: LineLook,
     voids: Vec<MarkSet>,
+    columns: Option<std::rc::Rc<TableColumns>>,
 }
 
 impl RowKey {
@@ -707,6 +718,7 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
                     .map(|at| formats.marks_at(start + at).cloned().unwrap_or_default())
                     .collect()
             }),
+        columns: inputs.columns.clone(),
     })
 }
 
@@ -776,6 +788,22 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     builder.row.look = look.clone();
     let marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
     let mut marked = look.list.is_some() || !marker.is_empty();
+    if let (Some(table), Some(columns)) = (look.table, inputs.columns.clone())
+        && !options.mask
+    {
+        if marked {
+            builder.marker(&look, marker.clone(), body);
+        }
+        builder.table_row(table, marker.end..end, &columns, body);
+        builder.row.space = line_space(&look, line, options.body_size / BODY_SIZE);
+        let delimiter = table.row == TableRow::Delimiter;
+        let mut row = finish(builder, body);
+        if delimiter {
+            let padding = options.padding();
+            row.line_height = table::delimiter_height(inputs) + padding.0 + padding.1;
+        }
+        return row;
+    }
     let trailing_from = bytes[start..end]
         .iter()
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
@@ -933,6 +961,7 @@ const RULE_GAP: f32 = 8.0;
 const HEADING_SPACE: [f32; 3] = [16.0, 12.0, 6.0];
 const QUOTE_SPACE: f32 = 7.0;
 const CODE_SPACE: f32 = 5.0;
+const TABLE_SPACE: f32 = 4.0;
 
 fn hang_into_margin(row: &mut Row, look: &LineLook) {
     if look.hang.is_empty() || !look.marker.is_empty() {
@@ -972,6 +1001,10 @@ fn line_space(look: &LineLook, line: usize, scale: f32) -> (f32, f32) {
     }
     if look.code_block && !look.code_below {
         below += CODE_SPACE;
+    }
+    if look.table.is_some_and(|table| table.row != TableRow::Delimiter) {
+        above += TABLE_SPACE;
+        below += TABLE_SPACE;
     }
     (above * scale, below * scale)
 }

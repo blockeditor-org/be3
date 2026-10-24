@@ -551,6 +551,7 @@ impl TextAreaState {
                 colors,
                 options,
                 placeholder: shown,
+                columns: None,
             };
             let row = build_row(&inputs, line, start, end, newline);
             let quote = row.look.quote;

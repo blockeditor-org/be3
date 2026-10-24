@@ -120,7 +120,7 @@ pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::{
     Completer, Completion, CompletionMenu, CompletionRowHandle, LeafSpan, MarkerColumn, MarkerKind,
-    Prose, ProseLine, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor, SyntaxColors, TextArea, TextAreaApi,
+    Prose, ProseLine, QUOTE_BAR_WIDTH, RowTable, QuoteBar, RULE_WIDTH, TableFill, TableLines, RemoteTextCursor, SyntaxColors, TextArea, TextAreaApi,
     TextAreaColors, TextAreaLayout, TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget,
     emoji_completer, search_emoji,
 };

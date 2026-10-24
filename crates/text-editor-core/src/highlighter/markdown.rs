@@ -3,7 +3,7 @@ use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
 use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::TextChange;
-use crate::schema::{LineLook, ListMarker, join_neighbours};
+use crate::schema::{LineLook, ListMarker, TableLine, TableRow, join_neighbours};
 
 pub(super) fn styles_in(tree: &MarkdownTree, window: Range<usize>) -> Vec<SynHlStyle> {
     let mut styles = vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); window.len()];
@@ -106,6 +106,8 @@ fn line_look(
     let mut lists = 0_usize;
     let mut heading = None;
     let mut rule = false;
+    let mut table = None;
+    let mut table_row = TableRow::Body;
     let mut parent = Some(node);
     while let Some(held) = parent {
         match held.kind() {
@@ -115,6 +117,9 @@ fn line_look(
                 heading = Some(held);
             }
             "thematic_break" => rule = true,
+            "pipe_table_header" => table_row = TableRow::Header,
+            "pipe_table_delimiter_row" => table_row = TableRow::Delimiter,
+            "pipe_table" if table.is_none() => table = Some(held.start_byte()),
             _ => {}
         }
         parent = held.parent();
@@ -168,6 +173,11 @@ fn line_look(
         heading: heading.map_or(0, heading_level),
         rule,
         hang,
+        table: table.map(|start| TableLine {
+            row: table_row,
+            start,
+            last: false,
+        }),
         ..LineLook::default()
     };
     (look, block)
