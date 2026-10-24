@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::fmt::Write as _;
 
-use block_editor_beui::be_block::be_model::{BLOB_REF, BLOCK_REF, CRITICAL, Stored, from_cbor};
+use block_editor_beui::be_block::be_model::{
+    BLOB_REF, BLOCK_REF, CRITICAL, Stored, from_cbor, to_cbor,
+};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockInfo, BlockParent, RawContent};
 use uuid::Uuid;
@@ -15,6 +17,7 @@ pub(crate) struct Entry {
     pub(crate) key: String,
     pub(crate) value: String,
     pub(crate) children: Vec<Entry>,
+    pub(crate) at: Option<Vec<usize>>,
 }
 
 impl Entry {
@@ -23,7 +26,13 @@ impl Entry {
             key: key.into(),
             value: value.into(),
             children: Vec::new(),
+            at: None,
         }
+    }
+
+    fn editable(mut self, at: Vec<usize>) -> Self {
+        self.at = Some(at);
+        self
     }
 
     fn branch(key: impl Into<String>, value: impl Into<String>, children: Vec<Entry>) -> Self {
@@ -31,6 +40,7 @@ impl Entry {
             key: key.into(),
             value: value.into(),
             children,
+            at: None,
         }
     }
 }
@@ -42,6 +52,8 @@ pub(crate) struct Row {
     pub(crate) depth: usize,
     pub(crate) expandable: bool,
     pub(crate) expanded: bool,
+    pub(crate) value: String,
+    pub(crate) at: Option<Vec<usize>>,
 }
 
 fn type_name(types: &dyn BlockTypes, block_type: Uuid) -> String {
@@ -102,9 +114,10 @@ pub(crate) fn content(content: Option<&RawContent>, types: &dyn BlockTypes) -> E
         Some(Stored::Map(fields)) => children.extend(
             fields
                 .iter()
-                .map(|(key, value)| stored(&stored_key(key), value)),
+                .enumerate()
+                .map(|(index, (key, value))| stored(&stored_key(key), value, Some(vec![index]))),
         ),
-        Some(document) => children.push(stored("document", &document)),
+        Some(document) => children.push(stored("document", &document, Some(Vec::new()))),
         None => children.push(Entry::leaf("bytes", hex(&content.bytes))),
     }
     Entry::branch("content", String::new(), children)
@@ -117,14 +130,21 @@ fn stored_key(key: &Stored) -> String {
     }
 }
 
-fn stored(key: &str, value: &Stored) -> Entry {
+fn stored(key: &str, value: &Stored, at: Option<Vec<usize>>) -> Entry {
+    let within = |index: usize| {
+        at.clone().map(|mut at| {
+            at.push(index);
+            at
+        })
+    };
     match value {
         Stored::Map(fields) => Entry::branch(
             key,
             format!("{{{}}}", fields.len()),
             fields
                 .iter()
-                .map(|(key, value)| stored(&stored_key(key), value))
+                .enumerate()
+                .map(|(index, (key, value))| stored(&stored_key(key), value, within(index)))
                 .collect(),
         ),
         Stored::Array(items) => Entry::branch(
@@ -133,7 +153,7 @@ fn stored(key: &str, value: &Stored) -> Entry {
             items
                 .iter()
                 .enumerate()
-                .map(|(index, item)| stored(&index.to_string(), item))
+                .map(|(index, item)| stored(&index.to_string(), item, within(index)))
                 .collect(),
         ),
         Stored::Tag(BLOCK_REF, inner) => tagged(key, "block", inner),
@@ -143,6 +163,17 @@ fn stored(key: &str, value: &Stored) -> Entry {
             Some(shown) => Entry::leaf(key, shown),
             None => tagged(key, &format!("tag {tag}"), inner),
         },
+        Stored::Null
+        | Stored::Bool(_)
+        | Stored::Integer(_)
+        | Stored::Float(_)
+        | Stored::Text(_) => {
+            let leaf = Entry::leaf(key, scalar(value).unwrap_or_default());
+            match at {
+                Some(at) => leaf.editable(at),
+                None => leaf,
+            }
+        }
         other => Entry::leaf(key, scalar(other).unwrap_or_default()),
     }
 }
@@ -150,7 +181,7 @@ fn stored(key: &str, value: &Stored) -> Entry {
 fn tagged(key: &str, tag: &str, inner: &Stored) -> Entry {
     match scalar(inner) {
         Some(shown) => Entry::leaf(key, format!("{tag} {shown}")),
-        None => Entry::branch(key, tag, vec![stored("value", inner)]),
+        None => Entry::branch(key, tag, vec![stored("value", inner, None)]),
     }
 }
 
@@ -159,7 +190,7 @@ fn scalar(value: &Stored) -> Option<String> {
         Stored::Null => "null".to_owned(),
         Stored::Bool(value) => value.to_string(),
         Stored::Integer(value) => i128::from(*value).to_string(),
-        Stored::Float(value) => value.to_string(),
+        Stored::Float(value) => format!("{value:?}"),
         Stored::Text(value) => format!("{value:?}"),
         Stored::Bytes(bytes) => hex(bytes),
         Stored::Tag(UUID_TAG, inner) => {
@@ -202,6 +233,8 @@ fn push(rows: &mut Vec<Row>, toggled: &HashSet<String>, path: String, entry: &En
         depth,
         expandable,
         expanded,
+        value: entry.value.clone(),
+        at: entry.at.clone(),
     });
     if !expanded {
         return;
@@ -209,4 +242,70 @@ fn push(rows: &mut Vec<Row>, toggled: &HashSet<String>, path: String, entry: &En
     for (index, child) in entry.children.iter().enumerate() {
         push(rows, toggled, format!("{path}.{index}"), child, depth + 1);
     }
+}
+
+pub(crate) fn replaced(bytes: &[u8], at: &[usize], typed: &str) -> Option<Vec<u8>> {
+    let mut document = from_cbor::<Stored>(bytes)?;
+    let mut held = &mut document;
+    for &index in at {
+        held = match held {
+            Stored::Map(fields) => &mut fields.get_mut(index)?.1,
+            Stored::Array(items) => items.get_mut(index)?,
+            _ => return None,
+        };
+    }
+    *held = literal(typed);
+    Some(to_cbor(&document))
+}
+
+fn literal(typed: &str) -> Stored {
+    match typed {
+        "null" => return Stored::Null,
+        "true" => return Stored::Bool(true),
+        "false" => return Stored::Bool(false),
+        _ => {}
+    }
+    if let Some(integer) = typed
+        .parse::<i128>()
+        .ok()
+        .and_then(|value| value.try_into().ok())
+    {
+        return Stored::Integer(integer);
+    }
+    if let Ok(float) = typed.parse::<f64>() {
+        return Stored::Float(float);
+    }
+    let quoted = typed
+        .strip_prefix('"')
+        .and_then(|inner| inner.strip_suffix('"'))
+        .and_then(unescape);
+    Stored::Text(quoted.unwrap_or_else(|| typed.to_owned()))
+}
+
+fn unescape(quoted: &str) -> Option<String> {
+    let mut text = String::new();
+    let mut chars = quoted.chars();
+    while let Some(next) = chars.next() {
+        if next == '"' {
+            return None;
+        }
+        if next != '\\' {
+            text.push(next);
+            continue;
+        }
+        text.push(match chars.next()? {
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            '0' => '\0',
+            'u' => {
+                let rest = chars.as_str().strip_prefix('{')?;
+                let (hex, after) = rest.split_once('}')?;
+                chars = after.chars();
+                char::from_u32(u32::from_str_radix(hex, 16).ok()?)?
+            }
+            other => other,
+        });
+    }
+    Some(text)
 }

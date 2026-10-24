@@ -606,6 +606,13 @@ impl Editor {
         raw
     }
 
+    pub fn replace_raw_content(&self, content: RawContent) {
+        let state = self.state();
+        state
+            .host
+            .replace_bytes(state.block, content.content_type, content.bytes);
+    }
+
     fn raw_content(&self) -> ReadSignal<Option<RawContent>> {
         let state = self.state();
         let cached = state
