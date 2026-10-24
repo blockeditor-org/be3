@@ -101,6 +101,7 @@ members = [
     "crates/editors/pixel-ray-tracer",
     "crates/editors/pixel-ray-tracer/types",
     "crates/editors/presentation",
+    "crates/editors/presentation/types",
     "crates/editors/scene-3d",
     "crates/editors/scene-3d/types",
     "crates/editors/settings",

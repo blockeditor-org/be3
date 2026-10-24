@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Presentation {

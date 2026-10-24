@@ -87,6 +87,7 @@ pub(crate) fn provided(content_type: Uuid) -> bool {
         image_block_types::block_types(),
         workspace_ui_types::block_types(),
         text_block_types::block_types(),
+        presentation_types::block_types(),
     ]
     .iter()
     .any(|module| module.knows(content_type))
@@ -154,6 +155,10 @@ pub(super) async fn sources() -> Vec<Source> {
             workspace_ui_types::registrations(),
         ),
         plugin::<text_block_types::BlockTypes>("be3.text", text_block_types::registrations()),
+        plugin::<presentation_types::BlockTypes>(
+            "be3.presentation",
+            presentation_types::registrations(),
+        ),
     ]
 }
 

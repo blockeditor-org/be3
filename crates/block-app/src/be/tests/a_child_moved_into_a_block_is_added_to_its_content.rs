@@ -1,7 +1,8 @@
 use super::*;
 use uuid::Uuid;
 
-use be_block::{ChildChange, PresentationContent};
+use be_block::ChildChange;
+use presentation_types::PresentationContent;
 
 fn slides_of(shared: &Shared, block: Uuid) -> Option<Vec<Option<Uuid>>> {
     let held = shared.blocks.get(&block)?;

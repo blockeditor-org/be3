@@ -1,6 +1,6 @@
 use super::*;
 use be_block::ObjectId;
-use be_block::presentation::PresentationContent;
+use presentation_types::PresentationContent;
 use beui::reactive::*;
 use beui::styled::*;
 use block_editor_plugin::HostContent;

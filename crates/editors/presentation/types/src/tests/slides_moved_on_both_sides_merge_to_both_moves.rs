@@ -1,5 +1,5 @@
 use super::*;
-use crate::presentation::PresentationContent;
+use crate::PresentationContent;
 
 #[test]
 fn slides_moved_on_both_sides_merge_to_both_moves() {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::presentation::PresentationContent;
+use crate::PresentationContent;
 
 #[test]
 fn slides_moved_by_two_peers_at_once_both_move() {

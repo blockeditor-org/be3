@@ -1,5 +1,5 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::PresentationContent;
+use presentation_types::PresentationContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;

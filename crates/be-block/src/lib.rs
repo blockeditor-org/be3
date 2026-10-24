@@ -22,7 +22,6 @@ pub mod metadata;
 pub mod model;
 pub mod plain;
 pub mod presence;
-pub mod presentation;
 pub mod profile;
 pub mod setting;
 pub mod settings;
@@ -50,7 +49,6 @@ pub use metadata::{
     Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
-pub use presentation::{Presentation, PresentationContent};
 pub use profile::{
     FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR, WORKSPACE_TYPE,
 };

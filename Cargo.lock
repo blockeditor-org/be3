@@ -1517,6 +1517,7 @@ dependencies = [
  "ndk-context",
  "paint-snapshot",
  "pollster",
+ "presentation-types",
  "pulseaudio",
  "reactive",
  "rfd",
@@ -1568,6 +1569,7 @@ dependencies = [
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
+ "presentation-types",
  "serde",
  "serde_json",
  "text-editor-core",
@@ -6072,6 +6074,18 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "presentation-types",
+ "uuid",
+]
+
+[[package]]
+name = "presentation-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 

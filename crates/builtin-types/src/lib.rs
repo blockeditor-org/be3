@@ -1,6 +1,6 @@
 use be_block::{
     CanvasContent, CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
-    HotbarContent, PresentationContent,
+    HotbarContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -15,7 +15,6 @@ be_block_types![
     DatabaseSchemaContent { undo },
     DatabaseViewContent { undo },
     HotbarContent { undo },
-    PresentationContent { undo },
 ];
 
 #[cfg(feature = "module")]
