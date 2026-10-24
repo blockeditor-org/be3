@@ -44,7 +44,14 @@ const LOG_LINE_ESTIMATE: f32 = 20.0;
 const LOG_FIRST_LINES: usize = 12;
 const LOG_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
 const LOG_WORDS: [&str; 8] = [
-    "fetched", "the index", "and compiled", "four crates,", "then linked", "the binary", "in", "a moment.",
+    "fetched",
+    "the index",
+    "and compiled",
+    "four crates,",
+    "then linked",
+    "the binary",
+    "in",
+    "a moment.",
 ];
 const EDITOR_HEIGHT: f32 = 320.0;
 const STAGE_HEIGHT: f32 = 360.0;
@@ -2822,7 +2829,10 @@ fn FollowingLog() -> NodeId {
             >
                 <Scroll follow_end=true api>
                     <Frame padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
-                        <VirtualList keys={lines} item_size=LOG_LINE_ESTIMATE>|line: ReadSignal<usize>| {
+                        <VirtualList
+                            keys={lines}
+                            item_size=LOG_LINE_ESTIMATE
+                        >|line: ReadSignal<usize>| {
                             let text = create_memo(move || log_line(line.get()));
                             view! {
                                 <Text style=TextStyle::CODE wrap=true>{text}</Text>

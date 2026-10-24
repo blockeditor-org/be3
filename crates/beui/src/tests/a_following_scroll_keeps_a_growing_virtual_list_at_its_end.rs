@@ -15,13 +15,15 @@ fn a_following_scroll_keeps_a_growing_virtual_list_at_its_end() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll follow_end=true>
-                    <VirtualList @node_ref=&list keys={keys} item_size=ESTIMATE>|_index: ReadSignal<usize>| {
-                        view! {
-                            <Frame height=ACTUAL>
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</VirtualList>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={keys}
+                        item_size=ESTIMATE
+                    >|_index: ReadSignal<usize>|
+                        <Frame height=ACTUAL>
+                            <Spacer />
+                        </Frame>
+                    </VirtualList>
                 </Scroll>
             </List>
         }
@@ -62,8 +64,7 @@ fn a_following_scroll_keeps_a_growing_virtual_list_at_its_end() {
     assert!(last_bottom(&harness) > VIEWPORT.y);
 
     harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(Vec2::new(
-        0.0,
-        -100_000.0,
+        0.0, -100_000.0,
     )))]);
     harness.frame(Vec::new());
     with_installed(harness.document_mut(), |_| keys.set(indices(240)));

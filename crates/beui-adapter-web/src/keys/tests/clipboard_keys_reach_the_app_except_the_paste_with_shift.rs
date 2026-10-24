@@ -32,5 +32,10 @@ fn clipboard_keys_reach_the_app_except_the_paste_with_shift() {
         "Ctrl+Shift+V still pastes through the browser"
     );
     assert!(!prevents_default(Some(Key::C), "c", Modifiers::NONE, true));
-    assert!(prevents_default(Some(Key::Tab), "Tab", Modifiers::NONE, true));
+    assert!(prevents_default(
+        Some(Key::Tab),
+        "Tab",
+        Modifiers::NONE,
+        true
+    ));
 }

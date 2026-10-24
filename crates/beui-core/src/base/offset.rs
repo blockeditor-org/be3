@@ -104,7 +104,9 @@ impl OffsetNode {
         let past = self
             .position
             .filter(|_| !self.to_end)
-            .map_or(0.0, |position| (self.offset - position.max_offset()).max(0.0));
+            .map_or(0.0, |position| {
+                (self.offset - position.max_offset()).max(0.0)
+            });
         (content - main).max(0.0) + past
     }
 

@@ -49,7 +49,12 @@ fn a_node_taking_clipboard_keys_tells_the_platform_while_the_focus_is_inside_it(
     harness.key(Key::A, Modifiers::CTRL);
     assert_eq!(
         heard.get_untracked(),
-        [(Key::C, false), (Key::C, true), (Key::V, true), (Key::A, false)],
+        [
+            (Key::C, false),
+            (Key::C, true),
+            (Key::V, true),
+            (Key::A, false)
+        ],
         "Ctrl+Shift+C and Ctrl+Shift+V arrive as key presses"
     );
     assert!(
