@@ -4,6 +4,7 @@ use std::rc::{Rc, Weak};
 use beui_core::callback::NodeRef;
 use beui_core::context::{ActionGroup, ActionInfo, Context};
 use beui_core::document::ActionsHook;
+use beui_core::icons::Glyph;
 use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
 use beui_core::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyPhase};
 use beui_core::node::NodeId;
@@ -194,7 +195,7 @@ struct ActionData {
     key: Cell<u64>,
     id: String,
     label: Prop<String>,
-    glyph: String,
+    glyph: Option<Glyph>,
     shortcuts: Vec<Chord>,
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
@@ -224,7 +225,7 @@ impl Action {
         ActionBuilder {
             id: id.into(),
             label: label.into_prop(),
-            glyph: String::new(),
+            glyph: None,
             shortcuts: Vec::new(),
             enabled: Prop::Static(true),
             checked: None,
@@ -248,8 +249,8 @@ impl Action {
         self.0.label.clone()
     }
 
-    pub fn glyph(&self) -> &str {
-        &self.0.glyph
+    pub fn glyph(&self) -> Option<Glyph> {
+        self.0.glyph
     }
 
     pub fn shortcuts(&self) -> &[Chord] {
@@ -322,7 +323,7 @@ impl Action {
 pub struct ActionBuilder {
     id: String,
     label: Prop<String>,
-    glyph: String,
+    glyph: Option<Glyph>,
     shortcuts: Vec<Chord>,
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
@@ -334,8 +335,8 @@ pub struct ActionBuilder {
 }
 
 impl ActionBuilder {
-    pub fn glyph(mut self, glyph: &str) -> Self {
-        glyph.clone_into(&mut self.glyph);
+    pub fn glyph(mut self, glyph: impl Into<Option<Glyph>>) -> Self {
+        self.glyph = glyph.into();
         self
     }
 
@@ -770,7 +771,7 @@ pub struct Submenu {
     key: u64,
     pub id: String,
     pub label: String,
-    pub glyph: String,
+    pub glyph: Option<Glyph>,
     pub items: Vec<MenuNode>,
 }
 
@@ -798,7 +799,7 @@ impl MenuNode {
     pub fn submenu(
         id: impl Into<String>,
         label: impl Into<String>,
-        glyph: &str,
+        glyph: impl Into<Option<Glyph>>,
         items: Vec<MenuNode>,
     ) -> Self {
         let key = DETACHED.with(|next| next.replace(next.get() + 1));
@@ -806,7 +807,7 @@ impl MenuNode {
             key,
             id: id.into(),
             label: label.into(),
-            glyph: glyph.to_owned(),
+            glyph: glyph.into(),
             items,
         })
     }
@@ -873,9 +874,9 @@ pub fn action_label(action: Option<&Action>, label: Prop<String>) -> Prop<String
     }
 }
 
-pub fn action_glyph(action: Option<&Action>, glyph: Prop<String>) -> Prop<String> {
+pub fn action_glyph(action: Option<&Action>, glyph: Prop<Option<Glyph>>) -> Prop<Option<Glyph>> {
     match action {
-        Some(action) if unset(&glyph) => Prop::Static(action.glyph().to_owned()),
+        Some(action) if matches!(glyph, Prop::Static(None)) => Prop::Static(action.glyph()),
         _ => glyph,
     }
 }

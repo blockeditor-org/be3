@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_BLOCKS, ICON_CIRCLE, ICON_CIRCLE_DOT, ICON_SQUARE, ICON_SQUARE_CHECK,
 };
@@ -19,14 +20,14 @@ fn picture(icon: &HostImage) -> Option<Image> {
     fits.then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
-fn toggle_glyph(toggle: TrayToggle) -> &'static str {
-    match toggle {
-        TrayToggle::None => "",
+fn toggle_glyph(toggle: TrayToggle) -> Option<Glyph> {
+    Some(match toggle {
+        TrayToggle::None => return None,
         TrayToggle::Check(true) => ICON_SQUARE_CHECK,
         TrayToggle::Check(false) => ICON_SQUARE,
         TrayToggle::Radio(true) => ICON_CIRCLE_DOT,
         TrayToggle::Radio(false) => ICON_CIRCLE,
-    }
+    })
 }
 
 fn scrolled(gesture: ScrollGesture) -> Option<(i32, bool)> {
@@ -204,7 +205,7 @@ fn TrayEntry(
         })
     });
     let label = create_memo(move || entry.with(|entry| entry.label.clone()));
-    let glyph = create_memo(move || entry.with(|entry| toggle_glyph(entry.toggle).to_owned()));
+    let glyph = create_memo(move || entry.with(|entry| toggle_glyph(entry.toggle)));
     let disabled = create_memo(move || entry.with(|entry| !entry.enabled));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");

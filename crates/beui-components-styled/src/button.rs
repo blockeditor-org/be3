@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
@@ -94,7 +95,7 @@ pub fn Button(
     #[prop(default = String::new())] label: Prop<String>,
     variant: Prop<ButtonVariant>,
     #[prop(default = ButtonSize::Regular)] size: ButtonSize,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     action: Option<Action>,
@@ -112,7 +113,7 @@ pub fn ButtonFace(
     handle: unstyled::ButtonHandle,
     variant: Prop<ButtonVariant>,
     #[prop(default = ButtonSize::Regular)] size: ButtonSize,
-    #[prop(default = String::new())] trailing_glyph: Prop<String>,
+    #[prop(default = None)] trailing_glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
@@ -133,9 +134,9 @@ pub fn ButtonFace(
     let label_color = create_memo(move || variant.get().label(disabled.get()));
     let border =
         create_memo(move || (variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT));
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let has_glyph = create_memo(move || glyph.get().is_some());
     let trailing = create_memo(move || trailing_glyph.get());
-    let has_trailing = create_memo(move || !trailing.get().is_empty());
+    let has_trailing = create_memo(move || trailing.get().is_some());
     let labelled = create_memo(move || !icon_only.get());
     let (horizontal, vertical) = size.padding();
     let padding = create_memo(move || match icon_only.get() {

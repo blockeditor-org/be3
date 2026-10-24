@@ -375,7 +375,7 @@ pub fn Span(
 
 #[component]
 pub fn Icon(
-    glyph: Prop<String>,
+    glyph: Prop<Option<beui_core::icons::Glyph>>,
     size: Option<Prop<TextSize>>,
     color: Option<Prop<TextColor>>,
 ) -> primitives::Span {

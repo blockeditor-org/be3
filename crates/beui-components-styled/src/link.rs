@@ -1,5 +1,6 @@
 use crate::frame::Radius;
 use accesskit::Role;
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
@@ -15,7 +16,7 @@ const FOCUS_RING_RADIUS: f32 = 4.0;
 #[component]
 pub fn Link(
     label: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = TextSize::Base)] size: Prop<TextSize>,
     on_click: ClickCallback,

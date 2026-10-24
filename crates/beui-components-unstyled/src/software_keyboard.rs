@@ -297,7 +297,7 @@ fn KeyCell(handle: KeyCapHandle, cap: RenderFn<KeyCapHandle>) -> NodeId {
 
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct Face {
-    pub glyph: &'static str,
+    pub glyph: Option<beui_core::icons::Glyph>,
     pub text: String,
     pub after: String,
 }
@@ -305,23 +305,23 @@ pub struct Face {
 impl Face {
     fn text(text: impl Into<String>) -> Self {
         Self {
-            glyph: "",
+            glyph: None,
             text: text.into(),
             after: String::new(),
         }
     }
 
-    fn glyph(glyph: &'static str) -> Self {
+    fn glyph(glyph: beui_core::icons::Glyph) -> Self {
         Self {
-            glyph,
+            glyph: Some(glyph),
             text: String::new(),
             after: String::new(),
         }
     }
 
-    fn around(text: &str, glyph: &'static str, after: &str) -> Self {
+    fn around(text: &str, glyph: beui_core::icons::Glyph, after: &str) -> Self {
         Self {
-            glyph,
+            glyph: Some(glyph),
             text: text.to_owned(),
             after: after.to_owned(),
         }
@@ -375,7 +375,7 @@ pub fn face(value: Value) -> Face {
             Action::SelectAll => ICON_SQUARE_DASHED_MOUSE_POINTER,
             Action::Undo => ICON_UNDO_2,
             Action::Redo => ICON_REDO_2,
-            Action::DeleteWordLeft | Action::DeleteWordRight => "",
+            Action::DeleteWordLeft | Action::DeleteWordRight => ICON_WHOLE_WORD,
         }),
         Value::Layer(layer) => match layer {
             Layer::Text => Face::text("ABC"),

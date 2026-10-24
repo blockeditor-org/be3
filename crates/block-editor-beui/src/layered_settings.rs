@@ -524,7 +524,7 @@ pub fn LayeredSettingsRow(
                 view! {
                     <MenuItem
                         label="Keep on this device"
-                        glyph={ICON_PIN.to_owned()}
+                        glyph=ICON_PIN
                         checked={checked}
                         disabled={unkeepable}
                         row_test_id={format!("{id}.keep")}
@@ -535,7 +535,7 @@ pub fn LayeredSettingsRow(
             let resetting = view! {
                 <MenuItem
                     label="Reset to default"
-                    glyph={ICON_ROTATE_CCW.to_owned()}
+                    glyph=ICON_ROTATE_CCW
                     disabled={unresettable}
                     row_test_id={format!("{id}.reset")}
                     on_click={move || reset.call(())}
@@ -546,7 +546,7 @@ pub fn LayeredSettingsRow(
         false => [view! {
             <MenuItem
                 label="Stop keeping in this profile"
-                glyph={ICON_PIN_OFF.to_owned()}
+                glyph=ICON_PIN_OFF
                 disabled={unresettable}
                 row_test_id={format!("{id}.reset")}
                 on_click={move || reset.call(())}

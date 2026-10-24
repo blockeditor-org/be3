@@ -6,7 +6,7 @@ use crate::editors::EditorRegistry;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BlockLabel {
     pub(crate) block_type: Uuid,
-    pub(crate) icon: Option<&'static str>,
+    pub(crate) icon: Option<beui::icons::Glyph>,
     pub(crate) name: String,
     pub(crate) automatic: bool,
 }
@@ -30,7 +30,9 @@ impl BlockLabel {
         };
         Self {
             block_type,
-            icon: registry.icon(block_type),
+            icon: registry
+                .icon(block_type)
+                .and_then(beui::icons::Glyph::from_codepoint),
             name,
             automatic,
         }

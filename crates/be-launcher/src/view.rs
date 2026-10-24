@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 #[cfg(target_os = "android")]
 use beui::icons::ICON_ARROW_LEFT;
 use beui::icons::{
@@ -304,7 +305,7 @@ pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
     }
 }
 
-pub(crate) fn state_glyph(state: State) -> &'static str {
+pub(crate) fn state_glyph(state: State) -> Glyph {
     match state {
         State::Open => ICON_SPLIT,
         State::Draft => ICON_FILE,

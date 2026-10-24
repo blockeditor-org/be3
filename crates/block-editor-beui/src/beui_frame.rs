@@ -156,7 +156,10 @@ pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
             MenuNode::Action { action, label } => MenuEntry::Command(MenuCommand {
                 id: action.id().to_owned(),
                 label: label.clone().unwrap_or_else(|| action.label().get()),
-                glyph: action.glyph().to_owned(),
+                glyph: action
+                    .glyph()
+                    .map(|glyph| glyph.as_str().to_owned())
+                    .unwrap_or_default(),
                 enabled: action.enabled().get(),
                 check: match (action.checked(), action.is_radio()) {
                     (None, _) => MenuCheck::None,
@@ -173,7 +176,10 @@ pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
             MenuNode::Submenu(submenu) => MenuEntry::Submenu(MenuSubmenu {
                 id: submenu.id.clone(),
                 label: submenu.label.clone(),
-                glyph: submenu.glyph.clone(),
+                glyph: submenu
+                    .glyph
+                    .map(|glyph| glyph.as_str().to_owned())
+                    .unwrap_or_default(),
                 entries: menu_entries(&submenu.items),
             }),
             MenuNode::Separator => MenuEntry::Separator,

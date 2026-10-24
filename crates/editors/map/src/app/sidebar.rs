@@ -319,7 +319,7 @@ fn Swatch(color: Memo<Color32>) -> NodeId {
     let color = create_memo(move || TextColor::Custom(color.get()));
     view! {
         <Text size=TextSize::Xs color={color} align=TextAlign::Center>
-            <Icon glyph={ICON_CIRCLE.to_owned()} />
+            <Icon glyph=ICON_CIRCLE />
         </Text>
     }
 }
@@ -350,7 +350,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_ARROW_LEFT.to_owned()}
+                    glyph=ICON_ARROW_LEFT
                     label="Back to all points"
                     @test_id={"map.point.back"}
                     on_click={move || state.select(None)}
@@ -377,7 +377,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     }}
                 />
                 <IconButton
-                    glyph={ICON_LOCATE_FIXED.to_owned()}
+                    glyph=ICON_LOCATE_FIXED
                     label="Centre the map here"
                     on_click={move || {
                         if let Some(point) = point.get_untracked() {
@@ -386,7 +386,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     }}
                 />
                 <IconButton
-                    glyph={ICON_TRASH.to_owned()}
+                    glyph=ICON_TRASH
                     label="Remove this point of interest"
                     @test_id={"map.point.remove"}
                     on_click={move || {
@@ -464,7 +464,7 @@ fn ColorPreset(state: MapState, point: Memo<Option<MapPoint>>, name: String) -> 
                 }}
             >
                 <Text size=TextSize::Sm color={TextColor::Custom(swatch)} align=TextAlign::Center>
-                    <Icon glyph={ICON_CIRCLE.to_owned()} />
+                    <Icon glyph=ICON_CIRCLE />
                 </Text>
             </Pressable>
         </Tooltip>

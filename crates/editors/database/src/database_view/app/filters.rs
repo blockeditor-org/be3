@@ -238,7 +238,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                     </PopoverPanel>
                 </unstyled::Popover>
                 <IconButton
-                    glyph={ICON_X.to_owned()}
+                    glyph=ICON_X
                     label="Remove filter"
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -275,7 +275,7 @@ fn AddFilter(data: Data) -> NodeId {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
-                            <Icon glyph={ICON_LIST_FILTER.to_owned()} />
+                            <Icon glyph=ICON_LIST_FILTER />
                         </Text>
                         <Text style=TextStyle::CAPTION>"Filter"</Text>
                     </List>
@@ -691,7 +691,7 @@ pub fn FilterList(data: Data) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                         <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
                         <IconButton
-                            glyph={ICON_X.to_owned()}
+                            glyph=ICON_X
                             label="Remove filter"
                             variant=ButtonVariant::Ghost
                             disabled={read_only}
@@ -703,7 +703,7 @@ pub fn FilterList(data: Data) -> NodeId {
             }</ForEach>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={ICON_PLUS.to_owned()} />
+                    <Icon glyph=ICON_PLUS />
                 </Text>
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <Select

@@ -95,7 +95,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
                 <IconButton
-                    glyph={ICON_CHEVRON_LEFT.to_owned()}
+                    glyph=ICON_CHEVRON_LEFT
                     label="Previous"
                     @test_id={"calendar.previous"}
                     on_click={previous}
@@ -107,7 +107,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     on_click={today}
                 />
                 <IconButton
-                    glyph={ICON_CHEVRON_RIGHT.to_owned()}
+                    glyph=ICON_CHEVRON_RIGHT
                     label="Next"
                     @test_id={"calendar.next"}
                     on_click={next}
@@ -128,7 +128,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
-                    glyph={ICON_PLUS.to_owned()}
+                    glyph=ICON_PLUS
                     label="Event"
                     variant=ButtonVariant::Primary
                     disabled={read_only}

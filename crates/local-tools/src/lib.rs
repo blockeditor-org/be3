@@ -5,6 +5,7 @@ mod apk_sign;
 mod deploy;
 #[cfg(unix)]
 mod fuzz;
+mod icons;
 mod previews;
 mod rasterize;
 mod verify;
@@ -18,12 +19,15 @@ pub fn run() -> ExitCode {
         "apk-sign" => apk_sign::main(rest),
         "web-page" => web_page::main(rest),
         "rasterize" => rasterize::main(rest),
+        "icons" => icons::main(rest),
         "verify" => verify::main(rest),
         "deploy" => deploy::main(rest),
         #[cfg(unix)]
         "fuzz" => fuzz::main(rest),
         _ => {
-            eprintln!("usage: local-tools verify|deploy|fuzz|rasterize|web-page|apk-sign ...");
+            eprintln!(
+                "usage: local-tools verify|deploy|fuzz|rasterize|icons|web-page|apk-sign ..."
+            );
             ExitCode::FAILURE
         }
     }

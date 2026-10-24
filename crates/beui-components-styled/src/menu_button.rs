@@ -1,4 +1,5 @@
 use crate::frame::{ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::button::{ButtonFace, ButtonVariant};
@@ -26,7 +27,7 @@ const PICTURE_FOCUS_RING_OFFSET: f32 = 2.0;
 pub fn MenuButton(
     label: Prop<String>,
     #[prop(default = ButtonVariant::Secondary)] variant: ButtonVariant,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] arrow: Prop<bool>,
@@ -35,8 +36,8 @@ pub fn MenuButton(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let trailing = create_memo(move || match arrow.get() {
-        true => ICON_CHEVRON_DOWN.to_owned(),
-        false => String::new(),
+        true => Some(ICON_CHEVRON_DOWN),
+        false => None,
     });
     let icon_only = create_memo(move || icon_only.get());
     view! {
@@ -69,7 +70,7 @@ pub fn MenuButton(
 #[component]
 pub fn IconMenuButton(
     label: Prop<String>,
-    glyph: Prop<String>,
+    glyph: Prop<Option<Glyph>>,
     #[prop(default = ButtonVariant::Ghost)] variant: ButtonVariant,
     #[prop(default = IconButtonSize::Regular)] size: IconButtonSize,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -102,7 +103,7 @@ pub fn IconMenuButton(
 pub fn PictureMenuButton(
     label: Prop<String>,
     image: Prop<Option<Image>>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = true)] secondary_opens: Prop<bool>,

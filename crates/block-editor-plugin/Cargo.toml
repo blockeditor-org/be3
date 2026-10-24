@@ -8,6 +8,7 @@ license.workspace = true
 be-block = { path = "../be-block" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-ui = { path = "../block-ui" }
+lucide = { path = "../lucide" }
 geometry = { path = "../geometry" }
 paint-format = { path = "../paint-format" }
 reactive = { path = "../reactive" }

@@ -25,14 +25,14 @@ fn an_icon_in_rich_text_takes_room_and_spacing_but_no_bytes() {
         style,
         hang: 0,
     };
-    let width = shaper(ICON_STAR, FontId::icons(18.0)).size().x;
+    let width = shaper(ICON_STAR.as_str(), FontId::icons(18.0)).size().x;
     let plain = RichLayout::new(&[Piece::text("Save", style)], options, &mut shaper);
     let iconed = RichLayout::new(
-        &[icon(ICON_STAR), Piece::text("Save", style)],
+        &[icon(ICON_STAR.as_str()), Piece::text("Save", style)],
         options,
         &mut shaper,
     );
-    let alone = RichLayout::new(&[icon(ICON_STAR)], options, &mut shaper);
+    let alone = RichLayout::new(&[icon(ICON_STAR.as_str())], options, &mut shaper);
     let empty = RichLayout::new(
         &[icon(""), Piece::text("Save", style)],
         options,

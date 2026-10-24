@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::action_row::ActionRowFace;
@@ -151,7 +152,7 @@ fn sized_menu_style(min_width: f32) -> MenuStyle {
 #[component]
 fn ToolbarButton(handle: ButtonHandle) -> NodeId {
     let glyph = handle.glyph;
-    let icon_only = create_memo(move || !glyph.get().is_empty());
+    let icon_only = create_memo(move || glyph.get().is_some());
     view! {
         <ButtonFace handle variant=ButtonVariant::Ghost icon_only />
     }
@@ -232,10 +233,10 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
             .map_or(TextColor::Muted, TextColor::Custom),
     });
     let glyph = create_memo(move || match kind {
-        MenuRowKind::Back => ICON_CHEVRON_LEFT.to_owned(),
+        MenuRowKind::Back => Some(ICON_CHEVRON_LEFT),
         _ => glyph.get(),
     });
-    let has_glyph = create_memo(move || !glyph.get().is_empty() || glyphs.get());
+    let has_glyph = create_memo(move || glyph.get().is_some() || glyphs.get());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
@@ -296,7 +297,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-pub(crate) fn GlyphSlot(glyph: Memo<String>, color: Memo<TextColor>) -> NodeId {
+pub(crate) fn GlyphSlot(glyph: Memo<Option<Glyph>>, color: Memo<TextColor>) -> NodeId {
     view! {
         <Frame width={TextSize::Base.icon_px()}>
             <Text color align=TextAlign::Center>
@@ -340,9 +341,9 @@ pub(crate) fn MenuTreeLead(
     let expandable = create_memo(move || expanded.get().is_some());
     let leaf = create_memo(move || !expandable.get());
     let glyph = create_memo(move || match expanded.get() {
-        Some(true) => ICON_CHEVRON_DOWN.to_owned(),
-        Some(false) => ICON_CHEVRON_RIGHT.to_owned(),
-        None => String::new(),
+        Some(true) => Some(ICON_CHEVRON_DOWN),
+        Some(false) => Some(ICON_CHEVRON_RIGHT),
+        None => None,
     });
     let label = create_memo(move || match expanded.get() {
         Some(true) => "Collapse".to_owned(),
@@ -474,7 +475,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         ..
     } = handle;
     let glyph = match kind {
-        MenuRowKind::Back => Prop::Static(ICON_CHEVRON_LEFT.to_owned()),
+        MenuRowKind::Back => Prop::Static(Some(ICON_CHEVRON_LEFT)),
         _ => glyph,
     };
     view! {

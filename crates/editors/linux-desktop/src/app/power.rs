@@ -1,4 +1,5 @@
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_LOCK, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW,
 };
@@ -19,7 +20,7 @@ fn label(action: PowerAction) -> &'static str {
     }
 }
 
-fn glyph(action: PowerAction) -> &'static str {
+fn glyph(action: PowerAction) -> Glyph {
     match action {
         PowerAction::Lock => ICON_LOCK,
         PowerAction::Suspend => ICON_MOON,
@@ -101,7 +102,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <MenuButton
                 label="Power"
-                glyph={ICON_POWER.to_owned()}
+                glyph=ICON_POWER
                 icon_only=true
                 arrow=false
                 @test_id={"desktop.power"}

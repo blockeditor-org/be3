@@ -33,7 +33,7 @@ fn Tidy(editor: Editor) -> NodeId {
     .register();
     add_to_menu(vec![
         MenuNode::action(&tidy),
-        MenuNode::submenu("tidy.more", "More", "", vec![MenuNode::action(&neatly)]),
+        MenuNode::submenu("tidy.more", "More", None, vec![MenuNode::action(&neatly)]),
     ]);
     view! {
         <Text @test_id={"tidy.state"}>{tidied}</Text>

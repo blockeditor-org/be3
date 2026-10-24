@@ -3,6 +3,7 @@ use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
     SettingsContent, SettingsProfileContent,
 };
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MONITOR, ICON_MONITOR_SMARTPHONE,
     ICON_PLUS,
@@ -92,7 +93,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 <SettingRow
                                     label="Devices and profiles"
                                     detail="What each device keeps for itself"
-                                    glyph={ICON_MONITOR_SMARTPHONE.to_owned()}
+                                    glyph=ICON_MONITOR_SMARTPHONE
                                     @test_id={"settings.devices"}
                                     on_click={move || devices.set(true)}
                                 />
@@ -132,7 +133,7 @@ fn DevicesAndProfiles(
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button
                     label="Settings"
-                    glyph={ICON_ARROW_LEFT.to_owned()}
+                    glyph=ICON_ARROW_LEFT
                     variant=ButtonVariant::Ghost
                     @test_id={"settings.back"}
                     on_click={on_back}
@@ -168,7 +169,7 @@ fn DevicesAndProfiles(
                             <SettingRow
                                 label={label}
                                 detail={detail}
-                                glyph={ICON_MONITOR_SMARTPHONE.to_owned()}
+                                glyph=ICON_MONITOR_SMARTPHONE
                                 selected={selected}
                                 @test_id={format!("settings.profile.{profile}")}
                                 on_click={move || {
@@ -181,7 +182,7 @@ fn DevicesAndProfiles(
                     }</ForEach>
                     <Button
                         label="New settings profile"
-                        glyph={ICON_PLUS.to_owned()}
+                        glyph=ICON_PLUS
                         variant=ButtonVariant::Ghost
                         disabled={blocked}
                         @test_id={"settings.new-profile"}
@@ -316,7 +317,7 @@ fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeI
 fn SettingRow(
     label: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
-    glyph: Prop<String>,
+    glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
@@ -382,7 +383,7 @@ fn Kinds<C: Layer>(
             <SettingRow
                 label="Display"
                 detail="Theme, scale, screens, sleep and lock"
-                glyph={ICON_MONITOR.to_owned()}
+                glyph=ICON_MONITOR
                 selected={showing(display)}
                 disabled={blocked}
                 @test_id={"settings.display"}
@@ -391,7 +392,7 @@ fn Kinds<C: Layer>(
             <SettingRow
                 label="Input"
                 detail="Keyboard, pointers and pasting"
-                glyph={ICON_KEYBOARD.to_owned()}
+                glyph=ICON_KEYBOARD
                 selected={showing(input)}
                 disabled={blocked}
                 @test_id={"settings.input"}
@@ -400,7 +401,7 @@ fn Kinds<C: Layer>(
             <SettingRow
                 label="Default editors"
                 detail="Which editor opens each type"
-                glyph={ICON_LAYOUT_GRID.to_owned()}
+                glyph=ICON_LAYOUT_GRID
                 selected={showing(editors)}
                 disabled={blocked}
                 @test_id={"settings.default-editors"}

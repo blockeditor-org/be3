@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use block_editor_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -96,7 +97,7 @@ pub(crate) enum Tool {
 }
 
 impl Tool {
-    pub(crate) fn glyph(self) -> &'static str {
+    pub(crate) fn glyph(self) -> Glyph {
         match self {
             Tool::Select => ICON_MOUSE_POINTER_2,
             Tool::Lasso => ICON_LASSO_SELECT,

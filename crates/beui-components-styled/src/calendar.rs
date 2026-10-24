@@ -87,7 +87,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <IconButton
-                glyph={ICON_CHEVRON_LEFT.to_owned()}
+                glyph=ICON_CHEVRON_LEFT
                 label={previous_label}
                 size=IconButtonSize::Compact
                 variant=ButtonVariant::Ghost
@@ -116,7 +116,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 />
             </List>
             <IconButton
-                glyph={ICON_CHEVRON_RIGHT.to_owned()}
+                glyph=ICON_CHEVRON_RIGHT
                 label={next_label}
                 size=IconButtonSize::Compact
                 variant=ButtonVariant::Ghost
@@ -135,8 +135,8 @@ fn HeaderToggle(
     on_click: ClickCallback,
 ) -> NodeId {
     let glyph = create_memo(move || match open.get() {
-        true => ICON_CHEVRON_UP.to_owned(),
-        false => ICON_CHEVRON_DOWN.to_owned(),
+        true => ICON_CHEVRON_UP,
+        false => ICON_CHEVRON_DOWN,
     });
     view! {
         <unstyled::Button label accessibility on_click={on_click}>|button: unstyled::ButtonHandle|

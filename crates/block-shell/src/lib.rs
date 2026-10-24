@@ -1,3 +1,4 @@
+mod appearance;
 mod artifact;
 mod block_menu;
 mod deleted;
@@ -18,6 +19,7 @@ mod tab;
 mod window;
 mod workspace;
 
+pub use appearance::AppearanceDialog;
 pub use dialogs::WorkspaceDialogs;
 pub use kept::KeptWindow;
 pub use picker::PickAnchor;

@@ -210,7 +210,7 @@ fn FrameBackground(
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <ToggleButton
                     label="Theme background"
-                    glyph={ICON_DROPLET_OFF.to_owned()}
+                    glyph=ICON_DROPLET_OFF
                     pressed={Binding::new(following, move |_: bool| set(None))}
                     disabled={locked}
                     @test_id={"infinite-canvas.background.theme"}
@@ -912,7 +912,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ToggleButton
                             label="No fill"
-                            glyph={ICON_DROPLET_OFF.to_owned()}
+                            glyph=ICON_DROPLET_OFF
                             pressed={Binding::new(none, clearing)}
                             @test_id={"infinite-canvas.fill.none"}
                         />

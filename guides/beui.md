@@ -1364,7 +1364,7 @@ for a moment, and `styled::Tooltip` is the bubble version of it:
 ```rust
 view! {
     <Tooltip label="Reveal the block being shown">
-        <IconButton glyph={ICON_LOCATE_FIXED.to_owned()} label="Reveal" on_click={find} />
+        <IconButton glyph=ICON_LOCATE_FIXED label="Reveal" on_click={find} />
     </Tooltip>
 }
 ```
@@ -3597,18 +3597,30 @@ when it is placed in a box bigger than itself.
 
 The icons are Lucide's, drawn from its font
 (`beui-font-freetype/src/assets/icons/lucide.ttf`, committed unmodified from
-the `lucide-static` npm package, version 1.61.0). `beui_core::icons` is
-generated from that package: one `ICON_*` constant per icon named in
-`icon-nodes.json` (its aliases are left out), holding the codepoint
-`font/codepoints.json` gives it, and `named` for the same icons by Lucide name,
-which is what anything saved holds, since Lucide renumbers an icon now and
-then. A comment after each constant lists its tags from `tags.json` and the
-older names (aliases) it shares a codepoint with: search them for what an icon
-is for ("duplicate" finds `ICON_COPY_PLUS`) rather than guessing from names.
-The file's `@yeskeepfile` comment stops `./scripts/verify` deleting them; a
-comment holding that marker keeps every comment in its file, as `@yeskeep`
-keeps the one comment holding it. Regenerate all of it from the new package
-whenever the font is updated. Text
+the `lucide-static` npm package). They live in `crates/lucide`, which
+`beui_core::icons` re-exports and which knows nothing of beui, so the block
+catalog (`block-ui`) holds them too. An icon is a `Glyph`, its codepoint in the
+font; only the list can make one, so a `glyph` or `icon` prop, which takes a
+`Prop<Option<Glyph>>` (`glyph=ICON_SAVE`, or `None` for no icon), cannot be
+handed text by mistake. The plugin protocol, which knows nothing of the font,
+carries codepoints as text; `Glyph::from_codepoint` reads one back, and
+`Glyph::as_str` is the text a painter lays out. The list,
+`crates/lucide/src/list.rs`, is one line per icon: its `ICON_*` constant, its
+Lucide name, its codepoint, and its tags from `tags.json` followed by the older
+names (aliases) it shares a codepoint with. The `icons!` macro in that crate
+turns it into the constants, `from_codepoint` and `ALL`, a `NamedIcon` per icon
+in name order; `named` looks a name up in it, which is how anything saved holds
+an icon, since Lucide renumbers an icon now and then, and an icon picker lists
+and searches it (the workspace's appearance card). Search the list's tags for
+what an icon is for ("duplicate" finds `ICON_COPY_PLUS`) rather than guessing
+from names. Don't edit the list by hand: to update Lucide, unpack the package
+(`npm pack lucide-static@VERSION`, then `tar xzf`) and run
+`./scripts/buck run //crates/local-tools:bin -- icons PACKAGE` from inside the
+repository, which rewrites the list from `icon-nodes.json`,
+`font/codepoints.json` and `tags.json` and copies in the font. The list's
+`@yeskeepfile` comment stops `./scripts/verify` deleting its header; a comment
+holding that marker keeps every comment in its file, as `@yeskeep` keeps the
+one comment line holding it. Text
 is Inter Regular (`Inter-Regular.ttf` from Inter's release, unmodified), with
 Hack for monospace and Noto Emoji as the fallback.
 

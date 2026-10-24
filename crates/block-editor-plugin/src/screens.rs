@@ -3,6 +3,7 @@ use block_plugin_api::{
     Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
+use lucide::Glyph;
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -774,17 +775,13 @@ impl Screens {
 }
 
 fn catalog(catalog: &Catalog) -> BlockCatalog {
-    let leak = |codepoint: &str| -> Option<&'static str> {
-        let codepoint: &'static str = Box::leak(codepoint.to_owned().into_boxed_str());
-        (!codepoint.is_empty()).then_some(codepoint)
-    };
     BlockCatalog::new(catalog.types.iter().map(|descriptor| {
         (
             Uuid::from_bytes(descriptor.block_type),
             BlockTypeEntry {
                 display_name: descriptor.display_name.clone(),
                 color: descriptor.color,
-                icon: leak(&descriptor.icon_codepoint),
+                icon: Glyph::from_codepoint(&descriptor.icon_codepoint),
                 child_edits: block_ui::ChildEdits {
                     add: descriptor.children.add,
                     delete: descriptor.children.delete,
@@ -804,7 +801,7 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             template: template.template.clone(),
             block_type: Uuid::from_bytes(template.block_type),
             name: template.name.clone(),
-            icon: leak(&template.icon_codepoint),
+            icon: Glyph::from_codepoint(&template.icon_codepoint),
             category: match template.category {
                 TemplateCategory::Important => block_ui::TemplateCategory::Important,
                 TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
@@ -822,7 +819,7 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             Edits::Nothing => block_ui::Edits::Nothing,
         },
         name: editor.name.clone(),
-        icon: leak(&editor.icon_codepoint),
+        icon: Glyph::from_codepoint(&editor.icon_codepoint),
     }))
 }
 

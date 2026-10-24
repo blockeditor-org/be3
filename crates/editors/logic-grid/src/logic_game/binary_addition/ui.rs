@@ -138,7 +138,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                 </Show>
                 <Show condition={done}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
-                        <Icon glyph={ICON_CIRCLE_CHECK.to_owned()} />
+                        <Icon glyph=ICON_CIRCLE_CHECK />
                         "Every problem is correct."
                     </Text>
                 </Show>

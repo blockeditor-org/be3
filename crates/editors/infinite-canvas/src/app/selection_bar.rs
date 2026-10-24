@@ -97,7 +97,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 }</Show>
                 <Show condition={inspectable}>
                     <IconButton
-                        glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
+                        glyph=ICON_SLIDERS_HORIZONTAL
                         label="Inspector"
                         @test_id={"infinite-canvas.inspect"}
                         on_click={tune}

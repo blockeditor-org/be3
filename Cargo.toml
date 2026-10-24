@@ -95,6 +95,7 @@ members = [
     "crates/ghostty-vt",
     "crates/local-tools",
     "crates/logicgame",
+    "crates/lucide",
     "crates/namespace-waker",
     "crates/paint-format",
     "crates/paint-review",

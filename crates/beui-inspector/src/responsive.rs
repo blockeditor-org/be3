@@ -161,7 +161,7 @@ fn ResponsiveToolbar(
                     </Frame>
                     <IconButton
                         @test_id={"inspector.responsive.rotate"}
-                        glyph={ICON_ROTATE_CW_SQUARE.to_owned()}
+                        glyph=ICON_ROTATE_CW_SQUARE
                         label="Rotate"
                         variant=ButtonVariant::Ghost
                         on_click={move || state.value().update_screen(ScreenSimulation::rotated)}
@@ -189,7 +189,7 @@ fn ResponsiveToolbar(
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <IconButton
                         @test_id={"inspector.responsive.close"}
-                        glyph={ICON_X.to_owned()}
+                        glyph=ICON_X
                         label="Close responsive design mode"
                         variant=ButtonVariant::Ghost
                         on_click={move || state.value().simulate_screen(None)}

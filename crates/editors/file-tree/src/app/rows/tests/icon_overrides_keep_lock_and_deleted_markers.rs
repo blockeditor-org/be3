@@ -33,19 +33,19 @@ fn icon_overrides_keep_lock_and_deleted_markers() {
     };
     let mut info = BlockInfo::new(Uuid::from_u128(5), LISTED, BlockParent::Root);
     let row = describe(&info);
-    assert_eq!(row.glyph, ICON_FILE_TEXT);
+    assert_eq!(row.glyph, Some(ICON_FILE_TEXT));
     assert_eq!(row.icon_color, Some([65, 145, 210]));
     info.metadata.insert(&ICON, &"star".to_owned());
     info.metadata.insert(&ICON_COLOR, &[203, 91, 125]);
     let row = describe(&info);
-    assert_eq!(row.glyph, ICON_STAR);
+    assert_eq!(row.glyph, Some(ICON_STAR));
     assert_eq!(row.icon_color, Some([203, 91, 125]));
     info.deleted = true;
     let row = describe(&info);
-    assert_eq!(row.glyph, ICON_TRASH);
+    assert_eq!(row.glyph, Some(ICON_TRASH));
     assert_eq!(row.icon_color, None);
     info.locked = true;
     let row = describe(&info);
-    assert_eq!(row.glyph, ICON_LOCK);
+    assert_eq!(row.glyph, Some(ICON_LOCK));
     assert_eq!(row.icon_color, None);
 }

@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
@@ -35,7 +36,7 @@ pub fn TextInput(
     #[prop(default = false)] password: Prop<bool>,
     #[prop(default = false)] plain: Prop<bool>,
     #[prop(default = false)] select_on_focus: Prop<bool>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] clearable: Prop<bool>,
     #[prop(default = false)] copyable: Prop<bool>,
     #[prop(default = false)] multiline: bool,
@@ -89,7 +90,7 @@ pub fn TextInput(
 fn TextInputFrame(
     handle: TextInputHandle,
     plain: Memo<bool>,
-    glyph: Memo<String>,
+    glyph: Memo<Option<Glyph>>,
     clearable: Memo<bool>,
     copyable: Memo<bool>,
     copied: Memo<String>,
@@ -106,7 +107,7 @@ fn TextInputFrame(
     } = handle;
     let clearable = create_memo(move || clearable.get() && !empty.get());
     let theme = use_theme();
-    let marked = create_memo(move || !glyph.get().is_empty());
+    let marked = create_memo(move || glyph.get().is_some());
     let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
     let border =
         create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
@@ -148,7 +149,7 @@ fn TextInputFrame(
                     <Show condition={clearable}>
                         <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
                             <IconButton
-                                glyph={ICON_X.to_owned()}
+                                glyph=ICON_X
                                 label="Clear"
                                 size=IconButtonSize::Compact
                                 press_focus=false
@@ -159,7 +160,7 @@ fn TextInputFrame(
                     <Show condition={copyable}>
                         <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
                             <IconButton
-                                glyph={ICON_COPY.to_owned()}
+                                glyph=ICON_COPY
                                 label={copy_label}
                                 size=IconButtonSize::Compact
                                 press_focus=false

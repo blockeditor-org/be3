@@ -834,6 +834,14 @@ impl EditorHost {
             .push((block_id, BlockCommand::Rename));
     }
 
+    pub fn edit_appearance(&self, block_id: Uuid, anchor: Option<Rect>) {
+        let origin = self.region.get().origin;
+        let anchor = anchor.map(|anchor| anchor.translate(-origin));
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Appearance { anchor }));
+    }
+
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
         self.block_commands.borrow_mut().push((
             block_id,

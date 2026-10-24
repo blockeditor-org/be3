@@ -2033,10 +2033,12 @@ pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Opti
         .find_map(|child| text_within(document, child, text))
 }
 
-pub(crate) fn icon_within(document: &Document, root: NodeId, glyph: &str) -> Option<NodeId> {
-    if document.text_icons(root).iter().any(|shown| shown == glyph)
-        && document.node_rect(root).is_some()
-    {
+pub(crate) fn icon_within(
+    document: &Document,
+    root: NodeId,
+    glyph: crate::icons::Glyph,
+) -> Option<NodeId> {
+    if document.text_icons(root).contains(&glyph) && document.node_rect(root).is_some() {
         return Some(root);
     }
     document
@@ -2049,8 +2051,7 @@ pub(crate) fn grip_nearest(harness: &Harness, dock: NodeId, near: Pos2) -> Pos2 
     fn collect(document: &Document, node: NodeId, found: &mut Vec<NodeId>) {
         if document
             .text_icons(node)
-            .iter()
-            .any(|shown| shown == crate::icons::ICON_GRIP_VERTICAL)
+            .contains(&crate::icons::ICON_GRIP_VERTICAL)
             && document.node_rect(node).is_some()
         {
             found.push(node);

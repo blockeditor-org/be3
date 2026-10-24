@@ -135,7 +135,7 @@ pub(super) fn ScreenSection(
                 menu={view! {
                     <MenuItem
                         label="Use the fastest rate"
-                        glyph={ICON_ROTATE_CCW.to_owned()}
+                        glyph=ICON_ROTATE_CCW
                         disabled={at_fastest}
                         row_test_id={format!("display.{connector}.refresh.reset")}
                         on_click={move || set.call(fastest.get_untracked())}

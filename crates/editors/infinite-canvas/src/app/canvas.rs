@@ -491,10 +491,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
                 .as_ref()
                 .map(|label| label.name.clone())
                 .unwrap_or(missing),
-            glyph: label
-                .as_ref()
-                .and_then(block_editor_beui::label_glyph)
-                .map(str::to_owned),
+            glyph: label.as_ref().and_then(block_editor_beui::label_glyph),
             automatic: label.is_some_and(|label| label.automatic),
             placeholder: placeholder.get(),
             entity,

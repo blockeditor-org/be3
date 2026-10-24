@@ -55,7 +55,7 @@ pub(crate) fn Marker(
                         color={color.map(TextColor::Custom)}
                         align=TextAlign::Center
                     >
-                        <Icon glyph={ICON_MAP_PIN.to_owned()} />
+                        <Icon glyph=ICON_MAP_PIN />
                     </Text>
                 </Frame>
                 <Show condition={named}>|| {

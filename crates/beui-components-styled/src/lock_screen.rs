@@ -1,4 +1,5 @@
 use crate::frame::Frame;
+use beui_core::icons::Glyph;
 use beui_core::layer::LayerLevel;
 use std::rc::Rc;
 
@@ -25,7 +26,7 @@ const ACTION_SPACING: f32 = 4.0;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct LockAction {
     pub label: String,
-    pub glyph: String,
+    pub glyph: Glyph,
 }
 
 #[component]
@@ -180,7 +181,7 @@ fn LockCard(
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>
                         <ForEach keys={slots}>|index: usize| {
                             let glyph = create_memo(move || {
-                                actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
+                                actions.with(|actions| actions.get(index).map(|action| action.glyph))
                             });
                             let label = create_memo(move || {
                                 actions.with(|actions| actions.get(index).map(|action| action.label.clone()).unwrap_or_default())

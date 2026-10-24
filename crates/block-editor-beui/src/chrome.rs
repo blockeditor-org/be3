@@ -156,7 +156,7 @@ fn SheetToggle() -> NodeId {
     view! {
         <ToggleButton
             label="Sidebar"
-            glyph={ICON_SLIDERS_HORIZONTAL.to_owned()}
+            glyph=ICON_SLIDERS_HORIZONTAL
             icon_only=true
             pressed={open}
             @test_id={"chrome.sidebar"}

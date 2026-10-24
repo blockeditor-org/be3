@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::icons::Glyph;
 use beui_core::layer::Dismiss;
 use std::rc::Rc;
 
@@ -313,7 +314,7 @@ fn LauncherSearch(handle: TextInputHandle) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={ICON_SEARCH.to_owned()} />
+                    <Icon glyph=ICON_SEARCH />
                 </Text>
                 <Frame @sizing=ItemSize::Percent(100.0)>{field}</Frame>
             </List>
@@ -380,13 +381,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
                 }
             });
             view! {
-                <LauncherRowFace
-                    title={title}
-                    detail={detail}
-                    image={image}
-                    glyph={glyph.to_owned()}
-                    lit={lit}
-                />
+                <LauncherRowFace title={title} detail={detail} image={image} glyph lit={lit} />
             }
         }</unstyled::Button>
     }
@@ -397,7 +392,7 @@ fn LauncherRowFace(
     title: Memo<String>,
     detail: Memo<String>,
     image: Memo<Option<Image>>,
-    glyph: String,
+    glyph: Glyph,
     lit: Memo<bool>,
 ) -> NodeId {
     let theme = use_theme();
@@ -407,7 +402,6 @@ fn LauncherRowFace(
     });
     let pictured = create_memo(move || image.get().is_some());
     let plain = create_memo(move || !pictured.get());
-    let glyph = create_memo(move || glyph.clone());
     let described = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame

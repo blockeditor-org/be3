@@ -8,7 +8,10 @@ fn clicking_the_chevron_opens_and_closes_its_own_row() {
     let row = fixture.test.rect_of("file-tree.orphans.row");
     assert_eq!(
         chevron(&fixture),
-        (ICON_CHEVRON_RIGHT.to_owned(), Some("Expand".to_owned())),
+        (
+            ICON_CHEVRON_RIGHT.as_str().to_owned(),
+            Some("Expand".to_owned())
+        ),
         "a closed row shows a chevron that says what it does"
     );
 
@@ -17,7 +20,10 @@ fn clicking_the_chevron_opens_and_closes_its_own_row() {
 
     assert_eq!(
         chevron(&fixture),
-        (ICON_CHEVRON_DOWN.to_owned(), Some("Collapse".to_owned())),
+        (
+            ICON_CHEVRON_DOWN.as_str().to_owned(),
+            Some("Collapse".to_owned())
+        ),
         "the chevron must expand the row it belongs to"
     );
     assert!(
@@ -35,7 +41,10 @@ fn clicking_the_chevron_opens_and_closes_its_own_row() {
 
     assert_eq!(
         chevron(&fixture),
-        (ICON_CHEVRON_RIGHT.to_owned(), Some("Expand".to_owned())),
+        (
+            ICON_CHEVRON_RIGHT.as_str().to_owned(),
+            Some("Expand".to_owned())
+        ),
         "the chevron must collapse the row again"
     );
 }

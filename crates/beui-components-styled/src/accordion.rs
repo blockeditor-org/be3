@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
@@ -76,7 +77,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     }
 }
 
-fn glyph(open: bool) -> &'static str {
+fn glyph(open: bool) -> Glyph {
     if open {
         ICON_CHEVRON_UP
     } else {

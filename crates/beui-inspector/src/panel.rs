@@ -975,7 +975,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
     view! {
         <ToggleButton
             label="Pick"
-            glyph={ICON_MOUSE_POINTER_2.to_owned()}
+            glyph=ICON_MOUSE_POINTER_2
             icon_only=true
             pressed={Binding::new(picking, move |_| state.value().toggle_picking())}
         />
@@ -986,7 +986,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
 fn CloseButton(state: Stored<State>) -> NodeId {
     view! {
         <IconButton
-            glyph={ICON_X.to_owned()}
+            glyph=ICON_X
             label="Close inspector"
             variant=ButtonVariant::Ghost
             size=IconButtonSize::Compact

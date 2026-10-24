@@ -117,14 +117,14 @@ pub(crate) fn DesktopBar(
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <IconButton
                         @node_ref={&menu_button}
-                        glyph={ICON_MENU.to_owned()}
+                        glyph=ICON_MENU
                         label="Menu"
                         @test_id={"desktop.menu"}
                         on_click={menu}
                     />
                     <Show condition={launchable}>
                         <IconButton
-                            glyph={ICON_LAYOUT_GRID.to_owned()}
+                            glyph=ICON_LAYOUT_GRID
                             label="Programs"
                             @test_id={"desktop.launcher"}
                             on_click={launcher}
@@ -132,7 +132,7 @@ pub(crate) fn DesktopBar(
                     </Show>
                     <MenuButton
                         label="Sessions"
-                        glyph={ICON_BOXES.to_owned()}
+                        glyph=ICON_BOXES
                         disabled={unready}
                         @test_id={"desktop.sessions"}
                         items={view! {
@@ -153,7 +153,7 @@ pub(crate) fn DesktopBar(
                             <MenuItem
                                 row_test_id={"desktop.sessions.new".to_owned()}
                                 label="New session"
-                                glyph={ICON_PLUS.to_owned()}
+                                glyph=ICON_PLUS
                                 separated={listing}
                                 on_click={move || sessions.create()}
                             />
@@ -176,7 +176,7 @@ pub(crate) fn DesktopBar(
                     </Show>
                     <Show condition={epaper}>
                         <IconButton
-                            glyph={ICON_REFRESH_CW.to_owned()}
+                            glyph=ICON_REFRESH_CW
                             label="Refresh the screen"
                             @test_id={"desktop.refresh"}
                             press_focus=false
@@ -187,7 +187,7 @@ pub(crate) fn DesktopBar(
                         <RotateButton editor={editor} display={screen} />
                     </Show>
                     <IconButton
-                        glyph={ICON_KEYBOARD.to_owned()}
+                        glyph=ICON_KEYBOARD
                         label="On-screen keyboard"
                         @test_id={"desktop.keyboard"}
                         press_focus=false

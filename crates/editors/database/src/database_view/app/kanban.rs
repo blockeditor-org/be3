@@ -114,7 +114,7 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
                 <ChoiceMark option={option} size=MARK />
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <IconButton
-                    glyph={ICON_CHEVRONS_UP_DOWN.to_owned()}
+                    glyph=ICON_CHEVRONS_UP_DOWN
                     label={name}
                     variant=ButtonVariant::Ghost
                     size=IconButtonSize::Compact
@@ -196,7 +196,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 <Text style=TextStyle::CAPTION>{count}</Text>
                                 <Frame @sizing=ItemSize::Percent(100.0) />
                                 <IconButton
-                                    glyph={ICON_PLUS.to_owned()}
+                                    glyph=ICON_PLUS
                                     label="Add card"
                                     variant=ButtonVariant::Ghost
                                     size=IconButtonSize::Compact

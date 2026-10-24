@@ -153,8 +153,8 @@ fn PlaybackBar(state: VideoState) -> NodeId {
     let playing = state.playing;
     let empty = create_memo(move || state.duration.get() == 0);
     let glyph = create_memo(move || match playing.get() {
-        true => ICON_PAUSE.to_owned(),
-        false => ICON_PLAY.to_owned(),
+        true => ICON_PAUSE,
+        false => ICON_PLAY,
     });
     let playhead = state.playhead;
     let duration = state.duration;
@@ -170,7 +170,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
         <Frame padding={Sides::symmetric(10.0, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_SKIP_BACK.to_owned()}
+                    glyph=ICON_SKIP_BACK
                     label="Go to the start"
                     on_click={move || state.seek(0)}
                 />
@@ -182,7 +182,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
                     on_click={move || state.toggle_playback()}
                 />
                 <IconButton
-                    glyph={ICON_SKIP_FORWARD.to_owned()}
+                    glyph=ICON_SKIP_FORWARD
                     label="Go to the end"
                     on_click={move || state.seek(state.duration.get_untracked())}
                 />
@@ -199,13 +199,13 @@ fn TimelineTools(state: VideoState) -> NodeId {
         <Frame padding={Sides::symmetric(10.0, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
-                    glyph={ICON_PLUS.to_owned()}
+                    glyph=ICON_PLUS
                     label="Add a clip to the end of the base track"
                     @test_id={"video.add-clip"}
                     on_click={move || state.open_picker(None)}
                 />
                 <IconButton
-                    glyph={ICON_CORNER_DOWN_RIGHT.to_owned()}
+                    glyph=ICON_CORNER_DOWN_RIGHT
                     label="Attach a clip to the selected clip at the playhead"
                     disabled={none}
                     on_click={move || {
@@ -214,14 +214,14 @@ fn TimelineTools(state: VideoState) -> NodeId {
                     }}
                 />
                 <IconButton
-                    glyph={ICON_SCISSORS.to_owned()}
+                    glyph=ICON_SCISSORS
                     label="Split the selected clip in two at the playhead"
                     disabled={none}
                     @test_id={"video.split"}
                     on_click={move || state.split_selected()}
                 />
                 <IconButton
-                    glyph={ICON_TRASH.to_owned()}
+                    glyph=ICON_TRASH
                     label="Delete the selected clip and everything attached to it"
                     disabled={none}
                     @test_id={"video.delete"}
@@ -229,17 +229,17 @@ fn TimelineTools(state: VideoState) -> NodeId {
                 />
                 <Separator direction=Direction::Vertical length=TOOL_SEPARATOR_LENGTH />
                 <IconButton
-                    glyph={ICON_ZOOM_OUT.to_owned()}
+                    glyph=ICON_ZOOM_OUT
                     label="Zoom the timeline out"
                     on_click={move || state.zoom_timeline(1.0 / ZOOM_STEP)}
                 />
                 <IconButton
-                    glyph={ICON_ZOOM_IN.to_owned()}
+                    glyph=ICON_ZOOM_IN
                     label="Zoom the timeline in"
                     on_click={move || state.zoom_timeline(ZOOM_STEP)}
                 />
                 <IconButton
-                    glyph={ICON_SCAN.to_owned()}
+                    glyph=ICON_SCAN
                     label="Fit the whole video in the timeline"
                     on_click={move || state.request_fit()}
                 />

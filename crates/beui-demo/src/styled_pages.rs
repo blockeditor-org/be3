@@ -1,6 +1,7 @@
 use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
+use beui::icons::Glyph;
 use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
     ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE,
@@ -1589,20 +1590,20 @@ fn CardMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <unstyled::MenuItem label="Copy" glyph={ICON_COPY.to_owned()} detail="Ctrl+C" />
+                    <unstyled::MenuItem label="Copy" glyph=ICON_COPY detail="Ctrl+C" />
                     <unstyled::MenuItem
                         label="Paste"
-                        glyph={ICON_CLIPBOARD.to_owned()}
+                        glyph=ICON_CLIPBOARD
                         detail="Ctrl+V"
                         disabled={nothing_copied}
                     />
-                    <unstyled::MenuItem label="Share" glyph={ICON_SHARE_2.to_owned()}>
-                        <unstyled::MenuItem label="Email" glyph={ICON_MAIL.to_owned()} />
-                        <unstyled::MenuItem label="Link" glyph={ICON_LINK.to_owned()} />
+                    <unstyled::MenuItem label="Share" glyph=ICON_SHARE_2>
+                        <unstyled::MenuItem label="Email" glyph=ICON_MAIL />
+                        <unstyled::MenuItem label="Link" glyph=ICON_LINK />
                     </unstyled::MenuItem>
                     <unstyled::MenuItem
                         label="Delete"
-                        glyph={ICON_TRASH.to_owned()}
+                        glyph=ICON_TRASH
                         danger=true
                         separated=true
                     />
@@ -1784,7 +1785,7 @@ const MORE_BLOCKS: [&str; 24] = [
     "Web page",
     "Whiteboard",
 ];
-const SLIDE_LAYOUTS: [(&str, &str); 6] = [
+const SLIDE_LAYOUTS: [(&str, Glyph); 6] = [
     ("Title", ICON_HEADING),
     ("Title and body", ICON_TEXT_ALIGN_START),
     ("Two columns", ICON_COLUMNS_3),
@@ -2293,7 +2294,7 @@ fn ScreenLock() -> NodeId {
                 <Button
                     @test_id={"demo.lock.open"}
                     label="Lock"
-                    glyph={ICON_LOCK.to_owned()}
+                    glyph=ICON_LOCK
                     variant=ButtonVariant::Secondary
                     on_click={move || {
                         error.set(None);
@@ -2964,14 +2965,10 @@ fn ProjectTree() -> NodeId {
                     items: view! {
                         <unstyled::MenuItem
                             label="Rename"
-                            glyph={ICON_PENCIL.to_owned()}
+                            glyph=ICON_PENCIL
                             row_test_id={"demo.tree.rename".to_owned()}
                         />
-                        <unstyled::MenuItem
-                            label="Delete"
-                            glyph={ICON_TRASH.to_owned()}
-                            danger=true
-                        />
+                        <unstyled::MenuItem label="Delete" glyph=ICON_TRASH danger=true />
                     },
                     on_select: Callback::new(move |path: Vec<usize>| match path.as_slice() {
                         [0] => editing.set(Some(row)),
