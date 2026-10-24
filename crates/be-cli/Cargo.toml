@@ -16,6 +16,7 @@ be-graph = { path = "../be-graph" }
 be-keys = { path = "../be-keys" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
+be-sync = { path = "../be-sync" }
 build-id = { path = "../build-id" }
 futures-util = "0.3"
 ghostty-vt = { path = "../ghostty-vt" }

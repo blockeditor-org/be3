@@ -45,6 +45,29 @@ async fn run() -> Result<String, String> {
     let (block, label, base) = match cli::run(&tracker, &invocation).await? {
         Outcome::Print(text) => return Ok(text),
         Outcome::Edit { block, label, base } => (block, label, base),
+        Outcome::Watch {
+            root,
+            directory,
+            every,
+        } => {
+            let stop = async {
+                let _ = tokio::signal::ctrl_c().await;
+            };
+            be_sync::watch::watch(
+                tracker.peer(),
+                &directory,
+                &be_sync::Target { root },
+                every,
+                stop,
+                |passed| match passed {
+                    Ok(report) if report.changed() || report.retry => println!("{report}"),
+                    Ok(_) => {}
+                    Err(error) => eprintln!("be: {error}"),
+                },
+            )
+            .await?;
+            return Ok(String::new());
+        }
     };
     let directory = private_directory()?;
     let path = directory.join(format!("{}.md", block.simple()));

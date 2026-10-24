@@ -18,11 +18,7 @@ fn the_rich_text_page_renders_its_blocks_and_voids_and_edits_them_through_them()
         "the seeded mention renders"
     );
     assert_eq!(
-        showing(
-            test.document(),
-            root,
-            "2. Enter on an empty item leaves the list"
-        ),
+        showing(test.document(), root, "2."),
         1,
         "numbered items count up"
     );

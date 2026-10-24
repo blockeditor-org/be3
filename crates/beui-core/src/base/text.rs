@@ -15,8 +15,8 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
-    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanStyle, TextCaret, TextMark,
-    handle_shape,
+    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
+    TextCaret, TextGlyph, TextMark, handle_shape,
 };
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
@@ -66,6 +66,7 @@ pub struct SpanContent {
     pub color: Option<Color32>,
     pub underline: Option<bool>,
     pub strikethrough: Option<bool>,
+    pub background: Option<SpanBackground>,
     pub break_after: bool,
     pub icon: Option<IconSpan>,
 }
@@ -140,6 +141,7 @@ struct Placed {
     origin: Pos2,
     layout: Rc<RichLayout>,
     spans: Vec<Option<SpanHandle>>,
+    ranges: Vec<Range<usize>>,
 }
 
 #[derive(Clone)]
@@ -302,6 +304,7 @@ pub struct TextNode {
     padding: (f32, f32),
     hang: usize,
     marks: Vec<TextMark>,
+    glyphs: Vec<TextGlyph>,
     carets: Vec<TextCaret>,
     since: Cell<Instant>,
     selection: Option<(Range<usize>, Color32)>,
@@ -617,6 +620,23 @@ impl TextNode {
                 Entry::Inline(..) | Entry::Gap(_) => None,
             })
             .collect();
+        let mut at = 0;
+        let ranges: Vec<Range<usize>> = self
+            .shaped
+            .borrow()
+            .iter()
+            .flat_map(|shaped| &shaped.entries)
+            .map(|entry| {
+                let len = match entry {
+                    Entry::Span(span, _) if span.content().icon.is_some() => 0,
+                    Entry::Span(span, _) => span.content().text.len(),
+                    Entry::Inline(_, text) => text.as_deref().unwrap_or(OBJECT).len(),
+                    Entry::Gap(_) => 0,
+                };
+                at += len;
+                at - len..at
+            })
+            .collect();
         let changed = previous.is_none_or(|previous| {
             previous.rect != rect
                 || previous.origin != origin
@@ -633,6 +653,7 @@ impl TextNode {
             origin,
             layout,
             spans,
+            ranges,
         });
         if changed && let Some(id) = doc.laying_out() {
             doc.arena.note_relaid(id);
@@ -656,21 +677,58 @@ impl TextNode {
             }
             None => (self.color, self.underline, false),
         };
-        for mark in &self.marks {
-            for area in layout.selection_rects(mark.range.clone()) {
+        let fill = |range: Range<usize>, background: SpanBackground| {
+            for area in layout.selection_rects(range) {
                 painter.rect_filled(
-                    area.expand2(mark.outset).translate(origin),
-                    mark.radius,
-                    mark.color,
+                    area.expand2(background.outset).translate(origin),
+                    background.radius,
+                    background.color,
                 );
             }
+        };
+        let mut run: Option<(Range<usize>, SpanBackground)> = None;
+        for (span, range) in placed.spans.iter().zip(&placed.ranges) {
+            let background = span.as_ref().and_then(|span| span.content().background);
+            if let (Some((held, same)), Some(background)) = (&mut run, background)
+                && *same == background
+                && held.end == range.start
+            {
+                held.end = range.end;
+                continue;
+            }
+            if background.is_none() && range.is_empty() {
+                continue;
+            }
+            if let Some((held, background)) = run.take() {
+                fill(held, background);
+            }
+            run = background.map(|background| (range.clone(), background));
+        }
+        if let Some((held, background)) = run {
+            fill(held, background);
+        }
+        let plain = |color: Color32| SpanBackground {
+            color,
+            radius: 0.0,
+            outset: Vec2::ZERO,
+        };
+        for mark in &self.marks {
+            fill(mark.range.clone(), plain(mark.color));
         }
         if let Some((range, color)) = &self.selection {
-            for area in layout.selection_rects(range.clone()) {
-                painter.rect_filled(area.translate(origin), 0.0, *color);
-            }
+            fill(range.clone(), plain(*color));
         }
         layout.paint_runs(painter, origin, |run| paint_of(run.piece));
+        for glyph in &self.glyphs {
+            let shaped = painter.layout_text(&glyph.glyph, glyph.font, TextLayout::DEFAULT);
+            for (area, baseline) in layout.range_boxes(glyph.range.clone()) {
+                let at = pos2(
+                    area.center().x - shaped.size().x / 2.0,
+                    baseline - shaped.baseline(),
+                );
+                painter.galley(at + origin, shaped.clone(), glyph.color);
+            }
+        }
         for item in self.parts.nodes() {
             if rects.contains_key(&item) {
                 crate::paint::paint(doc, painter, rects, item);
@@ -879,6 +937,7 @@ impl Document {
             padding: (0.0, 0.0),
             hang: 0,
             marks: Vec::new(),
+            glyphs: Vec::new(),
             carets: Vec::new(),
             since,
             selection: None,
@@ -913,6 +972,7 @@ impl Document {
             color: content.color,
             underline: content.underline,
             strikethrough: content.strikethrough,
+            background: content.background,
             ..span.content().clone()
         } == content;
         *span.0.content.borrow_mut() = content;
@@ -1148,6 +1208,16 @@ impl Document {
         node.since.set(now);
     }
 
+    pub fn set_text_glyphs(&mut self, text: NodeOf<TextNode>, glyphs: Vec<TextGlyph>) {
+        if self.arena.get_as::<TextNode>(text).glyphs != glyphs {
+            self.arena.paint_mut_as::<TextNode>(text).glyphs = glyphs;
+        }
+    }
+
+    pub fn text_glyphs(&self, text: NodeOf<TextNode>) -> &[TextGlyph] {
+        &self.arena.get_as::<TextNode>(text).glyphs
+    }
+
     pub fn text_marks(&self, text: NodeOf<TextNode>) -> &[TextMark] {
         &self.arena.get_as::<TextNode>(text).marks
     }
@@ -1231,6 +1301,11 @@ impl TextGeometry {
 
     pub fn rect(&self) -> Option<Rect> {
         self.rects.get(&self.node)
+    }
+
+    pub fn bounds(&self) -> Option<Rect> {
+        let (shift, layout) = self.placement()?;
+        Some(Rect::from_min_size(pos2(shift.x, shift.y), layout.size))
     }
 
     pub fn caret_rect(&self, index: usize, width: f32) -> Option<Rect> {

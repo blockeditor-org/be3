@@ -14,7 +14,7 @@ use crate::{
     Highlighter, Language, Pos, SyntaxHighlight,
     document::{Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
     rich::{MarkSet, Name, Value},
-    schema::Schema,
+    schema::{ListMarker, Schema},
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -1441,17 +1441,22 @@ impl Core {
 
     fn toggle_markdown_checkbox(&mut self, position: Position) {
         let history_cursors = self.cursor_positions.clone();
+        let highlight = self.highlight();
         let Some(read) = self.document.read() else {
             return;
         };
         let document = DocumentView::new(&*read);
         let index = position.resolve(&document);
         let start = line_start(document.bytes(), index);
-        let Some(marker) = markdown_checkbox_marker(document.bytes(), start) else {
+        let look = highlight.line_look(start);
+        let Some(ListMarker::Check(checked)) = look.list else {
             return;
         };
-        let state = if marker.checked { b' ' } else { b'x' };
-        let state_position = Position::at(&document, marker.marker.start + 3);
+        let Some(open) = memchr::memrchr(b'[', &document.bytes()[look.marker.clone()]) else {
+            return;
+        };
+        let state = if checked { b' ' } else { b'x' };
+        let state_position = Position::at(&document, look.marker.start + open + 1);
         drop(document);
         drop(read);
         self.prepare_history_group(UndoClassification::AlwaysSplit);
@@ -2392,28 +2397,14 @@ fn measure_indent(bytes: &[u8], start: usize, width: usize) -> (usize, usize) {
     (segments.div_ceil(width), count)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarkdownCheckboxMarker {
-    pub marker: Range<usize>,
-    pub checked: bool,
-}
-
-pub fn markdown_checkbox_marker(bytes: &[u8], line_start: usize) -> Option<MarkdownCheckboxMarker> {
-    let indent = bytes[line_start..]
-        .iter()
-        .take_while(|byte| matches!(byte, b' ' | b'\t'))
-        .count();
-    let start = line_start + indent;
-    let marker = bytes.get(start..start + 6)?;
-    (matches!(marker[0], b'-' | b'*' | b'+')
-        && marker[1] == b' '
-        && marker[2] == b'['
-        && matches!(marker[3], b' ' | b'x' | b'X')
-        && marker[4..6] == *b"] ")
-        .then(|| MarkdownCheckboxMarker {
-            marker: start..start + 5,
-            checked: matches!(marker[3], b'x' | b'X'),
-        })
+fn is_markdown_checkbox(rest: &[u8]) -> bool {
+    rest.get(..6).is_some_and(|marker| {
+        matches!(marker[0], b'-' | b'*' | b'+')
+            && marker[1] == b' '
+            && marker[2] == b'['
+            && matches!(marker[3], b' ' | b'x' | b'X')
+            && marker[4..6] == *b"] "
+    })
 }
 
 struct MarkdownListMarker {
@@ -2423,7 +2414,7 @@ struct MarkdownListMarker {
 
 fn markdown_list_marker(bytes: &[u8], start: usize) -> Option<MarkdownListMarker> {
     let rest = bytes.get(start..)?;
-    if markdown_checkbox_marker(bytes, start).is_some() {
+    if is_markdown_checkbox(rest) {
         let mut continuation = rest[..6].to_vec();
         continuation[3] = b' ';
         return Some(MarkdownListMarker {

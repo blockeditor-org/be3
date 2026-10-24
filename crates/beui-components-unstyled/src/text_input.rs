@@ -141,7 +141,6 @@ pub fn TextInput(
     });
 
     let colors = create_memo(move || TextAreaColors {
-        surface: Color32::TRANSPARENT,
         selection: selection_color.get(),
         caret: caret_color.get(),
         placeholder: placeholder_color.get(),
@@ -249,16 +248,6 @@ pub fn TextInput(
         true => surround(area_node, false),
         false => area_node,
     }
-}
-
-pub fn measure_prose(
-    value: &str,
-    placeholder: &str,
-    font_size: f32,
-    prose: Prose,
-    wrap_width: f32,
-) -> Option<Vec2> {
-    plain_text(value).measure_prose(font_size, prose, placeholder, wrap_width)
 }
 
 fn plain_text(value: &str) -> TextAreaState {

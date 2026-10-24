@@ -13,8 +13,8 @@ pub use document::{
     format_op, formats_in, place_in, remint, runs_in,
 };
 pub use highlighter::{
-    Highlighter, Language, MarkdownTable, MarkdownTableAlignment, MarkdownTableRow,
-    SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, SyntaxHighlight,
+    Highlighter, Language, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    SyntaxHighlight,
 };
 pub use rich::{
     Block, Change, Expand, FormatOp, FormatRun, Formats, Mark, MarkId, MarkSet, Marks, Name,

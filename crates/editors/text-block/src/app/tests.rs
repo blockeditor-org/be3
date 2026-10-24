@@ -25,15 +25,16 @@ mod code_is_painted_on_its_background;
 mod foreign_organization_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;
+mod inline_code_keeps_its_background_where_it_wraps;
 mod lists_and_quotes_are_painted_with_bullets_and_bars;
 mod markdown_is_painted_with_its_styles;
 mod peers_carets_follow_their_presence_and_go_when_it_is_hidden;
 mod pressing_the_format_bar_keeps_the_focus_and_the_selection_in_the_text;
 mod replacing_a_referenced_block_rewrites_its_url;
 mod selecting_a_grapheme_keeps_prepend_with_ascii;
+mod selecting_text_does_not_move_it;
 mod switching_to_hex_view_shows_the_bytes;
 mod the_caret_is_shown_to_peers_in_a_color_they_are_not_using;
-mod the_intrinsic_size_follows_the_width_it_was_given;
 mod the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows;
 mod the_palette_and_the_shortcuts_run_the_format_actions;
 mod the_text_waits_for_its_content_and_typing_before_it_is_dropped;
@@ -41,6 +42,7 @@ mod typing_continues_at_the_caret_after_a_peer_edits_around_it;
 mod typing_continues_where_a_peer_deleted_the_text_around_the_caret;
 mod typing_follows_a_replacement_of_the_carets_byte;
 mod typing_inserts_text_into_the_document;
+mod whitespace_markers_sit_over_real_spaces;
 
 fn editor(text: &str) -> BeuiTest<TextApp> {
     let block = Uuid::new_v4();

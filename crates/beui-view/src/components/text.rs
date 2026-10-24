@@ -11,7 +11,7 @@ use beui_core::base::text::{
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId};
 use beui_core::node::{NodeId, NodeOf};
-use beui_core::rich::{TextCaret, TextMark};
+use beui_core::rich::{SpanBackground, TextCaret, TextGlyph, TextMark};
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::font::TextAlign;
@@ -31,6 +31,7 @@ pub fn Text(
     #[prop(default = (0.0, 0.0))] line_padding: Prop<(f32, f32)>,
     #[prop(default = 0)] hang: Prop<usize>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
+    #[prop(default = Vec::new())] glyphs: Prop<Vec<TextGlyph>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
 ) -> NodeId {
@@ -77,6 +78,10 @@ pub fn Text(
     create_binding(move || {
         let marks = marks.get();
         with_document(|document| document.set_text_marks(node, marks))
+    });
+    create_binding(move || {
+        let glyphs = glyphs.get();
+        with_document(|document| document.set_text_glyphs(node, glyphs))
     });
     create_binding(move || {
         let carets = carets.get();
@@ -219,6 +224,7 @@ pub struct Span {
     color: Prop<Option<Color32>>,
     underline: Prop<Option<bool>>,
     strikethrough: Prop<Option<bool>>,
+    background: Prop<Option<SpanBackground>>,
     break_after: Prop<bool>,
     icon: Option<IconSpan>,
 }
@@ -267,6 +273,7 @@ impl Span {
             color: Prop::Static(None),
             underline: Prop::Static(None),
             strikethrough: Prop::Static(None),
+            background: Prop::Static(None),
             break_after: Prop::Static(false),
             icon: None,
         }
@@ -277,6 +284,7 @@ impl Span {
             && matches!(self.color, Prop::Static(None))
             && matches!(self.underline, Prop::Static(None))
             && matches!(self.strikethrough, Prop::Static(None))
+            && matches!(self.background, Prop::Static(None))
             && matches!(self.break_after, Prop::Static(false))
             && self.icon.is_none()
     }
@@ -288,6 +296,7 @@ impl Span {
             color: self.color.get_untracked(),
             underline: self.underline.get_untracked(),
             strikethrough: self.strikethrough.get_untracked(),
+            background: self.background.get_untracked(),
             break_after: self.break_after.get_untracked(),
             icon: self.icon,
         }
@@ -310,6 +319,9 @@ impl Span {
         bind(text, &handle, self.strikethrough, |content, value| {
             content.strikethrough = value;
         });
+        bind(text, &handle, self.background, |content, value| {
+            content.background = value;
+        });
         bind(text, &handle, self.break_after, |content, value| {
             content.break_after = value;
         });
@@ -327,6 +339,7 @@ pub fn Span(
     #[prop(default = None)] color: Prop<Option<Color32>>,
     #[prop(default = None)] underline: Prop<Option<bool>>,
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
+    #[prop(default = None)] background: Prop<Option<SpanBackground>>,
     #[prop(default = false)] break_after: Prop<bool>,
     children: Children<SpanText>,
 ) -> Span {
@@ -361,6 +374,7 @@ pub fn Span(
         color,
         underline,
         strikethrough,
+        background,
         break_after,
         icon: None,
     }

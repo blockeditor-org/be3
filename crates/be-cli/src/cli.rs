@@ -26,12 +26,21 @@ Commands:
                                       or in the one workspace this account may write in
   be upload FILE [--in TARGET]        Copy the blocks a download wrote into TARGET (or,
                                       as new-database, a workspace) with new ids
+  be sync DIRECTORY [--watch [SECONDS]]
+                                      Sync a directory with the folder it was synced with before
 
 Any block:
   ls | info                           Its children, or where it is and who may change it
   delete                              Move it, and everything inside it, to Recently Deleted
   download [FILE]                     Write it, and everything inside it, to one file
                                       (NAME.block unless FILE is given) for `be upload`
+
+A folder or a workspace:
+  sync DIRECTORY [--watch [SECONDS]]  Keep DIRECTORY and the folder in step both ways:
+                                      text, image, PDF, audio and other files as files,
+                                      folders as directories; --watch keeps going, syncing
+                                      on every change here and every SECONDS (10) for
+                                      changes in block-app
 
 A database (or a view of one):
   rows [FILTER]...                    Its rows; FILTER is FIELD=VALUE, FIELD!=VALUE or FIELD~TEXT
@@ -91,6 +100,7 @@ pub struct Options {
     pub within: Option<String>,
     pub column: NewColumn,
     pub command: Vec<String>,
+    pub watch: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -109,16 +119,24 @@ pub enum Outcome {
         label: String,
         base: String,
     },
+    Watch {
+        root: Option<Uuid>,
+        directory: std::path::PathBuf,
+        every: std::time::Duration,
+    },
 }
 
-const COMMANDS: [&str; 6] = [
+const COMMANDS: [&str; 7] = [
     "ls",
     "workspaces",
     "whoami",
     "help",
     "new-database",
     "upload",
+    "sync",
 ];
+
+const WATCH_SECONDS: u64 = 10;
 
 pub fn parse(
     arguments: Vec<String>,
@@ -143,6 +161,16 @@ pub fn parse(
                 break;
             }
             "--json" => json = true,
+            "--watch" => {
+                let seconds = match rest.as_slice().first().map(|next| next.parse::<u64>()) {
+                    Some(Ok(seconds)) => {
+                        rest.next();
+                        seconds.max(1)
+                    }
+                    _ => WATCH_SECONDS,
+                };
+                options.watch = Some(seconds);
+            }
             "--multiple" => options.column.multiple = true,
             "--body" => options.body = Some(Body::Replace(text(value()?)?)),
             "--append" => options.body = Some(Body::Append(text(value()?)?)),
@@ -194,6 +222,9 @@ pub async fn run<S: ObjectStore>(
     invocation: &Invocation,
 ) -> Result<Outcome, String> {
     let Some(target) = &invocation.target else {
+        if invocation.verb == "sync" {
+            return sync(tracker, None, invocation).await;
+        }
         return command(tracker, invocation).await.map(Outcome::Print);
     };
     let entry = tracker.resolve(target).await?;
@@ -295,6 +326,26 @@ async fn command<S: ObjectStore>(
         }
         other => Err(format!("unknown command {other}\n\n{USAGE}")),
     }
+}
+
+async fn sync<S: ObjectStore>(
+    tracker: &Tracker<S>,
+    root: Option<Uuid>,
+    invocation: &Invocation,
+) -> Result<Outcome, String> {
+    let directory = std::path::PathBuf::from(invocation.arguments.first().ok_or(
+        "usage: be FOLDER sync DIRECTORY [--watch [SECONDS]], or be sync DIRECTORY once it has been synced",
+    )?);
+    if let Some(seconds) = invocation.options.watch {
+        return Ok(Outcome::Watch {
+            root,
+            directory,
+            every: std::time::Duration::from_secs(seconds),
+        });
+    }
+    let report = be_sync::sync(tracker.peer(), &directory, &be_sync::Target { root }).await?;
+    tracker.invalidate().await;
+    Ok(Outcome::Print(report.to_string()))
 }
 
 async fn within<S: ObjectStore>(
@@ -425,6 +476,7 @@ async fn block_verb<S: ObjectStore>(
         ("terminal-host", _, _) => Err(
             "terminal-host needs a live connection; run it as `be TARGET terminal-host`".to_owned(),
         ),
+        ("sync", _, _) => sync(tracker, Some(entry.id), invocation).await,
         ("delete", _, _) => print(tracker.delete_block(entry).await?),
         ("download", _, _) => {
             let (top, blocks) = tracker.download(entry).await?;

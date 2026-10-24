@@ -21,6 +21,7 @@ pub mod device_class;
 pub mod display_settings;
 pub mod editor_settings;
 pub mod editor_view;
+pub mod file;
 pub mod folder;
 pub mod game;
 pub mod history;
@@ -37,6 +38,7 @@ pub mod model;
 pub mod pdf;
 pub mod pixel_art;
 pub mod pixel_ray_tracer;
+pub mod plain;
 pub mod presence;
 pub mod presentation;
 pub mod profile;
@@ -68,6 +70,7 @@ pub use device_class::{ClassDefault, DeviceClass};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_settings::{EditorSettings, EditorSettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
+pub use file::{FileContent, FileHeader};
 pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
@@ -79,9 +82,9 @@ pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
 pub use metadata::{
-    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, Entries, ICON,
-    ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME, Origin,
-    ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
+    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE,
+    Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME,
+    Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
 };
 pub use model::Root;
 pub use pdf::{PdfContent, PdfHeader};

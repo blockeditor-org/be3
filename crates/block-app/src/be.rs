@@ -447,6 +447,7 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::DatabaseSchemaContent>(),
     kind_with_history::<be_block::DatabaseViewContent>(),
     kind_with_history::<be_block::DeterministicGameContent>(),
+    kind::<be_block::FileContent>(),
     kind::<be_block::GameModuleContent>(),
     kind_with_history::<be_block::HotbarContent>(),
     kind::<be_block::ImageContent>(),

@@ -180,6 +180,9 @@ view a canvas, not part of it. `plans/canvas.md` has the plan.
 
 Where you find and organize everything. The file tree is today's only entry
 point (see Extension). Search, history, trash and export (`plans/daily_driver.md`, phase 7) come next.
+`be sync` keeps a folder and a directory on disk in step both ways
+(`guides/sync.md`), so that block-app can one day hold its own source code while
+buck2, editors, CI and agents still read real files.
 
 ### Version control
 
