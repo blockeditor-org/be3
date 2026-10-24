@@ -1,7 +1,7 @@
-use workspace_ui_types::WorkspaceContent;
 use block_editor_beui::be_block::{BlockContent, EditorView, FILES_EDITOR, TextContent};
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use workspace_ui_types::WorkspaceContent;
 
 use super::*;
 

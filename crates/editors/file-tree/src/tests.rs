@@ -1,9 +1,9 @@
-use workspace_ui_types::{FolderContent, WorkspaceContent};
 use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::{Document, Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use crate::app::FileTreeApp;
 

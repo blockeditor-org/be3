@@ -1,8 +1,8 @@
-use workspace_ui_types::FolderContent;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{
     BlockCommand, BlockImport, BlockInfo, BlockLocation, BlockPick, HostReply, HostRequest,
 };
+use workspace_ui_types::FolderContent;
 
 use super::*;
 

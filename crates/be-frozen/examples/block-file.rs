@@ -1,5 +1,5 @@
-use workspace_ui_types::FolderContent;
 use std::{fmt::Display, path::PathBuf, time::Duration};
+use workspace_ui_types::FolderContent;
 
 use be_block::{BlockContent, BlockMetadata, TextBlock, TextContent};
 use be_cli::{cli, tracker::Tracker};

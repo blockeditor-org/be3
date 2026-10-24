@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use workspace_ui_types::{FolderContent, WorkspaceContent};
 use be_block::{
     MY_FILES, NAME, ROW_PREFIX, TextBlock, TextContent, TextIndentation, TextLanguage,
     database::DatabaseContent,
@@ -12,6 +11,7 @@ use be_client::{Connection, contacts};
 use be_keys::{InviteCode, RecoveryPhrase};
 use be_protocol::{ClientMessage, KeyKind, OrganizationKind, OrganizationRole, ServerMessage};
 use be_server::backup::{self, BackupKey, Directory};
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use super::*;
 

@@ -1,7 +1,7 @@
-use workspace_ui_types::WorkspaceContent;
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Key;
+use workspace_ui_types::WorkspaceContent;
 
 use super::*;
 

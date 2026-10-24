@@ -1,10 +1,9 @@
 use be_block::{
     BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent, CompiledLogicContent,
     CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
-    DeterministicGameContent, GameModuleContent, HotbarContent,
-    LogicGameContent, LogicGridContent, MapContent, PanZoomContent, PixelArtContent,
-    PixelRayTracerContent, PresentationContent, Scene3dContent, TerminalContent, TextContent,
-    TriangleContent, VideoContent, 
+    DeterministicGameContent, GameModuleContent, HotbarContent, LogicGameContent, LogicGridContent,
+    MapContent, PanZoomContent, PixelArtContent, PixelRayTracerContent, PresentationContent,
+    Scene3dContent, TerminalContent, TextContent, TriangleContent, VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,

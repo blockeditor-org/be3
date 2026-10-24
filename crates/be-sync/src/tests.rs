@@ -1,7 +1,9 @@
-use workspace_ui_types::{FileContent, FolderContent, WorkspaceContent};
 use std::path::{Path, PathBuf};
+use workspace_ui_types::{FileContent, FolderContent, WorkspaceContent};
 
-use be_block::{BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, LiveEdit, TextBlock, TextContent};
+use be_block::{
+    BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, LiveEdit, TextBlock, TextContent,
+};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::MemoryStore;

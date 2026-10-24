@@ -1,10 +1,10 @@
-use workspace_ui_types::WorkspaceContent;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Key;
 use block_editor_beui::{
     AccessLevel, BlockCommand, BlockInfo, BlockParent, BlockPick, BlockQuery, HostReply,
     HostRequest,
 };
+use workspace_ui_types::WorkspaceContent;
 
 use super::*;
 

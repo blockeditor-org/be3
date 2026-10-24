@@ -1,5 +1,5 @@
-use workspace_ui_types::FolderContent;
 use super::*;
+use workspace_ui_types::FolderContent;
 
 use be_block::{TextBlock, TextContent};
 use be_graph::Access;

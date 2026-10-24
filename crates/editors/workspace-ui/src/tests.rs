@@ -1,5 +1,5 @@
-use workspace_ui_types::{FolderContent, WorkspaceContent};
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
 use block_editor_beui::{

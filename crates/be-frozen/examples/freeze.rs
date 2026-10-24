@@ -1,4 +1,3 @@
-use workspace_ui_types::{FolderContent, WorkspaceContent};
 use std::{
     fmt::Display,
     fmt::Write as _,
@@ -7,8 +6,11 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
-use be_block::{BlockContent, BlockMetadata, MY_FILES, TextBlock, TextContent, TextIndentation, TextLanguage};
+use be_block::{
+    BlockContent, BlockMetadata, MY_FILES, TextBlock, TextContent, TextIndentation, TextLanguage,
+};
 use be_cli::{cli, tracker::Tracker};
 use be_client::{Connection, Credentials, Peer, PeerConfig};
 use be_frozen::scene;

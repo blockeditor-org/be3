@@ -1,6 +1,6 @@
-use workspace_ui_types::FileContent;
 use std::cell::RefCell;
 use std::rc::Rc;
+use workspace_ui_types::FileContent;
 
 use audio_block_types::AudioContent;
 use block_editor_beui::be_block::plain::{export_name, extension_of, text_file_type};

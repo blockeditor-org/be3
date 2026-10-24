@@ -1,5 +1,5 @@
-use workspace_ui_types::WorkspaceContent;
 use super::*;
+use workspace_ui_types::WorkspaceContent;
 
 use be_block::{BlockMetadata, TextBlock, TextContent};
 use be_protocol::WrappedBy;

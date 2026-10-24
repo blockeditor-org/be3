@@ -1,6 +1,6 @@
-use workspace_ui_types::FolderContent;
 use be_block::{BlockContent, TextContent};
 use be_graph::BlockParent;
+use workspace_ui_types::FolderContent;
 
 use super::*;
 

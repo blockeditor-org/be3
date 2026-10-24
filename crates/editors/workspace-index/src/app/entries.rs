@@ -1,6 +1,6 @@
-use workspace_ui_types::{FolderContent, WorkspaceContent};
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::BlockContent;

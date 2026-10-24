@@ -1,5 +1,5 @@
-use workspace_ui_types::WorkspaceContent;
 use super::*;
+use workspace_ui_types::WorkspaceContent;
 
 use be_block::block_url::block_url;
 use be_block::{TextBlock, TextContent};

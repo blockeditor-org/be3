@@ -26,5 +26,4 @@ fn text_saved_before_it_was_frozen_still_loads() {
     );
     assert_eq!(text.root().language, TextLanguage::Rust);
     assert_eq!(text.root().indentation, TextIndentation::Tabs);
-
 }

@@ -80,7 +80,11 @@ impl Root for Folder {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x666f_6c64_6572_2d66_6978_7475_7265_0001);
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
-        let listed = |block: Uuid| self.entries.iter().filter(move |entry| entry.block.0 == block);
+        let listed = |block: Uuid| {
+            self.entries
+                .iter()
+                .filter(move |entry| entry.block.0 == block)
+        };
         Some(match change {
             ChildChange::Add(block) if listed(block).next().is_some() => Edit::default(),
             ChildChange::Add(block) => Self::ENTRIES

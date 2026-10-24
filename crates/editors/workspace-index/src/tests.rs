@@ -1,9 +1,9 @@
 use block_editor_beui::be_block::{BlockContent, CounterContent};
 
-use workspace_ui_types::FolderContent;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
+use workspace_ui_types::FolderContent;
 
 use crate::app::WorkspaceIndexApp;
 
