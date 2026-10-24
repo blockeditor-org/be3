@@ -241,12 +241,15 @@ impl Modules {
     }
 
     pub async fn ready(&mut self) {
+        let mut kept = Vec::new();
         loop {
-            for (module, command) in self.collect() {
+            let collected = self.collect();
+            let heard = !collected.is_empty();
+            for (module, command) in collected {
                 if let Command::Hello { types } = command {
                     self.hello(module, types).await;
                 } else {
-                    self.backlog.push_back((module, command));
+                    kept.push((module, command));
                 }
             }
             if self
@@ -254,9 +257,13 @@ impl Modules {
                 .iter()
                 .all(|module| module.hello || module.worker.is_none())
             {
+                kept.extend(self.backlog.drain(..));
+                self.backlog = kept.into();
                 return;
             }
-            self.notified().await;
+            if !heard {
+                self.notified().await;
+            }
         }
     }
 
@@ -603,3 +610,6 @@ pub async fn started(sources: Vec<Source>) -> Modules {
     modules.ready().await;
     modules
 }
+
+#[cfg(test)]
+mod tests;
