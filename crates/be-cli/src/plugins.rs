@@ -65,8 +65,13 @@ pub fn name_of(content_type: Uuid) -> Option<&'static str> {
                 .iter()
                 .flat_map(|plugin| &plugin.manifest.block_types)
                 .map(|block_type| {
-                    let name: &'static str =
-                        Box::leak(block_type.descriptor.display_name.to_lowercase().into_boxed_str());
+                    let name: &'static str = Box::leak(
+                        block_type
+                            .descriptor
+                            .display_name
+                            .to_lowercase()
+                            .into_boxed_str(),
+                    );
                     (Uuid::from_bytes(block_type.content_type()), name)
                 })
                 .collect()

@@ -25,7 +25,9 @@ fn record(bytes: &[u8]) -> Vec<u8> {
 fn the_plugin_bundle_holds_each_manifest_and_its_type_module() {
     let mut bundle = record(MANIFEST.as_bytes());
     bundle.extend(record(b"\0asm"));
-    bundle.extend(record(MANIFEST.replace("be3.checklist", "be3.other").as_bytes()));
+    bundle.extend(record(
+        MANIFEST.replace("be3.checklist", "be3.other").as_bytes(),
+    ));
     bundle.extend(record(b""));
     let bundle: &'static [u8] = Box::leak(bundle.into_boxed_slice());
 
