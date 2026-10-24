@@ -8,7 +8,7 @@ fn sdk(linked: &[&str]) -> Sdk {
     Sdk {
         identity: "cafe".to_owned(),
         linked: linked.iter().map(|name| (*name).to_owned()).collect(),
-        functions: HashSet::from(["sdk_function".to_owned()]),
+        importable: HashSet::from(["sdk_function".to_owned()]),
         exports: HashSet::from(["sdk_function".to_owned(), "SDK_DATA".to_owned()]),
         thread_locals: vec![ThreadLocal {
             name: "SDK_LOCAL".to_owned(),
@@ -37,6 +37,7 @@ mod a_plugin_thread_local_among_the_sdks_is_refused;
 mod a_response_file_is_split_as_lld_splits_it;
 mod an_import_the_sdk_does_not_export_is_reported;
 mod an_sdk_link_takes_every_rust_object_whole;
+mod an_sdk_link_takes_libcxx_whole_once;
 mod exported_globals_are_added_to_a_module;
 mod the_link_map_gives_the_thread_locals_in_order;
 mod the_plugins_reserve_must_be_the_sdks_last_thread_local;

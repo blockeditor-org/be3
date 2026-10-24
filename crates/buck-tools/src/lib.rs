@@ -3,6 +3,7 @@ pub mod archive;
 pub mod clippy;
 pub mod compile_fail;
 pub mod generate;
+pub mod pdfium;
 pub mod resolve;
 pub mod rust_project;
 mod starlark;

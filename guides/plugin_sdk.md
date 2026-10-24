@@ -14,14 +14,18 @@ know what a plugin it has not seen will use. A crate only one or two plugins use
 plugins. To move one into the SDK, add it to the crate's `Cargo.toml` (and its `lib.rs`) and
 run `./scripts/buck run //:buckify`.
 
-Only the SDK's Rust is linked whole. The C libraries under it (wasi-libc, libc++abi,
-libsetjmp) are linked for what the SDK uses, and the C math library is forced in
-(`MATH` in `crates/wasm-link/src/lib.rs`). A plugin that calls a C function the SDK does not
-have fails to link, with the function named; add it there.
+The SDK's Rust is linked whole, and so are libc++ and libc++abi (`WHOLE_LIBRARIES` in
+`crates/wasm-link/src/lib.rs`), since the SDK cannot know what C++ a plugin will use either.
+The other C libraries under it (wasi-libc, libsetjmp) are linked for what the SDK uses, and
+the C math library and the libc functions in `LIBC` are forced in (`MATH` and `LIBC` there). A
+plugin that calls a C function the SDK does not have fails to link, with the function named;
+add it there. A library the SDK never links, such as one of wasi-libc's emulations
+(`libwasi-emulated-mman.a`), stays in the plugin's own link.
 
-A plugin that links a library that is not position-independent cannot be linked against the SDK
-(the PDF plugin's PDFium is an Emscripten archive): `editor(..., shared_sdk = False)` builds it
-whole, as every plugin used to be, and the hosts load either kind.
+A C or C++ library a plugin links has to be compiled position-independent, as everything the
+plugins' toolchain compiles is: a shared module cannot take any other code. Build it from
+source on that toolchain, as third-party/pdfium builds PDFium, rather than linking an archive
+built elsewhere.
 
 ## Identity
 

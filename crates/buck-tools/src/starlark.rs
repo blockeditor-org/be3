@@ -37,5 +37,10 @@ pub(crate) fn render(value: &Value, depth: usize) -> String {
 }
 
 pub(crate) fn quote(text: &str) -> String {
-    serde_json::to_string(text).expect("a string always serializes")
+    let quoted = serde_json::to_string(text).expect("a string always serializes");
+    if text.contains('"') && !text.contains('\'') {
+        format!("'{}'", quoted[1..quoted.len() - 1].replace("\\\"", "\""))
+    } else {
+        quoted
+    }
 }
