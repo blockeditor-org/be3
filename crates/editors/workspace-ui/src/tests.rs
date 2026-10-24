@@ -290,6 +290,7 @@ fn catalog() -> block_editor_beui::Catalog {
             delete: true,
             replace: true,
         },
+        press: block_plugin_api::Press::Open,
     };
     block_editor_beui::Catalog {
         types: vec![

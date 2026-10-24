@@ -143,18 +143,30 @@ fn my_files(fixture: &mut Fixture, inside: Vec<block_editor_beui::BlockInfo>) ->
 }
 
 fn containers_hold_blocks(fixture: &mut Fixture) {
+    containers(
+        fixture,
+        block_editor_beui::ChildOperations {
+            add: true,
+            delete: true,
+            replace: true,
+        },
+    );
+}
+
+fn folders_zoom(fixture: &mut Fixture) {
+    containers(fixture, block_editor_beui::ChildOperations::default());
+}
+
+fn containers(fixture: &mut Fixture, children: block_editor_beui::ChildOperations) {
     use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
-    use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations};
+    use block_editor_beui::{BlockTypeDescriptor, Catalog, Press};
     let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
         display_name: name.to_owned(),
         color: None,
         icon_codepoint: String::new(),
-        children: ChildOperations {
-            add: true,
-            delete: true,
-            replace: true,
-        },
+        children,
+        press: Press::Zoom,
     };
     fixture.test.catalog(Catalog {
         types: vec![

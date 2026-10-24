@@ -216,6 +216,10 @@ impl EditorRegistry {
                     delete: block_type.children.delete,
                     replace: block_type.children.replace,
                 },
+                press: match block_type.press {
+                    be_block::Press::Open => block_plugin_api::Press::Open,
+                    be_block::Press::Zoom => block_plugin_api::Press::Zoom,
+                },
             })
             .collect()
     }

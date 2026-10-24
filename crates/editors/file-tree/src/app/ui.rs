@@ -19,9 +19,7 @@ use uuid::Uuid;
 use super::export::{Export, ExportFormat, Exporter, formats};
 use super::menu::{RowMenu, RowTools};
 use super::rename::Renaming;
-use super::rows::{
-    Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker, is_workspace,
-};
+use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use super::zoom::{Zoom, ZoomBar, zooms};
 use block_editor_beui::beui::TextAlign;
 
@@ -253,9 +251,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
                             >|face: TreeRowFace<RowKey>| {
                                 let row = tree.row(face.key.clone());
-                                let workspace = row.get_untracked().is_some_and(|row| {
-                                    row.section && is_workspace(row.block_type)
-                                });
+                                let workspace = row.get_untracked().is_some_and(|row| row.is_workspace());
                                 if workspace {
                                     return view! {
                                         <SectionRow

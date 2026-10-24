@@ -4,6 +4,7 @@ use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use super::*;
 
 fn with_folder(fixture: &mut Fixture, folder: Uuid, notes: Uuid) {
+    folders_zoom(fixture);
     let mut projects = BlockInfo::new(
         folder,
         FolderContent::CONTENT_TYPE,

@@ -6,6 +6,7 @@ use super::*;
 #[test]
 fn exporting_any_block_as_a_block_file_asks_the_host_for_it() {
     let mut fixture = editor();
+    folders_zoom(&mut fixture);
     let folder = Uuid::from_u128(2);
     let mut info = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
     info.set_name("Trips".to_owned());

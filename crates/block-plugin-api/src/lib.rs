@@ -610,6 +610,14 @@ pub struct BlockTypeDescriptor {
     pub color: Option<[u8; 3]>,
     pub icon_codepoint: String,
     pub children: ChildOperations,
+    pub press: Press,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Press {
+    #[default]
+    Open,
+    Zoom,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

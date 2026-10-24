@@ -9,10 +9,8 @@ use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::block_ui::BlockTypes;
-pub(crate) use block_editor_beui::sections::{
-    is_workspace, own_system, shared_with_me, workspaces,
-};
+use block_editor_beui::block_ui::{BlockTypes, Press};
+pub(crate) use block_editor_beui::sections::{own_system, shared_with_me, workspaces};
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};
@@ -43,6 +41,7 @@ pub(crate) struct Row {
     pub(crate) section: bool,
     pub(crate) expandable: bool,
     pub(crate) expanded: bool,
+    pub(crate) press: Press,
     pub(crate) container: Option<Uuid>,
     pub(crate) source: BlockParent,
     pub(crate) is_reference: bool,
@@ -90,6 +89,7 @@ impl Row {
             section: false,
             expandable: false,
             expanded: false,
+            press: Press::Open,
             container: None,
             source: BlockParent::Root,
             is_reference: false,
@@ -105,6 +105,10 @@ impl Row {
             deleted: false,
             marked_deleted: false,
         }
+    }
+
+    pub(crate) fn is_workspace(&self) -> bool {
+        self.section && self.id.is_some()
     }
 }
 
@@ -762,6 +766,7 @@ pub(crate) fn describe(
         section: false,
         expandable,
         expanded: expandable && expanded,
+        press: types.press(reference.block_type),
         container,
         source,
         is_reference,

@@ -4,6 +4,7 @@ pub mod datetime;
 
 use std::collections::HashMap;
 
+pub use be_block::Press;
 use uuid::Uuid;
 
 pub const EMBEDDED_EDITOR_PADDING: f32 = 12.0;
@@ -30,6 +31,9 @@ pub trait BlockTypes {
     fn child_edits(&self, _block_type: Uuid) -> ChildEdits {
         ChildEdits::default()
     }
+    fn press(&self, _block_type: Uuid) -> Press {
+        Press::Open
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -44,6 +48,7 @@ pub struct BlockTypeEntry {
     pub color: Option<[u8; 3]>,
     pub icon: Option<Glyph>,
     pub child_edits: ChildEdits,
+    pub press: Press,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
@@ -171,6 +176,12 @@ impl BlockTypes for BlockCatalog {
         self.types
             .get(&block_type)
             .map_or_else(ChildEdits::default, |entry| entry.child_edits)
+    }
+
+    fn press(&self, block_type: Uuid) -> Press {
+        self.types
+            .get(&block_type)
+            .map_or(Press::Open, |entry| entry.press)
     }
 }
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]

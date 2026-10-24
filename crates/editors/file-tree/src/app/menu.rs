@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::export::Exporter;
 use super::rename::Renaming;
-use super::rows::{Inspection, Row, RowKey, Tree as FileTree, is_workspace};
+use super::rows::{Inspection, Row, RowKey, Tree as FileTree};
 use super::ui::{ExportAs, OpenWith, Picker, add_to_section, leavable};
 use super::zoom::{Zoom, zooms};
 
@@ -37,7 +37,7 @@ pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
     });
     let zoom = tools.zoom;
     let zoom_in = move || zoom.enter(key.clone());
-    match (shown.id, shown.section && is_workspace(shown.block_type)) {
+    match (shown.id, shown.is_workspace()) {
         (None, _) if !shown.section => None,
         (None, _) => Some(TreeMenu {
             items: Children::from([into_segment(view! {
@@ -201,7 +201,7 @@ fn BlockMenu<F: Fn() + 'static>(
         let here = row.get().and_then(|row| row.container);
         rows.with(|rows| {
             rows.iter()
-                .filter(|other| other.section && is_workspace(other.block_type))
+                .filter(|other| other.is_workspace())
                 .filter_map(|other| Some((other.id?, other.label.clone())))
                 .filter(|(id, _)| Some(*id) != here)
                 .collect::<Vec<_>>()

@@ -25,8 +25,14 @@ build on rather than writing another.
 - A new file on disk becomes an image, PDF or audio block by its extension (and
   a PDF's magic), a text block when it is UTF-8 without a NUL byte (its
   language from the extension), and a file block otherwise. A changed file keeps
-  its block's type; a text block's change is applied as the smallest edit to its
-  body, so a person with it open in block-app keeps typing.
+  its block's type, and a text block its language and indentation.
+- `be sync` never joins a live session. Every change it makes is a commit
+  published against the head it read (step 5 below). A session open in block-app
+  takes that in as it does any publish from elsewhere
+  (`be_client::Live::published_elsewhere`): it merges the new head with what was
+  typed but not yet sealed, line by line, so the person keeps typing. Lines both
+  changed, or changed next to each other, come out between conflict markers
+  (`be-client`'s `a_text_session_absorbs_a_file_written_by_be_sync_while_typing`).
 - The executable bit is the `EXECUTABLE` metadata key, so `scripts/` stays
   runnable.
 - Any other block (a canvas, a database) has no plain-file form. It and what

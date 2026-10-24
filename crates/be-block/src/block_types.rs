@@ -37,6 +37,13 @@ impl ChildEdits {
     };
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Press {
+    #[default]
+    Open,
+    Zoom,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockType {
     pub content_type: Uuid,
@@ -44,6 +51,7 @@ pub struct BlockType {
     pub icon: &'static str,
     pub color: [u8; 3],
     pub children: ChildEdits,
+    pub press: Press,
 }
 
 const fn of<C: BlockContent>(
@@ -58,6 +66,14 @@ const fn of<C: BlockContent>(
         icon,
         color,
         children,
+        press: Press::Open,
+    }
+}
+
+const fn zooms(block_type: BlockType) -> BlockType {
+    BlockType {
+        press: Press::Zoom,
+        ..block_type
     }
 }
 
@@ -87,7 +103,12 @@ pub const BLOCK_TYPES: &[BlockType] = &[
     of::<EditorSettingsContent>("Default editors", "\u{e603}", ORANGE, ChildEdits::NONE),
     of::<EditorViewContent>("View", "\u{e0ba}", TEAL, ChildEdits::NONE),
     of::<FileContent>("File", "\u{e0c0}", BLUE, ChildEdits::NONE),
-    of::<FolderContent>("Folder", "\u{e0d7}", PURPLE, ChildEdits::ALL),
+    zooms(of::<FolderContent>(
+        "Folder",
+        "\u{e0d7}",
+        PURPLE,
+        ChildEdits::ALL,
+    )),
     of::<GameModuleContent>("Game Module", "\u{e29c}", ORANGE, ChildEdits::NONE),
     of::<HotbarContent>("Hotbar", "\u{e4fa}", ORANGE, ChildEdits::NONE),
     of::<ImageContent>("Image", "\u{e0f6}", TEAL, ChildEdits::NONE),
@@ -109,7 +130,12 @@ pub const BLOCK_TYPES: &[BlockType] = &[
     of::<TextContent>("Text", "\u{e0cc}", RED, ChildEdits::REPLACE),
     of::<TriangleContent>("Triangle", "\u{e192}", TEAL, ChildEdits::NONE),
     of::<VideoContent>("Video Editor", "\u{e0d0}", GREEN, ChildEdits::ALL),
-    of::<WorkspaceContent>("Workspace", "\u{e2d0}", ORANGE, ChildEdits::ALL),
+    zooms(of::<WorkspaceContent>(
+        "Workspace",
+        "\u{e2d0}",
+        ORANGE,
+        ChildEdits::ALL,
+    )),
 ];
 
 pub fn block_type(content_type: Uuid) -> Option<&'static BlockType> {

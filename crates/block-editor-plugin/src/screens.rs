@@ -787,6 +787,10 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
                     delete: descriptor.children.delete,
                     replace: descriptor.children.replace,
                 },
+                press: match descriptor.press {
+                    block_plugin_api::Press::Open => block_ui::Press::Open,
+                    block_plugin_api::Press::Zoom => block_ui::Press::Zoom,
+                },
             },
         )
     }))
