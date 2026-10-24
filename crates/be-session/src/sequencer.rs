@@ -49,6 +49,10 @@ pub enum SessionMessage {
         kind: uuid::Uuid,
         value: Option<Vec<u8>>,
     },
+    Channel {
+        channel: uuid::Uuid,
+        payload: Vec<u8>,
+    },
 }
 
 #[derive(Clone, Debug, Default)]

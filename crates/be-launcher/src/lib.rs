@@ -4,8 +4,6 @@ mod android;
 mod builds;
 mod detail;
 mod github;
-#[cfg(not(target_os = "android"))]
-mod keys;
 mod markdown;
 mod model;
 #[cfg(not(target_os = "android"))]

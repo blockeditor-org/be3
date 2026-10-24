@@ -20,7 +20,7 @@ fn edits_to_different_blocks_merge_cleanly() {
 
     let plan = merge(&base, &ours, &theirs);
 
-    assert!(plan.conflicts.is_empty(), "{:?}", plan.conflicts);
+    assert!(plan.tree.conflicts.is_empty(), "{:?}", plan.tree.conflicts);
     assert!(plan.contents.is_empty());
     assert_eq!(plan.tree.entries[&left], ours.entries[&left]);
     assert_eq!(plan.tree.entries[&right], theirs.entries[&right]);

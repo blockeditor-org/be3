@@ -16,6 +16,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use reactive::{Stored, store};
 
+pub use compose::{Preview, preview};
 pub use engine::{Engine, Latch, Mods, modify};
 pub use layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Role, Slider, Slot, Value};
 
@@ -39,6 +40,11 @@ impl KeyboardHandle {
     pub fn composing(&self) -> Memo<bool> {
         let handle = *self;
         create_memo(move || handle.read(Engine::composing))
+    }
+
+    pub fn sequence(&self) -> Memo<Option<String>> {
+        let handle = *self;
+        create_memo(move || handle.read(|engine| engine.sequence().map(str::to_owned)))
     }
 
     pub fn set_layer(&self, layer: Layer) {
@@ -86,6 +92,7 @@ pub struct KeyCapHandle {
     pub at: KeyAt,
     pub def: &'static KeyDef,
     pub values: Memo<[Option<Value>; 9]>,
+    pub previews: Memo<[Preview; 9]>,
     pub pressed: Memo<Option<Option<Value>>>,
     pub latch: Memo<Latch>,
     pub active: Memo<bool>,
@@ -145,6 +152,7 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
                         <Interactive
                             @sizing=ItemSize::Percent(100.0)
                             press_focus=false
+                            forwards_wheel=false
                             on_forward={forward}
                             hit_at={|_| true}
                         >
@@ -208,6 +216,7 @@ fn KeyRow(
     }
     let mods = keyboard.mods();
     let composing = keyboard.composing();
+    let sequence = keyboard.sequence();
     let layer = keyboard.layer();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -225,6 +234,15 @@ fn KeyRow(
                         let values = create_memo(move || {
                             let mods = mods.get();
                             def.values.map(|value| value.map(|value| modify(value, mods)))
+                        });
+                        let previews = create_memo(move || {
+                            let values = values.get();
+                            sequence.with(|sequence| {
+                                values.map(|value| match (sequence, value) {
+                                    (Some(sequence), Some(value)) => preview(sequence, value),
+                                    _ => Preview::Same,
+                                })
+                            })
                         });
                         let pressed = create_memo(move || keyboard.read(|engine| engine.pressed(at)));
                         let latch = create_memo(move || match def.value(Slot::Center) {
@@ -245,6 +263,7 @@ fn KeyRow(
                             at,
                             def,
                             values,
+                            previews,
                             pressed,
                             latch,
                             active,
@@ -367,6 +386,14 @@ pub fn face(value: Value) -> Face {
         Value::Compose => Face::glyph(ICON_LANGUAGES),
         Value::Slider(Slider::CursorLeft | Slider::SelectWords) => Face::glyph(ICON_CHEVRON_LEFT),
         Value::Slider(Slider::CursorRight) => Face::glyph(ICON_CHEVRON_RIGHT),
+    }
+}
+
+pub fn composed_face(text: &str) -> Face {
+    let mut characters = text.chars();
+    match (characters.next(), characters.next()) {
+        (Some(character), None) => face(Value::Char(character)),
+        _ => Face::text(text),
     }
 }
 

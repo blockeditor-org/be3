@@ -47,8 +47,8 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
     type_text(versioned.note, 5, " there");
     version(
         versioned.checkout,
-        VersionCommand::Commit {
-            message: "Upstream".into(),
+        VersionCommand::Finish {
+            description: "Upstream".into(),
         },
     );
     wait_until("moved the upstream on", |shared| {
@@ -81,8 +81,8 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
     type_text(note, 0, "Oh, ");
     version(
         checkout,
-        VersionCommand::Commit {
-            message: "From the fork".into(),
+        VersionCommand::Finish {
+            description: "From the fork".into(),
         },
     );
     wait_until("committed in the fork", |shared| {

@@ -111,6 +111,34 @@ impl TextBlock {
         Some(Self::BODY.edit(ObjectId::ROOT, op).into())
     }
 
+    pub fn rewrite(content: &TextContent, client: u64, bytes: &[u8]) -> Option<Edit> {
+        let now = Self::body(content)?.items();
+        if now == bytes {
+            return None;
+        }
+        let boundary = |text: &[u8], at: usize| text.get(at).is_none_or(|byte| byte & 0xc0 != 0x80);
+        let mut start = now.iter().zip(bytes).take_while(|(a, b)| a == b).count();
+        while start > 0 && !(boundary(&now, start) && boundary(bytes, start)) {
+            start -= 1;
+        }
+        let mut tail = now[start..]
+            .iter()
+            .rev()
+            .zip(bytes[start..].iter().rev())
+            .take_while(|(a, b)| a == b)
+            .count();
+        while tail > 0 && !(boundary(&now, now.len() - tail) && boundary(bytes, bytes.len() - tail))
+        {
+            tail -= 1;
+        }
+        Self::replace(
+            content,
+            client,
+            start..now.len() - tail,
+            &bytes[start..bytes.len() - tail],
+        )
+    }
+
     pub fn set_language(language: TextLanguage) -> Edit {
         Self::LANGUAGE.set(ObjectId::ROOT, &language).into()
     }

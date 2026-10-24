@@ -117,13 +117,15 @@ plugin never sees the translation and needs nothing to take part in it.
 
 An editor of a repository or a checkout asks the host to act on it with a
 version control command naming that block: adopting a block as the tree to
-version, committing, bringing the branch's changes in, switching, making a
-branch or a checkout, resolving a conflict by taking one side, and forking,
-pulling or pushing an upstream in the same organization. The host answers every
-instance whose block is a repository or a checkout with that block's status
-whenever it changes: whether it is busy, the last error, the branches, what
-the working tree changed since its base, whether the branch has moved past the
-base, and the history.
+version, saving the working change with a description, bringing the branch's
+changes in, switching, making a branch or a checkout, combining another branch
+in, resolving a conflict by taking one side or keeping the block as it is,
+undoing any recorded operation, and forking, pulling or pushing an upstream in
+the same organization. The host answers every instance whose block is a
+repository or a checkout with that block's status whenever it changes: whether
+it is busy, the last error, the branches, the working change and what it
+changed since its parent, whether the branch has moved past that parent, the
+history, and the operation log.
 
 An editor instance may ask for the cursor shown over one of its regions,
 which only the host can put on the window. The request names what the cursor
@@ -148,6 +150,17 @@ is what makes presence add up: a block's entries all carry one identity per
 person, so a reader can join a colour to a cursor, and the server never returns
 to a client the presence that client posted, so a user is never among the
 people their own editor shows them.
+
+An instance may also speak to the other clients in its block's live session
+directly: it sends a payload on a channel (a uuid naming what the payload
+means) to one client, by the id presence carries, or to all of them, and the
+host relays it sealed with the block's key, as it relays the session's own
+traffic, so the server cannot read it. What other clients send it arrives in
+order, as peer messages naming the client and the channel. Nothing is kept:
+a message reaches the clients in the session when it is sent, and an instance
+that was not open, or a client that has left, never hears it. The terminal
+block is built on this; its host machine shows a presence entry of its own,
+and the bytes between it and every viewer travel as peer messages.
 
 The only thing the host owes an instance about presence is whether its block is
 currently being viewed. The framework answers that by publishing and clearing

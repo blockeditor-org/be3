@@ -11,7 +11,6 @@ use crate::github::{
     Entry, InlineComment, Person, PullRequest, Repository, State, Tone, branch_deleted, hex_color,
     parse_pull_requests, parse_remote, parse_timeline, timeline_images,
 };
-use crate::keys::key_bytes;
 use crate::markdown::{Block, blocks};
 use crate::time::{parse_timestamp, relative};
 
@@ -20,7 +19,6 @@ mod a_timeline_lists_the_description_reviews_commits_and_events;
 mod an_apk_downloads_only_when_the_one_already_there_differs;
 mod an_apk_is_refused_when_it_does_not_match_its_hash;
 mod images_in_comments_and_tables_are_gathered_in_order;
-mod keys_reach_the_running_program_as_terminal_input;
 mod markdown_becomes_paragraphs_lists_code_images_and_tables;
 mod pull_requests_are_read_from_the_github_api;
 mod pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held;

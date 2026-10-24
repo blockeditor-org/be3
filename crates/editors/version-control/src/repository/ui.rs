@@ -4,8 +4,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
-    BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, node_anchor,
-    short_id,
+    BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, VersionSteps,
+    node_anchor, short_id,
 };
 
 const PADDING: f32 = 24.0;
@@ -27,6 +27,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
         })
     });
     let log = create_memo(move || status.with(|status| status.log.clone()));
+    let operations = create_memo(move || status.with(|status| status.operations.clone()));
     let unversioned = create_memo(move || branches.with(Vec::is_empty));
     let versioned = create_memo(move || !unversioned.get());
     let idle = create_memo(move || editable.get() && !status.with(|status| status.busy));
@@ -72,9 +73,9 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     };
 
     view! {
-        <Frame padding=PADDING>
-            <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
+        <List spacing=0.0>
+            <Scroll @sizing=ItemSize::Percent(100.0)>
+                <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
                             <Text style=TextStyle::HEADING>"Repository"</Text>
@@ -93,7 +94,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                 <List spacing=10.0>
                                     <Text>"Nothing is versioned here yet."</Text>
                                     <Text style=TextStyle::CAPTION wrap=true>
-                                        "Choose a block and everything below it becomes this repository's first commit, with a checkout around it to edit it in."
+                                        "Choose a block, and everything inside it is saved as the first change. From then on its edits gather into changes you describe and save, and any step can be undone."
                                     </Text>
                                     <Button
                                         @node_ref={&adopt}
@@ -116,7 +117,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         </Show>
                         <Card>
                             <List spacing=10.0>
-                                <Text style=TextStyle::HEADING>"Upstream"</Text>
+                                <Text style=TextStyle::HEADING>"Original"</Text>
                                 <Show condition={has_upstream}>
                                     <BlockLink
                                         editor={editor}
@@ -126,7 +127,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                 </Show>
                                 <Show condition={no_upstream}>
                                     <Text style=TextStyle::CAPTION wrap=true>
-                                        "A fork follows the repository it was made from, which it can pull from and push to."
+                                        "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."
                                     </Text>
                                 </Show>
                                 <List
@@ -135,21 +136,21 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     spacing=10.0
                                 >
                                     <Button
-                                        label="Fork"
+                                        label="Copy this history"
                                         variant=ButtonVariant::Secondary
                                         disabled={blocked}
                                         @test_id={"repository.fork"}
                                         on_click={move || editor.version(VersionCommand::Fork)}
                                     />
                                     <Button
-                                        label="Pull"
+                                        label="Bring in"
                                         variant=ButtonVariant::Secondary
                                         disabled={pull_blocked}
                                         @test_id={"repository.pull"}
                                         on_click={move || editor.version(VersionCommand::PullUpstream)}
                                     />
                                     <Button
-                                        label="Push"
+                                        label="Send back"
                                         variant=ButtonVariant::Secondary
                                         disabled={pull_blocked}
                                         @test_id={"repository.push"}
@@ -160,14 +161,24 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         </Card>
                         <Card>
                             <List spacing=10.0>
-                                <Text style=TextStyle::HEADING>"History"</Text>
+                                <Text style=TextStyle::HEADING>"Saved changes"</Text>
                                 <VersionHistory log={log} />
                             </List>
                         </Card>
+                        <Card>
+                            <List spacing=10.0>
+                                <Text style=TextStyle::HEADING>"What was done"</Text>
+                                <VersionSteps
+                                    editor={editor}
+                                    operations={operations}
+                                    blocked={blocked}
+                                />
+                            </List>
+                        </Card>
                     </List>
-                </Scroll>
-            </List>
-        </Frame>
+                </Frame>
+            </Scroll>
+        </List>
     }
 }
 
@@ -186,7 +197,7 @@ fn BranchRow(editor: Editor, blocked: Memo<bool>, name: String, head: String) ->
             <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
             <Text style=TextStyle::CAPTION>{head}</Text>
             <Button
-                label="Check out"
+                label="Open a copy to edit"
                 variant=ButtonVariant::Secondary
                 disabled={blocked}
                 @test_id=checkout_test_id

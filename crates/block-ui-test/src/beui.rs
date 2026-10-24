@@ -654,6 +654,26 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
+    pub fn receive_from_peer<M: block_editor_beui::be_block::presence::ChannelKind>(
+        &mut self,
+        from: u64,
+        message: &M,
+    ) {
+        let block = self
+            .block_id()
+            .expect("this editor has no block of its own to hear peers on");
+        self.inbox
+            .push(Message::Editor(EditorMessage::PeerMessages {
+                instance: INSTANCE,
+                block_id: block.into_bytes(),
+                messages: vec![block_plugin_api::PeerMessage {
+                    from,
+                    channel: M::ID.into_bytes(),
+                    payload: message.encode(),
+                }],
+            }));
+    }
+
     pub fn web_view_event(&mut self, web_view: WebViewId, event: block_editor_beui::WebViewEvent) {
         self.inbox
             .push(Message::Editor(EditorMessage::WebViewEvent {
@@ -1134,6 +1154,20 @@ impl<A: BeuiApp> BeuiTest<A> {
                 kind: Uuid::from_bytes(*kind),
                 value: value.as_ref().map(|value| value.to_vec()),
             }),
+            _ => None,
+        })
+    }
+
+    pub fn take_sent_to_peers<M: block_editor_beui::be_block::presence::ChannelKind>(
+        &mut self,
+    ) -> Vec<(Option<u64>, M)> {
+        self.take_where(|message| match message {
+            EditorMessage::SendToPeers {
+                to,
+                channel,
+                payload,
+                ..
+            } if *channel == M::ID.into_bytes() => M::decode(payload).map(|message| (*to, message)),
             _ => None,
         })
     }

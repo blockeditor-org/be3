@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use block_editor_beui::be_block::plain::{export_name, extension_of, text_file_type};
 use block_editor_beui::be_block::{
-    AudioContent, BlockContent, ImageContent, LiveEdit, PdfContent, TextContent, TextLanguage,
+    AudioContent, BlockContent, FileContent, ImageContent, LiveEdit, PdfContent, TextContent,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Editor, FileSaver, SavedFile};
@@ -34,6 +35,7 @@ pub(crate) fn formats(block_type: Uuid) -> Vec<(ExportFormat, &'static str)> {
         kind if kind == ImageContent::CONTENT_TYPE => Some("Image file"),
         kind if kind == PdfContent::CONTENT_TYPE => Some("PDF file"),
         kind if kind == AudioContent::CONTENT_TYPE => Some("Audio file"),
+        kind if kind == FileContent::CONTENT_TYPE => Some("File"),
         _ => None,
     };
     own.map(|label| (ExportFormat::Own, label))
@@ -89,7 +91,7 @@ impl Exporter {
 }
 
 fn file_of(editor: Editor, export: &Export) -> Option<SavedFile> {
-    let named = |extension: &str| file_name(&export.name, extension);
+    let named = |extension: &str| export_name(&export.name, extension);
     match export.block_type {
         kind if kind == ImageContent::CONTENT_TYPE => {
             read::<ImageContent>(editor, export.id, |image| {
@@ -106,13 +108,7 @@ fn file_of(editor: Editor, export: &Export) -> Option<SavedFile> {
         kind if kind == TextContent::CONTENT_TYPE => {
             read::<TextContent>(editor, export.id, |text| {
                 let text = text.root();
-                let (extension, mime_type) = match text.language {
-                    TextLanguage::Markdown => ("md", "text/markdown"),
-                    TextLanguage::PlainText => ("txt", "text/plain"),
-                    TextLanguage::Rust => ("rs", "text/x-rust"),
-                    TextLanguage::Zig => ("zig", "text/x-zig"),
-                    TextLanguage::Toml => ("toml", "application/toml"),
-                };
+                let (extension, mime_type) = text_file_type(text.language);
                 SavedFile {
                     name: named(extension),
                     mime_type: mime_type.to_owned(),
@@ -139,6 +135,18 @@ fn file_of(editor: Editor, export: &Export) -> Option<SavedFile> {
                 }
             })
         }
+        kind if kind == FileContent::CONTENT_TYPE => {
+            read::<FileContent>(editor, export.id, |file| {
+                let header = file.header();
+                SavedFile {
+                    name: source_or(&header.source_name, || {
+                        named(extension_of(&header.media_type))
+                    }),
+                    mime_type: header.media_type.clone(),
+                    data: file.data().to_vec(),
+                }
+            })
+        }
         _ => None,
     }
 }
@@ -154,40 +162,5 @@ fn source_or(source: &str, fallback: impl FnOnce() -> String) -> String {
     match source.trim().is_empty() {
         true => fallback(),
         false => source.trim().to_owned(),
-    }
-}
-
-fn file_name(name: &str, extension: &str) -> String {
-    let stem: String = name
-        .trim()
-        .chars()
-        .map(|character| match character {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
-            character => character,
-        })
-        .collect();
-    let stem = match stem.is_empty() {
-        true => "Untitled".to_owned(),
-        false => stem,
-    };
-    match extension.is_empty() {
-        true => stem,
-        false => format!("{stem}.{extension}"),
-    }
-}
-
-fn extension_of(media_type: &str) -> &'static str {
-    match media_type {
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        "image/bmp" => "bmp",
-        "image/tiff" => "tiff",
-        "audio/mpeg" => "mp3",
-        "audio/wav" | "audio/x-wav" => "wav",
-        "audio/ogg" => "ogg",
-        "audio/flac" => "flac",
-        _ => "",
     }
 }
