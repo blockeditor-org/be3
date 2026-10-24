@@ -159,6 +159,8 @@ pub struct Row {
     pub block: Option<(usize, Vec2)>,
     pub look: LineLook,
     pub hang: usize,
+    pub outdent: f32,
+    pub space: (f32, f32),
     pub placeholder: bool,
     pub props: MarkSet,
     pub invisibles: Vec<Invisible>,
@@ -171,10 +173,7 @@ impl Row {
             line,
             start,
             end: shift(self.end),
-            look: LineLook {
-                marker: shift(self.look.marker.start)..shift(self.look.marker.end),
-                ..self.look.clone()
-            },
+            look: self.look.shifted(start as isize - self.start as isize),
             segments: self
                 .segments
                 .iter()
@@ -328,12 +327,10 @@ pub fn style_size(style: SynHlStyle, body_size: f32) -> f32 {
     }
     match style.size {
         SynHlTextSize::Body => body_size,
-        SynHlTextSize::Heading(1) => 32.0,
-        SynHlTextSize::Heading(2) => 28.0,
-        SynHlTextSize::Heading(3) => 24.0,
-        SynHlTextSize::Heading(4) => 21.0,
-        SynHlTextSize::Heading(5) => 19.0,
-        SynHlTextSize::Heading(_) => 18.0,
+        SynHlTextSize::Heading(1) => body_size * 24.0 / BODY_SIZE,
+        SynHlTextSize::Heading(2) => body_size * 19.0 / BODY_SIZE,
+        SynHlTextSize::Heading(3) => body_size * 16.0 / BODY_SIZE,
+        SynHlTextSize::Heading(_) => body_size,
     }
 }
 
@@ -517,7 +514,8 @@ impl Builder<'_> {
             Some(list) => Inline::Marker(list),
             None => Inline::Quote,
         };
-        let item = self.push_inline(inline, body, String::new());
+        let label = marker_label(look.list, &shown);
+        let item = self.push_inline(inline, body, label);
         self.push(text, source, mapped, body, SpanKind::Inline(item));
         self.row.hang = self.row.display.len();
     }
@@ -594,6 +592,20 @@ impl Builder<'_> {
             props: MarkSet::default(),
         });
         self.row.inline.len() - 1
+    }
+}
+
+fn marker_label(list: Option<ListMarker>, shown: &str) -> String {
+    let written = shown.trim_end().rsplit([' ', '\t', '>']).next().unwrap_or_default();
+    match list {
+        Some(ListMarker::Bullet) if matches!(written, "-" | "*" | "+") => written.to_owned(),
+        Some(ListMarker::Number(_))
+            if written.ends_with(['.', ')'])
+                && written[..written.len() - 1].bytes().all(|byte| byte.is_ascii_digit()) =>
+        {
+            written.to_owned()
+        }
+        _ => String::new(),
     }
 }
 
@@ -686,13 +698,7 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
             .and_then(|formats| formats.block_at(start))
             .map(|block| block.props.clone())
             .unwrap_or_default(),
-        look: {
-            let look = highlight.line_look(start);
-            LineLook {
-                marker: relative(&look.marker),
-                ..look
-            }
-        },
+        look: highlight.line_look(start).shifted(-(start as isize)),
         voids: snapshot
             .formats
             .as_deref()
@@ -892,6 +898,8 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     if invisibles {
         builder.row.invisibles = invisibles_of(&builder.row, bytes, &marker, trailing_from);
     }
+    hang_into_margin(&mut builder.row, &look);
+    builder.row.space = line_space(&look, line, options.body_size / BODY_SIZE);
     if newline && invisibles {
         let style = SpanStyle {
             color: Color32::TRANSPARENT,
@@ -919,6 +927,53 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
     finish(builder, body)
+}
+
+const RULE_GAP: f32 = 8.0;
+const HEADING_SPACE: [f32; 3] = [16.0, 12.0, 6.0];
+const QUOTE_SPACE: f32 = 7.0;
+const CODE_SPACE: f32 = 5.0;
+
+fn hang_into_margin(row: &mut Row, look: &LineLook) {
+    if look.hang.is_empty() || !look.marker.is_empty() {
+        return;
+    }
+    let end = row.to_display(look.hang.end);
+    let width: f32 = row
+        .spans
+        .iter()
+        .filter(|span| span.kind == SpanKind::Text && span.range.start < end)
+        .filter_map(|span| {
+            let text = row.display.get(span.range.start..span.range.end.min(end))?;
+            galley(text, span.style.font).map(|galley| galley.size().x)
+        })
+        .sum();
+    row.outdent = match look.rule {
+        true => width + RULE_GAP,
+        false => width,
+    };
+    row.hang = end;
+}
+
+fn line_space(look: &LineLook, line: usize, scale: f32) -> (f32, f32) {
+    let mut above = match look.heading {
+        1..=3 if line > 0 => HEADING_SPACE[usize::from(look.heading) - 1],
+        _ => 0.0,
+    };
+    let mut below = 0.0;
+    if look.quote > 0 && look.quote_above == 0 {
+        above += QUOTE_SPACE;
+    }
+    if look.quote > 0 && look.quote_below == 0 {
+        below += QUOTE_SPACE;
+    }
+    if look.code_block && !look.code_above {
+        above += CODE_SPACE;
+    }
+    if look.code_block && !look.code_below {
+        below += CODE_SPACE;
+    }
+    (above * scale, below * scale)
 }
 
 fn finish(mut builder: Builder, body: SpanStyle) -> Row {

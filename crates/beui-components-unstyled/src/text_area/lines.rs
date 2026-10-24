@@ -15,13 +15,13 @@ use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_core::rich::{SpanStyle, TextCaret, TextGlyph, TextMark, handle_shape};
 use beui_view::components::overlay::Overlay;
-use text_editor_core::{SynHlColorScope, SynHlStyle};
+use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
-use super::hooks::{MarkerKind, TextLeaf, TextLine, TextMarker};
+use super::hooks::{MARGIN_EM, MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
     BODY_SIZE, DOCUMENT_PADDING, Inline, InlineItem, LINE_PADDING, RUN_CHIP_SIZE, Row, RowInputs,
     RowKey, RowOptions, SpanKind, build_row, galley, line_range, row_key,
@@ -234,10 +234,27 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             }</Dynamic>
         </List>
     };
+    let content = cx.state.content();
+    let margin = create_memo(move || {
+        content.get();
+        let document = cx.state.with_snapshot(|snapshot| {
+            matches!(
+                snapshot.language,
+                TextLanguage::Markdown | TextLanguage::RichText
+            )
+        });
+        match document && cx.prose.get().is_none() && !cx.single_line {
+            true => cx.font_size.get() * MARGIN_EM,
+            false => 0.0,
+        }
+    });
     let wrapped = cx.line.call(TextLine {
         look,
         padding,
         size: cx.font_size,
+        margin,
+        outdent: create_memo(move || model.get().outdent),
+        space: create_memo(move || model.get().space),
         text: lines,
     });
     view! {
@@ -803,10 +820,12 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
         let start = model.get_untracked().start;
         cx.state.set_checked(start, !shown.get_untracked());
     });
+    let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     TextMarker {
         state: cx.state,
         line: model.get_untracked().line,
         kind,
+        label,
         style,
         checked,
         disabled: cx.disabled,
@@ -940,6 +959,14 @@ fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
 fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let number = create_memo(move || (model.get().line + 1).to_string());
     let height = create_memo(move || Some(model.get().line_height));
+    let above = create_memo(move || {
+        Sides::new(
+            GUTTER_PADDING_LEFT,
+            model.get().space.0,
+            GUTTER_PADDING_RIGHT,
+            0.0,
+        )
+    });
     let arrow = create_memo(move || {
         cx.state.content().get();
         let start = model.get().start;
@@ -957,7 +984,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let arrow_color = create_memo(move || cx.colors.get().gutter_arrow);
     let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
-        <Frame padding={Sides::new(GUTTER_PADDING_LEFT, 0.0, GUTTER_PADDING_RIGHT, 0.0)}>
+        <Frame padding=above>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width=GUTTER_ARROW_SIZE height=height>
                     <Text
