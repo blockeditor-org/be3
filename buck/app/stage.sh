@@ -7,12 +7,15 @@
 # linked against, staged as sdk-<its SHA-256>.wasm, which is the name a plugin
 # finds it by, with --sdk-artifact, its .cwasm. --index writes plugins.json,
 # the list of manifests the app finds its plugins through. For the web bundle,
-# --tree copies in what wasm-bindgen wrote. --compiled-only leaves out
-# each module that has a .cwasm, for the APK, which only falls back to one.
+# --tree copies in what wasm-bindgen wrote. --type stages a type module
+# (guides/type_modules.md) as NAME.wasm, with --type-artifact, its .cwasm.
+# --compiled-only leaves out each module that has a .cwasm, for the APK,
+# which only falls back to one.
 #
 # Usage:
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
 #            [--index] [--compiled-only] [--sdk=SDK [--sdk-artifact=CWASM]]
+#            [--type=NAME=MODULE [--type-artifact=CWASM]]...
 #            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM])...
 set -eu
 out="$1"
@@ -54,6 +57,17 @@ for argument in "$@"; do
             ;;
         --sdk-artifact=*)
             cp "${argument#--sdk-artifact=}" "${staged%.wasm}.cwasm"
+            if $compiled_only; then
+                rm "$staged"
+            fi
+            ;;
+        --type=*)
+            pair="${argument#--type=}"
+            staged="$out/${pair%%=*}.wasm"
+            cp "${pair#*=}" "$staged"
+            ;;
+        --type-artifact=*)
+            cp "${argument#--type-artifact=}" "${staged%.wasm}.cwasm"
             if $compiled_only; then
                 rm "$staged"
             fi

@@ -36,6 +36,10 @@ cargo_test(
 
 cargo_binary()
 
+# The type modules beside the plugins: the block types the app does not apply
+# itself (guides/type_modules.md).
+types = {"builtin-types": "//crates/builtin-types:module"}
+
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.
 app(
@@ -50,6 +54,7 @@ app(
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
     sdk = "//crates/block-plugin-sdk:module",
+    types = types,
     visibility = ["//crates/app-tests:", "//crates/local-tools:"],
 )
 
@@ -63,6 +68,7 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     sdk = "//crates/block-plugin-sdk:module",
+    types = types,
 )
 
 # What CI ships per platform: the app under cargo's name; the plugins ship
@@ -115,6 +121,7 @@ app(
         "$(location //crates/be-server:bin)",
     ],
     sdk = "//crates/block-plugin-sdk:module",
+    types = types,
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/local-tools:"],
 )
@@ -175,6 +182,7 @@ app(
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
     sdk = "//crates/block-plugin-sdk:module",
+    types = types,
 )
 
 # The build helper finalizes :android-dist with CI's key; deploy finalizes :android-release
@@ -253,6 +261,7 @@ app(
     modules = ["//{}:module".format(package) for package in dev_plugins],
     precompiler = "//crates/plugin-test-runner:precompiler",
     sdk = "//crates/block-plugin-sdk:module",
+    types = types,
 )
 
 headless(

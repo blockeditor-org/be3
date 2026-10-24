@@ -222,6 +222,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     presence_changed: bool,
     channel: Vec<PeerMessage>,
     incompatible: bool,
+    other_builds: BTreeSet<ClientId>,
     diverged: bool,
     unreadable: Option<String>,
     history: H,
@@ -332,6 +333,7 @@ where
             presence_changed: false,
             channel: Vec::new(),
             incompatible: false,
+            other_builds: BTreeSet::new(),
             diverged: false,
             unreadable: None,
             history: H::default(),
@@ -1403,31 +1405,41 @@ where
         let Role::Follower(follower) = &self.role else {
             return;
         };
-        let greeting = Wire::Greeting {
-            tag: self.tag,
-            since: follower.applied(),
-        };
+        let since = follower.applied();
         let owner = self.state.owner;
-        self.send_wire(owner, &greeting);
+        self.send_wire(owner, &Wire::Tag(self.tag));
+        self.send_wire(owner, &Wire::Session(SessionMessage::Catchup { since }));
     }
 
     fn receive(&mut self, from: ClientId, wire: Wire) {
         let message = match wire {
             Wire::Session(message) => message,
-            Wire::Greeting { tag, since } => {
+            Wire::Tag(tag) => {
                 if !self.is_owner() {
                     return;
                 }
-                if tag != self.tag {
-                    return self.send_wire(Some(from), &Wire::Incompatible);
+                if tag == self.tag {
+                    self.other_builds.remove(&from);
+                    return;
                 }
-                SessionMessage::Catchup { since }
+                self.other_builds.insert(from);
+                return self.send_wire(Some(from), &Wire::Incompatible);
             }
             Wire::Incompatible => {
                 self.unreadable_message();
                 return;
             }
         };
+        if self.other_builds.contains(&from)
+            && matches!(
+                message,
+                SessionMessage::Submit { .. }
+                    | SessionMessage::Catchup { .. }
+                    | SessionMessage::Replaced { .. }
+            )
+        {
+            return;
+        }
         match message {
             SessionMessage::Submit { id, base, payload } => {
                 let Role::Owner(sequencer) = &mut self.role else {
