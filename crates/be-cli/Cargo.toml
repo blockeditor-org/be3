@@ -35,7 +35,6 @@ uuid = { version = "1", features = ["v4", "v7"] }
 
 [dev-dependencies]
 be-server = { path = "../be-server" }
-builtin-types = { path = "../builtin-types" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
 workspace-ui-types = { path = "../editors/workspace-ui/types" }
 

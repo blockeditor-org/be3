@@ -1,22 +1,12 @@
 [package]
-name = "builtin-types"
+name = "host-types"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
 be-block = { path = "../be-block" }
 block-type-guest = { path = "../block-type-guest" }
-
-[dev-dependencies]
-block-plugin-api = { path = "../block-plugin-api" }
-uuid = "1"
-
-[features]
-module = []
 
 [lints]
 workspace = true

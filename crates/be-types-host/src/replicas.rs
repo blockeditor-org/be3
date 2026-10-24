@@ -214,7 +214,9 @@ impl<H: Host> Replicas<H> {
         }
         self.next += 1;
         let replica = self.next;
-        let module = kind.module;
+        let Some(module) = self.modules.module_of(content_type) else {
+            return;
+        };
         let organization = peer.organization();
         self.blocks.insert(block, replica);
         self.open.insert(
@@ -466,14 +468,14 @@ impl<H: Host> Replicas<H> {
         ours: Option<&[u8]>,
         theirs: Option<&[u8]>,
     ) -> Option<(Vec<u8>, bool)> {
-        let kind = types::kind_of(content_type)?;
+        let module = self.modules.module_of(content_type)?;
         let request = Request::Merge3 {
             content_type,
             base: base.map(<[u8]>::to_vec),
             ours: ours.map(<[u8]>::to_vec),
             theirs: theirs.map(<[u8]>::to_vec),
         };
-        match self.ask(ctx, kind.module, request).await {
+        match self.ask(ctx, module, request).await {
             Reply::Merged { bytes, conflicts } => Some((bytes, conflicts > 0)),
             _ => None,
         }
@@ -485,13 +487,13 @@ impl<H: Host> Replicas<H> {
         content_type: Uuid,
         bytes: &[u8],
     ) -> Option<block_type_api::Description> {
-        let kind = types::kind_of(content_type)?;
+        let module = self.modules.module_of(content_type)?;
         let request = Request::Describe {
             content_type,
             bytes: bytes.to_vec(),
             organization: ctx.0.organization(),
         };
-        match self.ask(ctx, kind.module, request).await {
+        match self.ask(ctx, module, request).await {
             Reply::Described(description) => Some(description),
             _ => None,
         }
@@ -505,7 +507,9 @@ impl<H: Host> Replicas<H> {
         client: ClientId,
         change: Change,
     ) -> Result<Option<Vec<u8>>, String> {
-        let kind = types::kind_of(content_type)
+        let module = self
+            .modules
+            .module_of(content_type)
             .ok_or_else(|| format!("no type module has the block type {content_type}"))?;
         let request = Request::Apply {
             content_type,
@@ -513,7 +517,7 @@ impl<H: Host> Replicas<H> {
             client,
             change,
         };
-        match self.ask(ctx, kind.module, request).await {
+        match self.ask(ctx, module, request).await {
             Reply::Content(bytes) => Ok(Some(bytes)),
             Reply::Changed(false) => Ok(None),
             Reply::Malformed(error) => Err(error),

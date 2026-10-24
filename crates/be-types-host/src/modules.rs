@@ -20,7 +20,6 @@ pub struct Kind {
     pub frozen: bool,
     pub schema: String,
     pub plain: Plain,
-    pub module: usize,
     pub blank: Vec<u8>,
     pub described: Description,
 }
@@ -151,6 +150,7 @@ pub struct Modules {
     requests: RequestId,
     backlog: VecDeque<(usize, Command)>,
     restarted: Vec<usize>,
+    routes: HashMap<Uuid, usize>,
 }
 
 const RESTART_LIMIT: usize = 8;
@@ -176,6 +176,7 @@ impl Modules {
             requests: 0,
             backlog: VecDeque::new(),
             restarted: Vec::new(),
+            routes: HashMap::new(),
         };
         for module in 0..modules.modules.len() {
             modules.launch(module);
@@ -226,6 +227,10 @@ impl Modules {
         held.failure = Some(failure);
     }
 
+    pub fn module_of(&self, content_type: Uuid) -> Option<usize> {
+        self.routes.get(&content_type).copied()
+    }
+
     pub fn tag(&self, module: usize) -> SessionTag {
         self.modules[module].tag
     }
@@ -260,7 +265,7 @@ impl Modules {
         let types: Vec<TypeInfo> = types
             .into_iter()
             .filter(|info| self.provides(module, info.content_type))
-            .filter(|info| kind_of(info.content_type).is_none_or(|kind| kind.module != module))
+            .filter(|info| self.routes.get(&info.content_type) != Some(&module))
             .collect();
         let blanks = self
             .requests_all(
@@ -293,12 +298,12 @@ impl Modules {
             )
             .await;
         for ((info, blank), described) in blank.into_iter().zip(described) {
+            self.routes.insert(info.content_type, module);
             register(Kind {
                 content_type: info.content_type,
                 frozen: info.frozen,
                 schema: info.schema,
                 plain: info.plain,
-                module,
                 blank,
                 described: match described {
                     Reply::Described(description) => description,
@@ -485,10 +490,10 @@ impl Modules {
     }
 
     pub async fn ask(&mut self, content_type: Uuid, request: Request) -> Reply {
-        let Some(kind) = kind_of(content_type) else {
+        let Some(module) = self.module_of(content_type) else {
             return Reply::Unknown;
         };
-        self.requests_all(kind.module, vec![request])
+        self.requests_all(module, vec![request])
             .await
             .pop()
             .unwrap_or(Reply::Unknown)
@@ -504,8 +509,8 @@ impl Modules {
             answers.push(Err(format!(
                 "no type module has the block type {content_type}"
             )));
-            if let Some(kind) = kind_of(content_type) {
-                let (indices, requests) = asked.entry(kind.module).or_default();
+            if let Some(module) = self.module_of(content_type) {
+                let (indices, requests) = asked.entry(module).or_default();
                 indices.push(index);
                 requests.push(Request::ToFile {
                     content_type,

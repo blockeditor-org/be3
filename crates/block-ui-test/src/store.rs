@@ -21,9 +21,8 @@ const TAG: SessionTag = SessionTag([0; 32]);
 const STORE: EditorId = u64::MAX;
 
 fn every_type() -> Vec<Registration> {
-    builtin_types::registrations()
+    host_types::registrations()
         .into_iter()
-        .chain(builtin_types::host())
         .map(Registration::without_undo)
         .collect()
 }

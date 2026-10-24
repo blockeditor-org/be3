@@ -63,9 +63,10 @@ async fn main() {
     .await
     .unwrap();
     let target = Target { root: Some(root) };
-    let mut types = be_types_host::started(vec![be_types_host::in_process::<
-        builtin_types::BlockTypes,
-    >("builtin-types")])
+    let mut types = be_types_host::started(vec![
+        be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+        be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
+    ])
     .await;
     let mut time = async |label: &str, peer: &Peer<FileStore>, directory: &Path| {
         let started = Instant::now();

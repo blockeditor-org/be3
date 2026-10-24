@@ -464,7 +464,7 @@ pub struct PluginManifest {
 pub struct BlockTypeManifest {
     pub name: String,
     pub descriptor: BlockTypeDescriptor,
-    pub module: Option<String>,
+    pub module: String,
     pub exported_whole: bool,
 }
 
@@ -538,8 +538,8 @@ impl PluginManifest {
 
     pub fn type_module(&self) -> Option<&str> {
         self.block_types
-            .iter()
-            .find_map(|block_type| block_type.module.as_deref())
+            .first()
+            .map(|block_type| block_type.module.as_str())
     }
 }
 
@@ -759,11 +759,9 @@ impl PluginManifest {
             manifest_string("block type name", &block_type.name)?;
             manifest_string("display name", &block_type.descriptor.display_name)?;
             manifest_string("icon", &block_type.descriptor.icon_codepoint)?;
-            if let Some(module) = &block_type.module {
-                manifest_string("type module", module)?;
-                if self.type_module() != Some(module.as_str()) {
-                    return Err(ManifestError::SeveralTypeModules);
-                }
+            manifest_string("type module", &block_type.module)?;
+            if self.type_module() != Some(block_type.module.as_str()) {
+                return Err(ManifestError::SeveralTypeModules);
             }
         }
         for (index, editor) in self.editors.iter().enumerate() {

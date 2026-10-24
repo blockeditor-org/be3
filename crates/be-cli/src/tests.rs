@@ -67,7 +67,6 @@ fn sources() -> crate::tracker::Sources {
     manifests();
     Box::new(|| {
         vec![
-            be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
             be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
             be_types_host::in_process::<database_types::BlockTypes>("be3.database"),
             be_types_host::in_process::<terminal_types::BlockTypes>("be3.terminal"),

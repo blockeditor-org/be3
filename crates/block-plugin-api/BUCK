@@ -8,7 +8,7 @@ cargo_library()
 filegroup(
     name = "editor-manifests",
     srcs = {"{}/manifest.json".format(package.split("/")[-1]): "//{}:manifest".format(package) for package in editor_packages()},
-    visibility = ["//crates/be-cli:", "//crates/builtin-types:"],
+    visibility = ["//crates/be-cli:"],
 )
 
 cargo_test(

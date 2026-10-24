@@ -62,8 +62,7 @@ pub struct BlockTypeDocument {
     pub children: ChildOperations,
     #[serde(default)]
     pub press: Press,
-    #[serde(default)]
-    pub module: Option<String>,
+    pub module: String,
     #[serde(default)]
     pub exported_whole: bool,
 }

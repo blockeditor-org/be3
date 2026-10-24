@@ -19,8 +19,8 @@ plugin_data = rule(
 )
 
 # A plugin's type module (guides/type_modules.md), or nothing for a plugin
-# whose block types the app's builtin-types still provides: what editor()'s
-# :types is, so the app can stage every plugin's the same way.
+# that brings no block type: what editor()'s :types is, so the app can stage
+# every plugin's the same way.
 def _plugin_types_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.module:
         return [DefaultInfo(default_outputs = ctx.attrs.module[DefaultInfo].default_outputs)]
@@ -99,11 +99,6 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add(cmd_args("--sdk=", sdk, delimiter = ""))
         if ctx.attrs.precompiler:
             command.add(cmd_args("--sdk-artifact=", _precompile(ctx, sdk), delimiter = ""))
-    for type_name, module in ctx.attrs.types.items():
-        wasm = module[DefaultInfo].default_outputs[0]
-        command.add(cmd_args("--type=", type_name, "=", wasm, delimiter = ""))
-        if ctx.attrs.precompiler:
-            command.add(cmd_args("--type-artifact=", _precompile(ctx, wasm, type_name), delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     plugin_types = ctx.attrs.plugin_types or [None] * len(ctx.attrs.manifests)
     for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, plugin_types):
@@ -170,8 +165,6 @@ app = rule(
         # The plugin SDK the modules are linked against, staged under the name
         # they find it by.
         "sdk": attrs.option(attrs.dep(), default = None),
-        # The type modules (guides/type_modules.md), each staged as <name>.wasm.
-        "types": attrs.dict(attrs.string(), attrs.dep(), default = {}),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.sh")),
     },

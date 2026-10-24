@@ -2,14 +2,9 @@ use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
     InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
 };
-use block_type_guest::{Registration, be_block_types};
+use block_type_guest::Registration;
 
-be_block_types![];
-
-#[cfg(feature = "module")]
-block_type_guest::abi::guest!(BlockTypes);
-
-pub fn host() -> Vec<Registration> {
+pub fn registrations() -> Vec<Registration> {
     vec![
         Registration::of::<DisplaySettingsContent>(),
         Registration::of::<InputSettingsContent>(),
@@ -21,6 +16,3 @@ pub fn host() -> Vec<Registration> {
         Registration::of::<CheckoutContent>(),
     ]
 }
-
-#[cfg(test)]
-mod tests;

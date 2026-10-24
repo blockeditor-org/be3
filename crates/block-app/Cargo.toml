@@ -59,7 +59,7 @@ block-plugin-api = { path = "../block-plugin-api" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
 be-types-host = { path = "../be-types-host" }
-builtin-types = { path = "../builtin-types" }
+host-types = { path = "../host-types" }
 build-id = { path = "../build-id" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 futures-util = { version = "0.3", features = ["io"] }

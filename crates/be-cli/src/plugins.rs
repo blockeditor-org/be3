@@ -13,7 +13,6 @@ impl Plugin {
         self.manifest
             .block_types
             .iter()
-            .filter(|block_type| block_type.module.is_some())
             .map(|block_type| Uuid::from_bytes(block_type.content_type()))
             .collect()
     }

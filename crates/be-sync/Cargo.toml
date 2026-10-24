@@ -26,7 +26,6 @@ uuid = { version = "1", features = ["serde", "v4", "v7"] }
 be-keys = { path = "../be-keys" }
 be-server = { path = "../be-server" }
 build-id = { path = "../build-id" }
-builtin-types = { path = "../builtin-types" }
 image-block-types = { path = "../editors/image-block/types" }
 infinite-canvas-types = { path = "../editors/infinite-canvas/types" }
 text-block-types = { path = "../editors/text-block/types" }

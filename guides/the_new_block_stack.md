@@ -781,10 +781,9 @@ and hands back operations and graph commands.
 
 The app's peer names no content type. Every block type runs in a type module
 (guides/type_modules.md): a plugin's own, which its manifest's `block_types` name
-and the app runs one instance of per plugin; `crates/builtin-types` for the
-first-party types no plugin brings a module for yet; each staged beside the plugins
-as `NAME.wasm` with its `.cwasm` and its SHA-256 (`NAME.sha256`, the tag of its
-sessions); and `builtin_types::host()`, the settings types, the editor view, the
+and the app runs one instance of per plugin, staged beside the plugin as
+`NAME.wasm` with its `.cwasm` and its SHA-256 (`NAME.sha256`, the tag of its
+sessions); and `host_types::registrations()`, the settings types, the editor view, the
 repository and the checkout, which the app reads itself and runs in process
 (`be::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from

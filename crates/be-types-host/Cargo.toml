@@ -24,5 +24,11 @@ uuid = { version = "1", features = ["v4"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 block-wasm-host = { path = "../block-wasm-host" }
 
+[dev-dependencies]
+be-block = { path = "../be-block" }
+checklist-types = { path = "../editors/checklist/types" }
+counter-types = { path = "../editors/counter/types" }
+pollster = "0.4"
+
 [lints]
 workspace = true

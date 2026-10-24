@@ -6,9 +6,8 @@ live session, undo stack) and talks to its host only through messages. Two crate
 define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
 block through them (guides/the_new_block_stack.md, "How the app hosts content";
 "Hosts" below): each plugin that brings types names its module in its manifest's
-`block_types` (guides/adding_a_block.md), `crates/builtin-types` holds the
-first-party types not moved into their plugins yet, and the types the app applies
-itself run in process.
+`block_types` (guides/adding_a_block.md), and the types the app applies itself
+(`crates/host-types`) run in process.
 
 - `crates/block-type-api`: the messages between a host and a type module. No GUI types.
 - `crates/block-type-guest`: the replica library a be-model-based type module links.
@@ -169,7 +168,7 @@ that editors, tests and other crates depend on, and only its `:wasm` build, with
 the crate's `module` feature, calls `block_guest_abi::guest!`, since a second set of
 guest exports in one wasm (an editor's own) would clash. So a type module crate is
 that macro call, the export line and guest-abi's `cdylib` and BUCK set-up
-(`crates/editors/checklist/types`, `crates/builtin-types`).
+(`crates/editors/checklist/types`).
 `Registration::without_undo` drops a registration's undo stack, which is how
 block-ui-test hosts every type (`ContentStore::register` takes a types crate's
 `registrations()` for a test that needs a plugin's types it never names). The
@@ -195,7 +194,10 @@ wasmtime and in process in tests:
 
 - `modules`: the registry (`kind_of`, `is_known`, `plain_of`: each type's
   `Kind`, filled from every module's `Hello` with its blank content and
-  description), and `Modules`, which starts each `Source` (`in_process::<G>`,
+  description; process-wide, since it holds only what a type is), and `Modules`,
+  which routes each type to the module that said `Hello` with it
+  (`module_of`, its own, so two hosts in one process with different sources
+  each reach their own instance), starts each `Source` (`in_process::<G>`,
   natively `wasm(name, tag, cache, load)` on a `PureHost` thread, on the web
   `web(name, url, tag)`), restarts one that stops, ticks it and collects its
   commands. `started(sources)` waits for every `Hello`. Its stateless helpers
@@ -207,18 +209,17 @@ wasmtime and in process in tests:
   frames for an editor, status, description, history, conflicts) and how it
   spawns IO, each an associated function of the host's shared state.
 
-Where the modules come from: block-app stages `builtin-types.wasm` (and its
-`.cwasm` and `.sha256`) beside its plugins; `be` (and so `be sync`) carries it
-in its executable (`include_bytes!` of `BUILTIN_TYPES_WASM`, set in
-`crates/be-cli/BUCK`), so its release stays the one file guides/bootstrap.md
-pins, and compiles it once into `BE3_CACHE/modules` through wasmtime's cache. It
-carries every plugin's manifest and type module the same way, as one bundle
-(`PLUGIN_TYPES`, buck/app's `type_bundle`, read by `be_cli::plugins`), and runs one
-module per plugin that has one, as the app does; the manifests also name the
+Where the modules come from: block-app stages each plugin's type module (and its
+`.cwasm` and `.sha256`) beside the plugin; `be` (and so `be sync`) carries every
+plugin's manifest and type module in its executable as one bundle
+(`PLUGIN_TYPES`, buck/app's `type_bundle`, read by `be_cli::plugins`), so its
+release stays the one file guides/bootstrap.md pins, compiles them once into
+`BE3_CACHE/modules` through wasmtime's cache, and runs one module per plugin
+that has one, as the app does; the manifests also name the
 types its own short names (`blocks::type_name`) do not cover. A host gives each
 plugin's `Source` the types its manifest declares (`Source::declaring`): `Modules`
 registers only those from that module's `Hello`, and no module's `Hello` takes a
 type another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
-and an app built from one tree share sessions. Tests run `builtin_types` in
-process.
+and an app built from one tree share sessions. Tests run the types crates they
+need in process (`in_process::<my_block_types::BlockTypes>`).

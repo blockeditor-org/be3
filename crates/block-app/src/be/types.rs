@@ -13,7 +13,7 @@ pub(crate) use be_types_host::{is_known, kind_of};
 pub(crate) struct HostTypes(TypeModule);
 
 fn host_types() -> TypeModule {
-    TypeModule::new(builtin_types::host())
+    TypeModule::new(host_types::registrations())
 }
 
 fn described(content_type: Uuid, name: &str, icon: &str, color: [u8; 3]) -> BlockTypeDescriptor {
@@ -79,7 +79,6 @@ pub(crate) fn provided(content_type: Uuid) -> bool {
 pub(crate) fn provided(content_type: Uuid) -> bool {
     [
         host_types(),
-        builtin_types::block_types(),
         calendar_types::block_types(),
         checklist_types::block_types(),
         counter_types::block_types(),
@@ -113,20 +112,14 @@ impl Guest for HostTypes {
     }
 }
 
-pub(super) const BUILTIN: &str = "builtin-types";
-
 #[cfg(not(test))]
 pub(super) async fn sources() -> Vec<Source> {
-    let mut sources = vec![
-        staged(BUILTIN, &format!("{BUILTIN}.wasm")).await,
-        in_process::<HostTypes>("host-types"),
-    ];
+    let mut sources = vec![in_process::<HostTypes>("host-types")];
     for manifest in crate::editors::plugin::discovery::manifests() {
         if let Some(module) = manifest.type_module() {
             let declared = manifest
                 .block_types
                 .iter()
-                .filter(|block_type| block_type.module.is_some())
                 .map(|block_type| Uuid::from_bytes(block_type.content_type()))
                 .collect();
             sources.push(
@@ -142,11 +135,10 @@ pub(super) async fn sources() -> Vec<Source> {
 #[cfg(test)]
 pub(super) async fn sources() -> Vec<Source> {
     vec![
-        in_process::<Crashing>(BUILTIN),
         in_process::<HostTypes>("host-types"),
         plugin::<calendar_types::BlockTypes>("be3.calendar", calendar_types::registrations()),
         plugin::<checklist_types::BlockTypes>("be3.checklist", checklist_types::registrations()),
-        plugin::<counter_types::BlockTypes>("be3.counter", counter_types::registrations()),
+        plugin::<Crashing>("be3.counter", counter_types::registrations()),
         plugin::<terminal_types::BlockTypes>("be3.terminal", terminal_types::registrations()),
         plugin::<browser_tab_types::BlockTypes>(
             "be3.browser-tab",
@@ -195,12 +187,12 @@ async fn staged_tag(module: &str) -> Result<block_type_api::SessionTag, String> 
 pub(crate) static CRASH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(test)]
-struct Crashing(builtin_types::BlockTypes);
+struct Crashing(counter_types::BlockTypes);
 
 #[cfg(test)]
 impl Guest for Crashing {
     fn start(waker: Waker, outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
-        Ok(Self(builtin_types::BlockTypes::start(waker, outbound)?))
+        Ok(Self(counter_types::BlockTypes::start(waker, outbound)?))
     }
 
     fn step(

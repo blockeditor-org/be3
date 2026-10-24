@@ -103,8 +103,6 @@ async fn run() -> Result<String, String> {
     }
 }
 
-const BUILTIN_TYPES: &[u8] = include_bytes!(env!("BUILTIN_TYPES_WASM"));
-
 const PLUGIN_TYPES: &[u8] = include_bytes!(env!("PLUGIN_TYPES"));
 
 fn plugins() -> &'static [be_cli::plugins::Plugin] {
@@ -121,12 +119,7 @@ fn sources(settings: &Settings) -> be_cli::tracker::Sources {
     let cache = settings.cache.join("modules");
     let plugins = plugins();
     Box::new(move || {
-        let mut sources = vec![be_types_host::modules::wasm(
-            "builtin-types",
-            Ok(be_types_host::tag_of(BUILTIN_TYPES)),
-            Some(cache.clone()),
-            |host| host.load_bytes(BUILTIN_TYPES),
-        )];
+        let mut sources = Vec::new();
         for plugin in plugins.iter().filter(|plugin| !plugin.module.is_empty()) {
             let module = plugin.module;
             sources.push(

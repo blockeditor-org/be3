@@ -17,7 +17,8 @@ const TYPES: &str = r#"{
         "plain": {
             "id": "00000000-0000-4000-8000-000000000001",
             "display_name": "Plain",
-            "icon": "x"
+            "icon": "x",
+            "module": "checklist_types.wasm"
         }
     },
     "entry_point": "checklist.wasm"
@@ -48,12 +49,13 @@ fn a_plugin_declares_its_block_types_and_their_module() {
     assert_eq!(checklist.descriptor.press, Press::Zoom);
     assert_eq!(plain.descriptor.press, Press::Open);
     assert_eq!(plain.descriptor.color, None);
-    assert_eq!(plain.module, None);
+    assert_eq!(plain.module, "checklist_types.wasm");
 
     let two_modules = TYPES.replace(
-        "\"icon\": \"x\"",
-        "\"icon\": \"x\", \"module\": \"other.wasm\"",
+        "\"icon\": \"x\",\n            \"module\": \"checklist_types.wasm\"",
+        "\"icon\": \"x\",\n            \"module\": \"other.wasm\"",
     );
+    assert_ne!(two_modules, TYPES);
     assert_eq!(
         manifest_from_json(&two_modules),
         Err(ManifestError::SeveralTypeModules)
@@ -65,5 +67,11 @@ fn a_plugin_declares_its_block_types_and_their_module() {
     assert_eq!(
         manifest_from_json(&twice),
         Err(ManifestError::DuplicateBlockType)
+    );
+    let without = TYPES.replace(",\n            \"module\": \"checklist_types.wasm\"\n        }\n    },", "\n        }\n    },");
+    assert_ne!(without, TYPES);
+    assert!(
+        manifest_from_json(&without).is_err(),
+        "a block type names the module that brings it"
     );
 }

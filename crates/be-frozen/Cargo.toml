@@ -17,7 +17,6 @@ be-server = { path = "../be-server" }
 be-store = { path = "../be-store" }
 be-types-host = { path = "../be-types-host" }
 build-id = { path = "../build-id" }
-builtin-types = { path = "../builtin-types" }
 database-types = { path = "../editors/database/types" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 text-block-types = { path = "../editors/text-block/types" }

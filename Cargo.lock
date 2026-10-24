@@ -737,7 +737,6 @@ dependencies = [
  "block-type-guest",
  "block-ui",
  "build-id",
- "builtin-types",
  "database-types",
  "futures-util",
  "ghostty-vt",
@@ -828,7 +827,6 @@ dependencies = [
  "be-store",
  "be-types-host",
  "build-id",
- "builtin-types",
  "database-types",
  "rusqlite",
  "text-block-types",
@@ -1013,7 +1011,6 @@ dependencies = [
  "be-vcs",
  "block-type-api",
  "build-id",
- "builtin-types",
  "futures-util",
  "ignore",
  "image-block-types",
@@ -1031,6 +1028,7 @@ dependencies = [
 name = "be-types-host"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "be-client",
  "be-commit",
  "be-graph",
@@ -1043,7 +1041,10 @@ dependencies = [
  "block-type-guest",
  "block-wasm-host",
  "build-id",
+ "checklist-types",
+ "counter-types",
  "futures-util",
+ "pollster",
  "tokio",
  "uuid",
 ]
@@ -1511,7 +1512,6 @@ dependencies = [
  "block-wasm-host",
  "browser-tab-types",
  "build-id",
- "builtin-types",
  "bytemuck",
  "calendar-types",
  "checklist-types",
@@ -1519,6 +1519,7 @@ dependencies = [
  "database-types",
  "directories-next",
  "futures-util",
+ "host-types",
  "image",
  "image-block-types",
  "jni 0.22.4",
@@ -1774,7 +1775,7 @@ dependencies = [
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",
- "builtin-types",
+ "host-types",
  "image",
  "paint-snapshot",
  "text-block-types",
@@ -1932,16 +1933,6 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "builtin-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "block-plugin-api",
- "block-type-guest",
- "uuid",
 ]
 
 [[package]]
@@ -4047,6 +4038,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
 dependencies = [
  "digest 0.11.3",
+]
+
+[[package]]
+name = "host-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "block-type-guest",
 ]
 
 [[package]]

@@ -57,3 +57,6 @@ pub trait Host: Sized + 'static {
 
     fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize);
 }
+
+#[cfg(test)]
+mod tests;
