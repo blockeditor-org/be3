@@ -37,6 +37,7 @@ mod blocks_are_listed_and_found_by_short_id_or_name;
 mod malformed_agent_credentials_do_not_disclose_secrets;
 mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
+mod the_plugin_bundle_holds_each_manifest_and_its_type_module;
 mod two_databases_may_share_a_prefix_and_each_resolves_its_own_rows;
 
 fn sources() -> crate::tracker::Sources {

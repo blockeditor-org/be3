@@ -18,10 +18,10 @@ be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 be-sync = { path = "../be-sync" }
 be-types-host = { path = "../be-types-host" }
+block-plugin-api = { path = "../block-plugin-api" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
 build-id = { path = "../build-id" }
-checklist-types = { path = "../editors/checklist/types" }
 futures-util = "0.3"
 ghostty-vt = { path = "../ghostty-vt" }
 portable-pty = "0.9"

@@ -177,7 +177,7 @@ fn is_settings(block_type: Uuid) -> bool {
 }
 
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 16] = [
+    let known: [(Uuid, &str); 15] = [
         (DatabaseContent::CONTENT_TYPE, "database"),
         (DatabaseSchemaContent::CONTENT_TYPE, "schema"),
         (DatabaseViewContent::CONTENT_TYPE, "database view"),
@@ -185,7 +185,6 @@ pub fn type_name(block_type: Uuid) -> &'static str {
         (be_block::FolderContent::CONTENT_TYPE, "folder"),
         (be_block::WorkspaceContent::CONTENT_TYPE, "workspace"),
         (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
-        (checklist_types::ChecklistContent::CONTENT_TYPE, "checklist"),
         (be_block::CalendarContent::CONTENT_TYPE, "calendar"),
         (be_block::PresentationContent::CONTENT_TYPE, "presentation"),
         (be_block::ImageContent::CONTENT_TYPE, "image"),
@@ -201,5 +200,7 @@ pub fn type_name(block_type: Uuid) -> &'static str {
     known
         .iter()
         .find(|(id, _)| *id == block_type)
-        .map_or("block", |(_, name)| name)
+        .map(|(_, name)| *name)
+        .or_else(|| crate::plugins::name_of(block_type))
+        .unwrap_or("block")
 }

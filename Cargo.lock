@@ -722,6 +722,7 @@ dependencies = [
  "be-store",
  "be-sync",
  "be-types-host",
+ "block-plugin-api",
  "block-type-api",
  "block-type-guest",
  "block-ui",
@@ -748,6 +749,7 @@ dependencies = [
  "be-session",
  "be-store",
  "build-id",
+ "checklist-types",
  "futures-channel",
  "futures-util",
  "httparse",
@@ -1473,6 +1475,7 @@ dependencies = [
  "build-id",
  "builtin-types",
  "bytemuck",
+ "checklist-types",
  "directories-next",
  "futures-util",
  "image",
@@ -1547,6 +1550,7 @@ dependencies = [
  "block-plugin-api",
  "block-type-guest",
  "block-ui",
+ "checklist-types",
  "geometry",
  "lucide",
  "paint-format",
@@ -1686,6 +1690,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-commit",
+ "be-model",
  "be-protocol",
  "be-session",
  "be-store",
@@ -1719,6 +1724,7 @@ dependencies = [
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",
+ "builtin-types",
  "image",
  "paint-snapshot",
  "uuid",
@@ -2124,6 +2130,18 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "checklist-types",
+ "uuid",
+]
+
+[[package]]
+name = "checklist-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 

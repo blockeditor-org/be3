@@ -201,7 +201,14 @@ Where the modules come from: block-app stages `builtin-types.wasm` (and its
 `.cwasm` and `.sha256`) beside its plugins; `be` (and so `be sync`) carries it
 in its executable (`include_bytes!` of `BUILTIN_TYPES_WASM`, set in
 `crates/be-cli/BUCK`), so its release stays the one file guides/bootstrap.md
-pins, and compiles it once into `BE3_CACHE/modules` through wasmtime's cache.
+pins, and compiles it once into `BE3_CACHE/modules` through wasmtime's cache. It
+carries every plugin's manifest and type module the same way, as one bundle
+(`PLUGIN_TYPES`, buck/app's `type_bundle`, read by `be_cli::plugins`), and runs one
+module per plugin that has one, as the app does; the manifests also name the
+types its own short names (`blocks::type_name`) do not cover. A host gives each
+plugin's `Source` the types its manifest declares (`Source::declaring`): `Modules`
+registers only those from that module's `Hello`, and no module's `Hello` takes a
+type another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
 and an app built from one tree share sessions. Tests run `builtin_types` in
 process.

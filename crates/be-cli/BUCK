@@ -1,15 +1,23 @@
-load("@root//buck/app:defs.bzl", "app")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/app:defs.bzl", "app", "type_bundle")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 
 cargo_library()
 
 cargo_test()
 
-# be carries the first-party type module in its executable, so a release is one
-# file (guides/type_modules.md, "Hosts").
+# be carries the first-party type module and every plugin's manifest and type
+# module in its executable, so a release is one file (guides/type_modules.md,
+# "Hosts").
+type_bundle(
+    name = "plugin-types",
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
+)
+
 cargo_binary(
     env = {
         "BUILTIN_TYPES_WASM": "$(location //crates/builtin-types:module)",
+        "PLUGIN_TYPES": "$(location :plugin-types)",
     },
 )
 

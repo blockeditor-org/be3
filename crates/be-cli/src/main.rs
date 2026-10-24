@@ -9,6 +9,7 @@ use be_cli::tracker::Tracker;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    plugins();
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
@@ -104,16 +105,41 @@ async fn run() -> Result<String, String> {
 
 const BUILTIN_TYPES: &[u8] = include_bytes!(env!("BUILTIN_TYPES_WASM"));
 
+const PLUGIN_TYPES: &[u8] = include_bytes!(env!("PLUGIN_TYPES"));
+
+fn plugins() -> &'static [be_cli::plugins::Plugin] {
+    if be_cli::plugins::installed().is_empty() {
+        match be_cli::plugins::parse(PLUGIN_TYPES) {
+            Ok(plugins) => return be_cli::plugins::install(plugins),
+            Err(error) => eprintln!("be: {error}"),
+        }
+    }
+    be_cli::plugins::installed()
+}
+
 fn sources(settings: &Settings) -> be_cli::tracker::Sources {
     let cache = settings.cache.join("modules");
+    let plugins = plugins();
     Box::new(move || {
-        let cache = cache.clone();
-        vec![be_types_host::modules::wasm(
+        let mut sources = vec![be_types_host::modules::wasm(
             "builtin-types",
             Ok(be_types_host::tag_of(BUILTIN_TYPES)),
-            Some(cache),
+            Some(cache.clone()),
             |host| host.load_bytes(BUILTIN_TYPES),
-        )]
+        )];
+        for plugin in plugins.iter().filter(|plugin| !plugin.module.is_empty()) {
+            let module = plugin.module;
+            sources.push(
+                be_types_host::modules::wasm(
+                    plugin.manifest.identity.id.clone(),
+                    Ok(be_types_host::tag_of(module)),
+                    Some(cache.clone()),
+                    move |host| host.load_bytes(module),
+                )
+                .declaring(plugin.declared()),
+            );
+        }
+        sources
     })
 }
 

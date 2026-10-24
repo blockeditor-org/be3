@@ -33,6 +33,26 @@ plugin_types = rule(
     impl = _plugin_types_impl,
 )
 
+# Every plugin's manifest and type module in one file (buck/app/bundle.sh), which
+# an executable that is its whole release, `be`, carries with include_bytes!.
+def _type_bundle_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output(ctx.label.name + ".bundle")
+    command = cmd_args("sh", ctx.attrs._bundle, out.as_output())
+    for manifest, types in zip(ctx.attrs.manifests, ctx.attrs.plugin_types):
+        modules = types[DefaultInfo].default_outputs
+        command.add(cmd_args(manifest, modules[0] if modules else "", delimiter = "="))
+    ctx.actions.run(command, category = "type_bundle")
+    return [DefaultInfo(default_output = out)]
+
+type_bundle = rule(
+    attrs = {
+        "manifests": attrs.list(attrs.source()),
+        "plugin_types": attrs.list(attrs.dep()),
+        "_bundle": attrs.default_only(attrs.source(default = "root//buck/app:bundle.sh")),
+    },
+    impl = _type_bundle_impl,
+)
+
 # One action a module, so that the thirty-odd compiles run side by side on as
 # many workers rather than one after another.
 def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) -> Artifact:
