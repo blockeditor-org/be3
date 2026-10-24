@@ -1,6 +1,5 @@
-use block_editor_beui::be_block::{
-    Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
-};
+use block_editor_beui::be_block::ObjectId;
+use checklist_types::{Checklist as ChecklistModel, ChecklistContent, ChecklistItem};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};

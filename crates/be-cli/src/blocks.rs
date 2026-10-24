@@ -185,7 +185,7 @@ pub fn type_name(block_type: Uuid) -> &'static str {
         (be_block::FolderContent::CONTENT_TYPE, "folder"),
         (be_block::WorkspaceContent::CONTENT_TYPE, "workspace"),
         (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
-        (be_block::ChecklistContent::CONTENT_TYPE, "checklist"),
+        (checklist_types::ChecklistContent::CONTENT_TYPE, "checklist"),
         (be_block::CalendarContent::CONTENT_TYPE, "calendar"),
         (be_block::PresentationContent::CONTENT_TYPE, "presentation"),
         (be_block::ImageContent::CONTENT_TYPE, "image"),

@@ -1,6 +1,6 @@
 pub(crate) mod plugin;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use be_block::BlockContent;
 use be_graph::Access;
@@ -150,6 +150,7 @@ impl RegisteredEditor {
 pub struct EditorRegistry {
     editors: Vec<RegisteredEditor>,
     templates: Vec<TemplateEntry>,
+    types: HashMap<Uuid, block_plugin_api::BlockTypeDescriptor>,
     plugin_block_types: Arc<block_plugin_api::Catalog>,
 }
 
@@ -162,6 +163,7 @@ impl EditorRegistry {
         let mut registry = Self {
             editors: Vec::new(),
             templates: Vec::new(),
+            types: plugin::discovery::block_types(&manifests),
             plugin_block_types: Arc::default(),
         };
         for manifest in manifests {
@@ -170,7 +172,11 @@ impl EditorRegistry {
             }
         }
         registry.plugin_block_types = Arc::new(block_plugin_api::Catalog {
-            types: registry.block_types(),
+            types: {
+                let mut types: Vec<_> = registry.types.values().cloned().collect();
+                types.sort_by_key(|descriptor| descriptor.block_type);
+                types
+            },
             templates: registry
                 .templates
                 .iter()
@@ -196,32 +202,6 @@ impl EditorRegistry {
                 .collect(),
         });
         registry
-    }
-
-    fn block_types(&self) -> Vec<block_plugin_api::BlockTypeDescriptor> {
-        be_block::BLOCK_TYPES
-            .iter()
-            .filter(|block_type| {
-                self.editors
-                    .iter()
-                    .any(|editor| editor.edits == Edits::Type(block_type.content_type.into_bytes()))
-            })
-            .map(|block_type| block_plugin_api::BlockTypeDescriptor {
-                block_type: block_type.content_type.into_bytes(),
-                display_name: block_type.name.to_owned(),
-                color: Some(block_type.color),
-                icon_codepoint: block_type.icon.to_owned(),
-                children: block_plugin_api::ChildOperations {
-                    add: block_type.children.add,
-                    delete: block_type.children.delete,
-                    replace: block_type.children.replace,
-                },
-                press: match block_type.press {
-                    be_block::Press::Open => block_plugin_api::Press::Open,
-                    be_block::Press::Zoom => block_plugin_api::Press::Zoom,
-                },
-            })
-            .collect()
     }
 
     pub(super) fn plugin_block_types(&self) -> &Arc<block_plugin_api::Catalog> {
@@ -257,12 +237,16 @@ impl EditorRegistry {
         }
     }
 
-    pub fn display_name(&self, block_type: Uuid) -> Option<&'static str> {
-        be_block::block_type(block_type).map(|block_type| block_type.name)
+    pub fn display_name(&self, block_type: Uuid) -> Option<&str> {
+        self.types
+            .get(&block_type)
+            .map(|block_type| block_type.display_name.as_str())
     }
 
-    pub fn icon(&self, block_type: Uuid) -> Option<&'static str> {
-        be_block::block_type(block_type).map(|block_type| block_type.icon)
+    pub fn icon(&self, block_type: Uuid) -> Option<&str> {
+        self.types
+            .get(&block_type)
+            .map(|block_type| block_type.icon_codepoint.as_str())
     }
 
     fn default_editor(&self, block_type: Uuid) -> Option<&RegisteredEditor> {

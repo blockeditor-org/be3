@@ -1,7 +1,7 @@
 use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use uuid::Uuid;
 
-use crate::Root;
+use be_block::Root;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Checklist {

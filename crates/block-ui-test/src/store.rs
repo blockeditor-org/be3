@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 
 use be_store::Hash;
-use block_editor_beui::be_block::{self, LiveEdit, Merge, Undo};
+use block_editor_beui::be_block::{LiveEdit, Merge, Undo};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use block_plugin_api::{BlockCommand, EditorInstanceId, EditorMessage, Message, StoredHead};
 use block_type_guest::api::{
@@ -20,55 +20,12 @@ const ELSEWHERE: ClientId = u64::MAX;
 const TAG: SessionTag = SessionTag([0; 32]);
 const STORE: EditorId = u64::MAX;
 
-macro_rules! registrations {
-    ($($kind:ident),* $(,)?) => {
-        vec![$(Registration::of::<be_block::$kind>()),*]
-    };
-}
-
 fn every_type() -> Vec<Registration> {
-    registrations![
-        AudioContent,
-        BeuiDemoContent,
-        BrowserTabContent,
-        CalendarContent,
-        CanvasContent,
-        ChecklistContent,
-        CheckoutContent,
-        CompiledLogicContent,
-        CounterContent,
-        DatabaseContent,
-        DatabaseSchemaContent,
-        DatabaseViewContent,
-        DeterministicGameContent,
-        DisplaySettingsContent,
-        EditorSettingsContent,
-        EditorViewContent,
-        FileContent,
-        FolderContent,
-        GameModuleContent,
-        HotbarContent,
-        ImageContent,
-        InputRemapperContent,
-        InputSettingsContent,
-        LogicGameContent,
-        LogicGridContent,
-        MapContent,
-        PanZoomContent,
-        PdfContent,
-        PixelArtContent,
-        PixelRayTracerContent,
-        PresentationContent,
-        RepositoryContent,
-        Scene3dContent,
-        SettingsContent,
-        SettingsProfileContent,
-        TerminalContent,
-        TextContent,
-        TriangleContent,
-        VideoContent,
-        WorkspaceContent,
-    ]
+    builtin_types::registrations()
+        .into_iter()
+        .chain(builtin_types::host())
+        .map(Registration::without_undo)
+        .collect()
 }
 
 struct Block {
@@ -607,6 +564,13 @@ impl ContentStore {
         block
             .or(self.0.borrow().own)
             .expect("this editor has no block of its own; name the block")
+    }
+
+    pub fn register(&self, registrations: impl IntoIterator<Item = Registration>) {
+        let mut inner = self.0.borrow_mut();
+        for registration in registrations {
+            inner.module.register(registration.without_undo());
+        }
     }
 
     fn know<C: LiveEdit + Merge + Clone + Default>(&self) {

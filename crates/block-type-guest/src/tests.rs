@@ -1,8 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use be_block::{
-    BlockContent, Checklist, ChecklistContent, Counter, CounterContent, FolderContent, LiveEdit,
-};
+use be_block::{BlockContent, Counter, CounterContent, FolderContent, LiveEdit, Root};
+use be_model::{Anchor, Document, Edit, List, Model, ObjectId};
 use be_commit::CommitId;
 use be_protocol::ClientId;
 use be_session::{Lease, Resume};
@@ -35,6 +34,38 @@ mod concurrent_edits_converge;
 mod edits_are_sealed_once_they_rest_for_the_seal_interval;
 mod undo_reverts_only_this_devices_edit;
 
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+struct Checklist {
+    items: List<ChecklistItem>,
+}
+
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+struct ChecklistItem {
+    text: String,
+    done: bool,
+}
+
+impl Checklist {
+    fn add(text: &str) -> (ObjectId, Edit) {
+        let item = ChecklistItem {
+            text: text.to_owned(),
+            done: false,
+        };
+        let (id, change) = Self::ITEMS.insert(ObjectId::ROOT, Anchor::End, &item);
+        (id, change.into())
+    }
+
+    fn set_text(item: ObjectId, text: &str) -> Edit {
+        ChecklistItem::TEXT.set(item, &text.to_owned()).into()
+    }
+}
+
+impl Root for Checklist {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6368_6563_6b6c_6973_742d_626c_6f63_6b31);
+}
+
+type ChecklistContent = Document<Checklist>;
+
 const BLOCK: Uuid = Uuid::from_u128(0xb10c);
 const ORGANIZATION: Uuid = Uuid::from_u128(0x0e9);
 const REPLICA: ReplicaId = 1;
@@ -56,7 +87,7 @@ fn folder_module() -> Module {
     Module::new(vec![Registration::of::<FolderContent>()])
 }
 
-fn add(text: &str) -> be_block::Edit {
+fn add(text: &str) -> Edit {
     Checklist::add(text).1
 }
 

@@ -4,7 +4,6 @@ pub mod datetime;
 
 use std::collections::HashMap;
 
-pub use be_block::Press;
 use uuid::Uuid;
 
 pub const EMBEDDED_EDITOR_PADDING: f32 = 12.0;
@@ -34,6 +33,13 @@ pub trait BlockTypes {
     fn press(&self, _block_type: Uuid) -> Press {
         Press::Open
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Press {
+    #[default]
+    Open,
+    Zoom,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

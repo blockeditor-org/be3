@@ -291,7 +291,7 @@ impl BlockContent for Link {
     }
 }
 
-fn checklist_texts(live: &Live<MemoryStore, be_block::ChecklistContent>) -> Vec<String> {
+fn checklist_texts(live: &Live<MemoryStore, checklist_types::ChecklistContent>) -> Vec<String> {
     live.content()
         .root()
         .items

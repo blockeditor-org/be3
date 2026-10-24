@@ -23,6 +23,7 @@ rand_chacha = { version = "0.9", default-features = false }
 uuid = { version = "1", features = ["rng-getrandom"] }
 
 [dev-dependencies]
+be-model = { path = "../be-model" }
 be-store = { path = "../be-store" }
 
 [lints]

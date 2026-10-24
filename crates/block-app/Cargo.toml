@@ -59,6 +59,7 @@ block-plugin-api = { path = "../block-plugin-api" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
 be-types-host = { path = "../be-types-host" }
+builtin-types = { path = "../builtin-types" }
 build-id = { path = "../build-id" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 futures-util = { version = "0.3", features = ["io"] }
@@ -100,8 +101,9 @@ rodio = "0.20"
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
-# The first-party type module, which the unit tests run in process.
-builtin-types = { path = "../builtin-types" }
+# The checklist plugin's type module, which the unit tests run in process
+# beside the first-party one.
+checklist-types = { path = "../editors/checklist/types" }
 pollster = "0.4"
 paint-snapshot = { path = "../paint-snapshot" }
 

@@ -2,7 +2,8 @@ use reactive::Get;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use be_block::{Checklist, ChecklistContent, Edit, LiveEdit, ObjectId, Touched};
+use be_block::{Edit, LiveEdit, ObjectId, Touched};
+use checklist_types::{Checklist, ChecklistContent};
 use reactive::Scope;
 
 use super::{ContentProjection, OwnedContentProjection};

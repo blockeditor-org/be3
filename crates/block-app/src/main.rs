@@ -1744,7 +1744,9 @@ impl BlockApp {
         };
         let addable = |parent: Uuid| {
             be::node(parent)
-                .and_then(|parent| be_block::block_types::block_type(parent.content_type))
+                .and_then(|parent| {
+                    editors::plugin::discovery::block_type(parent.content_type)
+                })
                 .is_some_and(|block_type| block_type.children.add)
         };
         if let Some(BlockParent::Block(parent)) = node.parent

@@ -11,5 +11,8 @@ crate-type = ["cdylib", "rlib"]
 be-block = { path = "../be-block" }
 block-type-guest = { path = "../block-type-guest" }
 
+[features]
+module = []
+
 [lints]
 workspace = true

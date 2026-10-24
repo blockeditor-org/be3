@@ -81,7 +81,7 @@ pub(crate) struct Status {
     pub(crate) error: Option<String>,
 }
 
-pub(crate) use types::{is_known, kind_of};
+pub(crate) use types::{host_block_types, is_known, kind_of, provided};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Stale {

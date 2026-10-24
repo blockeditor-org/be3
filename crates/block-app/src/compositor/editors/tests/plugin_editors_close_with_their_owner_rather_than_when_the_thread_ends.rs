@@ -27,7 +27,8 @@ fn plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
                 regions: Vec::new(),
                 accepts: Vec::new(),
             }],
-            entry_point: String::new(),
+            block_types: Vec::new(),
+        entry_point: String::new(),
             network: Vec::new(),
         });
         let registry = Rc::new(EditorRegistry::from_manifests(vec![plugin]));

@@ -74,6 +74,7 @@ members = [
     "crates/editors/browser-tab",
     "crates/editors/calendar",
     "crates/editors/checklist",
+    "crates/editors/checklist/types",
     "crates/editors/counter",
     "crates/editors/database",
     "crates/editors/deterministic-game",

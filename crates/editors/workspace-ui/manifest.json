@@ -21,5 +21,29 @@
       ]
     }
   },
+  "block_types": {
+    "folder": {
+      "id": "d4e367ab-db73-4419-bffc-b9131288c2e7",
+      "display_name": "Folder",
+      "icon": "\ue0d7",
+      "color": [155, 112, 211],
+      "children": {"add": true, "delete": true, "replace": true},
+      "press": "Zoom"
+    },
+    "workspace": {
+      "id": "776f726b-7370-6163-652d-626c6f636b01",
+      "display_name": "Workspace",
+      "icon": "\ue2d0",
+      "color": [211, 126, 59],
+      "children": {"add": true, "delete": true, "replace": true},
+      "press": "Zoom"
+    },
+    "file": {
+      "id": "66696c65-2d62-6c6f-636b-2d7479700001",
+      "display_name": "File",
+      "icon": "\ue0c0",
+      "color": [65, 145, 210]
+    }
+  },
   "entry_point": "workspace_ui.wasm"
 }

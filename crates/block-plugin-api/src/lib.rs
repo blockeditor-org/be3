@@ -455,8 +455,22 @@ pub enum CreationProgress {
 pub struct PluginManifest {
     pub identity: PluginIdentity,
     pub editors: Vec<EditorManifest>,
+    pub block_types: Vec<BlockTypeManifest>,
     pub entry_point: String,
     pub network: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockTypeManifest {
+    pub name: String,
+    pub descriptor: BlockTypeDescriptor,
+    pub module: Option<String>,
+}
+
+impl BlockTypeManifest {
+    pub fn content_type(&self) -> [u8; 16] {
+        self.descriptor.block_type
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -520,6 +534,12 @@ impl PluginManifest {
     pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
         self.editors.iter().find(|editor| editor.id == id)
     }
+
+    pub fn type_module(&self) -> Option<&str> {
+        self.block_types
+            .iter()
+            .find_map(|block_type| block_type.module.as_deref())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -551,6 +571,7 @@ impl EditorManifest {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ChildOperations {
     pub add: bool,
     pub delete: bool,
@@ -669,6 +690,8 @@ pub enum ManifestError {
     InvalidNetworkHost,
     NoEditors,
     DuplicateEditor,
+    DuplicateBlockType,
+    SeveralTypeModules,
     DuplicateTemplate,
     TemplateWithoutBlockType,
 }
@@ -688,7 +711,15 @@ impl fmt::Display for ManifestError {
             Self::InvalidNetworkHost => {
                 formatter.write_str("a network host is not a plain host name")
             }
-            Self::NoEditors => formatter.write_str("the plugin declares no editors"),
+            Self::NoEditors => {
+                formatter.write_str("the plugin declares no editors and no block types")
+            }
+            Self::DuplicateBlockType => {
+                formatter.write_str("two block types are declared with the same id or name")
+            }
+            Self::SeveralTypeModules => {
+                formatter.write_str("the block types name more than one type module")
+            }
             Self::DuplicateEditor => {
                 formatter.write_str("two editors are declared with the same id or name")
             }
@@ -715,8 +746,24 @@ impl PluginManifest {
         {
             return Err(ManifestError::InvalidIdentity);
         }
-        if self.editors.is_empty() {
+        if self.editors.is_empty() && self.block_types.is_empty() {
             return Err(ManifestError::NoEditors);
+        }
+        for (index, block_type) in self.block_types.iter().enumerate() {
+            if self.block_types[..index].iter().any(|other| {
+                other.content_type() == block_type.content_type() || other.name == block_type.name
+            }) {
+                return Err(ManifestError::DuplicateBlockType);
+            }
+            manifest_string("block type name", &block_type.name)?;
+            manifest_string("display name", &block_type.descriptor.display_name)?;
+            manifest_string("icon", &block_type.descriptor.icon_codepoint)?;
+            if let Some(module) = &block_type.module {
+                manifest_string("type module", module)?;
+                if self.type_module() != Some(module.as_str()) {
+                    return Err(ManifestError::SeveralTypeModules);
+                }
+            }
         }
         for (index, editor) in self.editors.iter().enumerate() {
             if self.editors[..index]

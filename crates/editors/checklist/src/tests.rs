@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{Checklist as ChecklistModel, ChecklistContent, Edit, ObjectId};
+use block_editor_beui::be_block::{Edit, ObjectId};
+use checklist_types::{Checklist as ChecklistModel, ChecklistContent};
 use block_editor_beui::beui::Document;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -32,6 +33,10 @@ impl Harness {
         let mut harness = Self {
             editor: BeuiTest::new(editor),
         };
+        harness
+            .editor
+            .store()
+            .register(checklist_types::registrations());
         harness.editor.hold(None, content);
         harness.run();
         harness

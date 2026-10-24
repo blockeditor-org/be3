@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, Checklist, ChecklistContent, Counter, CounterContent, LiveEdit};
+use be_block::{BlockContent, Counter, CounterContent, LiveEdit};
+use checklist_types::{Checklist, ChecklistContent};
 use uuid::Uuid;
 
 use super::*;

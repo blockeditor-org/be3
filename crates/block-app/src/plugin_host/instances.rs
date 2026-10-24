@@ -320,7 +320,7 @@ impl Instance {
 }
 
 fn own_content_type(block: EditorBlock) -> Option<Uuid> {
-    if be_block::block_type(block.block_type).is_some() {
+    if crate::be::provided(block.block_type) {
         return Some(block.block_type);
     }
     (block.view_block == Some(block.id))
@@ -825,7 +825,7 @@ impl Instances {
                 )
             })
             .filter(|(block, content_type)| {
-                be_block::block_type(*content_type).is_some() && crate::be::may_load(*block)
+                crate::be::provided(*content_type) && crate::be::may_load(*block)
             })
             .collect();
         let Some(entry) = self.entries.get_mut(&instance) else {

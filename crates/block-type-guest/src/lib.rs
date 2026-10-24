@@ -35,6 +35,7 @@ type ToFileFn = fn(&[u8]) -> Result<Option<Vec<u8>>, String>;
 pub struct Registration {
     info: TypeInfo,
     open: fn(Opened) -> Box<dyn AnyReplica>,
+    plain: fn(Opened) -> Box<dyn AnyReplica>,
     blank: fn() -> Vec<u8>,
     merge: MergeFn,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
@@ -56,6 +57,7 @@ impl Registration {
                 plain: Plain::None,
             },
             open: open::<C, NoHistory>,
+            plain: open::<C, NoHistory>,
             blank: || C::default().encode(),
             merge: merge::<C>,
             describe: describe_bytes::<C>,
@@ -71,6 +73,12 @@ impl Registration {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
         self.info.undo = true;
         self.open = open::<C, History<C, u64>>;
+        self
+    }
+
+    pub fn without_undo(mut self) -> Self {
+        self.info.undo = false;
+        self.open = self.plain;
         self
     }
 
@@ -450,10 +458,14 @@ impl Module {
 #[macro_export]
 macro_rules! be_block_types {
     ($($kind:ty $({ $($part:ident),* $(,)? })?),* $(,)?) => {
-        pub fn block_types() -> $crate::Module {
-            $crate::Module::new(::std::vec![
+        pub fn registrations() -> ::std::vec::Vec<$crate::Registration> {
+            ::std::vec![
                 $($crate::Registration::of::<$kind>()$($(.$part::<$kind>())*)?),*
-            ])
+            ]
+        }
+
+        pub fn block_types() -> $crate::Module {
+            $crate::Module::new(registrations())
         }
 
         pub struct BlockTypes($crate::Module);
@@ -478,8 +490,6 @@ macro_rules! be_block_types {
                 ::std::result::Result::Ok($crate::abi::Flow::Running)
             }
         }
-
-        $crate::abi::guest!(BlockTypes);
     };
 }
 

@@ -9,7 +9,9 @@
 # the list of manifests the app finds its plugins through. For the web bundle,
 # --tree copies in what wasm-bindgen wrote. --type stages a type module
 # (guides/type_modules.md) as NAME.wasm, its SHA-256 as NAME.sha256 (the tag of
-# its sessions) and, with --type-artifact, its .cwasm.
+# its sessions) and, with --type-artifact, its .cwasm. --plugin-type, after
+# a plugin's MANIFEST=MODULE, stages that plugin's type module the same way
+# under its own name, which must be the module its manifest's block_types name.
 # --compiled-only leaves out each module that has a .cwasm, for the APK,
 # which only falls back to one.
 #
@@ -17,7 +19,8 @@
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
 #            [--index] [--compiled-only] [--sdk=SDK [--sdk-artifact=CWASM]]
 #            [--type=NAME=MODULE [--type-artifact=CWASM]]...
-#            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM])...
+#            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM]
+#             [--plugin-type=MODULE [--type-artifact=CWASM]])...
 set -eu
 out="$1"
 shift
@@ -66,6 +69,17 @@ for argument in "$@"; do
             pair="${argument#--type=}"
             staged="$out/${pair%%=*}.wasm"
             cp "${pair#*=}" "$staged"
+            sha256sum "$staged" | cut -d ' ' -f 1 > "${staged%.wasm}.sha256"
+            ;;
+        --plugin-type=*)
+            type_module="${argument#--plugin-type=}"
+            named="$(field "$manifest" module)"
+            if [ "$(basename "$type_module")" != "$named" ]; then
+                echo "$manifest names $named as its type module, but its type module is $type_module" >&2
+                exit 1
+            fi
+            staged="$out/$named"
+            cp "$type_module" "$staged"
             sha256sum "$staged" | cut -d ' ' -f 1 > "${staged%.wasm}.sha256"
             ;;
         --type-artifact=*)

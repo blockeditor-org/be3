@@ -822,11 +822,15 @@ impl<S: ObjectStore> Pass<'_, S> {
                 let entry = &tree.entries[child];
                 match self.kind_in(tree, *child) {
                     None => {
-                        let kind = be_block::block_type(entry.content_type)
-                            .map_or("block of a kind this be does not know", |kind| kind.name);
                         layout.skipped.insert(
                             *child,
-                            (Skip::NoFileForm, format!("a {kind} has no plain-file form")),
+                            (
+                                Skip::NoFileForm,
+                                format!(
+                                    "a block of type {} has no plain-file form",
+                                    entry.content_type
+                                ),
+                            ),
                         );
                         self.skip_inside(tree, &children, *child, &mut layout);
                     }

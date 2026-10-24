@@ -67,17 +67,27 @@ pub type Started = Result<(Boxed, SessionTag), String>;
 pub type Start = Box<dyn Fn(Wake, Arc<AtomicBool>) -> Started>;
 
 pub struct Source {
-    pub name: &'static str,
+    pub name: String,
+    pub declared: Option<Vec<Uuid>>,
     pub start: Start,
+}
+
+impl Source {
+    pub fn declaring(mut self, types: Vec<Uuid>) -> Self {
+        self.declared = Some(types);
+        self
+    }
 }
 
 pub fn tag_of(bytes: &[u8]) -> SessionTag {
     SessionTag(*be_store::Hash::of(bytes).as_bytes())
 }
 
-pub fn in_process<G: Guest + 'static>(name: &'static str) -> Source {
+pub fn in_process<G: Guest + 'static>(name: impl Into<String>) -> Source {
+    let name = name.into();
     Source {
-        name,
+        name: name.clone(),
+        declared: None,
         start: Box::new(move |wake, waiting| {
             let tag =
                 tag_of(format!("{name} {}", build_id::current().unwrap_or_default()).as_bytes());
@@ -88,7 +98,7 @@ pub fn in_process<G: Guest + 'static>(name: &'static str) -> Source {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn wasm(
-    name: &'static str,
+    name: impl Into<String>,
     tag: Result<SessionTag, String>,
     cache: Option<std::path::PathBuf>,
     load: impl Fn(&block_wasm_host::PureHost) -> Result<block_wasm_host::PureGuest, String>
@@ -96,22 +106,25 @@ pub fn wasm(
     + Send
     + 'static,
 ) -> Source {
+    let name = name.into();
     Source {
-        name,
+        name: name.clone(),
+        declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
             let host = block_wasm_host::PureHost::new(cache.as_deref())?;
-            let channel = host.spawn(name.to_owned(), move |host| load(host), wake, waiting)?;
+            let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn web(name: &'static str, url: String, tag: Result<SessionTag, String>) -> Source {
+pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>) -> Source {
     Source {
-        name,
+        name: name.into(),
+        declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let channel = block_guest_host::web::WebGuest::start(&url, wake, waiting)?;
@@ -246,6 +259,7 @@ impl Modules {
         self.modules[module].hello = true;
         let types: Vec<TypeInfo> = types
             .into_iter()
+            .filter(|info| self.provides(module, info.content_type))
             .filter(|info| kind_of(info.content_type).is_none_or(|kind| kind.module != module))
             .collect();
         let blanks = self
@@ -291,6 +305,23 @@ impl Modules {
                     _ => Description::default(),
                 },
             });
+        }
+    }
+
+    fn provides(&self, module: usize, content_type: Uuid) -> bool {
+        let declares = |held: &Module| {
+            held.source
+                .declared
+                .as_ref()
+                .map(|declared| declared.contains(&content_type))
+        };
+        match declares(&self.modules[module]) {
+            Some(declared) => declared,
+            None => !self
+                .modules
+                .iter()
+                .enumerate()
+                .any(|(other, held)| other != module && declares(held) == Some(true)),
         }
     }
 

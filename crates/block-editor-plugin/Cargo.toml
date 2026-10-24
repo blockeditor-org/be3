@@ -29,5 +29,8 @@ block-gpu-guest = { path = "../block-gpu-guest" }
 wasi-threads = { path = "../wasi-threads" }
 wgpu = { version = "29", default-features = false, features = ["custom", "std", "web", "wgsl"] }
 
+[dev-dependencies]
+checklist-types = { path = "../editors/checklist/types" }
+
 [lints]
 workspace = true

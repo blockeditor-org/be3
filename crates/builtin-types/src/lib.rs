@@ -1,13 +1,17 @@
 use be_block::{
     AudioContent, BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent,
-    ChecklistContent, CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
+    CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
     DatabaseViewContent, DeterministicGameContent, EditorSettingsContent, FileContent,
     FolderContent, GameModuleContent, HotbarContent, ImageContent, LogicGameContent,
     LogicGridContent, MapContent, PanZoomContent, PdfContent, PixelArtContent,
     PixelRayTracerContent, PresentationContent, Scene3dContent, TerminalContent, TextContent,
     TriangleContent, VideoContent, WorkspaceContent,
 };
-use block_type_guest::be_block_types;
+use be_block::{
+    CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
+    InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
+};
+use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
     ImageContent { file },
@@ -19,7 +23,6 @@ be_block_types![
     BrowserTabContent,
     CalendarContent { undo },
     CanvasContent { undo },
-    ChecklistContent { undo },
     CompiledLogicContent,
     CounterContent { undo },
     DatabaseContent { undo },
@@ -43,3 +46,19 @@ be_block_types![
     VideoContent { undo },
     WorkspaceContent { root },
 ];
+
+#[cfg(feature = "module")]
+block_type_guest::abi::guest!(BlockTypes);
+
+pub fn host() -> Vec<Registration> {
+    vec![
+        Registration::of::<DisplaySettingsContent>(),
+        Registration::of::<InputSettingsContent>(),
+        Registration::of::<InputRemapperContent>(),
+        Registration::of::<SettingsContent>().undo::<SettingsContent>(),
+        Registration::of::<SettingsProfileContent>().undo::<SettingsProfileContent>(),
+        Registration::of::<EditorViewContent>(),
+        Registration::of::<RepositoryContent>(),
+        Registration::of::<CheckoutContent>(),
+    ]
+}

@@ -6,7 +6,6 @@ use crate::canvas::{
 use crate::{
     browser_tab::{BrowserTabContent, HistoryItem},
     calendar::{Calendar, CalendarContent, CalendarEvent},
-    checklist::{Checklist, ChecklistContent},
     counter::{Counter, CounterContent},
     database::{Database, DatabaseContent, DatabaseValue},
     database_schema::{
@@ -83,10 +82,6 @@ mod canvas_layers_reorder_and_keep_unlisted_slots;
 mod canvases_merge_a_move_and_a_restyle_of_one_entity;
 mod cells_set_in_a_new_row_by_two_peers_at_once_share_the_row;
 mod cells_set_on_both_sides_of_one_row_merge_to_both;
-mod checks_of_different_items_at_once_both_stick;
-mod clearing_a_checklist_keeps_the_open_items;
-mod clearing_done_items_removes_one_someone_reopened_at_once;
-mod clearing_done_items_while_the_other_side_renames_one_removes_it;
 mod clips_attached_to_each_other_on_each_side_merge_without_a_cycle;
 mod compiled_logic_places_as_its_own_block_and_references_what_it_calls;
 mod compiling_a_grid_derives_ports_from_its_inputs_and_outputs;
@@ -109,7 +104,6 @@ mod frozen_workspace;
 mod icon_overrides_round_trip_and_merge_independently;
 mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
-mod items_added_by_two_peers_at_once_are_both_kept;
 mod links_added_on_both_sides_are_both_kept_and_show_on_the_rows_they_point_at;
 mod logic_game_solutions_keep_their_order_per_challenge;
 mod logic_grids_merge_a_move_and_a_turn_of_one_component;
@@ -134,11 +128,9 @@ mod the_frozen_blocks_read_every_register_without_any_one_field;
 mod the_same_range_deleted_by_two_peers_at_once_is_deleted_once;
 mod the_same_solution_inserted_by_two_peers_at_once_is_listed_once;
 mod the_same_wire_drawn_on_both_sides_merges_to_one;
-mod two_checklists_merge_every_item_either_side_added;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
 mod two_peers_restyling_different_fields_of_one_shape_keep_both;
 mod undoing_a_clear_keeps_a_pixel_painted_since;
-mod undoing_a_clear_puts_the_items_back_in_order;
 mod undoing_a_component_removal_brings_it_back_with_its_wires_untouched;
 mod undoing_a_reset_restores_only_what_was_reset;
 mod undoing_a_wire_cut_joins_the_wire_again;
