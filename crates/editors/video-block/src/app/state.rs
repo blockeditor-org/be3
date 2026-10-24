@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::VideoContent;
-use block_editor_beui::be_block::video::{
+use video_block_types::VideoContent;
+use video_block_types::{
     DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
 };
 use block_editor_beui::beui::reactive::*;

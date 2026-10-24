@@ -4,7 +4,7 @@ use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 
 pub const DEFAULT_CLIP_SECONDS: f64 = 5.0;
 

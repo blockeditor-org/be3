@@ -1,9 +1,6 @@
 use super::*;
-use crate::video::{
-    MAX_CLIP_LENGTH, Video, VideoAttachment, VideoClip, VideoContent, VideoFrameRate,
-    VideoOperation,
-};
-use crate::{ChildChange, Root};
+use crate::{MAX_CLIP_LENGTH, Video, VideoAttachment, VideoClip, VideoContent, VideoFrameRate, VideoOperation};
+use be_block::{ChildChange, Root};
 use uuid::Uuid;
 
 struct Sample {

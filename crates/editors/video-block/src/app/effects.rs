@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::video::{
+use video_block_types::{
     MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect,
 };
 use block_editor_beui::beui::NodeId;

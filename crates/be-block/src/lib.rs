@@ -29,7 +29,6 @@ pub mod settings;
 pub mod settling;
 pub mod streamed;
 pub mod version_control;
-pub mod video;
 
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
@@ -67,7 +66,6 @@ pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
     RepositoryContent,
 };
-pub use video::{VideoContent, VideoProject};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {

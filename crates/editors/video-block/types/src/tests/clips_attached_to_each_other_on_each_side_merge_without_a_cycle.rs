@@ -1,5 +1,5 @@
 use super::*;
-use crate::video::{VideoClip, VideoContent, VideoOperation};
+use crate::{VideoClip, VideoContent, VideoOperation};
 
 fn run(content: &VideoContent, operation: VideoOperation) -> VideoContent {
     edited(content, [content.root().edit_for(&operation)])

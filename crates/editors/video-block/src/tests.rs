@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::{BlockContent, CounterContent};
 
-use block_editor_beui::be_block::VideoContent;
-use block_editor_beui::be_block::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
+use video_block_types::VideoContent;
+use video_block_types::{Video, VideoClip, VideoFrameRate, VideoOperation};
 use block_editor_beui::beui::Pos2;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;

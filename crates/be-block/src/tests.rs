@@ -52,7 +52,6 @@ mod canvas_layers_reorder_and_keep_unlisted_slots;
 mod canvases_merge_a_move_and_a_restyle_of_one_entity;
 mod cells_set_in_a_new_row_by_two_peers_at_once_share_the_row;
 mod cells_set_on_both_sides_of_one_row_merge_to_both;
-mod clips_attached_to_each_other_on_each_side_merge_without_a_cycle;
 mod databases_saved_by_the_first_tracker_build_still_load;
 mod defined_metadata_merges_key_by_key;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
@@ -76,7 +75,6 @@ mod two_counters_merge_by_keeping_both_sides_of_the_count;
 mod two_peers_restyling_different_fields_of_one_shape_keep_both;
 mod undoing_a_reset_restores_only_what_was_reset;
 mod unpinning_a_component_removes_it_from_every_folder;
-mod video_clips_attach_ripple_and_refuse_cycles;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
