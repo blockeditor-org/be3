@@ -9,7 +9,10 @@ use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
 use crate::scroll::scrollbar_style;
-use crate::text::TextSize;
+use crate::button::ButtonVariant;
+use crate::icon_button::{IconButton, IconButtonSize};
+use crate::text::{Text, TextColor, TextSize};
+use beui_core::icons::ICON_COPY;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -135,6 +138,7 @@ const CODE_INSET: f32 = 3.0;
 const CODE_RADIUS: Radius = Radius::Sm;
 const CODE_BLOCK_RADIUS: Radius = Radius::Md;
 const QUOTE_BAR_RADIUS: f32 = 1.5;
+const COPY_INSET: f32 = 4.0;
 const NUMBER_ALPHA: f32 = 0.6;
 
 #[component]
@@ -248,12 +252,35 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
         true => ColorRole::Border,
         false => ColorRole::None,
     });
+    let opens = line.opens_code();
+    let language = line.code_language();
+    let corner = create_memo(move || {
+        let right = (line.padding.get() - outset.get()).max(0.0) + COPY_INSET;
+        Sides::new(0.0, line.space.get().0 + COPY_INSET, right, 0.0)
+    });
     let text = line.text;
     view! {
         <Layers>
             <Frame padding=outer>
                 <Frame fill=code radius padding=inner>{text}</Frame>
             </Frame>
+            <Show condition={opens}>
+                <Frame padding=corner align={Align2::new(Align::End, Align::Start)}>
+                    <List direction=Direction::Horizontal spacing=COPY_INSET align=Align::Center>
+                        <Text size=TextSize::Xs color=TextColor::Muted>{language}</Text>
+                        <IconButton
+                            @test_id={format!("text.copy_code.{}", line.line.get_untracked())}
+                            glyph={ICON_COPY.to_owned()}
+                            label="Copy code"
+                            variant=ButtonVariant::Ghost
+                            size=IconButtonSize::Compact
+                            capture_presses=true
+                            press_focus=false
+                            on_click={move || copy_text(line.code_text())}
+                        />
+                    </List>
+                </Frame>
+            </Show>
             <Frame padding=bars>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <ForEach keys={quotes}>|bar: QuoteBar|

@@ -249,6 +249,9 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         }
     });
     let wrapped = cx.line.call(TextLine {
+        state: cx.state,
+        line: create_memo(move || model.get().line),
+        start: create_memo(move || model.get().start),
         look,
         padding,
         size: cx.font_size,

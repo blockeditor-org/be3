@@ -75,7 +75,7 @@ fn line_look(
     let lead = skip_spaces(source, start, end);
     let reach = end + usize::from(lead == end);
     let block = blocks.iter().position(|block| {
-        block.start <= end && (block.end > reach || block.end >= source.len())
+        block.start <= end && (block.end > reach || (block.end >= source.len() && lead < end))
     });
     let code_block = block.is_some();
     let mut probe = lead;

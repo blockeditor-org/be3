@@ -11,7 +11,8 @@ use beui_core::rich::{SpanBackground, SpanStyle};
 use beui_view::components::text::Span;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-use text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle};
+use text_editor_core::schema::basic;
+use text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighlight};
 
 use crate::{Toggle, ToggleHandle};
 
@@ -110,6 +111,9 @@ pub fn MarkerColumn(marker: TextMarker, content: NodeId) -> NodeId {
 
 #[derive(Clone, Copy)]
 pub struct TextLine {
+    pub state: TextAreaState,
+    pub line: Memo<usize>,
+    pub start: Memo<usize>,
     pub look: Memo<LineLook>,
     pub padding: Memo<f32>,
     pub size: Memo<f32>,
@@ -180,6 +184,38 @@ impl TextLine {
         })
     }
 
+    pub fn opens_code(&self) -> Memo<bool> {
+        let look = self.look;
+        create_memo(move || {
+            let look = look.get();
+            look.code_block && !look.code_above
+        })
+    }
+
+    pub fn code_language(&self) -> Memo<String> {
+        let (state, start) = (self.state, self.start);
+        let content = state.content();
+        create_memo(move || {
+            content.get();
+            let start = start.get();
+            state.with_snapshot(|snapshot| {
+                snapshot
+                    .formats
+                    .as_deref()
+                    .and_then(|formats| formats.block_at(start))
+                    .and_then(|block| block.props.get(basic::CODE_BLOCK).cloned())
+                    .and_then(|language| language.as_text().map(str::to_owned))
+                    .unwrap_or_default()
+            })
+        })
+    }
+
+    pub fn code_text(&self) -> String {
+        let start = self.start.get_untracked();
+        self.state
+            .with_snapshot(|snapshot| code_block_text(&snapshot.bytes, snapshot.highlight(), start))
+    }
+
     pub fn code_corners(&self, radius: f32) -> Memo<Corners> {
         let look = self.look;
         create_memo(move || {
@@ -192,6 +228,48 @@ impl TextLine {
             )
         })
     }
+}
+
+fn code_block_text(bytes: &[u8], highlight: &SyntaxHighlight, start: usize) -> String {
+    let mut lines = Vec::new();
+    let mut at = start.min(bytes.len());
+    loop {
+        let end = memchr::memchr(b'\n', &bytes[at..]).map_or(bytes.len(), |newline| at + newline);
+        let look = highlight.line_look(at);
+        lines.push(&bytes[look.marker.end.clamp(at, end)..end]);
+        if !look.code_below || end >= bytes.len() {
+            break;
+        }
+        at = end + 1;
+    }
+    let fence = |line: &[u8]| {
+        let trimmed = line.trim_ascii_start();
+        trimmed.starts_with(b"```") || trimmed.starts_with(b"~~~")
+    };
+    let indent = match lines.first() {
+        Some(first) if fence(first) => {
+            let indent = first.len() - first.trim_ascii_start().len();
+            lines.remove(0);
+            if lines.last().is_some_and(|last| fence(last)) {
+                lines.pop();
+            }
+            indent
+        }
+        _ => lines
+            .iter()
+            .filter(|line| !line.trim_ascii().is_empty())
+            .map(|line| line.len() - line.trim_ascii_start().len())
+            .min()
+            .unwrap_or(0),
+    };
+    let lines: Vec<String> = lines
+        .iter()
+        .map(|line| {
+            let strip = line.len() - line.trim_ascii_start().len();
+            String::from_utf8_lossy(&line[strip.min(indent)..]).into_owned()
+        })
+        .collect();
+    lines.join("\n")
 }
 
 impl QuoteBar {
