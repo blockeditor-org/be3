@@ -1,8 +1,6 @@
 use be_model::{Document, Model};
 
-use be_block::{
-    BlockContent, Root, SCHEMA, derived_metadata, schema_fingerprint,
-};
+use be_block::{BlockContent, Root, SCHEMA, derived_metadata, schema_fingerprint};
 
 use crate::{TextBlock, TextContent};
 

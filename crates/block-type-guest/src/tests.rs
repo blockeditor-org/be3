@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use be_block::{BlockContent, ChildChange, Counter, CounterContent, LiveEdit, Root};
 use be_block::blob::{Blob, BlobKind};
+use be_block::{BlockContent, ChildChange, Counter, CounterContent, LiveEdit, Root};
 use be_commit::CommitId;
 use be_model::{Anchor, BlockRef, Change as ModelChange, Document, Edit, List, Model, ObjectId};
 use be_protocol::ClientId;

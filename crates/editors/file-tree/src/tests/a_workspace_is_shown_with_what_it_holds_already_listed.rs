@@ -4,7 +4,7 @@ use block_ui_test::BeuiTest;
 use workspace_ui_types::WorkspaceContent;
 
 use super::*;
-use text_block_types::{TextContent};
+use text_block_types::TextContent;
 
 #[test]
 fn a_workspace_is_shown_with_what_it_holds_already_listed() {

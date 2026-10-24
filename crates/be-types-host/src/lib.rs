@@ -11,8 +11,7 @@ pub mod replicas;
 
 pub use block_type_api::Plain;
 pub use modules::{
-    Kind, Modules, Source, in_process, is_known, kind_of, now_millis, plain_of,
-    started, tag_of,
+    Kind, Modules, Source, in_process, is_known, kind_of, now_millis, plain_of, started, tag_of,
 };
 pub use replicas::{Ctx, HOST_EDITOR, Replicas};
 

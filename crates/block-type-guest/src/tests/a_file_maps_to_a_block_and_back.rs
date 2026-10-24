@@ -43,7 +43,6 @@ impl DocumentFile for Note {
 
 type NoteContent = Document<Note>;
 
-
 crate::be_block_types![
     NoteContent { undo, file },
     FileContent { file },

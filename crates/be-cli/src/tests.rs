@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use be_block::database::{Database, DatabaseContent};
-use be_block::database_schema::{DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent};
+use be_block::database_schema::{
+    DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
+};
 use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
