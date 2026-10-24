@@ -74,6 +74,7 @@ members = [
     "crates/editors/beui-gallery/types",
     "crates/editors/block-debug",
     "crates/editors/browser-tab",
+    "crates/editors/browser-tab/types",
     "crates/editors/calendar",
     "crates/editors/calendar/types",
     "crates/editors/checklist",

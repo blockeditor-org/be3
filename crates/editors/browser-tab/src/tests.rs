@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::{BrowserTabContent, HistoryItem};
+use browser_tab_types::{BrowserTabContent, HistoryItem};
 use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{
     ChildContent, EditorHost, OwnedEditor, WebViewCommand, WebViewEvent, WebViewId,

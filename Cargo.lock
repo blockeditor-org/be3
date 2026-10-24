@@ -1501,6 +1501,7 @@ dependencies = [
  "block-type-api",
  "block-type-guest",
  "block-wasm-host",
+ "browser-tab-types",
  "build-id",
  "builtin-types",
  "bytemuck",
@@ -1853,12 +1854,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "browser-tab-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "uuid",
+]
+
+[[package]]
 name = "browser_tab"
 version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "browser-tab-types",
  "uuid",
 ]
 

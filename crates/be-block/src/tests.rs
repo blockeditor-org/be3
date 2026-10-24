@@ -4,7 +4,6 @@ use crate::canvas::{
     InfiniteCanvasOperation,
 };
 use crate::{
-    browser_tab::{BrowserTabContent, HistoryItem},
     counter::{Counter, CounterContent},
     database::{Database, DatabaseContent, DatabaseValue},
     database_schema::{
@@ -25,8 +24,6 @@ use logicgame::grid::{
 use uuid::Uuid;
 
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
-mod a_browser_tab_is_named_after_its_page;
-mod a_browser_tab_push_discards_forward_history;
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
 mod a_canvas_profile_is_kept_but_never_undone;
 mod a_cell_set_while_someone_clears_the_last_one_in_its_row_is_kept;
@@ -92,7 +89,6 @@ mod links_added_on_both_sides_are_both_kept_and_show_on_the_rows_they_point_at;
 mod logic_game_solutions_keep_their_order_per_challenge;
 mod logic_grids_merge_a_move_and_a_turn_of_one_component;
 mod moves_played_on_both_sides_merge_to_both;
-mod pages_opened_on_both_sides_are_both_kept_in_history;
 mod pixel_art_fills_resizes_and_keeps_a_paint_made_during_a_resize;
 mod screens_turn_off_after_ten_minutes_unless_told_otherwise;
 mod setting_every_pointer_replaces_what_each_device_overrode;

@@ -2,7 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
+use browser_tab_types::{BrowserTabContent, HistoryItem};
 
 fn name_of(block: Uuid) -> Option<String> {
     crate::be::node(block).and_then(|node| node.metadata.name())

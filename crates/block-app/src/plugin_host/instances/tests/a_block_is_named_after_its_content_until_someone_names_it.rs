@@ -2,7 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
+use browser_tab_types::{BrowserTabContent, HistoryItem};
 
 fn titled(block: Uuid, title: &str) {
     let shown = crate::be::content(block)

@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 pub mod blob;
 pub mod block_url;
-pub mod browser_tab;
 pub mod canvas;
 pub mod compiled_logic;
 pub mod counter;
@@ -42,7 +41,6 @@ pub mod video;
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
-pub use browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};
 pub use canvas::CanvasContent;
 pub use compiled_logic::{CompiledLogicContent, CompiledLogicDocument};
 pub use counter::{Counter, CounterContent};

@@ -1,5 +1,5 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::BrowserTabContent;
+use browser_tab_types::BrowserTabContent;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
