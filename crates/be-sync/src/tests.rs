@@ -1,9 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use be_block::{
-    BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, FileContent, FolderContent,
-    ImageContent, LiveEdit, TextBlock, TextContent, WorkspaceContent,
-};
+use be_block::{BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, FileContent, FolderContent, LiveEdit, TextBlock, TextContent, WorkspaceContent};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::MemoryStore;
@@ -174,6 +171,7 @@ async fn text_block(peer: &Peer<MemoryStore>, parent: Uuid, name: &str, text: &s
 async fn types() -> be_types_host::Modules {
     be_types_host::started(vec![
         be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
+        be_types_host::in_process::<image_block_types::BlockTypes>("be3.image"),
     ])
     .await
 }

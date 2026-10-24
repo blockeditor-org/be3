@@ -81,6 +81,7 @@ pub(crate) fn provided(content_type: Uuid) -> bool {
         host_types(),
         builtin_types::block_types(),
         checklist_types::block_types(),
+        image_block_types::block_types(),
     ]
     .iter()
     .any(|module| module.knows(content_type))
@@ -132,15 +133,25 @@ pub(super) async fn sources() -> Vec<Source> {
 
 #[cfg(test)]
 pub(super) async fn sources() -> Vec<Source> {
-    let checklist = checklist_types::registrations()
-        .iter()
-        .map(|registration| registration.info().content_type)
-        .collect();
     vec![
         in_process::<Crashing>(BUILTIN),
         in_process::<HostTypes>("host-types"),
-        in_process::<checklist_types::BlockTypes>("be3.checklist").declaring(checklist),
+        plugin::<checklist_types::BlockTypes>("be3.checklist", checklist_types::registrations()),
+        plugin::<image_block_types::BlockTypes>("be3.image", image_block_types::registrations()),
     ]
+}
+
+#[cfg(test)]
+fn plugin<G: Guest + 'static>(
+    name: &str,
+    registrations: Vec<block_type_guest::Registration>,
+) -> Source {
+    in_process::<G>(name).declaring(
+        registrations
+            .iter()
+            .map(|registration| registration.info().content_type)
+            .collect(),
+    )
 }
 
 #[cfg(not(test))]

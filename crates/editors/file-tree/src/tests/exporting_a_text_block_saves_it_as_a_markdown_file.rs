@@ -1,7 +1,8 @@
-use block_editor_beui::be_block::{BlockContent, ImageContent, TextBlock, TextContent};
+use block_editor_beui::be_block::{BlockContent, TextBlock, TextContent};
 use block_editor_beui::{BlockInfo, BlockParent, FileSave, HostReply, HostRequest};
 
 use super::*;
+use image_block_types::{ImageContent, ImageFile};
 
 #[test]
 fn exporting_a_text_block_saves_it_as_a_markdown_file() {
@@ -26,7 +27,7 @@ fn exporting_a_text_block_saves_it_as_a_markdown_file() {
         .hold(Some(notes), TextBlock::of("# Day one\nSand."));
     fixture.test.hold(
         Some(photo),
-        ImageContent::from_file("beach.jpg", vec![0xff, 0xd8, 0xff]),
+        ImageFile::from_file("beach.jpg", vec![0xff, 0xd8, 0xff]),
     );
     fixture.settle();
     fixture.test.take_requests();

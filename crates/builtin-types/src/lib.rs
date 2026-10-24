@@ -2,7 +2,7 @@ use be_block::{
     AudioContent, BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent,
     CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
     DatabaseViewContent, DeterministicGameContent, EditorSettingsContent, FileContent,
-    FolderContent, GameModuleContent, HotbarContent, ImageContent, LogicGameContent,
+    FolderContent, GameModuleContent, HotbarContent, LogicGameContent,
     LogicGridContent, MapContent, PanZoomContent, PdfContent, PixelArtContent,
     PixelRayTracerContent, PresentationContent, Scene3dContent, TerminalContent, TextContent,
     TriangleContent, VideoContent, WorkspaceContent,
@@ -14,7 +14,6 @@ use be_block::{
 use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
-    ImageContent { file },
     PdfContent { file },
     AudioContent { file },
     TextContent { undo, file },

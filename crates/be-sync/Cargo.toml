@@ -25,8 +25,9 @@ uuid = { version = "1", features = ["serde", "v4", "v7"] }
 [dev-dependencies]
 be-keys = { path = "../be-keys" }
 be-server = { path = "../be-server" }
-builtin-types = { path = "../builtin-types" }
 build-id = { path = "../build-id" }
+builtin-types = { path = "../builtin-types" }
+image-block-types = { path = "../editors/image-block/types" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
 
 [lints]

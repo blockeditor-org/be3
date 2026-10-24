@@ -6,12 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use crate::presence::{CanvasCaret, CanvasCursor};
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::be_block::canvas::{
-    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
-    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
-    CanvasTransform, InfiniteCanvasOperation,
-};
+use block_editor_beui::be_block::canvas::{Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove, CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation};
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::be_block::{Edit, ObjectId};
@@ -35,6 +30,7 @@ use crate::geometry::*;
 use super::entities::Entities;
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
+use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
 const CANVAS_CLIPBOARD_PREFIX: &str = "be3-infinite-canvas:";
@@ -2728,7 +2724,7 @@ impl CanvasState {
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
             self.add_imported_image(
-                ImageContent::from_file(file.name, file.data),
+                ImageFile::from_file(file.name, file.data),
                 CanvasPoint::new(base.x + offset, base.y + offset),
             );
         }
@@ -2742,7 +2738,7 @@ impl CanvasState {
             Pasted::Image(file) => {
                 self.import_error.set(None);
                 let center = self.paste_center();
-                self.add_imported_image(ImageContent::from_file(file.name, file.data), center);
+                self.add_imported_image(ImageFile::from_file(file.name, file.data), center);
             }
         }
     }

@@ -1,15 +1,15 @@
-use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::{FileFilter, PickedFile};
+use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) fn image_filter() -> FileFilter {
     FileFilter::new(
         "Images",
-        ImageContent::FILE_EXTENSIONS,
-        ImageContent::MIME_TYPES,
+        ImageFile::FILE_EXTENSIONS,
+        ImageFile::MIME_TYPES,
     )
 }
 
 pub(crate) fn imported_image(file: PickedFile) -> ImageContent {
     let PickedFile { name, data } = file;
-    ImageContent::from_file(name, data)
+    ImageFile::from_file(name, data)
 }

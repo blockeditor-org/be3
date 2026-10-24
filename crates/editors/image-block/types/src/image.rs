@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::blob::{Blob, BlobKind, BlobOp};
-use crate::{BlockMetadata, THUMBHASH, Thumbhash};
+use be_block::blob::{Blob, BlobKind, BlobOp};
+use be_block::plain::{extension, media_type_of};
+use be_block::{BlockMetadata, THUMBHASH, Thumbhash};
+use block_type_guest::BlobFile;
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ImageHeader {
@@ -49,19 +51,33 @@ pub type ImageContent = Blob<ImageFile>;
 
 pub type ImageOp = BlobOp<ImageHeader>;
 
-impl Blob<ImageFile> {
+impl ImageFile {
     pub const FILE_EXTENSIONS: &'static [&'static str] = &[
         "bmp", "gif", "ico", "jpg", "jpeg", "png", "pnm", "tga", "tif", "tiff", "webp",
     ];
     pub const MIME_TYPES: &'static [&'static str] = &["image/*"];
 
-    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> Self {
-        Self::new(
+    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> ImageContent {
+        ImageContent::new(
             ImageHeader {
                 source_name: source_name.into(),
                 ..ImageHeader::default()
             },
             data,
         )
+    }
+}
+
+impl BlobFile for ImageFile {
+    fn header(name: &str, _: &[u8]) -> ImageHeader {
+        ImageHeader {
+            source_name: name.to_owned(),
+            media_type: media_type_of(name).to_owned(),
+            ..ImageHeader::default()
+        }
+    }
+
+    fn claims(name: &str, _: &[u8]) -> bool {
+        Self::FILE_EXTENSIONS.contains(&extension(name).as_str())
     }
 }

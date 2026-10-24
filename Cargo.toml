@@ -80,6 +80,7 @@ members = [
     "crates/editors/deterministic-game",
     "crates/editors/file-tree",
     "crates/editors/image-block",
+    "crates/editors/image-block/types",
     "crates/editors/infinite-canvas",
     "crates/editors/linux-desktop",
     "crates/editors/logic-grid",

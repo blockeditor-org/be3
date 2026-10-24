@@ -3,10 +3,8 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight,
-};
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
@@ -27,6 +25,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use image_block_types::ImageContent;
 
 pub(crate) const PADDING: f32 = 16.0;
 pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];

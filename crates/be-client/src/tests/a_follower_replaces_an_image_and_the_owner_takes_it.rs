@@ -1,6 +1,6 @@
 use super::*;
+use image_block_types::{ImageContent, ImageOp};
 
-use be_block::{ImageContent, ImageOp};
 
 #[tokio::test]
 async fn a_follower_replaces_an_image_and_the_owner_takes_it() {

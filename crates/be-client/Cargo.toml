@@ -44,6 +44,7 @@ web-sys = { version = "0.3", features = [
 [dev-dependencies]
 be-server = { path = "../be-server" }
 checklist-types = { path = "../editors/checklist/types" }
+image-block-types = { path = "../editors/image-block/types" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
 

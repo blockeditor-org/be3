@@ -1,5 +1,5 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::BlockContent;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -25,6 +25,7 @@ pub(crate) mod state;
 use canvas::{ArtworkCanvas, HoverLabel};
 use pane::Pane;
 use state::Tools;
+use image_block_types::{ImageContent};
 
 const EMBEDDED_LONG_SIDE: f32 = 256.0;
 const EMBEDDED_SHORT_SIDE: f32 = 24.0;

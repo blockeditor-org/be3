@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::pixel_art::Artwork;
-use block_editor_beui::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
+use block_editor_beui::be_block::{ArtifactSource, BlockContent, PixelArtContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -8,6 +8,7 @@ use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use image_block_types::{ImageContent, ImageFile};
 
 const MAX_EXPORT_SCALE: u32 = 16;
 const SETTINGS_PADDING: f32 = 14.0;
@@ -73,7 +74,7 @@ fn generate(
             ExtendedColorType::Rgba8,
         )
         .map_err(|error| error.to_string())?;
-    Ok(ImageContent::from_file(
+    Ok(ImageFile::from_file(
         format!("{source_name} Export"),
         png,
     ))

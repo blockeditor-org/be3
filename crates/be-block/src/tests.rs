@@ -14,7 +14,6 @@ use crate::{
     },
     database_view::{DatabaseView, DatabaseViewContent},
     display_settings::{DisplaySettings, DisplaySettingsContent},
-    image::{ImageContent, ImageHeader},
     input_settings::{InputSettings, InputSettingsContent},
     logic_game::LogicGameContent,
     logic_grid::{LogicGridContent, LogicGridOperation},
@@ -72,7 +71,6 @@ mod a_wire_removed_on_one_side_stays_removed_when_the_other_branches_off_it;
 mod an_arrow_end_bound_to_a_shape_follows_it_and_stays_when_it_is_removed;
 mod an_event_rescheduled_on_both_sides_conflicts_and_keeps_ours;
 mod an_icon_saved_as_a_material_codepoint_reads_as_its_lucide_name;
-mod an_image_merges_only_when_one_side_changed_it;
 mod an_update_for_an_event_someone_removed_does_not_bring_it_back;
 mod block_metadata_keeps_keys_it_does_not_know_and_reads_each_key_alone;
 mod block_urls_include_organization_and_reject_malformed_paths;
@@ -141,19 +139,15 @@ mod video_clips_attach_ripple_and_refuse_cycles;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 mod wires_drawn_on_each_side_that_meet_join_into_one;
 
-fn header(name: &str) -> ImageHeader {
-    ImageHeader {
+fn header(name: &str) -> FileHeader {
+    FileHeader {
         source_name: name.into(),
         media_type: "image/png".into(),
-        width: 640,
-        height: 480,
-        failure: None,
-        thumbhash: None,
     }
 }
 
-fn image(name: &str, payload: &[u8]) -> ImageContent {
-    ImageContent::new(header(name), payload.to_vec())
+fn image(name: &str, payload: &[u8]) -> FileContent {
+    FileContent::new(header(name), payload.to_vec())
 }
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {

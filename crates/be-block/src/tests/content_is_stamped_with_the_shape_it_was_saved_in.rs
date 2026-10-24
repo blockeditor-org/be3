@@ -1,7 +1,7 @@
 use be_model::{Document, Model};
 
 use crate::{
-    BlockContent, FolderContent, ImageContent, Root, SCHEMA, TextBlock, TextContent,
+    BlockContent, FileContent, FolderContent, Root, SCHEMA, TextBlock, TextContent,
     derived_metadata, schema_fingerprint,
 };
 
@@ -44,7 +44,7 @@ fn content_is_stamped_with_the_shape_it_was_saved_in() {
         schema_fingerprint::<FolderContent>()
     );
     assert_eq!(
-        schema_fingerprint::<ImageContent>(),
-        schema_fingerprint::<ImageContent>()
+        schema_fingerprint::<FileContent>(),
+        schema_fingerprint::<FileContent>()
     );
 }

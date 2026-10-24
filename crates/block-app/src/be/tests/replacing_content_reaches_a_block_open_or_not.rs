@@ -1,6 +1,6 @@
 use super::*;
+use image_block_types::{ImageContent, ImageFile};
 
-use be_block::ImageContent;
 
 fn holds(shared: &Shared, block: Uuid, name: &str) -> bool {
     shared.blocks.get(&block).is_some_and(|held| {
@@ -11,7 +11,7 @@ fn holds(shared: &Shared, block: Uuid, name: &str) -> bool {
 }
 
 fn image(name: &str) -> Vec<u8> {
-    ImageContent::from_file(name, name.as_bytes().to_vec()).encode()
+    ImageFile::from_file(name, name.as_bytes().to_vec()).encode()
 }
 
 #[test]

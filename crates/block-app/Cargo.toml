@@ -101,9 +101,10 @@ rodio = "0.20"
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
-# The checklist plugin's type module, which the unit tests run in process
-# beside the first-party one.
+# The plugins' type modules, which the unit tests run in process beside the
+# first-party one.
 checklist-types = { path = "../editors/checklist/types" }
+image-block-types = { path = "../editors/image-block/types" }
 pollster = "0.4"
 paint-snapshot = { path = "../paint-snapshot" }
 

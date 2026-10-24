@@ -1,8 +1,10 @@
+use be_block::be_model::Document;
+use be_block::blob::{Blob, BlobKind};
+use be_block::file::{AnyFile, FileHeader};
+use be_block::audio::{AudioFile, AudioHeader};
+use be_block::pdf::{PdfFile, PdfHeader};
 use be_block::plain::{extension, language_of, media_type_of};
-use be_block::{
-    AudioContent, AudioHeader, BlockContent, FileContent, ImageContent, PdfContent, PdfHeader,
-    TextBlock, TextContent,
-};
+use be_block::{BlockContent, Root, TextBlock};
 
 pub trait FileForm: BlockContent {
     fn to_file(&self) -> Option<Vec<u8>>;
@@ -10,6 +12,53 @@ pub trait FileForm: BlockContent {
     fn from_file(current: Option<&Self>, name: &str, bytes: Vec<u8>, client: u64) -> Option<Self>;
 
     fn claims(name: &str, first: &[u8]) -> bool;
+}
+
+pub trait BlobFile: BlobKind {
+    fn header(name: &str, bytes: &[u8]) -> Self::Header;
+
+    fn claims(name: &str, first: &[u8]) -> bool;
+}
+
+pub trait DocumentFile: Root {
+    fn to_file(content: &Document<Self>) -> Vec<u8>;
+
+    fn from_file(
+        current: Option<&Document<Self>>,
+        name: &str,
+        bytes: Vec<u8>,
+        client: u64,
+    ) -> Option<Document<Self>>;
+
+    fn claims(name: &str, first: &[u8]) -> bool;
+}
+
+impl<K: BlobFile> FileForm for Blob<K> {
+    fn to_file(&self) -> Option<Vec<u8>> {
+        Some(self.data().to_vec())
+    }
+
+    fn from_file(_: Option<&Self>, name: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
+        Some(Self::new(K::header(name, &bytes), bytes))
+    }
+
+    fn claims(name: &str, first: &[u8]) -> bool {
+        K::claims(name, first)
+    }
+}
+
+impl<R: DocumentFile> FileForm for Document<R> {
+    fn to_file(&self) -> Option<Vec<u8>> {
+        Some(R::to_file(self))
+    }
+
+    fn from_file(current: Option<&Self>, name: &str, bytes: Vec<u8>, client: u64) -> Option<Self> {
+        R::from_file(current, name, bytes, client)
+    }
+
+    fn claims(name: &str, first: &[u8]) -> bool {
+        R::claims(name, first)
+    }
 }
 
 pub(crate) fn to_file<C: FileForm>(bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
@@ -31,16 +80,32 @@ pub(crate) fn from_file<C: FileForm>(
     Some(C::from_file(current.as_ref(), name, bytes, client)?.encode())
 }
 
-impl FileForm for TextContent {
-    fn to_file(&self) -> Option<Vec<u8>> {
-        Some(
-            TextBlock::body(self)
-                .map(|body| body.items())
-                .unwrap_or_default(),
-        )
+impl BlobFile for AnyFile {
+    fn header(name: &str, _: &[u8]) -> FileHeader {
+        FileHeader {
+            source_name: name.to_owned(),
+            media_type: media_type_of(name).to_owned(),
+        }
     }
 
-    fn from_file(current: Option<&Self>, name: &str, bytes: Vec<u8>, client: u64) -> Option<Self> {
+    fn claims(_: &str, _: &[u8]) -> bool {
+        true
+    }
+}
+
+impl DocumentFile for TextBlock {
+    fn to_file(content: &Document<Self>) -> Vec<u8> {
+        TextBlock::body(content)
+            .map(|body| body.items())
+            .unwrap_or_default()
+    }
+
+    fn from_file(
+        current: Option<&Document<Self>>,
+        name: &str,
+        bytes: Vec<u8>,
+        client: u64,
+    ) -> Option<Document<Self>> {
         let mut text = match current {
             Some(current) => current.clone(),
             None => TextBlock::new("")
@@ -59,36 +124,11 @@ impl FileForm for TextContent {
     }
 }
 
-impl FileForm for ImageContent {
-    fn to_file(&self) -> Option<Vec<u8>> {
-        Some(self.data().to_vec())
-    }
-
-    fn from_file(_: Option<&Self>, name: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
-        let mut image = ImageContent::from_file(name, bytes);
-        let mut header = image.header().clone();
-        header.media_type = media_type_of(name).to_owned();
-        image.set_header(header);
-        Some(image)
-    }
-
-    fn claims(name: &str, _: &[u8]) -> bool {
-        ImageContent::FILE_EXTENSIONS.contains(&extension(name).as_str())
-    }
-}
-
-impl FileForm for PdfContent {
-    fn to_file(&self) -> Option<Vec<u8>> {
-        Some(self.data().to_vec())
-    }
-
-    fn from_file(_: Option<&Self>, name: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
-        Some(PdfContent::new(
-            PdfHeader {
-                source_name: name.to_owned(),
-            },
-            bytes,
-        ))
+impl BlobFile for PdfFile {
+    fn header(name: &str, _: &[u8]) -> PdfHeader {
+        PdfHeader {
+            source_name: name.to_owned(),
+        }
     }
 
     fn claims(name: &str, first: &[u8]) -> bool {
@@ -96,36 +136,15 @@ impl FileForm for PdfContent {
     }
 }
 
-impl FileForm for AudioContent {
-    fn to_file(&self) -> Option<Vec<u8>> {
-        Some(self.data().to_vec())
-    }
-
-    fn from_file(_: Option<&Self>, name: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
-        Some(AudioContent::new(
-            AudioHeader {
-                source_name: name.to_owned(),
-                media_type: media_type_of(name).to_owned(),
-            },
-            bytes,
-        ))
+impl BlobFile for AudioFile {
+    fn header(name: &str, _: &[u8]) -> AudioHeader {
+        AudioHeader {
+            source_name: name.to_owned(),
+            media_type: media_type_of(name).to_owned(),
+        }
     }
 
     fn claims(name: &str, first: &[u8]) -> bool {
         media_type_of(name).starts_with("audio/") && !first.is_empty()
-    }
-}
-
-impl FileForm for FileContent {
-    fn to_file(&self) -> Option<Vec<u8>> {
-        Some(self.data().to_vec())
-    }
-
-    fn from_file(_: Option<&Self>, name: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
-        Some(FileContent::from_file(name, media_type_of(name), bytes))
-    }
-
-    fn claims(_: &str, _: &[u8]) -> bool {
-        true
     }
 }

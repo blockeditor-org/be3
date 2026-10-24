@@ -1,4 +1,5 @@
 use super::*;
+use image_block_types::{ImageFile};
 
 #[tokio::test]
 async fn a_folder_is_written_as_files_and_directories() {
@@ -13,7 +14,7 @@ async fn a_folder_is_written_as_files_and_directories() {
         &peer,
         code,
         "logo.png",
-        &ImageContent::from_file("logo.png", png.clone()),
+        &ImageFile::from_file("logo.png", png.clone()),
     )
     .await;
     let painting = vec![0, 159, 146, 150, 255];

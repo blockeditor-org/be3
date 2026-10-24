@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use be_block::{BlockContent, ContentError, ImageContent, ImageHeader};
+use be_block::{BlockContent, ContentError};
 use be_commit::{RetentionPolicy, retention::MINUTE};
 use be_graph::BlockParent;
 use be_store::{ChunkerConfig, MemoryStore};
@@ -8,6 +8,7 @@ use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use super::*;
+use image_block_types::{ImageContent, ImageHeader};
 
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;

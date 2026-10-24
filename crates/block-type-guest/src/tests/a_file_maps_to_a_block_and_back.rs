@@ -1,12 +1,11 @@
 use be_block::{
-    AudioContent, FileContent, ImageContent, PdfContent, TextBlock, TextContent, TextLanguage,
+    AudioContent, FileContent, PdfContent, TextBlock, TextContent, TextLanguage,
 };
 use block_type_api::{ChildChange, Plain};
 
 use super::*;
 
 crate::be_block_types![
-    ImageContent { file },
     PdfContent { file },
     AudioContent { file },
     TextContent { undo, file },
@@ -114,10 +113,6 @@ fn a_file_maps_to_a_block_and_back() {
     assert_eq!(
         to_file(&mut module, binary, content).unwrap(),
         [0, 159, 255]
-    );
-    assert_eq!(
-        claimed(&mut module, "logo.png", &[0x89, b'P', 0]),
-        Some(ImageContent::CONTENT_TYPE)
     );
 
     assert_eq!(

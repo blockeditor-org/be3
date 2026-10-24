@@ -18,7 +18,7 @@ pub mod wire;
 
 pub use block_guest_abi as abi;
 pub use block_type_api as api;
-pub use file::FileForm;
+pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
 pub use replica::SEAL_INTERVAL;
 

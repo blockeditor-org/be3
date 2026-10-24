@@ -1,5 +1,4 @@
-use super::*;
-use crate::{AudioContent, BlockContent, LiveEdit, PdfContent};
+use crate::{AudioContent, BlockContent, PdfContent};
 
 #[test]
 fn file_contents_check_what_they_hold_and_round_trip() {
@@ -10,12 +9,4 @@ fn file_contents_check_what_they_hold_and_round_trip() {
     let read = PdfContent::decode(&pdf.encode()).unwrap();
     assert_eq!(read, pdf);
     assert_eq!(BlockContent::name(&read).as_deref(), Some("paper.pdf"));
-
-    let mut image = ImageContent::from_file("photo.png", vec![1, 2, 3]);
-    let mut decoded = image.header().clone();
-    decoded.width = 4;
-    decoded.height = 3;
-    image.apply(&crate::ImageOp::SetHeader(decoded));
-    assert_eq!(image.header().size(), Some((4, 3)));
-    assert_eq!(image.data(), [1, 2, 3]);
 }

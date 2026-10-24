@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::BlockContent;
+use image_block_types::ImageContent;
 
 use block_editor_beui::be_block::PixelArtContent;
 use block_editor_beui::be_block::pixel_art::Artwork;
