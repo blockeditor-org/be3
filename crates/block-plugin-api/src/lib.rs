@@ -1521,8 +1521,8 @@ pub enum VersionCommand {
     Adopt {
         block_id: [u8; 16],
     },
-    Commit {
-        message: String,
+    Finish {
+        description: String,
     },
     Update,
     Switch {
@@ -1531,12 +1531,18 @@ pub enum VersionCommand {
     CreateBranch {
         name: String,
     },
+    Merge {
+        branch: String,
+    },
     NewCheckout {
         branch: String,
     },
     Resolve {
         block_id: [u8; 16],
         take: ConflictSide,
+    },
+    Undo {
+        operation: [u8; 16],
     },
     Fork,
     PullUpstream,
@@ -1558,7 +1564,18 @@ pub struct VersionStatus {
     pub behind: bool,
     pub branches: Vec<VersionBranch>,
     pub changes: Vec<VersionChange>,
+    pub working: Option<VersionCommit>,
     pub log: Vec<VersionCommit>,
+    pub operations: Vec<VersionOperation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionOperation {
+    pub id: [u8; 16],
+    pub time: i64,
+    pub author: [u8; 16],
+    pub description: String,
+    pub undone: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1586,10 +1603,12 @@ pub enum VersionChangeKind {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VersionCommit {
     pub id: [u8; 32],
+    pub change: [u8; 16],
     pub parents: Vec<[u8; 32]>,
     pub author: [u8; 16],
     pub time: i64,
     pub message: String,
+    pub conflicted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2438,13 +2457,15 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             value: Some(value), ..
         } => descriptor(value),
         EditorMessage::VersionControl { command, .. } => match command {
-            VersionCommand::Commit { message: value }
+            VersionCommand::Finish { description: value }
             | VersionCommand::Switch { branch: value }
             | VersionCommand::CreateBranch { name: value }
+            | VersionCommand::Merge { branch: value }
             | VersionCommand::NewCheckout { branch: value } => string(value),
             VersionCommand::Adopt { .. }
             | VersionCommand::Update
             | VersionCommand::Resolve { .. }
+            | VersionCommand::Undo { .. }
             | VersionCommand::Fork
             | VersionCommand::PullUpstream
             | VersionCommand::PushUpstream => Ok(()),
@@ -2465,10 +2486,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                     .filter_map(|change| change.name.as_ref()),
             )?;
             collection(status.log.len())?;
-            for commit in &status.log {
+            for commit in status.log.iter().chain(&status.working) {
                 collection(commit.parents.len())?;
                 string(&commit.message)?;
             }
+            collection(status.operations.len())?;
+            strings(
+                status
+                    .operations
+                    .iter()
+                    .map(|operation| &operation.description),
+            )?;
             Ok(())
         }
         EditorMessage::ShowPresence {

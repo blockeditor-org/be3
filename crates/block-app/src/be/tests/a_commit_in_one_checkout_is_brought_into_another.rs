@@ -31,8 +31,8 @@ fn a_commit_in_one_checkout_is_brought_into_another() {
 
     version(
         versioned.checkout,
-        VersionCommand::Commit {
-            message: "Say more".into(),
+        VersionCommand::Finish {
+            description: "Say more".into(),
         },
     );
     wait_until("committed", |shared| {

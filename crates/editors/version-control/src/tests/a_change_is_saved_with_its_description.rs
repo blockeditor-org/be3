@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_change_is_committed_with_its_message() {
+fn a_change_is_saved_with_its_description() {
     let note = Uuid::from_u128(9);
     let status = VersionStatus {
         branches: branches(),
@@ -11,6 +11,8 @@ fn a_change_is_committed_with_its_message() {
             name: Some("Note".into()),
             kind: VersionChangeKind::Modified,
         }],
+        working: Some(working()),
+        log: history(),
         ..VersionStatus::default()
     };
     let state = Checkout {
@@ -19,20 +21,20 @@ fn a_change_is_committed_with_its_message() {
     };
     let mut editor = checkout(state, status);
 
-    editor.click("checkout.message");
+    editor.click("checkout.description");
     editor.type_text("Say more");
     editor.run();
-    editor.click("checkout.commit");
+    editor.click("checkout.save");
     editor.run();
 
     assert_eq!(
         editor.take_version_commands(),
         vec![(
             own(&editor),
-            VersionCommand::Commit {
-                message: "Say more".into()
+            VersionCommand::Finish {
+                description: "Say more".into()
             }
         )]
     );
-    editor.snapshot("a_change_is_committed_with_its_message");
+    editor.snapshot("a_change_is_saved_with_its_description");
 }

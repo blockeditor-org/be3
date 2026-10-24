@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub use be_block::ConflictKind;
 
 use be_block::{BlockMetadata, NAME};
-use be_commit::{Commit, CommitId, CommitKind, CommitStore};
+use be_commit::{ChangeId, Commit, CommitId, CommitKind, CommitStore};
 use be_store::{Hash, Manifest, ObjectStore, StoreError, Vault};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -14,6 +14,8 @@ pub const TREE_CONTENT_TYPE: Uuid = Uuid::from_u128(0x6be3_7c5e_0a1d_4f6e_9c20_7
 pub struct Tree {
     pub root: Option<Uuid>,
     pub entries: BTreeMap<Uuid, Entry>,
+    #[serde(default)]
+    pub conflicts: BTreeMap<Uuid, Conflict>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -41,9 +43,32 @@ impl Tree {
     pub fn objects(&self) -> BTreeSet<Hash> {
         self.entries
             .values()
+            .chain(self.conflicts.values().flat_map(Conflict::sides))
             .filter_map(|entry| entry.content.as_ref())
             .flat_map(Manifest::chunk_hashes)
             .collect()
+    }
+
+    pub fn resolve(&mut self, block: Uuid, take: Option<Side>) -> bool {
+        let Some(conflict) = self.conflicts.remove(&block) else {
+            return false;
+        };
+        if let Some(take) = take {
+            match conflict.side(take) {
+                Some(entry) => self.entries.insert(block, entry.clone()),
+                None => self.entries.remove(&block),
+            };
+        }
+        let ids: Vec<Uuid> = self.entries.keys().copied().collect();
+        for id in ids {
+            if Some(id) != self.root
+                && !reaches_root(self, id)
+                && let Some(entry) = self.entries.get_mut(&id)
+            {
+                entry.parent = self.root;
+            }
+        }
+        true
     }
 
     pub fn children(&self, parent: Uuid) -> impl Iterator<Item = Uuid> + '_ {
@@ -54,17 +79,20 @@ impl Tree {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn snapshot<S: ObjectStore>(
     commits: &CommitStore<S>,
     key: Uuid,
     tree: Manifest,
     parents: Vec<CommitId>,
+    change: ChangeId,
     author: Uuid,
     time: i64,
     message: impl Into<String>,
 ) -> Result<CommitId, StoreError> {
     let commit = Commit::new(tree, author, time)
         .with_parents(parents)
+        .with_change(change)
         .with_kind(CommitKind::Snapshot(message.into()));
     commits.put(key, &commit)
 }
@@ -134,9 +162,47 @@ pub fn diff(base: &Tree, current: &Tree) -> Vec<Difference> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub enum Side {
+    Base,
+    Ours,
+    Theirs,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Conflict {
-    pub block: Uuid,
     pub kind: ConflictKind,
+    pub base: Option<Entry>,
+    pub ours: Option<Entry>,
+    pub theirs: Option<Entry>,
+}
+
+impl Conflict {
+    pub fn between(
+        kind: ConflictKind,
+        block: Uuid,
+        base: &Tree,
+        ours: &Tree,
+        theirs: &Tree,
+    ) -> Self {
+        Self {
+            kind,
+            base: base.entries.get(&block).cloned(),
+            ours: ours.entries.get(&block).cloned(),
+            theirs: theirs.entries.get(&block).cloned(),
+        }
+    }
+
+    pub fn side(&self, side: Side) -> Option<&Entry> {
+        match side {
+            Side::Base => self.base.as_ref(),
+            Side::Ours => self.ours.as_ref(),
+            Side::Theirs => self.theirs.as_ref(),
+        }
+    }
+
+    pub fn sides(&self) -> impl Iterator<Item = &Entry> {
+        [&self.base, &self.ours, &self.theirs].into_iter().flatten()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -152,17 +218,32 @@ pub struct ContentMerge {
 pub struct Plan {
     pub tree: Tree,
     pub contents: Vec<ContentMerge>,
-    pub conflicts: Vec<Conflict>,
+}
+
+struct Sides<'a> {
+    base: &'a Tree,
+    ours: &'a Tree,
+    theirs: &'a Tree,
+}
+
+impl Sides<'_> {
+    fn record(&self, plan: &mut Plan, block: Uuid, kind: ConflictKind) {
+        plan.tree
+            .conflicts
+            .entry(block)
+            .or_insert_with(|| Conflict::between(kind, block, self.base, self.ours, self.theirs));
+    }
 }
 
 pub fn merge(base: &Tree, ours: &Tree, theirs: &Tree) -> Plan {
     let mut plan = Plan {
         tree: Tree {
             root: pick(&base.root, &ours.root, &theirs.root).unwrap_or(ours.root),
-            entries: BTreeMap::new(),
+            ..Tree::default()
         },
         ..Plan::default()
     };
+    let sides = Sides { base, ours, theirs };
     let ids: BTreeSet<Uuid> = base
         .entries
         .keys()
@@ -182,27 +263,46 @@ pub fn merge(base: &Tree, ours: &Tree, theirs: &Tree) -> Plan {
                 if kept == before {
                     None
                 } else {
-                    plan.conflicts.push(Conflict {
-                        block,
-                        kind: ConflictKind::EditedAndRemoved,
-                    });
+                    sides.record(&mut plan, block, ConflictKind::EditedAndRemoved);
                     Some(kept.clone())
                 }
             }
             (before, Some(ours), Some(theirs)) => {
-                Some(merge_entry(&mut plan, block, before, ours, theirs))
+                Some(merge_entry(&mut plan, &sides, block, before, ours, theirs))
             }
         };
         if let Some(entry) = merged {
             plan.tree.entries.insert(block, entry);
         }
     }
-    repair_placement(&mut plan);
+    repair_placement(&mut plan, &sides);
+    carry_conflicts(&mut plan, &sides);
     plan
+}
+
+fn carry_conflicts(plan: &mut Plan, sides: &Sides<'_>) {
+    let blocks: BTreeSet<Uuid> = sides
+        .ours
+        .conflicts
+        .keys()
+        .chain(sides.theirs.conflicts.keys())
+        .copied()
+        .collect();
+    for block in blocks {
+        let [base, ours, theirs] =
+            [sides.base, sides.ours, sides.theirs].map(|tree| tree.conflicts.get(&block).cloned());
+        let carried = pick(&base, &ours, &theirs).unwrap_or(ours);
+        if let Some(conflict) = carried
+            && plan.tree.entries.contains_key(&block)
+        {
+            plan.tree.conflicts.entry(block).or_insert(conflict);
+        }
+    }
 }
 
 fn merge_entry(
     plan: &mut Plan,
+    sides: &Sides<'_>,
     block: Uuid,
     before: Option<&Entry>,
     ours: &Entry,
@@ -212,10 +312,7 @@ fn merge_entry(
     let parent = before.map(|before| before.parent);
     match pick(&parent, &Some(ours.parent), &Some(theirs.parent)) {
         Some(Some(chosen)) => merged.parent = chosen,
-        _ => plan.conflicts.push(Conflict {
-            block,
-            kind: ConflictKind::Placement,
-        }),
+        _ => sides.record(plan, block, ConflictKind::Placement),
     }
     let blank = BlockMetadata::default();
     let (defined, conflicted) = BlockMetadata::merge_defined(
@@ -225,13 +322,11 @@ fn merge_entry(
     );
     merged.metadata.defined = defined;
     for key in conflicted {
-        plan.conflicts.push(Conflict {
-            block,
-            kind: match key == NAME.id {
-                true => ConflictKind::Name,
-                false => ConflictKind::Metadata,
-            },
-        });
+        let kind = match key == NAME.id {
+            true => ConflictKind::Name,
+            false => ConflictKind::Metadata,
+        };
+        sides.record(plan, block, kind);
     }
     let content = before.map(|before| (before.content.clone(), before.references.clone()));
     let ours_content = Some((ours.content.clone(), ours.references.clone()));
@@ -265,7 +360,7 @@ fn pick<T: Clone + PartialEq>(base: &T, ours: &T, theirs: &T) -> Option<T> {
     }
 }
 
-fn repair_placement(plan: &mut Plan) {
+fn repair_placement(plan: &mut Plan, sides: &Sides<'_>) {
     let root = plan.tree.root;
     let ids: Vec<Uuid> = plan.tree.entries.keys().copied().collect();
     for block in ids {
@@ -278,16 +373,7 @@ fn repair_placement(plan: &mut Plan) {
         if let Some(entry) = plan.tree.entries.get_mut(&block) {
             entry.parent = root;
         }
-        if !plan
-            .conflicts
-            .iter()
-            .any(|conflict| conflict.block == block && conflict.kind == ConflictKind::Placement)
-        {
-            plan.conflicts.push(Conflict {
-                block,
-                kind: ConflictKind::Placement,
-            });
-        }
+        sides.record(plan, block, ConflictKind::Placement);
     }
 }
 
