@@ -11,7 +11,7 @@ use std::{
 
 use block_guest_abi::{Flow, Guest, Waker};
 
-use crate::{Channel, Event, Produced, Received, StepTime, Wake, panic_message};
+use crate::{Channel, Event, Produced, Received, StepTime, Wake, panic_message, wakes};
 
 pub struct InProcess<G: Guest> {
     guest: Option<G>,
@@ -58,10 +58,9 @@ impl<G: Guest> InProcess<G> {
     }
 
     fn report(&mut self, event: Event<Infallible>) {
-        let woken = self.woken.load(Ordering::Acquire);
-        let wakes = event.wakes(woken, &self.waiting);
+        let quiet = event.quiet(self.woken.load(Ordering::Acquire));
         self.events.push_back(event);
-        if wakes {
+        if wakes(quiet, &self.waiting) {
             (self.wake)();
         }
     }

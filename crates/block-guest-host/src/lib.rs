@@ -13,7 +13,7 @@ use std::sync::Arc;
 pub use in_process::InProcess;
 pub use worker::{
     Channel, Deadline, Event, NOT_RESPONDING, Presented, Produced, Received, STEP_TIMEOUT, STOPPED,
-    StepTime, Worker,
+    StepTime, Worker, wakes,
 };
 
 pub type Wake = Arc<dyn Fn() + Send + Sync>;

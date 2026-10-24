@@ -232,9 +232,9 @@ fn listen(
                     .unwrap_or_else(|| "The plugin worker failed.".to_owned()),
             ),
         };
-        let wakes = event.wakes(get(&data, "woken").is_truthy(), &waiting);
+        let quiet = event.quiet(get(&data, "woken").is_truthy());
         inbox.borrow_mut().events.push_back(event);
-        if wakes {
+        if block_guest_host::wakes(quiet, &waiting) {
             crate::host::wake();
         }
     }) as Box<dyn FnMut(web_sys::MessageEvent)>);

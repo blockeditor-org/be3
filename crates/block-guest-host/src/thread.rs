@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{Channel, Event, Presented, Produced, Received, Wake, panic_message};
+use crate::{Channel, Event, Presented, Produced, Received, Wake, panic_message, wakes};
 
 pub trait Runnable {
     type Presented: Presented + Send + 'static;
@@ -155,9 +155,9 @@ fn run<R: Runnable>(
     waiting: Arc<AtomicBool>,
 ) {
     let report = |event: Event<R::Presented>, woken: bool| {
-        let wakes = event.wakes(woken, &waiting);
+        let quiet = event.quiet(woken);
         let sent = reports.send(event).is_ok();
-        if wakes {
+        if wakes(quiet, &waiting) {
             wake();
         }
         sent
