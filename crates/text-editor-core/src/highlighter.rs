@@ -121,7 +121,7 @@ pub struct SynHlStyle {
 }
 
 impl SynHlStyle {
-    const fn plain(color: SynHlColorScope) -> Self {
+    pub const fn plain(color: SynHlColorScope) -> Self {
         Self {
             color,
             family: SynHlFontFamily::Proportional,
@@ -425,14 +425,7 @@ impl SyntaxHighlight {
                     .looks
                     .binary_search_by_key(&relative, |(at, _)| *at)
                     .ok()
-                    .map(|found| {
-                        let look = &window.looks[found].1;
-                        LineLook {
-                            marker: look.marker.start + window_start
-                                ..look.marker.end + window_start,
-                            ..look.clone()
-                        }
-                    })
+                    .map(|found| window.looks[found].1.shifted(window_start as isize))
             }
             _ => None,
         };

@@ -20,7 +20,9 @@ pub use rich::{
     Block, Change, Expand, FormatOp, FormatRun, Formats, Mark, MarkId, MarkSet, Marks, Name,
     RichOp, Scope, Seed, VOID, Value,
 };
-pub use schema::{Break, Line, LineLook, ListMarker, Plain, Schema, Selected, Tool};
+pub use schema::{
+    Break, Line, LineLook, ListMarker, Plain, Schema, Selected, TableLine, TableRow, Tool,
+};
 pub use sequence::{Pos, SeqOp, Sequence, Splice};
 
 #[cfg(test)]

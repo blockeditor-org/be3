@@ -48,9 +48,10 @@ pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
 pub use hooks::{
-    LeafSpan, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, TextLeaf, TextLine, TextMarker,
+    LeafSpan, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, TableFill,
+    TableLines, TextLeaf, TextLine, TextMarker,
 };
-pub use rows::{Prose, TextWidget};
+pub use rows::{Prose, RowTable, TextWidget};
 pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
@@ -114,6 +115,7 @@ struct Held {
 struct Surface {
     state: TextAreaState,
     single_line: bool,
+    line_numbers: bool,
     held: Stored<Held>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
@@ -1242,6 +1244,7 @@ pub fn TextArea(
                 let cx = Surface {
                     state,
                     single_line,
+                    line_numbers,
                     held: store(Held {
                         rows: RefCell::new(BTreeMap::new()),
                         registered: Cell::new(0),
