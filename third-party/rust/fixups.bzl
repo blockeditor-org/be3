@@ -9,6 +9,7 @@
 #   build_script        False to not run the crate's build script.
 #   build_script_env    Environment for the build script, with buck2's macros.
 #   rustc_flags         More flags for the library's compile.
+#   plan_rustc_flags    plan: more flags for the library's compile there.
 #   features            platform: features to turn on as well.
 #   overlay             path in the crate: a file in this package that
 #                       replaces it.
@@ -30,6 +31,10 @@ _ANDROID_API = {
 }
 
 FIXUPS = {
+    # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
+    # type-module library seeds a generator from its host and is getrandom's
+    # custom backend (crates/block-type-guest/src/entropy.rs).
+    "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", "getrandom_backend=\"custom\""]}},
     # The text-changed event, ported from Flutter, counts back from len() - 1
     # as a signed index and relies on an empty string's wrapping to -1. With
     # overflow checks, as in a debug build, that subtraction panics on a Java

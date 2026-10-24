@@ -8,6 +8,8 @@ use block_type_api::{
 use uuid::Uuid;
 
 pub mod editor;
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+mod entropy;
 mod file;
 mod record;
 mod replica;
@@ -166,6 +168,12 @@ impl Module {
     pub fn handle(&mut self, event: Event) -> Vec<Command> {
         let mut out = Vec::new();
         match event {
+            Event::Entropy { seed } => {
+                #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+                entropy::seed(seed);
+                #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+                let _ = seed;
+            }
             Event::Tick { now } => {
                 self.now = self.now.max(now);
                 for replica in self.replicas.values_mut() {

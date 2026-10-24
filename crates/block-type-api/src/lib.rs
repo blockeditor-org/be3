@@ -36,6 +36,9 @@ pub enum Recipients {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Event {
+    Entropy {
+        seed: [u8; 32],
+    },
     Tick {
         now: u64,
     },
