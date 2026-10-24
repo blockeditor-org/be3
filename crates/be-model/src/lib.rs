@@ -297,6 +297,8 @@ pub trait Model: Sized {
 
     fn read(tree: &Tree, id: ObjectId) -> Self;
 
+    fn reread(self, tree: &Tree, id: ObjectId) -> Self;
+
     fn write(&self, id: ObjectId, parent: Option<Place>, out: &mut Vec<(ObjectId, Object)>);
 
     fn kind() -> Kind;
@@ -340,6 +342,10 @@ impl<R: Model> Document<R> {
 
     pub fn read<T: Model>(&self, id: ObjectId) -> Option<T> {
         self.tree.contains(id).then(|| T::read(&self.tree, id))
+    }
+
+    pub fn reread<T: Model>(&self, id: ObjectId, held: T) -> Option<T> {
+        self.tree.contains(id).then(|| held.reread(&self.tree, id))
     }
 
     pub fn tree(&self) -> &Tree {
@@ -409,11 +415,21 @@ impl<R: Model> Document<R> {
             return;
         }
         match change {
-            Change::Set { object, .. }
-            | Change::SetIf { object, .. }
-            | Change::Put { object, .. }
-            | Change::PutIf { object, .. }
-            | Change::Stamp { object, .. } => index.refresh(&self.tree, *object),
+            Change::Set { object, field, .. }
+            | Change::SetIf { object, field, .. }
+            | Change::Put { object, field, .. }
+            | Change::PutIf { object, field, .. }
+            | Change::Stamp { object, field, .. } => {
+                index.refresh_field(&self.tree, *object, *field)
+            }
+            Change::Series {
+                object,
+                field,
+                op: SeqOp::Insert { items, .. },
+            } => index.add(&self.tree, *object, *field, items),
+            Change::Series { object, field, .. } => {
+                index.refresh_field(&self.tree, *object, *field)
+            }
             Change::Insert { objects, .. } => {
                 for (id, _) in objects {
                     index.refresh(&self.tree, *id);
@@ -430,8 +446,7 @@ impl<R: Model> Document<R> {
             | Change::Move { .. }
             | Change::Text { .. }
             | Change::Mark { .. }
-            | Change::Unmark { .. }
-            | Change::Series { .. } => {}
+            | Change::Unmark { .. } => {}
         }
     }
 

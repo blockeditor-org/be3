@@ -2,22 +2,34 @@ use std::ops::Deref;
 
 use crate::field::{Field, Register};
 use crate::stored::{decode, encode};
-use crate::{Change, FieldRef, Object, ObjectId, SeqOp, Sequence, Shape, Tree, Value, schema};
+use crate::{Change, FieldRef, Object, ObjectId, Pos, SeqOp, Sequence, Shape, Tree, Value, schema};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Series<T> {
     items: Vec<T>,
+    read_from: Vec<(Pos, u64)>,
 }
+
+impl<T: PartialEq> PartialEq for Series<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.items == other.items
+    }
+}
+
+impl<T: Eq> Eq for Series<T> {}
 
 impl<T> Default for Series<T> {
     fn default() -> Self {
-        Self { items: Vec::new() }
+        Self::new(Vec::new())
     }
 }
 
 impl<T> Series<T> {
     pub fn new(items: Vec<T>) -> Self {
-        Self { items }
+        Self {
+            items,
+            read_from: Vec::new(),
+        }
     }
 
     pub fn into_vec(self) -> Vec<T> {
@@ -56,14 +68,46 @@ impl<T: Register> Field for Series<T> {
         }
     }
 
-    fn read(_tree: &Tree, value: &Value) -> Self {
-        match value {
-            Value::Series(sequence) => sequence
-                .iter()
-                .map(|bytes| decode(bytes).unwrap_or_default())
-                .collect(),
-            _ => Self::default(),
+    fn read(tree: &Tree, value: &Value) -> Self {
+        Self::default().reread(tree, value)
+    }
+
+    fn reread(mut self, _tree: &Tree, value: &Value) -> Self {
+        let Value::Series(sequence) = value else {
+            return Self::default();
+        };
+        let fragments: Vec<(Pos, u64)> = sequence
+            .runs()
+            .filter(|run| run.visible)
+            .map(|run| (run.first, run.len))
+            .collect();
+        let kept = match self.read_from.split_last() {
+            Some((&(last, len), before))
+                if fragments.len() >= self.read_from.len()
+                    && fragments[..before.len()] == *before
+                    && fragments[before.len()].0 == last
+                    && fragments[before.len()].1 >= len =>
+            {
+                self.items.len()
+            }
+            _ => 0,
+        };
+        self.items.truncate(kept);
+        let mut at = 0;
+        for run in sequence.runs().filter(|run| run.visible) {
+            let end = at + run.items.len();
+            if end > kept {
+                let skip = kept.saturating_sub(at);
+                self.items.extend(
+                    run.items[skip..]
+                        .iter()
+                        .map(|bytes| decode(bytes).unwrap_or_default()),
+                );
+            }
+            at = end;
         }
+        self.read_from = fragments;
+        self
     }
 
     fn write(&self, _owner: ObjectId, _field: u16, _out: &mut Vec<(ObjectId, Object)>) -> Value {
@@ -80,6 +124,15 @@ impl<M, T: Register> FieldRef<M, Series<T>> {
             field: self.index(),
             op,
         }
+    }
+
+    pub fn append(self, object: ObjectId, held: &Sequence<Vec<u8>>, items: &[T]) -> Option<Change> {
+        let op = held.insert(
+            crate::local_client(),
+            held.len(),
+            items.iter().map(encode).collect(),
+        )?;
+        Some(self.edit(object, op))
     }
 
     pub fn update(

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -152,16 +153,21 @@ impl Tree {
         self.objects.get(&id)
     }
 
-    pub fn fields<M: Model>(&self, id: ObjectId) -> Vec<Value> {
-        let mut fields = M::blank();
-        if let Some(object) = self.objects.get(&id) {
-            for (slot, stored) in fields.iter_mut().zip(&object.fields) {
-                if std::mem::discriminant(slot) == std::mem::discriminant(stored) {
-                    slot.clone_from(stored);
+    pub fn fields<M: Model>(&self, id: ObjectId) -> Vec<Cow<'_, Value>> {
+        let stored = self
+            .objects
+            .get(&id)
+            .map_or(&[][..], |object| &object.fields[..]);
+        M::blank()
+            .into_iter()
+            .enumerate()
+            .map(|(index, blank)| match stored.get(index) {
+                Some(held) if std::mem::discriminant(held) == std::mem::discriminant(&blank) => {
+                    Cow::Borrowed(held)
                 }
-            }
-        }
-        fields
+                _ => Cow::Owned(blank),
+            })
+            .collect()
     }
 
     fn permits(&self, root: fn() -> Kind, change: &Change) -> bool {

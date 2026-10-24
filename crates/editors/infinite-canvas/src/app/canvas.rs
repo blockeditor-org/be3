@@ -18,6 +18,7 @@ use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
+use crate::freehand::LiveStroke;
 
 const ITEM_MARGIN: f32 = 2.0;
 
@@ -453,29 +454,50 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
     let sketched = RefCell::new(None::<(SketchKey, Sketch, Option<(Pos2, Rc<Sketch>)>)>);
+    let inked = RefCell::new(None::<LiveStroke>);
     create_effect(move || {
         let Some(entity) = entity.get() else {
             return;
         };
         let corner = bounds.get().min;
         let drawing = drawing.get();
-        let key = SketchKey::of(&entity, drawing);
-        let mut held = sketched.borrow_mut();
-        if held.as_ref().is_none_or(|(held_key, ..)| *held_key != key) {
-            *held = Some((key, Sketch::of(&entity, drawing), None));
-        }
-        let Some((_, world, placed)) = held.as_mut() else {
-            return;
-        };
-        let sketch = match placed {
-            Some((at, sketch)) if *at == corner => Rc::clone(sketch),
-            _ => {
-                let sketch = Rc::new(world.translated(Vec2::new(-corner.x, -corner.y)));
-                *placed = Some((corner, Rc::clone(&sketch)));
-                sketch
+        let sketch = match drawing {
+            true => {
+                *sketched.borrow_mut() = None;
+                let width = entity.style.stroke_width.max(0.1);
+                let mut inked = inked.borrow_mut();
+                let live = match inked.as_mut() {
+                    Some(live) if live.size() == width => live,
+                    _ => inked.insert(LiveStroke::new(width)),
+                };
+                let points: Vec<Pos2> = entity
+                    .world_points()
+                    .iter()
+                    .map(|point| pos2(point.x, point.y))
+                    .collect();
+                let pieces = live.draw(&points, &entity.pressures);
+                Rc::new(Sketch::painted(pieces).translated(Vec2::new(-corner.x, -corner.y)))
+            }
+            false => {
+                *inked.borrow_mut() = None;
+                let key = SketchKey::of(&entity, drawing);
+                let mut held = sketched.borrow_mut();
+                if held.as_ref().is_none_or(|(held_key, ..)| *held_key != key) {
+                    *held = Some((key, Sketch::of(&entity, drawing), None));
+                }
+                let Some((_, world, placed)) = held.as_mut() else {
+                    return;
+                };
+                match placed {
+                    Some((at, sketch)) if *at == corner => Rc::clone(sketch),
+                    _ => {
+                        let sketch = Rc::new(world.translated(Vec2::new(-corner.x, -corner.y)));
+                        *placed = Some((corner, Rc::clone(&sketch)));
+                        sketch
+                    }
+                }
             }
         };
-        drop(held);
         let reference = reference_of(&entity);
         let label = reference.and_then(|reference| state.label_of(reference));
         let missing = match reference {

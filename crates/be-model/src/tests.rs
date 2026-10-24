@@ -5,6 +5,7 @@ use crate::{
     ObjectId, Paint, RichText, SeqOp, Stamp, Text, Touched,
 };
 
+mod a_block_ref_appended_to_a_series_is_found_and_dropped_with_it;
 mod a_burst_of_sets_to_one_field_undoes_as_one_step;
 mod a_burst_of_typing_undoes_as_one_step;
 mod a_card_cannot_be_moved_after_itself_or_into_something_that_is_not_a_list;
@@ -87,6 +88,7 @@ mod removals_are_kept_in_memory_and_never_saved;
 mod removing_a_column_while_the_other_side_moves_a_card_out_of_it_keeps_only_that_card;
 mod removing_touches_the_list_and_everything_that_was_inside;
 mod reorders_of_different_cards_on_each_side_merge_to_both;
+mod rereading_a_series_matches_a_fresh_read_after_any_edit;
 mod rich_text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
 mod rich_text_formatted_and_typed_on_different_lines_merges_cleanly;
 mod rich_text_saves_its_formatting_as_byte_ranges_and_reloads_it;

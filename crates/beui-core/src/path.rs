@@ -325,12 +325,17 @@ pub struct PathTriangle {
 pub struct PathPaint {
     path: Path,
     style: PathStyle,
+    seams: Vec<[Pos2; 2]>,
     bounds: Rect,
     mesh: RefCell<Option<(f32, Rc<[PathTriangle]>)>>,
 }
 
 impl PathPaint {
     pub fn new(path: Path, style: PathStyle) -> Self {
+        Self::with_seams(path, style, Vec::new())
+    }
+
+    pub fn with_seams(path: Path, style: PathStyle, seams: Vec<[Pos2; 2]>) -> Self {
         let bounds = match path.is_empty() {
             true => Rect::NOTHING,
             false => path.bounds().expand(style.reach()),
@@ -338,6 +343,7 @@ impl PathPaint {
         Self {
             path,
             style,
+            seams,
             bounds,
             mesh: RefCell::new(None),
         }
@@ -361,15 +367,49 @@ impl PathPaint {
         {
             return Rc::clone(mesh);
         }
-        let mesh: Rc<[PathTriangle]> = tessellate(&self.path, &self.style, scale).into();
+        let mut triangles = tessellate(&self.path, &self.style, scale);
+        if !self.seams.is_empty() {
+            let seams: Vec<[Pos2; 2]> = self
+                .seams
+                .iter()
+                .map(|seam| seam.map(|at| pos2(at.x * scale, at.y * scale)))
+                .collect();
+            unseam(&mut triangles, &seams);
+        }
+        let mesh: Rc<[PathTriangle]> = triangles.into();
         *self.mesh.borrow_mut() = Some((scale, Rc::clone(&mesh)));
         mesh
     }
 }
 
+fn unseam(triangles: &mut [PathTriangle], seams: &[[Pos2; 2]]) {
+    const NEAR: f32 = 1e-3;
+    let on = |at: [f32; 2], [from, to]: [Pos2; 2]| {
+        let at = pos2(at[0], at[1]);
+        let (along, from_at) = (to - from, at - from);
+        let squared = along.x * along.x + along.y * along.y;
+        let t = match squared > 0.0 {
+            true => ((from_at.x * along.x + from_at.y * along.y) / squared).clamp(0.0, 1.0),
+            false => 0.0,
+        };
+        (from + along * t - at).length() <= NEAR * (1.0 + squared.sqrt())
+    };
+    for triangle in triangles {
+        for side in 0..3 {
+            let (from, to) = (triangle.corners[side], triangle.corners[(side + 1) % 3]);
+            if triangle.edges & (1 << side) != 0
+                && seams.iter().any(|seam| on(from, *seam) && on(to, *seam))
+            {
+                triangle.edges &= !(1 << side);
+            }
+        }
+    }
+}
+
 impl PartialEq for PathPaint {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self, other) || (self.path == other.path && self.style == other.style)
+        std::ptr::eq(self, other)
+            || (self.path == other.path && self.style == other.style && self.seams == other.seams)
     }
 }
 

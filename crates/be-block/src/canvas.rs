@@ -434,6 +434,55 @@ impl CanvasPointsFrame {
             (at.y - self.center.y) / self.size.y,
         )
     }
+
+    fn fills(self, transform: CanvasTransform) -> bool {
+        transform == CanvasTransform::new(self.center, self.size, 0.0)
+    }
+
+    fn place(self, transform: CanvasTransform, world: CanvasPoint) -> CanvasPoint {
+        if self.fills(transform) {
+            return world;
+        }
+        let local = transform.to_local(world);
+        CanvasPoint::new(
+            self.center.x + local.x * self.size.x,
+            self.center.y + local.y * self.size.y,
+        )
+    }
+
+    fn grown(self, points: &[CanvasPathPoint]) -> Self {
+        let corner = |sign: f32| {
+            CanvasPathPoint::new(CanvasPoint::new(
+                self.center.x + sign * self.size.x * 0.5,
+                self.center.y + sign * self.size.y * 0.5,
+            ))
+        };
+        let mut around = vec![corner(-1.0), corner(1.0)];
+        around.extend_from_slice(points);
+        Self::around(&around).unwrap_or(self)
+    }
+
+    fn transform_for(self, transform: CanvasTransform, grown: Self) -> CanvasTransform {
+        if self.fills(transform) {
+            return CanvasTransform::new(grown.center, grown.size, 0.0);
+        }
+        let scale = CanvasPoint::new(
+            transform.size.x / self.size.x,
+            transform.size.y / self.size.y,
+        );
+        let shift = rotated(
+            CanvasPoint::new(
+                (grown.center.x - self.center.x) * scale.x,
+                (grown.center.y - self.center.y) * scale.y,
+            ),
+            transform.rotation,
+        );
+        CanvasTransform::new(
+            CanvasPoint::new(transform.center.x + shift.x, transform.center.y + shift.y),
+            CanvasPoint::new(grown.size.x * scale.x, grown.size.y * scale.y),
+            transform.rotation,
+        )
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -491,6 +540,11 @@ pub enum InfiniteCanvasOperation {
     },
     ExactOrder {
         ids: Vec<Uuid>,
+    },
+    Extend {
+        id: Uuid,
+        points: Vec<CanvasPoint>,
+        pressures: Vec<f32>,
     },
 }
 
@@ -813,7 +867,49 @@ impl Canvas {
                 let order = Self::order(content);
                 Self::reorder_to(&order, &exactly_ordered(&order, ids), ids)
             }
+            InfiniteCanvasOperation::Extend {
+                id,
+                points,
+                pressures,
+            } => Self::extend(content, ObjectId::from_uuid(*id), points, pressures),
         }
+    }
+
+    fn extend(
+        content: &CanvasContent,
+        object: ObjectId,
+        points: &[CanvasPoint],
+        pressures: &[f32],
+    ) -> Edit {
+        let (Some(frame), Some(held_points), Some(held_pressures)) = (
+            content.field(object, Entity::POINTS_FRAME),
+            content.series(object, Entity::POINTS),
+            content.series(object, Entity::PRESSURES),
+        ) else {
+            return Edit::default();
+        };
+        let transform = CanvasTransform::new(
+            content.field(object, Entity::CENTER),
+            content.field(object, Entity::SIZE),
+            content.field(object, Entity::ROTATION),
+        );
+        let added: Vec<CanvasPathPoint> = points
+            .iter()
+            .map(|world| CanvasPathPoint::new(frame.place(transform, *world)))
+            .collect();
+        let Some(appended) = Entity::POINTS.append(object, held_points, &added) else {
+            return Edit::default();
+        };
+        let mut changes = vec![appended];
+        changes.extend(Entity::PRESSURES.append(object, held_pressures, pressures));
+        let grown = frame.grown(&added);
+        if grown != frame {
+            let resized = frame.transform_for(transform, grown);
+            changes.push(Entity::POINTS_FRAME.set(object, &Some(grown)));
+            changes.push(Entity::CENTER.set(object, &resized.center));
+            changes.push(Entity::SIZE.set(object, &resized.size));
+        }
+        Edit(changes)
     }
 
     fn order(content: &CanvasContent) -> Vec<Uuid> {
@@ -1203,6 +1299,12 @@ impl CanvasEntity {
     }
 
     pub fn world_points(&self) -> Vec<CanvasPathPoint> {
+        if self
+            .points_frame
+            .is_some_and(|frame| frame.fills(self.transform))
+        {
+            return self.points.clone();
+        }
         self.points
             .iter()
             .map(|point| point.map(|at| self.transform.to_world(self.local_point(at))))

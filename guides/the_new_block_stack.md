@@ -477,6 +477,8 @@ against what is held and sends only what changed after the common start
 saves as an array of its values, the same as a `Vec<T>` register, so a
 register that becomes a series keeps reading what was saved; an offline merge
 keeps both sides' appends and otherwise picks one side as a register does.
+An object projection re-reads with `Model::reread`, which hands a `Series`
+what it read last: it decodes only past the fragments that are unchanged.
 
 Client `0` (`sequence::LOADED`) belongs to the initial buffer; edits cannot
 allocate positions under it. The text editor anchors each boundary before one
