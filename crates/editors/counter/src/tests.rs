@@ -1,6 +1,6 @@
-use counter_types::{Counter as CounterModel, CounterContent};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use counter_types::{Counter as CounterModel, CounterContent};
 use uuid::Uuid;
 
 use crate::app::CounterApp;

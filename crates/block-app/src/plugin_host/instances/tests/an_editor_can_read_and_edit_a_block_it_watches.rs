@@ -3,9 +3,9 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, LiveEdit};
-use counter_types::{Counter, CounterContent};
 use block_plugin_api::WatchedContent;
 use block_type_guest::editor::EditorOperation;
+use counter_types::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
     crate::be::wait_for(Duration::from_secs(20), |shared| {

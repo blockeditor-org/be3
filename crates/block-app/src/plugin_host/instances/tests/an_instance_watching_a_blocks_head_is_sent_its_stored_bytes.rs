@@ -3,8 +3,8 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, LiveEdit};
-use counter_types::{Counter, CounterContent};
 use block_plugin_api::StoredHead;
+use counter_types::{Counter, CounterContent};
 
 fn saved_head(block: Uuid, after: Option<be_commit::CommitId>) -> be_commit::CommitId {
     crate::be::wait_for(Duration::from_secs(20), |shared| {

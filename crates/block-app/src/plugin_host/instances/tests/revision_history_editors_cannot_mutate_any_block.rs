@@ -1,7 +1,7 @@
 use super::*;
 use be_block::{BlockContent, LiveEdit};
-use counter_types::CounterContent;
 use block_plugin_api::{HostReply, HostRequest};
+use counter_types::CounterContent;
 
 #[test]
 fn revision_history_editors_cannot_mutate_any_block() {
@@ -42,9 +42,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
         assert!(!to_replica(
             &mut instances,
             target,
-            &FromEditor::Operate(CounterContent::encode_operation(&counter_types::Counter::add(
-                99
-            )))
+            &FromEditor::Operate(CounterContent::encode_operation(
+                &counter_types::Counter::add(99)
+            ))
         ));
         assert!(!instances.editor_message(EditorMessage::ReplaceContent {
             instance: INSTANCE,
@@ -106,9 +106,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
     assert!(!to_replica(
         &mut nested,
         child,
-        &FromEditor::Operate(CounterContent::encode_operation(&counter_types::Counter::add(
-            99
-        )))
+        &FromEditor::Operate(CounterContent::encode_operation(
+            &counter_types::Counter::add(99)
+        ))
     ));
     crate::be::flush();
     assert_eq!(crate::be::content(block).unwrap().bytes().to_vec(), before);

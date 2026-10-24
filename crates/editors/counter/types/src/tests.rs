@@ -4,9 +4,9 @@ use be_commit::MergeResult;
 use crate::{Counter, CounterContent};
 
 mod a_counter_reset_undoes_back_to_its_count;
-mod undoing_a_reset_restores_only_what_was_reset;
-mod two_counters_merge_by_keeping_both_sides_of_the_count;
 mod a_reset_racing_an_increment_keeps_the_increment;
+mod two_counters_merge_by_keeping_both_sides_of_the_count;
+mod undoing_a_reset_restores_only_what_was_reset;
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {
     let mut content = start.clone();

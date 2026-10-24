@@ -38,9 +38,7 @@ fn a_type_module_says_hello_on_a_thread_of_its_own() {
     let entropy = block_type_api::Event::Entropy { seed: [3; 32] };
     let blank = block_type_api::Event::Request {
         id: 1,
-        request: block_type_api::Request::Blank {
-            content_type,
-        },
+        request: block_type_api::Request::Blank { content_type },
     };
     assert_eq!(
         worker.queue(vec![
