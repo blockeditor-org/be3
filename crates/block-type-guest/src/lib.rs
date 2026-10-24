@@ -43,6 +43,7 @@ pub struct Registration {
     to_file: Option<ToFileFn>,
     from_file: Option<FromFileFn>,
     claims: Option<fn(&str, &[u8]) -> bool>,
+    claims_any_file: bool,
     claims_directories: bool,
 }
 
@@ -65,6 +66,7 @@ impl Registration {
             to_file: None,
             from_file: None,
             claims: None,
+            claims_any_file: false,
             claims_directories: false,
         }
     }
@@ -88,6 +90,7 @@ impl Registration {
         self.to_file = Some(file::to_file::<C>);
         self.from_file = Some(file::from_file::<C>);
         self.claims = Some(C::claims);
+        self.claims_any_file = C::ANY_FILE;
         self
     }
 
@@ -358,12 +361,16 @@ impl Module {
                 name,
                 first,
                 directory,
+                fallback,
             } => Reply::Claimed(
                 self.types
                     .iter()
                     .find(|kind| match directory {
-                        true => kind.claims_directories,
-                        false => kind.claims.is_some_and(|claims| claims(&name, &first)),
+                        true => kind.claims_directories && !fallback,
+                        false => {
+                            kind.claims_any_file == fallback
+                                && kind.claims.is_some_and(|claims| claims(&name, &first))
+                        }
                     })
                     .map(|kind| kind.info.content_type),
             ),

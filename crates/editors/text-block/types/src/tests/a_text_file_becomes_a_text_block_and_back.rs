@@ -35,6 +35,7 @@ fn a_text_file_becomes_a_text_block_and_back() {
             name: name.into(),
             first: first.to_vec(),
             directory: false,
+            fallback: false,
         })
     };
     assert_eq!(

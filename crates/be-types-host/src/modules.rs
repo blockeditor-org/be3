@@ -96,18 +96,6 @@ pub fn in_process<G: Guest + 'static>(name: impl Into<String>) -> Source {
     }
 }
 
-pub fn in_process_plugin<G: Guest + 'static>(
-    name: impl Into<String>,
-    registrations: Vec<block_type_guest::Registration>,
-) -> Source {
-    in_process::<G>(name).declaring(
-        registrations
-            .iter()
-            .map(|registration| registration.info().content_type)
-            .collect(),
-    )
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 pub fn wasm(
     name: impl Into<String>,
@@ -541,18 +529,19 @@ impl Modules {
     }
 
     pub async fn claims(&mut self, name: &str, first: &[u8], directory: bool) -> Option<Uuid> {
-        let mut order: Vec<usize> = (0..self.modules.len()).collect();
-        order.sort_by_key(|module| self.modules[*module].source.declared.is_none());
-        for module in order {
-            let request = Request::Claims {
-                name: name.to_owned(),
-                first: first.to_vec(),
-                directory,
-            };
-            if let Some(Reply::Claimed(Some(content_type))) =
-                self.requests_all(module, vec![request]).await.pop()
-            {
-                return Some(content_type);
+        for fallback in [false, true] {
+            for module in 0..self.modules.len() {
+                let request = Request::Claims {
+                    name: name.to_owned(),
+                    first: first.to_vec(),
+                    directory,
+                    fallback,
+                };
+                if let Some(Reply::Claimed(Some(content_type))) =
+                    self.requests_all(module, vec![request]).await.pop()
+                {
+                    return Some(content_type);
+                }
             }
         }
         None

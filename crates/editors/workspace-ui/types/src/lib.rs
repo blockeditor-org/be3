@@ -10,6 +10,8 @@ use be_block::plain::media_type_of;
 use block_type_guest::BlobFile;
 
 impl BlobFile for AnyFile {
+    const ANY_FILE: bool = true;
+
     fn header(name: &str, _: &[u8]) -> FileHeader {
         FileHeader {
             source_name: name.to_owned(),

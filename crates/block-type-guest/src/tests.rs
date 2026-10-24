@@ -80,6 +80,8 @@ impl BlobKind for Bytes {
 }
 
 impl crate::BlobFile for Bytes {
+    const ANY_FILE: bool = true;
+
     fn header(name: &str, _: &[u8]) -> String {
         name.to_owned()
     }

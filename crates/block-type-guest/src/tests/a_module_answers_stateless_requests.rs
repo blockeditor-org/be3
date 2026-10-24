@@ -76,6 +76,7 @@ fn a_module_answers_stateless_requests() {
             name: "notes.txt".into(),
             first: b"hello".to_vec(),
             directory: false,
+            fallback: true,
         }),
         Reply::Claimed(Some(FileContent::CONTENT_TYPE))
     );
@@ -84,6 +85,7 @@ fn a_module_answers_stateless_requests() {
             name: "photos".into(),
             first: Vec::new(),
             directory: true,
+            fallback: false,
         }),
         Reply::Claimed(None)
     );

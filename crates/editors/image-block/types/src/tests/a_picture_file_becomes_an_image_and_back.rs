@@ -7,6 +7,7 @@ fn a_picture_file_becomes_an_image_and_back() {
             name: name.into(),
             first: vec![0x89, b'P', 0],
             directory: false,
+            fallback: false,
         })
     };
     assert_eq!(

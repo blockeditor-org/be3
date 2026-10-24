@@ -57,18 +57,23 @@ fn ask(module: &mut Module, request: Request) -> Reply {
     }
 }
 
-fn claimed(module: &mut Module, name: &str, first: &[u8]) -> Option<Uuid> {
+fn claimed_as(module: &mut Module, name: &str, first: &[u8], fallback: bool) -> Option<Uuid> {
     match ask(
         module,
         Request::Claims {
             name: name.into(),
             first: first.to_vec(),
             directory: false,
+            fallback,
         },
     ) {
         Reply::Claimed(claimed) => claimed,
         other => panic!("expected a claim, got {other:?}"),
     }
+}
+
+fn claimed(module: &mut Module, name: &str, first: &[u8]) -> Option<Uuid> {
+    claimed_as(module, name, first, false).or_else(|| claimed_as(module, name, first, true))
 }
 
 fn from_file(
@@ -138,6 +143,14 @@ fn a_file_maps_to_a_block_and_back() {
     assert_eq!(edited.root().name, "plan.note");
     assert_eq!(edited.root().body, "two");
 
+    assert_eq!(
+        claimed_as(&mut module, "frame.paint", &[0, 159, 255], false),
+        None
+    );
+    assert_eq!(
+        claimed_as(&mut module, "plan.note", b"one", true),
+        Some(FileContent::CONTENT_TYPE)
+    );
     let binary = claimed(&mut module, "frame.paint", &[0, 159, 255]).unwrap();
     assert_eq!(binary, FileContent::CONTENT_TYPE);
     let content = from_file(&mut module, binary, None, "frame.paint", &[0, 159, 255]);
@@ -153,6 +166,7 @@ fn a_file_maps_to_a_block_and_back() {
                 name: "src".into(),
                 first: Vec::new(),
                 directory: true,
+                fallback: false,
             }
         ),
         Reply::Claimed(Some(FolderContent::CONTENT_TYPE))

@@ -3,6 +3,8 @@ use be_block::blob::{Blob, BlobKind};
 use be_block::{BlockContent, Root};
 
 pub trait FileForm: BlockContent {
+    const ANY_FILE: bool = false;
+
     fn to_file(&self) -> Option<Vec<u8>>;
 
     fn from_file(current: Option<&Self>, name: &str, bytes: Vec<u8>, client: u64) -> Option<Self>;
@@ -11,12 +13,16 @@ pub trait FileForm: BlockContent {
 }
 
 pub trait BlobFile: BlobKind {
+    const ANY_FILE: bool = false;
+
     fn header(name: &str, bytes: &[u8]) -> Self::Header;
 
     fn claims(name: &str, first: &[u8]) -> bool;
 }
 
 pub trait DocumentFile: Root {
+    const ANY_FILE: bool = false;
+
     fn to_file(content: &Document<Self>) -> Vec<u8>;
 
     fn from_file(
@@ -30,6 +36,8 @@ pub trait DocumentFile: Root {
 }
 
 impl<K: BlobFile> FileForm for Blob<K> {
+    const ANY_FILE: bool = K::ANY_FILE;
+
     fn to_file(&self) -> Option<Vec<u8>> {
         Some(self.data().to_vec())
     }
@@ -44,6 +52,8 @@ impl<K: BlobFile> FileForm for Blob<K> {
 }
 
 impl<R: DocumentFile> FileForm for Document<R> {
+    const ANY_FILE: bool = R::ANY_FILE;
+
     fn to_file(&self) -> Option<Vec<u8>> {
         Some(R::to_file(self))
     }

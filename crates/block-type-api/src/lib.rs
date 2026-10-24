@@ -158,6 +158,7 @@ pub enum Request {
         name: String,
         first: Vec<u8>,
         directory: bool,
+        fallback: bool,
     },
     Apply {
         content_type: Uuid,
