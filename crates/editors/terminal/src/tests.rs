@@ -180,7 +180,7 @@ impl Harness {
                 TerminalMessage::Resize(size) => Some(size),
                 _ => None,
             })
-            .last()
+            .next_back()
             .expect("the terminal told the host its size")
     }
 

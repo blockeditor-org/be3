@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::be_model::{FieldRef, List};
 use block_editor_beui::be_block::terminal::{
     Terminal, TerminalColors, TerminalContent, TerminalCursor, TerminalHost, TerminalLine,
     TerminalMessage, TerminalShell, TerminalSize, TerminalWheel,
 };
-use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{ContentProjection, Editor};
 use terminal_view::{Fit, Lines, TerminalInput};

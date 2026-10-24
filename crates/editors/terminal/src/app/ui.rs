@@ -82,7 +82,11 @@ fn Running(session: Session, editor: Editor) -> NodeId {
     editor.content(&content);
     view! {
         <List spacing=0.0>
-            <Frame padding=BAR_PADDING height={Extent::at_least(BAR_HEIGHT)} align={Align2::new(Align::Stretch, Align::Center)}>
+            <Frame
+                padding=BAR_PADDING
+                height={Extent::at_least(BAR_HEIGHT)}
+                align={Align2::new(Align::Stretch, Align::Center)}
+            >
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Text style=TextStyle::CAPTION>
                         <Icon glyph={ICON_TERMINAL.to_owned()} />

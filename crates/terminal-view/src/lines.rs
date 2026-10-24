@@ -103,10 +103,7 @@ impl Shown {
                 pieces.push(Piece::Text(text.to_owned(), look(style, colors)));
             }
             if let Some(padding) = self.padding(index) {
-                pieces.push(Piece::Text(
-                    padding,
-                    look(TerminalStyle::default(), colors),
-                ));
+                pieces.push(Piece::Text(padding, look(TerminalStyle::default(), colors)));
             }
         }
         pieces
@@ -154,7 +151,10 @@ pub(crate) fn screen(
         shown.insert(
             key,
             Shown {
-                lines: rows[group].iter().map(|(_, line)| Rc::clone(line)).collect(),
+                lines: rows[group]
+                    .iter()
+                    .map(|(_, line)| Rc::clone(line))
+                    .collect(),
                 wrap: Wrap::Off,
                 cursor,
             },

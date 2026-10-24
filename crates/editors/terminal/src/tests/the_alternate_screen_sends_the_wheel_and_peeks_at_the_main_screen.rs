@@ -37,11 +37,16 @@ fn the_alternate_screen_sends_the_wheel_and_peeks_at_the_main_screen() {
     );
 
     assert!(harness.says("Things to try"));
-    assert!(!harness.says("crate number"), "the program's screen alone is shown");
+    assert!(
+        !harness.says("crate number"),
+        "the program's screen alone is shown"
+    );
     harness.editor.snapshot("the_alternate_screen");
 
     let screen = harness.editor.rect_of("terminal.screen");
-    harness.editor.scroll(screen.center(), Vec2::new(0.0, -60.0));
+    harness
+        .editor
+        .scroll(screen.center(), Vec2::new(0.0, -60.0));
     harness.editor.run();
     let wheel: Vec<_> = harness
         .sent()
@@ -58,16 +63,27 @@ fn the_alternate_screen_sends_the_wheel_and_peeks_at_the_main_screen() {
 
     harness.editor.click("terminal.peek");
     harness.editor.settle();
-    assert!(harness.says("vim notes.md"), "the main screen shows while peeking");
+    assert!(
+        harness.says("vim notes.md"),
+        "the main screen shows while peeking"
+    );
     assert!(harness.says("crate number 11"));
     harness.editor.snapshot("peeking_at_the_main_screen");
     harness.editor.click("terminal.screen");
     harness.editor.type_text("q");
-    harness.editor.scroll(screen.center(), Vec2::new(0.0, -60.0));
+    harness
+        .editor
+        .scroll(screen.center(), Vec2::new(0.0, -60.0));
     harness.editor.run();
-    assert!(harness.sent().is_empty(), "the main screen is only looked at");
+    assert!(
+        harness.sent().is_empty(),
+        "the main screen is only looked at"
+    );
 
     harness.editor.click("terminal.peek");
     harness.editor.settle();
-    assert!(harness.says("Things to try"), "the button goes back to the program");
+    assert!(
+        harness.says("Things to try"),
+        "the button goes back to the program"
+    );
 }

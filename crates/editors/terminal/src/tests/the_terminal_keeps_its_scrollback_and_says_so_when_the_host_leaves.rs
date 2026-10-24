@@ -6,7 +6,13 @@ fn the_terminal_keeps_its_scrollback_and_says_so_when_the_host_leaves() {
     let history: Vec<TerminalLine> = (0..30).map(log_line).collect();
     harness.hold(Screen::rows(vec![command("ls"), listing(), prompt()]).history(history));
     harness.connect_host();
-    assert!(harness.editor.document().find_test_id("terminal.offline").is_none());
+    assert!(
+        harness
+            .editor
+            .document()
+            .find_test_id("terminal.offline")
+            .is_none()
+    );
 
     harness.disconnect_host();
     assert!(harness.shown("terminal.offline").contains("No machine"));

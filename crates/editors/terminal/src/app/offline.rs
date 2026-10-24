@@ -59,11 +59,7 @@ pub(crate) fn SetupSteps(editor: Editor) -> NodeId {
                         @sizing=ItemSize::Percent(100.0)
                         child_size=ItemSize::Percent(100.0)
                     >
-                        <Text
-                            family=Family::Mono
-                            wrap=Wrap::Words
-                            @test_id={"terminal.command"}
-                        >
+                        <Text family=Family::Mono wrap=Wrap::Words @test_id={"terminal.command"}>
                             {command}
                         </Text>
                     </SelectableText>

@@ -41,7 +41,10 @@ fn keys_and_text_reach_the_host_as_input() {
 
     harness.editor.key(Key::C, ctrl_shift());
     harness.editor.run();
-    assert!(harness.sent().is_empty(), "Ctrl+Shift+C is the terminal's copy");
+    assert!(
+        harness.sent().is_empty(),
+        "Ctrl+Shift+C is the terminal's copy"
+    );
     harness
         .editor
         .step(vec![Input::Paste(Pasted::Text("echo pasted".to_owned()))]);
@@ -54,7 +57,11 @@ fn keys_and_text_reach_the_host_as_input() {
 
     harness.editor.set_size(Vec2::new(560.0, 300.0));
     harness.editor.run();
-    assert_eq!(resizes(&harness.sent()), 1, "a smaller view resizes the shell");
+    assert_eq!(
+        resizes(&harness.sent()),
+        1,
+        "a smaller view resizes the shell"
+    );
 
     let stranger = TerminalHost {
         machine: "elsewhere".to_owned(),
@@ -72,7 +79,10 @@ fn keys_and_text_reach_the_host_as_input() {
     harness.editor.type_text("x");
     harness.editor.run();
     assert!(
-        harness.editor.take_sent_to_peers::<TerminalMessage>().is_empty(),
+        harness
+            .editor
+            .take_sent_to_peers::<TerminalMessage>()
+            .is_empty(),
         "only the host the document names is sent input"
     );
 

@@ -53,7 +53,11 @@ impl Table {
     }
 
     fn text(&self, key: ObjectId) -> String {
-        untrack(|| self.shown(key).map(|shown| shown.text()).unwrap_or_default())
+        untrack(|| {
+            self.shown(key)
+                .map(|shown| shown.text())
+                .unwrap_or_default()
+        })
     }
 }
 
