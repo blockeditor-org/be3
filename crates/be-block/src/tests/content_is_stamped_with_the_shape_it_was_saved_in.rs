@@ -1,8 +1,8 @@
 use be_model::{Document, Model};
 
+use super::BytesContent;
 use crate::{
-    BlockContent, FileContent, FolderContent, Root, SCHEMA, TextBlock, TextContent,
-    derived_metadata, schema_fingerprint,
+    BlockContent, Root, SCHEMA, TextBlock, TextContent, derived_metadata, schema_fingerprint,
 };
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -41,10 +41,10 @@ fn content_is_stamped_with_the_shape_it_was_saved_in() {
     );
     assert_ne!(
         schema_fingerprint::<TextContent>(),
-        schema_fingerprint::<FolderContent>()
+        schema_fingerprint::<BytesContent>()
     );
     assert_eq!(
-        schema_fingerprint::<FileContent>(),
-        schema_fingerprint::<FileContent>()
+        schema_fingerprint::<BytesContent>(),
+        schema_fingerprint::<BytesContent>()
     );
 }

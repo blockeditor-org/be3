@@ -66,9 +66,10 @@ fn manifests() {
 fn sources() -> crate::tracker::Sources {
     manifests();
     Box::new(|| {
-        vec![be_types_host::in_process::<builtin_types::BlockTypes>(
-            "builtin-types",
-        )]
+        vec![
+            be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
+            be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+        ]
     })
 }
 
@@ -191,7 +192,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
     let id = Uuid::now_v7();
     peer.create_block(
         id,
-        be_block::WorkspaceContent::CONTENT_TYPE,
+        workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named(name),
     )

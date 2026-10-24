@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use be_block::{BlockContent, Counter, CounterContent, FolderContent, LiveEdit, Root};
+use be_block::{BlockContent, ChildChange, Counter, CounterContent, LiveEdit, Root};
 use be_commit::CommitId;
-use be_model::{Anchor, Document, Edit, List, Model, ObjectId};
+use be_model::{Anchor, BlockRef, Change as ModelChange, Document, Edit, List, Model, ObjectId};
 use be_protocol::ClientId;
 use be_session::{Lease, Resume};
 use be_store::Hash;
@@ -65,6 +65,45 @@ impl Root for Checklist {
 }
 
 type ChecklistContent = Document<Checklist>;
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Folder {
+    entries: List<FolderEntry>,
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct FolderEntry {
+    block: BlockRef,
+}
+
+impl Root for Folder {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x666f_6c64_6572_2d66_6978_7475_7265_0001);
+
+    fn child_edit(&self, change: ChildChange) -> Option<Edit> {
+        let listed = |block: Uuid| self.entries.iter().filter(move |entry| entry.block.0 == block);
+        Some(match change {
+            ChildChange::Add(block) if listed(block).next().is_some() => Edit::default(),
+            ChildChange::Add(block) => Self::ENTRIES
+                .insert(
+                    ObjectId::ROOT,
+                    Anchor::End,
+                    &FolderEntry {
+                        block: BlockRef(block),
+                    },
+                )
+                .1
+                .into(),
+            ChildChange::Delete(block) => listed(block)
+                .map(|entry| ModelChange::remove(entry.id))
+                .collect(),
+            ChildChange::Replace { old, new } => listed(old)
+                .map(|entry| FolderEntry::BLOCK.set(entry.id, &BlockRef(new)))
+                .collect(),
+        })
+    }
+}
+
+type FolderContent = Document<Folder>;
 
 const BLOCK: Uuid = Uuid::from_u128(0xb10c);
 const ORGANIZATION: Uuid = Uuid::from_u128(0x0e9);

@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+use workspace_ui_types::WorkspaceContent;
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{
     AccessLevel, Administrator, BlockCommand, BlockInfo, BlockParent, BlockQuery,
 };

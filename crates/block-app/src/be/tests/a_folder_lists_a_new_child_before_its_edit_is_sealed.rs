@@ -1,6 +1,7 @@
+use workspace_ui_types::FolderContent;
 use super::*;
 
-use be_block::{ChildChange, FolderContent};
+use be_block::ChildChange;
 
 #[test]
 fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {

@@ -47,6 +47,7 @@ checklist-types = { path = "../editors/checklist/types" }
 image-block-types = { path = "../editors/image-block/types" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
 
 [lints]
 workspace = true

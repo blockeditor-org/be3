@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::blob::{Blob, BlobKind};
+use be_block::blob::{Blob, BlobKind};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct FileHeader {
@@ -22,19 +22,3 @@ impl BlobKind for AnyFile {
 }
 
 pub type FileContent = Blob<AnyFile>;
-
-impl Blob<AnyFile> {
-    pub fn from_file(
-        source_name: impl Into<String>,
-        media_type: impl Into<String>,
-        data: Vec<u8>,
-    ) -> Self {
-        Self::new(
-            FileHeader {
-                source_name: source_name.into(),
-                media_type: media_type.into(),
-            },
-            data,
-        )
-    }
-}

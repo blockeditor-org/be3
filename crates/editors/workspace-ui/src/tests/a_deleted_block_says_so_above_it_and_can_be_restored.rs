@@ -1,6 +1,7 @@
+use workspace_ui_types::FolderContent;
 use super::*;
 
-use block_editor_beui::be_block::{BlockContent, FolderContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockCommand, BlockInfo};
 
 #[test]

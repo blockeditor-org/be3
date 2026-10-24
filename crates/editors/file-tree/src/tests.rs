@@ -1,3 +1,4 @@
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::{Document, Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor};
@@ -119,7 +120,7 @@ fn files_workspace(
     host: &EditorHost,
     inside: &[block_editor_beui::BlockInfo],
 ) -> block_editor_beui::BlockInfo {
-    use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+    use block_editor_beui::be_block::BlockContent;
     use block_editor_beui::{BlockInfo, BlockParent};
     let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
     files.author = Some(host.account_id());
@@ -158,7 +159,7 @@ fn folders_zoom(fixture: &mut Fixture) {
 }
 
 fn containers(fixture: &mut Fixture, children: block_editor_beui::ChildOperations) {
-    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    use block_editor_beui::be_block::BlockContent;
     use block_editor_beui::{BlockTypeDescriptor, Catalog, Press};
     let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
         block_type: block_type.into_bytes(),

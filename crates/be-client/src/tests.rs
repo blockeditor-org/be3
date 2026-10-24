@@ -207,7 +207,7 @@ impl Harness {
 async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
     peer.create_block(
         Uuid::now_v7(),
-        be_block::WorkspaceContent::CONTENT_TYPE,
+        workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &be_block::BlockMetadata::named(name),
     )

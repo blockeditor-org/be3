@@ -25,7 +25,6 @@ use logicgame::grid::{
 };
 use uuid::Uuid;
 
-mod a_block_added_to_a_folder_by_both_sides_is_listed_once;
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;
@@ -47,7 +46,6 @@ mod a_database_is_described_by_its_prefix;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
-mod a_folder_lists_each_block_once_and_follows_its_children;
 mod a_gesture_is_one_undo_step_however_long_it_takes;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
@@ -95,9 +93,7 @@ mod enum_options_added_on_both_sides_merge_to_both;
 mod frozen_database;
 mod frozen_database_schema;
 mod frozen_database_view;
-mod frozen_folder;
 mod frozen_text;
-mod frozen_workspace;
 mod icon_overrides_round_trip_and_merge_independently;
 mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
@@ -116,7 +112,7 @@ mod slides_moved_on_both_sides_merge_to_both_moves;
 mod solutions_and_quiz_answers_made_on_both_sides_merge_to_both;
 mod streamed_content_separates_its_header_from_its_payload;
 mod terminal_messages_round_trip_through_their_channel_encoding;
-mod text_and_folders_saved_before_they_were_frozen_still_load;
+mod text_saved_before_it_was_frozen_still_loads;
 mod text_edited_in_different_paragraphs_merges_cleanly;
 mod text_merges_line_by_line_and_marks_real_conflicts;
 mod text_retyped_in_one_canvas_entity_by_two_peers_keeps_both;
@@ -138,15 +134,35 @@ mod video_clips_attach_ripple_and_refuse_cycles;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 mod wires_drawn_on_each_side_that_meet_join_into_one;
 
-fn header(name: &str) -> FileHeader {
-    FileHeader {
+#[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+struct Header {
+    source_name: String,
+    media_type: String,
+}
+
+struct Bytes;
+
+impl crate::blob::BlobKind for Bytes {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6279_7465_732d_626c_6f63_6b2d_7465_7374);
+
+    type Header = Header;
+
+    fn name(header: &Header) -> &str {
+        &header.source_name
+    }
+}
+
+type BytesContent = crate::blob::Blob<Bytes>;
+
+fn header(name: &str) -> Header {
+    Header {
         source_name: name.into(),
         media_type: "image/png".into(),
     }
 }
 
-fn image(name: &str, payload: &[u8]) -> FileContent {
-    FileContent::new(header(name), payload.to_vec())
+fn image(name: &str, payload: &[u8]) -> BytesContent {
+    BytesContent::new(header(name), payload.to_vec())
 }
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {

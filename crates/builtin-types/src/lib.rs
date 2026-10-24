@@ -1,10 +1,10 @@
 use be_block::{
     BeuiDemoContent, BrowserTabContent, CalendarContent, CanvasContent, CompiledLogicContent,
     CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
-    DeterministicGameContent, FileContent, FolderContent, GameModuleContent, HotbarContent,
+    DeterministicGameContent, GameModuleContent, HotbarContent,
     LogicGameContent, LogicGridContent, MapContent, PanZoomContent, PixelArtContent,
     PixelRayTracerContent, PresentationContent, Scene3dContent, TerminalContent, TextContent,
-    TriangleContent, VideoContent, WorkspaceContent,
+    TriangleContent, VideoContent, 
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -14,7 +14,6 @@ use block_type_guest::{Registration, be_block_types};
 
 be_block_types![
     TextContent { undo, file },
-    FileContent { file },
     BeuiDemoContent,
     BrowserTabContent,
     CalendarContent { undo },
@@ -25,7 +24,6 @@ be_block_types![
     DatabaseSchemaContent { undo },
     DatabaseViewContent { undo },
     DeterministicGameContent { undo },
-    FolderContent { directory },
     GameModuleContent,
     HotbarContent { undo },
     LogicGameContent { undo },
@@ -39,7 +37,6 @@ be_block_types![
     TerminalContent,
     TriangleContent,
     VideoContent { undo },
-    WorkspaceContent { root },
 ];
 
 #[cfg(feature = "module")]

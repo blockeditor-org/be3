@@ -1,3 +1,4 @@
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
@@ -279,7 +280,7 @@ fn filter() -> block_editor_beui::BlockFilter {
 }
 
 fn catalog() -> block_editor_beui::Catalog {
-    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    use block_editor_beui::be_block::BlockContent;
     let kind = |block_type: Uuid, name: &str, icon: &str| {
         let holds =
             [FolderContent::CONTENT_TYPE, WorkspaceContent::CONTENT_TYPE].contains(&block_type);
@@ -327,7 +328,7 @@ struct Places {
 
 fn places(fixture: &mut Fixture) -> Places {
     use block_editor_beui::BlockInfo;
-    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    use block_editor_beui::be_block::BlockContent;
     let places = Places {
         space: Uuid::new_v4(),
         trips: Uuid::new_v4(),

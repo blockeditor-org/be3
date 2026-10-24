@@ -1,7 +1,32 @@
-use be_block::{FileContent, TextBlock, TextContent, TextLanguage};
+use be_block::blob::{Blob, BlobKind};
+use be_block::{TextBlock, TextContent, TextLanguage};
 use block_type_api::{ChildChange, Plain};
 
 use super::*;
+
+struct Bytes;
+
+impl BlobKind for Bytes {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6279_7465_732d_6669_7874_7572_6500_0001);
+
+    type Header = String;
+
+    fn name(header: &String) -> &str {
+        header
+    }
+}
+
+impl crate::BlobFile for Bytes {
+    fn header(name: &str, _: &[u8]) -> String {
+        name.to_owned()
+    }
+
+    fn claims(_: &str, _: &[u8]) -> bool {
+        true
+    }
+}
+
+type FileContent = Blob<Bytes>;
 
 crate::be_block_types![
     TextContent { undo, file },

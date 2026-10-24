@@ -1,7 +1,8 @@
+use workspace_ui_types::WorkspaceContent;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use be_block::{BlockContent, BlockMetadata, WorkspaceContent};
+use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::FileStore;

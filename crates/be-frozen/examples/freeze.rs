@@ -1,3 +1,4 @@
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 use std::{
     fmt::Display,
     fmt::Write as _,
@@ -7,10 +8,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use be_block::{
-    BlockContent, BlockMetadata, FolderContent, MY_FILES, TextBlock, TextContent, TextIndentation,
-    TextLanguage, WorkspaceContent,
-};
+use be_block::{BlockContent, BlockMetadata, MY_FILES, TextBlock, TextContent, TextIndentation, TextLanguage};
 use be_cli::{cli, tracker::Tracker};
 use be_client::{Connection, Credentials, Peer, PeerConfig};
 use be_frozen::scene;
@@ -833,8 +831,9 @@ fn text(error: impl Display) -> String {
 
 fn sources() -> be_cli::tracker::Sources {
     Box::new(|| {
-        vec![be_types_host::in_process::<builtin_types::BlockTypes>(
-            "builtin-types",
-        )]
+        vec![
+            be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
+            be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+        ]
     })
 }

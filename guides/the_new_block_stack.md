@@ -1221,8 +1221,10 @@ organizations (it opens the only one by itself), and everything below happens
 inside that one organization. A workspace is any root block
 (`BlockParent::Root`) that is not a system block
 (`block_editor_beui::sections::is_workspace`); its name is its `NAME` and its
-members are the grants on it. New ones are `be_block::Workspace` (shaped like a
-folder: an ordered list of children). Only workspaces and an account's own
+members are the grants on it. New ones are of the workspace type
+(`be_block::WORKSPACE_TYPE`, whose format, shaped like a folder's, an ordered
+list of children, is `workspace_ui_types::Workspace`), made blank by its type
+module. Only workspaces and an account's own
 `Settings` belong at the root: nothing places another block there, and a block
 deleted from the root that cannot hold children is restored into My files. The
 server still accepts any block at the root, so an older one left there shows

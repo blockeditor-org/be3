@@ -29,6 +29,7 @@ build-id = { path = "../build-id" }
 builtin-types = { path = "../builtin-types" }
 image-block-types = { path = "../editors/image-block/types" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
 
 [lints]
 workspace = true

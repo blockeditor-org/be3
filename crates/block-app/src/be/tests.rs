@@ -380,11 +380,11 @@ fn start_versioning(text: &str) -> Versioned {
         Query::Parents(folder),
         Query::Subtree(folder),
     ]);
-    let mut listing = be_block::FolderContent::default();
-    listing.apply(&be_block::Folder::default().add(note));
+    let mut listing = workspace_ui_types::FolderContent::default();
+    listing.apply(&workspace_ui_types::Folder::default().add(note));
     create(
         folder,
-        be_block::FolderContent::CONTENT_TYPE,
+        workspace_ui_types::FolderContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Notes"),
         Some(listing.encode()),

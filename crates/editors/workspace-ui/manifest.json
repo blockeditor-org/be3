@@ -28,7 +28,8 @@
       "icon": "\ue0d7",
       "color": [155, 112, 211],
       "children": {"add": true, "delete": true, "replace": true},
-      "press": "Zoom"
+      "press": "Zoom",
+      "module": "workspace_ui_types.wasm"
     },
     "workspace": {
       "id": "776f726b-7370-6163-652d-626c6f636b01",
@@ -36,13 +37,15 @@
       "icon": "\ue2d0",
       "color": [211, 126, 59],
       "children": {"add": true, "delete": true, "replace": true},
-      "press": "Zoom"
+      "press": "Zoom",
+      "module": "workspace_ui_types.wasm"
     },
     "file": {
       "id": "66696c65-2d62-6c6f-636b-2d7479700001",
       "display_name": "File",
       "icon": "\ue0c0",
-      "color": [65, 145, 210]
+      "color": [65, 145, 210],
+      "module": "workspace_ui_types.wasm"
     }
   },
   "entry_point": "workspace_ui.wasm"

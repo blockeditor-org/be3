@@ -77,9 +77,12 @@ Only add:
 
 ## The tests
 
-- be-block's `tests/frozen_*.rs` hold each frozen block type's registry and a
-  document it saved, checked by `be_model::schema::check_frozen` (the stack
-  guide's "Freezing a version").
+- The `tests/frozen_*.rs` of the crate that holds a frozen block type (be-block
+  for text and the database types, `crates/editors/workspace-ui/types` for the
+  folder and the workspace) hold its registry and a document it saved, checked
+  by `be_model::schema::check_frozen` (the stack guide's "Freezing a
+  version"), and a test there checks its registers read without any one field.
+  Moving a type into its plugin moves these with it.
 - `crates/be-frozen` holds `src/fixtures/tracker.block`, a block file the
   `block-file` example wrote with the code of 2026-10-16: a folder holding a
   text block and a tracker database (view, database, schema, two rows linked to
@@ -118,6 +121,5 @@ test that serves them):
 
 with the day's date as the name. The test then checks the new part only in
 the snapshots that hold it. Freezing a block type also means `Root::FROZEN`, a
-`frozen_*.rs` module, its kind in be-block's
-`the_frozen_blocks_read_every_register_without_any_one_field`, and a line in
-this guide.
+`frozen_*.rs` module and a `registers_accept_missing_fields` check of its kind
+in its crate's tests, and a line in this guide.

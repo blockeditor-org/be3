@@ -1,7 +1,6 @@
 use be_block::be_model::Document;
 use be_block::blob::{Blob, BlobKind};
-use be_block::file::{AnyFile, FileHeader};
-use be_block::plain::{extension, language_of, media_type_of};
+use be_block::plain::{extension, language_of};
 use be_block::{BlockContent, Root, TextBlock};
 
 pub trait FileForm: BlockContent {
@@ -76,19 +75,6 @@ pub(crate) fn from_file<C: FileForm>(
         None => None,
     };
     Some(C::from_file(current.as_ref(), name, bytes, client)?.encode())
-}
-
-impl BlobFile for AnyFile {
-    fn header(name: &str, _: &[u8]) -> FileHeader {
-        FileHeader {
-            source_name: name.to_owned(),
-            media_type: media_type_of(name).to_owned(),
-        }
-    }
-
-    fn claims(_: &str, _: &[u8]) -> bool {
-        true
-    }
 }
 
 impl DocumentFile for TextBlock {

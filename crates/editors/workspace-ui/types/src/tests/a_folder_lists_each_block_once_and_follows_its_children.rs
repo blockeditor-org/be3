@@ -1,6 +1,6 @@
 use super::*;
 use crate::folder::{Folder, FolderContent};
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 use uuid::Uuid;
 
 #[test]

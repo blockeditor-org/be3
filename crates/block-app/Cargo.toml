@@ -105,6 +105,7 @@ block-editor-plugin = { path = "../block-editor-plugin" }
 # first-party one.
 checklist-types = { path = "../editors/checklist/types" }
 image-block-types = { path = "../editors/image-block/types" }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
 pollster = "0.4"
 paint-snapshot = { path = "../paint-snapshot" }
 

@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
+use workspace_ui_types::FolderContent;
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockInfo, BlockParent, FileSave, HostReply, HostRequest};
 
 use super::*;

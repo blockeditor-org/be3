@@ -2,8 +2,8 @@ use be_model::Document;
 use be_model::schema::check_frozen;
 use uuid::Uuid;
 
-use super::{frozen_folder, frozen_text, frozen_workspace};
-use crate::{Folder, TextBlock, TextIndentation, TextLanguage, Workspace};
+use super::{frozen_folder, frozen_workspace};
+use crate::{Folder, Workspace};
 
 fn bytes(hex: &str) -> Vec<u8> {
     let hex: String = hex.split_whitespace().collect();
@@ -14,24 +14,11 @@ fn bytes(hex: &str) -> Vec<u8> {
 }
 
 #[test]
-fn text_and_folders_saved_before_they_were_frozen_still_load() {
-    assert_eq!(
-        check_frozen::<TextBlock>(frozen_text::REGISTRY, frozen_text::DOCUMENT),
-        Ok(())
-    );
+fn folders_and_workspaces_saved_before_they_were_frozen_still_load() {
     assert_eq!(
         check_frozen::<Folder>(frozen_folder::REGISTRY, frozen_folder::DOCUMENT),
         Ok(())
     );
-
-    let text = Document::<TextBlock>::from_bytes(&bytes(frozen_text::DOCUMENT)).unwrap();
-    assert_eq!(
-        TextBlock::text(&text),
-        "fn main() {\n\tprintln!(\"héllo, 世界\");\n}\n"
-    );
-    assert_eq!(text.root().language, TextLanguage::Rust);
-    assert_eq!(text.root().indentation, TextIndentation::Tabs);
-
     let folder = Document::<Folder>::from_bytes(&bytes(frozen_folder::DOCUMENT)).unwrap();
     assert_eq!(
         folder.root().blocks(),

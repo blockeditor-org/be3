@@ -82,6 +82,7 @@ pub(crate) fn provided(content_type: Uuid) -> bool {
         builtin_types::block_types(),
         checklist_types::block_types(),
         image_block_types::block_types(),
+        workspace_ui_types::block_types(),
     ]
     .iter()
     .any(|module| module.knows(content_type))
@@ -138,6 +139,10 @@ pub(super) async fn sources() -> Vec<Source> {
         in_process::<HostTypes>("host-types"),
         plugin::<checklist_types::BlockTypes>("be3.checklist", checklist_types::registrations()),
         plugin::<image_block_types::BlockTypes>("be3.image", image_block_types::registrations()),
+        plugin::<workspace_ui_types::BlockTypes>(
+            "be3.workspace-ui",
+            workspace_ui_types::registrations(),
+        ),
     ]
 }
 

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 use be_block::{
-    FolderContent, MY_FILES, NAME, ROW_PREFIX, TextBlock, TextContent, TextIndentation,
-    TextLanguage, WorkspaceContent,
+    MY_FILES, NAME, ROW_PREFIX, TextBlock, TextContent, TextIndentation, TextLanguage,
     database::DatabaseContent,
     database_schema::{ChoiceColor, ChoiceIcon, DatabaseSchemaContent},
     database_view::{DatabaseViewContent, DatabaseViewKind},

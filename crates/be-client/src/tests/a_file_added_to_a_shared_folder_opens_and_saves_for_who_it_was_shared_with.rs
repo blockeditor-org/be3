@@ -1,6 +1,7 @@
+use workspace_ui_types::FolderContent;
 use super::*;
 
-use be_block::{FolderContent, TextBlock, TextContent};
+use be_block::{TextBlock, TextContent};
 use be_graph::Access;
 
 #[tokio::test]

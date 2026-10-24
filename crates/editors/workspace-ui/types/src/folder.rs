@@ -1,16 +1,21 @@
 use be_model::{Anchor, BlockRef, Change, Document, Edit, List, Model, ObjectId};
 use uuid::Uuid;
 
-use crate::folder::FolderEntry;
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
-#[model(kind = "workspace")]
-pub struct Workspace {
+#[model(kind = "folder")]
+pub struct Folder {
     pub entries: List<FolderEntry>,
 }
 
-impl Workspace {
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+#[model(kind = "folder.entry")]
+pub struct FolderEntry {
+    pub block: BlockRef,
+}
+
+impl Folder {
     pub fn blocks(&self) -> Vec<Uuid> {
         let mut seen = std::collections::HashSet::new();
         self.entries
@@ -45,8 +50,9 @@ impl Workspace {
     }
 }
 
-impl Root for Workspace {
-    const CONTENT_TYPE: Uuid = crate::WORKSPACE_TYPE;
+impl Root for Folder {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0xd4e3_67ab_db73_4419_bffc_b913_1288_c2e7);
+
     const FROZEN: bool = true;
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
@@ -68,4 +74,4 @@ impl Root for Workspace {
     }
 }
 
-pub type WorkspaceContent = Document<Workspace>;
+pub type FolderContent = Document<Folder>;

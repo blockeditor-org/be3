@@ -16,9 +16,10 @@ const TRACKER: &[u8] = include_bytes!("fixtures/tracker.block");
 
 pub(crate) fn sources() -> be_cli::tracker::Sources {
     Box::new(|| {
-        vec![be_types_host::in_process::<builtin_types::BlockTypes>(
-            "builtin-types",
-        )]
+        vec![
+            be_types_host::in_process::<builtin_types::BlockTypes>("builtin-types"),
+            be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
+        ]
     })
 }
 

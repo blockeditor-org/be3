@@ -1,5 +1,6 @@
 use super::*;
 use image_block_types::ImageFile;
+use workspace_ui_types::FileHeader;
 
 #[tokio::test]
 async fn a_folder_is_written_as_files_and_directories() {
@@ -22,7 +23,13 @@ async fn a_folder_is_written_as_files_and_directories() {
         &peer,
         docs,
         "frame.paint",
-        &FileContent::from_file("frame.paint", "application/octet-stream", painting.clone()),
+        &FileContent::new(
+            FileHeader {
+                source_name: "frame.paint".into(),
+                media_type: "application/octet-stream".into(),
+            },
+            painting.clone(),
+        ),
     )
     .await;
     block(&peer, code, "Sketch", &CanvasContent::default()).await;

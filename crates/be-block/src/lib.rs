@@ -17,8 +17,6 @@ pub mod database_view;
 pub mod device_class;
 pub mod display_settings;
 pub mod editor_view;
-pub mod file;
-pub mod folder;
 pub mod game;
 pub mod history;
 pub mod hotbar;
@@ -44,7 +42,6 @@ pub mod terminal;
 pub mod text;
 pub mod version_control;
 pub mod video;
-pub mod workspace;
 
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
@@ -60,8 +57,6 @@ pub use database_view::{DatabaseView, DatabaseViewContent};
 pub use device_class::{ClassDefault, DeviceClass};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
-pub use file::{FileContent, FileHeader};
-pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
@@ -97,7 +92,6 @@ pub use version_control::{
     RepositoryContent,
 };
 pub use video::{VideoContent, VideoProject};
-pub use workspace::{Workspace, WorkspaceContent};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {

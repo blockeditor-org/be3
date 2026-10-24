@@ -102,6 +102,7 @@ members = [
     "crates/editors/video-block",
     "crates/editors/workspace-index",
     "crates/editors/workspace-ui",
+    "crates/editors/workspace-ui/types",
     "crates/fix-rust-source",
     "crates/geometry",
     "crates/grapheme-segmentation",

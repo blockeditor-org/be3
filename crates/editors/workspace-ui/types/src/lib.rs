@@ -1,0 +1,35 @@
+mod file;
+mod folder;
+mod workspace;
+
+pub use file::{AnyFile, FileContent, FileHeader};
+pub use folder::{Folder, FolderContent, FolderEntry};
+pub use workspace::{Workspace, WorkspaceContent};
+
+use be_block::plain::media_type_of;
+use block_type_guest::BlobFile;
+
+impl BlobFile for AnyFile {
+    fn header(name: &str, _: &[u8]) -> FileHeader {
+        FileHeader {
+            source_name: name.to_owned(),
+            media_type: media_type_of(name).to_owned(),
+        }
+    }
+
+    fn claims(_: &str, _: &[u8]) -> bool {
+        true
+    }
+}
+
+block_type_guest::be_block_types![
+    FileContent { file },
+    FolderContent { directory },
+    WorkspaceContent { root },
+];
+
+#[cfg(feature = "module")]
+block_type_guest::abi::guest!(BlockTypes);
+
+#[cfg(test)]
+mod tests;

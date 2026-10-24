@@ -1,9 +1,10 @@
+use workspace_ui_types::FileContent;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use audio_block_types::AudioContent;
 use block_editor_beui::be_block::plain::{export_name, extension_of, text_file_type};
-use block_editor_beui::be_block::{BlockContent, FileContent, LiveEdit, TextContent};
+use block_editor_beui::be_block::{BlockContent, LiveEdit, TextContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Editor, FileSaver, SavedFile};
 use image_block_types::ImageContent;

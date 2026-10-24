@@ -745,6 +745,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -776,6 +777,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "webpki-roots 0.26.11",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -826,6 +828,7 @@ dependencies = [
  "rusqlite",
  "tokio",
  "uuid",
+ "workspace-ui-types",
  "zip",
 ]
 
@@ -1013,6 +1016,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -1515,6 +1519,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
+ "workspace-ui-types",
  "zbus",
  "zip",
 ]
@@ -3266,6 +3271,7 @@ dependencies = [
  "pdf-types",
  "serde",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -9996,6 +10002,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace-ui-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "workspace_index"
 version = "0.1.0"
 dependencies = [
@@ -10003,6 +10021,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -10015,6 +10034,7 @@ dependencies = [
  "block-shell",
  "block-ui-test",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
