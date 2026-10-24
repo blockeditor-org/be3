@@ -325,9 +325,11 @@ mod a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_neare
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_select_opened_with_a_key_shows_the_keyboard_for_its_search;
 mod a_select_opened_with_a_mouse_shows_the_keyboard_for_its_search;
+mod a_selectable_can_change_or_turn_off_its_keys;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
+mod a_selection_in_a_virtual_list_clamps_when_its_rows_are_removed;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_sheet_is_never_taller_than_what_it_holds;
 mod a_sheet_opened_as_another_closes_takes_its_place_without_sliding;
@@ -571,10 +573,12 @@ mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
 mod dragging_a_tab_within_a_window_bar_reorders_it;
 mod dragging_a_window_by_its_bar_moves_it;
 mod dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back;
+mod dragging_across_a_break_in_a_text_copies_one_line;
 mod dragging_across_an_icon_and_its_label_copies_only_the_label;
 mod dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection;
 mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
+mod dragging_past_the_bottom_of_a_selectable_virtual_list_scrolls_it_and_selects_rows_out_of_view;
 mod dragging_slowly_with_the_screen_reader_reads_what_the_finger_is_on;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window;
@@ -739,6 +743,7 @@ mod scrolling_into_a_nested_scroll_keeps_moving_the_one_around_it;
 mod scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_moved;
 mod scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes;
 mod scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show;
+mod select_all_in_a_selectable_virtual_list_copies_every_row_without_building_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod selecting_a_node_lists_its_properties_in_the_inspector;
 mod setting_a_scroll_offset_during_a_fling_stops_the_fling;
@@ -1526,6 +1531,11 @@ impl Harness {
         let scale = crate::inspector::scale(self.context());
         pos2(center.x * scale, center.y * scale)
     }
+}
+
+fn selected_text(harness: &mut Harness, region: NodeId) -> String {
+    let state = harness.document().api::<unstyled::SelectableState>(region);
+    crate::reactive::with_reactive_scope(harness.document_mut(), || state.selected_text())
 }
 
 fn pressed_with(key: Key, modifiers: Modifiers) -> Vec<Input> {

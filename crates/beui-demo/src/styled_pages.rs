@@ -53,6 +53,17 @@ const LOG_WORDS: [&str; 8] = [
     "in",
     "a moment.",
 ];
+const SERVER_LINES: usize = 5_000;
+const SERVER_LOG_HEIGHT: f32 = 200.0;
+const SERVER_LINE_HEIGHT: f32 = 20.0;
+const SERVER_MESSAGES: [&str; 6] = [
+    "listening on 127.0.0.1:8080",
+    "GET /index.html 200",
+    "GET /style.css 304",
+    "cache miss for /api/rows?page=3",
+    "POST /api/rows 201",
+    "worker 2 idle",
+];
 const EDITOR_HEIGHT: f32 = 320.0;
 const STAGE_HEIGHT: f32 = 360.0;
 const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);
@@ -2724,7 +2735,61 @@ pub(crate) fn RowsPage() -> NodeId {
             >
                 <ThousandsOfRows />
             </Sample>
+            <Sample
+                title="Selectable lines"
+                code={vec![SelectableServerLog::SOURCE, ServerLine::SOURCE]}
+            >
+                <SelectableServerLog />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+fn server_line(index: usize) -> String {
+    format!(
+        "{:>5}  {}",
+        index + 1,
+        SERVER_MESSAGES[index % SERVER_MESSAGES.len()]
+    )
+}
+
+#[sample]
+#[component]
+fn SelectableServerLog() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                "Drag across the lines to select them; dragging past an edge scrolls. Select \
+                 All and Copy reach every line, including those the list never built."
+            </Text>
+            <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
+                <Scroll max_length=SERVER_LOG_HEIGHT @test_id="rows.server">
+                    <Frame padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
+                        <SelectableText
+                            child_size=ItemSize::Percent(100.0)
+                            @test_id="rows.server.selection"
+                        >
+                            <VirtualList
+                                keys={(0..SERVER_LINES).collect::<Vec<usize>>()}
+                                item_size=SERVER_LINE_HEIGHT
+                                text={server_line}
+                            >|index: ReadSignal<usize>|
+                                <ServerLine index />
+                            </VirtualList>
+                        </SelectableText>
+                    </Frame>
+                </Scroll>
+            </Frame>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ServerLine(index: ReadSignal<usize>) -> NodeId {
+    let line = create_memo(move || server_line(index.get()));
+    view! {
+        <Text style=TextStyle::CODE>{line}</Text>
     }
 }
 

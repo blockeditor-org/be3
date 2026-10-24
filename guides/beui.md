@@ -1171,6 +1171,29 @@ keeps the rows too, but forgets the sizes the list measured, on the assumption
 that the rows changed size with it; the rows in view are measured again as they
 are laid out.
 
+`Selectable` (and `SelectableText` over it) selects across the plain `Text`s
+under it and across any `VirtualList` under it with the same component. Each
+`VirtualList` registers its rows (`beui_view::selection::SelectableRows`: its
+keys, which key each built row shows, and its optional `text` prop, a
+`Callback<K, String>` used only for selection), and the selection walks the
+region in tree order, taking a list as one item rather than its built rows.
+A caret inside a list is a key, the index of the `Text` within that row and a
+byte index, never a node, so a recycled row cannot carry a selection to
+another key. A press maps the built `Text` under it to its row's key and
+forgets the node; every built row paints which of its bytes the selection
+covers, and a row built later (scrolled into view, or recycled for another key)
+paints from the same selection as it is built. Select All goes from the first
+key's start to the last key's end without building anything, and copying walks
+the keys between the ends, reading built rows from their `Text`s and the rest
+from `text`, one line each (a row's several `Text`s are joined by line breaks;
+a list given no `text` copies its unbuilt rows as empty lines). A key removed
+under the selection moves that end to the nearest row that remains, the start
+forward and the end backward, and a row whose text shrank is clamped to it.
+Dragging past the top or bottom of the nearest vertical scroll around the
+region scrolls it while the pointer is held there (`repeat_drag`).
+`selected_text` reads the document, so call it from a handler or inside
+`with_reactive_scope`.
+
 A list the layout stops reaching - scrolled out of view beside other content, or
 inside a scroll that collapsed - is told so through `Element::unplaced`, which
 the layout calls on every node it placed last pass and did not place this one.
