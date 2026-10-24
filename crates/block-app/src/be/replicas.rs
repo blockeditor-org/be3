@@ -123,7 +123,6 @@ impl Replicas {
     }
 
     pub(super) async fn ask(&mut self, ctx: Ctx<'_>, module: usize, request: Request) -> Reply {
-        eprintln!("DEBUG ask {module} {}", format!("{request:?}").chars().take(160).collect::<String>());
         let Some(answered) = self.ask_later(module, request) else {
             return Reply::Unknown;
         };
@@ -726,7 +725,6 @@ impl Replicas {
         module: usize,
         command: Command,
     ) -> bool {
-        eprintln!("DEBUG act {module} {}", format!("{command:?}").chars().take(160).collect::<String>());
         let replica_of = |replica: ReplicaId, open: &HashMap<ReplicaId, Open>| {
             open.get(&replica)
                 .map(|open| (open.block, open.content_type, open.module == module))

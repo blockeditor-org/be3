@@ -796,40 +796,9 @@ pub enum EditorMessage {
         editable: bool,
     },
 
-    Content {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
-        #[serde(with = "serde_bytes")]
-        session: Vec<u8>,
-        unsettled: Vec<serde_bytes::ByteBuf>,
-        applied: u64,
-    },
-    ContentOperations {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        operations: Vec<ContentOperation>,
-    },
-    Operate {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        operation: Vec<u8>,
-    },
-    Gesture {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        phase: GesturePhase,
-    },
     WatchContent {
         instance: EditorInstanceId,
         blocks: Vec<WatchedContent>,
-    },
-    ResendContent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
     },
     SeedContent {
         instance: EditorInstanceId,
@@ -844,30 +813,6 @@ pub enum EditorMessage {
         content_type: [u8; 16],
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
-    },
-    ShowPresence {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        kind: [u8; 16],
-        value: Option<serde_bytes::ByteBuf>,
-    },
-    PeerPresence {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        peers: Vec<PeerPresence>,
-    },
-    SendToPeers {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        to: Option<u64>,
-        channel: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        payload: Vec<u8>,
-    },
-    PeerMessages {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        messages: Vec<PeerMessage>,
     },
     ViewChanged {
         instance: EditorInstanceId,
@@ -1259,18 +1204,9 @@ impl EditorMessage {
         match self {
             Self::Open { instance, .. }
             | Self::EditabilityChanged { instance, .. }
-            | Self::Content { instance, .. }
-            | Self::ContentOperations { instance, .. }
-            | Self::Operate { instance, .. }
-            | Self::Gesture { instance, .. }
             | Self::WatchContent { instance, .. }
-            | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
-            | Self::ShowPresence { instance, .. }
-            | Self::PeerPresence { instance, .. }
-            | Self::SendToPeers { instance, .. }
-            | Self::PeerMessages { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -1465,38 +1401,6 @@ pub struct ArtifactState {
 pub struct WatchedContent {
     pub block_id: [u8; 16],
     pub content_type: [u8; 16],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PeerPresence {
-    pub client: u64,
-    pub kind: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub value: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PeerMessage {
-    pub from: u64,
-    pub channel: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub payload: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ContentOperation {
-    #[serde(with = "serde_bytes")]
-    pub operation: Vec<u8>,
-    pub mine: bool,
-    pub unsettled: u64,
-    pub beneath: Option<Vec<serde_bytes::ByteBuf>>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum GesturePhase {
-    Begin,
-    Commit,
-    Cancel,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1916,10 +1820,6 @@ impl EditorMessage {
             | Self::Close { .. }
             | Self::Resized { .. }
             | Self::EditabilityChanged { .. }
-            | Self::Content { .. }
-            | Self::ContentOperations { .. }
-            | Self::PeerPresence { .. }
-            | Self::PeerMessages { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1981,14 +1881,9 @@ impl EditorMessage {
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
-            | Self::Operate { .. }
-            | Self::Gesture { .. }
             | Self::WatchContent { .. }
-            | Self::ResendContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
-            | Self::ShowPresence { .. }
-            | Self::SendToPeers { .. }
             | Self::Performance { .. }
             | Self::WatchBlocks { .. }
             | Self::VersionControl { .. }
@@ -2488,15 +2383,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             string(&source.media_type)?;
             blob(&source.bytes)
         }
-        EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
         EditorMessage::Replica { frame, .. } => blob(frame),
-        EditorMessage::ContentOperations { operations, .. } => {
-            collection(operations.len())?;
-            for operation in operations {
-                collection(operation.beneath.as_ref().map_or(0, Vec::len))?;
-            }
-            Ok(())
-        }
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
         EditorMessage::BlocksFailed { error, .. } => string(error),
@@ -2561,24 +2448,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                     .iter()
                     .map(|operation| &operation.description),
             )?;
-            Ok(())
-        }
-        EditorMessage::ShowPresence {
-            value: Some(value), ..
-        } => blob(value),
-        EditorMessage::PeerPresence { peers, .. } => {
-            collection(peers.len())?;
-            for peer in peers {
-                blob(&peer.value)?;
-            }
-            Ok(())
-        }
-        EditorMessage::SendToPeers { payload, .. } => blob(payload),
-        EditorMessage::PeerMessages { messages, .. } => {
-            collection(messages.len())?;
-            for message in messages {
-                blob(&message.payload)?;
-            }
             Ok(())
         }
         EditorMessage::ArtifactStates { states, .. } => {

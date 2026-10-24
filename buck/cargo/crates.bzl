@@ -239,6 +239,24 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
+                    "//crates/logicgame:logicgame",
+                    "//crates/ui-types:ui-types",
+                    "//third-party/rust:memchr-2.8.1",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -877,9 +895,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "linux-arm64": {
                 "binaries": {},
@@ -890,9 +914,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "linux-x86_64": {
                 "binaries": {},
@@ -903,9 +933,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "macos-arm64": {
                 "binaries": {},
@@ -916,9 +952,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "macos-x86_64": {
                 "binaries": {},
@@ -929,9 +971,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "wasi": {
                 "binaries": {},
@@ -942,11 +990,29 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:similar-3.1.1",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [
+                    "store",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-store:be-store",
@@ -968,9 +1034,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "windows-x86_64": {
                 "binaries": {},
@@ -981,9 +1053,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
         },
         "profile_flags": [],
@@ -1842,6 +1920,19 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2419,6 +2510,23 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2541,6 +2649,18 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:proc-macro2-1.0.106",
@@ -2688,6 +2808,22 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -3193,9 +3329,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "linux-arm64": {
                 "binaries": {},
@@ -3207,9 +3349,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "linux-x86_64": {
                 "binaries": {},
@@ -3221,9 +3369,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "macos-arm64": {
                 "binaries": {},
@@ -3235,9 +3389,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "macos-x86_64": {
                 "binaries": {},
@@ -3249,9 +3409,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "wasi": {
                 "binaries": {},
@@ -3263,11 +3429,31 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [
+                    "default",
+                    "store",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -3291,9 +3477,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
             "windows-x86_64": {
                 "binaries": {},
@@ -3305,9 +3497,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "store",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "store",
+                ],
             },
         },
         "profile_flags": [],
@@ -3336,9 +3534,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "vault",
+                ],
             },
             "linux-arm64": {
                 "binaries": {},
@@ -3352,9 +3556,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "vault",
+                ],
             },
             "linux-x86_64": {
                 "binaries": {},
@@ -3368,9 +3578,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "vault",
+                ],
             },
             "macos-arm64": {
                 "binaries": {},
@@ -3383,9 +3599,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "vault",
+                ],
             },
             "macos-x86_64": {
                 "binaries": {},
@@ -3398,9 +3620,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "vault",
+                ],
             },
             "wasi": {
                 "binaries": {},
@@ -3413,7 +3641,10 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
                 "test_features": [],
             },
@@ -3423,6 +3654,22 @@ crates = {
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [
+                    "default",
+                    "vault",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
@@ -3443,9 +3690,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "vault",
+                ],
             },
             "windows-x86_64": {
                 "binaries": {},
@@ -3458,9 +3711,15 @@ crates = {
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "vault",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "vault",
+                ],
             },
         },
         "profile_flags": [
@@ -7814,11 +8073,15 @@ crates = {
                         "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-server:be-server",
+                        "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-type-api:block-type-api",
+                        "//crates/block-type-guest:block-type-guest",
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
@@ -7850,11 +8113,15 @@ crates = {
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-server:be-server",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
@@ -7881,6 +8148,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/builtin-types:builtin-types",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
@@ -7897,13 +8165,17 @@ crates = {
                         "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-server:be-server",
+                        "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
                         "//crates/be-wayland:be-wayland",
                         "//crates/beui-adapter-drm:beui-adapter-drm",
                         "//crates/beui:beui",
+                        "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-type-api:block-type-api",
+                        "//crates/block-type-guest:block-type-guest",
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
@@ -7941,13 +8213,17 @@ crates = {
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-server:be-server",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/be-wayland:be-wayland",
                     "//crates/beui-adapter-drm:beui-adapter-drm",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
@@ -7980,6 +8256,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/builtin-types:builtin-types",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -7995,13 +8272,17 @@ crates = {
                         "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-server:be-server",
+                        "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
                         "//crates/be-wayland:be-wayland",
                         "//crates/beui-adapter-drm:beui-adapter-drm",
                         "//crates/beui:beui",
+                        "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-type-api:block-type-api",
+                        "//crates/block-type-guest:block-type-guest",
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
@@ -8039,13 +8320,17 @@ crates = {
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-server:be-server",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/be-wayland:be-wayland",
                     "//crates/beui-adapter-drm:beui-adapter-drm",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
@@ -8078,6 +8363,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/builtin-types:builtin-types",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -8092,11 +8378,15 @@ crates = {
                         "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-server:be-server",
+                        "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-type-api:block-type-api",
+                        "//crates/block-type-guest:block-type-guest",
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
@@ -8127,11 +8417,15 @@ crates = {
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-server:be-server",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
@@ -8158,6 +8452,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/builtin-types:builtin-types",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -8172,11 +8467,15 @@ crates = {
                         "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-server:be-server",
+                        "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-type-api:block-type-api",
+                        "//crates/block-type-guest:block-type-guest",
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
@@ -8207,11 +8506,15 @@ crates = {
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-server:be-server",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
@@ -8238,6 +8541,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/builtin-types:builtin-types",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -8251,11 +8555,15 @@ crates = {
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
                     "//crates/wasi-threads:wasi-threads",
@@ -8287,11 +8595,15 @@ crates = {
                         "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-server:be-server",
+                        "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-type-api:block-type-api",
+                        "//crates/block-type-guest:block-type-guest",
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
@@ -8321,11 +8633,15 @@ crates = {
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-server:be-server",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
@@ -8351,6 +8667,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/builtin-types:builtin-types",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -8365,11 +8682,15 @@ crates = {
                         "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-server:be-server",
+                        "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-type-api:block-type-api",
+                        "//crates/block-type-guest:block-type-guest",
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
@@ -8399,11 +8720,15 @@ crates = {
                     "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-server:be-server",
+                    "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-type-api:block-type-api",
+                    "//crates/block-type-guest:block-type-guest",
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
@@ -8429,6 +8754,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/builtin-types:builtin-types",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -9311,6 +9637,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-guest-abi:block-guest-abi",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -9949,7 +10285,37 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -10113,6 +10479,24 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/block-guest-abi:block-guest-abi",
+                    "//crates/block-type-api:block-type-api",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
@@ -10123,6 +10507,26 @@ crates = {
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-type-api:block-type-api",
                     "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/block-guest-abi:block-guest-abi",
+                    "//crates/block-type-api:block-type-api",
+                    "//third-party/rust:getrandom-0.4.2",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:rand_chacha-0.9.0",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11669,6 +12073,17 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block-type-guest:block-type-guest",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -13101,6 +13516,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -13761,6 +14186,19 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rand-0.9.4",
+                    "//third-party/rust:rand_chacha-0.9.0",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:rand-0.9.4",
@@ -15559,6 +15997,17 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:memchr-2.8.1",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -17145,6 +17594,18 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/geometry:geometry",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//crates/geometry:geometry",
@@ -22438,6 +22899,7 @@ third_party = {
             },
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {
                 "features": [
                     "default",
@@ -23941,6 +24403,17 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":ciborium-io-0.2.2",
@@ -24032,6 +24505,12 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -24108,6 +24587,12 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":ciborium-io-0.2.2",
                     ":half-2.7.1",
@@ -24680,6 +25165,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":thiserror-2.0.18",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":thiserror-2.0.18",
                 ],
@@ -33957,6 +34447,11 @@ third_party = {
                     ":cfg-if-1.0.4",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -35399,6 +35894,11 @@ third_party = {
                     ":byteorder-1.5.0",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":byteorder-1.5.0",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":byteorder-1.5.0",
@@ -35974,6 +36474,18 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":hash32-0.2.1",
+                    ":serde-1.0.228",
+                    ":stable_deref_trait-1.2.1",
+                ],
+                "features": [
+                    "atomic-polyfill",
+                    "cas",
+                    "serde",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":hash32-0.2.1",
                     ":serde-1.0.228",
@@ -42139,6 +42651,7 @@ third_party = {
             "wasm32": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -48912,6 +49425,20 @@ third_party = {
                     "use-std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":cobs-0.3.0",
+                    ":heapless-0.7.17",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "heapless",
+                    "heapless-cas",
+                    "use-std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":cobs-0.3.0",
@@ -49166,6 +49693,7 @@ third_party = {
                 ],
                 "features": [
                     "simd",
+                    "std",
                 ],
             },
             "windows-arm64": {
@@ -50817,6 +51345,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "std",
                 ],
             },
             "windows-arm64": {
@@ -51039,6 +51568,10 @@ third_party = {
                 "deps": [
                     ":ppv-lite86-0.2.21",
                     ":rand_core-0.9.5",
+                ],
+                "features": [
+                    "default",
+                    "std",
                 ],
             },
             "windows-arm64": {
@@ -51297,7 +51830,11 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {},
+            "wasm32": {
+                "features": [
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":getrandom-0.3.4",
@@ -55438,8 +55975,10 @@ third_party = {
                     ":serde_derive-1.0.228",
                 ],
                 "features": [
+                    "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -55561,6 +56100,15 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -55668,6 +56216,7 @@ third_party = {
             "wasm32": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],
@@ -57196,6 +57745,13 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "features": [
+                    "default",
+                    "std",
+                    "text",
+                ],
+            },
+            "wasm32": {
                 "features": [
                     "default",
                     "std",
@@ -58857,6 +59413,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -65529,8 +66086,17 @@ third_party = {
                     ":serde_core-1.0.228",
                 ],
                 "features": [
+                    "default",
+                    "rng",
+                    "rng-getrandom",
                     "serde",
+                    "std",
+                    "uuid-rng-internal-lib",
+                    "v4",
                 ],
+                "named_deps": {
+                    "uuid_rng_internal_lib": ":uuid-rng-internal-1.29.0",
+                },
             },
             "windows-arm64": {
                 "deps": [
@@ -65567,6 +66133,38 @@ third_party = {
         "sha256": "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7",
         "size_bytes": 63572,
         "version": "1.23.2",
+    },
+    "uuid-rng-internal-1.29.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "uuid-rs contributors",
+            "CARGO_PKG_DESCRIPTION": "Private implementation details of the uuid crate.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_REPOSITORY": "https://github.com/uuid-rs/uuid",
+        },
+        "library": {
+            "crate": "uuid_rng_internal",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "uuid-rng-internal",
+        "platforms": {
+            "wasm32": {
+                "deps": [
+                    ":getrandom-0.4.2",
+                ],
+                "features": [
+                    "getrandom",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "cdf60f3d36825d0911af7e102da39cc817280560cad48e81df1eb5c4d7400f76",
+        "size_bytes": 1826,
+        "version": "1.29.0",
     },
     "vcpkg-0.2.15": {
         "build_script": None,

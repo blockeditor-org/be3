@@ -86,17 +86,8 @@ impl EditorMessage {
                 existing(block_id);
                 view_block.iter_mut().for_each(existing);
             }
-            Self::Content { block_id, .. }
-            | Self::ContentOperations { block_id, .. }
-            | Self::Operate { block_id, .. }
-            | Self::Gesture { block_id, .. }
-            | Self::ResendContent { block_id, .. }
-            | Self::SeedContent { block_id, .. }
+            Self::SeedContent { block_id, .. }
             | Self::ReplaceContent { block_id, .. }
-            | Self::ShowPresence { block_id, .. }
-            | Self::PeerPresence { block_id, .. }
-            | Self::SendToPeers { block_id, .. }
-            | Self::PeerMessages { block_id, .. }
             | Self::DragBlock { block_id, .. }
             | Self::DragOver { block_id, .. }
             | Self::OpenArtifact { block_id, .. }

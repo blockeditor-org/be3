@@ -2744,7 +2744,7 @@ impl Instances {
                 &message,
                 EditorMessage::WatchContent { .. }
                     | EditorMessage::WatchBlocks { .. }
-                    | EditorMessage::ResendContent { .. }
+                    | EditorMessage::Replica { .. }
                     | EditorMessage::WatchHistory { .. }
                     | EditorMessage::WatchHeads { .. }
                     | EditorMessage::WatchArtifacts { .. }
