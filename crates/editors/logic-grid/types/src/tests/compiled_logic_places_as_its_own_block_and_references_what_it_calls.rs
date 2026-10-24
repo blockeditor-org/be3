@@ -1,4 +1,4 @@
-use crate::Root;
+use be_block::Root;
 use crate::compiled_logic::{CompiledLogic, CompiledLogicDocument};
 use logicgame::execution::{Instruction, UnlinkedComponent, UnlinkedSubgraph};
 use logicgame::grid::{ComponentKind, ComponentPort, ComponentSide, Scale, Size};

@@ -1,6 +1,7 @@
-use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::CompiledLogicContent;
 
-use block_editor_beui::be_block::LogicGridContent;
+use logic_grid_types::LogicGridContent;
 use block_editor_beui::beui::{Key, Pos2, Vec2};
 use block_editor_beui::{Artifact, Artifacts, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -23,6 +24,7 @@ fn editor() -> BeuiTest<LogicGridApp> {
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
+    editor.store().register(logic_grid_types::registrations());
     editor.hold(None, LogicGridContent::default());
     editor.run();
     editor

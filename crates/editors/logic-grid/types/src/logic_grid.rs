@@ -9,7 +9,7 @@ use logicgame::grid::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum LogicGridOperation {

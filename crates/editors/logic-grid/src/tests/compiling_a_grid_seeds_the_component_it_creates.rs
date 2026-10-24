@@ -1,5 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::CompiledLogicContent;
 use block_editor_beui::beui::Modifiers;
 
 #[test]

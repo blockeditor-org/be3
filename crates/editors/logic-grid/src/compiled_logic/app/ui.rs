@@ -1,6 +1,7 @@
-use block_editor_beui::be_block::CompiledLogicContent;
-use block_editor_beui::be_block::compiled_logic::CompiledLogic as Program;
-use block_editor_beui::be_block::{BlockContent, LogicGridContent};
+use logic_grid_types::CompiledLogicContent;
+use logic_grid_types::CompiledLogic as Program;
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::LogicGridContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};

@@ -7,7 +7,6 @@ use uuid::Uuid;
 pub mod blob;
 pub mod block_url;
 pub mod canvas;
-pub mod compiled_logic;
 pub mod counter;
 pub mod database;
 pub mod database_schema;
@@ -20,8 +19,6 @@ pub mod history;
 pub mod hotbar;
 pub mod input_remapper;
 pub mod input_settings;
-pub mod logic_game;
-pub mod logic_grid;
 pub mod metadata;
 pub mod model;
 pub mod plain;
@@ -40,7 +37,6 @@ pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
 pub use canvas::CanvasContent;
-pub use compiled_logic::{CompiledLogicContent, CompiledLogicDocument};
 pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
@@ -52,8 +48,6 @@ pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, G
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
-pub use logic_game::{LogicGameContent, LogicGameProgress};
-pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use metadata::{
     ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE,
     Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME,

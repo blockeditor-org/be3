@@ -1,4 +1,4 @@
-use crate::Merge;
+use be_block::Merge;
 use crate::logic_grid::{LogicGridContent, LogicGridOperation};
 use be_commit::MergeResult;
 use logicgame::grid::{Component, ComponentId, ComponentKind, ComponentOrientation, Point, Scale};

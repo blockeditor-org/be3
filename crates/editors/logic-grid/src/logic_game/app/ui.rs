@@ -22,7 +22,7 @@ const INTRINSIC_WIDTH: f32 = 720.0;
 
 #[component]
 pub fn LogicGameEditor(editor: Editor) -> NodeId {
-    let block = editor.block_content::<block_editor_beui::be_block::LogicGameContent>();
+    let block = editor.block_content::<logic_grid_types::LogicGameContent>();
     let game = Game::watch(editor, block);
     let levels = game.levels();
     let hotbar = game.hotbar();

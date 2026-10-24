@@ -1,7 +1,7 @@
 use be_block::{
-    CanvasContent, CompiledLogicContent, CounterContent, DatabaseContent, DatabaseSchemaContent,
-    DatabaseViewContent, DeterministicGameContent, GameModuleContent, HotbarContent,
-    LogicGameContent, LogicGridContent, PresentationContent, TextContent, VideoContent,
+    CanvasContent, CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent,
+    DeterministicGameContent, GameModuleContent, HotbarContent, PresentationContent, TextContent,
+    VideoContent,
 };
 use be_block::{
     CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
@@ -12,7 +12,6 @@ use block_type_guest::{Registration, be_block_types};
 be_block_types![
     TextContent { undo, file },
     CanvasContent { undo },
-    CompiledLogicContent,
     CounterContent { undo },
     DatabaseContent { undo },
     DatabaseSchemaContent { undo },
@@ -20,8 +19,6 @@ be_block_types![
     DeterministicGameContent { undo },
     GameModuleContent,
     HotbarContent { undo },
-    LogicGameContent { undo },
-    LogicGridContent { undo },
     PresentationContent { undo },
     VideoContent { undo },
 ];

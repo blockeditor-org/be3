@@ -1,5 +1,5 @@
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::logic_game::QuizRow;
+use logic_grid_types::QuizRow;
 use block_editor_beui::beui::icons::ICON_CIRCLE_CHECK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

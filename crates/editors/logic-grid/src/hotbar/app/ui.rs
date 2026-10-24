@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::CompiledLogicContent;
 
 use block_editor_beui::be_block::Item;
 use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};

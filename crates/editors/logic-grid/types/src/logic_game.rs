@@ -5,7 +5,7 @@ use logicgame::challenges::{CHALLENGES, ChallengeId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Level {

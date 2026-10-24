@@ -711,7 +711,6 @@ dependencies = [
  "be-commit",
  "be-model",
  "be-store",
- "logicgame",
  "memchr",
  "postcard",
  "serde",
@@ -4731,6 +4730,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
 
 [[package]]
+name = "logic-grid-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "logicgame",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "logic_grid"
 version = "0.1.0"
 dependencies = [
@@ -4738,6 +4750,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "bytemuck",
+ "logic-grid-types",
  "logicgame",
  "serde",
  "serde_json",
