@@ -1,7 +1,6 @@
 use be_block::{
-    BlockContent, CheckoutContent, DisplaySettingsContent, EditorViewContent,
-    InputRemapperContent, InputSettingsContent, RepositoryContent, SettingsContent,
-    SettingsProfileContent,
+    BlockContent, CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
+    InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
 };
 use block_guest_abi::{Flow, Guest, Waker};
 use block_plugin_api::{BlockTypeDescriptor, ChildOperations, Press};
@@ -36,13 +35,38 @@ pub(crate) fn host_block_types() -> Vec<BlockTypeDescriptor> {
     const GOLD: [u8; 3] = [172, 145, 47];
     vec![
         described(CheckoutContent::CONTENT_TYPE, "Checkout", "\u{e125}", BLUE),
-        described(DisplaySettingsContent::CONTENT_TYPE, "Display", "\u{e603}", BLUE),
+        described(
+            DisplaySettingsContent::CONTENT_TYPE,
+            "Display",
+            "\u{e603}",
+            BLUE,
+        ),
         described(EditorViewContent::CONTENT_TYPE, "View", "\u{e0ba}", TEAL),
-        described(InputRemapperContent::CONTENT_TYPE, "Input Remaps", "\u{e284}", PURPLE),
-        described(InputSettingsContent::CONTENT_TYPE, "Input", "\u{e284}", GREEN),
-        described(RepositoryContent::CONTENT_TYPE, "Repository", "\u{e40a}", GOLD),
+        described(
+            InputRemapperContent::CONTENT_TYPE,
+            "Input Remaps",
+            "\u{e284}",
+            PURPLE,
+        ),
+        described(
+            InputSettingsContent::CONTENT_TYPE,
+            "Input",
+            "\u{e284}",
+            GREEN,
+        ),
+        described(
+            RepositoryContent::CONTENT_TYPE,
+            "Repository",
+            "\u{e40a}",
+            GOLD,
+        ),
         described(SettingsContent::CONTENT_TYPE, "Settings", "\u{e154}", TEAL),
-        described(SettingsProfileContent::CONTENT_TYPE, "Settings Profile", "\u{e154}", GOLD),
+        described(
+            SettingsProfileContent::CONTENT_TYPE,
+            "Settings Profile",
+            "\u{e154}",
+            GOLD,
+        ),
     ]
 }
 
