@@ -18,6 +18,8 @@ that build on it. VISION.md says why each part exists.
 - `be-cli` (`be`): reads and changes the tracker (guides/tracker.md).
 - `ghostty-vt`: the terminal core be-launcher shows build output with, kept
   building for a terminal in the desktop session.
+- `build-helper`: builds the APKs and native apps be-launcher installs, on
+  request, on one host, and wakes Namespace's cluster (guides/build_server.md).
 - The build and test tools: `buck-tools`, `local-tools`, `verify`, `bootstrap`,
   `be-drive`, `app-tests`, `paint-snapshot` and the rest.
 

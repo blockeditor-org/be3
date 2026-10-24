@@ -73,7 +73,7 @@ buck2:
   first run), and its hosts and key go
   into a generated `.buckconfig.local`, with the server's name as
   `be3.build_server`, which picks the workers' image. For Namespace, the
-  default, the hosts are asked of `namespace-waker` at `api.be3.pfg.pw`, which
+  default, the hosts are asked of the build helper at `api.be3.pfg.pw`, which
   wakes the remote execution cluster (guides/build_server.md says when it
   asks, and where each server's key comes from).
 - **An HTTPS proxy.** buck2's remote execution client dials the server's hosts

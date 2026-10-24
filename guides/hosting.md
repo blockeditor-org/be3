@@ -19,7 +19,8 @@ leaves the host's service configuration and reverse proxy alone.
 The server speaks plain WebSockets at `/api/be` and the same protocol over
 HTTP posts at `/api/be/http` for clients behind a proxy that refuses WebSockets.
 The host's reverse proxy supplies TLS at `api.be3.pfg.pw` and routes those API
-paths, `/auth`, and `/auth/*` to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
+paths, `/auth`, and `/auth/*` to the server, and `/build/*` to the build helper
+on `127.0.0.1:9091` (guides/build_server.md). The web app is served separately by Bunny at `be3.pfg.pw`.
 The proxy must allow the web app's origin; native clients send no Origin header.
 A gateway can accept `Be3-Gateway-Authorization` from native clients and a
 host-only cookie from browsers, whose WebSocket API cannot set headers.

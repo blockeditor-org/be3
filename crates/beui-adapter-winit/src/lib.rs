@@ -54,7 +54,6 @@ use preferences::SystemPreferences;
 use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
-#[cfg(target_os = "linux")]
 const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
 
 type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;

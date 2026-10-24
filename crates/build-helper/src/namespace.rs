@@ -1,5 +1,5 @@
 use std::{
-    fs, io,
+    fs,
     io::Write as _,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -7,28 +7,22 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
-    sync::Mutex,
-};
+use tokio::sync::Mutex;
 
 pub const CLUSTER_KEY: &str = "buildserver";
 
 pub const LIFETIME: Duration = Duration::from_secs(12600);
 
 const FRESH: Duration = Duration::from_secs(60);
-const MAX_HEAD_BYTES: usize = 16 * 1024;
-const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
-type Probe = Arc<dyn Fn(&Path, &str) -> bool + Send + Sync>;
+pub(crate) type Probe = Arc<dyn Fn(&Path, &str) -> bool + Send + Sync>;
 
 pub struct Waker {
     nsc: PathBuf,
     token: PathBuf,
     directory: PathBuf,
-    probe: Probe,
-    answer: Mutex<Option<(Instant, Arc<str>)>>,
+    pub(crate) probe: Probe,
+    pub(crate) answer: Mutex<Option<(Instant, Arc<str>)>>,
 }
 
 impl Waker {
@@ -179,87 +173,3 @@ fn setup(nsc: &Path, token: &Path, directory: &Path) -> Result<String, String> {
     }
     Ok(text)
 }
-
-pub async fn serve(
-    listener: TcpListener,
-    waker: Arc<Waker>,
-    shutdown: impl Future<Output = ()>,
-) -> io::Result<()> {
-    tokio::pin!(shutdown);
-    loop {
-        tokio::select! {
-            _ = &mut shutdown => return Ok(()),
-            accepted = listener.accept() => {
-                let (stream, _) = accepted?;
-                let waker = Arc::clone(&waker);
-                tokio::spawn(async move {
-                    if let Err(error) = respond(stream, &waker).await {
-                        tracing::debug!("namespace request ended: {error}");
-                    }
-                });
-            }
-        }
-    }
-}
-
-async fn respond(mut stream: TcpStream, waker: &Waker) -> io::Result<()> {
-    let method = match tokio::time::timeout(READ_TIMEOUT, read_method(&mut stream)).await {
-        Ok(method) => method?,
-        Err(_) => return Ok(()),
-    };
-    let (status, age, body) = if method != "GET" {
-        (
-            "405 Method Not Allowed",
-            String::new(),
-            "GET asks for the cluster's hosts.\n".to_owned(),
-        )
-    } else {
-        match waker.answer().await {
-            Ok((text, age)) => (
-                "200 OK",
-                format!("age: {}\r\n", age.as_secs()),
-                text.to_string(),
-            ),
-            Err(error) => {
-                tracing::error!("{error}");
-                ("502 Bad Gateway", String::new(), format!("{error}\n"))
-            }
-        }
-    };
-    let head = format!(
-        "HTTP/1.1 {status}\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: {}\r\n{age}cache-control: no-store\r\nconnection: close\r\n\r\n",
-        body.len()
-    );
-    stream.write_all(head.as_bytes()).await?;
-    stream.write_all(body.as_bytes()).await?;
-    stream.shutdown().await
-}
-
-async fn read_method(stream: &mut TcpStream) -> io::Result<String> {
-    let mut head = Vec::new();
-    let mut chunk = [0u8; 1024];
-    loop {
-        let read = stream.read(&mut chunk).await?;
-        if read == 0 {
-            return Err(io::ErrorKind::UnexpectedEof.into());
-        }
-        head.extend_from_slice(&chunk[..read]);
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        let mut request = httparse::Request::new(&mut headers);
-        match request.parse(&head) {
-            Ok(httparse::Status::Complete(_)) => {
-                return Ok(request.method.unwrap_or_default().to_owned());
-            }
-            Ok(httparse::Status::Partial) if head.len() < MAX_HEAD_BYTES => {}
-            _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "bad request head",
-                ));
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests;

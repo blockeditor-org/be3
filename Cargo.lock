@@ -1702,6 +1702,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-helper"
+version = "0.1.0"
+dependencies = [
+ "httparse",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "build-id"
 version = "0.1.0"
 dependencies = [
@@ -4588,16 +4601,6 @@ dependencies = [
  "spirv",
  "thiserror 2.0.18",
  "unicode-ident",
-]
-
-[[package]]
-name = "namespace-waker"
-version = "0.1.0"
-dependencies = [
- "httparse",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
