@@ -1,12 +1,12 @@
-use infinite_canvas_types::{
-    CanvasColor, CanvasEntity, CanvasFill, CanvasHue, CanvasLook, CanvasShape, CanvasStrokeStyle,
-    CanvasStyle, CanvasTextSize, CanvasTone,
-};
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DROPLET_OFF, ICON_PALETTE};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use infinite_canvas_types::{
+    CanvasColor, CanvasEntity, CanvasFill, CanvasHue, CanvasLook, CanvasShape, CanvasStrokeStyle,
+    CanvasStyle, CanvasTextSize, CanvasTone,
+};
 
 use super::selection_bar::Swatch;
 use super::sidebar::{closed, colored, stroked};

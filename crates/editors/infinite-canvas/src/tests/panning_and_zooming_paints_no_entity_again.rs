@@ -1,6 +1,6 @@
 use super::*;
-use infinite_canvas_types::CanvasColor;
 use block_editor_beui::beui::{Rect, pos2};
+use infinite_canvas_types::CanvasColor;
 
 const COLUMNS: usize = 8;
 

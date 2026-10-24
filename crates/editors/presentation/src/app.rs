@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use presentation_types::PresentationContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use presentation_types::PresentationContent;
 use uuid::Uuid;
 
 mod slides;

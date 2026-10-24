@@ -5,12 +5,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
 use block_editor_beui::ContentProjection;
-use infinite_canvas_types::CanvasContent;
-use infinite_canvas_types::{
-    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
-    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
-    CanvasTransform, InfiniteCanvasOperation,
-};
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::be_block::{Edit, ObjectId};
@@ -26,6 +20,12 @@ use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
 use block_editor_beui::{BlockParent, BlockQuery, SharedCaret};
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::{
+    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
+    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
+    CanvasTransform, InfiniteCanvasOperation,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

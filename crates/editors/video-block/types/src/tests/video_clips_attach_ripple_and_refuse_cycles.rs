@@ -1,5 +1,8 @@
 use super::*;
-use crate::{MAX_CLIP_LENGTH, Video, VideoAttachment, VideoClip, VideoContent, VideoFrameRate, VideoOperation};
+use crate::{
+    MAX_CLIP_LENGTH, Video, VideoAttachment, VideoClip, VideoContent, VideoFrameRate,
+    VideoOperation,
+};
 use be_block::{ChildChange, Root};
 use uuid::Uuid;
 

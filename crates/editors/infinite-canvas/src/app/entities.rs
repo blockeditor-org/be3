@@ -4,15 +4,13 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::be_model::Place;
-use infinite_canvas_types::{
-    Canvas, CanvasEntity, CanvasPoint, CanvasTransform, Entity,
-};
 use block_editor_beui::be_block::{ObjectId, Touched};
 use block_editor_beui::beui::reactive::*;
+use infinite_canvas_types::{Canvas, CanvasEntity, CanvasPoint, CanvasTransform, Entity};
 use uuid::Uuid;
 
 use crate::geometry::{WorldRect, entity_bounds};
-use infinite_canvas_types::{CanvasContent};
+use infinite_canvas_types::CanvasContent;
 
 #[derive(Clone, Copy)]
 pub(crate) struct EntitySignals {

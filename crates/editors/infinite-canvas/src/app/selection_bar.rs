@@ -3,7 +3,6 @@ use super::paint::resolve_color;
 use super::sidebar::{set_foreground, styled_entities};
 use super::state::{CanvasState, CommonValue, common_value};
 use super::style::{STROKES, StylePopover};
-use infinite_canvas_types::{CanvasColor, CanvasProfile};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
@@ -11,6 +10,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle};
 use block_editor_beui::{narrow_chrome, sheet_control};
+use infinite_canvas_types::{CanvasColor, CanvasProfile};
 
 const RADIUS: f32 = 12.0;
 const SWATCH: f32 = 22.0;

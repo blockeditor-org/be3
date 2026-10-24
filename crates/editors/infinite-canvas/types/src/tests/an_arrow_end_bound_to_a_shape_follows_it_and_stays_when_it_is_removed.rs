@@ -1,4 +1,7 @@
-use crate::{BINDING_GAP, CanvasArrowhead, CanvasBinding, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation};
+use crate::{
+    BINDING_GAP, CanvasArrowhead, CanvasBinding, CanvasContent, CanvasEntity, CanvasPoint,
+    CanvasShape, CanvasTransform, InfiniteCanvasOperation,
+};
 
 fn run(content: &mut CanvasContent, operation: InfiniteCanvasOperation) {
     let edit = crate::Canvas::edit_in(content, &operation);

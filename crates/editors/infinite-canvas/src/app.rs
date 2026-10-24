@@ -81,8 +81,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
     let inspected = create_memo(move || {
-        chrome.get()
-            && state.profile.get() == infinite_canvas_types::CanvasProfile::Vector
+        chrome.get() && state.profile.get() == infinite_canvas_types::CanvasProfile::Vector
     });
     let scope = NodeRef::new();
     action_scope(&scope);

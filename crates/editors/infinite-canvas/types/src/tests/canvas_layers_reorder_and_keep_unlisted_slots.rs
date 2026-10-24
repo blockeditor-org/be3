@@ -1,4 +1,7 @@
-use crate::{CanvasContent, CanvasEntity, CanvasLayerMove, CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation};
+use crate::{
+    CanvasContent, CanvasEntity, CanvasLayerMove, CanvasPoint, CanvasShape, CanvasTransform,
+    InfiniteCanvasOperation,
+};
 use uuid::Uuid;
 
 fn entity(id: Uuid) -> CanvasEntity {

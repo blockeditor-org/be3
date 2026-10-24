@@ -1,9 +1,9 @@
 use super::*;
 use be_block::ObjectId;
-use presentation_types::PresentationContent;
 use beui::reactive::*;
 use beui::styled::*;
 use block_editor_plugin::HostContent;
+use presentation_types::PresentationContent;
 
 thread_local! {
     static SEEN: RefCell<Vec<Memo<Option<usize>>>> = const { RefCell::new(Vec::new()) };

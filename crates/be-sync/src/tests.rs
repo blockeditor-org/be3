@@ -9,8 +9,8 @@ use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use crate::{Report, Target};
+use infinite_canvas_types::CanvasContent;
 use text_block_types::{TextBlock, TextContent};
-use infinite_canvas_types::{CanvasContent};
 
 mod a_file_name_must_work_on_every_system;
 mod a_folder_is_written_as_files_and_directories;

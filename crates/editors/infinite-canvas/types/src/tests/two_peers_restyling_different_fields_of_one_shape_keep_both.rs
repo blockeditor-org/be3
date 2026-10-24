@@ -1,5 +1,8 @@
+use crate::{
+    CanvasColor, CanvasContent, CanvasEntity, CanvasFill, CanvasPoint, CanvasShape,
+    CanvasStrokeStyle, CanvasTextSize, CanvasTransform, InfiniteCanvasOperation,
+};
 use be_block::Merge;
-use crate::{CanvasColor, CanvasContent, CanvasEntity, CanvasFill, CanvasPoint, CanvasShape, CanvasStrokeStyle, CanvasTextSize, CanvasTransform, InfiniteCanvasOperation};
 use be_commit::MergeResult;
 
 fn run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {

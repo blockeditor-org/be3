@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use block_editor_beui::be_block::ObjectId;
-use presentation_types::{Presentation, PresentationContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor, Rect};
+use presentation_types::{Presentation, PresentationContent};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
