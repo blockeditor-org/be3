@@ -41,9 +41,11 @@ fn an_abandoned_lease_is_claimed() {
         },
         resynchronize: false,
     });
-    assert!(!again
-        .iter()
-        .any(|command| matches!(command, Command::ClaimLease { .. })));
+    assert!(
+        !again
+            .iter()
+            .any(|command| matches!(command, Command::ClaimLease { .. }))
+    );
     let granted = module.handle(Event::Lease {
         replica: REPLICA,
         session: SessionState {

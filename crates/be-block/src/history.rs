@@ -43,13 +43,7 @@ impl<C: Undo, T: Moment> Default for History<C, T> {
 }
 
 impl<C: Undo, T: Moment> History<C, T> {
-    pub fn record(
-        &mut self,
-        content: &C,
-        operation: &C::Op,
-        origin: Option<u64>,
-        at: Option<T>,
-    ) {
+    pub fn record(&mut self, content: &C, operation: &C::Op, origin: Option<u64>, at: Option<T>) {
         let Some(step) = content.step(operation) else {
             return;
         };
@@ -64,8 +58,7 @@ impl<C: Undo, T: Moment> History<C, T> {
             return;
         }
         let step = match (self.undo.last_mut(), at) {
-            (Some((previous, Some(then))), Some(now)) if now.within(*then, EDIT_BURST) =>
-            {
+            (Some((previous, Some(then))), Some(now)) if now.within(*then, EDIT_BURST) => {
                 match C::absorb(previous, step) {
                     Ok(()) => {
                         *then = now;

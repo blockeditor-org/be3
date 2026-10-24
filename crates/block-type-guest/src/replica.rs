@@ -5,16 +5,14 @@ use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, SessionState};
 use be_session::{Follower, OpId, Resume, Sequencer, SessionMessage, SessionOp};
 use block_type_api::{
-    Change, ChildChange, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, Reply,
-    ReplicaId, RequestId, SessionTag, Status, Token, Written,
+    Change, ChildChange, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, ReplicaId,
+    Reply, RequestId, SessionTag, Status, Token, Written,
 };
 use uuid::Uuid;
 
 use crate::{
     FromFileFn, Recorder,
-    editor::{
-        EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor,
-    },
+    editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
     wire::Wire,
 };
 
@@ -89,7 +87,10 @@ pub(crate) enum Input {
 }
 
 enum Journaled<Op> {
-    Edited { operation: Op, unsettled: u64 },
+    Edited {
+        operation: Op,
+        unsettled: u64,
+    },
     Applied(Op),
     Beneath {
         operation: Op,
@@ -422,7 +423,7 @@ where
                 bytes,
             } => {
                 if let Some(message) = FromEditor::decode(&bytes) {
-                    self.from_editor(editor, message);
+                    self.handle_editor(editor, message);
                 }
             }
             Input::Message {
@@ -624,12 +625,7 @@ where
                 match C::merge3(&ancestor, &self.confirmed, &theirs) {
                     MergeResult::Clean(value) => {
                         let content = self.written(&value);
-                        self.publish(
-                            Some(to),
-                            None,
-                            content,
-                            AfterPublish::Merged { value },
-                        );
+                        self.publish(Some(to), None, content, AfterPublish::Merged { value });
                     }
                     MergeResult::Conflicted { value, conflicts } => {
                         let content = self.written(&self.confirmed);
@@ -659,11 +655,11 @@ where
                     false => next(),
                 };
                 let theirs_content = next();
-                let (value, conflicts) =
-                    match C::merge3(&ancestor, &ours_content, &theirs_content) {
-                        MergeResult::Clean(value) => (value, None),
-                        MergeResult::Conflicted { value, conflicts } => (value, Some(conflicts)),
-                    };
+                let (value, conflicts) = match C::merge3(&ancestor, &ours_content, &theirs_content)
+                {
+                    MergeResult::Clean(value) => (value, None),
+                    MergeResult::Conflicted { value, conflicts } => (value, Some(conflicts)),
+                };
                 match conflicts {
                     Some(count) if unsealed => {
                         let content = self.written(&ours_content);
@@ -888,7 +884,9 @@ where
                 reply,
             } => {
                 if attempts + 1 >= REPLACE_ATTEMPTS {
-                    self.error("a replacement could not be saved; the block kept changing under it");
+                    self.error(
+                        "a replacement could not be saved; the block kept changing under it",
+                    );
                     if let Some(id) = reply {
                         self.reply(id, Reply::Changed(false));
                     }
@@ -1090,7 +1088,7 @@ where
         self.edit(operation, origin)
     }
 
-    fn from_editor(&mut self, editor: EditorId, message: FromEditor) {
+    fn handle_editor(&mut self, editor: EditorId, message: FromEditor) {
         let Some(&editable) = self.editors.get(&editor) else {
             return;
         };
@@ -1210,7 +1208,7 @@ where
         }
         if !self.presence.is_empty() {
             let presence = self.peer_presence();
-            self.to_editor(editor, &ToEditor::Presence(presence));
+            self.tell_editor(editor, &ToEditor::Presence(presence));
         }
     }
 
@@ -1228,10 +1226,10 @@ where
                 .collect(),
             applied: self.acknowledged.get(&editor).copied().unwrap_or_default(),
         };
-        self.to_editor(editor, &ToEditor::Snapshot(snapshot));
+        self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
     }
 
-    fn to_editor(&mut self, editor: EditorId, message: &ToEditor) {
+    fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {
         self.out.push(Command::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
@@ -1292,19 +1290,19 @@ where
                         }
                     })
                     .collect();
-                self.to_editor(*editor, &ToEditor::Operations(operations));
+                self.tell_editor(*editor, &ToEditor::Operations(operations));
             }
         }
         if std::mem::take(&mut self.presence_changed) && !editors.is_empty() {
             let presence = self.peer_presence();
             for editor in &editors {
-                self.to_editor(*editor, &ToEditor::Presence(presence.clone()));
+                self.tell_editor(*editor, &ToEditor::Presence(presence.clone()));
             }
         }
         let channel = std::mem::take(&mut self.channel);
         if !channel.is_empty() {
             for editor in &editors {
-                self.to_editor(*editor, &ToEditor::PeerMessages(channel.clone()));
+                self.tell_editor(*editor, &ToEditor::PeerMessages(channel.clone()));
             }
         }
     }

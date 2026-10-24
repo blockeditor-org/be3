@@ -35,7 +35,7 @@ fn an_editor_joins_with_a_snapshot_and_follows_operations() {
     sim.operate(0, 1, add("ignored"));
     sim.settle();
     assert_eq!(texts(&sim.content(0)), ["first", "second"]);
-    sim.from_editor(1, 2, FromEditor::Resend);
+    sim.send_from_editor(1, 2, FromEditor::Resend);
     sim.settle();
     let received = sim.take_received(1, 2);
     let [ToEditor::Snapshot(snapshot)] = received.as_slice() else {

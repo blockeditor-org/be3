@@ -27,7 +27,12 @@ fn a_gesture_is_one_undo_step_and_quick_edits_absorb() {
     }
     assert_eq!(
         seen,
-        [vec!["d".to_owned()], vec!["c".to_owned()], vec!["a".to_owned()], vec![]]
+        [
+            vec!["d".to_owned()],
+            vec!["c".to_owned()],
+            vec!["a".to_owned()],
+            vec![]
+        ]
     );
     assert_eq!(texts(sim.mirror(0, 1)), Vec::<String>::new());
     sim.gesture(0, 1, Gesture::Begin);

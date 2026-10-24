@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
-    Command, Description, Event, Reply, ReplicaId, Request, TypeInfo, decode_frame, encode_frame,
+    Command, Description, Event, ReplicaId, Reply, Request, TypeInfo, decode_frame, encode_frame,
 };
 use uuid::Uuid;
 
@@ -22,13 +22,17 @@ use replica::{AnyReplica, Input, Opened, Replica};
 
 type FromFileFn = fn(Option<&[u8]>, &str, Vec<u8>, u64) -> Option<Vec<u8>>;
 
+type MergeFn = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8>, usize), String>;
+
+type ToFileFn = fn(&[u8]) -> Result<Option<Vec<u8>>, String>;
+
 pub struct Registration {
     info: TypeInfo,
     open: fn(Opened) -> Box<dyn AnyReplica>,
     blank: fn() -> Vec<u8>,
-    merge: fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8>, usize), String>,
+    merge: MergeFn,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
-    to_file: Option<fn(&[u8]) -> Result<Option<Vec<u8>>, String>>,
+    to_file: Option<ToFileFn>,
     from_file: Option<FromFileFn>,
     claims: Option<fn(&str, &[u8]) -> bool>,
 }
@@ -91,10 +95,12 @@ fn merge<C: Merge + Default>(
         Some(bytes) => C::decode(bytes).map_err(|error| error.to_string()),
         None => Ok(C::default()),
     };
-    Ok(match C::merge3(&decode(base)?, &decode(ours)?, &decode(theirs)?) {
-        MergeResult::Clean(value) => (value.encode(), 0),
-        MergeResult::Conflicted { value, conflicts } => (value.encode(), conflicts.max(1)),
-    })
+    Ok(
+        match C::merge3(&decode(base)?, &decode(ours)?, &decode(theirs)?) {
+            MergeResult::Clean(value) => (value.encode(), 0),
+            MergeResult::Conflicted { value, conflicts } => (value.encode(), conflicts.max(1)),
+        },
+    )
 }
 
 pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
@@ -105,7 +111,10 @@ pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description
     }
 }
 
-fn describe_bytes<C: BlockContent>(bytes: &[u8], organization: Uuid) -> Result<Description, String> {
+fn describe_bytes<C: BlockContent>(
+    bytes: &[u8],
+    organization: Uuid,
+) -> Result<Description, String> {
     let content = C::decode(bytes).map_err(|error| error.to_string())?;
     Ok(describe(&content, organization))
 }

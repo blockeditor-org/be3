@@ -8,8 +8,8 @@ use be_protocol::ClientId;
 use be_session::{Lease, Resume};
 use be_store::Hash;
 use block_type_api::{
-    Change, Command, Description, EditorId, Endpoint, Event, HeadEvent, Recipients, Reply,
-    ReplicaId, Request, RequestId, SessionTag, Status,
+    Change, Command, Description, EditorId, Endpoint, Event, HeadEvent, Recipients, ReplicaId,
+    Reply, Request, RequestId, SessionTag, Status,
 };
 use uuid::Uuid;
 
@@ -179,7 +179,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn attach(&mut self, device: usize, editor: EditorId, editable: bool) {
-        self.editors.insert((device, editor), EditorMirror::default());
+        self.editors
+            .insert((device, editor), EditorMirror::default());
         self.queue.push_back((
             device,
             Event::Attach {
@@ -197,14 +198,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             .get_mut(&(device, editor))
             .and_then(|mirror| mirror.operate(operation))
             .expect("an editor operates once it has content");
-        self.from_editor(device, editor, message);
+        self.send_from_editor(device, editor, message);
     }
 
     fn gesture(&mut self, device: usize, editor: EditorId, gesture: Gesture) {
-        self.from_editor(device, editor, FromEditor::Gesture(gesture));
+        self.send_from_editor(device, editor, FromEditor::Gesture(gesture));
     }
 
-    fn from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
+    fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
         self.queue.push_back((
             device,
             Event::Message {
@@ -419,7 +420,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         return;
                     };
                     if let Some(answer) = mirror.receive(message) {
-                        self.from_editor(device, editor, answer);
+                        self.send_from_editor(device, editor, answer);
                     }
                 }
                 Recipients::One(Endpoint::Peer(peer)) => {

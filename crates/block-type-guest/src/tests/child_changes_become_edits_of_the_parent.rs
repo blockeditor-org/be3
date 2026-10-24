@@ -20,7 +20,13 @@ fn child_changes_become_edits_of_the_parent() {
             .map(|description| description.references.clone()),
         Some(vec![child])
     );
-    sim.change(0, Change::Child(ChildChange::Replace { old: child, new: other }));
+    sim.change(
+        0,
+        Change::Child(ChildChange::Replace {
+            old: child,
+            new: other,
+        }),
+    );
     for device in 0..2 {
         assert_eq!(sim.content(device).references(), [other]);
     }

@@ -16,7 +16,9 @@ pub type EditorId = u64;
 
 pub type Entries = BTreeMap<Uuid, Vec<u8>>;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 pub struct SessionTag(pub [u8; 32]);
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -91,11 +93,26 @@ pub enum Event {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum HeadEvent {
-    Published { token: Token, head: CommitId },
-    Rejected { token: Token, head: Option<CommitId> },
-    Stashed { token: Token, commit: CommitId },
-    Failed { token: Token, error: String },
-    Moved { head: CommitId, from_this_device: bool },
+    Published {
+        token: Token,
+        head: CommitId,
+    },
+    Rejected {
+        token: Token,
+        head: Option<CommitId>,
+    },
+    Stashed {
+        token: Token,
+        commit: CommitId,
+    },
+    Failed {
+        token: Token,
+        error: String,
+    },
+    Moved {
+        head: CommitId,
+        from_this_device: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

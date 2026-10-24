@@ -13,10 +13,11 @@ fn a_module_answers_stateless_requests() {
     assert_eq!(types.len(), 2);
     assert!(types[0].undo && !types[0].file);
     assert!(types[1].undo && types[1].file);
-    let mut ask = |request: Request| match module.handle(Event::Request { id: 1, request }).as_slice() {
-        [Command::Reply { id: 1, reply }] => reply.clone(),
-        other => panic!("expected one reply, got {other:?}"),
-    };
+    let mut ask =
+        |request: Request| match module.handle(Event::Request { id: 1, request }).as_slice() {
+            [Command::Reply { id: 1, reply }] => reply.clone(),
+            other => panic!("expected one reply, got {other:?}"),
+        };
     let Reply::Blank(blank) = ask(Request::Blank {
         content_type: ChecklistContent::CONTENT_TYPE,
     }) else {
@@ -80,8 +81,5 @@ fn a_module_answers_stateless_requests() {
         }),
         Reply::Unknown
     );
-    assert_eq!(
-        ask(Request::Content { replica: 9 }),
-        Reply::Unknown
-    );
+    assert_eq!(ask(Request::Content { replica: 9 }), Reply::Unknown);
 }
