@@ -497,6 +497,30 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    pub async fn apply(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        content_type: Uuid,
+        bytes: Option<Vec<u8>>,
+        client: ClientId,
+        change: Change,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let kind = types::kind_of(content_type)
+            .ok_or_else(|| format!("no type module has the block type {content_type}"))?;
+        let request = Request::Apply {
+            content_type,
+            bytes,
+            client,
+            change,
+        };
+        match self.ask(ctx, kind.module, request).await {
+            Reply::Content(bytes) => Ok(Some(bytes)),
+            Reply::Changed(false) => Ok(None),
+            Reply::Malformed(error) => Err(error),
+            other => Err(format!("the type module answered {other:?}")),
+        }
+    }
+
     pub fn status(&self, block: Uuid) -> Option<Status> {
         self.replica_of(block).map(|(_, open)| open.status.clone())
     }

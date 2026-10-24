@@ -3,7 +3,11 @@ load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test"
 
 cargo_library()
 
-cargo_test()
+# The tests name block types from the editors' manifests, as be does from the
+# bundle it carries.
+cargo_test(
+    env = {"EDITOR_MANIFESTS": "$(location //crates/block-plugin-api:editor-manifests)"},
+)
 
 # be carries the first-party type module and every plugin's manifest and type
 # module in its executable, so a release is one file (guides/type_modules.md,

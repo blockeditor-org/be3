@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block::{BlockContent, BlockMetadata};
+use be_block::BlockMetadata;
 use be_client::{ClientError, Conflict, Credentials, Peer, PeerConfig};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
@@ -1438,8 +1438,10 @@ async fn apply(
             mut metadata,
             bytes,
         } => {
+            let kind = super::types::kind_of(content_type);
+            let bytes = bytes.or_else(|| kind.as_ref().map(|kind| kind.blank.clone()));
             if metadata.derived.is_empty()
-                && let Some(kind) = super::types::kind_of(content_type)
+                && let Some(kind) = kind
             {
                 metadata.derived = match &bytes {
                     Some(bytes) => replicas
@@ -1676,12 +1678,11 @@ async fn export(
 ) -> Result<(String, Vec<u8>), ClientError> {
     let picked = peer.summary(block).await?;
     let mut top = picked.clone();
-    if picked.content_type == be_block::DatabaseContent::CONTENT_TYPE
-        && let Some(BlockParent::Block(parent)) = picked.parent
-        && let Ok(view) = peer.summary(parent).await
-        && view.content_type == be_block::DatabaseViewContent::CONTENT_TYPE
+    if let Some(BlockParent::Block(parent)) = picked.parent
+        && let Ok(whole) = peer.summary(parent).await
+        && crate::editors::plugin::discovery::exported_whole(whole.content_type)
     {
-        top = view;
+        top = whole;
     }
     let mut found = vec![(top.clone(), None)];
     let mut level = vec![(top.id, 0)];

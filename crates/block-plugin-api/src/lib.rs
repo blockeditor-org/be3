@@ -465,6 +465,7 @@ pub struct BlockTypeManifest {
     pub name: String,
     pub descriptor: BlockTypeDescriptor,
     pub module: Option<String>,
+    pub exported_whole: bool,
 }
 
 impl BlockTypeManifest {

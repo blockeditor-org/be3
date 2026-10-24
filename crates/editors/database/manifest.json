@@ -65,7 +65,8 @@
       "id": "00006461-7461-6261-7365-2d7669657701",
       "display_name": "Database View",
       "icon": "\ue157",
-      "color": [44, 158, 128]
+      "color": [44, 158, 128],
+      "exported_whole": true
     }
   },
   "entry_point": "database.wasm"

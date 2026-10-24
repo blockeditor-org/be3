@@ -1,6 +1,7 @@
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{
-    BlockContent, EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
+    BlockContent, EditorView, EditorViewContent, Settings, SettingsContent, VIEW_EDITOR,
+    WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::root_settings::RootSettings;
@@ -45,7 +46,7 @@ impl Sessions {
         let count = self.listed.with_untracked(Vec::len);
         let session = editor.blocks().create_with(
             EditorViewContent::CONTENT_TYPE,
-            Some(EditorView::document(WORKSPACE_EDITOR, None).encode()),
+            None,
             BlockParent::Block(settings),
             EditorView::metadata(WORKSPACE_EDITOR, Some(format!("Session {}", count + 1))),
         );
@@ -66,10 +67,10 @@ fn listed(workspace: &Workspace) -> Vec<Session> {
         .sessions()
         .into_iter()
         .filter(|session| {
-            editor
-                .content_of::<EditorViewContent>(*session)
-                .read(|view| view.root().editor)
-                == Ok(WORKSPACE_EDITOR)
+            workspace
+                .info(*session)
+                .and_then(|info| info.metadata.get(&VIEW_EDITOR))
+                == Some(WORKSPACE_EDITOR)
         })
         .map(|block| Session {
             block,

@@ -1062,7 +1062,12 @@ the `Blocks` handle from `editor.blocks()`.
 
 A new block's first content travels with it: `CreateBlock` carries the encoded
 content, and the worker creates the block, then writes the content as its first
-commit, before any later command for that block runs. `Creation::create` and
+commit, before any later command for that block runs. With no content the
+worker writes the type's blank content, which its type module made at `Hello`
+(`Kind::blank`), so a host or plugin that makes a block of a type whose format
+it does not own names only the type's id: `Blocks::create_with(type, None, ..)`
+for the file tree's New workspace, `be::create(.., None)` for My files and a new
+session's view. `Creation::create` and
 `Blocks::create` make a block this way, Detached unless a parent is named;
 the host sets the parent of a block made in a creation dialog once it has the
 id. Creating a database makes two blocks this way:

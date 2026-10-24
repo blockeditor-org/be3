@@ -64,6 +64,8 @@ pub struct BlockTypeDocument {
     pub press: Press,
     #[serde(default)]
     pub module: Option<String>,
+    #[serde(default)]
+    pub exported_whole: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -191,6 +193,7 @@ impl BlockTypeDocument {
                 press: self.press,
             },
             module: self.module,
+            exported_whole: self.exported_whole,
         })
     }
 }

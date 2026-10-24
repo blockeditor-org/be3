@@ -5,7 +5,7 @@ use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, EditorView,
     LINUX_DESKTOP_EDITOR, LiveEdit, MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent,
-    VIEW_EDITOR, WORKSPACE_EDITOR, WorkspaceContent,
+    VIEW_EDITOR, WORKSPACE_EDITOR, WORKSPACE_TYPE,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -181,10 +181,10 @@ impl RootSettings {
             metadata.insert(&MY_FILES, &true);
             be::create(
                 block,
-                WorkspaceContent::CONTENT_TYPE,
+                WORKSPACE_TYPE,
                 BlockParent::Root,
                 metadata,
-                Some(WorkspaceContent::default().encode()),
+                None,
             );
             self.created_files = Some(block);
         }
@@ -333,7 +333,7 @@ impl RootSettings {
             EditorView::CONTENT_TYPE,
             BlockParent::Block(settings),
             EditorView::metadata(editor, Some(name)),
-            Some(EditorView::document(editor, None).encode()),
+            None,
         );
         Some(session)
     }

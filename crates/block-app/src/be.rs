@@ -267,19 +267,22 @@ pub(crate) fn change_child(
     if !is_known(content_type) {
         return None;
     }
-    let change = match change {
+    send(Command::ChangeChild {
+        block,
+        content_type,
+        change: api_child(change),
+    });
+    Some(true)
+}
+
+fn api_child(change: be_block::ChildChange) -> block_type_api::ChildChange {
+    match change {
         be_block::ChildChange::Add(child) => block_type_api::ChildChange::Add(child),
         be_block::ChildChange::Delete(child) => block_type_api::ChildChange::Delete(child),
         be_block::ChildChange::Replace { old, new } => {
             block_type_api::ChildChange::Replace { old, new }
         }
-    };
-    send(Command::ChangeChild {
-        block,
-        content_type,
-        change,
-    });
-    Some(true)
+    }
 }
 
 pub(crate) fn version(block: Uuid, command: block_plugin_api::VersionCommand) {

@@ -79,3 +79,13 @@ pub fn name_of(content_type: Uuid) -> Option<&'static str> {
         .get(&content_type)
         .copied()
 }
+
+pub fn adds_children(content_type: Uuid) -> bool {
+    installed()
+        .iter()
+        .flat_map(|plugin| &plugin.manifest.block_types)
+        .any(|block_type| {
+            block_type.descriptor.children.add
+                && Uuid::from_bytes(block_type.content_type()) == content_type
+        })
+}

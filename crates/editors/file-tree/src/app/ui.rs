@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::WorkspaceContent;
+use block_editor_beui::be_block::{BlockMetadata, WORKSPACE_TYPE};
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SPARKLES,
@@ -370,10 +370,11 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
 }
 
 fn new_workspace(editor: Editor, renaming: Renaming) {
-    let id = editor.blocks().create_named(
-        &WorkspaceContent::default(),
+    let id = editor.blocks().create_with(
+        WORKSPACE_TYPE,
+        None,
         BlockParent::Root,
-        "New workspace",
+        BlockMetadata::named("New workspace"),
     );
     renaming.rename_when_shown(id, None);
 }

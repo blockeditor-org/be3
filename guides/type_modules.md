@@ -38,7 +38,9 @@ module's types takes a file by name and first bytes, or with `directory` a new
 directory), and `Apply` (a `Child` or `FromFile` change made to content bytes,
 or to the type's default for `None`, answered `Content`, or `Changed(false)` when
 it does not apply), which is how a host that publishes commits rather than
-joining a session edits a block. The replica-addressed requests
+joining a session edits a block: be sync, and block-app's version control when it
+lists a checkout in its parent (`Replicas::apply`, then `describe` and
+`publish_encoded`). The replica-addressed requests
 are `Change` (`Child`, `FromFile`, `Replace`, `Undo`, `Redo`), `Content` (the visible
 bytes, for export and duplication) and `Seal` (`force` is a rekey: publish even when
 clean). A request for a replica that is not open is answered `Unknown`.

@@ -179,6 +179,16 @@ pub(crate) fn block_type(content_type: Uuid) -> Option<BlockTypeDescriptor> {
     plugins().types.get(&content_type).cloned()
 }
 
+pub(crate) fn exported_whole(content_type: Uuid) -> bool {
+    plugins()
+        .manifests
+        .iter()
+        .flat_map(|manifest| &manifest.block_types)
+        .any(|block_type| {
+            block_type.exported_whole && Uuid::from_bytes(block_type.content_type()) == content_type
+        })
+}
+
 async fn discover<F>(read: impl Fn(String) -> F) -> Plugins
 where
     F: Future<Output = Result<Vec<u8>, String>>,

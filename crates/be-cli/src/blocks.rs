@@ -1,7 +1,4 @@
 use be_block::BlockContent;
-use be_block::database::DatabaseContent;
-use be_block::database_schema::DatabaseSchemaContent;
-use be_block::database_view::DatabaseViewContent;
 use be_block::text::TextContent;
 use be_graph::{Access, BlockParent};
 use uuid::Uuid;
@@ -80,10 +77,7 @@ impl Index {
 
 pub fn workspaces(top: &[Entry]) -> Vec<&Entry> {
     top.iter()
-        .filter(|entry| {
-            entry.block_type == be_block::WorkspaceContent::CONTENT_TYPE
-                && entry.parent == BlockParent::Root
-        })
+        .filter(|entry| entry.parent == BlockParent::Root)
         .collect()
 }
 
@@ -96,9 +90,7 @@ pub fn default_parent(top: &[Entry]) -> Result<&Entry, String> {
         false => workspaces,
         true => top
             .iter()
-            .filter(|entry| {
-                entry.block_type == be_block::FolderContent::CONTENT_TYPE && entry.access.can_edit()
-            })
+            .filter(|entry| crate::plugins::adds_children(entry.block_type) && entry.access.can_edit())
             .collect(),
     };
     match candidates.as_slice() {
@@ -177,13 +169,8 @@ fn is_settings(block_type: Uuid) -> bool {
 }
 
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 12] = [
-        (DatabaseContent::CONTENT_TYPE, "database"),
-        (DatabaseSchemaContent::CONTENT_TYPE, "schema"),
-        (DatabaseViewContent::CONTENT_TYPE, "database view"),
+    let known: [(Uuid, &str); 6] = [
         (TextContent::CONTENT_TYPE, "text"),
-        (be_block::FolderContent::CONTENT_TYPE, "folder"),
-        (be_block::WorkspaceContent::CONTENT_TYPE, "workspace"),
         (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
         (be_block::CalendarContent::CONTENT_TYPE, "calendar"),
         (be_block::PresentationContent::CONTENT_TYPE, "presentation"),
@@ -192,7 +179,6 @@ pub fn type_name(block_type: Uuid) -> &'static str {
             be_block::SettingsProfileContent::CONTENT_TYPE,
             "settings profile",
         ),
-        (be_block::FileContent::CONTENT_TYPE, "file"),
     ];
     known
         .iter()

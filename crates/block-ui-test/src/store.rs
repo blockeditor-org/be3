@@ -865,8 +865,16 @@ impl ContentStore {
                     inner.graph.insert(id, info);
                     inner.created.push(id);
                 }
-                if let Some(bytes) = content {
-                    self.seed(id, block_type, bytes.to_vec(), false);
+                match content {
+                    Some(bytes) => self.seed(id, block_type, bytes.to_vec(), false),
+                    None => {
+                        let mut inner = self.0.borrow_mut();
+                        if let Reply::Blank(bytes) = inner.request(Request::Blank {
+                            content_type: block_type,
+                        }) {
+                            inner.put(id, block_type, bytes);
+                        }
+                    }
                 }
             }
             EditorMessage::SetParent {

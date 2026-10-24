@@ -1731,38 +1731,46 @@ async fn relist(
     };
     let content_type = with_graph(context.shared, |graph| {
         graph.get(parent).map(|node| node.content_type)
-    });
-    match content_type {
-        Some(kind) if kind == be_block::FolderContent::CONTENT_TYPE => {
-            relist_in::<be_block::FolderContent>(context, parent, change).await
-        }
-        Some(kind) if kind == be_block::WorkspaceContent::CONTENT_TYPE => {
-            relist_in::<be_block::WorkspaceContent>(context, parent, change).await
-        }
-        _ => Err("Version control can only put a block in a folder or a workspace.".into()),
-    }
-}
-
-async fn relist_in<C: be_block::LiveEdit + Default>(
-    context: &mut Context<'_>,
-    parent: Uuid,
-    change: be_block::ChildChange,
-) -> Result<(), String> {
+    })
+    .ok_or("Version control can only put a block somewhere it knows.")?;
+    let change = block_type_api::Change::Child(super::api_child(change));
+    let ctx = (context.peer, context.shared);
     for _ in 0..8 {
         let head = context.peer.remote_head(parent).await.map_err(failed)?;
-        let mut content = match head {
-            Some(head) => context.peer.open_commit::<C>(head).await.map_err(failed)?,
-            None => C::default(),
+        let current = match head {
+            Some(head) => {
+                let commit = context.peer.load_commit(head).await.map_err(failed)?;
+                Some(
+                    context
+                        .peer
+                        .read_manifest(&commit.manifest)
+                        .await
+                        .map_err(failed)?,
+                )
+            }
+            None => None,
         };
-        let operations = content
-            .child_operations(change)
+        let bytes = context
+            .replicas
+            .apply(ctx, content_type, current, 0, change.clone())
+            .await?
             .ok_or("That place cannot hold another block.")?;
-        for operation in &operations {
-            content.apply(operation);
-        }
+        let description = context
+            .replicas
+            .describe(ctx, content_type, &bytes)
+            .await
+            .ok_or("Version control could not describe that place.")?;
         match context
             .peer
-            .save(parent, &content, head)
+            .publish_encoded(
+                parent,
+                content_type,
+                &bytes,
+                description.references,
+                description.derived,
+                head,
+                None,
+            )
             .await
             .map_err(failed)?
         {

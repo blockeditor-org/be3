@@ -46,7 +46,7 @@ impl Workspace {
 }
 
 impl Root for Workspace {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x776f_726b_7370_6163_652d_626c_6f63_6b01);
+    const CONTENT_TYPE: Uuid = crate::WORKSPACE_TYPE;
     const FROZEN: bool = true;
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {

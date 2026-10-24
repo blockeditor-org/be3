@@ -40,7 +40,28 @@ mod rows_are_added_filtered_changed_and_given_pages;
 mod the_plugin_bundle_holds_each_manifest_and_its_type_module;
 mod two_databases_may_share_a_prefix_and_each_resolves_its_own_rows;
 
+fn manifests() {
+    if !crate::plugins::installed().is_empty() {
+        return;
+    }
+    let editors = std::env::var_os("EDITOR_MANIFESTS")
+        .map(PathBuf::from)
+        .expect("EDITOR_MANIFESTS names the editors' manifests");
+    let mut plugins = Vec::new();
+    for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
+        let path = entry.expect("the entry is readable").path().join("manifest.json");
+        let document = std::fs::read_to_string(&path).expect("the manifest is readable");
+        plugins.push(crate::plugins::Plugin {
+            manifest: block_plugin_api::manifest_from_json(&document)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
+            module: &[],
+        });
+    }
+    crate::plugins::install(plugins);
+}
+
 fn sources() -> crate::tracker::Sources {
+    manifests();
     Box::new(|| {
         vec![be_types_host::in_process::<builtin_types::BlockTypes>(
             "builtin-types",
@@ -58,6 +79,7 @@ struct Harness {
 impl Harness {
     async fn start() -> Self {
         build_id::install("test");
+        manifests();
         let directory = std::env::temp_dir().join(format!("be-cli-test-{}", Uuid::new_v4()));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -199,10 +221,16 @@ async fn database(
     }
     let database = Uuid::new_v4();
     let schema_id = Uuid::new_v4();
+    let parent = peer
+        .children(BlockParent::Root)
+        .await
+        .unwrap()
+        .first()
+        .map_or(BlockParent::Root, |workspace| BlockParent::Block(workspace.id));
     peer.create_block(
         database,
         DatabaseContent::CONTENT_TYPE,
-        BlockParent::Root,
+        parent,
         &BlockMetadata::named(name),
     )
     .await
