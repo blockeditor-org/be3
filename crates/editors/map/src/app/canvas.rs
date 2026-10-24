@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use map_types::MapPoint;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
     Color32, CursorIcon, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextAlign, Vec2,
 };
+use map_types::MapPoint;
 use uuid::Uuid;
 
 use crate::geo::MapView;

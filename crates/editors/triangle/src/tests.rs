@@ -1,8 +1,8 @@
 use block_editor_plugin::be_block::BlockContent;
-use triangle_types::TriangleContent;
 use block_editor_plugin::{
     EditorHost, EditorRegion, FrameSpec, GraphCommand, Instance, Rect, Region, pos2, vec2,
 };
+use triangle_types::TriangleContent;
 
 use crate::app::Triangle;
 

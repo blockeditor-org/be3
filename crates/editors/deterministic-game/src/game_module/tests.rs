@@ -1,6 +1,6 @@
-use deterministic_game_types::GameModuleFile;
 use block_editor_beui::{Editor, EditorHost, OwnedEditor, PickedFile};
 use block_ui_test::BeuiTest;
+use deterministic_game_types::GameModuleFile;
 use uuid::Uuid;
 
 use crate::game_module::app::{GameModuleApp, imported};

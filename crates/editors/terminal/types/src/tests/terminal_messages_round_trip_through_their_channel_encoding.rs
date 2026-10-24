@@ -1,5 +1,5 @@
-use be_block::presence::ChannelKind;
 use crate::terminal::{TerminalMessage, TerminalSize};
+use be_block::presence::ChannelKind;
 
 #[test]
 fn terminal_messages_round_trip_through_their_channel_encoding() {

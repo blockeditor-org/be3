@@ -1,13 +1,13 @@
 use block_editor_beui::be_block::BlockContent;
 use image_block_types::ImageContent;
 
-use pixel_art_types::PixelArtContent;
-use pixel_art_types::Artwork;
-use pixel_art_types::PixelColor;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Key, Pos2};
 use block_editor_beui::{Artifact, Artifacts, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use pixel_art_types::Artwork;
+use pixel_art_types::PixelArtContent;
+use pixel_art_types::PixelColor;
 use uuid::Uuid;
 
 use crate::app::PixelArtApp;

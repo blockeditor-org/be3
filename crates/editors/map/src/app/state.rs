@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::Edit;
-use map_types::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use map_types::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use uuid::Uuid;
 
 use crate::geo::MapView;

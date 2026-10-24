@@ -1,5 +1,3 @@
-use map_types::Map;
-use map_types::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
@@ -8,6 +6,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Pressable;
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget};
+use map_types::Map;
+use map_types::{MAX_LATITUDE, MapColor, MapPoint};
 use uuid::Uuid;
 
 use crate::points::marker_color;

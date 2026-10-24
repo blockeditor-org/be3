@@ -143,7 +143,10 @@ pub(super) async fn sources() -> Vec<Source> {
         plugin::<calendar_types::BlockTypes>("be3.calendar", calendar_types::registrations()),
         plugin::<checklist_types::BlockTypes>("be3.checklist", checklist_types::registrations()),
         plugin::<terminal_types::BlockTypes>("be3.terminal", terminal_types::registrations()),
-        plugin::<browser_tab_types::BlockTypes>("be3.browser-tab", browser_tab_types::registrations()),
+        plugin::<browser_tab_types::BlockTypes>(
+            "be3.browser-tab",
+            browser_tab_types::registrations(),
+        ),
         plugin::<image_block_types::BlockTypes>("be3.image", image_block_types::registrations()),
         plugin::<workspace_ui_types::BlockTypes>(
             "be3.workspace-ui",

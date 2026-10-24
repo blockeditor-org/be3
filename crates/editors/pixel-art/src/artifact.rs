@@ -1,5 +1,4 @@
 use block_editor_beui::be_block::{ArtifactSource, BlockContent};
-use pixel_art_types::{Artwork, PixelArtContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -7,6 +6,7 @@ use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
 use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use image_block_types::{ImageContent, ImageFile};
+use pixel_art_types::{Artwork, PixelArtContent};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

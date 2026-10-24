@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pixel_art_types::Artwork;
-use pixel_art_types::PixelColor;
 use block_editor_beui::beui::Image;
 use block_editor_beui::beui::reactive::*;
+use pixel_art_types::Artwork;
+use pixel_art_types::PixelColor;
 
 use super::state::{ArtBlock, artwork_of};
 

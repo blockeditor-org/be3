@@ -1,6 +1,6 @@
+use block_editor_beui::beui::{Color32, Image};
 use pixel_art_types::Artwork;
 use pixel_art_types::PixelColor;
-use block_editor_beui::beui::{Color32, Image};
 
 pub fn artwork_image(art: &Artwork, dark_mode: bool) -> Image {
     let (light, dark) = checkerboard_colors(dark_mode);

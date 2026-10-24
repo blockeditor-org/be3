@@ -3,9 +3,9 @@ use be_commit::MergeResult;
 
 use crate::{BrowserTabContent, HistoryItem};
 
-mod pages_opened_on_both_sides_are_both_kept_in_history;
 mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;
+mod pages_opened_on_both_sides_are_both_kept_in_history;
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {
     let mut content = start.clone();

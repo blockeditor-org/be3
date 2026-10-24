@@ -1,7 +1,7 @@
-use be_block::Merge;
 use crate::pixel_art::{
     PixelArtAnchor, PixelArtContent, PixelArtOperation, PixelColor, PixelUpdate,
 };
+use be_block::Merge;
 use be_commit::MergeResult;
 
 const RED: PixelColor = PixelColor::new(255, 0, 0, 255);

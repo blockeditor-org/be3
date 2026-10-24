@@ -1,9 +1,9 @@
 use block_editor_beui::Editor;
-use logic_grid_types::QuizRow;
 use block_editor_beui::beui::icons::ICON_CIRCLE_CHECK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
+use logic_grid_types::QuizRow;
 
 use super::{BinaryAdditionQuiz, next_answer};
 

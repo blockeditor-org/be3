@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::EditorViewContent;
-use calendar_types::Calendar;
 use block_editor_beui::beui::Key;
+use calendar_types::Calendar;
 
 use super::*;
 

@@ -3,10 +3,7 @@ use block_editor_beui::be_block::BlockContent;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pixel_art_types::PixelColor;
-use pixel_art_types::{default_palette, size_of};
 use block_editor_beui::be_block::ObjectId;
-use pixel_art_types::{PixelArtContent, PixelArtDocument};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
@@ -14,6 +11,9 @@ use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{
     ArtifactDescription, Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
 };
+use pixel_art_types::PixelColor;
+use pixel_art_types::{PixelArtContent, PixelArtDocument};
+use pixel_art_types::{default_palette, size_of};
 
 use crate::artifact;
 use crate::artifact::Settings;

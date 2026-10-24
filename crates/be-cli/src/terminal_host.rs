@@ -7,14 +7,14 @@ use std::time::Duration;
 
 use be_block::BlockContent;
 use be_block::presence::{ChannelKind, PresenceKind};
-use terminal_types::{
-    LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
-};
 use be_client::Peer;
 use be_protocol::ClientId;
 use be_store::ObjectStore;
 use ghostty_vt::{Renderer, Terminal};
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
+use terminal_types::{
+    LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
+};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

@@ -1,8 +1,8 @@
 use block_editor_beui::be_block::{Item, ObjectId};
-use calendar_types::CalendarEvent;
 use block_editor_beui::beui::datetime::DateTime;
 pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
 use block_ui::datetime::{MONTH_NAMES, civil_from_days, days_from_civil};
+use calendar_types::CalendarEvent;
 
 pub(crate) const WEEKDAY_ABBR: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 pub(crate) const WEEKDAY_FULL: [&str; 7] = [

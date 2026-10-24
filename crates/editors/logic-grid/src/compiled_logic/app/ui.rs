@@ -1,11 +1,11 @@
-use logic_grid_types::CompiledLogicContent;
-use logic_grid_types::CompiledLogic as Program;
 use block_editor_beui::be_block::BlockContent;
-use logic_grid_types::LogicGridContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockLink, ChildTarget, Editor};
+use logic_grid_types::CompiledLogic as Program;
+use logic_grid_types::CompiledLogicContent;
+use logic_grid_types::LogicGridContent;
 use logicgame::grid::{ComponentPort, ConnectionDirection};
 use uuid::Uuid;
 

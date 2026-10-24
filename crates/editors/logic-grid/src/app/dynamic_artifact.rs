@@ -1,10 +1,10 @@
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use logic_grid_types::CompiledLogic;
 use block_editor_beui::be_block::{ArtifactSource, BlockContent};
-use logic_grid_types::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};
 use block_editor_beui::{Artifacts, BlockList, BlockQuery, EditorHost, OwnedContentProjection};
+use logic_grid_types::CompiledLogic;
+use logic_grid_types::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};
 use logicgame::grid::LogicGrid as Grid;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

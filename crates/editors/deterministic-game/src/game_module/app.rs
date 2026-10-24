@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use deterministic_game_types::{GameModuleContent, GameModuleFile};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
+use deterministic_game_types::{GameModuleContent, GameModuleFile};
 use game_host::Game;
 
 mod ui;

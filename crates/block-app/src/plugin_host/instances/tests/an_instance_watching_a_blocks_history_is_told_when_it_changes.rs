@@ -3,8 +3,8 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, LiveEdit};
-use calendar_types::{Calendar, CalendarContent, CalendarEvent};
 use block_plugin_api::HistoryState;
+use calendar_types::{Calendar, CalendarContent, CalendarEvent};
 
 fn history_states(instances: &mut Instances) -> Vec<Vec<HistoryState>> {
     next_screens(instances)

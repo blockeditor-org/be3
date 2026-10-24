@@ -2,12 +2,12 @@ use block_editor_beui::Fit;
 use pixel_ray_tracer_types::PixelRayTracerContent;
 
 use block_editor_beui::Loaded;
-use pixel_ray_tracer_types::PIXEL_RAY_TRACER_SIZE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Fitting, Side, Sidebar, Toolbar};
+use pixel_ray_tracer_types::PIXEL_RAY_TRACER_SIZE;
 use uuid::Uuid;
 
 pub(crate) mod canvas;

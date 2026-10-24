@@ -1,8 +1,8 @@
 use block_editor_beui::Loaded;
-use calendar_types::CalendarContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use calendar_types::CalendarContent;
 use uuid::Uuid;
 
 mod model;

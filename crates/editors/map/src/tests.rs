@@ -1,7 +1,7 @@
-use map_types::MapRegion;
-use map_types::{Map, MapContent};
 use block_editor_beui::{EditorHost, FetchResult, HostReply, HostRequest, OwnedEditor};
 use block_ui_test::BeuiTest;
+use map_types::MapRegion;
+use map_types::{Map, MapContent};
 use uuid::Uuid;
 
 use crate::app::MapApp;

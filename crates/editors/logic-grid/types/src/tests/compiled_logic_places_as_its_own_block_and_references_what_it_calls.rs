@@ -1,5 +1,5 @@
-use be_block::Root;
 use crate::compiled_logic::{CompiledLogic, CompiledLogicDocument};
+use be_block::Root;
 use logicgame::execution::{Instruction, UnlinkedComponent, UnlinkedSubgraph};
 use logicgame::grid::{ComponentKind, ComponentPort, ComponentSide, Scale, Size};
 use uuid::Uuid;

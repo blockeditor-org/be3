@@ -1,9 +1,11 @@
 use block_editor_beui::be_block::BlockContent;
 
-use deterministic_game_types::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile};
 use block_editor_beui::beui::{Pos2, Vec2};
 use block_editor_beui::{Creation, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use deterministic_game_types::{
+    DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
+};
 use game_api::{GameAction, GameActionOption};
 use game_host::Game;
 use uuid::Uuid;

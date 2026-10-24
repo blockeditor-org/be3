@@ -1,10 +1,10 @@
 use block_editor_beui::be_block::{Root, ViewState};
-use calendar_types::{Calendar, CalendarContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::container_size;
 use block_editor_beui::{BlockQuery, ChildBlock, ChildMode, ChildTarget, Editor};
+use calendar_types::{Calendar, CalendarContent};
 use uuid::Uuid;
 
 pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";

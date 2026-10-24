@@ -1,9 +1,9 @@
-use browser_tab_types::{BrowserTabContent, HistoryItem};
 use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{
     ChildContent, EditorHost, OwnedEditor, WebViewCommand, WebViewEvent, WebViewId,
 };
 use block_ui_test::BeuiTest;
+use browser_tab_types::{BrowserTabContent, HistoryItem};
 use uuid::Uuid;
 
 use crate::app::BrowserTabApp;

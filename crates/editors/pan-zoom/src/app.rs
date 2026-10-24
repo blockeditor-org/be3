@@ -1,8 +1,8 @@
-use pan_zoom_types::PanZoomContent;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use pan_zoom_types::PanZoomContent;
 
 mod ui;
 
