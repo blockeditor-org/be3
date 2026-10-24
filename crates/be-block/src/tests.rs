@@ -57,7 +57,6 @@ mod streamed_content_separates_its_header_from_its_payload;
 mod the_frozen_blocks_read_every_register_without_any_one_field;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
 mod undoing_a_reset_restores_only_what_was_reset;
-mod unpinning_a_component_removes_it_from_every_folder;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]

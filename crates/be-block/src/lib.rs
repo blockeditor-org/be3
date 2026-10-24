@@ -14,7 +14,6 @@ pub mod device_class;
 pub mod display_settings;
 pub mod editor_view;
 pub mod history;
-pub mod hotbar;
 pub mod input_remapper;
 pub mod input_settings;
 pub mod metadata;
@@ -38,7 +37,6 @@ pub use database_view::{DatabaseView, DatabaseViewContent};
 pub use device_class::{ClassDefault, DeviceClass};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
-pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{

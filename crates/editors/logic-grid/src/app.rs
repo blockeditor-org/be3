@@ -600,7 +600,7 @@ pub(super) struct LogicGridEditor {
     grid: Grid,
     observed_revision: Option<u64>,
 
-    hotbar_block: RootSetting<block_editor_beui::be_block::HotbarContent>,
+    hotbar_block: RootSetting<logic_grid_types::HotbarContent>,
 
     hotbar_needs_write: bool,
 

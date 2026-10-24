@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::{LogicGameContent, LogicGridContent, LogicGridOperation};
 
+mod unpinning_a_component_removes_it_from_every_folder;
 mod a_component_moved_on_both_sides_conflicts_and_keeps_ours;
 mod a_component_removed_on_one_side_and_turned_on_the_other_stays_removed;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;

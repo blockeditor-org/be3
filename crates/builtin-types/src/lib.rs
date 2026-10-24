@@ -3,7 +3,7 @@ use be_block::{
     InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
 };
 use be_block::{
-    CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, HotbarContent,
+    CounterContent, DatabaseContent, DatabaseSchemaContent, DatabaseViewContent, 
 };
 use block_type_guest::{Registration, be_block_types};
 
@@ -12,7 +12,6 @@ be_block_types![
     DatabaseContent { undo },
     DatabaseSchemaContent { undo },
     DatabaseViewContent { undo },
-    HotbarContent { undo },
 ];
 
 #[cfg(feature = "module")]

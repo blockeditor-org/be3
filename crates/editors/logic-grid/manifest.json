@@ -73,7 +73,8 @@
       "id": "6c6f6769-632d-686f-7462-617201010101",
       "display_name": "Hotbar",
       "icon": "\ue4fa",
-      "color": [211, 126, 59]
+      "color": [211, 126, 59],
+      "module": "logic_grid_types.wasm"
     },
     "compiled": {
       "id": "636f6d70-696c-6564-2d6c-6f6769630101",
