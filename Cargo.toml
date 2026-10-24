@@ -80,6 +80,7 @@ members = [
     "crates/editors/checklist",
     "crates/editors/checklist/types",
     "crates/editors/counter",
+    "crates/editors/counter/types",
     "crates/editors/database",
     "crates/editors/database/types",
     "crates/editors/deterministic-game",

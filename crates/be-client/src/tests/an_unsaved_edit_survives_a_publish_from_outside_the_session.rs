@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{Counter, CounterContent};
+use counter_types::{Counter, CounterContent};
 
 #[tokio::test]
 async fn an_unsaved_edit_survives_a_publish_from_outside_the_session() {

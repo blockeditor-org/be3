@@ -2,7 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, Counter, CounterContent, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
+use counter_types::{Counter, CounterContent};
 use block_plugin_api::StoredHead;
 
 fn saved_head(block: Uuid, after: Option<be_commit::CommitId>) -> be_commit::CommitId {

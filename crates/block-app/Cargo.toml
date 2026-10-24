@@ -105,6 +105,7 @@ block-editor-plugin = { path = "../block-editor-plugin" }
 # first-party one.
 calendar-types = { path = "../editors/calendar/types" }
 checklist-types = { path = "../editors/checklist/types" }
+counter-types = { path = "../editors/counter/types" }
 terminal-types = { path = "../editors/terminal/types" }
 browser-tab-types = { path = "../editors/browser-tab/types" }
 image-block-types = { path = "../editors/image-block/types" }

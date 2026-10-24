@@ -15,6 +15,7 @@ workspace-ui-types = { path = "../workspace-ui/types" }
 
 [dev-dependencies]
 block-ui-test = { path = "../../block-ui-test" }
+counter-types = { path = "../counter/types" }
 
 [lints]
 workspace = true

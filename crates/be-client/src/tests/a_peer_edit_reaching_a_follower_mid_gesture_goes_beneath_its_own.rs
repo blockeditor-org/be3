@@ -1,6 +1,7 @@
 use super::*;
 
-use be_block::{Counter, CounterContent, Settling};
+use be_block::Settling;
+use counter_types::{Counter, CounterContent};
 
 use crate::Journaled;
 

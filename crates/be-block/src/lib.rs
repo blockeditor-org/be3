@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 pub mod blob;
 pub mod block_url;
-pub mod counter;
 pub mod device_class;
 pub mod display_settings;
 pub mod editor_view;
@@ -27,7 +26,6 @@ pub mod version_control;
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
-pub use counter::{Counter, CounterContent};
 pub use device_class::{ClassDefault, DeviceClass};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};

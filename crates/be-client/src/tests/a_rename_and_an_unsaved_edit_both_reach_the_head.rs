@@ -1,6 +1,7 @@
 use super::*;
 
-use be_block::{Counter, CounterContent, NAME};
+use be_block::NAME;
+use counter_types::{Counter, CounterContent};
 
 #[tokio::test]
 async fn a_rename_and_an_unsaved_edit_both_reach_the_head() {

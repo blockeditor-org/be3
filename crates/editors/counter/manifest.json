@@ -23,7 +23,8 @@
       "id": "636f756e-7465-722d-626c-6f636b2d0001",
       "display_name": "Counter",
       "icon": "\ue0ef",
-      "color": [64, 155, 173]
+      "color": [64, 155, 173],
+      "module": "counter_types.wasm"
     }
   },
   "entry_point": "counter.wasm"

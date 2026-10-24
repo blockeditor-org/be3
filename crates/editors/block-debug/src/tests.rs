@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::{Counter, CounterContent};
+use counter_types::{Counter, CounterContent};
 use block_editor_beui::beui::{Document, NodeId};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;

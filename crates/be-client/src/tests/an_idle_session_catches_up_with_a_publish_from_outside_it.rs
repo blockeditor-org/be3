@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{Counter, CounterContent};
+use counter_types::{Counter, CounterContent};
 
 #[tokio::test]
 async fn an_idle_session_catches_up_with_a_publish_from_outside_it() {

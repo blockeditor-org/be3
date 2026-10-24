@@ -2,7 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{Counter, CounterContent, LiveEdit};
+use be_block::LiveEdit;
+use counter_types::{Counter, CounterContent};
 use block_type_guest::editor::EditorOperation;
 
 fn counted(block: Uuid, expected: i64) {

@@ -1,6 +1,5 @@
 use super::*;
 use crate::{
-    counter::{Counter, CounterContent},
     display_settings::{DisplaySettings, DisplaySettingsContent},
     input_settings::{InputSettings, InputSettingsContent},
 };
@@ -8,7 +7,6 @@ use uuid::Uuid;
 
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
-mod a_counter_reset_undoes_back_to_its_count;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
@@ -16,7 +14,6 @@ mod a_profile_layers_its_settings_over_the_defaults;
 mod a_profile_picks_its_own_remapper_and_a_remapper_runs_once_it_names_a_module;
 mod a_repository_keeps_its_latest_operations_and_knows_what_was_undone;
 mod a_repository_moves_and_drops_branches;
-mod a_reset_racing_an_increment_keeps_the_increment;
 mod a_screen_back_at_its_default_mode_is_forgotten;
 mod an_icon_saved_as_a_material_codepoint_reads_as_its_lucide_name;
 mod block_metadata_keeps_keys_it_does_not_know_and_reads_each_key_alone;
@@ -28,8 +25,6 @@ mod screens_turn_off_after_ten_minutes_unless_told_otherwise;
 mod setting_every_pointer_replaces_what_each_device_overrode;
 mod settings_split_across_two_blocks_read_as_one;
 mod streamed_content_separates_its_header_from_its_payload;
-mod two_counters_merge_by_keeping_both_sides_of_the_count;
-mod undoing_a_reset_restores_only_what_was_reset;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
@@ -69,25 +64,4 @@ fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>
         content.apply(&edit);
     }
     content
-}
-
-fn merged<C: Merge>(base: &C, ours: &C, theirs: &C) -> (C, usize) {
-    match C::merge3(base, ours, theirs) {
-        MergeResult::Clean(value) => (value, 0),
-        MergeResult::Conflicted { value, conflicts } => (value, conflicts),
-    }
-}
-
-fn undone<C: Undo>(content: &mut C, operation: C::Op) -> C::Step {
-    let step = content
-        .step(&operation)
-        .expect("the operation changes something");
-    content.apply(&operation);
-    step
-}
-
-fn reverted<C: Undo>(content: &mut C, step: &C::Step) {
-    for operation in content.revert(step) {
-        content.apply(&operation);
-    }
 }

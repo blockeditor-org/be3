@@ -1,6 +1,6 @@
 use super::*;
 use be_block::BlockContent;
-use be_block::counter::CounterContent;
+use counter_types::CounterContent;
 
 use std::time::Duration;
 

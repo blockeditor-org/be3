@@ -764,6 +764,7 @@ dependencies = [
  "be-store",
  "build-id",
  "checklist-types",
+ "counter-types",
  "futures-channel",
  "futures-util",
  "httparse",
@@ -1514,6 +1515,7 @@ dependencies = [
  "bytemuck",
  "calendar-types",
  "checklist-types",
+ "counter-types",
  "database-types",
  "directories-next",
  "futures-util",
@@ -1826,6 +1828,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
  "uuid",
 ]
 
@@ -2495,6 +2498,18 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
+ "uuid",
+]
+
+[[package]]
+name = "counter-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -4281,6 +4296,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
  "database-types",
  "image",
  "image-block-types",
@@ -8353,6 +8369,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
  "uuid",
  "video-block-types",
 ]
@@ -10258,6 +10275,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
  "uuid",
  "workspace-ui-types",
 ]

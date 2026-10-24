@@ -2,7 +2,7 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::CounterContent;
+use counter_types::CounterContent;
 use block_plugin_api::BlockQuery;
 
 #[derive(Debug, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{Counter, CounterContent};
+use counter_types::{Counter, CounterContent};
 
 #[tokio::test]
 async fn a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save() {

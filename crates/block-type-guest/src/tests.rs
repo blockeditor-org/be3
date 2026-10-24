@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use be_block::blob::{Blob, BlobKind};
-use be_block::{BlockContent, ChildChange, Counter, CounterContent, LiveEdit, Root};
+use be_block::{BlockContent, ChildChange, LiveEdit, Root};
 use be_commit::CommitId;
-use be_model::{Anchor, BlockRef, Change as ModelChange, Document, Edit, List, Model, ObjectId};
+use be_model::{
+    Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId,
+};
 use be_protocol::ClientId;
 use be_session::{Lease, Resume};
 use be_store::Hash;
@@ -93,6 +95,23 @@ impl crate::BlobFile for Bytes {
 
 type FileContent = Blob<Bytes>;
 
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+struct Counter {
+    count: Count,
+}
+
+impl Counter {
+    fn add(by: i64) -> Edit {
+        Self::COUNT.add(ObjectId::ROOT, by).into()
+    }
+}
+
+impl Root for Counter {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x636f_756e_7465_722d_626c_6f63_6b2d_0001);
+}
+
+type CounterContent = Document<Counter>;
+
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Folder {
     entries: List<FolderEntry>,
@@ -171,7 +190,7 @@ fn texts(content: &ChecklistContent) -> Vec<String> {
 }
 
 fn count(content: &CounterContent) -> i64 {
-    content.root().value()
+    content.root().count.get()
 }
 
 struct Stored {

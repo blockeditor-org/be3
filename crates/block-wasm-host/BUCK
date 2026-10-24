@@ -4,7 +4,7 @@ cargo_library()
 
 cargo_test(
     env = {
-        "BUILTIN_TYPES_WASM": "$(location //crates/builtin-types:module)",
+        "COUNTER_TYPES_WASM": "$(location //crates/editors/counter/types:module)",
         "GUEST_ECHO_WASM": "$(location //crates/block-guest-echo:module)",
     }
 )

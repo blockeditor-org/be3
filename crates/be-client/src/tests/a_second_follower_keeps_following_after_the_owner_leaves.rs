@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{Counter, CounterContent};
+use counter_types::{Counter, CounterContent};
 
 #[tokio::test]
 async fn a_second_follower_keeps_following_after_the_owner_leaves() {

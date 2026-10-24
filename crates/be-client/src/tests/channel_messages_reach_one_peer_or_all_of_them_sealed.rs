@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::CounterContent;
+use counter_types::CounterContent;
 
 const CHANNEL: Uuid = Uuid::from_u128(0xc4a);
 

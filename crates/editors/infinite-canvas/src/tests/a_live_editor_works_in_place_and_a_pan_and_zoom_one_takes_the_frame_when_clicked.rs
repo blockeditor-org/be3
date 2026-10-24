@@ -1,5 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::{BlockContent, CounterContent};
+use block_editor_beui::be_block::BlockContent;
+use counter_types::CounterContent;
 use block_editor_beui::{
     ChildMode, ChildStatus, EditorCapabilities, EditorRegion, InteractionMode, ResizeMode,
 };
