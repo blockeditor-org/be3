@@ -359,14 +359,24 @@ fn EditCounter() -> NodeId {
     .glyph(ICON_PENCIL)
     .pin(Pin::Icon)
     .detached();
+    let reset = Action::new("demo.reset", "Reset", move || count.set(0))
+        .pin(Pin::Label)
+        .enabled(moved)
+        .detached();
     let pinned = edit.clone();
-    dock_menu(create_memo(move || vec![MenuNode::action(&pinned)]));
+    dock_menu(create_memo(move || {
+        vec![MenuNode::action(&pinned), MenuNode::action(&reset)]
+    }));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Button action={edit} variant=ButtonVariant::Secondary />
                 <Text style=TextStyle::CAPTION>{counted}</Text>
             </List>
+            <Text style=TextStyle::CAPTION wrap=true>
+                "Edit is pinned to the pane's bar as an icon, and Reset with its label. \
+                 A pane too narrow for the label moves Reset into the bar's menu."
+            </Text>
             <Show condition={moved}>
                 <Text style=TextStyle::CAPTION wrap=true>
                     "Drag this tab somewhere else: the count comes with it."

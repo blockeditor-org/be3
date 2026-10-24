@@ -14,15 +14,16 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
-    DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
-    DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry, MenuNodes, Picture,
+    Container, DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
+    DockDialogPresentation, DockDragged, DockGripHandle, DockKey, DockMode, DockNode,
+    DockPreviewHandle, DockSheetHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle,
+    DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuNodes, Picture, narrower_than,
 };
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
+use beui_core::geometry::Vec2;
 use beui_core::icons::{
     ICON_APP_WINDOW, ICON_ELLIPSIS_VERTICAL, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE,
     ICON_X,
@@ -45,6 +46,7 @@ const BAR_SPACING: f32 = 2.0;
 const DIVIDER_HEIGHT: f32 = 18.0;
 const DIVIDER_MARGIN: f32 = 4.0;
 const SHARE_MARGIN: f32 = 2.0;
+const LABELLED_PINS_WIDTH: f32 = 480.0;
 const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
@@ -507,19 +509,33 @@ fn DockTitleBar(
                 padding={Sides::horizontal(BAR_PADDING)}
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
-                <Frame>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                        {grip}
-                        {tabs} @sizing=ItemSize::Percent(100.0)
-                        <Show condition={titled}>|| {
-                            let title = title.clone(); view! {
-                                <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
-                            }
-                        }</Show>
-                        <DockMenu menu room=BarRoom::Wide />
-                        <DockClose closable close={close} />
-                    </List>
-                </Frame>
+                <Container>|_: ReadSignal<Vec2>| {
+                    let cramped = narrower_than(LABELLED_PINS_WIDTH);
+                    let room = Prop::dynamic(move || match cramped.get() {
+                        true => BarRoom::Cramped,
+                        false => BarRoom::Wide,
+                    });
+                    let title = title.clone();
+                    view! {
+                        <Frame>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=BAR_SPACING
+                            >
+                                {grip}
+                                {tabs} @sizing=ItemSize::Percent(100.0)
+                                <Show condition={titled}>|| {
+                                    let title = title.clone(); view! {
+                                        <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                                    }
+                                }</Show>
+                                <DockMenu menu room />
+                                <DockClose closable close={close} />
+                            </List>
+                        </Frame>
+                    }
+                }</Container>
             </Frame>
             <Frame fill={ColorRole::custom(rule)} height=RULE />
         </List>
@@ -577,6 +593,7 @@ fn DockSideBar(
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BarRoom {
     Wide,
+    Cramped,
     Narrow,
     Phone,
 }
@@ -584,7 +601,7 @@ pub(crate) enum BarRoom {
 impl BarRoom {
     fn button(self) -> IconButtonSize {
         match self {
-            BarRoom::Wide | BarRoom::Narrow => IconButtonSize::Toolbar,
+            BarRoom::Wide | BarRoom::Cramped | BarRoom::Narrow => IconButtonSize::Toolbar,
             BarRoom::Phone => IconButtonSize::Regular,
         }
     }
@@ -592,15 +609,16 @@ impl BarRoom {
     fn shows(self, pin: Pin) -> bool {
         match pin {
             Pin::Icon => true,
-            Pin::Label => self != BarRoom::Phone,
+            Pin::Label => matches!(self, BarRoom::Wide | BarRoom::Narrow),
             Pin::Title => self == BarRoom::Phone,
         }
     }
 }
 
 #[component]
-pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
+pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: Prop<BarRoom>) -> NodeId {
     let pins = create_memo(move || {
+        let room = room.get();
         menu.with(|nodes| {
             pinned(nodes)
                 .into_iter()
@@ -625,17 +643,17 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
     let icons = keys_of(false);
     let labels = keys_of(true);
     let divided = create_memo(move || {
-        room == BarRoom::Wide
+        room.get() == BarRoom::Wide
             && icons.with(|icons| !icons.is_empty())
             && labels.with(|labels| !labels.is_empty())
     });
-    let rest = create_memo(move || unpinned(menu.get(), room));
+    let rest = create_memo(move || unpinned(menu.get(), room.get()));
     let offered = create_memo(move || rest.with(|items| !items.is_empty()));
     let pin = move |key: u64| {
         let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
         match action {
             Some(action) => view! {
-                <DockPin action room />
+                <DockPin action room={room.get_untracked()} />
             },
             None => view! {
                 <Frame />
@@ -656,7 +674,7 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
                     @test_id={"dock.menu"}
                     label="More"
                     glyph=ICON_ELLIPSIS_VERTICAL
-                    size={room.button()}
+                    size={room.get_untracked().button()}
                     items={view! {
                         <MenuNodes nodes={rest} test_prefix={"dock.menu".to_owned()} />
                     }}
