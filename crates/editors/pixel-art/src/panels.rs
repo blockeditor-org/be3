@@ -1,5 +1,5 @@
 use block_editor_beui::Toolbar;
-use block_editor_beui::be_block::pixel_art::{
+use pixel_art_types::{
     MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
 };
 use block_editor_beui::beui::NodeId;

@@ -2,7 +2,7 @@ use be_model::{Bounds, Change, Document, Edit, Grid, Model, ObjectId, Value};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Root;
+use be_block::Root;
 
 pub const DEFAULT_PIXEL_ART_SIZE: u16 = 32;
 pub const MAX_PIXEL_ART_SIZE: u16 = 2048;

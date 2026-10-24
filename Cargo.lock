@@ -5757,6 +5757,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pixel-art-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "pixel-ray-tracer-types"
 version = "0.1.0"
 dependencies = [

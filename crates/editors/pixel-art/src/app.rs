@@ -3,9 +3,10 @@ use block_editor_beui::be_block::BlockContent;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::pixel_art::PixelColor;
-use block_editor_beui::be_block::pixel_art::{default_palette, size_of};
-use block_editor_beui::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
+use pixel_art_types::PixelColor;
+use pixel_art_types::{default_palette, size_of};
+use block_editor_beui::be_block::ObjectId;
+use pixel_art_types::{PixelArtContent, PixelArtDocument};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;

@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
+use pixel_art_types::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_beui::beui::icons::ICON_ARROW_RIGHT;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

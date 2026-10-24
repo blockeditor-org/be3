@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::pixel_art::Artwork;
-use block_editor_beui::be_block::{ArtifactSource, BlockContent, PixelArtContent};
+use block_editor_beui::be_block::{ArtifactSource, BlockContent};
+use pixel_art_types::{Artwork, PixelArtContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

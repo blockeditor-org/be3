@@ -24,7 +24,6 @@ pub mod logic_game;
 pub mod logic_grid;
 pub mod metadata;
 pub mod model;
-pub mod pixel_art;
 pub mod plain;
 pub mod presence;
 pub mod presentation;
@@ -61,7 +60,6 @@ pub use metadata::{
     Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
-pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use presentation::{Presentation, PresentationContent};
 pub use profile::{
     FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR, WORKSPACE_TYPE,

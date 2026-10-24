@@ -1,9 +1,9 @@
 use block_editor_beui::be_block::BlockContent;
 use image_block_types::ImageContent;
 
-use block_editor_beui::be_block::PixelArtContent;
-use block_editor_beui::be_block::pixel_art::Artwork;
-use block_editor_beui::be_block::pixel_art::PixelColor;
+use pixel_art_types::PixelArtContent;
+use pixel_art_types::Artwork;
+use pixel_art_types::PixelColor;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Key, Pos2};
 use block_editor_beui::{Artifact, Artifacts, EditorHost, OwnedEditor};
@@ -24,6 +24,7 @@ fn editor() -> BeuiTest<PixelArtApp> {
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
+    editor.store().register(pixel_art_types::registrations());
     editor.hold(None, PixelArtContent::default());
     editor.run();
     editor

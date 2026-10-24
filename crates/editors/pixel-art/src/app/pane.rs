@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::pixel_art::Artwork;
-use block_editor_beui::be_block::pixel_art::PixelColor;
+use pixel_art_types::Artwork;
+use pixel_art_types::PixelColor;
 use block_editor_beui::beui::Image;
 use block_editor_beui::beui::reactive::*;
 

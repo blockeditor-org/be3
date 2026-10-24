@@ -1,4 +1,4 @@
-use crate::Merge;
+use be_block::Merge;
 use crate::pixel_art::{
     PixelArtAnchor, PixelArtContent, PixelArtOperation, PixelColor, PixelUpdate,
 };
