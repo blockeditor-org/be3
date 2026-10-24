@@ -85,6 +85,7 @@ pub struct BlockGraph {
     backrefs: BTreeMap<Uuid, BTreeSet<Uuid>>,
     children: HashMap<BlockParent, BTreeSet<Uuid>>,
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
+    loose: BTreeSet<Uuid>,
     revision: u64,
 }
 
@@ -158,8 +159,31 @@ impl BlockGraph {
         for account in node.grants.keys() {
             self.entries.entry(*account).or_default().insert(id);
         }
+        let references = node.references.clone();
         self.blocks.insert(id, node);
+        self.refresh_loose(id);
+        for reference in references {
+            self.refresh_loose(reference);
+        }
         Ok(())
+    }
+
+    fn refresh_loose(&mut self, id: Uuid) {
+        match self.blocks.contains_key(&id) && !self.holds(id) {
+            true => self.loose.insert(id),
+            false => self.loose.remove(&id),
+        };
+    }
+
+    pub fn holds(&self, id: Uuid) -> bool {
+        match self.blocks.get(&id).map(|node| node.parent) {
+            Some(BlockParent::Root) => true,
+            Some(BlockParent::Block(parent)) => self
+                .blocks
+                .get(&parent)
+                .is_some_and(|parent| parent.references.contains(&id)),
+            Some(BlockParent::Detached) | None => false,
+        }
     }
 
     pub fn touch(&mut self, id: Uuid) -> Result<u64, GraphError> {
@@ -216,6 +240,7 @@ impl BlockGraph {
         let previous = std::mem::replace(&mut self.node_mut(id)?.parent, parent);
         unindex(&mut self.children, previous, id);
         self.children.entry(parent).or_default().insert(id);
+        self.refresh_loose(id);
         Ok(())
     }
 
@@ -227,18 +252,21 @@ impl BlockGraph {
             }
         }
         let previous = std::mem::replace(&mut self.node_mut(id)?.references, ordered.clone());
-        for reference in previous {
-            if !ordered.contains(&reference)
-                && let Some(backrefs) = self.backrefs.get_mut(&reference)
+        for reference in &previous {
+            if !ordered.contains(reference)
+                && let Some(backrefs) = self.backrefs.get_mut(reference)
             {
                 backrefs.remove(&id);
                 if backrefs.is_empty() {
-                    self.backrefs.remove(&reference);
+                    self.backrefs.remove(reference);
                 }
             }
         }
-        for reference in ordered {
-            self.backrefs.entry(reference).or_default().insert(id);
+        for reference in &ordered {
+            self.backrefs.entry(*reference).or_default().insert(id);
+        }
+        for reference in previous.into_iter().chain(ordered) {
+            self.refresh_loose(reference);
         }
         Ok(())
     }
@@ -282,15 +310,24 @@ impl BlockGraph {
     }
 
     pub fn is_live(&self, id: Uuid) -> bool {
+        self.blocks.contains_key(&id) && self.deleted_root(id).is_none()
+    }
+
+    pub fn deleted_root(&self, id: Uuid) -> Option<Uuid> {
         let mut current = id;
-        while let Some(node) = self.blocks.get(&current) {
-            match node.parent {
-                BlockParent::Root => return true,
-                BlockParent::Detached => return false,
+        loop {
+            if !self.holds(current) {
+                return Some(current);
+            }
+            match self.blocks.get(&current)?.parent {
                 BlockParent::Block(parent) => current = parent,
+                BlockParent::Root | BlockParent::Detached => return None,
             }
         }
-        false
+    }
+
+    pub fn deleted_roots(&self) -> Vec<Uuid> {
+        self.loose.iter().copied().collect()
     }
 
     pub fn subtree(&self, root: Uuid) -> Vec<Uuid> {
@@ -308,11 +345,12 @@ impl BlockGraph {
 
     pub fn detached(&self) -> Vec<Uuid> {
         let mut detached: Vec<Uuid> = self
-            .children(BlockParent::Detached)
-            .into_iter()
-            .flat_map(|root| self.subtree(root))
+            .loose
+            .iter()
+            .flat_map(|root| self.subtree(*root))
             .collect();
         detached.sort_unstable();
+        detached.dedup();
         detached
     }
 
@@ -332,6 +370,7 @@ impl BlockGraph {
             }
         }
         unindex(&mut self.children, node.parent, id);
+        self.loose.remove(&id);
         for child in self
             .children
             .remove(&BlockParent::Block(id))
@@ -344,6 +383,7 @@ impl BlockGraph {
                 .entry(BlockParent::Detached)
                 .or_default()
                 .insert(child);
+            self.loose.insert(child);
         }
         unindex(&mut self.entries, node.author, id);
         for account in node.grants.keys() {

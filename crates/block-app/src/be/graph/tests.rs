@@ -17,6 +17,7 @@ fn node(id: Uuid) -> Node {
         metadata: BlockMetadata::default(),
         head: None,
         locked: false,
+        held: true,
     }
 }
 

@@ -15,7 +15,6 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
     let effective = settings.effective();
     let remapper = InputSettings::remapper_setting();
     let set_remapper = settings.setter(&remapper);
-    let own = settings.value(&remapper);
     let row = settings.row(&remapper);
     let remappers = create_memo(move || {
         editor
@@ -102,17 +101,6 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             .open_block_with(choice.block, InputRemapper::CONTENT_TYPE, choice.editor);
     };
     let reset = move || {
-        let Some(choice) = own.get_untracked() else {
-            return;
-        };
-        if let Some(parent) = settings.block_for(&InputSettings::remapper_setting()) {
-            editor.host().delete_block(
-                choice.block,
-                InputRemapper::CONTENT_TYPE,
-                BlockParent::Block(parent),
-                false,
-            );
-        }
         set_remapper.call(None);
     };
     let asking = create_signal(false);

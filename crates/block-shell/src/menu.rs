@@ -13,7 +13,6 @@ pub(crate) enum Action {
     Open,
     Picker,
     MoveToMyFiles,
-    SetParent(BlockParent),
     Rename,
     Share,
     Unlink,
@@ -35,7 +34,6 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
         [0] => Some(Action::Open),
         [1] => Some(Action::Picker),
         [2, 0] => Some(Action::MoveToMyFiles),
-        [2, 1] => Some(Action::SetParent(BlockParent::Detached)),
         [3] => Some(Action::Rename),
         [4] => Some(Action::Share),
         [5] => Some(Action::Unlink),
@@ -122,7 +120,6 @@ pub(crate) fn apply(
                 );
             }
         }
-        Action::SetParent(parent) => workspace.blocks().set_parent(reference.id, parent),
         Action::Rename => workspace.open_dialog(OpenDialog::Rename(reference.id)),
         Action::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
         Action::Unlink => {
@@ -133,12 +130,9 @@ pub(crate) fn apply(
         Action::Restore => workspace.host().restore_block(reference.id),
         Action::Delete => {
             if let Some(source) = permissions.source {
-                workspace.host().delete_block(
-                    reference.id,
-                    reference.block_type,
-                    source,
-                    permissions.is_reference,
-                );
+                workspace
+                    .host()
+                    .delete_block(reference.id, reference.block_type, source);
             }
         }
     }
@@ -191,14 +185,6 @@ pub(crate) fn ReferenceMenuItem(
                 })
             })
     });
-    let orphaned = create_memo(move || {
-        edit.get()
-            || rights.get().is_none_or(|rights| {
-                rights
-                    .4
-                    .is_none_or(|parent| parent == BlockParent::Detached)
-            })
-    });
     let detail = create_memo(move || {
         match reference.with(|reference| {
             reference
@@ -227,7 +213,6 @@ pub(crate) fn ReferenceMenuItem(
             <MenuItem label="Add" disabled={add} />
             <MenuItem label="Set parent" disabled={edit}>
                 <MenuItem label="My files" disabled={rooted} />
-                <MenuItem label="Orphaned" disabled={orphaned} />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} />
             <MenuItem label="Share" disabled={edit} />

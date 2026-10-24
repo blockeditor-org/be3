@@ -28,6 +28,7 @@ struct Joined {
 
 struct Facts {
     parent: Option<BlockParent>,
+    held: bool,
     entry: bool,
     references: Vec<Uuid>,
 }
@@ -36,6 +37,7 @@ impl Facts {
     fn of(summary: &BlockSummary, entry: bool) -> Self {
         Self {
             parent: summary.parent,
+            held: summary.held,
             entry,
             references: summary.references.clone(),
         }
@@ -54,6 +56,7 @@ impl Interest {
             || facts
                 .parent
                 .is_some_and(|parent| self.listings.contains(&Listing::Children(parent)))
+            || (facts.parent.is_some() && !facts.held && self.listings.contains(&Listing::Deleted))
             || (facts.entry && self.listings.contains(&Listing::Shared))
             || facts
                 .references

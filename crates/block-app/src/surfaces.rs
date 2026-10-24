@@ -231,7 +231,6 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
                 command: BlockCommand::Delete {
                     block_type: block_type.into_bytes(),
                     source,
-                    is_reference: false,
                 },
             },
         );

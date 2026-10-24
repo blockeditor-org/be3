@@ -837,6 +837,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             metadata: metadata.clone(),
             head: None,
             locked: false,
+            held: true,
         });
     });
     send(Command::Duplicate {
@@ -1223,6 +1224,14 @@ pub(crate) fn create(
     }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
+        if let be_graph::BlockParent::Block(above) = parent
+            && shared
+                .graph
+                .get(above)
+                .is_some_and(|above| !above.references.contains(&block))
+        {
+            shared.graph.placing(block, true);
+        }
         shared.graph.change(Node {
             id: block,
             content_type,
@@ -1233,6 +1242,7 @@ pub(crate) fn create(
             metadata: metadata.clone(),
             head: None,
             locked: false,
+            held: true,
         });
     });
     send(Command::Create {
@@ -1279,6 +1289,14 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
         }
     }
     with_shared_mut(|shared| {
+        if let be_graph::BlockParent::Block(above) = parent
+            && shared
+                .graph
+                .get(above)
+                .is_some_and(|above| !above.references.contains(&block))
+        {
+            shared.graph.placing(block, true);
+        }
         shared
             .graph
             .update(block, |node| node.parent = Some(parent))
@@ -1416,6 +1434,7 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 metadata: block.metadata.clone(),
                 head: None,
                 locked: false,
+                held: true,
             });
         });
         if let Some(bytes) = &block.content {

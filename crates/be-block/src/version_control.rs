@@ -88,6 +88,11 @@ impl Root for Checkout {
 
     fn references(&self) -> Vec<Uuid> {
         let mut references: Vec<Uuid> = self.repository.into_iter().chain(self.root).collect();
+        references.extend(
+            self.conflicts
+                .iter()
+                .flat_map(|conflict| conflict.versions()),
+        );
         references.dedup();
         references
     }

@@ -849,19 +849,12 @@ impl EditorHost {
             .push((block_id, BlockCommand::Restore));
     }
 
-    pub fn delete_block(
-        &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        source: BlockParent,
-        is_reference: bool,
-    ) {
+    pub fn delete_block(&self, block_id: Uuid, block_type: Uuid, source: BlockParent) {
         self.block_commands.borrow_mut().push((
             block_id,
             BlockCommand::Delete {
                 block_type: block_type.into_bytes(),
                 source: source.encode(),
-                is_reference,
             },
         ));
     }

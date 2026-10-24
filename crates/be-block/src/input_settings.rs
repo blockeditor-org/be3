@@ -346,6 +346,10 @@ impl Layered for InputSettings {
 
 impl Root for InputSettings {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696e_7075_742d_7365_7474_696e_6773_2d31);
+
+    fn references(&self) -> Vec<Uuid> {
+        self.remapper.iter().map(|choice| choice.block).collect()
+    }
 }
 
 pub type InputSettingsContent = Document<InputSettings>;
