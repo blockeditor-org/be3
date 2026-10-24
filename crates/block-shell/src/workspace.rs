@@ -1,8 +1,8 @@
-use settings_types::EditorSettings;
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
     BlockContent, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
 };
+use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;

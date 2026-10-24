@@ -179,13 +179,7 @@ impl RootSettings {
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
             metadata.insert(&MY_FILES, &true);
-            be::create(
-                block,
-                WORKSPACE_TYPE,
-                BlockParent::Root,
-                metadata,
-                None,
-            );
+            be::create(block, WORKSPACE_TYPE, BlockParent::Root, metadata, None);
             self.created_files = Some(block);
         }
         self.my_files()

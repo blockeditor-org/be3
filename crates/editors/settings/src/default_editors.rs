@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use settings_types::EditorSettings;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, LayeredSettings};
+use settings_types::EditorSettings;
 
 mod ui;
 

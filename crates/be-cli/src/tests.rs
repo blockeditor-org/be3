@@ -49,7 +49,10 @@ fn manifests() {
         .expect("EDITOR_MANIFESTS names the editors' manifests");
     let mut plugins = Vec::new();
     for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
-        let path = entry.expect("the entry is readable").path().join("manifest.json");
+        let path = entry
+            .expect("the entry is readable")
+            .path()
+            .join("manifest.json");
         let document = std::fs::read_to_string(&path).expect("the manifest is readable");
         plugins.push(crate::plugins::Plugin {
             manifest: block_plugin_api::manifest_from_json(&document)
@@ -226,7 +229,9 @@ async fn database(
         .await
         .unwrap()
         .first()
-        .map_or(BlockParent::Root, |workspace| BlockParent::Block(workspace.id));
+        .map_or(BlockParent::Root, |workspace| {
+            BlockParent::Block(workspace.id)
+        });
     peer.create_block(
         database,
         DatabaseContent::CONTENT_TYPE,
