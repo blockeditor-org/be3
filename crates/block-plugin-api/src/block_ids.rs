@@ -80,8 +80,7 @@ impl EditorMessage {
                 view_block.iter_mut().for_each(existing);
             }
             Self::OpenArtifact { block_id, .. } => existing(block_id),
-            Self::Close { .. }
-            | Self::OpenCreation { .. } => {}
+            Self::Close { .. } | Self::OpenCreation { .. } => {}
         }
     }
 }

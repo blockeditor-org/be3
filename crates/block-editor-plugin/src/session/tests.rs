@@ -56,4 +56,3 @@ mod refuses_to_draw_without_a_surface;
 mod rejects_messages_only_a_plugin_may_send;
 mod rejects_out_of_order_messages;
 mod rejects_screens_for_unopened_instances;
-

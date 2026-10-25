@@ -3,9 +3,9 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameReport, FrameSpec, MenuEntry, Message, Monitor, Occluder,
-    PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
-    ScreenWindow, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
+    FrameReport, FrameSpec, MenuEntry, Message, Monitor, Occluder, PerformanceMeasurement,
+    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, ScreenWindow, Size, Stopped,
+    ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests, embed::shell::Call as ShellCall, ops::OpId,
@@ -444,7 +444,9 @@ impl Instance {
         self.role.block().is_some_and(|own| {
             own.id == block || crate::be::revisions::source(own.id) == Some(block)
         }) || self.watched.contains_key(&block)
-            || self.watching().any(|watched| watched == Subject::History(block))
+            || self
+                .watching()
+                .any(|watched| watched == Subject::History(block))
             || self.heads.follows(block)
     }
 }
