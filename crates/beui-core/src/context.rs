@@ -1050,6 +1050,7 @@ impl Context {
                 windows.remove(window);
                 true
             }
+            WindowReport::Focused { .. } => true,
         };
         if changed {
             self.inner.window_reports.borrow_mut().push(report);

@@ -26,6 +26,7 @@ pub(crate) struct Windows {
     shown: HashMap<WindowId, Vec2>,
     pub(crate) paintings: Vec<(WindowId, Painting)>,
     pub(crate) viewport: Option<(WindowId, Rect)>,
+    kept_focus: HashMap<WindowId, NodeId>,
 }
 
 impl Default for Windows {
@@ -40,6 +41,7 @@ impl Default for Windows {
             shown: HashMap::default(),
             paintings: Vec::new(),
             viewport: None,
+            kept_focus: HashMap::default(),
         }
     }
 }
@@ -199,6 +201,7 @@ impl Document {
                 }
                 WindowReport::Scaled { .. } => self.arena.invalidate(),
                 WindowReport::Placed { .. } => {}
+                WindowReport::Focused { window, focused } => self.window_focused(*window, *focused),
             }
             if let Some(spec) = node.and_then(|node| self.overlay_window(node)) {
                 heard.push((spec.on_report, report));
@@ -211,6 +214,26 @@ impl Document {
                 on_report.call(report);
             }
         });
+    }
+
+    fn window_focused(&mut self, window: WindowId, focused: bool) {
+        let current = self.focused.filter(|node| self.window_of(*node) == window);
+        match focused {
+            false => {
+                if let Some(node) = current {
+                    self.windows.kept_focus.insert(window, node);
+                    crate::current::run_in(self, |document| document.update_focus(None));
+                }
+            }
+            true => {
+                let kept = self.windows.kept_focus.remove(&window);
+                if self.focused.is_none()
+                    && let Some(node) = kept.filter(|node| self.contains(*node))
+                {
+                    crate::current::run_in(self, |document| document.update_focus(Some(node)));
+                }
+            }
+        }
     }
 
     pub(crate) fn ask_for_windows(&mut self, ctx: &Context) {

@@ -82,6 +82,7 @@ pub struct Space {
     app_locked: bool,
     sprite: Sprite,
     hovered: Option<WindowId>,
+    focused: Option<WindowId>,
     last: Option<(WindowId, Pos2)>,
     captured: Option<WindowId>,
     pressed: u32,
@@ -127,6 +128,7 @@ impl Space {
             app_locked: false,
             sprite: Sprite::new(),
             hovered: None,
+            focused: None,
             last: None,
             captured: None,
             pressed: 0,
@@ -226,6 +228,30 @@ impl Space {
             .and_then(|window| self.panel(window))
             .and_then(|panel| panel.hit(ray))
             .or_else(|| pick(&self.panels, ray))
+    }
+
+    pub fn focused(&self) -> Option<WindowId> {
+        self.focused
+    }
+
+    fn focus(&mut self, window: Option<WindowId>) {
+        if self.focused == window {
+            return;
+        }
+        for (window, focused) in [(self.focused, false), (window, true)] {
+            if let Some(window) = window {
+                self.reports
+                    .push(Incoming::Window(WindowReport::Focused { window, focused }));
+            }
+        }
+        self.focused = window;
+    }
+
+    fn pressed_on(&self, ray: Ray) -> Option<WindowId> {
+        let chrome = self.chrome_hit(ray).filter(|_| self.pressed == 0);
+        chrome
+            .map(|(_, hit)| hit.window)
+            .or_else(|| self.pick(ray).map(|hit| hit.window))
     }
 
     pub fn grabbed(&self) -> bool {
@@ -382,6 +408,7 @@ impl Space {
         let distance = panel.metres().x / 2.0 / (FILLED * half_width);
         panel.pose.position = self.head.position + Vec3::new(0.0, 0.0, -distance);
         self.panels.push(panel);
+        self.focused = Some(WindowId::MAIN);
         incoming.push(Incoming::Window(WindowReport::Resized {
             window: WindowId::MAIN,
             size,
@@ -431,6 +458,12 @@ impl Space {
         out: &mut Vec<Incoming>,
     ) {
         match input {
+            Input::Text(_)
+            | Input::Ime(_)
+            | Input::Paste(_)
+            | Input::InterceptedKey { .. }
+            | Input::InterceptedTap(_)
+                if self.focused.is_none() => {}
             Input::Key(keystroke) => self.key(units, keystroke, out),
             Input::Modifiers(modifiers) => self.modifiers(units, modifiers, out),
             Input::PointerMotion(motion) if self.steering() => {
@@ -540,6 +573,9 @@ impl Space {
         let Some(ray) = self.cursor_ray() else {
             return;
         };
+        if pressed && self.gripped().is_none() && self.chrome.gesture.is_none() {
+            self.focus(self.pressed_on(ray));
+        }
         if !self.chrome_pointer(&input, out) {
             self.button(input, ray, out);
         }
@@ -726,6 +762,10 @@ impl Space {
         if !self.hold.key(&keystroke, self.clock, self.grabbed) {
             return;
         }
+        if self.focused.is_none() && keystroke.pressed {
+            self.swallowed.push(stroke);
+            return;
+        }
         if chord {
             match keystroke.pressed {
                 true if !keystroke.repeat => self.forwarded.push(keystroke.clone()),
@@ -748,6 +788,7 @@ impl Space {
             .and_then(|ray| panel.intersect(ray))
             .map_or(panel.pose.position, |hit| hit.point);
         self.carry = Some(Carry::begin(panel, &self.head, grab, self.clock));
+        self.focus(Some(window));
         self.grip(window);
     }
 
@@ -928,6 +969,10 @@ impl Space {
         if self.hovered == Some(window) {
             self.hovered = None;
         }
+        if self.focused == Some(window) {
+            self.focused = None;
+            self.focus(Some(WindowId::MAIN));
+        }
         if self.captured == Some(window) {
             self.captured = None;
             self.pressed = 0;
@@ -958,6 +1003,10 @@ impl Space {
         let Some(carry) = self.carry.take() else {
             return;
         };
+        if let Some(Gesture::Move { .. }) = self.chrome.gesture {
+            self.chrome.gesture = None;
+            self.chrome.hovered = self.on_chrome();
+        }
         let (head, now) = (self.head, self.clock);
         let Some(panel) = self.panel_mut(carry.window) else {
             return;
@@ -1160,29 +1209,18 @@ impl Space {
         }
     }
 
-    fn chrome_active(&self, window: WindowId) -> bool {
-        self.hovered == Some(window)
-            || self.chrome.hovered.is_some_and(|(on, _)| on == window)
-            || self
-                .chrome
-                .gesture
-                .is_some_and(|gesture| gesture.window() == window)
-            || self.chrome.slider == Some(window)
-    }
-
     fn chrome_hit(&self, ray: Ray) -> Option<(Part, Hit)> {
         if self.lifted().is_some() {
             return None;
         }
         let app = self.pick(ray);
-        let active = |window| app.is_none() || self.chrome_active(window);
-        let (part, hit) = chrome::pick(&self.panels, ray, self.chrome.slider, active)?;
+        let (part, hit) = chrome::pick(&self.panels, ray, self.chrome.slider)?;
         app.is_none_or(|app| hit.distance < app.distance)
             .then_some((part, hit))
     }
 
-    fn chrome_opacity(&self, window: WindowId) -> f32 {
-        match self.chrome_active(window) {
+    pub fn chrome_opacity(&self, window: WindowId) -> f32 {
+        match self.focused == Some(window) {
             true => 1.0,
             false => chrome::FAINT,
         }
@@ -1264,10 +1302,19 @@ impl Space {
                 anchor: corner.opposite().of(panel.size),
                 grab: at.unwrap_or(corner.of(panel.size)),
             },
+            Part::Move => {
+                self.begin_carry(window);
+                self.chrome.gesture = Some(Gesture::Move { window });
+                return;
+            }
             Part::Turn => Gesture::Turn {
                 window,
                 rotation: panel.pose.rotation,
                 start: ray,
+            },
+            Part::Roll => Gesture::Roll {
+                original: panel,
+                start: chrome::roll_angle(&panel, ray).unwrap_or(0.0),
             },
             Part::Bend => {
                 self.chrome.slider = match self.chrome.slider {
@@ -1303,12 +1350,17 @@ impl Space {
             Gesture::Turn {
                 rotation, start, ..
             } => panel.pose.rotation = chrome::turned(rotation, start.direction, ray.direction),
+            Gesture::Roll { original, start } => {
+                if let Some(angle) = chrome::roll_angle(&original, ray) {
+                    panel.pose.rotation = chrome::rolled(&original, start, angle);
+                }
+            }
             Gesture::Bend { original } => {
                 if let Some(hit) = original.intersect(ray) {
                     panel.bend = chrome::bend_of(&original, hit.pos);
                 }
             }
-            Gesture::Press { .. } => {}
+            Gesture::Move { .. } | Gesture::Press { .. } => {}
         }
     }
 
@@ -1316,8 +1368,10 @@ impl Space {
         let Some(gesture) = self.chrome.gesture.take() else {
             return;
         };
-        if matches!(gesture, Gesture::Scale { .. } | Gesture::Turn { .. })
-            && let Some(panel) = self.panel(gesture.window())
+        if matches!(
+            gesture,
+            Gesture::Scale { .. } | Gesture::Turn { .. } | Gesture::Roll { .. }
+        ) && let Some(panel) = self.panel(gesture.window())
         {
             out.push(Incoming::Window(WindowReport::Placed {
                 window: panel.window,
@@ -1332,8 +1386,8 @@ fn chrome_cursor(part: Part, held: bool) -> CursorIcon {
     match part {
         Part::Scale(Corner::TopLeft | Corner::BottomRight) => CursorIcon::ResizeNwSe,
         Part::Scale(_) => CursorIcon::ResizeNeSw,
-        Part::Turn | Part::Slider if held => CursorIcon::Grabbing,
-        Part::Turn | Part::Slider => CursorIcon::Grab,
+        Part::Move | Part::Turn | Part::Roll | Part::Slider if held => CursorIcon::Grabbing,
+        Part::Move | Part::Turn | Part::Roll | Part::Slider => CursorIcon::Grab,
         Part::Bend => CursorIcon::PointingHand,
     }
 }

@@ -412,7 +412,7 @@ impl<A: App + 'static> Stepped<A> {
                     open.placement = placement.clone();
                 }
             }
-            WindowReport::Scaled { .. } => {}
+            WindowReport::Scaled { .. } | WindowReport::Focused { .. } => {}
             WindowReport::Closed(window) => {
                 windows.open.retain(|open| open.id != *window);
                 windows.outputs.retain(|output| output.id != *window);

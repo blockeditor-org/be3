@@ -210,6 +210,10 @@ pub enum WindowReport {
         pixels_per_point: f32,
     },
     Closed(WindowId),
+    Focused {
+        window: WindowId,
+        focused: bool,
+    },
 }
 
 impl WindowReport {
@@ -217,7 +221,8 @@ impl WindowReport {
         match self {
             Self::Resized { window, .. }
             | Self::Placed { window, .. }
-            | Self::Scaled { window, .. } => *window,
+            | Self::Scaled { window, .. }
+            | Self::Focused { window, .. } => *window,
             Self::Closed(window) => *window,
         }
     }

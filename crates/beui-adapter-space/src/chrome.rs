@@ -6,7 +6,7 @@ use beui_core::damage::Region;
 use beui_core::display::Layer;
 use beui_core::font::{FontId, TextLayout};
 use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
-use beui_core::icons::{ICON_ROTATE_3D, ICON_SPLINE};
+use beui_core::icons::{ICON_MOVE, ICON_ROTATE_3D, ICON_ROTATE_CW_SQUARE, ICON_SPLINE};
 use beui_core::painter::{Corners, Shape};
 use beui_core::window::{WindowId, WindowState};
 use std::f32::consts::{PI, TAU};
@@ -19,7 +19,7 @@ use crate::panel::{Hit, MOST_BEND, POINTS_PER_METRE, Panel};
 pub const GAP: f32 = 0.012;
 pub const ARM: f32 = 0.045;
 pub const THICKNESS: f32 = 0.007;
-pub const SLOP: f32 = 0.01;
+pub const SLOP: f32 = 0.005;
 pub const BAR_GAP: f32 = 0.016;
 pub const BAR: f32 = 0.04;
 pub const BUTTON: f32 = 0.032;
@@ -87,7 +87,9 @@ impl Corner {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Part {
     Scale(Corner),
+    Move,
     Turn,
+    Roll,
     Bend,
     Slider,
 }
@@ -99,10 +101,17 @@ pub enum Gesture {
         anchor: Pos2,
         grab: Pos2,
     },
+    Move {
+        window: WindowId,
+    },
     Turn {
         window: WindowId,
         rotation: Quat,
         start: Ray,
+    },
+    Roll {
+        original: Panel,
+        start: f32,
     },
     Bend {
         original: Panel,
@@ -115,8 +124,10 @@ pub enum Gesture {
 impl Gesture {
     pub fn window(&self) -> WindowId {
         match self {
-            Self::Scale { original, .. } | Self::Bend { original } => original.window,
-            Self::Turn { window, .. } | Self::Press { window } => *window,
+            Self::Scale { original, .. }
+            | Self::Roll { original, .. }
+            | Self::Bend { original } => original.window,
+            Self::Move { window } | Self::Turn { window, .. } | Self::Press { window } => *window,
         }
     }
 
@@ -130,7 +141,9 @@ impl Gesture {
                     .find(|corner| corner.opposite().of(original.size) == *anchor)
                     .unwrap_or(Corner::BottomRight),
             ),
+            Self::Move { .. } => Part::Move,
             Self::Turn { .. } => Part::Turn,
+            Self::Roll { .. } => Part::Roll,
             Self::Bend { .. } => Part::Slider,
             Self::Press { .. } => Part::Bend,
         }
@@ -180,9 +193,11 @@ pub fn layout(metres: Vec2, slider: bool) -> Layout {
         let outer = pos2(at.x + x * reach, at.y + y * reach);
         let across = between(outer, pos2(outer.x - x * ARM, outer.y - y * THICKNESS));
         let down = between(outer, pos2(outer.x - x * THICKNESS, outer.y - y * ARM));
-        let hit = between(outer, pos2(outer.x - x * ARM, outer.y - y * ARM)).expand(SLOP);
-        bounds = bounds.union(hit);
-        parts.push((Part::Scale(corner), hit));
+        for arm in [across, down] {
+            let hit = arm.expand(SLOP);
+            bounds = bounds.union(hit);
+            parts.push((Part::Scale(corner), hit));
+        }
         brackets.push((corner, [across, down]));
     }
     let padding = (BAR - BUTTON) / 2.0;
@@ -190,19 +205,23 @@ pub fn layout(metres: Vec2, slider: bool) -> Layout {
     let middle = top + BAR / 2.0;
     let centre = metres.x / 2.0;
     let button = |x: f32| Rect::from_center_size(pos2(x, middle), vec2(BUTTON, BUTTON));
-    let turn = button(centre - padding / 2.0 - BUTTON / 2.0);
-    let bend = button(centre + padding / 2.0 + BUTTON / 2.0);
+    let buttons = [Part::Move, Part::Turn, Part::Roll, Part::Bend];
+    let step = BUTTON + padding;
+    let first = centre - step * (buttons.len() - 1) as f32 / 2.0;
+    let buttons = buttons.map(|part| {
+        let at = buttons.iter().position(|each| *each == part).unwrap_or(0);
+        (part, button(first + step * at as f32))
+    });
     let closed = Rect::from_min_max(
-        pos2(turn.min.x - padding, top),
-        pos2(bend.max.x + padding, top + BAR),
+        pos2(buttons[0].1.min.x - padding, top),
+        pos2(buttons[buttons.len() - 1].1.max.x + padding, top + BAR),
     );
     let track = Rect::from_min_max(
         pos2(closed.max.x, top),
         pos2(closed.max.x + TRACK, top + BAR),
     );
     let open = Rect::from_min_max(closed.min, pos2(track.max.x + padding, closed.max.y));
-    parts.push((Part::Turn, turn));
-    parts.push((Part::Bend, bend));
+    parts.extend(buttons);
     if slider {
         parts.push((Part::Slider, track));
     }
@@ -253,15 +272,9 @@ pub fn part_at(panel: &Panel, pos: Pos2, slider: bool) -> Option<Part> {
         .map(|(part, _)| part)
 }
 
-pub fn pick(
-    panels: &[Panel],
-    ray: Ray,
-    slider: Option<WindowId>,
-    active: impl Fn(WindowId) -> bool,
-) -> Option<(Part, Hit)> {
+pub fn pick(panels: &[Panel], ray: Ray, slider: Option<WindowId>) -> Option<(Part, Hit)> {
     panels
         .iter()
-        .filter(|panel| active(panel.window))
         .filter_map(|panel| {
             let hit = panel.intersect(ray)?;
             let part = part_at(panel, hit.pos, slider == Some(panel.window))?;
@@ -301,6 +314,22 @@ pub fn turned(rotation: Quat, from: Vec3, to: Vec3) -> Quat {
         * rotation
         * Quat::from_rotation_x(-pitched * TURN_GAIN))
     .normalize()
+}
+
+pub fn roll_angle(original: &Panel, ray: Ray) -> Option<f32> {
+    let pos = original.intersect(ray)?.pos;
+    let from = pos.to_vec2() - original.size / 2.0;
+    (from.length() > 1e-3).then(|| (-from.y).atan2(from.x))
+}
+
+pub fn rolled(original: &Panel, start: f32, angle: f32) -> Quat {
+    let mut turned = angle - start;
+    if turned > PI {
+        turned -= TAU;
+    } else if turned < -PI {
+        turned += TAU;
+    }
+    (original.pose.rotation * Quat::from_rotation_z(turned)).normalize()
 }
 
 pub fn span(panel: &Panel) -> [f32; 4] {
@@ -370,7 +399,7 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
     let buttons = layout
         .parts
         .iter()
-        .filter(|(part, _)| matches!(part, Part::Turn | Part::Bend));
+        .filter(|(part, _)| matches!(part, Part::Move | Part::Turn | Part::Roll | Part::Bend));
     let mut icons = Vec::new();
     for (part, rect) in buttons {
         let on = *part == Part::Bend && look.slider;
@@ -380,7 +409,9 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
             fill(*rect, BUTTON / 2.0, BUTTON_HOT);
         }
         let glyph = match part {
+            Part::Move => ICON_MOVE,
             Part::Turn => ICON_ROTATE_3D,
+            Part::Roll => ICON_ROTATE_CW_SQUARE,
             _ => ICON_SPLINE,
         };
         icons.push((glyph, rect.center()));

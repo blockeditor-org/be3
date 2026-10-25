@@ -2783,7 +2783,8 @@ the app would draw it inside that window), or `Host(HostPlacement)`: a value onl
 understands (a screen position, a 3D pose), which the app stores and hands
 back unchanged. The host answers with `WindowReport`s pushed as
 `Incoming::Window`: `Resized { window, size }` in points, `Placed { window,
-placement }` and `Closed(window)`. The runner applies them before the frame
+placement }`, `Closed(window)` and `Focused { window, focused }` (the host's
+window focus, as a window manager's click to focus moves it). The runner applies them before the frame
 lays out, and `Context::window_size` and `Context::window_placement` read
 them. `Context::opens_windows` says whether anything can open windows; where
 nothing can (every platform adapter on its own), a window is shown inside the
@@ -2833,7 +2834,10 @@ window's own layer and everything opened from inside it.
 `Document::window_layers(id)` is one window's layers with the window's own at
 index 0, which hit testing, press claims and forwarding use, so a press in
 one window never reaches another's nodes at the same coordinates. Focus,
-key routing and tab order stay one across every window. `Document::window_of`
+key routing and tab order stay one across every window, except that a host's
+`Focused { window, focused: false }` takes the focus from a node inside that
+window (remembered per window) and `focused: true` gives it back when nothing
+else has it since. `Document::window_of`
 names the window a node is in, `window_rect` its rectangle and `open_windows`
 the windows the host shows. Every window's rectangle starts at the origin, so
 damage is told apart by window: the paint cache files what each root's nodes
@@ -3081,33 +3085,53 @@ all its 3D (`glam`) stays in the crate.
   mouse simulation shows on a touchscreen, through a `Context` of its own with
   only the icon font, and the compositor draws it into a texture like a window
   only when the icon or the scale changes.
+- Focus: like a desktop window manager, focus follows clicks, not the cursor
+  (`Space::focused`, the main window's panel at first). A press on a panel's
+  content or its chrome focuses that panel, as does starting to carry it; a
+  press that hits no panel and no chrome focuses none. A change is reported as
+  `WindowReport::Focused` (the old window `false`, the new one `true`), so the
+  app's document lets go of, and later restores, the keyboard focus inside
+  that window. While no panel is focused, key presses and text reach no
+  window. Nothing is raised: panels have no stacking order in 3D, only depth.
+  Closing the focused panel focuses the main one.
 - Chrome: the host draws and handles controls of its own around every panel
   (`chrome.rs`), sized in metres so they keep their size however the panel
   is scaled: an L bracket just outside each corner, and under the bottom edge
-  a pill with a rotate button (`ICON_ROTATE_3D`) and a curvature button
-  (`ICON_SPLINE`). They are faint (`FAINT`) until the cursor is on the panel
-  or its chrome. `chrome::layout` places the parts and `chrome::part_at` finds
-  one at a window point outside the window's rectangle; the cursor's ray
-  picks chrome on a panel's extended surface when it is nearer than any
-  panel (`chrome::pick`), and also a driver's point outside its window. Over
-  another panel's content only the chrome of the panel the cursor is on (or
-  whose chrome it is on, or is dragging) counts, so a window popped out over
-  the main one does not take clicks from the content its brackets cover. Input
+  a pill with a move button (`ICON_MOVE`), a rotate button (`ICON_ROTATE_3D`),
+  a roll button (`ICON_ROTATE_CW_SQUARE`) and a curvature button
+  (`ICON_SPLINE`). They are faint (`FAINT`) except on the focused panel, which
+  keeps them lit wherever the cursor goes until another press moves the focus.
+  `chrome::layout` places the parts (each bracket's two arms, `SLOP` wider,
+  and the buttons) and `chrome::part_at` finds one at a window point outside
+  the window's rectangle. Picking is by depth alone: the cursor's ray takes
+  the chrome on a panel's extended surface when it is nearer than any panel
+  (`chrome::pick`), focused or not, so a bracket of a window popped out in
+  front of another takes the click over the content behind it; the arms'
+  small margin is what keeps a dock window popped out over the main one from
+  covering its tab bar. A driver's point outside its window picks too. Input
   on chrome never reaches the app (the window under it last gets
   `PointerLeft`), and the cursor shows what a part does. While an app holds a
   button, chrome is ignored. Dragging a bracket scales the panel
   (`Gesture::Scale`): `metres_per_point` grows or shrinks with how far the
   cursor goes along the diagonal from the opposite corner, which stays put,
   between `SMALLEST_SCALE` and `LARGEST_SCALE` of where it began, so the
-  window keeps its points, gets no `Resized` and keeps its aspect. Dragging
-  the rotate button turns the panel about its centre (`Gesture::Turn`,
-  `chrome::turned`): the ray's change of yaw times `TURN_GAIN` about the
-  vertical, of pitch about the panel's own horizontal. Both report `Placed`
-  when let go. A carry later turns the panel back to face the viewer
-  (`carry::facing`), so it overrides that rotation. The curvature button
+  window keeps its points, gets no `Resized` and keeps its aspect. Pressing
+  the move button starts the carry a title bar's `BeginMove` starts
+  (`Space::begin_carry`, `Gesture::Move` while it lasts, for the cursor and
+  the held look), ended by letting go. Dragging the rotate button turns the
+  panel about its centre (`Gesture::Turn`, `chrome::turned`): the ray's change
+  of yaw times `TURN_GAIN` about the vertical, of pitch about the panel's own
+  horizontal, measured from where the drag began, so it never rolls the panel
+  however the cursor circles. Dragging the roll button rolls it about its
+  normal through its centre (`Gesture::Roll`, `chrome::roll_angle`,
+  `chrome::rolled`) by the change in the cursor's angle around the centre on
+  the panel's surface as it was, so the button, below the centre, stays under
+  the cursor like a dial's knob. Scale, turn and roll report `Placed` when
+  let go. A carry later turns the panel back to face the viewer upright
+  (`carry::facing`), so it overrides rotation and roll. The curvature button
   opens a slider in the pill (`Chrome::slider`), and clicking or dragging
-  along it sets `bend` from 0 to `MOST_BEND` about the panel's centre. Scale
-  and slider drags map the ray onto the panel as it was when they began.
+  along it sets `bend` from 0 to `MOST_BEND` about the panel's centre. Scale,
+  roll and slider drags map the ray onto the panel as it was when they began.
   Each panel's chrome is a display list (`chrome::output`, icons laid out
   with the app's `Context`, which `Setup` provides) drawn into a texture of
   its own only when its `Look` changes, on the extended surface `LIFT` in
