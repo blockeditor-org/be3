@@ -76,5 +76,9 @@ fn a_dock_tab_floated_into_a_window_its_host_focuses_takes_the_keyboard_with_it(
     harness.type_text("typed");
     harness.frame(Vec::new());
     assert_eq!(first.get_untracked(), "typed");
-    assert_eq!(other.get_untracked(), "", "nothing left in the dock gets it");
+    assert_eq!(
+        other.get_untracked(),
+        "",
+        "nothing left in the dock gets it"
+    );
 }
