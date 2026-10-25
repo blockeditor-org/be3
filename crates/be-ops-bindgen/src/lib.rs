@@ -80,7 +80,8 @@ impl Parse for Options {
                         }
                     }
                 }
-                "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" | "own_debug" | "local" => {
+                "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" | "own_debug"
+                | "local" => {
                     let names;
                     bracketed!(names in content);
                     let names: Punctuated<LitStr, Token![,]> =
@@ -224,7 +225,10 @@ impl Generator {
                 return Err(format!("{name} is local but the world does not import it"));
             }
         }
-        if let Some(exported) = exports.iter().find(|interface| generator.is_local(**interface)) {
+        if let Some(exported) = exports
+            .iter()
+            .find(|interface| generator.is_local(**interface))
+        {
             return Err(format!(
                 "{}: a local interface is answered by the host, so it cannot be exported",
                 generator.resolve.id_of(*exported).unwrap_or_default()
