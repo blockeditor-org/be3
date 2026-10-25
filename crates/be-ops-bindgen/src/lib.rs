@@ -27,6 +27,7 @@ struct Options {
     lenient: BTreeSet<String>,
     ordered: BTreeSet<String>,
     deps: Vec<String>,
+    local: BTreeSet<String>,
 }
 
 impl Parse for Options {
@@ -45,6 +46,7 @@ impl Parse for Options {
             lenient: BTreeSet::new(),
             ordered: BTreeSet::new(),
             deps: Vec::new(),
+            local: BTreeSet::new(),
         };
         while !content.is_empty() {
             let key: Ident = content.parse()?;
@@ -78,7 +80,7 @@ impl Parse for Options {
                         }
                     }
                 }
-                "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" | "own_debug" => {
+                "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" | "own_debug" | "local" => {
                     let names;
                     bracketed!(names in content);
                     let names: Punctuated<LitStr, Token![,]> =
@@ -91,6 +93,7 @@ impl Parse for Options {
                         "ordered" => options.ordered = names,
                         "deps" => options.deps = names.into_iter().collect(),
                         "own_debug" => options.own_debug = names,
+                        "local" => options.local = names,
                         _ => options.default = names,
                     }
                 }
@@ -108,6 +111,8 @@ impl Parse for Options {
         Ok(options)
     }
 }
+
+mod local;
 
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -211,6 +216,20 @@ impl Generator {
         };
         let imports = interfaces(&world.imports);
         let exports = interfaces(&world.exports);
+        for name in &generator.options.local {
+            let imported = imports
+                .iter()
+                .any(|interface| generator.resolve.id_of(*interface).as_ref() == Some(name));
+            if !imported {
+                return Err(format!("{name} is local but the world does not import it"));
+            }
+        }
+        if let Some(exported) = exports.iter().find(|interface| generator.is_local(**interface)) {
+            return Err(format!(
+                "{}: a local interface is answered by the host, so it cannot be exported",
+                generator.resolve.id_of(*exported).unwrap_or_default()
+            ));
+        }
         for interface in imports.iter().chain(&exports) {
             generator.register(*interface)?;
         }
@@ -233,8 +252,22 @@ impl Generator {
                 .functions
                 .is_empty()
         };
+        let mut local_guest = TokenStream::new();
+        let mut local_embed = TokenStream::new();
+        let mut local_entries = Vec::new();
         for interface in imports.iter().filter(callable) {
             let module = generator.module_name(*interface);
+            if generator.is_local(*interface) {
+                if generator.used(*interface).is_some() {
+                    continue;
+                }
+                let local = generator.local(*interface)?;
+                let (guest, embed) = (local.guest, local.embed);
+                local_guest.extend(quote! { pub mod #module { #guest } });
+                local_embed.extend(quote! { pub mod #module { #embed } });
+                local_entries.extend(local.entries);
+                continue;
+            }
             let methods = generator.methods(*interface)?;
             args.extend(generator.args(&module, &methods));
             let guest = generator.guest_import(&module, &methods)?;
@@ -293,8 +326,39 @@ impl Generator {
                 }
             });
         }
+        let lister = format_ident!("{}_local_imports", generator.options.world.to_snake_case());
+        let listing = match local_entries.is_empty() {
+            true => TokenStream::new(),
+            false => quote! {
+                #[macro_export]
+                macro_rules! #lister {
+                    (#dollar callback:ident) => {
+                        #dollar callback! { #(#local_entries)* }
+                    };
+                }
+
+                pub mod guest {
+                    #local_guest
+                }
+
+                pub mod embed {
+                    #local_embed
+                }
+            },
+        };
         if bounds.is_empty() && direct_imports.is_empty() && args.is_empty() {
-            return Ok(types);
+            return Ok(quote! {
+                #types
+
+                #listing
+            });
+        }
+        if !local_entries.is_empty() {
+            return Err(
+                "a world that imports a local interface imports nothing else of its own; \
+                 take it from its own crate with `uses`"
+                    .to_owned(),
+            );
         }
         let exporter = format_ident!("export_{}", generator.options.world.to_snake_case());
         let registrar = format_ident!("__register_{}", generator.options.world.to_snake_case());
@@ -461,10 +525,39 @@ impl Generator {
                             .collect::<Result<Vec<_>, _>>()?;
                         quote!((#(#types,)*))
                     }
+                    TypeDefKind::Handle(
+                        wit_parser::Handle::Own(resource) | wit_parser::Handle::Borrow(resource),
+                    ) => {
+                        let resource = self.target(*resource);
+                        let def = &self.resolve.types[resource];
+                        match (&def.name, def.owner) {
+                            (Some(name), TypeOwner::Interface(owner)) if self.is_local(owner) => {
+                                let name = camel(name);
+                                match self.used(owner) {
+                                    Some(path) => quote!(#path::#name),
+                                    None => {
+                                        let module = self.module_name(owner);
+                                        quote!(crate::#module::#name)
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "{def:?}: a handle is a value only in a local interface"
+                                ));
+                            }
+                        }
+                    }
                     other => return Err(format!("{other:?} is not supported here")),
                 }
             }
         })
+    }
+
+    fn is_local(&self, interface: InterfaceId) -> bool {
+        self.resolve
+            .id_of(interface)
+            .is_some_and(|id| self.options.local.contains(&id))
     }
 
     fn optional(&self, ty: Option<&Type>) -> Result<TokenStream, String> {
@@ -514,7 +607,7 @@ impl Generator {
                         .is_some_and(|name| self.options.copy.contains(name));
                 }
                 match &def.kind {
-                    TypeDefKind::Enum(_) | TypeDefKind::Flags(_) => true,
+                    TypeDefKind::Enum(_) | TypeDefKind::Flags(_) | TypeDefKind::Handle(_) => true,
                     TypeDefKind::Record(record) => {
                         record.fields.iter().all(|field| self.copyable(&field.ty))
                     }
@@ -724,6 +817,14 @@ impl Generator {
                             pub const fn contains(self, other: Self) -> bool {
                                 self.0 & other.0 == other.0
                             }
+
+                            pub const fn bits(self) -> u32 {
+                                self.0
+                            }
+
+                            pub const fn from_bits(bits: u32) -> Self {
+                                Self(bits)
+                            }
                         }
 
                         impl ::core::ops::BitOr for #ident {
@@ -735,6 +836,14 @@ impl Generator {
                         }
                     }
                 }
+                TypeDefKind::Resource if self.is_local(interface) => quote! {
+                    #[derive(
+                        Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd,
+                        ::serde::Serialize, ::serde::Deserialize,
+                    )]
+                    #[serde(transparent)]
+                    pub struct #ident(pub u32);
+                },
                 TypeDefKind::Resource => TokenStream::new(),
                 TypeDefKind::Type(_)
                 | TypeDefKind::Option(_)
