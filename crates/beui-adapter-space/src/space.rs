@@ -1369,7 +1369,10 @@ impl Space {
                 start,
                 sight,
                 ..
-            } => panel.pose.rotation = chrome::turned(rotation, start.direction, ray.direction, sight),
+            } => {
+                panel.pose.rotation =
+                    chrome::turned(rotation, start.direction, ray.direction, sight)
+            }
             Gesture::Roll { original, start } => {
                 if let Some(angle) = chrome::roll_angle(&original, ray) {
                     panel.pose.rotation = chrome::rolled(&original, start, angle);
