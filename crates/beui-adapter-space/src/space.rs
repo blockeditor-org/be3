@@ -17,8 +17,8 @@ use beui_renderer_wgpu::present::GpuSetup;
 use glam::{Mat4, Quat, Vec3};
 
 use crate::carry::{Carry, NEAREST};
-use crate::cursor::{self, Sprite};
 use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part};
+use crate::cursor::{self, Sprite};
 use crate::head::{Head, Ray};
 use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{ChromeFrame, Compositor, Frame, PanelFrame};
@@ -342,10 +342,8 @@ impl Space {
         if let Some(pos) = position(&input) {
             self.cursor = Some(Cursor::Window(window, pos));
         }
-        if matches!(
-            input,
-            Input::PointerMoved(_) | Input::PointerButton { .. }
-        ) && self.chrome_pointer(&input, out)
+        if matches!(input, Input::PointerMoved(_) | Input::PointerButton { .. })
+            && self.chrome_pointer(&input, out)
         {
             return;
         }

@@ -18,7 +18,11 @@ fn the_chrome_of_a_window_over_another_leaves_its_content_alone() {
     let got = delivered(&send(
         &mut space,
         now,
-        [Input::PointerMoved(aside), Input::PointerMoved(bracket), button(bracket, true)],
+        [
+            Input::PointerMoved(aside),
+            Input::PointerMoved(bracket),
+            button(bracket, true),
+        ],
     ));
     assert!(
         got.iter().all(|(window, _)| *window == WindowId::MAIN) && got.len() == 3,
@@ -27,7 +31,11 @@ fn the_chrome_of_a_window_over_another_leaves_its_content_alone() {
     send(&mut space, now, [button(bracket, false)]);
 
     let inside = screen(&space, panel.world(pos2(20.0, 20.0)));
-    send(&mut space, now, [Input::PointerMoved(inside), Input::PointerMoved(bracket)]);
+    send(
+        &mut space,
+        now,
+        [Input::PointerMoved(inside), Input::PointerMoved(bracket)],
+    );
     assert_eq!(
         space.chrome.hovered,
         Some((over, Part::Scale(Corner::TopLeft))),

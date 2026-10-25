@@ -6485,7 +6485,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -6503,7 +6502,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -6521,7 +6519,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -6539,7 +6536,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -6557,7 +6553,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -6575,7 +6570,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -6593,7 +6587,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
