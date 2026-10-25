@@ -67,7 +67,8 @@ pub(super) fn spawn(
     let host = match gpu() {
         Some((device, queue)) => Host::new(device, queue, cache().as_deref())?,
         None => Host::on_demand(|| Err(NO_GPU.to_owned()), cache().as_deref())?,
-    };
+    }
+    .with_direct(block_plugin_api::embed::IMPORTS);
     let interrupter = host.interrupter();
     let mailbox = host.imports();
     let channel = thread::spawn(
@@ -131,11 +132,9 @@ impl Runnable for Editor {
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<PresentedTexture>, String> {
         let plugin = &mut self.0;
-        for frame in frames {
-            plugin.send(frame);
-        }
         plugin.take_wake();
         let started = Instant::now();
+        plugin.deliver(frames)?;
         plugin.step()?;
         let step = started.elapsed();
         let (gpu, submit) = plugin.take_gpu_time();

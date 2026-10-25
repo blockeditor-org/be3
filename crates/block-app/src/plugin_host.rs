@@ -27,6 +27,7 @@ mod surface;
 mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
+mod wire;
 
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;

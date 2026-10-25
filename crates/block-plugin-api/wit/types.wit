@@ -1,0 +1,256 @@
+package be3:plugin@0.1.0;
+
+/// What the host and an editor plugin share.
+interface types {
+    use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
+
+    /// A block, editor, account or organization id.
+    record uuid {
+        hi: u64,
+        lo: u64,
+    }
+
+    record editor-instance-id {
+        value: u64,
+    }
+
+    record screen-id {
+        value: u64,
+    }
+
+    record size {
+        width: f32,
+        height: f32,
+    }
+
+    record plugin-identity {
+        id: string,
+        name: string,
+        version: string,
+    }
+
+    enum surface-support {
+        none,
+        texture,
+    }
+
+    enum surface-format {
+        rgba8-unorm,
+        rgba8-unorm-srgb,
+        bgra8-unorm,
+        bgra8-unorm-srgb,
+    }
+
+    record surface-spec {
+        format: surface-format,
+        render: bool,
+    }
+
+    record hello {
+        plugin: plugin-identity,
+        surface: surface-support,
+    }
+
+    record hello-accepted {
+        host-name: string,
+        surface: option<surface-spec>,
+        preferences: preferences,
+    }
+
+    enum font-role {
+        text,
+        monospace,
+        fallback,
+        icons,
+    }
+
+    record font-face {
+        role: font-role,
+        index: u32,
+        data: list<u8>,
+    }
+
+    /// Faces to add, or with `replace` the whole set.
+    record fonts {
+        replace: bool,
+        faces: list<font-face>,
+    }
+
+    enum editor-region {
+        frame,
+        preview,
+        artifact-settings,
+    }
+
+    enum frame-chrome {
+        none,
+        drawn,
+    }
+
+    enum top-bar {
+        hidden,
+        shown,
+        phone,
+    }
+
+    record frame-spec {
+        chrome: frame-chrome,
+        content: option<rect>,
+        top-bar: top-bar,
+    }
+
+    record monitor {
+        id: string,
+        name: string,
+        rect: rect,
+    }
+
+    record viewport-metrics {
+        logical: size,
+        visible: pos2,
+        pixel-width: u32,
+        pixel-height: u32,
+        scale-factor: f32,
+        monitors: list<monitor>,
+    }
+
+    record screen-request {
+        screen: screen-id,
+        instance: editor-instance-id,
+        region: editor-region,
+        metrics: viewport-metrics,
+        frame: option<frame-spec>,
+    }
+
+    record screen-placement {
+        screen: screen-id,
+        instance: editor-instance-id,
+        region: editor-region,
+        surface: u32,
+        width: u32,
+        height: u32,
+        scale-factor-millis: u32,
+    }
+
+    record screen-layout {
+        screens: list<screen-placement>,
+    }
+
+    record timed-input {
+        input: input,
+        time-micros: option<u64>,
+    }
+
+    /// Input for one screen. Batches waiting for the plugin merge: pointer moves
+    /// and pixel scrolls fold into the last of a run unless `every-sample`, and
+    /// everything else stays, in order.
+    record input-batch {
+        screen: screen-id,
+        events: list<timed-input>,
+        every-sample: bool,
+    }
+
+    record region-size {
+        screen: screen-id,
+        logical: size,
+    }
+
+    record press-claim {
+        modifiers: modifiers,
+        rect: rect,
+    }
+
+    /// What a screen describes to assistive technology. Carried in its Rust
+    /// shape until the accessibility interface defines it here.
+    type description = list<u8>;
+
+    /// The children an instance placed in a region. Carried in its Rust shape
+    /// until the children interface defines it here.
+    type child-placements = list<u8>;
+
+    record frame-report {
+        screen: screen-id,
+        content: rect,
+        painted: list<rect>,
+        floating: list<rect>,
+        drawing: list<rect>,
+        every-sample: bool,
+        claims: list<press-claim>,
+        description: option<description>,
+    }
+
+    record screen-window {
+        screen: screen-id,
+        window: window-requests,
+    }
+
+    record surface-rect {
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    }
+
+    record screen-damage {
+        screen: screen-id,
+        rect: surface-rect,
+    }
+
+    record presented-frame {
+        sequence: u64,
+        damage: list<screen-damage>,
+    }
+
+    /// What a plugin drew: the frame the host composites, with what each
+    /// screen asks of its window and the children it placed.
+    record frame-commit {
+        serial: u64,
+        sizes: list<region-size>,
+        reports: list<frame-report>,
+        windows: list<screen-window>,
+        children: list<child-placements>,
+        repaint-after-micros: option<u64>,
+        animating: bool,
+        presented: option<presented-frame>,
+    }
+
+    record open-block {
+        instance: editor-instance-id,
+        editor: uuid,
+        block-id: uuid,
+        block-type: uuid,
+        view-block: option<uuid>,
+        account-id: uuid,
+        organization-id: uuid,
+        client-id: uuid,
+        editable: bool,
+    }
+
+    record open-creation {
+        instance: editor-instance-id,
+        editor: uuid,
+        template: string,
+        account-id: uuid,
+        organization-id: uuid,
+        client-id: uuid,
+    }
+
+    record open-artifact {
+        instance: editor-instance-id,
+        editor: uuid,
+        block-id: uuid,
+        block-type: uuid,
+        account-id: uuid,
+        organization-id: uuid,
+        client-id: uuid,
+        data: list<u8>,
+    }
+
+    /// How an editor instance opens: on a block, as a creation dialog, or on
+    /// an artifact's settings.
+    variant opening {
+        block(open-block),
+        creation(open-creation),
+        artifact(open-artifact),
+    }
+}

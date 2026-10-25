@@ -4,11 +4,38 @@ use serde::{Deserialize, Serialize};
 pub use serde_bytes::ByteBuf;
 use std::fmt;
 
+be_ops_bindgen::generate!({
+    path: "wit",
+    world: "editor-plugin",
+    deps: ["../ui-types/wit"],
+    uses: { "be3:ui/types@0.1.0": ::ui_types::types },
+    with: {
+        "uuid": [u8; 16],
+        "editor-instance-id": crate::EditorInstanceId,
+        "screen-id": crate::ScreenId,
+        "description": crate::Description,
+        "child-placements": crate::ChildPlacements,
+    },
+    copy: ["uuid", "editor-instance-id", "screen-id"],
+    default: ["frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout"],
+    own_debug: ["font-face"],
+});
+
+pub use be_ops as ops;
+pub use types::{
+    EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
+    Hello, HelloAccepted, InputBatch, Monitor, OpenArtifact, OpenBlock, OpenCreation, Opening,
+    PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
+    SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+};
+
 mod block_ids;
 mod host_value;
 mod linux;
 mod manifest;
 mod nesting;
+mod opening;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
@@ -53,42 +80,11 @@ pub const MAX_ACCESSIBILITY_NODES: usize = 64 * 1024;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct EditorInstanceId(pub u64);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ScreenId(pub u64);
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ScreenRequest {
-    pub screen: ScreenId,
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub metrics: ViewportMetrics,
-    pub frame: Option<FrameSpec>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FrameChrome {
-    Drawn,
-    #[default]
-    None,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct FrameSpec {
-    pub chrome: FrameChrome,
-    pub content: Option<Rect>,
-    pub top_bar: TopBar,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TopBar {
-    #[default]
-    Hidden,
-    Shown,
-    Phone,
-}
 
 impl TopBar {
     pub fn shown(self) -> bool {
@@ -159,18 +155,6 @@ impl MenuEntry {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct FrameReport {
-    pub screen: ScreenId,
-    pub content: Rect,
-    pub painted: Vec<Rect>,
-    pub floating: Vec<Rect>,
-    pub drawing: Vec<Rect>,
-    pub every_sample: bool,
-    pub claims: Vec<PressClaim>,
-    pub description: Option<Description>,
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
     pub tree: Option<accesskit::TreeUpdate>,
@@ -187,38 +171,10 @@ pub struct DescribedAction {
     pub live: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PressClaim {
-    pub modifiers: Modifiers,
-    pub rect: Rect,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ScreenSet {
     pub request_id: u64,
     pub screens: Vec<ScreenRequest>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScreenPlacement {
-    pub screen: ScreenId,
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub surface: u32,
-    pub width: u32,
-    pub height: u32,
-    pub scale_factor_millis: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RegionSize {
-    pub screen: ScreenId,
-    pub logical: Size,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScreenLayout {
-    pub screens: Vec<ScreenPlacement>,
 }
 
 impl ScreenPlacement {
@@ -283,12 +239,6 @@ pub enum ChildMode {
     Active,
     Live,
     InPlace,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Size {
-    pub width: f32,
-    pub height: f32,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -684,13 +634,6 @@ pub struct EditorDescriptor {
     pub edits: Edits,
     pub name: String,
     pub icon_codepoint: String,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EditorRegion {
-    Frame,
-    Preview,
-    ArtifactSettings,
 }
 
 impl EditorRegion {
@@ -1949,35 +1892,6 @@ impl EditorMessage {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Hello {
-    pub plugin: PluginIdentity,
-    pub surface: SurfaceSupport,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HelloAccepted {
-    pub host_name: String,
-    pub surface: Option<SurfaceSpec>,
-    pub preferences: Preferences,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FontRole {
-    Text,
-    Monospace,
-    Fallback,
-    Icons,
-}
-
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FontFace {
-    pub role: FontRole,
-    pub index: u32,
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
-}
-
 impl fmt::Debug for FontFace {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -1987,39 +1901,6 @@ impl fmt::Debug for FontFace {
             .field("bytes", &self.data.len())
             .finish()
     }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Fonts {
-    pub replace: bool,
-    pub faces: Vec<FontFace>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PluginIdentity {
-    pub id: String,
-    pub name: String,
-    pub version: String,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SurfaceSupport {
-    None,
-    Texture,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SurfaceSpec {
-    pub format: SurfaceFormat,
-    pub render: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SurfaceFormat {
-    Rgba8Unorm,
-    Rgba8UnormSrgb,
-    Bgra8Unorm,
-    Bgra8UnormSrgb,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -2053,36 +1934,6 @@ impl FitArea {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ViewportMetrics {
-    pub logical: Size,
-    pub visible: Pos2,
-    pub pixel_width: u32,
-    pub pixel_height: u32,
-    pub scale_factor: f32,
-    pub monitors: Vec<Monitor>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Monitor {
-    pub id: String,
-    pub name: String,
-    pub rect: Rect,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct InputBatch {
-    pub screen: ScreenId,
-    pub events: Vec<TimedInput>,
-    pub every_sample: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TimedInput {
-    pub input: Input,
-    pub time_micros: Option<u64>,
-}
-
 impl From<Input> for TimedInput {
     fn from(input: Input) -> Self {
         Self {
@@ -2090,44 +1941,6 @@ impl From<Input> for TimedInput {
             time_micros: None,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct FrameCommit {
-    pub serial: u64,
-    pub sizes: Vec<RegionSize>,
-    pub reports: Vec<FrameReport>,
-    pub windows: Vec<ScreenWindow>,
-    pub children: Vec<ChildPlacements>,
-    pub repaint_after_micros: Option<u64>,
-    pub animating: bool,
-    pub presented: Option<PresentedFrame>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ScreenWindow {
-    pub screen: ScreenId,
-    pub window: WindowRequests,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PresentedFrame {
-    pub sequence: u64,
-    pub damage: Vec<ScreenDamage>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScreenDamage {
-    pub screen: ScreenId,
-    pub rect: SurfaceRect,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SurfaceRect {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

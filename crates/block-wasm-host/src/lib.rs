@@ -1,3 +1,4 @@
+mod direct;
 mod dylink;
 mod gpu;
 mod harness;
@@ -56,6 +57,7 @@ pub struct Host {
     sdks: Sdks,
     devices: Devices,
     imports: Imports,
+    direct: Vec<(String, String)>,
     interrupt: Arc<Interrupt>,
 }
 
@@ -89,6 +91,7 @@ impl Host {
             sdks,
             devices: Devices::Given(device, queue),
             imports: Imports::default(),
+            direct: Vec::new(),
         })
     }
 
@@ -103,7 +106,16 @@ impl Host {
             sdks,
             devices: Devices::OnDemand(Arc::new(connect)),
             imports: Imports::default(),
+            direct: Vec::new(),
         })
+    }
+
+    pub fn with_direct(mut self, imports: &[(&str, &str)]) -> Self {
+        self.direct = imports
+            .iter()
+            .map(|(module, name)| ((*module).to_owned(), (*name).to_owned()))
+            .collect();
+        self
     }
 
     pub fn imports(&self) -> Imports {
@@ -215,6 +227,7 @@ impl Host {
 
 pub struct Plugin {
     store: Store<State>,
+    instance: Instance,
     start: TypedFunc<(), ()>,
     step: TypedFunc<(), ()>,
     shutdown: TypedFunc<(), ()>,
@@ -262,6 +275,7 @@ impl Plugin {
         panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
+        direct::link(&mut linker, &host.direct)?;
         linker
             .define_unknown_imports_as_traps(program.first())
             .map_err(|error| format!("the plugin imports could not be stubbed: {error}"))?;
@@ -291,6 +305,7 @@ impl Plugin {
             step: typed(&instance, &mut store, "plugin_step")?,
             shutdown: typed(&instance, &mut store, "plugin_shutdown")?,
             store,
+            instance,
             wake,
             stopped: false,
         };
@@ -344,6 +359,35 @@ impl Plugin {
 
     pub fn send(&mut self, frame: Vec<u8>) {
         self.store.data_mut().transport.inbox.push_back(frame);
+    }
+
+    pub fn deliver(&mut self, items: Vec<Vec<u8>>) -> Result<(), String> {
+        for item in items {
+            let Some(block_guest_abi::direct::Item::Call(call)) =
+                block_guest_abi::direct::decode(&item)
+            else {
+                self.send(item);
+                continue;
+            };
+            if !self.store.data().transport.inbox.is_empty() {
+                self.step()?;
+            }
+            if self.stopped {
+                return Ok(());
+            }
+            let returned =
+                direct::call(&self.instance, &mut self.store, &call).inspect_err(|_| {
+                    self.stopped = true;
+                })?;
+            if call.answered {
+                self.store
+                    .data_mut()
+                    .transport
+                    .outbox
+                    .push(block_guest_abi::direct::returned(&returned));
+            }
+        }
+        Ok(())
     }
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {

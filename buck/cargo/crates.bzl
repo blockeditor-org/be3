@@ -11128,6 +11128,8 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11144,6 +11146,8 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11160,6 +11164,8 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11176,6 +11182,8 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11192,6 +11200,8 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11208,6 +11218,8 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11224,6 +11236,8 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11240,6 +11254,8 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11256,6 +11272,8 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",

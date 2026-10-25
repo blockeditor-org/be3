@@ -1738,6 +1738,8 @@ name = "block-plugin-api"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "be-ops",
+ "be-ops-bindgen",
  "bincode",
  "serde",
  "serde_bytes",

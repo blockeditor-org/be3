@@ -1,7 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
-use block_plugin_api::{Message, PluginManifest, ScreenDamage, decode_frame, encode_frame};
+use block_plugin_api::{Message, PluginManifest, ScreenDamage};
 
+use super::wire::Wire;
 use crate::{editors::plugin::discovery, host};
 use block_guest_host::Worker;
 pub(super) use block_guest_host::{Deadline, StepTime};
@@ -38,6 +39,8 @@ pub(super) struct Backend {
     module: Option<String>,
     worker: Option<Worker<platform::Channel>>,
     mailbox: Option<platform::Mailbox>,
+    wire: Wire,
+    answered: Vec<Message>,
     started: Duration,
     error: Option<String>,
 }
@@ -48,6 +51,8 @@ impl Backend {
             module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
             worker: None,
             mailbox: None,
+            wire: Wire::default(),
+            answered: Vec::new(),
             started: host::now(),
             error: None,
         }
@@ -57,6 +62,8 @@ impl Backend {
         self.shutdown();
         self.started = host::now();
         self.error = None;
+        self.wire = Wire::default();
+        self.answered.clear();
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
@@ -79,16 +86,15 @@ impl Backend {
         let Some(worker) = &mut self.worker else {
             return;
         };
-        let mut frames = Vec::with_capacity(messages.len());
         for message in messages {
-            match encode_frame(&message) {
-                Ok(frame) => frames.push(frame),
+            match self.wire.send(message) {
+                Ok(answered) => self.answered.extend(answered),
                 Err(error) => {
                     self.error.get_or_insert(error.to_string());
                 }
             }
         }
-        if let Some(failure) = worker.queue(frames) {
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }
     }
@@ -98,14 +104,14 @@ impl Backend {
         let Some(worker) = &mut self.worker else {
             return Vec::new();
         };
-        let mut messages = Vec::new();
+        let mut messages = std::mem::take(&mut self.answered);
         for frame in worker.take_received() {
-            match decode_frame(&frame) {
-                Ok(message) => messages.push(message),
-                Err(failure) => {
-                    self.error.get_or_insert(format!("{failure:?}"));
-                }
+            if let Err(failure) = self.wire.receive(&frame, &mut messages) {
+                self.error.get_or_insert(failure);
             }
+        }
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
         }
         messages
     }

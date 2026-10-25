@@ -1,0 +1,32 @@
+package be3:plugin@0.1.0;
+
+/// What an editor plugin offers its host.
+interface plugin {
+    use types.{frame-commit, opening, screen-request};
+
+    /// An editor instance. Dropping it closes it.
+    resource editor {
+        constructor(opening: opening);
+    }
+
+    /// The screens the host shows, replacing the ones it showed before.
+    screens: func(screens: list<screen-request>);
+
+    /// Numbers the screens and views sent since the last configure; the frame
+    /// that shows them carries the serial back.
+    configure: func(serial: u64);
+
+    /// Draws a frame of every screen and answers with what it drew.
+    draw: async func(now-micros: u64, seen: bool) -> frame-commit;
+
+    /// Stops the plugin; it answers once it saved what it holds.
+    shutdown: async func();
+
+    /// A message of the protocol this world replaces, until each moves here.
+    legacy: func(message: list<u8>);
+}
+
+world editor-plugin {
+    import host;
+    export plugin;
+}

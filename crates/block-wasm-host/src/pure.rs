@@ -231,10 +231,12 @@ impl PureGuest {
                     }
                     let name = call.name.to_owned();
                     let returned = self.call_export(&name, call.parent, call.args)?;
-                    self.store
-                        .data_mut()
-                        .outbox
-                        .push(direct::returned(&returned));
+                    if call.answered {
+                        self.store
+                            .data_mut()
+                            .outbox
+                            .push(direct::returned(&returned));
+                    }
                 }
                 Some(direct::Item::Frame(_)) => self.send(item),
                 Some(direct::Item::Returned(_)) | None => {

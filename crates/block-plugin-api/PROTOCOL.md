@@ -1,5 +1,16 @@
 # Block plugin protocol
 
+The host and a plugin speak the `be3:plugin` WIT world (`wit/`), carried by
+be-ops (guides/type_modules.md, "Operations and WIT"). Its functions replace
+the messages below group by group: the handshake (`host.connect`), the screens,
+configure and draw (`plugin.screens`, `plugin.configure`, `plugin.draw`, whose
+answer is the frame commit), layout, frame-needed and missing characters, the
+watched preferences, UTC offset and fonts, input, editor instances
+(`resource editor`, dropped to close one) and shutdown. Until every message has
+moved, one the world does not name travels whole, framed as below, through
+the world's `legacy` functions, and each side turns the world's calls back
+into the messages they replace.
+
 Every wire message is a four-byte, network-order payload length followed by a
 bincode payload. A frame is bounded only by that length, so a message carrying
 a whole block or an imported file needs no chunking. Receivers reject
