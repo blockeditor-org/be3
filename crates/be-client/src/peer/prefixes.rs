@@ -1,6 +1,7 @@
 use be_block::be_model::BlockRef;
 use be_block::{
-    BlockContent, BlockMetadata, Edit, PREFIXES, PrefixRegistry, PrefixRegistryContent, WORKSPACE_TYPE,
+    BlockContent, BlockMetadata, Edit, PREFIXES, PrefixRegistry, PrefixRegistryContent,
+    WORKSPACE_TYPE,
 };
 use be_graph::{Access, BlockParent};
 use be_store::ObjectStore;

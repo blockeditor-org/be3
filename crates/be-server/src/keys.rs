@@ -547,7 +547,9 @@ pub(crate) fn open_kinds_viewed(
     let mut viewed = BTreeSet::new();
     for owner in std::iter::once(block).chain(graph.ancestors(block)) {
         for kind in graph.kinds_of(owner) {
-            if graph.get(kind).is_some_and(be_graph::BlockNode::is_open_inside)
+            if graph
+                .get(kind)
+                .is_some_and(be_graph::BlockNode::is_open_inside)
                 && is_viewer(connection, graph, organization, account, kind)?
             {
                 viewed.insert(kind);

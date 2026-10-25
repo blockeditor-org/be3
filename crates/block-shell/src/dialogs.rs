@@ -565,9 +565,9 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             })}
                             label="Access"
                             options={view! {
-                                <ForEach keys={choices}>|level: AccessLevel| {
-                                    view! { <ChoiceOption label={level.label()} /> }
-                                }</ForEach>
+                                <ForEach keys={choices}>|level: AccessLevel|
+                                    <ChoiceOption label={level.label()} />
+                                </ForEach>
                             }}
                         />
                     </Show>

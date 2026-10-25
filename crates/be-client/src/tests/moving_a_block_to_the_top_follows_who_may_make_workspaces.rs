@@ -24,7 +24,10 @@ async fn moving_a_block_to_the_top_follows_who_may_make_workspaces() {
 
     let moved = member.set_parent(folder, BlockParent::Root).await;
     assert!(
-        matches!(moved, Err(ClientError::Refused(ErrorCode::PolicyRefused, _))),
+        matches!(
+            moved,
+            Err(ClientError::Refused(ErrorCode::PolicyRefused, _))
+        ),
         "a member moved a block to the top past the policy: {moved:?}"
     );
     assert_eq!(

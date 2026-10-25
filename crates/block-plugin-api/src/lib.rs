@@ -1422,7 +1422,9 @@ pub struct BlockInfo {
     pub sets_access: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum AccessLevel {
     None,
     KnowExists,

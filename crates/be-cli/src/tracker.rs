@@ -605,7 +605,10 @@ impl<S: ObjectStore> Tracker<S> {
             return Err(format!("{} cannot move into itself", moved.label()));
         }
         self.place(into, moved.id).await?;
-        self.peer.set_parent(moved.id, into).await.map_err(explain)?;
+        self.peer
+            .set_parent(moved.id, into)
+            .await
+            .map_err(explain)?;
         if let Some(from @ BlockParent::Block(_)) = from {
             self.relist(from, ChildChange::Delete(moved.id)).await?;
         }

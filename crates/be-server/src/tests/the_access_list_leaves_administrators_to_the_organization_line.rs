@@ -81,7 +81,10 @@ async fn the_access_list_leaves_administrators_to_the_organization_line() {
     assert!(list.company);
     let accounts: Vec<Uuid> = list.entries.iter().map(|entry| entry.account).collect();
     assert_eq!(
-        accounts.iter().filter(|account| **account == owner_id).count(),
+        accounts
+            .iter()
+            .filter(|account| **account == owner_id)
+            .count(),
         1,
         "the one listing is listed"
     );
