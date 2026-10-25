@@ -27,9 +27,6 @@ unsafe extern "C" {
     fn be_worker_start(entry: usize);
 }
 
-// be::stop cannot wait for a worker to end on the page, so each stack waits in
-// its own worker for the ones started before it: two serving one organization
-// at once would both write its refs.
 static STARTED: AtomicU64 = AtomicU64::new(0);
 static FINISHED: AtomicU64 = AtomicU64::new(0);
 const AWAITING_PREVIOUS: Duration = Duration::from_millis(5);

@@ -63,7 +63,7 @@ anyone else can sign in:
   service worker keeps the app so it opens offline.
 - Done: the be stack runs in a worker of its own (`web/be-worker.js`), as it
   runs on a thread natively, sharing memory with the page.
-- An edit made offline in the web app did not survive a reload in a manual
-  run; check it once offline sealing has settled.
+- Done: an edit made offline in the web app survives a reload (SQLite opens
+  without lock files on WASI; a reload within the seal interval asks first).
 - A service worker keeps every build's files it ever served; nothing prunes
   the old ones.

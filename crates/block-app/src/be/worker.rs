@@ -458,6 +458,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             uploads: Uploads::new(&shared),
             versions: Versions::default(),
             line: Line::down(&config, 0, Duration::ZERO),
+            listed: tokio::sync::mpsc::unbounded_channel(),
         };
         session.run(open).await;
         forget_what_is_not_kept(&peer);
@@ -510,13 +511,15 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
     let mut failures = 0;
     loop {
         match make_store().and_then(|store| Ok((store, super::refs(config)?))) {
-            Ok((store, refs)) => match unless_stopped(connect(config, store, refs), nudged).await? {
-                Ok((peer, open)) => {
-                    nudged.mark_unchanged();
-                    return Some((Arc::new(peer), Some(open)));
+            Ok((store, refs)) => {
+                match unless_stopped(connect(config, store, refs), nudged).await? {
+                    Ok((peer, open)) => {
+                        nudged.mark_unchanged();
+                        return Some((Arc::new(peer), Some(open)));
+                    }
+                    Err(error) => fail(shared, error.to_string()),
                 }
-                Err(error) => fail(shared, error.to_string()),
-            },
+            }
             Err(error) => fail(shared, error),
         }
         changed.notify_all();
@@ -643,6 +646,10 @@ struct Session<'a> {
     uploads: Uploads,
     versions: Versions,
     line: Line,
+    listed: (
+        tokio::sync::mpsc::UnboundedSender<()>,
+        UnboundedReceiver<()>,
+    ),
 }
 
 impl Session<'_> {
@@ -691,6 +698,7 @@ impl Session<'_> {
                     self.nudged,
                     &mut self.uploads,
                     &mut *self.replicas,
+                    &mut self.listed.1,
                     stopping
                 ));
                 match wake_at {
@@ -706,7 +714,7 @@ impl Session<'_> {
             };
             let handled = self.replicas.handled;
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
-            if !matches!(woken, Woken::Module) || self.replicas.handled != handled {
+            if !matches!(woken, Woken::Module | Woken::Listed) || self.replicas.handled != handled {
                 shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
             }
             let mut moved = match woken {
@@ -823,6 +831,7 @@ impl Session<'_> {
                     self.replicas.modules.tick_due();
                     false
                 }
+                Woken::Listed => true,
             };
             moved |= pumped;
             moved |= self.replicas.pump((peer, shared)).await;
@@ -837,7 +846,7 @@ impl Session<'_> {
                 .await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
-            moved |= fetch_listings(peer, shared).await;
+            spawn_listings(peer, shared, &self.listed.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
                 && !flushes.is_empty()
@@ -1095,6 +1104,7 @@ async fn rekey_changed(
 
 enum Woken {
     Command(Command),
+    Listed,
     Uploaded,
     Event(Option<ServerMessage>),
     Module,
@@ -1111,6 +1121,7 @@ async fn wait(
     nudged: &mut super::nudge::Nudged,
     uploads: &mut Uploads,
     replicas: &mut Replicas,
+    listed: &mut UnboundedReceiver<()>,
     stopping: bool,
 ) -> Woken {
     let command = std::pin::pin!(async {
@@ -1140,12 +1151,22 @@ async fn wait(
         replicas.woken().await;
         Woken::Module
     });
+    let fetched = std::pin::pin!(async {
+        match listed.recv().await {
+            Some(()) => Woken::Listed,
+            None => std::future::pending().await,
+        }
+    });
     let first = select(
-        select(command, nudge),
+        select(command, select(nudge, fetched)),
         select(heard, select(uploaded, module)),
     );
     match first.await {
-        Either::Left((Either::Left((woken, _)) | Either::Right((woken, _)), _))
+        Either::Left((
+            Either::Left((woken, _))
+            | Either::Right((Either::Left((woken, _)) | Either::Right((woken, _)), _)),
+            _,
+        ))
         | Either::Right((
             Either::Left((woken, _))
             | Either::Right((Either::Left((woken, _)) | Either::Right((woken, _)), _)),
@@ -2278,63 +2299,92 @@ fn relist(shared: &Arc<Mutex<Shared>>) {
 pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let mut fetched = false;
     loop {
-        let (unlisted, wanted) = {
-            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            (held.graph.take_unlisted(), held.graph.take_wanted())
-        };
-        let unlists = futures_util::future::join_all(
-            unlisted.into_iter().map(|listing| peer.unlist(listing)),
-        );
+        let (unlisted, wanted) = take_listings(shared);
         if wanted.is_empty() {
-            unlists.await;
+            futures_util::future::join_all(
+                unlisted.into_iter().map(|listing| peer.unlist(listing)),
+            )
+            .await;
             return fetched;
         }
         fetched = true;
-        let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
-            match *listing {
-                Listing::Children(parent) => peer.children(parent).await,
-                Listing::Deleted => peer.deleted().await,
-                Listing::Shared => peer.shared().await,
-                Listing::Backrefs(block) => peer.backrefs(block).await,
-                Listing::References(block) => peer.referenced(block).await,
-                Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
-                Listing::OpenSettings(block) => peer.open_settings(block).await,
-            }
-        }));
-        let (_, answers) = futures_util::future::join(unlists, lists).await;
-        for (listing, answer) in wanted.into_iter().zip(answers) {
-            let summaries = match answer {
-                Ok(summaries) => summaries,
-                Err(ClientError::Refused(..)) => Vec::new(),
-                Err(error) => {
-                    record(shared, error);
-                    shared
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .graph
-                        .failed(listing, listing_failure(listing).to_owned());
-                    continue;
-                }
-            };
-            if let Err(error) = peer.learn(&summaries).await {
-                record(shared, error);
-            }
-            let revision = summaries
-                .iter()
-                .map(|summary| summary.revision)
-                .max()
-                .unwrap_or_default();
-            let nodes = summaries
-                .iter()
-                .filter(|summary| summary.access.can_know_exists())
-                .map(|summary| node_of(peer, summary))
-                .collect();
-            shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .listed(listing, nodes, revision);
+        list(peer, shared, unlisted, wanted).await;
+    }
+}
+
+fn spawn_listings(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    listed: &tokio::sync::mpsc::UnboundedSender<()>,
+) {
+    let (unlisted, wanted) = take_listings(shared);
+    if unlisted.is_empty() && wanted.is_empty() {
+        return;
+    }
+    let (peer, shared, listed) = (Arc::clone(peer), Arc::clone(shared), listed.clone());
+    platform::spawn_local(async move {
+        list(&peer, &shared, unlisted, wanted).await;
+        let _ = listed.send(());
+    });
+}
+
+fn take_listings(shared: &Arc<Mutex<Shared>>) -> (Vec<Listing>, Vec<Listing>) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    (held.graph.take_unlisted(), held.graph.take_wanted())
+}
+
+async fn list(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    unlisted: Vec<Listing>,
+    wanted: Vec<Listing>,
+) {
+    let unlists =
+        futures_util::future::join_all(unlisted.into_iter().map(|listing| peer.unlist(listing)));
+    let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
+        match *listing {
+            Listing::Children(parent) => peer.children(parent).await,
+            Listing::Deleted => peer.deleted().await,
+            Listing::Shared => peer.shared().await,
+            Listing::Backrefs(block) => peer.backrefs(block).await,
+            Listing::References(block) => peer.referenced(block).await,
+            Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
+            Listing::OpenSettings(block) => peer.open_settings(block).await,
         }
+    }));
+    let (_, answers) = futures_util::future::join(unlists, lists).await;
+    for (listing, answer) in wanted.into_iter().zip(answers) {
+        let summaries = match answer {
+            Ok(summaries) => summaries,
+            Err(ClientError::Refused(..)) => Vec::new(),
+            Err(error) => {
+                record(shared, error);
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .failed(listing, listing_failure(listing).to_owned());
+                continue;
+            }
+        };
+        if let Err(error) = peer.learn(&summaries).await {
+            record(shared, error);
+        }
+        let revision = summaries
+            .iter()
+            .map(|summary| summary.revision)
+            .max()
+            .unwrap_or_default();
+        let nodes = summaries
+            .iter()
+            .filter(|summary| summary.access.can_know_exists())
+            .map(|summary| node_of(peer, summary))
+            .collect();
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .listed(listing, nodes, revision);
     }
 }
 

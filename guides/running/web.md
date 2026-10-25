@@ -63,12 +63,33 @@ and writes the module's shared memory itself. A worker caller waits on
 Where the origin private file system is unavailable (some private windows),
 files.js answers from memory and nothing survives a reload.
 
+- SQLite's WASI build has no WAL and by default locks a database with a
+  `NAME.lock` directory, which a reload mid-transaction leaves behind, so
+  every later open would be busy. `sqlite_schema::open`, which opens both
+  databases, uses the `unix-none` VFS on WASI instead: the Web Lock below
+  keeps one owner, and each database has one connection. A refs database
+  that does not open is an error the worker shows and retries, never a
+  silent in-memory one.
+- Every context counts the WASI monotonic clock (and `be_client::Clock::real`)
+  from `performance.timeOrigin`, so an `Instant` the page makes means the
+  same time in the be worker.
+- An unload cannot wait for the be worker, so durability does not depend on
+  it: a replica seals within `SEAL_INTERVAL` of an edit, and until then
+  `be::status().unsaved` counts it, from the command the page sends to the
+  module's next report (`Replicas::counts`). `beforeunload` asks first while
+  anything is unsaved, and the worker seals while the browser asks;
+  `be::flush` returns what was unsaved when it cannot wait (web) and what is
+  left after waiting (native).
+
 - The block stack (`be::start`) runs in a worker of its own, `web/be-worker.js`, as it
   runs on a thread natively: a second instance of the module on the page's
   shared memory, started through the wasm-bindgen glue (with its bare imports
   rewritten, since a worker has no import map) so that its sockets, timers,
   fetches and type-module workers are its own. It lives as long as the page.
-  Its channels, `Shared` and `Condvar` are the native ones. The page's thread
+  Its channels, `Shared` and `Condvar` are the native ones. `be::stop`
+  cannot wait for it, so a stack started after another (switching
+  organization and back) waits in its own worker until the earlier one's
+  `serve` has returned (`be/web.rs`). The page's thread
   may never wait on a lock (a browser traps `memory.atomic.wait` there), so a
   lock the page shares with that worker is `wasi_threads::Mutex`, which spins
   on wasm, and the beui waker takes no lock.
@@ -76,10 +97,21 @@ files.js answers from memory and nothing survives a reload.
   starts the module, and a second tab says it is open in another tab and waits
   for the lock.
 - `web/sw.js`, a service worker, keeps everything the page fetched from its
-  origin (network first, apart from `/api` and `/auth`), so a page opened once
-  opens again without a network. The deployment uploads it as `/sw.js`
+  origin (network first, apart from `/api` and `/auth`; a deployed build's
+  immutable `/data/` files cache first, and a network silent for 3 s gets the
+  kept answer), so a page opened once opens again without a network. The deployment uploads it as `/sw.js`
   (guides/hosting.md).
 - `web-dev --fresh` deletes the browser profile, and the files with it.
+- No browser test runs in verify, so check offline typing by hand: open a
+  text block, `kill -STOP` the instance's be-server (a silent server; killing
+  it is a refused one) or call Playwright's `context.setOffline(true)`, click
+  the editor with `page.mouse.click` and type with `page.keyboard.type`
+  (drive's `click` moves beui's focus but not the page's hidden text area, so
+  real keys after it go nowhere), then `page.reload()` with a `dialog`
+  handler that accepts the `beforeunload` prompt a second later, and read
+  the editor's value from `drive tree`. Compare `performance.timeOrigin`
+  before and after to be sure the page did reload. `kill -CONT` the server
+  before stopping web-dev, whose stop waits for it.
 - The app closes its tab when it exits, except when the page is already
   leaving (a reload), since closing it would stop the reload.
 

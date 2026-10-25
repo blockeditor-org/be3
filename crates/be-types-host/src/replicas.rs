@@ -51,7 +51,7 @@ type Joined = Result<(ClientId, SessionState, Option<CommitId>), ClientError>;
 
 type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
 
-const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
+pub const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
 
 fn asked_of(asked: &HashMap<RequestId, (ReplicaId, Request)>, replica: ReplicaId) -> Vec<Event> {
     let mut asked: Vec<_> = asked

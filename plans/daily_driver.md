@@ -125,8 +125,8 @@ is left is marked below.
 
 - **A local refs database** beside `be-objects` (SQLite on native) holds
   (done: `be_client::refs`, `Peer::cached`/`attach`, the outbox and
-  `Peer::drain`; the app keeps `be-refs.sqlite3` in its data directory, the
-  web keeps it in memory until it gets OPFS):
+  `Peer::drain`; the app keeps `be-refs.sqlite3` in its data directory, on
+  web in the origin private file system):
   - each block's local head and last-known remote head;
   - the graph, with its metadata;
   - the workspace list;
@@ -135,9 +135,10 @@ is left is marked below.
   offline session this client owns; while connected, a known block whose join
   takes over 250 ms opens from its local head as a follower of a placeholder
   owner and joins in the background (`Io::Joined`), then reopens with the real
-  session, keeping edits made meanwhile. Still to do: the worker's loop waits on a stalled request
-  (listings), so on a server that has stopped answering the content shows only
-  once the connection is declared lost.
+  session, keeping edits made meanwhile. The worker fetches listings in
+  tasks of their own, so a stalled listing no longer holds up an open or an
+  edit. Still to do: other requests the loop awaits inline (a summary refresh,
+  `ReadHead`, versions) still hold it while the server is silent.
 - **Editing offline seals local commits.**
   - Done: the replica host seals with `Peer::seal_encoded` and publishes
     only while attached; a replica that loses its connection is handed a
@@ -177,10 +178,12 @@ is left is marked below.
   `conflicts` and `conflicted` for the status bar.
 - Done: imports are kept in the outbox before they upload, so one made offline
   or cut short by a quit is sent by the next drain.
-- Web: text typed offline was reported gone after an offline reload. The
-  native path keeps it (`an_edit_made_offline_survives_a_restart_...`), and
-  `be::backgrounded` now always flushes; still to check in the browser whether
-  the page unloads before the be worker seals.
+- Done: web: text typed offline was gone after an offline reload. A reload
+  mid-transaction left SQLite's WASI lock directory behind, so the refs
+  database never opened again and the worker fell back to one in memory; it
+  now opens without locking (the Web Lock keeps one owner) and never falls
+  back. An edit still on its way to its module counts as unsaved, so a reload
+  within the seal interval asks first (beforeunload) while the worker seals.
 
 ### Status UI
 

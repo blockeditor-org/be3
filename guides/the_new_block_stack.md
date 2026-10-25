@@ -1007,7 +1007,9 @@ are; the server stores references already resolved to real ids, checkouts'
 included), one block (`ReadBlock`) - expanding `Parents` and `Subtree` as the
 blocks they name arrive, and listing a block's references again when they
 change, and the worker fetches the new ones together
-(`fetch_listings`). A listing nobody wants any more is dropped, and with it
+(`fetch_listings`; its own loop spawns them as a task, `spawn_listings`, and is
+woken when they land, so a listing a silent server holds up never holds up an
+open or an edit). A listing nobody wants any more is dropped, and with it
 every block no other listing holds, so closing a folder in the files pane
 empties it from the mirror; the worker sends `Unlist` for it, ahead of that
 round's new listings, so the server stops announcing it. A block already held
@@ -2078,10 +2080,13 @@ pixel art export regenerate this way.
   content that links it has to cope with a block that is gone, and it will race
   a new child its parent has not listed yet.
 - A tab that closes leaves whatever a session held since its last autosave
-  behind: `flush()` cannot wait there.
-- While a request waits on a server that has stopped answering, the worker's
-  loop waits with it (listings, summaries), so a block opened from its local
-  head shows only once the connection is declared lost.
+  behind: `flush()` cannot wait there. A reload or close asks first while
+  anything is unsaved (`beforeunload`), an edit on its way to its module
+  included (`Replicas::counts`), and the worker seals meanwhile.
+- While a request other than a listing waits on a server that has stopped
+  answering (a summary refresh, `ReadHead`, versions), the worker's
+  loop waits with it, and a command queued behind it (an open, an edit) waits
+  until the connection is declared lost.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.

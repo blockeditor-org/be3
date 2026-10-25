@@ -18,8 +18,17 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
     });
 
     harness.relay().stall();
+    let heard = harness.relay().heard();
     open(block, CounterContent::CONTENT_TYPE);
+    runtime().block_on(harness.relay().heard_beyond(heard));
+    harness.clock.advance(be_types_host::EARLY_OPEN);
+    wait_for_count(block, 4);
     add(block, 2);
+    wait_for_count(block, 6);
+    assert!(
+        status().connected,
+        "the block opened and took an edit before the connection was given up"
+    );
     harness.clock.advance(PING_INTERVAL + PONG_WAIT);
     wait_until("noticed the connection went quiet", |shared| {
         !shared.connected
