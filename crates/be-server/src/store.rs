@@ -1249,6 +1249,10 @@ fn remove_from(
     if role == Some(OrganizationRole::Administrator) {
         crate::keys::rotate_escrow_later(connection, organization, account)?;
     }
+    let settings = crate::organization::settings_of(organization);
+    if graph.contains(settings) {
+        crate::keys::lost_view(connection, organization, settings, account)?;
+    }
     crate::keys::lost_open_kinds(connection, graph, organization, account, kinds)?;
     Ok(revoked)
 }

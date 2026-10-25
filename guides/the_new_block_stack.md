@@ -1696,7 +1696,9 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   knows it (the server), is ignored and nothing is said about it. A key the
   device made, one sealed to it that way, or one wrapped under such a key is
   *trusted* (`KeyBook::trusted`); a key opened only through the escrow key
-  (below) is not. A device reads with any key it holds but seals content,
+  (below) is not, nor one the server sealed itself (it does so only for the
+  organization settings' scope key, whose rows it labels and so could label
+  any key that way), nor any key wrapped under one of those. A device reads with any key it holds but seals content,
   wraps or seals a key, or hands a key over (`seal_to`, `wrap`, `escrow_wrap`,
   `Peer::sealing_key`, `Peer::offer`) only with trusted ones, so a key the
   server made up never protects anything new. A rotation by such a device
@@ -1742,9 +1744,9 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   records a rotation) and after its own changes. `Peer::rotate` walks the block's
   subtree and sends one `Rotate`: a new epoch of every scope key in it, each
   wrapped under its parent scope's new (or, above the block, current) key and
-  sealed to whoever may still open it (grantees, and the author of a root
-  block, by their verified keys), every data key of every block (old epochs
-  too) rewrapped under its scope's new key, and a new data key per block. The
+  sealed only to the rotating account, every data key of every block (old epochs
+  too) rewrapped under its scope's new key, and a new data key per block; `tend`
+  then seals the new scope keys through `unsealed` like any other. The
   server takes it only whole: every block below the root a new data key, every
   scope root a new scope key, in one transaction, and drops the account wraps
   of the old scope keys for anyone who can no longer view them. Content is
@@ -1754,6 +1756,14 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   left cannot edit, or lacks a contact's key) waits in `rotations` until a
   client that may edit the block tends; grantees it could not seal to are
   listed as `unsealed` for any device that holds the key and the contact.
+  Whoever should hold a scope key is `keys::sealed_to`: its grantees, the author
+  of a root block, for a kind open inside everyone who views a block inside its
+  owner, and for the organization settings the server and every administrator.
+  A wrap the server sealed counts as unsealed, so an administrator still gets a
+  trusted copy from another. A kind open inside is also offered to anyone who
+  views it, for their own contacts among those viewers (`PutKeys` takes that
+  seal from a viewer), since its owner's editors may have none of them as
+  contacts; closing it rotates its key for everyone who no longer views it.
 - **Escrow** (company organizations). The escrow key is a 32-byte secret
   (`be_keys::EscrowSecret`) that is both an X25519 key and, through HKDF, an
   Ed25519 signing key. It is a key row of kind `escrow` (its block is the

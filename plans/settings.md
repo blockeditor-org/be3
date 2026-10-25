@@ -162,7 +162,10 @@ re-import once, and say so in `guides/frozen_formats.md`.
    which the server pushes again whenever an open kind changes.
    Someone who stops viewing every block inside the owner (a grant removed,
    or leaving the organization) queues a rotation of each open kind they read
-   (be-server `losing_every_block_inside_rotates_a_kind_open_inside`).
+   (be-server `losing_every_block_inside_rotates_a_kind_open_inside`), and so
+   does closing the kind (`closing_a_kind_rotates_it_for_who_read_it_inside`).
+   Viewers pass the kind's key on to their contacts among the inside viewers
+   (`a_kind_open_inside_passes_from_one_viewer_inside_to_another`).
    Tests: be-graph `a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside`,
    be-server `a_settings_kind_opens_to_anyone_who_views_a_block_inside`.
 8. **Settings editor.** A section for the current workspace and one for any
@@ -258,7 +261,14 @@ re-import once, and say so in `guides/frozen_formats.md`.
     administrator, gives every member View on it and everything below and
     nobody but administrators more, and seals its scope key to each member
     itself (`ServerKey::seal_settings_to`, on `GetKeys`), which clients accept
-    from the server for this block alone (`KeyBook::vouches`). Its content is a
+    from the server for this block alone and only to read (`KeyBook::accepts`):
+    a server-sealed key is never trusted, so it never seals anything
+    (be-client `a_key_the_server_labels_as_the_organizations_settings_never_seals_another_block`).
+    The server and every administrator are in its `sealed_to`, so `tend` seals
+    a trusted copy to each new administrator
+    (`a_second_administrator_edits_the_organizations_settings`) and the scope
+    key back to the server after a rotation or a share that never happened;
+    removing a member rotates it (`removing_a_member_rotates_the_organizations_settings`). Its content is a
     `Settings` whose `kinds` are the organization's defaults and `policies` its
     policies, one block per kind, which fill `Editor::organization_layers`
     (pushed by the block's content). The default organization has none.

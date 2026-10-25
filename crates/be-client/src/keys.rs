@@ -153,10 +153,10 @@ impl KeyBook {
         }
     }
 
-    fn vouches(&self, sender: Uuid, block: Option<Uuid>) -> bool {
+    fn accepts(&self, sender: Uuid, block: Option<Uuid>, vouched: bool) -> bool {
         match self.server() {
             Some((server, _)) if server == sender => {
-                block == Some(be_block::organization_settings(self.organization))
+                !vouched && block == Some(be_block::organization_settings(self.organization))
             }
             _ => true,
         }
@@ -413,7 +413,7 @@ impl KeyBook {
     ) -> Option<[u8; 32]> {
         let bytes = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
-                if !self.vouches(wrap.sender, block) {
+                if !self.accepts(wrap.sender, block, vouched) {
                     return None;
                 }
                 let sender = Party {

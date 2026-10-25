@@ -1117,6 +1117,9 @@ pub(crate) fn revoke_or_grant(
     account: Uuid,
     access: Access,
 ) -> Result<(), ServerError> {
+    if account == be_graph::ANYONE_INSIDE {
+        return open_or_close_inside(graph, database, organization, block, access);
+    }
     let viewed = crate::keys::is_viewer(database, graph, organization, account, block)?;
     let kinds = crate::keys::open_kinds_viewed(database, graph, organization, account, block)?;
     write_grant(graph, database, organization, block, account, access)?;
@@ -1124,6 +1127,30 @@ pub(crate) fn revoke_or_grant(
         crate::keys::lost_view(database, organization, block, account)?;
     }
     crate::keys::lost_open_kinds(database, graph, organization, account, kinds)
+}
+
+fn open_or_close_inside(
+    graph: &mut BlockGraph,
+    database: &Connection,
+    organization: Uuid,
+    kind: Uuid,
+    access: Access,
+) -> Result<(), ServerError> {
+    let mut viewed = Vec::new();
+    if let Some(owner) = graph.settings_owner(kind) {
+        for account in graph.inside_viewers(owner) {
+            if crate::keys::is_viewer(database, graph, organization, account, kind)? {
+                viewed.push(account);
+            }
+        }
+    }
+    write_grant(graph, database, organization, kind, be_graph::ANYONE_INSIDE, access)?;
+    for account in viewed {
+        if !crate::keys::is_viewer(database, graph, organization, account, kind)? {
+            crate::keys::lost_view(database, organization, kind, account)?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn write_grant(

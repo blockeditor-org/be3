@@ -68,14 +68,16 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         "a member may only read the organization's settings"
     );
     let head = member.summary(settings).await.unwrap().head;
-    assert_eq!(
-        refused(
-            member
-                .save(settings, &SettingsContent::default(), head)
-                .await
-                .unwrap_err()
+    let edited = member
+        .save(settings, &SettingsContent::default(), head)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            edited,
+            ClientError::Locked(_) | ClientError::Refused(ErrorCode::PermissionDenied, _)
         ),
-        ErrorCode::PermissionDenied
+        "a member edited the organization's settings: {edited}"
     );
 
     workspace(&member, "Mine").await;

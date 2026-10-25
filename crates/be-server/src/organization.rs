@@ -281,12 +281,6 @@ impl ServerStore {
         if !graph.contains(settings) {
             return Ok(OrganizationPolicies::default());
         }
-        if !graph
-            .inherited(settings, self.server_key().account)
-            .can_view()
-        {
-            return Err(unreadable(settings));
-        }
         let head = graph.head(settings);
         let held = self.held_policies(organization);
         let block = match &held {

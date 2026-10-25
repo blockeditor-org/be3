@@ -78,7 +78,7 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    pub async fn rotate(&self, root: Uuid) -> Result<(), ClientError> {
+    async fn rotate(&self, root: Uuid) -> Result<(), ClientError> {
         let top = self.summary(root).await?;
         let mut walked = vec![top.clone()];
         let mut level = vec![top.id];
@@ -116,20 +116,6 @@ impl<S: ObjectStore> Peer<S> {
                 .or(outer)
                 .ok_or(ClientError::Locked(scope))
         };
-        let mut recipients: HashMap<Uuid, Vec<(Uuid, be_keys::RecoveryPublic)>> = walked
-            .iter()
-            .filter(|node| scope_of[&node.id] == node.id)
-            .map(|node| node.id)
-            .zip(
-                futures_util::future::try_join_all(
-                    walked
-                        .iter()
-                        .filter(|node| scope_of[&node.id] == node.id)
-                        .map(|node| self.recipients(node)),
-                )
-                .await?,
-            )
-            .collect();
         let mut keys = KeySet::default();
         for node in &walked {
             let node_scope = scope_of[&node.id];
@@ -143,10 +129,6 @@ impl<S: ObjectStore> Peer<S> {
                 };
                 let (scope, minted) = self.keys.mint_scope(node.id, parent)?;
                 keys.extend(minted);
-                for (account, public) in recipients.remove(&node.id).unwrap_or_default() {
-                    keys.wrapped
-                        .push(self.keys.seal_to(scope, account, &public)?);
-                }
                 fresh.insert(node.id, scope);
             }
             let under = current(&fresh, node_scope)?;
@@ -167,24 +149,6 @@ impl<S: ObjectStore> Peer<S> {
             .await?;
         self.recorded(&keys);
         Ok(())
-    }
-
-    async fn recipients(
-        &self,
-        node: &BlockSummary,
-    ) -> Result<Vec<(Uuid, be_keys::RecoveryPublic)>, ClientError> {
-        let at_root = !matches!(node.parent, Some(BlockParent::Block(_)));
-        Ok(self
-            .list_access(node.id)
-            .await?
-            .entries
-            .into_iter()
-            .filter(|entry| entry.account != self.account && entry.effective.can_view())
-            .filter(|entry| {
-                entry.granted.is_some_and(Access::can_view) || (entry.author && at_root)
-            })
-            .filter_map(|entry| Some((entry.account, self.keys.contact(entry.account)?)))
-            .collect())
     }
 
     pub(super) async fn make_escrow(&self) -> Result<(), ClientError> {
