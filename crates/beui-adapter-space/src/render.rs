@@ -84,6 +84,7 @@ struct Pending {
 struct Panel {
     renderer: beui_renderer_wgpu::Renderer,
     size: (u32, u32),
+    texture: wgpu::Texture,
     level: wgpu::TextureView,
     mips: Vec<(wgpu::TextureView, wgpu::BindGroup)>,
     uniform: wgpu::Buffer,
@@ -192,6 +193,12 @@ impl Compositor {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         gpu.paint_windows(&mut encoder);
         gpu.queue.submit([encoder.finish()]);
+    }
+
+    pub(crate) fn read(&self, window: WindowId) -> Option<beui_core::app::automation::Capture> {
+        let gpu = self.0.borrow();
+        let panel = gpu.panels.get(&window)?;
+        beui_renderer_wgpu::present::read_texture(&gpu.device, &gpu.queue, &panel.texture)
     }
 
     pub(crate) fn drawn(&self, window: WindowId) -> Option<(u64, (u32, u32))> {
@@ -625,7 +632,10 @@ impl Gpu {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: self.format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
         let level = |base: u32| {
@@ -680,12 +690,14 @@ impl Gpu {
                 },
             ],
         });
+        let level = level(0);
         self.sheets(chrome).insert(
             window,
             Panel {
                 renderer,
                 size,
-                level: level(0),
+                texture,
+                level,
                 mips,
                 uniform,
                 group,
@@ -722,9 +734,9 @@ impl Gpu {
                 continue;
             };
             let background = output.window.appearance.clear_color;
-            let repaint = match pending.whole || !panel.painted {
-                true => Repaint::Everything,
-                false => output.repaint(background),
+            let (repaint, moved) = match pending.whole || !panel.painted {
+                true => (Repaint::Everything, None),
+                false => output.repaint_moving(background),
             };
             let repaint = panel.renderer.prepare(
                 &self.device,
@@ -736,7 +748,14 @@ impl Gpu {
             );
             let load = match repaint {
                 Repaint::Everything => wgpu::LoadOp::Clear(wgpu_color_in(self.format, background)),
-                Repaint::Region { .. } => wgpu::LoadOp::Load,
+                Repaint::Region { .. } => {
+                    if let Some(moved) = moved {
+                        panel
+                            .renderer
+                            .shift(&self.device, encoder, &panel.texture, moved, scale);
+                    }
+                    wgpu::LoadOp::Load
+                }
             };
             panel
                 .renderer

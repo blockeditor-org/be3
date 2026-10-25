@@ -18,6 +18,7 @@ use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{Key, KeyChord, Modifiers};
+use crate::window::hosted::Painting;
 use crate::window::{Appearance, WindowId};
 
 use crate::display::Display;
@@ -1429,10 +1430,11 @@ impl Document {
         cache.mark(&repaints, &self.arena);
         self.arena.recycle(released);
         let mut window_damage = None;
+        let mut window_moves = Vec::new();
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             let verifying = verifying_paint();
-            let previous = verifying.then(|| self.painting.clone());
+            let previous = verifying.then(|| (self.painting.clone(), self.windows.paintings.clone()));
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let cache = self.paint_cache.get_mut();
@@ -1440,30 +1442,50 @@ impl Document {
             let stale = cache.take_stale();
             let mut taken = self.damage.take();
             let everything = taken.is_everything();
-            let windowed = !self.windows.paintings.is_empty();
             let region = taken.of(WindowId::MAIN, rect);
-            let (region, moved) = match (everything, windowed) {
-                (true, _) => (region, None),
-                (false, true) => {
-                    let mut region = region;
-                    let changed = moves
-                        .iter()
-                        .map(|moved| (moved.window, moved.viewport))
-                        .chain(stale.iter().map(|stale| (stale.window, stale.rect)));
-                    for (window, rect_moved) in changed {
-                        match window.is_main() {
-                            true => region.add(rect_moved.intersect(rect)),
-                            false => taken.add(window, rect_moved),
-                        }
-                    }
-                    (region, None)
-                }
-                (false, false) => self.settle_moves(moves, stale, region, rect),
+            let (region, moved) = match everything {
+                true => (region, None),
+                false => self.settle_moves(WindowId::MAIN, &moves, &stale, region, rect),
             };
-            window_damage = Some(taken);
-            if let Some(previous) = previous {
-                self.verify_paint(ctx, rect, &previous, &region, moved, everything);
+            if !everything {
+                for window in self.open_windows() {
+                    let Some(viewport) = self.window_rect(window) else {
+                        continue;
+                    };
+                    let held = taken.of(window, viewport);
+                    let (settled, moved) = self.settle_moves(window, &moves, &stale, held, viewport);
+                    taken.set(window, settled);
+                    if let Some(moved) = moved {
+                        window_moves.push((window, moved));
+                    }
+                }
             }
+            if let Some((painting, windows)) = previous {
+                let mut checks = vec![verify::Check {
+                    window: WindowId::MAIN,
+                    viewport: rect,
+                    previous: painting,
+                    region,
+                    moved,
+                }];
+                for (window, painting) in windows {
+                    let Some(viewport) = self.window_rect(window) else {
+                        continue;
+                    };
+                    checks.push(verify::Check {
+                        window,
+                        viewport,
+                        previous: painting,
+                        region: taken.of(window, viewport),
+                        moved: window_moves
+                            .iter()
+                            .find(|(held, _)| *held == window)
+                            .map(|(_, moved)| *moved),
+                    });
+                }
+                self.verify_paint(ctx, &checks, everything);
+            }
+            window_damage = Some(taken);
             for damaged in region.rects() {
                 self.damage_flashes.record(*damaged, now);
                 ctx.report_damage(*damaged);
@@ -1484,7 +1506,7 @@ impl Document {
             ctx.note_animating();
         }
         ctx.show_painting(&self.painting, rect);
-        self.show_windows(ctx, window_damage.as_ref());
+        self.show_windows(ctx, window_damage.as_ref(), &window_moves);
         if ctx.automated() {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
@@ -1545,7 +1567,7 @@ impl Document {
         cache.settle_roots(&roots);
         if cache.take_recorded() {
             let mut main = Vec::new();
-            let mut windows: Vec<(WindowId, crate::window::hosted::Painting)> = Vec::new();
+            let mut windows: Vec<(WindowId, Painting)> = Vec::new();
             for (window, root) in &roots {
                 let Some(painted) = cache.painting_of(*root) else {
                     continue;
@@ -1566,17 +1588,29 @@ impl Document {
 
     fn settle_moves(
         &self,
-        moves: Vec<paint::Move>,
-        stale: Vec<paint::Stale>,
+        window: WindowId,
+        moves: &[paint::Move],
+        stale: &[paint::Stale],
         region: Region,
         viewport: Rect,
     ) -> (Region, Option<Moved>) {
+        let moves: Vec<&paint::Move> = moves.iter().filter(|moved| moved.window == window).collect();
+        let stale: Vec<&paint::Stale> = stale.iter().filter(|stale| stale.window == window).collect();
+        let painting = match window.is_main() {
+            true => self.painting.as_slice(),
+            false => self
+                .windows
+                .paintings
+                .iter()
+                .find(|(held, _)| *held == window)
+                .map_or(&[][..], |(_, painting)| painting.as_slice()),
+        };
         let shown_area = |moved: &paint::Move| {
             let visible = moved.viewport.intersect(viewport);
             visible.width().max(0.0) * visible.height().max(0.0)
         };
         let Some(largest) = (0..moves.len())
-            .max_by(|a, b| shown_area(&moves[*a]).total_cmp(&shown_area(&moves[*b])))
+            .max_by(|a, b| shown_area(moves[*a]).total_cmp(&shown_area(moves[*b])))
         else {
             let mut region = region;
             for stale in &stale {
@@ -1590,9 +1624,9 @@ impl Document {
                 region.add(moved.viewport.intersect(viewport));
             }
         }
-        let only = &moves[largest];
+        let only = moves[largest];
         let visible = only.viewport.intersect(viewport);
-        let (fixed, inner) = paint::fixed_damage(&self.painting, only.space, visible, only.by);
+        let (fixed, inner) = paint::fixed_damage(painting, only.space, visible, only.by);
         let shown = visible.intersect(inner);
         let landed = shown.intersect(shown.translate(only.by));
         let source = landed.translate(-only.by);
@@ -1634,40 +1668,68 @@ impl Document {
         (settled, Some(moved))
     }
 
-    fn verify_paint(
-        &mut self,
-        ctx: &Context,
-        viewport: Rect,
-        previous: &[(Rc<Display>, Vec2)],
-        region: &Region,
-        moved: Option<Moved>,
-        everything: bool,
-    ) {
+    fn verify_paint(&mut self, ctx: &Context, checks: &[verify::Check], everything: bool) {
         let counted = (
             self.work.painted_nodes.get(),
             self.work.replayed_nodes.get(),
         );
         let retained = self.paint_cache.replace(PaintCache::default());
         let painting = std::mem::take(&mut self.painting);
+        let windows = std::mem::take(&mut self.windows.paintings);
         let damage = std::mem::take(&mut self.damage);
         ctx.verifying_paint(true);
         self.paint(ctx);
         ctx.verifying_paint(false);
-        let fresh = std::mem::replace(&mut self.painting, painting);
+        let fresh_main = std::mem::replace(&mut self.painting, painting);
+        let fresh_windows = std::mem::replace(&mut self.windows.paintings, windows);
         self.paint_cache.replace(retained);
         self.damage = damage;
         self.work.painted_nodes.set(counted.0);
         self.work.replayed_nodes.set(counted.1);
+        let of = |paintings: &[(WindowId, Painting)], window: WindowId| {
+            paintings
+                .iter()
+                .find(|(held, _)| *held == window)
+                .map(|(_, painting)| painting.clone())
+                .unwrap_or_default()
+        };
+        for check in checks {
+            let (fresh, retained) = match check.window.is_main() {
+                true => (fresh_main.clone(), self.painting.clone()),
+                false => (
+                    of(&fresh_windows, check.window),
+                    of(&self.windows.paintings, check.window),
+                ),
+            };
+            self.verify_window(ctx, check, &fresh, &retained, everything);
+        }
+    }
+
+    fn verify_window(
+        &self,
+        ctx: &Context,
+        check: &verify::Check,
+        fresh: &[(Rc<Display>, Vec2)],
+        retained: &[(Rc<Display>, Vec2)],
+        everything: bool,
+    ) {
+        let verify::Check {
+            window,
+            viewport,
+            ref previous,
+            ref region,
+            moved,
+        } = *check;
         assert!(
-            fresh.len() == self.painting.len()
+            fresh.len() == retained.len()
                 && fresh
                     .iter()
-                    .zip(&self.painting)
+                    .zip(retained)
                     .all(|((fresh, at), (retained, held))| at == held && fresh.same_tree(retained)),
-            "the retained painting differs from painting from scratch: {:?} against {:?}",
+            "the retained painting of {window:?} differs from painting from scratch: {:?} against {:?}",
             fresh
                 .iter()
-                .zip(&self.painting)
+                .zip(retained)
                 .find(|((fresh, at), (retained, held))| at != held || !fresh.same_tree(retained))
                 .map(|((fresh, _), _)| fresh.node),
             fresh
@@ -1676,7 +1738,7 @@ impl Document {
                 .collect::<Vec<_>>(),
         );
         let old = verify::Seen::of(previous, moved.map(|moved| moved.from));
-        let new = verify::Seen::of(&self.painting, moved.map(|moved| moved.to()));
+        let new = verify::Seen::of(retained, moved.map(|moved| moved.to()));
         let changes = verify::changes(&old, &new, moved);
         if !everything && moved.is_none() && detecting_over_repaint() {
             let area = |region: &Region| {
@@ -1697,12 +1759,12 @@ impl Document {
                 OVER_REPAINTS.with_borrow_mut(|reports| reports.push(report));
             }
         }
-        let scale = ctx.pixels_per_point();
+        let scale = ctx.window_pixels_per_point(window);
         for (rect, why) in changes.needed {
             let rect = rect.intersect(viewport);
             assert!(
                 verify::covered(rect, region, scale),
-                "the painting changed outside the damaged region: {rect:?} ({why:?}) is not within {:?}{}",
+                "the painting of {window:?} changed outside the damaged region: {rect:?} ({why:?}) is not within {:?}{}",
                 region.rects(),
                 match moved {
                     Some(moved) => format!(" (with {moved:?} copied)"),

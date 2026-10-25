@@ -4,7 +4,7 @@ use foldhash::{HashMap, HashSet};
 use reactive::{Get, Set};
 
 use crate::base::overlay::OverlayNode;
-use crate::context::Context;
+use crate::context::{Context, Moved};
 use crate::damage::{Region, Taken};
 use crate::display::Display;
 use crate::document::Document;
@@ -293,7 +293,12 @@ impl Document {
         }
     }
 
-    pub(crate) fn show_windows(&mut self, ctx: &Context, damage: Option<&Taken>) {
+    pub(crate) fn show_windows(
+        &mut self,
+        ctx: &Context,
+        damage: Option<&Taken>,
+        moves: &[(WindowId, Moved)],
+    ) {
         let open = self.open_windows();
         self.windows.shown.retain(|window, _| open.contains(window));
         for window in open {
@@ -301,9 +306,15 @@ impl Document {
                 continue;
             };
             let resized = self.windows.shown.insert(window, rect.size()) != Some(rect.size());
-            let damage = match resized {
-                true => Region::from(rect),
-                false => damage.map_or(Region::NOTHING, |damage| damage.of(window, rect)),
+            let (damage, moved) = match resized {
+                true => (Region::from(rect), None),
+                false => (
+                    damage.map_or(Region::NOTHING, |damage| damage.of(window, rect)),
+                    moves
+                        .iter()
+                        .find(|(held, _)| *held == window)
+                        .map(|(_, moved)| *moved),
+                ),
             };
             let painting = self
                 .windows
@@ -316,7 +327,7 @@ impl Document {
                 .window_node(window)
                 .and_then(|node| self.overlay_window(node))
                 .and_then(|spec| spec.title.clone());
-            ctx.show_window(window, rect.size(), &painting, damage, title);
+            ctx.show_window(window, rect.size(), &painting, damage, moved, title);
         }
     }
 }

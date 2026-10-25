@@ -49,6 +49,7 @@ struct ShownWindow {
     size: Vec2,
     layers: Vec<Layer>,
     damage: Region,
+    moved: Option<Moved>,
     title: Option<String>,
 }
 
@@ -665,7 +666,6 @@ impl Context {
         let layers = Rc::new(std::mem::take(&mut *self.inner.layers.borrow_mut()));
         let scale = self.pixels_per_point();
         let filters = crate::display::filters(&layers);
-        let moved = self.settle_moves(&layers, scale);
         self.inner.window_reports.borrow_mut().clear();
         let shown_ids: Vec<WindowId> = self
             .inner
@@ -699,6 +699,9 @@ impl Context {
             && previous
                 .as_ref()
                 .is_some_and(|old| old.pixels_per_point == scale);
+        let moved = self
+            .settle_moves(&layers, main_scale)
+            .filter(|_| !main_resampled);
         if let Some(old) = &previous {
             for index in 0..old.filters.len().max(filters.len()) {
                 let (was, now) = (old.filters.get(index), filters.get(index));
@@ -756,18 +759,24 @@ impl Context {
             .zip(others)
             .zip(window_scales.into_iter().skip(1))
         {
-            let damage = match rescaled(shown.id, window_scale) {
-                true => Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)),
-                false => shown.damage,
+            let (damage, moved) = match rescaled(shown.id, window_scale) {
+                true => (Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)), None),
+                false => match shown.moved {
+                    Some(moved) if whole_pixels(moved.by, window_scale) => {
+                        (shown.damage, Some(moved))
+                    }
+                    Some(moved) => (shown.damage.union(moved.to().into()), None),
+                    None => (shown.damage, None),
+                },
             };
             windows.push(WindowOutput {
                 id: shown.id,
                 size: shown.size,
                 layers: Rc::new(shown.layers),
                 window,
-                changed: !damage.is_empty(),
+                changed: !damage.is_empty() || moved.is_some(),
                 damage,
-                moved: None,
+                moved,
                 pixels_per_point: window_scale,
             });
         }
@@ -1071,6 +1080,7 @@ impl Context {
         size: Vec2,
         painting: &[(Rc<Display>, Vec2)],
         damage: Region,
+        moved: Option<Moved>,
         title: Option<String>,
     ) {
         let layers = painting
@@ -1082,6 +1092,7 @@ impl Context {
             size,
             layers,
             damage,
+            moved,
             title,
         });
     }
@@ -1409,13 +1420,9 @@ impl Context {
 
     fn settle_moves(&self, layers: &[Layer], pixels_per_point: f32) -> Option<Moved> {
         let moves = std::mem::take(&mut *self.inner.moves.borrow_mut());
-        let whole = |value: f32| {
-            ((value * pixels_per_point).round() - value * pixels_per_point).abs() < 0.01
-        };
         let settled = match moves.as_slice() {
             [(moved, roots)]
-                if whole(moved.by.x)
-                    && whole(moved.by.y)
+                if whole_pixels(moved.by, pixels_per_point)
                     && !overlaps_besides(layers, roots, moved.from.union(moved.to())) =>
             {
                 Some(*moved)
@@ -1698,6 +1705,13 @@ impl Context {
         let from = self.inner.grouping.borrow().last().copied().unwrap_or(0);
         self.group_since(from, Group::Filter(filter));
     }
+}
+
+fn whole_pixels(by: Vec2, pixels_per_point: f32) -> bool {
+    let whole = |value: f32| {
+        ((value * pixels_per_point).round() - value * pixels_per_point).abs() < 0.01
+    };
+    whole(by.x) && whole(by.y)
 }
 
 fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool {

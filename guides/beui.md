@@ -2851,8 +2851,11 @@ damage is told apart by window: the paint cache files what each root's nodes
 damage under the window it paints into (`PaintCache::paint_into`,
 `damage::WindowRegions`), and each window gets only its own, clipped to its
 size (the whole window when it opens or resizes), so a window resizing or
-animating leaves the others' paintings untouched. Scrolling blits are turned
-into damage while any window is open.
+animating leaves the others' paintings untouched. Scroll copies are filed the
+same way: each `paint::Move` names its window, the document settles each
+window's moves against that window's painting and damage alone, and each
+`WindowOutput` carries its own `moved`, so scrolling one window copies in that
+window and damages nothing in the others.
 Each window has its own pixels per point: a host reports one with
 `WindowReport::Scaled { window, pixels_per_point }` (the main window
 included), and until it does a window uses the context's. The document lays
@@ -3065,7 +3068,8 @@ all its 3D (`glam`) stays in the crate.
   lays the document out again at it. A new window takes its scale at once.
 - Drawing: each window's display is drawn by its own
   `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
-  `pixels_per_point`, only when that window's output changed. A window that
+  `pixels_per_point`, only when that window's output changed, repainting only
+  its damage after copying its `moved` scroll inside the texture. A window that
   changes size gets a new texture but keeps its renderer, whose pipelines and
   glyph atlases cost far more to build than a resize step's whole frame. It is sampled with
   trilinear and anisotropic filtering and a level-of-detail bias of -0.5
@@ -4137,8 +4141,15 @@ as `beui::run` does, copies that region by the scroll with `Renderer::shift` and
 repaints only what the copy cannot supply - the rows it exposes, whatever
 changed, and whatever does not move with the rows, such as a fade's bands or a
 scrollbar drawn over them. Only one region is copied per frame: when several
-scrolls moved at once the largest is copied and the rest are repainted.
-`Repainting::repaint` on the `WindowOutput` covers the moved region for hosts that do not copy.
+scrolls moved at once the largest is copied and the rest are repainted (one per
+window). The context keeps a copy only when its distance is whole pixels at the
+window's own `pixels_per_point`, so a scroll snaps its offset to that window's
+pixel grid; and in the main window only when nothing painted outside the
+document (an inspector, a filter) overlaps it. Space copies each window's
+`moved` inside that window's panel texture with `Renderer::shift` before
+repainting its damage. `Repainting::repaint` on the `WindowOutput` covers the
+moved region for hosts that do not copy: plugin surfaces, the DRM screens, and
+the web canvas, which repaints its whole frame whenever anything changed.
 
 Pointer input only visits a node when the pointer lies within the rects of it
 and everything `children` returns under it, or when it leads to a node that

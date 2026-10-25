@@ -146,6 +146,13 @@ impl WindowRegions {
         }
     }
 
+    pub fn set(&mut self, window: WindowId, region: Region) {
+        self.0.retain(|(held, _)| *held != window);
+        if !region.is_empty() {
+            self.0.push((window, region));
+        }
+    }
+
     pub fn of(&self, window: WindowId) -> Region {
         self.0
             .iter()
@@ -168,6 +175,10 @@ pub struct Taken {
 impl Taken {
     pub fn add(&mut self, window: WindowId, rect: Rect) {
         self.regions.add(window, rect);
+    }
+
+    pub fn set(&mut self, window: WindowId, region: Region) {
+        self.regions.set(window, region);
     }
 
     pub fn is_everything(&self) -> bool {
