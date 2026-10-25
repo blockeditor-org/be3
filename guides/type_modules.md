@@ -38,9 +38,9 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   parent that already ended is answered `Canceled` by the kernel. Besides a method's own
   errors there are `OpError::Canceled`, `Unsupported` (an unknown method or arguments
   that do not decode) and `Denied`. A method's id is the FNV-1a hash of its name,
-  `be3:block-type/<interface>@0.1.0#<function>`; frames, args and results are postcard,
-  each frame with a 4-byte big-endian length in front (`encode_frame`/`decode_frame`,
-  which editor messages use too), stable only within one source tree.
+  `<package>/<interface>@<version>#<function>`; frames, args and results are postcard,
+  each frame with a 4-byte big-endian length in front (`encode_frame`/`decode_frame`),
+  stable only within one source tree.
   Direct calls cross the host's link to the guest's thread in the same ordered stream
   as frames, as `block_guest_abi::direct` items (`call`: a name, the parent and the
   args; `returned`: a result), which no frame can be mistaken for: the host's
@@ -68,15 +68,24 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`
   with serde_bytes), deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
   (no floats, nothing owned). The options, each a list of WIT type names unless said:
-  `with` (a map) puts an existing Rust type in place of a WIT type of the same shape
-  (uuids, commit ids, newtype ids), which the interface's module still names as an
-  alias; `uses` (a map) takes a whole interface of another package from the crate
+  `with` (a map, keyed by the WIT type's name in any interface) puts an existing Rust
+  type in place of a WIT type whose serde data model is the same, which the
+  interface's module still names as an alias: a byte array for a tuple of as many
+  `u8` (uuids, commit ids, colours), a newtype id for a record of one `u64`. Nothing
+  checks that the two agree, so `with` is never for a type with fields or cases of its
+  own: generate it, and convert explicitly where Rust code wants another shape (a
+  menu's tree, AccessKit's tree update); `uses` (a map) takes a whole interface of another package from the crate
   generated from it (`{"be3:ui/types@0.1.0": ::ui_types::types}`); `copy` names the
   mapped types that are `Copy`; `default` the types that derive `Default` (a variant's
   or enum's first case is the default); `inline` records that are a variant case's
   fields, so `case(record)` becomes a struct variant; `lenient` records that take
   `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
-  `Copy`; `own_debug` types whose crate writes `Debug` itself. For the guest:
+  `Copy`; `own_debug` types whose crate writes `Debug` itself; `local` (see below).
+  WIT's own rules hold: a name that is a WIT keyword is written with `%` (`%type(uuid)`
+  for a case named `type`, generated as `Type`), and a function may not share its name
+  with a type of its interface, so a function that takes a `hello` is not `hello`.
+  A package's dependencies may also sit in a `deps/<name>/` folder beside its files,
+  which is how an extension package travels with the world that imports it. For the guest:
   `guest::<import>` functions (a `func` returns nothing and goes through a wasm import
   on wasm32-unknown-unknown and through the executor in process; an `async func` returns
   `Pending<T>`; a `stream<T>` returns `Stream<T>`), and for each export a `Guest`

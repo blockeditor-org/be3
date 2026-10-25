@@ -1501,7 +1501,7 @@ preference, and resolves them top down, falling back to `Preferences::default()`
   `prefers-color-scheme` and `prefers-reduced-motion`; Android from night mode and a zero
   animator scale; the DRM adapter says e-paper and instant motion on an e-paper panel; the
   plugin adapter reports the host's resolved preferences, which reach a plugin in its
-  acceptance and in `Message::Preferences`; plugin tests send them with
+  acceptance and through the host interface's preferences-watch; plugin tests send them with
   `BeuiTest::set_preferences`.
 
 Set a layer with `Context::set_preference_layer(source, layer)` and read them with

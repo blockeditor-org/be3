@@ -761,7 +761,7 @@ undone.
   one that was adopted into it, keeps its own id as its local id. The host
   translates every block id that crosses the plugin protocol for an instance
   whose block is inside a checkout (`Instances::translate`, over
-  `Message::visit_block_ids`), and the peer resolves the references it
+  the `BlockIds` of what crosses, in plugin_host/calls.rs), and the peer resolves the references it
   publishes the same way (`Peer::set_resolver`), so neither content nor editors
   know about checkouts. Resolution looks in the instance's own checkout first
   and falls back to the block with that id, which is how a reference out of the

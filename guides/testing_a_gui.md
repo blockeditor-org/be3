@@ -41,11 +41,12 @@ Tests live inside the editor's crate, one test per file under src/tests/, like e
 test in the repository. block-ui-test's BeuiTest is built from an OwnedEditor, which owns the
 state behind the Copy Editor the view is handed (it derefs to one, so `let editor = *owner;`
 keeps a handle after the BeuiTest takes the owner), and runs it headless through the plugin's own session (block_editor_plugin::headless):
-the Screens and EditorSession the shipped plugin runs, fed the protocol messages the app's
-host would send, with every message in both directions encoded and decoded as it would be on
-the wire. Gestures are turned into the protocol's input events the way block-app turns
-beui's, so a key or a modifier the protocol cannot carry never reaches the editor here
-either, and a message the plugin refuses fails the test.
+the Screens and EditorSession the shipped plugin runs, fed the calls the app's host would
+make: the world's exports and the answers to the plugin's imports over a be-ops connection, as
+on the wire, and what the host pushes (acceptance, preferences, input, the draw) encoded and
+decoded as the wire would. Gestures are turned into the protocol's input events the way
+block-app turns beui's, so a key or a modifier the protocol cannot carry never reaches the
+editor here either, and a call the plugin refuses fails the test.
 
     let block = Uuid::new_v4();
     let host = EditorHost::default();
@@ -82,10 +83,10 @@ host has taken an edit.
 
 Whatever else the plugin sends the host is kept for the test to read: take_view_changes(),
 take_requests(), take_opens(), take_block_commands() and the other take_ methods drain one
-kind, and sent() is all of it. The host's side of a conversation goes in the same way the
-app sends it: set_view, set_chrome, with_top_bar, drag_block, reply, set_histories,
-set_peers, report_children, resize and presence_visible each queue the message the app
-would send. Setting the same state on the EditorHost directly skips the protocol, and the
+kind, take_actions::<A>() the host actions it asked for, and clear_calls() drops what is kept. The host's side of a conversation goes in the same way the
+app sends it: set_view, set_chrome, with_top_bar, drag_block, answer, set_histories,
+set_peers, report_children, resize and presence_visible each queue the call the app
+would make. Setting the same state on the EditorHost directly skips the protocol, and the
 session overwrites what it owns - the chrome, the view, a drag - on the next frame.
 
 A gesture only queues events: click() returns before the editor has seen the click, so
@@ -131,7 +132,7 @@ paints a frame, for a timer that is longer than an animation:
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
 wait(by) moves the clock on without painting and hands the plugin what the host has queued
-(a set_host_value, say), the way a message reaches an idle editor between frames; the next
+(a set_host_value, say), the way a call reaches an idle editor between frames; the next
 run() paints the frame that takes it. Whatever the editor's effects do with it at the top of
 that frame reads that frame's time from `timer::now()`, not the last frame painted.
 
