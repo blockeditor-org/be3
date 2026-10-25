@@ -25,10 +25,11 @@ fn a_row_scrolled_into_a_reused_line_opens_the_row_it_shows() {
         if fixture.harness.shown(&line(target)) {
             break;
         }
-        let top = (0..ROWS)
-            .find(|index| fixture.harness.shown(&line(*index)))
-            .unwrap();
-        fixture.harness.scroll(line(top), Vec2::new(0.0, 300.0));
+        let shown = (0..ROWS)
+            .filter(|index| fixture.harness.shown(&line(*index)))
+            .collect::<Vec<_>>();
+        let middle = shown[shown.len() / 2];
+        fixture.harness.scroll(line(middle), Vec2::new(0.0, 300.0));
         fixture.settle();
     }
 

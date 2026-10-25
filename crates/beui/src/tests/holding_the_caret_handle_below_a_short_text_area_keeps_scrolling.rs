@@ -54,7 +54,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
             .count()
     };
     let placed = line_of(&state);
-    let below = pos2(handle.x, visible.bottom() + 40.0);
+    let below = pos2(handle.x, visible.bottom() + 80.0);
     harness.touch(TouchPhase::Start, handle);
     harness.touch(TouchPhase::Move, below);
     let reached = line_of(&state);

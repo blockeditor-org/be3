@@ -35,7 +35,7 @@ mod the_rotations_are_named_from_how_the_panel_is_built;
 mod the_toast_keeps_every_change_on_this_device_only;
 mod the_toast_undoes_every_change;
 
-const SESSION_HEIGHT: f32 = 1000.0;
+const SESSION_HEIGHT: f32 = 1100.0;
 const MONITOR: &str = "DEL|DELL AW2524H|7XQ2B34";
 const THEME: &str = "display.theme";
 const SCALE: &str = "display.scale";

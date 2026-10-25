@@ -29,7 +29,7 @@ use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::color::Color32;
 use beui_core::file_picker::PickedFile;
-use beui_core::font::FontId;
+use beui_core::font::{FontId, line_height};
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_core::layer::Dismiss;
@@ -205,7 +205,7 @@ impl Surface {
 
     fn row_estimate(&self) -> f32 {
         let body = galley("", FontId::proportional(self.font_size.get_untracked()))
-            .map_or(BODY_SIZE * 1.15, |galley| galley.line_height());
+            .map_or(line_height(BODY_SIZE), |galley| galley.line_height());
         let padding = match (self.single_line, self.prose.get_untracked()) {
             (true, _) => (0.0, 0.0),
             (false, Some(prose)) => prose.line_padding,

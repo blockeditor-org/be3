@@ -64,7 +64,7 @@ impl FontId {
     }
 }
 
-const LINE_HEIGHT_RATIO: f32 = 1.15;
+const LINE_HEIGHT_RATIO: f32 = 1.25;
 
 pub fn line_height(font_size: f32) -> f32 {
     (font_size * LINE_HEIGHT_RATIO).max(1.0)
