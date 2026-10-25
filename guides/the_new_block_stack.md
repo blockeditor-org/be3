@@ -381,9 +381,11 @@ polling either.
 open with nothing behind it (a laptop that slept, a Wi-Fi hop, a proxy that
 stopped forwarding) and the transport never says so:
 - Connecting, the socket plus the greeting, gives up after `CONNECT_TIMEOUT`
-  (15 s), and each request after `REQUEST_TIMEOUT` (60 s) from when it was
-  written, with `ClientError::TimedOut`. `ClientError::is_unreachable` covers it
-  and `Disconnected` both.
+  (15 s), and a request once the server has sent nothing for
+  `REQUEST_TIMEOUT` (60 s) since it was written, with `ClientError::TimedOut`.
+  The server answers in order, so a request queued behind slow ones is not
+  timed out while their answers keep coming. `ClientError::is_unreachable`
+  covers it and `Disconnected` both.
 - After `PING_INTERVAL` (15 s) with no frame of any kind from the server, it
   sends `ClientMessage::Ping`, which the server answers with `Pong` inline. A
   browser cannot send websocket pings, so this is a protocol message, and

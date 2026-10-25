@@ -203,7 +203,9 @@ impl Harness {
     }
 
     async fn reconnect(&self, peer: &Peer<MemoryStore>, token: String) {
-        let connection = Connection::connect(&self.url, &Clock::real()).await.unwrap();
+        let connection = Connection::connect(&self.url, &Clock::real())
+            .await
+            .unwrap();
         let be_protocol::ServerMessage::Authenticated { token, .. } = connection
             .request(|request| be_protocol::ClientMessage::Authenticate { request, token })
             .await

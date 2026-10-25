@@ -220,9 +220,10 @@ async fn carry(
     let mut pinged = false;
     loop {
         let now = clock.now();
+        let deadline = |written: Duration| written.max(heard) + REQUEST_TIMEOUT;
         let expired: Vec<u64> = pending
             .iter()
-            .filter(|(_, (deadline, reply))| reply.is_closed() || *deadline <= now)
+            .filter(|(_, (written, reply))| reply.is_closed() || deadline(*written) <= now)
             .map(|(request, _)| *request)
             .collect();
         for request in expired {
@@ -251,7 +252,7 @@ async fn carry(
         };
         let next = pending
             .values()
-            .map(|(deadline, _)| *deadline)
+            .map(|(written, _)| deadline(*written))
             .fold(next, Duration::min);
         let woke = {
             let command = std::pin::pin!(commands.recv());
@@ -267,8 +268,7 @@ async fn carry(
             Woke::Timer => {}
             Woke::Command(None) => return,
             Woke::Command(Some(command)) => {
-                let deadline = clock.now() + REQUEST_TIMEOUT;
-                pending.insert(command.request, (deadline, command.reply));
+                pending.insert(command.request, (clock.now(), command.reply));
                 if writer.send(command.bytes).await.is_err() {
                     return;
                 }
