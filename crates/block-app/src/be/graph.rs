@@ -25,6 +25,26 @@ pub(crate) struct Node {
     pub(crate) sets_access: bool,
 }
 
+impl Node {
+    pub(crate) fn contents(&self) -> Vec<Uuid> {
+        let described = self.metadata.references();
+        self.references
+            .iter()
+            .filter(|reference| !described.contains(reference))
+            .copied()
+            .collect()
+    }
+}
+
+fn with_described(mut references: Vec<Uuid>, metadata: &BlockMetadata) -> Vec<Uuid> {
+    for described in metadata.references() {
+        if !references.contains(&described) {
+            references.push(described);
+        }
+    }
+    references
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Scope {
     pub(crate) checkout: Uuid,
@@ -409,12 +429,13 @@ impl Graph {
     }
 
     pub(crate) fn refer(&mut self, block: Uuid, references: Vec<Uuid>) {
-        if let Some(node) = self.nodes.get_mut(&block)
-            && node.references != references
-        {
-            node.references.clone_from(&references);
-            self.revision += 1;
-            self.relist(Listing::References(block));
+        if let Some(node) = self.nodes.get_mut(&block) {
+            let all = with_described(references.clone(), &node.metadata);
+            if node.references != all {
+                node.references = all;
+                self.revision += 1;
+                self.relist(Listing::References(block));
+            }
         }
         self.placed(block, &references);
         self.referenced.insert(block, references);
@@ -438,7 +459,7 @@ impl Graph {
             node.metadata.derived.clone_from(derived);
         }
         if let Some(references) = self.referenced.get(&node.id) {
-            node.references.clone_from(references);
+            node.references = with_described(references.clone(), &node.metadata);
         }
         if self
             .nodes
@@ -512,7 +533,7 @@ impl Graph {
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),
             Query::References(block) => {
                 return self.nodes.get(&block).map_or_else(Vec::new, |node| {
-                    node.references
+                    node.contents()
                         .iter()
                         .filter_map(|reference| self.nodes.get(reference).cloned())
                         .collect()

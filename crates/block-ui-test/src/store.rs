@@ -1040,7 +1040,7 @@ impl ContentStore {
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => {
                 !nodes.iter().any(|above| above.id == parent)
-                    || self.references_of(parent).contains(&node.id)
+                    || self.links(parent).contains(&node.id)
             }
         }
     }
@@ -1070,6 +1070,14 @@ impl ContentStore {
             .and_then(|held| held.references.clone())
             .or_else(|| inner.graph.get(&id).map(|info| info.references.clone()))
             .unwrap_or_default()
+    }
+
+    fn links(&self, id: Uuid) -> Vec<Uuid> {
+        let mut links = self.references_of(id);
+        if let Some(info) = self.0.borrow().graph.get(&id) {
+            links.extend(info.metadata.references());
+        }
+        links
     }
 
     fn query(&self, query: BlockQuery) -> Vec<BlockInfo> {
@@ -1113,7 +1121,7 @@ impl ContentStore {
             }
             BlockQuery::Backrefs(block) => nodes
                 .iter()
-                .filter(|node| self.references_of(node.id).contains(&block))
+                .filter(|node| self.links(node.id).contains(&block))
                 .cloned()
                 .collect(),
             BlockQuery::Parents(block) => {

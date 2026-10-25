@@ -64,6 +64,11 @@ re-import once, and say so in `guides/frozen_formats.md`.
    it. `ARTIFACT` points to a block instead of holding its source inline.
    Done: an artifact block is a backref of the block it describes, and
    `be-client/src/transfer.rs` exports and imports it.
+   The host keeps them apart from children: `BlockInfo::references` and
+   `BlockQuery::References` hold only what the content refers to (block-app
+   `Node::contents`), so canvases, presentations, folders and the rest never
+   list a block's tags or settings (block-app
+   `a_block_s_children_leave_out_what_its_metadata_points_to`).
 2. **The access model.** Done (server and model). `Manage` is above `Edit`
    in `be_graph::Access` and `AccessLevel`, stored as `manage`. Manage shares
    (`set_access`, `list_access`, pending grants on contact links) and changes
@@ -81,8 +86,8 @@ re-import once, and say so in `guides/frozen_formats.md`.
    parent is a block has Manage when its parent does, at most View when its
    parent is viewable, and at most KnowExists otherwise; its own grants never
    raise that (`BlockNode::is_block_settings`, `level_below`). Creating one, or
-   moving one under a block, needs Manage on that block. The file tree skips a
-   settings child of the block it lists. Tests: be-graph
+   moving one under a block, needs Manage on that block. No editor lists it
+   among its block's children: plugins get only what content refers to. Tests: be-graph
    `a_settings_block_needs_manage_on_its_parent_to_change`, be-server
    `a_settings_block_changes_only_with_manage_on_its_parent`. Left for later
    steps: resolving and editing these settings in the client.

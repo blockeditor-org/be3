@@ -724,9 +724,6 @@ impl Builder<'_> {
         path: &mut Vec<Uuid>,
         trashed: bool,
     ) {
-        if block_editor_beui::sections::is_settings_part(&reference, container) {
-            return;
-        }
         self.watched
             .block_types
             .insert(reference.id, reference.block_type);

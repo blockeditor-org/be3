@@ -1,6 +1,4 @@
-use be_block::{
-    BlockContent, EDIT_KINDS, MY_FILES, SettingsContent, SettingsProfileContent, TagContent,
-};
+use be_block::{BlockContent, MY_FILES, SettingsContent, SettingsProfileContent};
 use block_ui::BlockTypes;
 use uuid::Uuid;
 
@@ -10,14 +8,6 @@ const SYSTEM_TYPES: [Uuid; 2] = [
     SettingsContent::CONTENT_TYPE,
     SettingsProfileContent::CONTENT_TYPE,
 ];
-
-pub fn is_settings_part(block: &BlockInfo, container: Option<Uuid>) -> bool {
-    let held =
-        container.is_some_and(|container| block.parent == Some(BlockParent::Block(container)));
-    let kind =
-        block.block_type == SettingsContent::CONTENT_TYPE || EDIT_KINDS.contains(&block.block_type);
-    (held && kind) || block.block_type == TagContent::CONTENT_TYPE
-}
 
 pub fn is_workspace(block: &BlockInfo) -> bool {
     block.parent == Some(BlockParent::Root) && !is_system(block.block_type)

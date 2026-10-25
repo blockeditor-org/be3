@@ -23,7 +23,7 @@ fn a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on() {
     let mut team = BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root);
     team.set_name("Team");
     team.metadata.insert(&TAG_DEFINITIONS, &BlockRef(tags));
-    team.references = vec![tags, notes];
+    team.references = vec![notes];
     store.add_block(team);
     store.add_block(BlockInfo::new(
         tags,
@@ -36,7 +36,6 @@ fn a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on() {
     let mut tagged = BlockInfo::new(notes, Uuid::from_u128(1), BlockParent::Block(workspace));
     tagged.set_name("Launch notes");
     tagged.metadata.insert(&TAGGED, &vec![BlockRef(urgent)]);
-    tagged.references = vec![urgent];
     store.add_block(tagged);
     let mut listed = TagsContent::default();
     listed.apply(&Tags::add(urgent));

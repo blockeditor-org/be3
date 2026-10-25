@@ -1034,7 +1034,13 @@ change to the format. A value that holds a `be_model::BlockRef` points to that
 block: `BlockMetadata::references` finds every one, and the peer adds them to
 the references it publishes with the block (`Publish`, and `CreateBlock` and
 `SetMetadata` for a block with no content yet), so the graph's backrefs and
-`KnowExists` see them as they see content's. `BlockMetadata::name` is `NAME` when someone named the
+`KnowExists` see them as they see content's, and a parent holds a child its
+metadata points to (a settings block, an edit kind). They are not the block's
+children, though: the host hands plugins only what the content refers to, as
+`BlockInfo::references` and `BlockQuery::References` (block-app `Node::contents`),
+so a canvas or a folder never lists the tags or settings its metadata names; read
+those from the metadata, and `BlockQuery::Backrefs` finds the blocks pointing to
+one either way. `BlockMetadata::name` is `NAME` when someone named the
 block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
 them through its `name`, `thumbhash` and `artifact`, and set a defined key with
 `Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui
@@ -1472,7 +1478,7 @@ databases use each row id prefix) and `Tags` (the tag definitions). A settings b
 `kinds` only a manager writes, so these are children of the block itself instead,
 each pointed to by a metadata key of its own (`be_block::edit_kind_key(kind)`:
 `PREFIXES`, `TAG_DEFINITIONS`), which holds it; `kinds_above` reads both places, the
-file tree and the picker hide them like a settings block (`sections::is_settings_part`),
+file tree and the picker never list them, since metadata references aren't children,
 and `Editor::ensure_block_kind` makes either. Both default to anyone inside. A tag is
 a block of its own (`Tag`: a name and a `TagColor`) listed by `Tags`; a block carries
 the tags put on it as `TAGGED` metadata (references, so "every block with this tag" is

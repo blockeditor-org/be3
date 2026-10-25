@@ -89,7 +89,7 @@ pub(crate) fn info_of(node: &Node, deleted: bool) -> BlockInfo {
         block_type: node.content_type.into_bytes(),
         author: node.author.map(Uuid::into_bytes),
         parent: node.parent.map(location_of),
-        references: node.references.iter().map(|id| id.into_bytes()).collect(),
+        references: node.contents().into_iter().map(Uuid::into_bytes).collect(),
         access: level_of(node.access),
         metadata: block_plugin_api::BlockMetadata {
             defined: wire_entries(&node.metadata.defined),
