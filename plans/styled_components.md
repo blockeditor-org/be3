@@ -238,9 +238,9 @@ Styled has about 190 of those consts of its own.
   It resolves through `Density`, so compact and comfortable layouts come from
   the tokens instead of from each component (`Tree` has its own `Metrics` for
   this today). The values in use are 0, 2, 4, 6, 8, 10 and 12, then a long
-  tail of 14, 16, 18, 20 and 24. **(ask)** The scale's steps, and whether to
-  snap 10, 14 and 18 to their neighbours. Snapping changes a lot of
-  paintings.
+  tail of 14, 16, 18, 20 and 24. Use the steps 0, 2, 4, 6, 8, 12, 16, 20 and
+  24. Snap 10, 14 and 18 to whichever neighbour looks right in each place,
+  and accept the paintings that change.
 - **Styled `Frame`.**
   - `padding` takes `Space`, on all sides or on each side.
   - `border` width and offset take tokens: hairline, focus ring and focus
@@ -249,10 +249,11 @@ Styled has about 190 of those consts of its own.
     and tab radius, and the "Md plus 2" focus-ring radii, which become one
     derived token.
   - `width` and `height` keep `Extent` for fill, fraction, intrinsic and
-    at-most. **(ask)** What happens to fixed pixel lengths (about 30 raw, more
-    through consts)? Recommendation: control and picture sizes become size
-    tokens (`TextSize::icon_px` already exists for icons). Lengths that are
-    content stay lengths: a thumbnail, a board cell, a canvas.
+    at-most. Fixed pixel lengths (about 30 raw, more through consts) split
+    two ways. Control and picture sizes become size tokens
+    (`TextSize::icon_px` already exists for icons). Lengths that are content
+    (a thumbnail, a board cell, a canvas) use a `Custom(f32)` escape hatch
+    on the size token.
 - **Styled `List` and `Grid`.** Styled re-exports the base `List` and `Grid`
   unchanged, so `spacing` is raw. This is the biggest case, with about 740
   uses. Add styled versions whose spacing takes `Space`, and stop
@@ -264,11 +265,11 @@ Styled has about 190 of those consts of its own.
   `scrim_strong`, `control_outline` and `knob_outline`. Add them, so code
   never reads a theme colour to hand back as a custom one. Do the same for
   `TextColor`.
-- **Colours from content.** **(ask)** After that, `Custom` is mostly colours
+- **Colours from content.** After that, `ColorRole::Custom` and
+  `TextColor::Custom` stay as escape hatches. They are for colours that come
   from content: a user's tag colour, a remote cursor, a presentation
-  background, a chart series, a colour swatch. Recommendation: keep one
-  variant for those, named for what it is (for example `ColorRole::Content`),
-  and allow it only for colours that come from data.
+  background, a chart series, a colour swatch. Don't use them for a colour
+  the theme has or should have.
 - **Component props in pixels** move to tokens:
   - Size tokens or a named size: `Dialog`'s `width`, `Popover`'s
     `max_width`, `MenuPopup`'s `min_width`, `Calendar`'s `width`,
@@ -282,6 +283,70 @@ Styled has about 190 of those consts of its own.
 - **The types enforce it.** Once styled props take token types, a raw `8.0`
   doesn't compile, and no lint is needed. Unstyled and base components keep
   taking concrete values, as the design principles say.
+
+## 8. One `overflow` prop for text, defaulting to wrap
+
+beui text overflows its container by default. `primitives::Text` and
+`styled::Text` default to `wrap: Wrap::Off`, `clip: false` and
+`ellipsis: false`. Text is measured at its natural width and painted
+unclipped (`beui-core/src/base/text.rs`: `wrap_width` around line 420,
+`measure` and `paint` further down). Ellipsis is ignored when wrapping (the
+`self.ellipsis && self.wrap == Wrap::Off` check around line 560, and
+`RichLayout::truncate` in `rich.rs`). There is no option for a maximum
+number of lines.
+
+Replace `wrap`, `clip` and `ellipsis` in the base node, `primitives::Text`
+and `styled::Text` with one prop:
+
+```rust
+overflow: Overflow {
+    Wrap { at: WrapAt, max_lines: Option<u32> }, // WrapAt: Words | Anywhere
+    Ellipsis,
+    Clip,
+    Visible,
+}
+```
+
+It defaults to `Wrap { at: Words, max_lines: None }`.
+
+- **`Wrap`** breaks lines to the width. With `max_lines`, the last line ends
+  in an ellipsis. `Anywhere` stays for monospace text laid out to a column
+  count (terminal lines, `beui-demo/src/base_pages.rs`).
+- **`Ellipsis` and `Clip`** are for one-line labels.
+  - A hard line break in the content (a newline or a `Break`) still starts a
+    new line, and each line is cut on its own.
+  - Check whether that's right for the terminal before relying on it.
+- **`Visible`** is today's `Wrap::Off`: natural width, unclipped. It is for
+  text inside something that scrolls or clips for it:
+  - the text area with wrapping off (`text_area/lines.rs:581`)
+  - terminal rows drawn with `Break`s (`terminal-view/src/lines.rs:158`,
+    where a soft-wrapped row must copy as one line)
+  - map labels (`editors/map/src/app/labels.rs:217`)
+- **Measuring.** Wrapped text reports a minimum width (its longest run that
+  can't be broken) and a natural width, so it works in horizontal lists and
+  intrinsic sizing. A full layout stays O(n).
+
+Convert every use:
+
+- `ellipsis=true` (about 41) becomes `Ellipsis`. The places include:
+  - `Button`'s label
+  - `select.rs`, `action_row.rs`, `context_menu.rs`
+  - `launcher.rs`, `dock/stack.rs`, `dock/switch.rs`
+  - `software_keyboard.rs`
+- `clip=true` becomes `Clip`: `dock.rs` (twice), `number_input.rs` and
+  `editors/text-block/src/app/large_embed.rs`.
+- `wrap=Wrap::Words` (about 222) is the new default, so delete it.
+- `wrap=Wrap::Off` becomes `Visible`, and `Wrap::Anywhere` becomes
+  `Wrap { at: Anywhere, .. }`.
+- Callers that rely on the old default and should be one-line labels get
+  `Ellipsis`: `chip.rs`, `choice.rs`, `select.rs` around line 170,
+  `checkbox.rs`, and row labels in editors and block-app. Read each one;
+  don't convert them blindly.
+
+Add paintings for wrap, for wrap with a maximum number of lines, for
+ellipsis and for clip. Update guides/beui.md, which says to give paragraphs
+`wrap=Wrap::Words` (around line 3693) and describes the base `Text` props
+(around line 640).
 
 ## Order
 
@@ -298,11 +363,17 @@ Styled has about 190 of those consts of its own.
 7. §1 `Toasts`, §2 tree menus and TextInput, §1's low-priority items.
 8. §5, then §6.
 
+§8 is independent too. Do it before §7's migration, so callers are touched
+once for both.
+
 §7 is independent of the rest. Make its token types and the styled `Frame`,
 `List` and `Grid` early, before §6. That way crates moved onto styled in §6
 are written in tokens once, and nobody goes back to change them. Then migrate
 the remaining callers one crate at a time.
 
-Each step adds or updates paintings for what it changes. It also keeps
+Paintings may change. Several steps change how things look and work, not
+only the code: spacing that snaps to the scale, text that wraps by default,
+merged components. Check each changed painting looks right before accepting
+it. Each step adds or updates paintings for what it changes. It also keeps
 beui-demo in step: removed components leave the demo, and new ones join it.
 Update guides/beui.md where it describes a component this plan changes.
