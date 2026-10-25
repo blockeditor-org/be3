@@ -36,6 +36,8 @@ type HeadReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
 
 type PlainReply = Box<dyn FnOnce(Result<be_types_host::PlainFile, String>) + Send>;
 
+type ContentReply = Box<dyn FnOnce(Result<(Uuid, Vec<u8>), String>) + Send>;
+
 pub(super) enum Command {
     PreviewChild {
         alias: Uuid,
@@ -154,6 +156,11 @@ pub(super) enum Command {
         reply: PlainReply,
     },
     Import(Vec<(be_client::transfer::Saved, BlockParent)>),
+    ContentOfFile {
+        name: String,
+        bytes: Vec<u8>,
+        reply: ContentReply,
+    },
     Version {
         block: Uuid,
         command: block_plugin_api::VersionCommand,
@@ -240,6 +247,7 @@ impl Command {
             | Command::SendToPeers { block, .. } => Some(*block),
             Command::Export { .. }
             | Command::Import(_)
+            | Command::ContentOfFile { .. }
             | Command::Flush(_)
             | Command::ApprovePairing { .. }
             | Command::DismissPairing(_)
@@ -1586,6 +1594,11 @@ async fn apply(
             false
         }
         Command::Import(_) => false,
+        Command::ContentOfFile { name, bytes, reply } => {
+            reply(replicas.from_file(ctx, &name, bytes).await);
+            crate::host::wake();
+            false
+        }
         Command::Flush(done) => {
             replicas.seal_all(ctx).await;
             flushes.push(done);

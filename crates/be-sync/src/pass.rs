@@ -21,7 +21,6 @@ use crate::{CLIENT, ERRORS_FILE, Report, STATE_DIRECTORY, UNEXPORTED_FILE, expla
 
 const IN_FLIGHT: usize = 16;
 const ATTEMPTS: usize = 8;
-const CLAIMED_BYTES: usize = 64 * 1024;
 
 pub(crate) async fn run<S: ObjectStore>(
     peer: &Peer<S>,
@@ -696,10 +695,9 @@ impl<S: ObjectStore> Pass<'_, S> {
         let (block_type, current) = match current {
             Some(current) => current,
             None => {
-                let first = &bytes[..bytes.len().min(CLAIMED_BYTES)];
                 let claimed = self
                     .types
-                    .claims(name, first, false)
+                    .claims(name, &bytes, false)
                     .await
                     .ok_or("no block type takes it")?;
                 (claimed, None)

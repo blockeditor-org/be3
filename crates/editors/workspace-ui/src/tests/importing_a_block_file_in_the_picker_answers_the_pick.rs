@@ -39,7 +39,7 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         .reply(*request, HostReply::BlocksImported(BlockImport::Cancelled));
     fixture.settle();
     assert!(
-        fixture.says("Import a .block file…"),
+        fixture.says("Import a file…"),
         "cancelling the file picker leaves the menu open to try again"
     );
     assert!(fixture.test.take_pick_answers().is_empty());

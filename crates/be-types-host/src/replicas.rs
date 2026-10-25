@@ -550,6 +550,31 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    pub async fn from_file(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        name: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(Uuid, Vec<u8>), String> {
+        let mut claimed = None;
+        for (module, request) in self.modules.claim_requests(name, &bytes, false) {
+            if let Reply::Claimed(Some(content_type)) = self.ask(ctx, module, request).await {
+                claimed = Some(content_type);
+                break;
+            }
+        }
+        let content_type = claimed.ok_or_else(|| format!("No block type takes {name}."))?;
+        let change = Change::FromFile {
+            name: name.to_owned(),
+            bytes,
+        };
+        let content = self
+            .apply(ctx, content_type, None, 0, change)
+            .await?
+            .ok_or_else(|| format!("{name} has no block form."))?;
+        Ok((content_type, content))
+    }
+
     pub async fn apply(
         &mut self,
         ctx: Ctx<'_, H>,

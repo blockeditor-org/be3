@@ -1064,6 +1064,30 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
     Ok(top)
 }
 
+pub(crate) fn import_file(
+    name: String,
+    bytes: Vec<u8>,
+    parent: be_graph::BlockParent,
+    reply: impl FnOnce(Result<(Uuid, Uuid), String>) + Send + 'static,
+) {
+    if account().is_none() {
+        reply(Err("Sign in to import files.".to_owned()));
+        return;
+    }
+    let metadata = be_block::BlockMetadata::named(&name);
+    send(Command::ContentOfFile {
+        name,
+        bytes,
+        reply: Box::new(move |content| {
+            reply(content.map(|(content_type, content)| {
+                let block = Uuid::new_v4();
+                create(block, content_type, parent, metadata, Some(content));
+                (block, content_type)
+            }));
+        }),
+    });
+}
+
 fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {
     let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let stack = held.as_ref()?;

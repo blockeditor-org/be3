@@ -196,7 +196,9 @@ one that is only ever the root of one (a workspace); `Hello`'s `TypeInfo::plain`
 says which form each type has. The order is the order `Claims` asks in. A type
 that takes any file (the workspace plugin's file type) sets `ANY_FILE` on its
 `BlobFile` or `DocumentFile`, and answers only a `Claims` with `fallback`: a host
-asks every module without it first, then every module with it.
+asks every module without it first, then every module with it
+(`Modules::claim_requests`, which both `be sync` and block-app's import of a
+picked file follow, so one rule decides what a file becomes).
 
 `Module::handle(Event) -> Vec<Command>` is the whole interface (`register` adds or
 replaces a type, `knows` asks for one, as block-ui-test does for a test's own types); `Module::hello()` is

@@ -1923,7 +1923,7 @@ fn NewBlockMenu() -> NodeId {
                             </ForEach>
                         </unstyled::MenuItem>
                         <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
-                        <unstyled::MenuItem label="Import a .block file…" glyph=ICON_FILE_UP />
+                        <unstyled::MenuItem label="Import a file…" glyph=ICON_FILE_UP />
                     }}
                     on_select={move |path: Vec<usize>| {
                         let kind = match path.as_slice() {

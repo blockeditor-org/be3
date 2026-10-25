@@ -2734,23 +2734,27 @@ impl Instances {
                     )));
                     return true;
                 }
-                let filter = beui::FileFilter {
-                    name: "Block file".to_owned(),
-                    extensions: vec![be_client::transfer::EXTENSION.to_owned()],
-                    mime_types: vec![be_client::transfer::MIME_TYPE.to_owned()],
+                let imported = |imported: Result<(Uuid, Uuid), String>| match imported {
+                    Ok((block, block_type)) => BlockImport::Imported {
+                        block_id: block.into_bytes(),
+                        block_type: block_type.into_bytes(),
+                    },
+                    Err(error) => BlockImport::Failed(error),
                 };
-                host::pick_file(filter, move |picked| {
-                    reply(HostReply::BlocksImported(match picked {
-                        Ok(Some(file)) => match crate::be::import(&file.data, parent) {
-                            Ok((block, block_type)) => BlockImport::Imported {
-                                block_id: block.into_bytes(),
-                                block_type: block_type.into_bytes(),
-                            },
-                            Err(error) => BlockImport::Failed(error),
-                        },
-                        Ok(None) => BlockImport::Cancelled,
-                        Err(error) => BlockImport::Failed(error),
-                    }));
+                host::pick_file(beui::FileFilter::default(), move |picked| match picked {
+                    Ok(Some(file))
+                        if be_block::plain::extension(&file.name)
+                            == be_client::transfer::EXTENSION =>
+                    {
+                        reply(HostReply::BlocksImported(imported(crate::be::import(
+                            &file.data, parent,
+                        ))));
+                    }
+                    Ok(Some(file)) => crate::be::import_file(file.name, file.data, parent, move |file| {
+                        reply(HostReply::BlocksImported(imported(file)));
+                    }),
+                    Ok(None) => reply(HostReply::BlocksImported(BlockImport::Cancelled)),
+                    Err(error) => reply(HostReply::BlocksImported(BlockImport::Failed(error))),
                 });
             }
             HostRequest::PickBlock(filter) => {

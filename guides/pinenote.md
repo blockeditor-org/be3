@@ -68,8 +68,8 @@ The PineNote's reader is KOReader, a Wayland program that opens in the tab of th
 (guides/linux_desktop.md, Files opened in programs). Install a KOReader build that comes with a `.desktop` entry
 whose `MimeType` lists `application/epub+zip` (a distribution package or the AppImage with an
 entry written for it), and keep
-`shared-mime-info`, whose `globs2` turns that into `.epub`. A book synced or imported into a
-workspace is a file block; clicking it opens KOReader at the place it was left, after a restart
+`shared-mime-info`, whose `globs2` turns that into `.epub`. A book synced into a workspace
+(guides/sync.md) or picked with the add-block menu's "Import a file…" is a file block; clicking it opens KOReader at the place it was left, after a restart
 too, with KOReader's own settings.
 
 ## Building and installing
