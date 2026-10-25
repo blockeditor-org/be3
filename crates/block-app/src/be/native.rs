@@ -55,23 +55,6 @@ pub(super) fn spawn(
     Running(worker)
 }
 
-pub(super) fn refs(config: &Config) -> Result<be_client::RefsDb, String> {
-    refs_in(&config.data_dir)
-}
-
-pub(crate) fn refs_in(root: &std::path::Path) -> Result<be_client::RefsDb, String> {
-    static OPEN: Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> = Mutex::new(Vec::new());
-    let path = root.join("be-refs.sqlite3");
-    let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some((_, refs)) = open.iter().find(|(held, _)| *held == path) {
-        return Ok(refs.clone());
-    }
-    let refs = be_client::RefsDb::open(&path)
-        .map_err(|error| format!("this device's record of what it holds cannot open: {error}"))?;
-    open.push((path, refs.clone()));
-    Ok(refs)
-}
-
 pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     tokio::task::spawn_local(task);
 }

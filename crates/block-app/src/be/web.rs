@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use be_store::MemoryStore;
+use be_store::FileStore;
 
 use super::{
     Config,
@@ -22,25 +22,19 @@ pub(super) fn spawn(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) -> Running {
+    let directory = config.data_dir.join("be-objects");
+    let store = move || {
+        FileStore::open(&directory)
+            .map_err(|error| format!("the local object store cannot open: {error}"))
+    };
     wasm_bindgen_futures::spawn_local(serve(
         config,
-        || Ok(MemoryStore::new()),
+        store,
         inbox,
         shared,
         changed,
     ));
     Running
-}
-
-pub(super) fn refs(_: &Config) -> Result<be_client::RefsDb, String> {
-    refs_in(std::path::Path::new(""))
-}
-
-pub(crate) fn refs_in(_: &std::path::Path) -> Result<be_client::RefsDb, String> {
-    thread_local! {
-        static MEMORY: be_client::RefsDb = be_client::RefsDb::memory();
-    }
-    Ok(MEMORY.with(Clone::clone))
 }
 
 pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {

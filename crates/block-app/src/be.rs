@@ -1,6 +1,5 @@
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 
-#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
 use beui::reactive::now;
@@ -25,12 +24,29 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use platform::{refs_in, sleep};
+pub(crate) use platform::sleep;
 
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
 pub(crate) use worker::{History, PairingRequest, Shared};
 
 use worker::Command;
+
+fn refs(config: &Config) -> Result<be_client::RefsDb, String> {
+    refs_in(&config.data_dir)
+}
+
+pub(crate) fn refs_in(root: &std::path::Path) -> Result<be_client::RefsDb, String> {
+    static OPEN: std::sync::Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> = Mutex::new(Vec::new());
+    let path = root.join("be-refs.sqlite3");
+    let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((_, refs)) = open.iter().find(|(held, _)| *held == path) {
+        return Ok(refs.clone());
+    }
+    let refs = be_client::RefsDb::open(&path)
+        .map_err(|error| format!("this device's record of what it holds cannot open: {error}"))?;
+    open.push((path, refs.clone()));
+    Ok(refs)
+}
 
 pub(crate) struct Config {
     pub(crate) server_url: String,
@@ -40,7 +56,6 @@ pub(crate) struct Config {
     pub(crate) identity: [u8; 32],
     pub(crate) display_name: String,
     pub(crate) email: String,
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
     pub(crate) clock: be_client::Clock,
 }

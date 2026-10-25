@@ -45,14 +45,13 @@ mod wifi;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
+    io,
+    path::PathBuf,
     rc::Rc,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
@@ -93,6 +92,9 @@ fn run_options() -> beui::RunOptions {
         ..Default::default()
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+const WEB_DATA_DIR: &str = "/block";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
@@ -525,7 +527,6 @@ struct BlockApp {
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
     allow_close: bool,
-    #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
     embedded_server: Option<platform::EmbeddedServer>,
@@ -672,8 +673,12 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn new() -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let app_state = AppStateStore::open()?;
-        Self::with_state(app_state, String::new())
+        let data_dir = PathBuf::from(WEB_DATA_DIR);
+        std::fs::create_dir_all(&data_dir)?;
+        let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
+        let mut app = Self::with_state(app_state, String::new())?;
+        app.data_dir = data_dir;
+        Ok(app)
     }
 
     fn with_state(
@@ -784,7 +789,6 @@ impl BlockApp {
             pending_destructive_action: None,
             leaving: None,
             allow_close: false,
-            #[cfg(not(target_arch = "wasm32"))]
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
             embedded_server: None,
@@ -1623,14 +1627,8 @@ impl BlockApp {
         self.identity.is_none() || self.keys.needs_unlock(self.identity)
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn workspace_cache(&self) -> Option<be_client::RefsDb> {
         be::refs_in(&self.data_dir).ok()
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn workspace_cache(&self) -> Option<be_client::RefsDb> {
-        be::refs_in(std::path::Path::new("")).ok()
     }
 
     fn retry_organizations(&mut self) {
@@ -2864,7 +2862,6 @@ impl BlockApp {
             identity,
             display_name: self.account.name.clone(),
             email: self.account.email.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.clone(),
             clock: be_client::Clock::real(),
         });
@@ -3425,7 +3422,6 @@ impl BlockApp {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn delete_client_database(&mut self) {
         let path = self.data_dir.join("app.sqlite3");
         let _ = std::mem::replace(&mut self.app_state, AppStateStore::placeholder());
@@ -3436,14 +3432,6 @@ impl BlockApp {
             return;
         }
         self.restart();
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn delete_client_database(&mut self) {
-        match AppStateStore::open().and_then(|store| store.clear()) {
-            Ok(()) => self.restart(),
-            Err(error) => self.error = Some(error.to_string()),
-        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

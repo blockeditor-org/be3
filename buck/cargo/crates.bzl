@@ -1110,9 +1110,11 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-store:be-store",
                     "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:futures-channel-0.3.32",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:tokio-1.52.3",
@@ -9600,11 +9602,13 @@ crates = {
                     "//crates/build-id:build-id",
                     "//crates/host-types:host-types",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:tokio-1.52.3",
@@ -21257,6 +21261,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -24354,6 +24368,13 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":once_cell-1.21.4",
+                    ":zerocopy-0.8.50",
+                ],
+            },
+            "wasi": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":once_cell-1.21.4",
@@ -36873,6 +36894,12 @@ third_party = {
                     "default",
                 ],
             },
+            "wasi": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -36915,6 +36942,7 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -41238,6 +41266,15 @@ third_party = {
                     "inline-more",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":ahash-0.8.12",
+                ],
+                "features": [
+                    "ahash",
+                    "inline-more",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":ahash-0.8.12",
@@ -41612,6 +41649,11 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":hashbrown-0.14.5",
+                ],
+            },
+            "wasi": {
                 "deps": [
                     ":hashbrown-0.14.5",
                 ],
@@ -46820,6 +46862,17 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "features": [
+                    "bundled",
+                    "bundled_bindings",
+                    "cc",
+                    "default",
+                    "min_sqlite_version_3_14_0",
+                    "pkg-config",
+                    "vcpkg",
+                ],
+            },
+            "wasi": {
                 "features": [
                     "bundled",
                     "bundled_bindings",
@@ -59487,6 +59540,20 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":fallible-iterator-0.3.0",
+                    ":fallible-streaming-iterator-0.1.9",
+                    ":hashlink-0.9.1",
+                    ":libsqlite3-sys-0.30.1",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "bundled",
+                    "modern_sqlite",
+                ],
+            },
+            "wasi": {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":fallible-iterator-0.3.0",
@@ -75994,7 +76061,6 @@ third_party = {
                     "ResizeObserver",
                     "ResizeObserverEntry",
                     "Response",
-                    "Storage",
                     "TextMetrics",
                     "Touch",
                     "TouchEvent",

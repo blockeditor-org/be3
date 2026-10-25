@@ -13,14 +13,8 @@ use be_store::{Hash, StoreError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-#[cfg(target_arch = "wasm32")]
-mod memory;
-#[cfg(not(target_arch = "wasm32"))]
 mod sqlite;
 
-#[cfg(target_arch = "wasm32")]
-type Backend = memory::MemoryRefs;
-#[cfg(not(target_arch = "wasm32"))]
 type Backend = sqlite::SqliteRefs;
 
 const VERSION: u8 = 1;
@@ -46,7 +40,6 @@ pub(crate) enum Table {
     Workspaces,
 }
 
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl Table {
     pub const ALL: [Self; 10] = [
         Self::Session,
@@ -100,21 +93,12 @@ impl Default for RefsDb {
 }
 
 impl RefsDb {
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn memory() -> Self {
         Self {
             backend: Arc::new(Backend::in_memory().expect("an in-memory database always opens")),
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub fn memory() -> Self {
-        Self {
-            backend: Arc::new(Backend::default()),
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn open(path: impl AsRef<std::path::Path>) -> Result<Self, StoreError> {
         Ok(Self {
             backend: Arc::new(Backend::open(path)?),

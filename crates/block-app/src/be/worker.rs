@@ -377,10 +377,7 @@ impl Shared {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub(super) type Store = be_store::FileStore;
-#[cfg(target_arch = "wasm32")]
-pub(super) type Store = be_store::MemoryStore;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PeerMessage {
@@ -457,7 +454,7 @@ fn cached<S: Fn() -> Result<Store, String>>(
     config: &Config,
     make_store: &S,
 ) -> Option<Arc<Peer<Store>>> {
-    let refs = platform::refs(config).ok()?;
+    let refs = super::refs(config).ok()?;
     if !refs
         .knows(&config.socket_url(), config.account, config.organization)
         .unwrap_or(false)
@@ -2386,7 +2383,7 @@ async fn connect(
 ) -> Result<(Peer<Store>, tokio::sync::OwnedMutexGuard<()>), ClientError> {
     let link = crate::link::signed_in(&config.server_url, &config.token, &config.clock).await?;
     let open = link.open_organization().await;
-    let refs = platform::refs(config).unwrap_or_else(|_| be_client::RefsDb::memory());
+    let refs = super::refs(config).unwrap_or_else(|_| be_client::RefsDb::memory());
     let peer = Peer::signed_in(
         link.connection,
         link.account,

@@ -20,6 +20,7 @@
 // out of the module from one is a mistake worth hearing about.
 
 import { spawnedThreadLocals } from "./dylink.js";
+import { filesChannel } from "./wasi.js";
 
 /** @type {{module: WebAssembly.Module, memory: WebAssembly.Memory} | null} */
 let context = null;
@@ -83,6 +84,7 @@ function threadSpawn(startArgument) {
         plugin: linked?.plugin,
         layout: linked?.layout,
         threadLocals: linked && spawnedThreadLocals(context.memory, startArgument),
+        files: filesChannel(),
     });
     return id;
 }
