@@ -4,6 +4,7 @@ mod keys;
 mod lock;
 mod onboarding;
 mod organization;
+mod saving;
 
 use std::cell::RefCell;
 
@@ -151,6 +152,7 @@ pub(crate) struct ReauthView {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StatusView {
     pub(crate) changes_saved: bool,
+    pub(crate) saves: u64,
     pub(crate) organization: String,
     pub(crate) signed_in_as: String,
     pub(crate) sessions: Vec<SessionRow>,
@@ -390,7 +392,9 @@ pub(crate) enum UiCommand {
 #[component]
 pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let screen = view.screen;
-    let toasts = view.toasts;
+    let slow_save = saving::SlowSave::new(view);
+    let notices = view.toasts;
+    let toasts = create_memo(move || slow_save.with_toast(notices.get()));
     let keep_display = view.keep_display;
     let asking = create_memo(move || keep_display.get().is_some());
     let round = create_memo(move || keep_display.get().unwrap_or_default());
@@ -433,7 +437,10 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     anchor={area}
                     edge=Edge::TopEnd
                     toasts={toasts}
-                    on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
+                    on_dismiss={move |id: u64| match id {
+                        saving::TOAST_ID => slow_save.dismiss(),
+                        id => send(UiCommand::DismissToast(id)),
+                    }}
                     on_action={move |(id, key): (u64, String)| {
                         if key == crate::notices::COPY_REPORT
                             && let Some(report) = crate::notices::report_of(id)

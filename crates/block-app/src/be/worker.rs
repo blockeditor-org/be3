@@ -322,6 +322,7 @@ pub(crate) struct Shared {
     pub(crate) peer_message_count: u64,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
+    pub(crate) saves: u64,
     pub(crate) owing: usize,
     pub(crate) connected: bool,
     pub(crate) error: Option<String>,
