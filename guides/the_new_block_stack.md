@@ -223,7 +223,10 @@ time, so notifications wait for the next post.
   (`be_graph::EDIT_KINDS`: the prefix registry and tag definitions) are not in
   the settings block but are children of the block itself, so they inherit
   `Edit` like any child, though a grant on one never raises it above its
-  parent's; an editor may also open such a kind to anyone inside.
+  parent's. Below a settings block or such a kind, every block has exactly
+  the access of its parent: neither authorship nor a grant raises it. Who
+  reads a kind is a manager's choice; the editor who made an edit kind may
+  only open it to anyone inside once, as it is made (its default).
   A block they can view references gives them `KnowExists` on it, and on
   nothing that block references in turn. Of a block they may only know exists
   they are told its id, content type and access and nothing else

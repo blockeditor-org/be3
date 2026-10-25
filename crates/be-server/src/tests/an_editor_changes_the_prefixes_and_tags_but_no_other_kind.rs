@@ -60,6 +60,13 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
         );
         let opened = editor.grant(kind, ANYONE_INSIDE, Access::View).await;
         assert!(matches!(opened, ServerMessage::Ok { .. }), "{opened:?}");
+        let closed = editor.grant(kind, ANYONE_INSIDE, Access::None).await;
+        assert!(
+            refused_as(&closed, ErrorCode::PermissionDenied),
+            "an editor chose who reads a kind: {closed:?}"
+        );
+        let closed = owner.grant(kind, ANYONE_INSIDE, Access::None).await;
+        assert!(matches!(closed, ServerMessage::Ok { .. }), "{closed:?}");
         let shared = editor
             .grant(kind, Uuid::from_u128(0x5e), Access::View)
             .await;
@@ -68,6 +75,12 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
             "an editor shared a kind: {shared:?}"
         );
     }
+    let theirs = created(&create_under(&mut owner, TAGS_TYPE, workspace).await);
+    let opened = editor.grant(theirs, ANYONE_INSIDE, Access::View).await;
+    assert!(
+        refused_as(&opened, ErrorCode::PermissionDenied),
+        "an editor opened a kind a manager made: {opened:?}"
+    );
     let tag = create_under(&mut editor, Uuid::from_u128(0x7a6), tags).await;
     assert!(matches!(tag, ServerMessage::Block { .. }), "{tag:?}");
 

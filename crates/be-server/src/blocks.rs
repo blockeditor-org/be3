@@ -958,7 +958,15 @@ impl ServerStore {
                     ));
                 }
                 true => {}
-                false if account == ANYONE_INSIDE && graph.get(block).is_some_and(BlockNode::is_edit_kind) => {
+                false
+                    if account == ANYONE_INSIDE
+                        && access == Access::View
+                        && graph.get(block).is_some_and(|node| {
+                            node.is_edit_kind()
+                                && node.author == identity.account
+                                && !node.grants.contains_key(&ANYONE_INSIDE)
+                        }) =>
+                {
                     require_edit(graph, &visibility(identity), block)?;
                 }
                 false => require_manage(graph, &visibility(identity), block)?,
