@@ -4,6 +4,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    time::Duration,
 };
 
 use be_protocol::{ClientMessage, ServerMessage, decode, encode, hello, read_hello};
@@ -11,16 +12,25 @@ use futures_util::future::{Either, select};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 use crate::{
-    ClientError,
+    ClientError, Clock,
     transport::{Frame, Reader, Writer, connect, spawn},
 };
 
 const EVENT_CAPACITY: usize = 4096;
 
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+pub const PING_INTERVAL: Duration = Duration::from_secs(15);
+pub const PONG_WAIT: Duration = Duration::from_secs(20);
+
+const PING_REQUEST: u64 = 0;
+
+type Reply = oneshot::Sender<Result<ServerMessage, ClientError>>;
+
 struct Outbound {
     request: u64,
     bytes: Vec<u8>,
-    reply: oneshot::Sender<ServerMessage>,
+    reply: Reply,
 }
 
 pub struct Connection {
@@ -31,9 +41,16 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub async fn connect(url: &str) -> Result<Arc<Self>, ClientError> {
-        let (mut writer, mut reader) = connect(url).await.map_err(ClientError::Disconnected)?;
-        greet(&mut writer, &mut reader).await?;
+    pub async fn connect(url: &str, clock: &Clock) -> Result<Arc<Self>, ClientError> {
+        let opening = std::pin::pin!(async {
+            let (mut writer, mut reader) = connect(url).await.map_err(ClientError::Disconnected)?;
+            greet(&mut writer, &mut reader).await?;
+            Ok::<_, ClientError>((writer, reader))
+        });
+        let (writer, reader) = match select(opening, clock.sleep(CONNECT_TIMEOUT)).await {
+            Either::Left((opened, _)) => opened?,
+            Either::Right(_) => return Err(ClientError::TimedOut("connecting to the server")),
+        };
         let (commands, receiver) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let (closing, closed) = watch::channel(false);
@@ -43,7 +60,16 @@ impl Connection {
             closed,
             next: AtomicU64::new(0),
         });
-        spawn(worker(writer, reader, receiver, events, closing));
+        spawn(worker(
+            Carried {
+                writer,
+                reader,
+                commands: receiver,
+                events,
+                clock: clock.clone(),
+            },
+            closing,
+        ));
         Ok(connection)
     }
 
@@ -93,7 +119,7 @@ impl Connection {
         Ok(Box::pin(async move {
             let response = response
                 .await
-                .map_err(|_| ClientError::Disconnected("the connection closed".into()))?;
+                .map_err(|_| ClientError::Disconnected("the connection closed".into()))??;
             match response {
                 ServerMessage::Failed { code, message, .. } => {
                     Err(ClientError::Refused(code, message))
@@ -161,62 +187,126 @@ async fn next_binary(
     })
 }
 
-async fn worker(
+struct Carried {
     writer: Writer,
     reader: Reader,
     commands: mpsc::UnboundedReceiver<Outbound>,
     events: broadcast::Sender<ServerMessage>,
-    closing: watch::Sender<bool>,
-) {
-    carry(writer, reader, commands, events).await;
+    clock: Clock,
+}
+
+async fn worker(carried: Carried, closing: watch::Sender<bool>) {
+    carry(carried).await;
     let _ = closing.send(true);
 }
 
+enum Woke {
+    Command(Option<Outbound>),
+    Frame(Option<Frame>),
+    Timer,
+}
+
 async fn carry(
-    mut writer: Writer,
-    mut reader: Reader,
-    mut commands: mpsc::UnboundedReceiver<Outbound>,
-    events: broadcast::Sender<ServerMessage>,
+    Carried {
+        mut writer,
+        mut reader,
+        mut commands,
+        events,
+        clock,
+    }: Carried,
 ) {
-    let mut pending: HashMap<u64, oneshot::Sender<ServerMessage>> = HashMap::new();
+    let mut pending: HashMap<u64, (Duration, Reply)> = HashMap::new();
+    let mut heard = clock.now();
+    let mut pinged = false;
     loop {
-        let command = std::pin::pin!(commands.recv());
-        let frame = std::pin::pin!(reader.next());
-        match select(command, frame).await {
-            Either::Left((command, _)) => {
-                let Some(command) = command else { return };
-                pending.insert(command.request, command.reply);
+        let now = clock.now();
+        let expired: Vec<u64> = pending
+            .iter()
+            .filter(|(_, (deadline, reply))| reply.is_closed() || *deadline <= now)
+            .map(|(request, _)| *request)
+            .collect();
+        for request in expired {
+            if let Some((_, reply)) = pending.remove(&request) {
+                let _ = reply.send(Err(ClientError::TimedOut("a request to the server")));
+            }
+        }
+        if now >= heard + PING_INTERVAL + PONG_WAIT {
+            return;
+        }
+        if !pinged && now >= heard + PING_INTERVAL {
+            let Ok(ping) = encode(&ClientMessage::Ping {
+                request: PING_REQUEST,
+            }) else {
+                return;
+            };
+            if writer.send(ping).await.is_err() {
+                return;
+            }
+            pinged = true;
+        }
+        let next = if pinged {
+            heard + PING_INTERVAL + PONG_WAIT
+        } else {
+            heard + PING_INTERVAL
+        };
+        let next = pending
+            .values()
+            .map(|(deadline, _)| *deadline)
+            .fold(next, Duration::min);
+        let woke = {
+            let command = std::pin::pin!(commands.recv());
+            let frame = std::pin::pin!(reader.next());
+            let timer = clock.sleep_until(next);
+            match select(select(command, frame), timer).await {
+                Either::Left((Either::Left((command, _)), _)) => Woke::Command(command),
+                Either::Left((Either::Right((frame, _)), _)) => Woke::Frame(frame),
+                Either::Right(_) => Woke::Timer,
+            }
+        };
+        match woke {
+            Woke::Timer => {}
+            Woke::Command(None) => return,
+            Woke::Command(Some(command)) => {
+                let deadline = clock.now() + REQUEST_TIMEOUT;
+                pending.insert(command.request, (deadline, command.reply));
                 if writer.send(command.bytes).await.is_err() {
                     return;
                 }
             }
-            Either::Right((frame, _)) => match frame {
-                Some(Frame::Binary(bytes)) => {
-                    let Ok(message) = decode::<ServerMessage>(&bytes) else {
-                        continue;
-                    };
-                    match message
-                        .request()
-                        .and_then(|request| pending.remove(&request))
-                    {
-                        Some(reply) => {
-                            let _ = reply.send(message);
+            Woke::Frame(frame) => {
+                heard = clock.now();
+                pinged = false;
+                match frame {
+                    Some(Frame::Binary(bytes)) => {
+                        let Ok(message) = decode::<ServerMessage>(&bytes) else {
+                            continue;
+                        };
+                        if matches!(message, ServerMessage::Pong { .. }) {
+                            continue;
                         }
-                        None => {
-                            let _ = events.send(message);
+                        match message
+                            .request()
+                            .and_then(|request| pending.remove(&request))
+                        {
+                            Some((_, reply)) => {
+                                let _ = reply.send(Ok(message));
+                            }
+                            None => {
+                                let _ = events.send(message);
+                            }
                         }
                     }
-                }
-                #[cfg(not(target_arch = "wasm32"))]
-                Some(Frame::Ping(payload)) => {
-                    if writer.pong(payload).await.is_err() {
-                        return;
+                    #[cfg(not(target_arch = "wasm32"))]
+                    Some(Frame::Ping(payload)) => {
+                        if writer.pong(payload).await.is_err() {
+                            return;
+                        }
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    Some(Frame::Failed(_)) => return,
+                    Some(Frame::Closed) | None => return,
                 }
-                #[cfg(not(target_arch = "wasm32"))]
-                Some(Frame::Failed(_)) => return,
-                Some(Frame::Closed) | None => return,
-            },
+            }
         }
     }
 }

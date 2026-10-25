@@ -149,10 +149,11 @@ Today:
 
 ### Connection
 
-- Add a request timeout.
-- Client pings every ~15 s; a missing pong marks the connection lost.
-- Reconnect with exponential backoff and jitter, plus an immediate retry on
-  OS network-change, foreground and focus events.
+- Done: a request timeout, and a connect timeout so `be::stop` never hangs.
+- Done: client pings every ~15 s; a missing pong marks the connection lost.
+- Done: reconnect with exponential backoff and jitter, plus an immediate retry
+  (`be::retry_now`) on window focus. Still to call it: OS network-change and
+  foreground events.
 - Send lease heartbeats on a timer, not only on seal.
 
 ### Durability
@@ -171,7 +172,9 @@ Today:
 
 ### Testing
 
-- A test transport that drops, stalls and half-opens connections on demand.
+- Done: a test transport that drops, stalls and half-opens connections on
+  demand (`crates/fault-relay`), with tests that a half-open connection is
+  noticed and reconnected, and that a request and a connect time out.
 - Tests:
   - edit offline, restart, then reconnect;
   - two devices edit the same note offline, then both reconnect;

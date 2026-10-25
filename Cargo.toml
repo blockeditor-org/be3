@@ -122,6 +122,7 @@ members = [
     "crates/editors/workspace-index",
     "crates/editors/workspace-ui",
     "crates/editors/workspace-ui/types",
+    "crates/fault-relay",
     "crates/first-party-types",
     "crates/fix-rust-source",
     "crates/geometry",

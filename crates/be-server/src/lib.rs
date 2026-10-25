@@ -585,6 +585,7 @@ impl Connection {
                 let (profile, token) = self.store.create_local_profile(&display_name).await?;
                 Ok(self.authenticated(request, profile, token).await)
             }
+            ClientMessage::Ping { request } => Ok(ServerMessage::Pong { request }),
             ClientMessage::AuthenticateHeader { request } => {
                 let token = self.header_token.clone().ok_or_else(|| {
                     ServerError::Refused(

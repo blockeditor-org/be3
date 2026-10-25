@@ -146,7 +146,7 @@ pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
 
 impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
-        let connection = Connection::connect(&config.url).await?;
+        let connection = Connection::connect(&config.url, &crate::Clock::real()).await?;
         let response = connection
             .request(|request| config.credentials.clone().message(request))
             .await?;

@@ -26,7 +26,24 @@ mod uploads;
 
 use uploads::Uploads;
 
-const RECONNECT_DELAY: Duration = Duration::from_secs(2);
+const RECONNECT_FIRST: Duration = Duration::from_millis(500);
+const RECONNECT_MOST: Duration = Duration::from_secs(30);
+
+pub(super) fn reconnect_delay(failures: u32, jitter: f64) -> Duration {
+    let ceiling = RECONNECT_FIRST
+        .saturating_mul(1 << failures.min(16))
+        .min(RECONNECT_MOST);
+    ceiling.mul_f64(0.5 + 0.5 * jitter.clamp(0.0, 1.0))
+}
+
+fn jitter() -> f64 {
+    (Uuid::new_v4().as_u128() as u64 >> 11) as f64 / (1u64 << 53) as f64
+}
+
+pub(super) struct Inbox {
+    pub(super) commands: UnboundedReceiver<Command>,
+    pub(super) nudged: tokio::sync::watch::Receiver<()>,
+}
 
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
@@ -379,7 +396,10 @@ pub(crate) struct History {
 pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     config: Config,
     make_store: S,
-    mut commands: UnboundedReceiver<Command>,
+    Inbox {
+        mut commands,
+        mut nudged,
+    }: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
@@ -388,11 +408,13 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut wanted = Wanted::default();
     let mut uploads = Uploads::new(&shared);
+    let mut failures = 0;
     loop {
-        if let Outcome::Stopped = connected(
+        match connected(
             &config,
             &make_store,
             &mut commands,
+            &mut nudged,
             &shared,
             &changed,
             &mut wanted,
@@ -401,8 +423,12 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         )
         .await
         {
-            changed.notify_all();
-            return;
+            Outcome::Stopped => {
+                changed.notify_all();
+                return;
+            }
+            Outcome::Lost => failures = 0,
+            Outcome::Unreachable => {}
         }
         shared
             .lock()
@@ -410,7 +436,29 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             .connected = false;
         changed.notify_all();
         crate::host::wake();
-        platform::sleep(RECONNECT_DELAY).await;
+        let delay = reconnect_delay(failures, jitter());
+        failures = failures.saturating_add(1);
+        let waited = config.clock.sleep(delay);
+        let nudge = std::pin::pin!(nudged.changed());
+        if let Either::Right((Err(_), _)) = select(waited, nudge).await {
+            changed.notify_all();
+            return;
+        }
+    }
+}
+
+async fn unless_stopped<T>(
+    work: impl Future<Output = T>,
+    nudged: &mut tokio::sync::watch::Receiver<()>,
+) -> Option<T> {
+    let mut work = std::pin::pin!(work);
+    loop {
+        let nudge = std::pin::pin!(nudged.changed());
+        match select(work.as_mut(), nudge).await {
+            Either::Left((done, _)) => return Some(done),
+            Either::Right((Ok(()), _)) => {}
+            Either::Right((Err(_), _)) => return None,
+        }
     }
 }
 
@@ -452,6 +500,7 @@ impl Wanted {
 enum Outcome {
     Stopped,
     Lost,
+    Unreachable,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -459,6 +508,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     config: &Config,
     make_store: &S,
     commands: &mut UnboundedReceiver<Command>,
+    nudged: &mut tokio::sync::watch::Receiver<()>,
     shared: &Arc<Mutex<Shared>>,
     changed: &Arc<Condvar>,
     wanted: &mut Wanted,
@@ -469,11 +519,15 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         Ok(store) => store,
         Err(error) => {
             fail(shared, error);
-            return Outcome::Lost;
+            return Outcome::Unreachable;
         }
     };
-    let (peer, _open) = match connect(config, store).await {
+    let Some(attempt) = unless_stopped(connect(config, store), nudged).await else {
+        return Outcome::Stopped;
+    };
+    let (peer, _open) = match attempt {
         Ok((peer, open)) => {
+            nudged.mark_unchanged();
             let resolving = Arc::clone(shared);
             peer.set_resolver(Arc::new(move |block, references| {
                 let held = resolving.lock().unwrap_or_else(PoisonError::into_inner);
@@ -495,7 +549,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         }
         Err(error) => {
             fail(shared, error.to_string());
-            return Outcome::Lost;
+            return Outcome::Unreachable;
         }
     };
     {
@@ -1989,7 +2043,7 @@ async fn connect(
     config: &Config,
     store: Store,
 ) -> Result<(Peer<Store>, tokio::sync::OwnedMutexGuard<()>), ClientError> {
-    let link = crate::link::signed_in(&config.server_url, &config.token).await?;
+    let link = crate::link::signed_in(&config.server_url, &config.token, &config.clock).await?;
     let open = link.open_organization().await;
     let peer = Peer::signed_in(
         link.connection,

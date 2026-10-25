@@ -4,11 +4,10 @@ use std::{
 };
 
 use be_store::MemoryStore;
-use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::{
     Config,
-    worker::{Command, Shared, serve},
+    worker::{Inbox, Shared, serve},
 };
 
 pub(super) struct Running;
@@ -19,14 +18,14 @@ impl Running {
 
 pub(super) fn spawn(
     config: Config,
-    commands: UnboundedReceiver<Command>,
+    inbox: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) -> Running {
     wasm_bindgen_futures::spawn_local(serve(
         config,
         || Ok(MemoryStore::new()),
-        commands,
+        inbox,
         shared,
         changed,
     ));

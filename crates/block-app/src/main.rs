@@ -335,6 +335,14 @@ impl beui::App for Shell {
         if context.hurried() {
             be::seal_owed();
         }
+        if context.input(|input| {
+            input
+                .events
+                .iter()
+                .any(|event| matches!(event, beui::Event::Focus(true)))
+        }) {
+            be::retry_now();
+        }
         wayland::before(context, rect, &mut self.document);
         self.app.touched = self
             .document
@@ -2768,6 +2776,7 @@ impl BlockApp {
             email: self.account.email.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
+            clock: be_client::Clock::real(),
         });
     }
 

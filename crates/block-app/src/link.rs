@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use be_client::{ClientError, Connection};
+use be_client::{ClientError, Clock, Connection};
 use be_protocol::{ClientMessage, ServerMessage};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use uuid::Uuid;
@@ -27,21 +27,30 @@ impl Link {
 static HELD: Mutex<Vec<Held>> = Mutex::const_new(Vec::new());
 
 pub(crate) async fn connect(server_url: &str) -> Result<Arc<Connection>, ClientError> {
+    open(server_url, &Clock::real()).await
+}
+
+async fn open(server_url: &str, clock: &Clock) -> Result<Arc<Connection>, ClientError> {
     let socket = be_client::socket_url(server_url);
     #[cfg(not(target_arch = "wasm32"))]
     {
+        let clock = clock.clone();
         home()
-            .spawn(async move { Connection::connect(&socket).await })
+            .spawn(async move { Connection::connect(&socket, &clock).await })
             .await
             .map_err(|error| ClientError::Disconnected(error.to_string()))?
     }
     #[cfg(target_arch = "wasm32")]
     {
-        Connection::connect(&socket).await
+        Connection::connect(&socket, clock).await
     }
 }
 
-pub(crate) async fn signed_in(server_url: &str, token: &str) -> Result<Link, ClientError> {
+pub(crate) async fn signed_in(
+    server_url: &str,
+    token: &str,
+    clock: &Clock,
+) -> Result<Link, ClientError> {
     let socket = be_client::socket_url(server_url);
     let mut held = HELD.lock().await;
     held.retain(|held| !held.link.connection.is_closed());
@@ -51,7 +60,7 @@ pub(crate) async fn signed_in(server_url: &str, token: &str) -> Result<Link, Cli
     {
         return Ok(held.link.clone());
     }
-    let connection = connect(server_url).await?;
+    let connection = open(server_url, clock).await?;
     let ServerMessage::Authenticated { account, .. } = connection
         .request(|request| ClientMessage::Authenticate {
             request,

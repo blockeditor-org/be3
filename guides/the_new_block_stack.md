@@ -377,6 +377,27 @@ it sends; a browser cannot add one to a websocket. `Connection` above it is the 
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 
+`Connection` also decides when the server is gone, because a socket can stay
+open with nothing behind it (a laptop that slept, a Wi-Fi hop, a proxy that
+stopped forwarding) and the transport never says so:
+- Connecting, the socket plus the greeting, gives up after `CONNECT_TIMEOUT`
+  (15 s), and each request after `REQUEST_TIMEOUT` (60 s) from when it was
+  written, with `ClientError::TimedOut`. `ClientError::is_unreachable` covers it
+  and `Disconnected` both.
+- After `PING_INTERVAL` (15 s) with no frame of any kind from the server, it
+  sends `ClientMessage::Ping`, which the server answers with `Pong` inline. A
+  browser cannot send websocket pings, so this is a protocol message, and
+  since the server answers requests in order, any frame proves it is alive.
+  `PONG_WAIT` (20 s) later with still nothing heard, the connection closes
+  itself, and everything waiting on it sees a disconnect.
+- Each deadline is read from a `be_client::Clock`, passed to
+  `Connection::connect`: `Clock::real()` everywhere but tests, which pass
+  `Clock::manual()` and `advance` it, so none of this needs sleeping in a test.
+  `crates/fault-relay` is the other half of those tests: a TCP relay between a
+  client and a server that can `stall` its connections (read, count what it
+  heard and forward nothing, a half-open socket), `cut` them, or `hold_new`
+  ones it accepts without ever reaching the server.
+
 - `open` reads the head commit and its chunks with one `ReadContents` and decodes.
 - `save` chunks the content and publishes against the head it read, carrying in
   the `Publish` the commit and the chunks that head lacks, so a save is one round
@@ -1519,7 +1540,14 @@ A connection that drops does not take the peer with it. `Connection::closed` is
 a watch the worker waits on beside its commands - the event broadcast outlives
 the socket, because the connection holds a sender of its own, so that is not the
 signal - and losing it leaves the last content on screen, backs off, connects
-again, reloads the graph and rejoins every block that was open. What a session
+again, reloads the graph and rejoins every block that was open. The wait
+before each attempt doubles from 0.5 s to at most 30 s with each failure in a
+row, randomly shortened by up to half so that clients a server dropped together
+do not come back together (`reconnect_delay`), and starts over once a connection
+succeeds. `be::retry_now()` cuts the wait short: the app calls it whenever its
+window gains focus, and it is the hook for network-change and foreground
+events. `be::stop` never waits for a connection: stopping while connecting or
+backing off returns at once. What a session
 had not sealed when the socket went is lost: recovering it wants the resume path
 (`clean_at`, `Peer::fetch_history`) that be-session already has and the app
 does not use yet.

@@ -22,6 +22,7 @@ fn two_peers_of_one_organization_share_a_counter() {
         display_name: "Counter".to_owned(),
         email: "counter@example.com".to_owned(),
         data_dir: elsewhere.clone(),
+        clock: be_client::Clock::real(),
     });
     open(block, CounterContent::CONTENT_TYPE);
 

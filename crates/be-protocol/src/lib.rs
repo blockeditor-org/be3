@@ -658,6 +658,9 @@ pub enum ClientMessage {
         request: u64,
         account: Uuid,
     },
+    Ping {
+        request: u64,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -743,7 +746,8 @@ impl ClientMessage {
             | Self::PinEscrow { request, .. }
             | Self::ListMembers { request }
             | Self::SetRole { request, .. }
-            | Self::RemoveMember { request, .. } => *request,
+            | Self::RemoveMember { request, .. }
+            | Self::Ping { request } => *request,
         }
     }
 }
@@ -917,6 +921,9 @@ pub enum ServerMessage {
         request: u64,
         members: Vec<Member>,
     },
+    Pong {
+        request: u64,
+    },
     KeyWorkChanged,
     Contents {
         request: u64,
@@ -955,7 +962,8 @@ impl ServerMessage {
             | Self::AgentCreated { request, .. }
             | Self::Agents { request, .. }
             | Self::KeyWork { request, .. }
-            | Self::Members { request, .. } => Some(*request),
+            | Self::Members { request, .. }
+            | Self::Pong { request } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
             | Self::BlockChanged { .. }

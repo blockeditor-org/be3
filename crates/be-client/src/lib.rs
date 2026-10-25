@@ -4,6 +4,7 @@ use be_block::ContentError;
 use be_protocol::ErrorCode;
 use be_store::{Hash, StoreError};
 
+pub mod clock;
 pub mod connection;
 pub mod contacts;
 pub mod keys;
@@ -12,6 +13,7 @@ pub mod refs;
 pub mod transfer;
 mod transport;
 
+pub use clock::Clock;
 pub use connection::Connection;
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
@@ -70,6 +72,7 @@ fn origin(url: &str) -> String {
 pub enum ClientError {
     Refused(ErrorCode, String),
     Disconnected(String),
+    TimedOut(&'static str),
     MissingObject(Hash),
     Tampered(Hash),
     Content(ContentError),
@@ -89,6 +92,7 @@ impl fmt::Display for ClientError {
                 write!(formatter, "the server refused ({code}): {message}")
             }
             Self::Disconnected(reason) => write!(formatter, "the connection is gone: {reason}"),
+            Self::TimedOut(what) => write!(formatter, "{what} timed out"),
             Self::MissingObject(hash) => write!(formatter, "object {hash} is nowhere to be found"),
             Self::Tampered(hash) => {
                 write!(
@@ -116,6 +120,12 @@ impl fmt::Display for ClientError {
 }
 
 impl Error for ClientError {}
+
+impl ClientError {
+    pub fn is_unreachable(&self) -> bool {
+        matches!(self, Self::Disconnected(_) | Self::TimedOut(_))
+    }
+}
 
 impl From<StoreError> for ClientError {
     fn from(error: StoreError) -> Self {

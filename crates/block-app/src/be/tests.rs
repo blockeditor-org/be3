@@ -24,6 +24,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
+mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_held_block_stays_open_when_its_editors_close;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
@@ -45,10 +46,12 @@ mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
+mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
 mod revision_history_previews_and_restores_saved_content;
+mod stopping_returns_while_a_connect_goes_unanswered;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_peers_of_one_organization_share_a_counter;
@@ -154,6 +157,8 @@ pub(crate) struct Harness {
     organization: Uuid,
     phrase: be_keys::RecoveryPhrase,
     lease: Duration,
+    relay: Option<fault_relay::Relay>,
+    clock: be_client::Clock,
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -164,6 +169,23 @@ impl Harness {
 
     pub(crate) fn lapsing() -> Self {
         Self::leasing(Duration::ZERO)
+    }
+
+    fn relayed() -> Self {
+        let mut harness = Self::start();
+        let server = harness
+            .address()
+            .parse()
+            .expect("the embedded server listens on an address");
+        harness.relay = Some(fault_relay::Relay::start(server));
+        harness.clock = be_client::Clock::manual();
+        harness
+    }
+
+    fn relay(&self) -> &fault_relay::Relay {
+        self.relay
+            .as_ref()
+            .expect("the harness was started with a relay")
     }
 
     fn leasing(lease: Duration) -> Self {
@@ -211,6 +233,8 @@ impl Harness {
             organization,
             phrase: be_keys::RecoveryPhrase::generate(),
             lease,
+            relay: None,
+            clock: be_client::Clock::real(),
             _one_stack: one_stack,
         }
     }
@@ -239,7 +263,10 @@ impl Harness {
 
     fn config(&self, data_dir: PathBuf) -> Config {
         Config {
-            server_url: self.url.clone(),
+            server_url: match &self.relay {
+                Some(relay) => format!("http://{}", relay.address()),
+                None => self.url.clone(),
+            },
             token: self.token.clone(),
             account: self.account,
             organization: self.organization,
@@ -247,6 +274,7 @@ impl Harness {
             display_name: "Counter".to_owned(),
             email: "counter@example.com".to_owned(),
             data_dir,
+            clock: self.clock.clone(),
         }
     }
 
@@ -255,10 +283,9 @@ impl Harness {
     }
 
     fn outside_config(&self) -> be_client::PeerConfig {
-        let config = self.config(self.directory.join("outside"));
         be_client::PeerConfig::new(
-            config.socket_url(),
-            be_keys::RecoverySecret::from_bytes(config.identity),
+            crate::accounts::socket_url(&self.url),
+            be_keys::RecoverySecret::from_bytes(self.identity()),
             be_client::Credentials::Token(self.token.clone()),
         )
         .organization(Some(self.organization))

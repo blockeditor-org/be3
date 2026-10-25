@@ -101,6 +101,7 @@ rodio = "0.20"
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
+fault-relay = { path = "../fault-relay" }
 # The plugins' type modules, which the unit tests run in process beside the
 # host's own (first-party-types), and name the blocks of.
 first-party-types = { path = "../first-party-types" }

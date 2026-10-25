@@ -5,11 +5,10 @@ use std::{
 };
 
 use be_store::FileStore;
-use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::{
     Config,
-    worker::{Command, Shared, serve},
+    worker::{Inbox, Shared, serve},
 };
 
 const FLUSH_TIMEOUT: Duration = Duration::from_secs(5);
@@ -26,7 +25,7 @@ impl Running {
 
 pub(super) fn spawn(
     config: Config,
-    commands: UnboundedReceiver<Command>,
+    inbox: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) -> Running {
@@ -50,7 +49,7 @@ pub(super) fn spawn(
                     .map_err(|error| format!("the local object store cannot open: {error}"))
             };
             tokio::task::LocalSet::new()
-                .block_on(&runtime, serve(config, store, commands, shared, changed));
+                .block_on(&runtime, serve(config, store, inbox, shared, changed));
         })
         .ok();
     Running(worker)

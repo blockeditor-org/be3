@@ -41,6 +41,7 @@ pub(crate) struct Config {
     pub(crate) email: String,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
+    pub(crate) clock: be_client::Clock,
 }
 
 impl Config {
@@ -151,6 +152,7 @@ struct Stack {
     account: Uuid,
     organization: Uuid,
     commands: Option<UnboundedSender<Command>>,
+    nudges: Option<tokio::sync::watch::Sender<()>>,
     held: std::collections::HashSet<Uuid>,
     versioned: std::collections::HashSet<Uuid>,
     tried: std::collections::HashSet<Uuid>,
@@ -163,6 +165,7 @@ struct Stack {
 impl Drop for Stack {
     fn drop(&mut self) {
         self.commands = None;
+        self.nudges = None;
         self.running.finish();
     }
 }
@@ -175,15 +178,25 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
+    let (nudges, nudged) = tokio::sync::watch::channel(());
     let shared = Arc::new(Mutex::new(Shared::default()));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
-    let running = platform::spawn(config, receiver, Arc::clone(&shared), Arc::clone(&changed));
+    let running = platform::spawn(
+        config,
+        worker::Inbox {
+            commands: receiver,
+            nudged,
+        },
+        Arc::clone(&shared),
+        Arc::clone(&changed),
+    );
     *stack().lock().unwrap_or_else(PoisonError::into_inner) = Some(Stack {
         account,
         organization,
         commands: Some(commands),
+        nudges: Some(nudges),
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashSet::new(),
         tried: std::collections::HashSet::new(),
@@ -207,6 +220,17 @@ pub(crate) fn stop() {
         .unwrap_or_else(PoisonError::into_inner)
         .take();
     drop(stack);
+}
+
+pub(crate) fn retry_now() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        && let Some(nudges) = &stack.nudges
+    {
+        nudges.send_replace(());
+    }
 }
 
 pub(crate) fn flush() {

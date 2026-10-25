@@ -47,6 +47,7 @@ web-sys = { version = "0.3", features = [
 [dev-dependencies]
 be-server = { path = "../be-server" }
 counter-types = { path = "../editors/counter/types" }
+fault-relay = { path = "../fault-relay" }
 image-block-types = { path = "../editors/image-block/types" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 text-block-types = { path = "../editors/text-block/types" }
