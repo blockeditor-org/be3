@@ -4,11 +4,11 @@ use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::focus_ring::FocusRing;
-use crate::text::{Icon, Text, TextSize};
+use crate::text::{Icon, Text, TextSize, icon_leading};
 use crate::theme::use_theme;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_core::base::frame::{Align2, Extent};
+use beui_core::base::frame::{Align2, Extent, Sides};
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
@@ -28,12 +28,13 @@ pub enum IconButtonSize {
 }
 
 impl IconButtonSize {
-    fn padding(self) -> f32 {
-        match self {
+    fn padding(self) -> Sides {
+        let padding = match self {
             IconButtonSize::Compact => COMPACT_PADDING,
             IconButtonSize::Regular => PADDING,
-            IconButtonSize::Toolbar => 0.0,
-        }
+            IconButtonSize::Toolbar => return Sides::ZERO,
+        };
+        Sides::symmetric(padding, (padding - icon_leading(self.glyph())).max(0.0))
     }
 
     fn side(self) -> Extent {
@@ -126,6 +127,7 @@ pub(crate) fn IconButtonFace(
                 height={size.side()}
                 align=Align2::CENTER
                 padding={size.padding()}
+                aspect_ratio={Some(1.0)}
             >
                 <Text size={size.glyph()} color={icon_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />

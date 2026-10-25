@@ -257,7 +257,12 @@ impl TextStyle {
 #[derive(Clone, Copy)]
 struct Inherited(Memo<TextStyle>);
 
-fn inherited() -> Option<Memo<TextStyle>> {
+pub(crate) fn icon_leading(size: TextSize) -> f32 {
+    let size = size.px();
+    (beui_core::font::line_height(size).round() - size) / 2.0
+}
+
+pub(crate) fn inherited() -> Option<Memo<TextStyle>> {
     use_context::<Inherited>().map(|inherited| inherited.0)
 }
 

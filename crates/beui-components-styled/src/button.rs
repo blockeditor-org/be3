@@ -5,9 +5,10 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::focus_ring::FocusRing;
-use crate::text::{Icon, Text, TextColor};
+use crate::text::{Icon, Text, TextColor, TextSize, icon_leading, inherited};
 use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
+use beui_core::base::frame::Align2;
 use beui_core::base::{ItemSize, TextAlign};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -139,10 +140,17 @@ pub fn ButtonFace(
     let has_trailing = create_memo(move || trailing.get().is_some());
     let labelled = create_memo(move || !icon_only.get());
     let (horizontal, vertical) = size.padding();
+    let inherited = inherited();
     let padding = create_memo(move || match icon_only.get() {
-        true => Sides::symmetric(vertical, vertical),
+        true => {
+            let size = inherited
+                .and_then(|style| style.get().size)
+                .unwrap_or(TextSize::Base);
+            Sides::symmetric(vertical, (vertical - icon_leading(size)).max(0.0))
+        }
         false => Sides::symmetric(horizontal, vertical),
     });
+    let aspect_ratio = create_memo(move || icon_only.get().then_some(1.0));
     view! {
         <FocusRing focused radius={Radius::custom(size.radius() + 4.0)} offset=FOCUS_RING_OFFSET>
             <Frame
@@ -150,6 +158,8 @@ pub fn ButtonFace(
                 border={border}
                 radius={Radius::custom(size.radius())}
                 padding={padding}
+                aspect_ratio={aspect_ratio}
+                align=Align2::CENTER
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
