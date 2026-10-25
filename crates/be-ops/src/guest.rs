@@ -12,7 +12,9 @@ use std::{
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{Connection, Incoming, MethodId, OpError, OpId, Outcome, Side, Started, encode};
+use crate::{
+    Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Side, Started, decode, encode,
+};
 
 pub type LocalFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 
@@ -118,7 +120,7 @@ pub struct Executor {
 
 impl Executor {
     pub fn new(dispatch: Dispatch) -> Self {
-        Self {
+        let executor = Self {
             inner: Rc::new(Inner {
                 connection: RefCell::new(Connection::new(Side::Guest)),
                 calls: RefCell::new(BTreeMap::new()),
@@ -130,7 +132,10 @@ impl Executor {
                 parent: Cell::new(None),
                 dispatch: RefCell::new(Some(dispatch)),
             }),
-        }
+        };
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        SERVED.with(|served| *served.borrow_mut() = Some(Rc::clone(&executor.inner)));
+        executor
     }
 
     pub fn step(&self, frames: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) -> Result<(), String> {
@@ -190,8 +195,32 @@ impl Inner {
         }
     }
 
+    fn call_direct(self: &Rc<Self>, called: Called) -> Outcome {
+        let started = Started {
+            op: 0,
+            parent: called.parent,
+            method: called.method(),
+            args: called.args,
+        };
+        let served = match self.dispatch.borrow().as_ref() {
+            Some(dispatch) => dispatch(&Resources(&self.resources), started),
+            None => Serve::Done(Outcome::Err(OpError::Canceled)),
+        };
+        match served {
+            Serve::Done(outcome) => outcome,
+            Serve::Later(_) | Serve::Resource { .. } => Outcome::Err(OpError::Unsupported),
+        }
+    }
+
     fn handle(self: &Rc<Self>, event: Incoming) {
         match event {
+            Incoming::Called(called) => {
+                let answered = called.answered;
+                let outcome = self.call_direct(called);
+                if answered {
+                    self.connection.borrow_mut().return_direct(&outcome);
+                }
+            }
             Incoming::Started(started) => {
                 let op = started.op;
                 let served = match self.dispatch.borrow().as_ref() {
@@ -323,14 +352,12 @@ impl Inner {
         }
     }
 
-    fn start(&self, method: MethodId, args: Vec<u8>, waited: bool) -> OpId {
+    fn start(&self, method: MethodId, args: Vec<u8>) -> OpId {
         let op = self
             .connection
             .borrow_mut()
             .start(self.parent.get(), method, args);
-        if waited {
-            self.calls.borrow_mut().insert(op, Call::default());
-        }
+        self.calls.borrow_mut().insert(op, Call::default());
         op
     }
 
@@ -364,13 +391,111 @@ pub fn end(resource: OpId) {
     }
 }
 
-pub fn notify<A: Serialize>(method: MethodId, args: &A) {
-    current().start(method, encode(args), false);
+pub fn returned<T: DeserializeOwned>(result: &[u8]) -> T {
+    let decoded = match result.is_empty() {
+        true => decode::<T>(result),
+        false => decode::<Outcome>(result).and_then(|outcome| outcome.decode().ok()),
+    };
+    decoded.expect("the host answered a direct call")
 }
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub fn direct(name: &str, args: &[u8]) -> Vec<u8> {
+    let inner = current();
+    let parent = inner.parent.get();
+    inner
+        .connection
+        .borrow_mut()
+        .notify_direct(parent, name, args);
+    Vec::new()
+}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+mod wasm {
+    use std::{cell::RefCell, rc::Rc};
+
+    use block_guest_abi::direct::pack;
+
+    use super::{Called, Entered, Inner, current};
+    use crate::encode;
+
+    // unsafe(ffi)
+    #[link(wasm_import_module = "be3_host")]
+    unsafe extern "C" {
+        fn host_result(pointer: u32);
+    }
+
+    thread_local! {
+        pub(super) static SERVED: RefCell<Option<Rc<Inner>>> = const { RefCell::new(None) };
+        static RESULT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn flush(inner: &Inner) {
+        for frame in inner.connection.borrow_mut().take_outbound() {
+            block_guest_abi::wasm::send(&frame);
+        }
+    }
+
+    // unsafe(ffi)
+    pub fn direct(args: &[u8], import: impl FnOnce(i32, i64, u32, u32) -> u32) -> Vec<u8> {
+        let inner = current();
+        flush(&inner);
+        let parent = inner.parent.get();
+        let length = import(
+            parent.is_some() as i32,
+            parent.unwrap_or_default() as i64,
+            args.as_ptr() as u32,
+            args.len() as u32,
+        );
+        let mut result = vec![0u8; length as usize];
+        if length > 0 {
+            unsafe { host_result(result.as_mut_ptr() as u32) };
+        }
+        result
+    }
+
+    pub fn alloc(length: u32) -> u32 {
+        let buffer = vec![0u8; length as usize].into_boxed_slice();
+        Box::into_raw(buffer) as *mut u8 as u32
+    }
+
+    // unsafe(ffi)
+    pub fn export(name: &str, has_parent: i32, parent: i64, pointer: u32, length: u32) -> i64 {
+        let args = unsafe {
+            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                pointer as *mut u8,
+                length as usize,
+            ))
+        };
+        let Some(inner) = SERVED.with(|served| served.borrow().clone()) else {
+            return pack(0, 0);
+        };
+        let _entered = Entered::enter(&inner);
+        let called = Called {
+            name: name.to_owned(),
+            parent: (has_parent != 0).then_some(parent as u64),
+            answered: true,
+            args: args.into_vec(),
+        };
+        let outcome = inner.call_direct(called);
+        inner.settle();
+        flush(&inner);
+        RESULT.with(|result| {
+            let mut result = result.borrow_mut();
+            *result = encode(&outcome);
+            pack(result.as_ptr() as u32, result.len() as u32)
+        })
+    }
+}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+use wasm::SERVED;
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub use wasm::{alloc, direct, export};
 
 pub fn call<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> Pending<T> {
     let inner = current();
-    let op = inner.start(method, encode(args), true);
+    let op = inner.start(method, encode(args));
     Pending {
         op,
         inner,
@@ -381,7 +506,7 @@ pub fn call<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> Pe
 
 pub fn stream<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> Stream<T> {
     let inner = current();
-    let op = inner.start(method, encode(args), true);
+    let op = inner.start(method, encode(args));
     Stream {
         op,
         inner,

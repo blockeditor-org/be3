@@ -129,7 +129,7 @@ struct Generator {
 }
 
 enum Shape {
-    Notify,
+    Direct(Option<Type>),
     Call(Option<Type>),
     Stream(Option<Type>),
 }
@@ -137,7 +137,10 @@ enum Shape {
 struct Method<'a> {
     function: &'a Function,
     name: String,
+    interface: String,
+    key: String,
     constant: Ident,
+    named: Ident,
     args: Ident,
     params: Vec<(Ident, Type)>,
     shape: Shape,
@@ -184,6 +187,9 @@ impl Generator {
         let mut args = TokenStream::new();
         let mut guest_imports = TokenStream::new();
         let mut embed_imports = TokenStream::new();
+        let mut direct_imports = Vec::new();
+        let mut shims = Vec::new();
+        let dollar = proc_macro2::Punct::new('$', proc_macro2::Spacing::Alone);
         let callable = |interface: &&InterfaceId| {
             !generator.resolve.interfaces[**interface]
                 .functions
@@ -195,6 +201,12 @@ impl Generator {
             args.extend(generator.args(&module, &methods));
             let guest = generator.guest_import(&module, &methods)?;
             let embed = generator.embed_import(&module, &methods);
+            for method in &methods {
+                if let Shape::Direct(_) = method.shape {
+                    let (interface, key) = (&method.interface, &method.key);
+                    direct_imports.push(quote!((#interface, #key)));
+                }
+            }
             guest_imports.extend(quote! { pub mod #module { #guest } });
             embed_imports.extend(quote! { pub mod #module { #embed } });
         }
@@ -208,6 +220,18 @@ impl Generator {
             args.extend(generator.args(&module, &methods));
             let guest = generator.guest_export(*interface, &module, &methods)?;
             let embed = generator.embed_export(*interface, &module, &methods)?;
+            for (index, method) in methods.iter().enumerate() {
+                if let Shape::Direct(_) = method.shape {
+                    let name = &method.name;
+                    let shim = format_ident!("__{}_{index}", module);
+                    shims.push(quote! {
+                        #[unsafe(export_name = #name)]
+                        extern "C" fn #shim(has_parent: i32, parent: i64, pointer: u32, length: u32) -> i64 {
+                            #dollar crate::__be_ops::guest::export(#name, has_parent, parent, pointer, length)
+                        }
+                    });
+                }
+            }
             guest_exports.extend(quote! { pub mod #module { #guest } });
             embed_exports.extend(quote! { pub mod #module { #embed } });
             bounds.push(quote! { exports::#module::Guest });
@@ -219,8 +243,27 @@ impl Generator {
                 }
             });
         }
+        let exporter = format_ident!("export_{}", generator.options.world.to_snake_case());
         Ok(quote! {
             #types
+
+            #[doc(hidden)]
+            pub use ::be_ops as __be_ops;
+
+            #[macro_export]
+            macro_rules! #exporter {
+                () => {
+                    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+                    const _: () = {
+                        #(#shims)*
+
+                        #[unsafe(export_name = "plugin_alloc")]
+                        extern "C" fn __alloc(length: u32) -> u32 {
+                            #dollar crate::__be_ops::guest::alloc(length)
+                        }
+                    };
+                };
+            }
 
             #[doc(hidden)]
             pub mod __args {
@@ -248,6 +291,8 @@ impl Generator {
             }
 
             pub mod embed {
+                pub const IMPORTS: &[(&str, &str)] = &[#(#direct_imports),*];
+
                 #embed_imports
 
                 pub mod exports {
@@ -627,8 +672,10 @@ impl Generator {
                     return Err(format!("{full}: a stream is returned by a plain func"));
                 }
                 (None, true, result) => Shape::Call(result),
-                (None, false, None) => Shape::Notify,
-                (None, false, Some(result)) => Shape::Call(Some(result)),
+                (None, false, _) if matches!(function.kind, FunctionKind::Constructor(_)) => {
+                    Shape::Call(None)
+                }
+                (None, false, result) => Shape::Direct(result),
             };
             if matches!(
                 function.kind,
@@ -656,7 +703,10 @@ impl Generator {
             methods.push(Method {
                 function,
                 name: full,
+                interface: id.clone(),
+                key: key.clone(),
                 constant: shouty(&format!("{module}_{local}")),
+                named: shouty(&format!("{module}_{local}_name")),
                 args: camel(&format!("{module}_{local}_args")),
                 params,
                 shape,
@@ -669,6 +719,7 @@ impl Generator {
         let mut out = TokenStream::new();
         for method in methods {
             let constant = &method.constant;
+            let named = &method.named;
             let name = &method.name;
             let args = &method.args;
             let fields = method.params.iter().map(|(name, ty)| {
@@ -680,6 +731,8 @@ impl Generator {
             });
             out.extend(quote! {
                 pub const #constant: ::be_ops::MethodId = ::be_ops::method_id(#name);
+
+                pub const #named: &str = #name;
 
                 #[derive(::serde::Serialize, ::serde::Deserialize)]
                 pub struct #args { #(#fields)* }
@@ -718,12 +771,42 @@ impl Generator {
             let params = self.params(method)?;
             let constant = &method.constant;
             let args = Self::construct(method);
+            let named = &method.named;
+            let (interface, key) = (&method.interface, &method.key);
             out.extend(match &method.shape {
-                Shape::Notify => quote! {
-                    pub fn #name(#(#params),*) {
-                        ::be_ops::guest::notify(crate::__args::#constant, &#args)
+                Shape::Direct(result) => {
+                    let returns = match result {
+                        Some(result) => {
+                            let result = self.ty(result)?;
+                            quote!(-> #result)
+                        }
+                        None => TokenStream::new(),
+                    };
+                    quote! {
+                        pub fn #name(#(#params),*) #returns {
+                            let args = ::be_ops::encode(&#args);
+                            #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+                            let result = {
+                                #[link(wasm_import_module = #interface)]
+                                unsafe extern "C" {
+                                    #[link_name = #key]
+                                    fn import(
+                                        has_parent: i32,
+                                        parent: i64,
+                                        pointer: u32,
+                                        length: u32,
+                                    ) -> u32;
+                                }
+                                ::be_ops::guest::direct(&args, |has_parent, parent, pointer, length| {
+                                    unsafe { import(has_parent, parent, pointer, length) }
+                                })
+                            };
+                            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+                            let result = ::be_ops::guest::direct(crate::__args::#named, &args);
+                            ::be_ops::guest::returned(&result)
+                        }
                     }
-                },
+                }
                 Shape::Call(result) => {
                     let result = self.optional(result.as_ref())?;
                     quote! {
@@ -748,7 +831,30 @@ impl Generator {
     fn embed_import(&self, _module: &Ident, methods: &[Method<'_>]) -> TokenStream {
         let mut cases = Vec::new();
         let mut arms = Vec::new();
+        let mut direct_arms = Vec::new();
+        let mut answers = Vec::new();
+        let mut answer_arms = Vec::new();
         for method in methods {
+            if let Shape::Direct(Some(result)) = &method.shape {
+                let name = snake(method.function.item_name());
+                let constant = &method.constant;
+                let args = &method.args;
+                let names: Vec<&Ident> = method.params.iter().map(|(name, _)| name).collect();
+                let params = self.params(method).unwrap_or_default();
+                let result = self.ty(result).unwrap_or_else(|error| {
+                    syn::Error::new(Span::call_site(), error).to_compile_error()
+                });
+                answers.push(quote! {
+                    fn #name(&self, parent: ::core::option::Option<::be_ops::OpId>, #(#params),*) -> #result;
+                });
+                answer_arms.push(quote! {
+                    crate::__args::#constant => ::be_ops::decode::<crate::__args::#args>(&called.args)
+                        .map(|crate::__args::#args { #(#names),* }| {
+                            ::be_ops::Outcome::returned(&direct.#name(called.parent, #(#names),*))
+                        }),
+                });
+                continue;
+            }
             let case = camel(method.function.item_name());
             let constant = &method.constant;
             let args = &method.args;
@@ -764,7 +870,7 @@ impl Generator {
                 .collect();
             let names: Vec<&Ident> = method.params.iter().map(|(name, _)| name).collect();
             let (field, value, notify) = match &method.shape {
-                Shape::Notify => (None, None, true),
+                Shape::Direct(_) => (None, None, true),
                 Shape::Call(result) => {
                     let result = self.optional(result.as_ref()).unwrap_or_else(|error| {
                         syn::Error::new(Span::call_site(), error).to_compile_error()
@@ -789,17 +895,20 @@ impl Generator {
             let field = field.into_iter();
             let value = value.into_iter();
             cases.push(quote! { #case { #(#field,)* #(#fields,)* } });
-            let complete = match notify {
-                true => quote! {
-                    connection.complete(op, ::be_ops::Outcome::returned(&()));
-                },
-                false => TokenStream::new(),
-            };
+            if notify {
+                direct_arms.push(quote! {
+                    crate::__args::#constant => {
+                        let crate::__args::#args { #(#names),* } =
+                            ::be_ops::decode::<crate::__args::#args>(&called.args)?;
+                        Call::#case { #(#names,)* }
+                    }
+                });
+                continue;
+            }
             arms.push(quote! {
                 crate::__args::#constant => {
                     match ::be_ops::decode::<crate::__args::#args>(&started.args) {
                         ::core::option::Option::Some(crate::__args::#args { #(#names),* }) => {
-                            #complete
                             Call::#case { #(#value,)* #(#names,)* }
                         }
                         ::core::option::Option::None => {
@@ -836,6 +945,28 @@ impl Generator {
                         }
                     })
                 }
+
+                pub fn accept_direct(called: &::be_ops::Called) -> ::core::option::Option<Self> {
+                    ::core::option::Option::Some(match called.method() {
+                        #(#direct_arms)*
+                        _ => return ::core::option::Option::None,
+                    })
+                }
+            }
+
+            pub trait Direct {
+                #(#answers)*
+            }
+
+            pub fn answer<D: Direct>(
+                direct: &D,
+                called: &::be_ops::Called,
+            ) -> ::core::option::Option<::be_ops::Outcome> {
+                let _ = direct;
+                match called.method() {
+                    #(#answer_arms)*
+                    _ => ::core::option::Option::None,
+                }
             }
         }
     }
@@ -851,8 +982,7 @@ impl Generator {
 
     fn result_of(&self, method: &Method<'_>) -> Result<TokenStream, String> {
         match &method.shape {
-            Shape::Notify => Ok(quote!(())),
-            Shape::Call(result) => self.optional(result.as_ref()),
+            Shape::Direct(result) | Shape::Call(result) => self.optional(result.as_ref()),
             Shape::Stream(_) => Err(format!(
                 "{}: exported streams are not supported",
                 method.name
@@ -885,10 +1015,10 @@ impl Generator {
             let asynchronous = method.function.kind.is_async();
             let signature_result = match (asynchronous, &method.shape) {
                 (true, _) => quote!(-> impl ::core::future::Future<Output = #result> + 'static),
-                (false, Shape::Notify) => TokenStream::new(),
+                (false, Shape::Direct(None)) => TokenStream::new(),
                 (false, _) => quote!(-> #result),
             };
-            let notify = matches!(method.shape, Shape::Notify);
+            let notify = matches!(method.shape, Shape::Direct(None));
             let serve = |call: TokenStream| match asynchronous {
                 false if notify => quote! {
                     #call;
@@ -1007,9 +1137,32 @@ impl Generator {
         })
     }
 
+    fn starting(method: &Method<'_>, parent: TokenStream, args: &TokenStream) -> TokenStream {
+        let constant = &method.constant;
+        let named = &method.named;
+        match method.shape {
+            Shape::Direct(None) => quote! {
+                connection.notify_direct(#parent, crate::__args::#named, &::be_ops::encode(&#args))
+            },
+            Shape::Direct(_) => quote! {
+                connection.call_direct(#parent, crate::__args::#named, ::be_ops::encode(&#args))
+            },
+            _ => quote! {
+                connection.start(#parent, crate::__args::#constant, ::be_ops::encode(&#args))
+            },
+        }
+    }
+
+    fn binding(method: &Method<'_>, starting: TokenStream) -> TokenStream {
+        match method.shape {
+            Shape::Direct(None) => quote!(#starting;),
+            _ => quote!(let op = #starting;),
+        }
+    }
+
     fn host_returns(method: &Method<'_>, result: &TokenStream) -> (TokenStream, TokenStream) {
         match method.shape {
-            Shape::Notify => (TokenStream::new(), quote!(let _ = op;)),
+            Shape::Direct(None) => (TokenStream::new(), TokenStream::new()),
             _ => (
                 quote!(-> ::be_ops::Ticket<#result>),
                 quote!(::be_ops::Ticket::new(op)),
@@ -1037,16 +1190,15 @@ impl Generator {
                 FunctionKind::Freestanding | FunctionKind::AsyncFreestanding => {
                     let name = snake(method.function.item_name());
                     let (returns, wrap) = Self::host_returns(method, &result);
+                    let starting =
+                        Self::starting(method, quote!(::core::option::Option::None), &args);
+                    let binding = Self::binding(method, starting);
                     free.push(quote! {
                         pub fn #name(
                             connection: &mut ::be_ops::Connection,
                             #(#params),*
                         ) #returns {
-                            let op = connection.start(
-                                ::core::option::Option::None,
-                                crate::__args::#constant,
-                                ::be_ops::encode(&#args),
-                            );
+                            #binding
                             #wrap
                         }
                     });
@@ -1065,17 +1217,16 @@ impl Generator {
                 FunctionKind::Method(resource) | FunctionKind::AsyncMethod(resource) => {
                     let name = snake(method.function.item_name());
                     let (returns, wrap) = Self::host_returns(method, &result);
+                    let starting =
+                        Self::starting(method, quote!(::core::option::Option::Some(self.0)), &args);
+                    let binding = Self::binding(method, starting);
                     impls.entry(resource).or_default().push(quote! {
                         pub fn #name(
                             self,
                             connection: &mut ::be_ops::Connection,
                             #(#params),*
                         ) #returns {
-                            let op = connection.start(
-                                ::core::option::Option::Some(self.0),
-                                crate::__args::#constant,
-                                ::be_ops::encode(&#args),
-                            );
+                            #binding
                             #wrap
                         }
                     });

@@ -908,7 +908,9 @@ impl<H: Host> Replicas<H> {
                         if let Call::Error { message } = call {
                             H::report(ctx.1, format!("a type module: {message}"));
                         }
-                        self.refuse(module, op);
+                        if let Some(op) = op {
+                            self.refuse(module, op);
+                        }
                         false
                     }
                 }

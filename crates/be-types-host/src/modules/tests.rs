@@ -26,7 +26,6 @@ fn types(content_type: Uuid) -> Vec<TypeInfo> {
 struct Answering {
     connection: Connection,
     content_type: Uuid,
-    started: Vec<u64>,
 }
 
 impl Answering {
@@ -34,7 +33,6 @@ impl Answering {
         Self {
             connection: Connection::new(Side::Guest),
             content_type,
-            started: Vec::new(),
         }
     }
 
@@ -43,28 +41,20 @@ impl Answering {
             self.connection.receive(&frame).unwrap();
         }
         while let Some(event) = self.connection.next_event() {
-            let Incoming::Started(started) = event else {
+            let Incoming::Called(called) = event else {
                 continue;
             };
-            if started.method == method_id(START) {
-                self.started.push(started.op);
-                continue;
-            }
-            let outcome = if started.method == method_id(BLANK) {
+            let method = called.method();
+            let outcome = if method == method_id(START) {
+                Outcome::returned(&types(self.content_type))
+            } else if method == method_id(BLANK) {
                 Outcome::returned(&Ok::<Vec<u8>, Failure>(Vec::new()))
-            } else if started.method == method_id(DESCRIBE) {
+            } else if method == method_id(DESCRIBE) {
                 Outcome::returned(&Ok::<Description, Failure>(Description::default()))
             } else {
                 Outcome::Err(OpError::Unsupported)
             };
-            self.connection.complete(started.op, outcome);
-        }
-    }
-
-    fn hello(&mut self) {
-        for op in std::mem::take(&mut self.started) {
-            self.connection
-                .complete(op, Outcome::returned(&types(self.content_type)));
+            self.connection.return_direct(&outcome);
         }
     }
 }
@@ -95,7 +85,6 @@ impl Guest for Slow {
     ) -> Result<Flow, String> {
         outbound.append(&mut self.held);
         self.answering.receive(inbound);
-        self.answering.hello();
         self.held = self.answering.connection.take_outbound();
         if !self.held.is_empty() {
             self.waker.wake();
@@ -108,6 +97,7 @@ struct Late {
     waker: Waker,
     answering: Answering,
     steps: usize,
+    held: Vec<Vec<u8>>,
 }
 
 impl Guest for Late {
@@ -116,6 +106,7 @@ impl Guest for Late {
             waker,
             answering: Answering::new(SECOND),
             steps: 0,
+            held: Vec::new(),
         })
     }
 
@@ -126,11 +117,10 @@ impl Guest for Late {
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<Flow, String> {
         self.steps += 1;
-        self.answering.receive(inbound);
+        self.held.extend(inbound);
         match self.steps {
             1 => self.waker.wake(),
-            2 => self.answering.hello(),
-            _ => {}
+            _ => self.answering.receive(std::mem::take(&mut self.held)),
         }
         outbound.extend(self.answering.connection.take_outbound());
         Ok(Flow::Running)

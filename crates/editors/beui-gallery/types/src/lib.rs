@@ -14,4 +14,4 @@ pub type BeuiDemoContent = Document<BeuiDemo>;
 block_type_guest::be_block_types![BeuiDemoContent];
 
 #[cfg(feature = "module")]
-block_type_guest::abi::guest!(BlockTypes);
+block_type_guest::type_module!(BlockTypes);

@@ -288,6 +288,7 @@ impl Lone {
         while let Some(event) = self.host.next_event() {
             match event {
                 Incoming::Started(started) => calls.extend(Call::accept(&mut self.host, started)),
+                Incoming::Called(called) => calls.extend(Call::accept_direct(&called)),
                 Incoming::Completed { op, outcome } => completed.push((op, outcome)),
                 Incoming::Yielded { .. } | Incoming::Canceled { .. } => {}
             }
@@ -659,6 +660,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     self.to(device, |host| {
                         reply.fail(host, block_type_api::ops::OpError::Canceled)
                     });
+                }
+            }
+            Incoming::Called(called) => {
+                if let Some(call) = Call::accept_direct(&called) {
+                    self.act(device, call);
                 }
             }
             Incoming::Yielded { .. } => {}

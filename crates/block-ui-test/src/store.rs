@@ -194,6 +194,14 @@ impl Inner {
                 }
             },
             Incoming::Canceled { op } => self.host.complete(op, Outcome::Err(OpError::Canceled)),
+            Incoming::Called(called) => {
+                if let Some(call) = Call::accept_direct(&called) {
+                    let block = called
+                        .parent
+                        .and_then(|parent| self.replicas.get(&parent).copied());
+                    self.act(block, call);
+                }
+            }
             Incoming::Yielded { .. } => {}
         }
     }

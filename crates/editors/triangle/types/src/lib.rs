@@ -14,4 +14,4 @@ pub type TriangleContent = Document<Triangle>;
 block_type_guest::be_block_types![TriangleContent];
 
 #[cfg(feature = "module")]
-block_type_guest::abi::guest!(BlockTypes);
+block_type_guest::type_module!(BlockTypes);

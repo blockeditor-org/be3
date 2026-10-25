@@ -4,6 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
+use block_guest_abi::direct;
 use serde::Deserialize;
 pub use serde::{Serialize, de::DeserializeOwned};
 
@@ -172,8 +173,23 @@ pub struct Started {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Called {
+    pub name: String,
+    pub parent: Option<OpId>,
+    pub answered: bool,
+    pub args: Vec<u8>,
+}
+
+impl Called {
+    pub fn method(&self) -> MethodId {
+        method_id(&self.name)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Incoming {
     Started(Started),
+    Called(Called),
     Yielded { op: OpId, item: Vec<u8> },
     Completed { op: OpId, outcome: Outcome },
     Canceled { op: OpId },
@@ -190,6 +206,7 @@ pub struct Connection {
     started: BTreeMap<OpId, Option<OpId>>,
     served: BTreeMap<OpId, Served>,
     canceling: BTreeSet<OpId>,
+    direct: VecDeque<OpId>,
     events: VecDeque<Incoming>,
     outbound: Vec<Vec<u8>>,
 }
@@ -202,6 +219,7 @@ impl Connection {
             started: BTreeMap::new(),
             served: BTreeMap::new(),
             canceling: BTreeSet::new(),
+            direct: VecDeque::new(),
             events: VecDeque::new(),
             outbound: Vec::new(),
         }
@@ -230,6 +248,22 @@ impl Connection {
             args,
         });
         op
+    }
+
+    pub fn call_direct(&mut self, parent: Option<OpId>, name: &str, args: Vec<u8>) -> OpId {
+        self.next += 1;
+        let op = self.side.bit() | self.next;
+        self.direct.push_back(op);
+        self.outbound.push(direct::call(name, parent, true, &args));
+        op
+    }
+
+    pub fn notify_direct(&mut self, parent: Option<OpId>, name: &str, args: &[u8]) {
+        self.outbound.push(direct::call(name, parent, false, args));
+    }
+
+    pub fn return_direct(&mut self, outcome: &Outcome) {
+        self.outbound.push(direct::returned(&encode(outcome)));
     }
 
     pub fn cancel(&mut self, op: OpId) {
@@ -280,7 +314,29 @@ impl Connection {
         }
     }
 
-    pub fn receive(&mut self, frame: &[u8]) -> Result<(), FrameError> {
+    pub fn receive(&mut self, item: &[u8]) -> Result<(), FrameError> {
+        let malformed = || FrameError::Malformed("a direct call did not decode".to_owned());
+        let frame = match direct::decode(item).ok_or_else(malformed)? {
+            direct::Item::Frame(frame) => frame,
+            direct::Item::Call(call) => {
+                self.events.push_back(Incoming::Called(Called {
+                    name: call.name.to_owned(),
+                    parent: call.parent,
+                    answered: call.answered,
+                    args: call.args.to_vec(),
+                }));
+                return Ok(());
+            }
+            direct::Item::Returned(result) => {
+                let op = self.direct.pop_front().ok_or_else(malformed)?;
+                let outcome = match result.is_empty() {
+                    true => Outcome::Ok(Vec::new()),
+                    false => decode(result).ok_or_else(malformed)?,
+                };
+                self.events.push_back(Incoming::Completed { op, outcome });
+                return Ok(());
+            }
+        };
         match decode_frame::<Frame>(frame)? {
             Frame::Start {
                 op,

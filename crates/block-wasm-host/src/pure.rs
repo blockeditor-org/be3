@@ -6,14 +6,14 @@ use std::{
     time::Instant,
 };
 
-use block_guest_abi as abi;
+use block_guest_abi::{self as abi, direct};
 use block_guest_host::{
     Produced, StepTime, Wake as HostWake,
     thread::{self, Runnable, Spawn, Threaded},
 };
 use wasmtime::{
-    Caller, Engine, Extern, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
-    TypedFunc, UpdateDeadline,
+    Caller, Engine, Extern, Instance, Linker, Memory, Module, Store, StoreLimits,
+    StoreLimitsBuilder, TypedFunc, UpdateDeadline,
 };
 
 use crate::{
@@ -27,11 +27,15 @@ pub const MEMORY_LIMIT: usize = 1 << 30;
 
 const MEMORY: &str = "memory";
 
+pub type Answer = Arc<dyn Fn(&str, Option<u64>, &[u8]) -> Option<Vec<u8>> + Send + Sync>;
+
 #[derive(Clone)]
 pub struct PureHost {
     engine: Engine,
     interrupt: Arc<Interrupt>,
     memory_limit: usize,
+    imports: Vec<(String, String)>,
+    answer: Option<Answer>,
 }
 
 impl PureHost {
@@ -41,7 +45,18 @@ impl PureHost {
             interrupt: Interrupt::new(engine.clone()),
             engine,
             memory_limit: MEMORY_LIMIT,
+            imports: Vec::new(),
+            answer: None,
         })
+    }
+
+    pub fn with_imports(mut self, imports: &[(&str, &str)], answer: Option<Answer>) -> Self {
+        self.imports = imports
+            .iter()
+            .map(|(module, name)| ((*module).to_owned(), (*name).to_owned()))
+            .collect();
+        self.answer = answer;
+        self
     }
 
     pub fn with_memory_limit(mut self, bytes: usize) -> Self {
@@ -130,6 +145,7 @@ impl PureHost {
 struct PureState {
     inbox: VecDeque<Vec<u8>>,
     outbox: Vec<Vec<u8>>,
+    result: Vec<u8>,
     wake: Arc<Wake>,
     limits: StoreLimits,
     interrupt: Arc<Interrupt>,
@@ -143,6 +159,7 @@ impl Wakes for PureState {
 
 pub struct PureGuest {
     store: Store<PureState>,
+    instance: Instance,
     start: TypedFunc<(), ()>,
     step: TypedFunc<(), ()>,
     shutdown: TypedFunc<(), ()>,
@@ -159,6 +176,7 @@ impl PureGuest {
         let state = PureState {
             inbox: VecDeque::new(),
             outbox: Vec::new(),
+            result: Vec::new(),
             wake: Arc::clone(&wake),
             limits: StoreLimitsBuilder::new()
                 .memory_size(host.memory_limit)
@@ -177,6 +195,7 @@ impl PureGuest {
         store.set_epoch_deadline(1);
         let mut linker: Linker<PureState> = Linker::new(&host.engine);
         link(&mut linker)?;
+        link_direct(&mut linker, &host.imports, host.answer.clone())?;
         crate::wake::link(&mut linker)?;
         let instance = linker
             .instantiate(&mut store, module)
@@ -192,6 +211,7 @@ impl PureGuest {
             step: typed(&mut store, abi::STEP)?,
             shutdown: typed(&mut store, abi::SHUTDOWN)?,
             store,
+            instance,
             wake,
             stopped: false,
         })
@@ -207,6 +227,73 @@ impl PureGuest {
 
     pub fn send(&mut self, frame: Vec<u8>) {
         self.store.data_mut().inbox.push_back(frame);
+    }
+
+    pub fn deliver(&mut self, items: Vec<Vec<u8>>) -> Result<(), String> {
+        for item in items {
+            match direct::decode(&item) {
+                Some(direct::Item::Call(call)) => {
+                    if !self.store.data().inbox.is_empty() {
+                        self.step()?;
+                    }
+                    let name = call.name.to_owned();
+                    let returned = self.call_export(&name, call.parent, call.args)?;
+                    self.store
+                        .data_mut()
+                        .outbox
+                        .push(direct::returned(&returned));
+                }
+                Some(direct::Item::Frame(_)) => self.send(item),
+                Some(direct::Item::Returned(_)) | None => {
+                    return Err("the host sent the guest an item it cannot take".to_owned());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn call_export(
+        &mut self,
+        name: &str,
+        parent: Option<u64>,
+        args: &[u8],
+    ) -> Result<Vec<u8>, String> {
+        let alloc = self
+            .instance
+            .get_typed_func::<u32, u32>(&mut self.store, direct::ALLOC)
+            .map_err(|error| format!("the guest has no {}: {error}", direct::ALLOC))?;
+        let export = self
+            .instance
+            .get_typed_func::<(i32, i64, u32, u32), i64>(&mut self.store, name)
+            .map_err(|error| format!("the guest does not export {name}: {error}"))?;
+        let failed = |error: wasmtime::Error| format!("{name} trapped: {error:?}");
+        let pointer = alloc
+            .call(&mut self.store, args.len() as u32)
+            .map_err(failed)?;
+        let memory = match self.instance.get_export(&mut self.store, MEMORY) {
+            Some(Extern::Memory(memory)) => memory,
+            _ => return Err("the guest does not export its memory".to_owned()),
+        };
+        memory
+            .write(&mut self.store, pointer as usize, args)
+            .map_err(|_| "the guest's argument buffer is outside its memory".to_owned())?;
+        let packed = export
+            .call(
+                &mut self.store,
+                (
+                    parent.is_some() as i32,
+                    parent.unwrap_or_default() as i64,
+                    pointer,
+                    args.len() as u32,
+                ),
+            )
+            .map_err(failed)?;
+        let (pointer, length) = direct::unpack(packed);
+        let mut result = vec![0u8; length as usize];
+        memory
+            .read(&self.store, pointer as usize, &mut result)
+            .map_err(|_| "the guest's result is outside its memory".to_owned())?;
+        Ok(result)
     }
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
@@ -262,11 +349,9 @@ impl Runnable for PureGuest {
     }
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<Infallible>, String> {
-        for frame in frames {
-            self.send(frame);
-        }
         self.take_wake();
         let started = Instant::now();
+        self.deliver(frames)?;
         PureGuest::step(self)?;
         let took = StepTime {
             step: started.elapsed(),
@@ -346,6 +431,63 @@ fn link(linker: &mut Linker<PureState>) -> Result<(), String> {
             },
         )
         .map_err(|error| format!("{} could not be linked: {error}", abi::HOST_PANIC))?;
+    Ok(())
+}
+
+fn link_direct(
+    linker: &mut Linker<PureState>,
+    imports: &[(String, String)],
+    answer: Option<Answer>,
+) -> Result<(), String> {
+    linker
+        .func_wrap(
+            abi::HOST_MODULE,
+            direct::HOST_RESULT,
+            |mut caller: Caller<'_, PureState>, pointer: u32| -> wasmtime::Result<()> {
+                let result = std::mem::take(&mut caller.data_mut().result);
+                memory(&mut caller)?
+                    .write(&mut caller, pointer as usize, &result)
+                    .map_err(|_| {
+                        wasmtime::Error::msg("the guest's result buffer is outside its memory")
+                    })
+            },
+        )
+        .map_err(|error| format!("{} could not be linked: {error}", direct::HOST_RESULT))?;
+    for (module, name) in imports {
+        let full = format!("{module}#{name}");
+        let answer = answer.clone();
+        linker
+            .func_wrap(
+                module,
+                name,
+                move |mut caller: Caller<'_, PureState>,
+                      has_parent: i32,
+                      parent: i64,
+                      pointer: u32,
+                      length: u32|
+                      -> wasmtime::Result<u32> {
+                    let args = read(&mut caller, pointer, length)?;
+                    let parent = (has_parent != 0).then_some(parent as u64);
+                    let result = match answer
+                        .as_ref()
+                        .and_then(|answer| answer(&full, parent, &args))
+                    {
+                        Some(result) => result,
+                        None => {
+                            caller
+                                .data_mut()
+                                .outbox
+                                .push(direct::call(&full, parent, false, &args));
+                            Vec::new()
+                        }
+                    };
+                    let length = result.len() as u32;
+                    caller.data_mut().result = result;
+                    Ok(length)
+                },
+            )
+            .map_err(|error| format!("{module}#{name} could not be linked: {error}"))?;
+    }
     Ok(())
 }
 

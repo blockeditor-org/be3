@@ -14,4 +14,4 @@ pub type Scene3dContent = Document<Scene3d>;
 block_type_guest::be_block_types![Scene3dContent];
 
 #[cfg(feature = "module")]
-block_type_guest::abi::guest!(BlockTypes);
+block_type_guest::type_module!(BlockTypes);

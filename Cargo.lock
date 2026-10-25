@@ -907,6 +907,7 @@ dependencies = [
 name = "be-ops"
 version = "0.1.0"
 dependencies = [
+ "block-guest-abi",
  "postcard",
  "serde",
  "serde_bytes",

@@ -771,6 +771,14 @@ impl Serving {
 }
 
 #[macro_export]
+macro_rules! type_module {
+    ($guest:ty) => {
+        $crate::abi::guest!($guest);
+        $crate::api::export_type_module!();
+    };
+}
+
+#[macro_export]
 macro_rules! be_block_types {
     ($($kind:ty $({ $($part:ident),* $(,)? })?),* $(,)?) => {
         pub fn registrations() -> ::std::vec::Vec<$crate::Registration> {

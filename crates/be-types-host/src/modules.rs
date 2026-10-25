@@ -127,7 +127,8 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = block_wasm_host::PureHost::new(cache.as_deref())?;
+            let host = block_wasm_host::PureHost::new(cache.as_deref())?
+                .with_imports(block_type_api::embed::IMPORTS, None);
             let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
@@ -141,7 +142,12 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
         declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
-            let channel = block_guest_host::web::WebGuest::start(&url, wake, waiting)?;
+            let channel = block_guest_host::web::WebGuest::start(
+                &url,
+                block_type_api::embed::IMPORTS,
+                wake,
+                waiting,
+            )?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -166,7 +172,7 @@ struct Module {
 pub enum Heard {
     Hello(Vec<TypeInfo>),
     Call {
-        op: OpId,
+        op: Option<OpId>,
         parent: Option<OpId>,
         call: Call,
     },
@@ -338,6 +344,7 @@ impl Modules {
     }
 
     async fn hello(&mut self, module: usize, types: Vec<TypeInfo>) {
+        self.modules[module].hello = true;
         let types: Vec<TypeInfo> = types
             .into_iter()
             .filter(|info| self.provides(module, info.content_type))
@@ -532,7 +539,14 @@ impl Modules {
                                     before.fail(&mut held.connection, OpError::Canceled);
                                 }
                             }
-                            Some(call) => heard.push((module, Heard::Call { op, parent, call })),
+                            Some(call) => heard.push((
+                                module,
+                                Heard::Call {
+                                    op: Some(op),
+                                    parent,
+                                    call,
+                                },
+                            )),
                             None => {}
                         }
                     }
@@ -540,10 +554,8 @@ impl Modules {
                         match held.started.filter(|started| started.op() == op) {
                             Some(started) => {
                                 held.started = None;
-                                held.hello = true;
-                                if let Ok(types) = started.decode(outcome) {
-                                    heard.push((module, Heard::Hello(types)));
-                                }
+                                let types = started.decode(outcome).unwrap_or_default();
+                                heard.push((module, Heard::Hello(types)));
                             }
                             None => heard.push((module, Heard::Completed { op, outcome })),
                         }
@@ -564,9 +576,22 @@ impl Modules {
                             heard.push((module, Heard::Canceled { op }));
                         }
                     }
+                    Incoming::Called(called) => {
+                        if let Some(call) = Call::accept_direct(&called) {
+                            heard.push((
+                                module,
+                                Heard::Call {
+                                    op: None,
+                                    parent: called.parent,
+                                    call,
+                                },
+                            ));
+                        }
+                    }
                     Incoming::Yielded { .. } => {}
                 }
             }
+            self.flush(module);
             if let Some(failure) = failure {
                 self.fail(module, failure);
                 self.restart(module);
