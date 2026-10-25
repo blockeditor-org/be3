@@ -6,7 +6,7 @@ mod screens;
 
 use std::cell::RefCell;
 
-use block_gpu_host::{Gpu, transport::Transport};
+use block_gpu_host::Gpu;
 use wasm_bindgen::{JsCast, prelude::*};
 
 use screens::Screens;
@@ -19,7 +19,6 @@ struct Shim {
     gpu: Gpu,
     screens: Screens,
     memory: Option<js_sys::WebAssembly::Memory>,
-    transport: Transport,
     returned: Vec<u8>,
     gpu_time: f64,
     submit_time: f64,
@@ -54,7 +53,6 @@ pub async fn start() -> Result<(), JsValue> {
         gpu: Gpu::new(device, queue),
         screens,
         memory: None,
-        transport: Transport::default(),
         returned: Vec::new(),
         gpu_time: 0.0,
         submit_time: 0.0,
@@ -169,25 +167,6 @@ pub fn took() -> Vec<f64> {
         },
         vec![0.0, 0.0],
     )
-}
-
-#[wasm_bindgen]
-pub fn deliver(frame: &[u8]) {
-    with(|shim| shim.transport.inbox.push_back(frame.to_vec()), ());
-}
-
-#[wasm_bindgen]
-pub fn collect() -> js_sys::Array {
-    let frames = js_sys::Array::new();
-    with(
-        |shim| {
-            for frame in std::mem::take(&mut shim.transport.outbox) {
-                frames.push(&js_sys::Uint8Array::from(frame.as_slice()).into());
-            }
-        },
-        (),
-    );
-    frames
 }
 
 #[wasm_bindgen]

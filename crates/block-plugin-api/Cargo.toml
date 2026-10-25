@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 accesskit = { version = "0.24.1", features = ["serde"] }
 be-ops = { path = "../be-ops" }
+block-gpu-abi = { path = "../block-gpu-abi" }
 be-ops-bindgen = { path = "../be-ops-bindgen" }
 bincode = "1"
 serde = { version = "1", features = ["derive"] }

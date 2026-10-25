@@ -1,7 +1,6 @@
 use block_gpu_host::{
     Gpu,
     block_gpu_abi::embed::device::Caller,
-    transport::{self, Transport, Transported},
 };
 use wasm_bindgen::JsCast;
 
@@ -64,12 +63,6 @@ impl Caller for Shim {
     }
 }
 
-impl Transported for Shim {
-    fn transport(&mut self) -> &mut Transport {
-        &mut self.transport
-    }
-}
-
 macro_rules! exported_gpu {
     ($($glue:path, $module:literal, $name:literal, $export:literal, ($($argument:ident: $kind:ty),*) $(-> $result:ty)?;)*) => {
         $(
@@ -83,19 +76,7 @@ macro_rules! exported_gpu {
     };
 }
 
-macro_rules! exported_transport {
-    ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
-        $(
-            #[unsafe(no_mangle)]
-            pub extern "C" fn $name($($argument: $kind),*) $(-> $result)? {
-                with(|shim| transport::$name(shim, $($argument),*), Default::default())
-            }
-        )+
-    };
-}
-
 block_gpu_host::block_gpu_abi::gpu_local_imports!(exported_gpu);
-block_guest_abi::transport_functions!(exported_transport);
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]

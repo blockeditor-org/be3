@@ -98,7 +98,11 @@ interface plugin {
     shutdown: async func();
 }
 
+/// Everything an editor plugin and its host say to each other: the gpu it
+/// draws with (answered inside the plugin's own worker or thread), what it asks
+/// of the host, and what it offers.
 world editor-plugin {
+    import be3:gpu/device@0.1.0;
     import host;
     import blocks;
     import shell;

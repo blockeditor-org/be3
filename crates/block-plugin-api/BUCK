@@ -1,7 +1,10 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test", "editor_packages")
 
 WIT = {
-    "foreign_resources": {"//crates/ui-types:wit": "crates/ui-types"},
+    "foreign_resources": {
+        "//crates/block-gpu-abi:wit": "crates/block-gpu-abi",
+        "//crates/ui-types:wit": "crates/ui-types",
+    },
     "resources": glob(["wit/*.wit"]),
 }
 

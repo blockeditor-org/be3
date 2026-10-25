@@ -10513,6 +10513,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
@@ -10808,7 +10820,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-host:block-gpu-host",
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:js-sys-0.3.99",
                     "//third-party/rust:serde_json-1.0.150",
@@ -11144,6 +11155,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11162,6 +11174,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11180,6 +11193,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11198,6 +11212,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11216,6 +11231,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11234,6 +11250,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11252,6 +11269,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11270,6 +11288,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
@@ -11288,6 +11307,7 @@ crates = {
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/be-ops:be-ops",
+                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
