@@ -138,7 +138,10 @@ impl BlockCatalog {
     }
 
     pub fn editors_for(&self, block_type: Uuid, file_name: Option<&str>) -> Vec<&EditorEntry> {
-        let plain = self.editors.iter().filter(|editor| editor.extensions.is_empty());
+        let plain = self
+            .editors
+            .iter()
+            .filter(|editor| editor.extensions.is_empty());
         let specific = plain
             .clone()
             .filter(|editor| editor.edits == Edits::Type(block_type));

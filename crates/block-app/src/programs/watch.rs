@@ -41,7 +41,11 @@ impl Watch {
         let Some(dir) = file.parent() else {
             return;
         };
-        if self.watched.insert(file.to_owned(), dir.to_owned()).is_some() {
+        if self
+            .watched
+            .insert(file.to_owned(), dir.to_owned())
+            .is_some()
+        {
             return;
         }
         if let Some(watcher) = &mut self.watcher

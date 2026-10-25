@@ -15,7 +15,10 @@ fn open_with_offers_the_programs_that_open_a_files_extension() {
         edits: block_editor_beui::Edits::Any,
         name: name.to_owned(),
         icon_codepoint: String::new(),
-        extensions: extensions.iter().map(|extension| (*extension).to_owned()).collect(),
+        extensions: extensions
+            .iter()
+            .map(|extension| (*extension).to_owned())
+            .collect(),
     };
     fixture.test.catalog(Catalog {
         types: vec![BlockTypeDescriptor {
@@ -49,7 +52,9 @@ fn open_with_offers_the_programs_that_open_a_files_extension() {
             .is_none(),
         "a program is not offered for a file it does not read"
     );
-    fixture.test.key(block_editor_beui::beui::Key::Escape, Modifiers::NONE);
+    fixture
+        .test
+        .key(block_editor_beui::beui::Key::Escape, Modifiers::NONE);
     fixture.settle();
 
     fixture.choose(book, "Open with");

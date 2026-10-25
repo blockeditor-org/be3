@@ -936,33 +936,37 @@ fn ProgramSurface(block: Uuid) -> NodeId {
     });
     view! {
         <Layers>
-        <Dynamic value={shown}>|shown: Option<crate::programs::Shown>| {
-            match shown {
-                Some(crate::programs::Shown::Window(window)) => view! {
-                    <WindowSurface window={window} />
-                },
-                Some(crate::programs::Shown::Closed(name)) => view! {
-                    <ProgramClosed name block />
-                },
-                Some(crate::programs::Shown::Failed(problem)) => view! {
-                    <Notice item={HostItem::Notice {
-                        text: problem,
-                        spinner: false,
-                        icon: Some(beui::icons::ICON_APP_WINDOW),
-                    }} />
-                },
-                Some(crate::programs::Shown::Opening(name)) => view! {
-                    <Notice item={HostItem::Notice {
-                        text: format!("Opening in {name}…"),
-                        spinner: true,
-                        icon: Some(beui::icons::ICON_APP_WINDOW),
-                    }} />
-                },
-                None => view! {
-                    <Frame />
-                },
-            }
-        }</Dynamic>
+            <Dynamic value={shown}>|shown: Option<crate::programs::Shown>| {
+                match shown {
+                    Some(crate::programs::Shown::Window(window)) => view! {
+                        <WindowSurface window={window} />
+                    },
+                    Some(crate::programs::Shown::Closed(name)) => view! {
+                        <ProgramClosed name block />
+                    },
+                    Some(crate::programs::Shown::Failed(problem)) => view! {
+                        <Notice
+                            item={HostItem::Notice {
+                                text: problem,
+                                spinner: false,
+                                icon: Some(beui::icons::ICON_APP_WINDOW),
+                            }}
+                        />
+                    },
+                    Some(crate::programs::Shown::Opening(name)) => view! {
+                        <Notice
+                            item={HostItem::Notice {
+                                text: format!("Opening in {name}…"),
+                                spinner: true,
+                                icon: Some(beui::icons::ICON_APP_WINDOW),
+                            }}
+                        />
+                    },
+                    None => view! {
+                        <Frame />
+                    },
+                }
+            }</Dynamic>
         </Layers>
     }
 }

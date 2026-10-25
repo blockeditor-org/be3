@@ -19,6 +19,9 @@ fn an_exec_line_drops_file_codes_and_expands_the_rest() {
         ]
     );
     let iconless = entry("app %i %d %D %n %N %v %m", "");
-    assert_eq!(arguments(&iconless, None).expect("the line expands"), ["app"]);
+    assert_eq!(
+        arguments(&iconless, None).expect("the line expands"),
+        ["app"]
+    );
     assert_eq!(arguments(&entry("%U", ""), None), Err(ExecError::Empty));
 }

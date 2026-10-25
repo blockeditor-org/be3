@@ -367,7 +367,9 @@ impl Programs {
                 Stage::Placed
             }
             Err(problem) => {
-                eprintln!("block-app: block {block} was not written out for its program: {problem}");
+                eprintln!(
+                    "block-app: block {block} was not written out for its program: {problem}"
+                );
                 Stage::Failed(problem)
             }
         };
@@ -385,7 +387,10 @@ impl Programs {
                 .iter()
                 .filter(|(_, session)| session.stage == Stage::Placed)
                 .filter_map(|(block, session)| {
-                    let key = sessions.names.get(&session.editor).map(|(id, _)| id.clone());
+                    let key = sessions
+                        .names
+                        .get(&session.editor)
+                        .map(|(id, _)| id.clone());
                     Some((*block, key, session.disk.as_ref()?.path.clone()))
                 })
                 .collect()

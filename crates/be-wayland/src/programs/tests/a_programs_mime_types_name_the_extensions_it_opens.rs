@@ -26,7 +26,10 @@ fn a_programs_mime_types_name_the_extensions_it_opens() {
     );
     assert!(
         globs
-            .extensions(&["application/x-compressed-tar".to_owned(), "text/x-readme".to_owned()])
+            .extensions(&[
+                "application/x-compressed-tar".to_owned(),
+                "text/x-readme".to_owned()
+            ])
             .is_empty(),
         "only a plain *.extension pattern names an extension"
     );

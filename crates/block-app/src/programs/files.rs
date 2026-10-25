@@ -67,12 +67,19 @@ pub(crate) fn record(path: &Path, stamp: Stamp) -> io::Result<()> {
     };
     std::fs::write(
         dir.join(RECORD),
-        format!("{} {}\n{}", stamp.len, stamp.modified, name.to_string_lossy()),
+        format!(
+            "{} {}\n{}",
+            stamp.len,
+            stamp.modified,
+            name.to_string_lossy()
+        ),
     )
 }
 
 fn write(path: &Path, bytes: &[u8]) -> io::Result<Stamp> {
-    let dir = path.parent().ok_or_else(|| io::Error::other("the file has no folder"))?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| io::Error::other("the file has no folder"))?;
     let partial = dir.join(".writing");
     std::fs::write(&partial, bytes)?;
     std::fs::rename(&partial, path)?;
