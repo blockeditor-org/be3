@@ -415,7 +415,8 @@ which close() checks, so a test that ends without calling it fails too.
   `buck-out/v2/art/root/*/crates/app-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
   `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
   `CARGO_MANIFEST_DIR` to crates/app-tests. While a test hangs, `gdb -p PID -batch -ex 'thread
-  apply all bt'` on its block-app shows what every thread waits on.
+  apply all bt'` on its block-app shows what every thread waits on. If every thread is parked and the
+  window waits on data, something changed without `host::wake()`: a lost wake, not a deadlock.
 - Each test takes a second or two, most of it the app starting, and they run in parallel. Keep to what only the app can show, and test an
   editor's own behaviour in its own crate.
 
