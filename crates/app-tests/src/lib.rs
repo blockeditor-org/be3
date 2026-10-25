@@ -195,10 +195,7 @@ impl AppTest {
                     Ok(Reply::Text(tree)) => tree,
                     _ => "(the app did not answer)".to_owned(),
                 };
-                format!(
-                    "\n\nWhat the app shows:\n{tree}\n\n{}",
-                    app.log_report()
-                )
+                format!("\n\nWhat the app shows:\n{tree}\n\n{}", app.log_report())
             })
             .unwrap_or_default();
         format!(

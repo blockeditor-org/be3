@@ -4,8 +4,7 @@ use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
     Change, ChildChange, Command, Description, Event, Plain, PlainFile, ReplicaId, Reply, Request,
-    TypeInfo,
-    decode_frame, encode_frame,
+    TypeInfo, decode_frame, encode_frame,
 };
 use uuid::Uuid;
 

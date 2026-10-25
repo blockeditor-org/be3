@@ -12,8 +12,10 @@ impl Channel for Counted {
 
     fn step(&mut self, _frames: Vec<Vec<u8>>) -> bool {
         self.stepped += 1;
-        self.events
-            .push(Event::Stepped(Produced::sent(Vec::new(), StepTime::default())));
+        self.events.push(Event::Stepped(Produced::sent(
+            Vec::new(),
+            StepTime::default(),
+        )));
         true
     }
 
@@ -33,7 +35,10 @@ impl Channel for Counted {
 fn a_worker_steps_its_guest_only_for_frames_or_a_wake() {
     let mut worker = Worker::new(
         Counted {
-            events: vec![Event::Ready(Produced::sent(Vec::new(), StepTime::default()))],
+            events: vec![Event::Ready(Produced::sent(
+                Vec::new(),
+                StepTime::default(),
+            ))],
             ..Counted::default()
         },
         Arc::default(),
@@ -47,12 +52,18 @@ fn a_worker_steps_its_guest_only_for_frames_or_a_wake() {
     for _ in 0..3 {
         assert_eq!(worker.poll(), None);
     }
-    assert_eq!(worker.channel.stepped, 1, "a frame is delivered in one step");
+    assert_eq!(
+        worker.channel.stepped, 1,
+        "a frame is delivered in one step"
+    );
 
     worker.channel.woken = true;
     for _ in 0..3 {
         assert_eq!(worker.poll(), None);
     }
-    assert_eq!(worker.channel.stepped, 2, "a guest that woke is stepped once");
+    assert_eq!(
+        worker.channel.stepped, 2,
+        "a guest that woke is stepped once"
+    );
     assert!(worker.settled());
 }

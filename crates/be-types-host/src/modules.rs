@@ -11,8 +11,8 @@ use std::{
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
 use block_type_api::{
-    Change, ClientId, Command, Description, Event, Plain, PlainFile, Reply, Request, RequestId, SessionTag,
-    TypeInfo, decode_frame, encode_frame,
+    Change, ClientId, Command, Description, Event, Plain, PlainFile, Reply, Request, RequestId,
+    SessionTag, TypeInfo, decode_frame, encode_frame,
 };
 use tokio::sync::Notify;
 use uuid::Uuid;

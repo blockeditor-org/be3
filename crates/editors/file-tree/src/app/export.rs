@@ -30,7 +30,10 @@ impl Exporter {
         let saver = store(RefCell::new(FileSaver::default()));
         let host = editor.host();
         editor.on_reply(move || {
-            if let Some(Err(failure)) = saver.try_with(|saver| saver.borrow_mut().poll(&host)).flatten() {
+            if let Some(Err(failure)) = saver
+                .try_with(|saver| saver.borrow_mut().poll(&host))
+                .flatten()
+            {
                 error.set(Some(failure));
             }
         });

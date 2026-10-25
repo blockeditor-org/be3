@@ -1441,9 +1441,9 @@ impl Instances {
             self.sent_block_types = Some(plain_forms);
             let mut block_types = block_types.as_ref().clone();
             for descriptor in &mut block_types.types {
-                descriptor.plain_file = be_types_host::plain_of(Uuid::from_bytes(
-                    descriptor.block_type,
-                )) == be_types_host::Plain::File;
+                descriptor.plain_file =
+                    be_types_host::plain_of(Uuid::from_bytes(descriptor.block_type))
+                        == be_types_host::Plain::File;
             }
             opened.push(Message::BlockTypes(block_types));
         }
@@ -2723,10 +2723,12 @@ impl Instances {
                     return true;
                 }
                 crate::be::plain_file(block, move |read| {
-                    reply(HostReply::PlainFileRead(read.map(|file| block_plugin_api::SavedFile {
-                        name: file.name.unwrap_or_default(),
-                        mime_type: file.media_type,
-                        data: file.bytes,
+                    reply(HostReply::PlainFileRead(read.map(|file| {
+                        block_plugin_api::SavedFile {
+                            name: file.name.unwrap_or_default(),
+                            mime_type: file.media_type,
+                            data: file.bytes,
+                        }
                     })));
                 });
             }

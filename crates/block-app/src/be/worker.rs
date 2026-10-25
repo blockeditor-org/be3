@@ -1591,7 +1591,9 @@ async fn plain_file(
     };
     let content = match content {
         Some(content) => Some(content),
-        None => stored(peer, block).await.map_err(|error| error.to_string())?,
+        None => stored(peer, block)
+            .await
+            .map_err(|error| error.to_string())?,
     };
     let bytes = match content {
         Some(bytes) => bytes,

@@ -121,17 +121,15 @@ pub(super) async fn sources() -> Vec<Source> {
 #[cfg(test)]
 pub(super) async fn sources() -> Vec<Source> {
     let mut sources = vec![in_process::<HostTypes>("host-types")];
-    sources.extend(
-        first_party_types::sources()
-            .into_iter()
-            .map(|source| match source.name.as_str() {
-                "be3.counter" => first_party_types::in_process::<Crashing>(
-                    "be3.counter",
-                    counter_types::registrations(),
-                ),
-                _ => source,
-            }),
-    );
+    sources.extend(first_party_types::sources().into_iter().map(
+        |source| match source.name.as_str() {
+            "be3.counter" => first_party_types::in_process::<Crashing>(
+                "be3.counter",
+                counter_types::registrations(),
+            ),
+            _ => source,
+        },
+    ));
     sources
 }
 

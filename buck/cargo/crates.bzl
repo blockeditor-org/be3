@@ -14304,6 +14304,7 @@ crates = {
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/editors/workspace-ui/types:workspace-ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -14311,7 +14312,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/editors/workspace-ui/types:workspace-ui-types",
                 ],
                 "test_features": [],
             },
