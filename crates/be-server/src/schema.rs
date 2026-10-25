@@ -136,6 +136,7 @@ const SCHEMA: &str = "
         parents         TEXT NOT NULL DEFAULT '',
         time            INTEGER NOT NULL,
         pinned          INTEGER NOT NULL CHECK (pinned IN (0, 1)),
+        received        INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id, commit_id)
     );
 

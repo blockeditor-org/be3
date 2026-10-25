@@ -130,6 +130,40 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         .await
         .unwrap_err();
     assert_eq!(refused(pruned), ErrorCode::PolicyRefused);
+    let backdated = be_protocol::ByteBuf::from(pseudorandom(64, 7));
+    let backdated_commit = be_commit::CommitId::from_hash(be_store::Hash::of(&backdated));
+    let current = admin.summary(image_block).await.unwrap().head;
+    admin
+        .connection()
+        .request(|request| ClientMessage::Publish {
+            request,
+            block: image_block,
+            commit: backdated_commit,
+            expected: current,
+            parents: current.into_iter().collect(),
+            chunks: Vec::new(),
+            time: 0,
+            pinned: false,
+            references: Vec::new(),
+            metadata: Vec::new(),
+            objects: vec![backdated],
+        })
+        .await
+        .unwrap();
+    let pruned = admin
+        .connection()
+        .request(|request| ClientMessage::PruneHistory {
+            request,
+            block: image_block,
+            drop: vec![backdated_commit],
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(
+        refused(pruned),
+        ErrorCode::PolicyRefused,
+        "a version that says it is old was pruned the day the server received it"
+    );
 
     let early = be_protocol::ByteBuf::from(pseudorandom(64, 6));
     let early_hash = be_store::Hash::of(&early);
@@ -143,6 +177,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         .unwrap();
     let mut policies = OrganizationPoliciesContent::default();
     policies.apply(&OrganizationPolicies::set_storage_quota(Some(1)));
+    policies.apply(&OrganizationPolicies::set_history_days(Some(30)));
     let head = admin.summary(block).await.unwrap().head;
     admin.save(block, &policies, head).await.unwrap();
     let over = admin
@@ -190,6 +225,12 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         refused(published),
         ErrorCode::OverQuota,
         "an object uploaded before the quota was published past it"
+    );
+
+    admin.delete(image_block).await.unwrap();
+    assert!(
+        !admin.collect_detached().await.unwrap().contains(&image_block),
+        "a deleted block was collected with versions the organization keeps"
     );
 
     harness.stop().await;

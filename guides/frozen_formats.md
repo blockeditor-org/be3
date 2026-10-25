@@ -12,7 +12,8 @@ else may still change freely.
   password and token hashes) and `objects/`, each object in `objects/ab/cdef…`
   named by the SHA-256 of its bytes. That covers organizations (company or
   personal) and memberships, workspace and other blocks with their sealed
-  metadata and current data key, grants, invitations, contact links,
+  metadata and current data key, commits (with the time the server received
+  each, `block_commits.received`, 0 before it was recorded), grants, invitations, contact links,
   contacts and key changes, the `keys` and `wrapped_keys` rows, pinned escrow
   keys, pending rotations and agents, and the server's own account
   (`server_account`: its account id and the secret of the key that blocks

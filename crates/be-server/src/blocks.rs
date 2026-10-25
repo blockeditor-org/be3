@@ -488,15 +488,16 @@ impl ServerStore {
                 self.within_quota(graph, &transaction, identity.organization, &held)?;
                 transaction.execute(
                     "INSERT INTO block_commits
-                        (organization_id, block_id, commit_id, parents, time, pinned)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        (organization_id, block_id, commit_id, parents, time, pinned, received)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                     params![
                         organization,
                         block.to_string(),
                         commit.hash().to_hex(),
                         encode_parents(&parents),
                         time,
-                        pinned
+                        pinned,
+                        be_commit::now_milliseconds()
                     ],
                 )?;
                 let mut refs = self.object_refs();
@@ -826,11 +827,9 @@ impl ServerStore {
                 .history_kept_for();
             let transaction = database.unchecked_transaction()?;
             let history = read_history(&transaction, identity.organization, block)?;
-            let since = be_commit::now_milliseconds() - kept_for;
             if kept_for > 0
-                && history
-                    .iter()
-                    .any(|entry| drop.contains(&entry.commit) && entry.time > since)
+                && newest_version(&transaction, identity.organization, block, Some(&drop))?
+                    > be_commit::now_milliseconds() - kept_for
             {
                 return Err(crate::organization::refused(
                     "this organization keeps every version for longer than that",
@@ -876,11 +875,20 @@ impl ServerStore {
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
-            let detached: Vec<Uuid> = graph
-                .detached()
-                .into_iter()
-                .filter(|block| seen.inherited(graph, *block).can_edit())
-                .collect();
+            let kept_for = self
+                .policies(graph, database, identity.organization)?
+                .history_kept_for();
+            let since = be_commit::now_milliseconds() - kept_for;
+            let mut detached = Vec::new();
+            for block in graph.detached() {
+                if !seen.inherited(graph, block).can_edit() {
+                    continue;
+                }
+                if kept_for > 0 && newest_version(database, identity.organization, block, None)? > since {
+                    continue;
+                }
+                detached.push(block);
+            }
             let transaction = database.unchecked_transaction()?;
             let mut refs = self.object_refs();
             let mut freed = Vec::new();
@@ -1200,6 +1208,31 @@ pub(crate) fn write_grant(
         }
     }
     Ok(())
+}
+
+fn newest_version(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    among: Option<&[CommitId]>,
+) -> Result<i64, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT commit_id, MAX(time, received) FROM block_commits
+         WHERE organization_id = ?1 AND block_id = ?2",
+    )?;
+    let rows = statement.query_map(
+        params![organization.to_string(), block.to_string()],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+    )?;
+    let mut newest = i64::MIN;
+    for row in rows {
+        let (commit, at) = row?;
+        let commit = parse_commit(&commit)?;
+        if among.is_none_or(|among| among.contains(&commit)) {
+            newest = newest.max(at);
+        }
+    }
+    Ok(newest)
 }
 
 fn read_history(
