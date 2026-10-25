@@ -1,6 +1,6 @@
 use be_block::{BlockContent, LiveEdit, Merge};
 use be_commit::MergeResult;
-use block_type_guest::api::{Change, Command, Event, Reply, Request};
+use block_type_guest::api::{Change, Command, Event, PlainFile, Reply, Request};
 
 use crate::{ImageContent, ImageFile, ImageHeader, ImageOp};
 

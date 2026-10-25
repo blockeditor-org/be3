@@ -1431,6 +1431,17 @@ impl EditorHost {
         self.ask(HostRequest::ExportBlock(block_id.into_bytes()))
     }
 
+    pub fn read_plain_file(&self, block_id: Uuid) -> u64 {
+        self.ask(HostRequest::ReadPlainFile(block_id.into_bytes()))
+    }
+
+    pub fn take_plain_file(&self, request: u64) -> Option<Result<SavedFile, String>> {
+        match self.take_reply(request)? {
+            HostReply::PlainFileRead(read) => Some(read),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
     pub fn import_blocks(&self, parent: BlockParent) -> u64 {
         self.ask(HostRequest::ImportBlocks(parent.encode()))
     }
@@ -2018,22 +2029,38 @@ impl EditorHost {
 #[derive(Default)]
 pub struct FileSaver {
     request: Option<u64>,
+    reading: Option<u64>,
 }
 
 impl FileSaver {
     pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
+        self.reading = None;
         self.request = Some(host.save_file(file));
     }
 
     pub fn export(&mut self, host: &EditorHost, block_id: Uuid) {
+        self.reading = None;
         self.request = Some(host.export_block(block_id));
     }
 
+    pub fn export_plain(&mut self, host: &EditorHost, block_id: Uuid) {
+        self.request = None;
+        self.reading = Some(host.read_plain_file(block_id));
+    }
+
     pub fn is_saving(&self) -> bool {
-        self.request.is_some()
+        self.request.is_some() || self.reading.is_some()
     }
 
     pub fn poll(&mut self, host: &EditorHost) -> Option<Result<bool, String>> {
+        if let Some(reading) = self.reading {
+            let read = host.take_plain_file(reading)?;
+            self.reading = None;
+            match read {
+                Ok(file) => self.save(host, file),
+                Err(error) => return Some(Err(error)),
+            }
+        }
         let save = host.take_save(self.request?)?;
         self.request = None;
         Some(match save {

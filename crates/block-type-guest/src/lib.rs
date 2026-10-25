@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
-    Change, ChildChange, Command, Description, Event, Plain, ReplicaId, Reply, Request, TypeInfo,
+    Change, ChildChange, Command, Description, Event, Plain, PlainFile, ReplicaId, Reply, Request,
+    TypeInfo,
     decode_frame, encode_frame,
 };
 use uuid::Uuid;
@@ -30,7 +31,7 @@ type MergeFn = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8
 
 type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>;
 
-type ToFileFn = fn(&[u8]) -> Result<Option<Vec<u8>>, String>;
+type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
 
 pub struct Registration {
     info: TypeInfo,

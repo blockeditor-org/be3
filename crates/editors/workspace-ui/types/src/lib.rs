@@ -21,6 +21,10 @@ impl BlobFile for AnyFile {
         }
     }
 
+    fn media_type(header: &FileHeader) -> String {
+        header.media_type.clone()
+    }
+
     fn claims(_: &str, _: &[u8]) -> bool {
         true
     }

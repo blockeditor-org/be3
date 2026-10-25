@@ -60,7 +60,7 @@ pub(super) struct Instances {
     announced: HashSet<ScreenId>,
     request_id: u64,
     block_types: Option<Arc<block_plugin_api::Catalog>>,
-    sent_block_types: bool,
+    sent_block_types: Option<u64>,
     network: Vec<String>,
     plugin_id: String,
     replies: Replies,
@@ -1393,7 +1393,7 @@ impl Instances {
     }
 
     pub(super) fn reopen(&mut self) {
-        self.sent_block_types = false;
+        self.sent_block_types = None;
         self.announced.clear();
         for entry in self.entries.values_mut() {
             entry.opened = false;
@@ -1434,11 +1434,18 @@ impl Instances {
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
         let mut screens = Vec::new();
-        if !self.sent_block_types
+        let plain_forms = be_types_host::plain_forms_revision();
+        if self.sent_block_types != Some(plain_forms)
             && let Some(block_types) = &self.block_types
         {
-            self.sent_block_types = true;
-            opened.push(Message::BlockTypes(block_types.as_ref().clone()));
+            self.sent_block_types = Some(plain_forms);
+            let mut block_types = block_types.as_ref().clone();
+            for descriptor in &mut block_types.types {
+                descriptor.plain_file = be_types_host::plain_of(Uuid::from_bytes(
+                    descriptor.block_type,
+                )) == be_types_host::Plain::File;
+            }
+            opened.push(Message::BlockTypes(block_types));
         }
         for instance in instances {
             let Some(entry) = self.entries.get_mut(&instance) else {
@@ -2705,6 +2712,22 @@ impl Instances {
                         });
                     }
                     Err(error) => reply(HostReply::FileSaved(FileSave::Failed(error))),
+                });
+            }
+            HostRequest::ReadPlainFile(block) => {
+                let block = Uuid::from_bytes(block);
+                if !self.can_view(block) {
+                    reply(HostReply::PlainFileRead(Err(
+                        "You can't view this block.".to_owned()
+                    )));
+                    return true;
+                }
+                crate::be::plain_file(block, move |read| {
+                    reply(HostReply::PlainFileRead(read.map(|file| block_plugin_api::SavedFile {
+                        name: file.name.unwrap_or_default(),
+                        mime_type: file.media_type,
+                        data: file.bytes,
+                    })));
                 });
             }
             HostRequest::ImportBlocks(parent) => {

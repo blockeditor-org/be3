@@ -1889,7 +1889,7 @@ impl<S: ObjectStore> Tracker<S> {
             .pop()
             .unwrap_or_else(|| Err("the type module did not answer".to_owned()))?
             .ok_or("this block has no plain-file form")?;
-        Ok(String::from_utf8_lossy(&file).into_owned())
+        Ok(String::from_utf8_lossy(&file.bytes).into_owned())
     }
 
     async fn write_file(

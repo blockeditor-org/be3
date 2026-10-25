@@ -55,6 +55,7 @@ pub struct BlockTypeEntry {
     pub icon: Option<Glyph>,
     pub child_edits: ChildEdits,
     pub press: Press,
+    pub plain_file: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
@@ -134,6 +135,12 @@ impl BlockCatalog {
             .iter()
             .filter(|editor| editor.edits == Edits::Any);
         specific.chain(any).collect()
+    }
+
+    pub fn plain_file(&self, block_type: Uuid) -> bool {
+        self.types
+            .get(&block_type)
+            .is_some_and(|entry| entry.plain_file)
     }
 
     pub fn editor(&self, editor: Uuid) -> Option<&EditorEntry> {

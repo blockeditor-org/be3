@@ -19,6 +19,7 @@ fn icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() 
             icon_codepoint: ICON_FILE_TEXT.as_str().to_owned(),
             children: ChildOperations::default(),
             press: block_editor_beui::Press::Open,
+            plain_file: false,
         }],
         ..Catalog::default()
     });

@@ -14255,11 +14255,6 @@ crates = {
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
-                    "//crates/editors/audio-block/types:audio-block-types",
-                    "//crates/editors/image-block/types:image-block-types",
-                    "//crates/editors/pdf/types:pdf-types",
-                    "//crates/editors/text-block/types:text-block-types",
-                    "//crates/editors/workspace-ui/types:workspace-ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -14267,6 +14262,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
+                    "//crates/editors/workspace-ui/types:workspace-ui-types",
                 ],
                 "test_features": [],
             },

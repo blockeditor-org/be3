@@ -24,6 +24,7 @@ fn described(content_type: Uuid, name: &str, icon: &str, color: [u8; 3]) -> Bloc
         icon_codepoint: icon.to_owned(),
         children: ChildOperations::default(),
         press: Press::Open,
+        plain_file: false,
     }
 }
 

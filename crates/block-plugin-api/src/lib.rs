@@ -633,6 +633,7 @@ pub struct BlockTypeDescriptor {
     pub icon_codepoint: String,
     pub children: ChildOperations,
     pub press: Press,
+    pub plain_file: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1627,6 +1628,7 @@ pub enum HostRequest {
     ListData,
     ReadData(String),
     ExportBlock([u8; 16]),
+    ReadPlainFile([u8; 16]),
     ImportBlocks(BlockLocation),
     ContactLink {
         block_id: [u8; 16],
@@ -1643,6 +1645,7 @@ pub enum HostReply {
 
     FilePicked(FilePick),
     FileSaved(FileSave),
+    PlainFileRead(Result<SavedFile, String>),
     BlockPicked(BlockPick),
     Fetched(FetchResult),
     DataListed(DataListing),
@@ -2562,6 +2565,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
         HostRequest::ExportBlock(_)
+        | HostRequest::ReadPlainFile(_)
         | HostRequest::ImportBlocks(_)
         | HostRequest::ContactLink { .. } => Ok(()),
     }
@@ -2577,6 +2581,11 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::RevisionRestored(Ok(()))
         | HostReply::RevisionReleased => Ok(()),
         HostReply::FilePicked(Ok(Some(file))) => string(&file.name).and_then(|()| blob(&file.data)),
+        HostReply::PlainFileRead(Ok(file)) => {
+            string(&file.name)?;
+            string(&file.mime_type)?;
+            blob(&file.data)
+        }
         HostReply::Fetched(FetchResult::Body(body))
         | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
         HostReply::DataListed(DataListing::Files(files)) => {
@@ -2584,6 +2593,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
             strings(files)
         }
         HostReply::FilePicked(Err(message))
+        | HostReply::PlainFileRead(Err(message))
         | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))

@@ -35,6 +35,11 @@ fn a_picture_file_becomes_an_image_and_back() {
             content_type: ImageContent::CONTENT_TYPE,
             bytes,
         }),
-        Reply::File(Some(vec![1, 2, 3]))
+        Reply::File(Some(PlainFile {
+            bytes: vec![1, 2, 3],
+            name: Some("logo.png".to_owned()),
+            extension: "png".to_owned(),
+            media_type: "image/png".to_owned(),
+        }))
     );
 }

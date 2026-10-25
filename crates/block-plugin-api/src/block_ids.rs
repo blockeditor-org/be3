@@ -182,6 +182,7 @@ impl EditorMessage {
                 | HostRequest::ReleaseRevision(block_id)
                 | HostRequest::ListAccess(block_id)
                 | HostRequest::ExportBlock(block_id)
+                | HostRequest::ReadPlainFile(block_id)
                 | HostRequest::ContactLink { block_id, .. } => existing(block_id),
                 HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
                 HostRequest::PickFile(_)
@@ -203,6 +204,7 @@ impl EditorMessage {
                 | HostReply::RevisionReleased
                 | HostReply::FilePicked(_)
                 | HostReply::FileSaved(_)
+                | HostReply::PlainFileRead(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)

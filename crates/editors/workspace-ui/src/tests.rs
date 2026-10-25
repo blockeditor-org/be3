@@ -295,6 +295,7 @@ fn catalog() -> block_editor_beui::Catalog {
                 replace: holds,
             },
             press: block_plugin_api::Press::Open,
+            plain_file: false,
         }
     };
     block_editor_beui::Catalog {

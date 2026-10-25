@@ -9,9 +9,10 @@ use uuid::Uuid;
 pub mod modules;
 pub mod replicas;
 
-pub use block_type_api::Plain;
+pub use block_type_api::{Plain, PlainFile};
 pub use modules::{
-    Kind, Modules, Source, in_process, is_known, kind_of, now_millis, plain_of, started, tag_of,
+    Kind, Modules, Source, in_process, is_known, kind_of, now_millis, plain_forms_revision,
+    plain_of, started, tag_of,
 };
 pub use replicas::{Ctx, HOST_EDITOR, Replicas};
 

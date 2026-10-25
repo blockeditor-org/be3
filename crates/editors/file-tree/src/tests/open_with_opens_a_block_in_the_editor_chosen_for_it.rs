@@ -18,6 +18,7 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
             press: block_editor_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![

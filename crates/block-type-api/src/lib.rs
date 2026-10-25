@@ -193,11 +193,19 @@ pub enum Reply {
     Blank(Vec<u8>),
     Merged { bytes: Vec<u8>, conflicts: usize },
     Described(Description),
-    File(Option<Vec<u8>>),
+    File(Option<PlainFile>),
     Claimed(Option<Uuid>),
     Changed(bool),
     Content(Vec<u8>),
     Sealed,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PlainFile {
+    pub bytes: Vec<u8>,
+    pub name: Option<String>,
+    pub extension: String,
+    pub media_type: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

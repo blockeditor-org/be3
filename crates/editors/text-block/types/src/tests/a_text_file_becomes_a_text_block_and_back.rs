@@ -1,5 +1,5 @@
 use be_block::BlockContent;
-use block_type_guest::api::{Change, Command, Event, Reply, Request};
+use block_type_guest::api::{Change, Command, Event, PlainFile, Reply, Request};
 
 use super::*;
 
@@ -53,7 +53,12 @@ fn a_text_file_becomes_a_text_block_and_back() {
             content_type: TextContent::CONTENT_TYPE,
             bytes: content.clone(),
         }),
-        Reply::File(Some(source.to_vec()))
+        Reply::File(Some(PlainFile {
+            bytes: source.to_vec(),
+            name: None,
+            extension: "rs".to_owned(),
+            media_type: "text/x-rust".to_owned(),
+        }))
     );
 
     let edited = from_file(Some(content), "lib.rs", b"pub fn a() {}\npub fn b() {}\n");

@@ -217,6 +217,10 @@ impl DocumentFile for TextBlock {
             .unwrap_or_default()
     }
 
+    fn file_type(content: &Document<Self>) -> (&'static str, &'static str) {
+        text_file_type(content.root().language)
+    }
+
     fn from_file(
         current: Option<&Document<Self>>,
         name: &str,

@@ -1,11 +1,13 @@
 use be_block::be_model::Document;
 use be_block::blob::{Blob, BlobKind};
+use be_block::plain::{extension, extension_of, media_type_of};
 use be_block::{BlockContent, Root};
+use block_type_api::PlainFile;
 
 pub trait FileForm: BlockContent {
     const ANY_FILE: bool = false;
 
-    fn to_file(&self) -> Option<Vec<u8>>;
+    fn to_file(&self) -> Option<PlainFile>;
 
     fn from_file(current: Option<&Self>, name: &str, bytes: Vec<u8>, client: u64) -> Option<Self>;
 
@@ -17,6 +19,8 @@ pub trait BlobFile: BlobKind {
 
     fn header(name: &str, bytes: &[u8]) -> Self::Header;
 
+    fn media_type(header: &Self::Header) -> String;
+
     fn claims(name: &str, first: &[u8]) -> bool;
 }
 
@@ -24,6 +28,10 @@ pub trait DocumentFile: Root {
     const ANY_FILE: bool = false;
 
     fn to_file(content: &Document<Self>) -> Vec<u8>;
+
+    fn file_type(_: &Document<Self>) -> (&'static str, &'static str) {
+        ("", "application/octet-stream")
+    }
 
     fn from_file(
         current: Option<&Document<Self>>,
@@ -38,8 +46,22 @@ pub trait DocumentFile: Root {
 impl<K: BlobFile> FileForm for Blob<K> {
     const ANY_FILE: bool = K::ANY_FILE;
 
-    fn to_file(&self) -> Option<Vec<u8>> {
-        Some(self.data().to_vec())
+    fn to_file(&self) -> Option<PlainFile> {
+        let name = K::name(self.header()).trim();
+        let media_type = match K::media_type(self.header()) {
+            media_type if media_type.is_empty() => media_type_of(name).to_owned(),
+            media_type => media_type,
+        };
+        let extension = match extension(name) {
+            extension if extension.is_empty() => extension_of(&media_type).to_owned(),
+            extension => extension,
+        };
+        Some(PlainFile {
+            bytes: self.data().to_vec(),
+            name: (!name.is_empty()).then(|| name.to_owned()),
+            extension,
+            media_type,
+        })
     }
 
     fn from_file(_: Option<&Self>, name: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
@@ -54,8 +76,14 @@ impl<K: BlobFile> FileForm for Blob<K> {
 impl<R: DocumentFile> FileForm for Document<R> {
     const ANY_FILE: bool = R::ANY_FILE;
 
-    fn to_file(&self) -> Option<Vec<u8>> {
-        Some(R::to_file(self))
+    fn to_file(&self) -> Option<PlainFile> {
+        let (extension, media_type) = R::file_type(self);
+        Some(PlainFile {
+            bytes: R::to_file(self),
+            name: None,
+            extension: extension.to_owned(),
+            media_type: media_type.to_owned(),
+        })
     }
 
     fn from_file(current: Option<&Self>, name: &str, bytes: Vec<u8>, client: u64) -> Option<Self> {
@@ -67,7 +95,7 @@ impl<R: DocumentFile> FileForm for Document<R> {
     }
 }
 
-pub(crate) fn to_file<C: FileForm>(bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
+pub(crate) fn to_file<C: FileForm>(bytes: &[u8]) -> Result<Option<PlainFile>, String> {
     Ok(C::decode(bytes)
         .map_err(|error| error.to_string())?
         .to_file())

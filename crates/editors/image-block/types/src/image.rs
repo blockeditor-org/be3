@@ -77,6 +77,10 @@ impl BlobFile for ImageFile {
         }
     }
 
+    fn media_type(header: &ImageHeader) -> String {
+        header.media_type.clone()
+    }
+
     fn claims(name: &str, _: &[u8]) -> bool {
         Self::FILE_EXTENSIONS.contains(&extension(name).as_str())
     }

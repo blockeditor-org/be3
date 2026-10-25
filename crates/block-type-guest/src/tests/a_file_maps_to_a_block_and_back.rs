@@ -107,7 +107,7 @@ fn to_file(module: &mut Module, content_type: Uuid, bytes: Vec<u8>) -> Option<Ve
             bytes,
         },
     ) {
-        Reply::File(file) => file,
+        Reply::File(file) => file.map(|file| file.bytes),
         other => panic!("expected a file, got {other:?}"),
     }
 }

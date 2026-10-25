@@ -734,6 +734,7 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
                     block_plugin_api::Press::Open => block_ui::Press::Open,
                     block_plugin_api::Press::Zoom => block_ui::Press::Zoom,
                 },
+                plain_file: descriptor.plain_file,
             },
         )
     }))

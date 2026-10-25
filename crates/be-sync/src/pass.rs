@@ -535,7 +535,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                     .next()
                     .unwrap_or_else(|| Err("the type module did not answer".to_owned()))
                 {
-                    Ok(Some(plain)) => plain,
+                    Ok(Some(plain)) => plain.bytes,
                     Ok(None) => {
                         self.report
                             .problems
@@ -789,7 +789,7 @@ impl<S: ObjectStore> Pass<'_, S> {
             .pop()
             .unwrap_or_else(|| Err("the type module did not answer".to_owned()))?
             .ok_or("its type has no plain-file form")?;
-        Ok((file, conflicts))
+        Ok((file.bytes, conflicts))
     }
 
     fn kind_in(&self, tree: &Tree, id: Uuid) -> Option<Kind> {

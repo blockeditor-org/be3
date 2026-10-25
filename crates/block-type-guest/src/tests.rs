@@ -105,6 +105,10 @@ impl crate::BlobFile for Bytes {
         name.to_owned()
     }
 
+    fn media_type(_: &String) -> String {
+        String::new()
+    }
+
     fn claims(_: &str, _: &[u8]) -> bool {
         true
     }

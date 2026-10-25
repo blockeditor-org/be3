@@ -16,7 +16,7 @@ use block_editor_beui::{
 };
 use uuid::Uuid;
 
-use super::export::{Export, ExportFormat, Exporter, formats};
+use super::export::{Export, ExportFormat, Exporter};
 use super::menu::{RowMenu, RowTools};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
@@ -681,12 +681,12 @@ pub(crate) fn ExportAs(
     let block = create_memo(move || {
         row.get()
             .filter(|row| row.access.can_view())
-            .and_then(|row| Some((row.id?, row.block_type, row.label)))
+            .and_then(|row| Some((row.id?, row.block_type)))
     });
     let shown = create_memo(move || {
         block
             .get()
-            .map_or_else(Vec::new, |(_, block_type, _)| formats(block_type))
+            .map_or_else(Vec::new, |(_, block_type)| exporter.formats(block_type))
     });
     let keys = create_memo(move || {
         shown.with(|shown| shown.iter().map(|(format, _)| *format).collect::<Vec<_>>())
@@ -701,7 +701,7 @@ pub(crate) fn ExportAs(
                         shown
                             .iter()
                             .find(|(shown, _)| *shown == format)
-                            .map(|(_, label)| (*label).to_owned())
+                            .map(|(_, label)| label.clone())
                             .unwrap_or_default()
                     })
                 });
@@ -714,8 +714,8 @@ pub(crate) fn ExportAs(
                         label={label}
                         row_test_id={named}
                         on_click={move || {
-                            if let Some((id, block_type, name)) = block.get_untracked() {
-                                exporter.export(Export { id, block_type, name, format });
+                            if let Some((id, _)) = block.get_untracked() {
+                                exporter.export(Export { id, format });
                             }
                         }}
                     />

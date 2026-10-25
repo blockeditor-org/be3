@@ -1,14 +1,17 @@
 use std::{
     collections::{HashMap, VecDeque},
     convert::Infallible,
-    sync::{Arc, LazyLock, RwLock, atomic::AtomicBool},
+    sync::{
+        Arc, LazyLock, RwLock,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
 use block_type_api::{
-    Change, ClientId, Command, Description, Event, Plain, Reply, Request, RequestId, SessionTag,
+    Change, ClientId, Command, Description, Event, Plain, PlainFile, Reply, Request, RequestId, SessionTag,
     TypeInfo, decode_frame, encode_frame,
 };
 use tokio::sync::Notify;
@@ -42,11 +45,21 @@ pub fn is_known(content_type: Uuid) -> bool {
         .contains_key(&content_type)
 }
 
+static PLAIN_FORMS: AtomicU64 = AtomicU64::new(0);
+
 pub fn register(kind: Kind) {
-    REGISTRY
+    let plain = kind.plain;
+    let before = REGISTRY
         .write()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
+    if before.is_none_or(|before| before.plain != plain) {
+        PLAIN_FORMS.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+pub fn plain_forms_revision() -> u64 {
+    PLAIN_FORMS.load(Ordering::Relaxed)
 }
 
 static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
@@ -517,8 +530,8 @@ impl Modules {
     pub async fn to_files(
         &mut self,
         blocks: Vec<(Uuid, Vec<u8>)>,
-    ) -> Vec<Result<Option<Vec<u8>>, String>> {
-        let mut answers: Vec<Result<Option<Vec<u8>>, String>> = Vec::with_capacity(blocks.len());
+    ) -> Vec<Result<Option<PlainFile>, String>> {
+        let mut answers: Vec<Result<Option<PlainFile>, String>> = Vec::with_capacity(blocks.len());
         let mut asked: HashMap<usize, (Vec<usize>, Vec<Request>)> = HashMap::new();
         for (index, (content_type, bytes)) in blocks.into_iter().enumerate() {
             answers.push(Err(format!(

@@ -52,6 +52,10 @@ impl BlobFile for AudioFile {
         }
     }
 
+    fn media_type(header: &AudioHeader) -> String {
+        header.media_type.clone()
+    }
+
     fn claims(name: &str, first: &[u8]) -> bool {
         media_type_of(name).starts_with("audio/") && !first.is_empty()
     }

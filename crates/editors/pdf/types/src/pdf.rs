@@ -47,6 +47,10 @@ impl BlobFile for PdfFile {
         }
     }
 
+    fn media_type(_: &PdfHeader) -> String {
+        "application/pdf".to_owned()
+    }
+
     fn claims(name: &str, first: &[u8]) -> bool {
         extension(name) == "pdf" && first.starts_with(PDF_MAGIC)
     }

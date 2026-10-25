@@ -14,6 +14,7 @@ fn icon_overrides_keep_lock_and_deleted_markers() {
             icon: Some(ICON_FILE_TEXT),
             child_edits: ChildEdits::default(),
             press: block_editor_beui::block_ui::Press::Open,
+            plain_file: false,
         },
     )]);
     let describe = |info: &BlockInfo| {

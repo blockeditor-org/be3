@@ -5,7 +5,6 @@ use workspace_ui_types::EditorView;
 use workspace_ui_types::WorkspaceContent;
 
 use super::*;
-use text_block_types::TextContent;
 
 #[test]
 fn a_workspace_is_shown_with_what_it_holds_already_listed() {
@@ -16,7 +15,7 @@ fn a_workspace_is_shown_with_what_it_holds_already_listed() {
     let note = |parent: Uuid| {
         BlockInfo::new(
             Uuid::new_v4(),
-            TextContent::CONTENT_TYPE,
+            Uuid::from_u128(0x6e6f_7465),
             BlockParent::Block(parent),
         )
     };

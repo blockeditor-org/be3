@@ -1006,6 +1006,16 @@ pub(crate) fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static)
     });
 }
 
+pub(crate) fn plain_file(
+    block: Uuid,
+    reply: impl FnOnce(Result<be_types_host::PlainFile, String>) + Send + 'static,
+) {
+    send(Command::PlainFile {
+        block,
+        reply: Box::new(reply),
+    });
+}
+
 pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
     let blocks = be_client::transfer::renumber(be_client::transfer::decode(bytes)?);
     let author = account().ok_or("Sign in to import blocks.")?;

@@ -23,7 +23,7 @@ mod a_workspace_is_shown_with_what_it_holds_already_listed;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
-mod exporting_a_text_block_saves_it_as_a_markdown_file;
+mod exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it;
 mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
 mod icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
@@ -168,6 +168,7 @@ fn containers(fixture: &mut Fixture, children: block_editor_beui::ChildOperation
         icon_codepoint: String::new(),
         children,
         press: Press::Zoom,
+        plain_file: false,
     };
     fixture.test.catalog(Catalog {
         types: vec![

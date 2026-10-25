@@ -24,6 +24,7 @@ fn choosing_a_default_editor_stores_it() {
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
             press: block_editor_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![

@@ -23,6 +23,7 @@ fn catalog(edits: ChildEdits) -> BlockCatalog {
             icon: None,
             child_edits: edits,
             press: Press::Open,
+            plain_file: false,
         },
     )])
 }

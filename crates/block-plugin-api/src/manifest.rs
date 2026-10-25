@@ -190,6 +190,7 @@ impl BlockTypeDocument {
                 icon_codepoint: self.icon,
                 children: self.children,
                 press: self.press,
+                plain_file: false,
             },
             module: self.module,
             exported_whole: self.exported_whole,

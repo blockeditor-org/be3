@@ -34,6 +34,8 @@ type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
 
 type HeadReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
 
+type PlainReply = Box<dyn FnOnce(Result<be_types_host::PlainFile, String>) + Send>;
+
 pub(super) enum Command {
     PreviewChild {
         alias: Uuid,
@@ -141,6 +143,10 @@ pub(super) enum Command {
         block: Uuid,
         reply: ExportReply,
     },
+    PlainFile {
+        block: Uuid,
+        reply: PlainReply,
+    },
     Import(Vec<(be_client::transfer::Saved, BlockParent)>),
     Version {
         block: Uuid,
@@ -212,6 +218,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
             | Command::ReadHead { block, .. }
+            | Command::PlainFile { block, .. }
             | Command::Version { block, .. }
             | Command::WatchVersion(block)
             | Command::Leave(block)
@@ -1551,6 +1558,11 @@ async fn apply(
             crate::host::wake();
             false
         }
+        Command::PlainFile { block, reply } => {
+            reply(plain_file(peer, replicas, shared, block).await);
+            crate::host::wake();
+            false
+        }
         Command::Import(_) => false,
         Command::Flush(done) => {
             replicas.seal_all(ctx).await;
@@ -1558,6 +1570,43 @@ async fn apply(
             true
         }
     }
+}
+
+async fn plain_file(
+    peer: &Arc<Peer<Store>>,
+    replicas: &mut Replicas,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+) -> Result<be_types_host::PlainFile, String> {
+    let (content_type, name) = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .graph
+        .get(block)
+        .map(|node| (node.content_type, node.metadata.name().unwrap_or_default()))
+        .ok_or("This block isn't known yet.")?;
+    let content = match replicas.is_open(block) {
+        true => replicas.content((peer, shared), block).await,
+        false => None,
+    };
+    let content = match content {
+        Some(content) => Some(content),
+        None => stored(peer, block).await.map_err(|error| error.to_string())?,
+    };
+    let bytes = match content {
+        Some(bytes) => bytes,
+        None => super::kind_of(content_type)
+            .map(|kind| kind.blank)
+            .ok_or("This block's type isn't known.")?,
+    };
+    let mut file = replicas
+        .to_file((peer, shared), content_type, bytes)
+        .await?
+        .ok_or("This block has no plain-file form.")?;
+    if file.name.is_none() {
+        file.name = Some(be_block::plain::export_name(&name, &file.extension));
+    }
+    Ok(file)
 }
 
 async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {

@@ -62,7 +62,12 @@ fn a_module_answers_stateless_requests() {
             content_type: FileContent::CONTENT_TYPE,
             bytes: text.encode(),
         }),
-        Reply::File(Some(b"hello".to_vec()))
+        Reply::File(Some(block_type_api::PlainFile {
+            bytes: b"hello".to_vec(),
+            name: Some("notes.txt".to_owned()),
+            extension: "txt".to_owned(),
+            media_type: "application/octet-stream".to_owned(),
+        }))
     );
     assert_eq!(
         ask(Request::ToFile {

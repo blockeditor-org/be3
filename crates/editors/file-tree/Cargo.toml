@@ -8,18 +8,14 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-audio-block-types = { path = "../audio-block/types" }
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
-image-block-types = { path = "../image-block/types" }
-pdf-types = { path = "../pdf/types" }
 serde = { version = "1", features = ["derive"] }
-text-block-types = { path = "../text-block/types" }
 uuid = { version = "1", features = ["v4"] }
-workspace-ui-types = { path = "../workspace-ui/types" }
 
 [dev-dependencies]
 block-ui-test = { path = "../../block-ui-test" }
+workspace-ui-types = { path = "../workspace-ui/types" }
 
 [lints]
 workspace = true

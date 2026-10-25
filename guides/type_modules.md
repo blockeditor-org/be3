@@ -34,7 +34,9 @@ The module is a state machine: the host calls it with an `Event` and gets back
 A host gives each open block a `ReplicaId` and addresses it in every event. Some
 events are stateless requests answered by `Command::Reply { id }`: `Blank`, `Merge3`
 (a `None` side is the type's default; `conflicts: 0` is clean), `Describe` (name,
-derived metadata, references in an organization), `ToFile`, `Claims` (which of the
+derived metadata, references in an organization), `ToFile` (a `PlainFile`: the
+bytes, the extension and media type the type gives them, and the name of the file
+they came from when the content keeps one), `Claims` (which of the
 module's types takes a file by name and first bytes, or with `directory` a new
 directory), and `Apply` (a `Child` or `FromFile` change made to content bytes,
 or to the type's default for `None`, answered `Content`, or `Changed(false)` when
@@ -147,7 +149,8 @@ then `.undo::<C>()` for a type whose session keeps an undo stack (what
 (`FileForm`: `to_file`, `from_file`, `claims`). A types crate cannot implement
 `FileForm` for `Blob<Kind>` or `Document<Root>` itself (the orphan rule), so it
 implements `BlobFile` on its blob kind (`header` for a file's name and bytes,
-`claims`) or `DocumentFile` on its root (`to_file`, `from_file`, `claims`), and
+`media_type`, `claims`) or `DocumentFile` on its root (`to_file`, `file_type` for
+its extension and media type, `from_file`, `claims`), and
 the library's blanket impls make that the content's `FileForm`; for the same
 reason a blob type's constructors are associated functions of its kind
 (`ImageFile::from_file`). `be_block::plain` has the file-name and media-type

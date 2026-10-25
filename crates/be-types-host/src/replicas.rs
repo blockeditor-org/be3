@@ -499,6 +499,27 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    pub async fn to_file(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+    ) -> Result<Option<block_type_api::PlainFile>, String> {
+        let module = self
+            .modules
+            .module_of(content_type)
+            .ok_or_else(|| format!("no type module has the block type {content_type}"))?;
+        let request = Request::ToFile {
+            content_type,
+            bytes,
+        };
+        match self.ask(ctx, module, request).await {
+            Reply::File(file) => Ok(file),
+            Reply::Malformed(error) => Err(error),
+            other => Err(format!("the type module answered {other:?}")),
+        }
+    }
+
     pub async fn apply(
         &mut self,
         ctx: Ctx<'_, H>,
