@@ -2287,7 +2287,11 @@ where
             );
         }
         let ancestor = self.written(&self.confirmed);
-        self.stash(self.base, ancestor, AfterStash::Ancestor { content, applied });
+        self.stash(
+            self.base,
+            ancestor,
+            AfterStash::Ancestor { content, applied },
+        );
     }
 
     fn has_unsaved(&self) -> bool {
