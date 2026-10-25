@@ -2,8 +2,8 @@ use super::*;
 use block_editor_beui::beui::icons::ICON_SHAPES;
 use block_editor_beui::{
     BlockInfo, BlockParent, BlockQuery, BlockTypeDescriptor, ChildMode, ChildOperations,
-    ChildPreview, ChildStatus, EditorCapabilities, EditorInstanceId, EditorRegion,
-    InteractionMode, Press, ResizeMode,
+    ChildPreview, ChildStatus, EditorCapabilities, EditorInstanceId, EditorRegion, InteractionMode,
+    Press, ResizeMode,
 };
 
 const CANVAS: Uuid = Uuid::from_u128(0x0c);
