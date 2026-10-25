@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
-use block_plugin_api::Watch;
+use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
     AudioStatus, BlockPick, Catalog, ChildStatus, EditorInstanceId, Fonts, HelloAccepted,
@@ -19,7 +19,7 @@ use block_plugin_api::{
 #[derive(Default)]
 struct Held {
     owners: HashMap<OpId, EditorInstanceId>,
-    waiting: BTreeMap<OpId, OpId>,
+    watches: BTreeMap<OpId, Watch<Encoded>>,
     producers: HashMap<OpId, Producer<Vec<u8>>>,
 }
 
@@ -413,12 +413,17 @@ impl Wire {
     }
 
     pub(super) fn waiting(&self) -> Vec<OpId> {
-        self.held.waiting.keys().copied().collect()
+        self.held
+            .watches
+            .iter()
+            .filter(|(_, watch)| watch.waiting())
+            .map(|(op, _)| *op)
+            .collect()
     }
 
     pub(super) fn answer_watch(&mut self, watch: OpId, value: Vec<u8>) {
-        if let Some(next) = self.held.waiting.remove(&watch) {
-            self.connection.complete(next, Outcome::Ok(value));
+        if let Some(watch) = self.held.watches.get_mut(&watch) {
+            watch.set(&mut self.connection, value);
         }
     }
 
@@ -467,10 +472,11 @@ impl Wire {
             _ => None,
         };
         if let Some((watch, next)) = next {
-            if let Some(earlier) = self.held.waiting.insert(watch, next) {
-                self.connection
-                    .complete(earlier, Outcome::Err(OpError::Canceled));
-            }
+            self.held
+                .watches
+                .entry(watch)
+                .or_default()
+                .next_encoded(&mut self.connection, next);
             return Ok(());
         }
         match call {
@@ -509,32 +515,29 @@ impl Wire {
             if let Some(producer) = held.producers.remove(&op) {
                 producer.fail(&mut self.connection, OpError::Canceled);
             }
-            if let Some(next) = held.waiting.remove(&op) {
-                self.connection
-                    .complete(next, Outcome::Err(OpError::Canceled));
+            if let Some(mut watch) = held.watches.remove(&op) {
+                watch.end(&mut self.connection);
             }
             self.connection
                 .complete(op, Outcome::Err(OpError::Canceled));
             heard.push(Heard::Ended(op));
             return true;
         }
-        let waited = held
-            .waiting
-            .iter()
-            .find(|(_, next)| **next == op)
-            .map(|(watch, _)| *watch);
+        let connection = &mut self.connection;
+        if held
+            .watches
+            .values_mut()
+            .any(|watch| watch.withdraw(connection, op))
+        {
+            return true;
+        }
         let streamed = held
             .producers
             .iter()
             .find(|(_, producer)| producer.op() == op)
             .map(|(replica, _)| *replica);
-        if let Some(watch) = waited {
-            held.waiting.remove(&watch);
-        }
         if let Some(replica) = streamed {
             held.producers.remove(&replica);
-        }
-        if waited.is_some() || streamed.is_some() {
             self.connection
                 .complete(op, Outcome::Err(OpError::Canceled));
             return true;

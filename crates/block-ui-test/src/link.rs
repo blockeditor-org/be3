@@ -5,6 +5,7 @@ use block_plugin_api::{
     BlockCommand, EditorInstanceId, VersionCommand,
     blocks::{BlockHistory, OpenRequest},
     embed::blocks::Call,
+    Encoded,
     ops::{Connection, OpError, OpId, Outcome, Producer, encode},
 };
 use uuid::Uuid;
@@ -21,10 +22,12 @@ enum Subject {
     Shows,
 }
 
+/// A watch the editor opened, with what reached it since the host last answered.
 struct Watch {
     subject: Subject,
-    waiting: Option<OpId>,
+    answering: block_plugin_api::Watch<Encoded>,
     latest: Option<Vec<u8>>,
+    next: Option<OpId>,
 }
 
 pub(crate) enum Sent {
@@ -83,12 +86,15 @@ impl Link {
 
     fn watch(&mut self, op: OpId, subject: Subject) {
         let latest = self.values.get(&subject).cloned();
+        let mut answering = block_plugin_api::Watch::default();
+        answering.opened(op);
         self.watches.insert(
             op,
             Watch {
                 subject,
-                waiting: None,
+                answering,
                 latest,
+                next: None,
             },
         );
     }
@@ -185,7 +191,7 @@ impl Link {
 
     fn wait(&mut self, watch: OpId, next: OpId) {
         if let Some(watch) = self.watches.get_mut(&watch) {
-            watch.waiting = Some(next);
+            watch.next = Some(next);
         }
     }
 
@@ -242,14 +248,12 @@ impl Link {
             self.offer(Subject::Blocks(query), encode(&listed));
         }
         for watch in self.watches.values_mut() {
-            let Some(next) = watch.waiting else {
-                continue;
-            };
-            let Some(value) = watch.latest.take() else {
-                continue;
-            };
-            watch.waiting = None;
-            connection.complete(next, Outcome::Ok(value));
+            if let Some(next) = watch.next.take() {
+                watch.answering.next_encoded(connection, next);
+            }
+            if let Some(value) = watch.latest.take() {
+                watch.answering.set(connection, value);
+            }
         }
     }
 }

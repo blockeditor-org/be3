@@ -1,10 +1,18 @@
-use crate::ops::{Connection, OpId, Reply};
+use crate::ops::{Connection, OpError, OpId, Outcome, Reply};
 
+/// The host's side of a latest-value watch, a resource whose
+/// `next: async func() -> T` the plugin calls again each time it is answered.
+/// A change answers a waiting `next` at once, or is held, folded into the
+/// changes after it, until the plugin asks.
 pub struct Watch<T> {
     open: Option<OpId>,
-    waiting: Option<Reply<T>>,
+    waiting: Option<OpId>,
     held: Option<T>,
 }
+
+/// A value already encoded as the watch's result type, for a host that works
+/// out a watch's value as bytes.
+pub struct Encoded(pub Vec<u8>);
 
 impl<T> Default for Watch<T> {
     fn default() -> Self {
@@ -16,22 +24,7 @@ impl<T> Default for Watch<T> {
     }
 }
 
-impl<T: serde::Serialize> Watch<T> {
-    pub fn change(&mut self, connection: &mut Connection, change: impl FnOnce(Option<T>) -> T) {
-        let changed = change(self.held.take());
-        match self.waiting.take() {
-            Some(reply) => reply.send(connection, &changed),
-            None => self.held = Some(changed),
-        }
-    }
-
-    pub fn next(&mut self, connection: &mut Connection, reply: Reply<T>) {
-        match self.held.take() {
-            Some(held) => reply.send(connection, &held),
-            None => self.waiting = Some(reply),
-        }
-    }
-
+impl<T> Watch<T> {
     pub fn opened(&mut self, op: OpId) {
         self.open = Some(op);
         self.waiting = None;
@@ -42,10 +35,69 @@ impl<T: serde::Serialize> Watch<T> {
             *self = Self::default();
         }
     }
-}
 
-impl<T> Watch<T> {
     pub fn is(&self, op: OpId) -> bool {
         self.open == Some(op)
+    }
+
+    /// Whether the plugin waits for the next value.
+    pub fn waiting(&self) -> bool {
+        self.waiting.is_some()
+    }
+
+    /// Answers a `next` the plugin gave up on as canceled; false when it was
+    /// not this watch's.
+    pub fn withdraw(&mut self, connection: &mut Connection, next: OpId) -> bool {
+        if self.waiting != Some(next) {
+            return false;
+        }
+        self.waiting = None;
+        connection.complete(next, Outcome::Err(OpError::Canceled));
+        true
+    }
+
+    /// Takes the plugin's `next`, answering one it called before as canceled.
+    fn wait(&mut self, connection: &mut Connection, next: OpId) {
+        if let Some(earlier) = self.waiting.replace(next) {
+            connection.complete(earlier, Outcome::Err(OpError::Canceled));
+        }
+    }
+
+    fn answer(&mut self, connection: &mut Connection, outcome: impl FnOnce(T) -> Outcome) {
+        if let (Some(next), Some(held)) = (self.waiting, self.held.take()) {
+            self.waiting = None;
+            connection.complete(next, outcome(held));
+        }
+    }
+}
+
+impl<T: serde::Serialize> Watch<T> {
+    pub fn change(&mut self, connection: &mut Connection, change: impl FnOnce(Option<T>) -> T) {
+        self.held = Some(change(self.held.take()));
+        self.answer(connection, |value| Outcome::returned(&value));
+    }
+
+    pub fn next(&mut self, connection: &mut Connection, reply: Reply<T>) {
+        self.wait(connection, reply.op());
+        self.answer(connection, |value| Outcome::returned(&value));
+    }
+}
+
+impl Watch<Encoded> {
+    pub fn set(&mut self, connection: &mut Connection, value: Vec<u8>) {
+        self.held = Some(Encoded(value));
+        self.answer(connection, |Encoded(bytes)| Outcome::Ok(bytes));
+    }
+
+    pub fn next_encoded(&mut self, connection: &mut Connection, next: OpId) {
+        self.wait(connection, next);
+        self.answer(connection, |Encoded(bytes)| Outcome::Ok(bytes));
+    }
+
+    /// Answers the waiting `next` as canceled, when the watch ends.
+    pub fn end(&mut self, connection: &mut Connection) {
+        if let Some(next) = self.waiting.take() {
+            connection.complete(next, Outcome::Err(OpError::Canceled));
+        }
     }
 }
