@@ -2,44 +2,7 @@ Measuring and profiling beui's performance, and the ideas already tried.
 
 1. Benchmarks
 
-`//crates/bench:suite` is every benchmark in one directory, built in release whatever the
-command asks: the runner `bench`, each benchmark program under `programs/`, and block-app
-with its plugins for the end-to-end ones. `./scripts/buck run //crates/bench:suite -- list`
-lists them; `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those
-whose name contains it (all by default), N times (3) and prints each metric's fastest, median and slowest. A benchmark is
-a program that reports its metrics through the `bench` crate (`bench::time`, `count`,
-`record`), which appends them to the file `BENCH_METRICS` names and does nothing without
-it; adding one is a line in `BENCHMARKS` (crates/bench/src/suite.rs) and an entry in the
-suite's `programs` (crates/bench/BUCK). Each can also run alone, with
-`./scripts/buck run -m release`:
-
-- `//crates/app-bench:bin` (the suite's `app-canvas-and-text`) runs block-app headless,
-  driven as `drive` drives it (crates/be-drive's `Driven`, guides/running/drive.md), against
-  a be-server in its own process behind a proxy that delays each direction 15 ms, so every
-  round trip takes 30 ms more, with `BEUI_RENDERER=none`, so it measures the app's own work and
-  not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
-  browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
-  canvas and a text block from the files' New menu, draws a rectangle and a pen line of
-  `APP_BENCH_POINTS` samples (10,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints
-  and closes each, exports the folder as a .block file and closes the app. A second device,
-  with data of its own, signs in, unlocks with the recovery phrase, reopens both blocks,
-  paints them and exports the folder again. It fails unless both exports are identical and
-  each block paints the same on both devices. "Save" is how long `hurry on` takes to settle
-  after the edit shows: the seal the app would wait 750 ms for, published to the server.
-- The pen line goes in 1,000 samples a frame (`drive pen draw FROM TO STEPS PER_FRAME`), so
-  `canvas.line-draw`, from its first sample until the whole line shows, is the work the
-  samples cause (the canvas's edits, relaying them, the replica, the plugin applying them)
-  and not the cost of 10,000 frames, which a person drawing never waits on.
-  `canvas.line-longest-frame` and `canvas.line-longest-plugin-frame` are the longest host
-  frame and the longest canvas plugin step meanwhile (`drive frames`, guides/running/drive.md):
-  a frame packed with samples is where a per-sample cost that grows with the stroke shows as
-  stutter, and since a host frame waits at most 8 ms for its plugins, the plugin's own line
-  is where the canvas's share shows. The run fails unless the exported stroke holds exactly
-  the samples the canvas keeps, where they were drawn: it keeps a sample only when it is more
-  than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
-  so dropping one it would have kept moves the points after it.
-  It takes about three minutes; set the two sizes lower while working on it. It needs
-  `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the app loads, which the suite sets.
+Benchmarks run in release, on this machine, with `./scripts/buck run -m release`:
 
 - `//crates/beui-demo:example-open-bench -- [PAGE]` opens each beui-demo page from its
   catalog row, once first in the process (cold) and then `REPEAT` more times (10 by default)
@@ -58,6 +21,9 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
   around the app's update; the open bench takes the renderer's `prepare` out of it.
+- `//crates/block-wasm-host:example-gpu-calls` times a plugin's per-draw gpu calls (set
+  pipeline, viewport and scissor, draw) through wasmtime and block-gpu-host into wgpu's
+  noop device: about 130 ns a call on this machine in October 2026.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
 - `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`
@@ -137,13 +103,9 @@ take as long as building the items.
 
 Time on a shared VM drifts by 10% or more between runs, which hides most single changes:
 
-- Build the suite of each build first, then run them alternately, several times each:
-  `./scripts/buck build //crates/bench:suite --out DIR/base` on the base and again with
-  `--out DIR/change`, then `DIR/change/bench compare DIR/base [--rounds=N] [NAME...]`, which
-  runs each benchmark from one suite and then the other, swapping which goes first every
-  round, and prints both suites' fastest and median of each metric and how much the
-  change's fastest differs. A suite copies everything it runs, so a later build or
-  checkout does not change it.
+- Build both binaries first, then run them alternately, several times each:
+  `./scripts/buck build -m release //crates/beui-demo:example-open-bench --out DIR/base`
+  on the base and again with `--out DIR/change`.
 - Compare each page's fastest warm open, never one run's median.
 - Allocation counts don't drift: the same build gives the same count to within one or two.
   A change meant to allocate less shows up there even when its time is lost in noise. They

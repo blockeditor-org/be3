@@ -102,10 +102,23 @@ host in order with the frames, since the host's state is not reachable from the
 guest's worker on the web; an import that needs an answer is an `async func`, and
 the generator refuses a sync import with a result. A sync export is a call the host
 always awaits: every runtime runs it on the guest's thread and sends its result back
-after the frames it made. The one place a sync import could return a value would be
-an interface whose host runs inside the guest's own worker or thread on every
-platform, as the GPU device does (block-gpu-shim on the web, wasmtime host functions
-natively); none exists yet.
+after the frames it made.
+
+The one exception is an interface whose host runs inside the guest's own worker or
+thread on every platform, as the GPU device does (block-gpu-shim on the web, wasmtime
+host functions natively). `local: ["be3:gpu/device@0.1.0"]` names such imports: they
+are no ops, have no async funcs, and each func, resource method, constructor and
+`[resource-drop]` is a wasm import of its own that returns its result. Scalars, enums,
+flags, handles and records and options of them are flattened into wasm arguments,
+strings and lists of scalars or handles go as a pointer and a length, and anything
+else as postcard; a result is one wasm value (`option<own<R>>` is the handle, 0 for
+none) or postcard written into room the guest offers, with `[returned]` fetching one
+that did not fit. The guest gets an owner type per resource that drops it; the host a
+`Host` trait, a `Caller` trait for the guest's memory and the device, `glue`
+functions, and `<world>_local_imports!`, which hands a macro of the runtime's every
+import's glue, module, name, `module#name` and wasm signature to link or export. A
+world with other imports of its own takes a local interface from its crate with
+`uses` and also names it in `local`, and generates nothing for it.
 
 ## The protocol
 
@@ -170,9 +183,7 @@ What the host owes a replica:
 - **The lease.** `lease(session, resynchronize)` whenever the server's session state
   changes (`resynchronize` after the host fell behind the broadcast). `report-clean`
   is the heartbeat with `clean-at`; `claim-lease` is called once per generation when
-  the owner is gone from the participants, and when the host calls `claim` (a
-  lapsed lease, taken by a terminal host) once the replica has caught up. An owner
-  told another client holds the lease becomes a follower. Dropping the replica closes it: it seals
+  the owner is gone from the participants. Dropping the replica closes it: it seals
   what it owes and then completes its constructor op, after which the host leaves the
   session; calls for it until then still reach it.
 - **Relaying.** `send(to, bytes)` is opaque bytes for `one(peer)`, `peers` (every
