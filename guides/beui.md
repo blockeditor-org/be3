@@ -2465,7 +2465,15 @@ shown, holds the pointer, and while it does sends no absolute `PointerMoved`
 (winit, web and drm alike), since a held pointer's position means nothing.
 The winit adapter lets the grab go itself the moment its window loses focus
 and takes it back on focus only if the shown state still asks, since X11's
-and macOS's grabs outlive focus; a browser drops its lock on blur by itself.
+and macOS's grabs outlive focus. A browser drops its lock by itself, on blur
+and on Escape (which the page never sees), and refuses one asked for without
+a user gesture: the web adapter (its `lock::Lock`) reports either, while the
+shown state still asks, as `Input::PointerUnlocked`. The document answers it
+as it answers losing the keyboard while it holds the pointer, by clearing
+focus, so a `PointerLock` lets go and the next press takes it again; a space
+host lets its grab go, as on blur. If the shown state still asks after that,
+the next mouse press asks the browser again from inside its gesture and
+reaches nothing, nor does its release.
 What comes back is
 `Event::PointerMotion`, a delta with no position, which the document delivers to
 the focused node while the pointer is held and nowhere at all while it is not.
@@ -2953,8 +2961,9 @@ all its 3D (`glam`) stays in the crate.
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer
   (`Space::grabbed`; it asks for `pointer_locked` all that time), so the mouse
-  sends only `PointerMotion`. Losing focus (`Input::Focus(false)`) or
-  Ctrl+Shift+Escape lets it go, and then the first press into the window grabs
+  sends only `PointerMotion`. Losing focus (`Input::Focus(false)`), the
+  platform dropping the lock (`Input::PointerUnlocked`: a browser on Escape)
+  or Ctrl+Shift+Escape lets it go, and then the first press into the window grabs
   it again and reaches nothing, nor does its release. While a window the
   cursor is on asks for pointer lock itself, motion goes to it instead and
   the cursor stays put.

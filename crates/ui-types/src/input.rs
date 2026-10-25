@@ -594,6 +594,7 @@ pub enum Input {
     PointerLeft,
     PointersCancelled,
     PointerMotion(Vec2),
+    PointerUnlocked,
     PointerButton {
         pos: Pos2,
         button: PointerButton,

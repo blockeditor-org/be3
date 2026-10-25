@@ -122,6 +122,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
                 doc.update_focus(None);
             }
         }
+        Event::PointerUnlocked if ctx.pointer_locked() => doc.update_focus(None),
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
             from_app(doc, KeyInput::Press(*press));

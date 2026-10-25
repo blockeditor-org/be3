@@ -463,7 +463,7 @@ impl Space {
                 }
             }
             input => {
-                if let Input::Focus(false) = input {
+                if let Input::Focus(false) | Input::PointerUnlocked = input {
                     self.grabbed = false;
                 }
                 match position(&input) {
