@@ -1,6 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, Write as _};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
@@ -263,7 +263,6 @@ impl Run {
         let mut originals = BTreeSet::new();
         let mut stale = BTreeSet::new();
         let mut added = BTreeSet::new();
-        let mut findings = BTreeMap::new();
         for fix in &fixes {
             let root = fix.join("changed");
             let original = fix.join("original");
@@ -287,13 +286,6 @@ impl Run {
                     } else {
                         stale.insert(path.to_owned());
                     }
-                }
-            }
-            if let Ok(entries) = fs::read_dir(fix.join("findings")) {
-                for entry in entries.flatten() {
-                    findings
-                        .entry(entry.file_name())
-                        .or_insert_with(|| entry.path());
                 }
             }
         }
@@ -350,17 +342,6 @@ impl Run {
                     self.failed = true;
                 }
             }
-        }
-        if !findings.is_empty() {
-            let mut stdout = io::stdout().lock();
-            for path in findings.values() {
-                if let Ok(text) = fs::read(path) {
-                    let _ = stdout.write_all(&text);
-                }
-            }
-            drop(stdout);
-            println!("clippy: {} findings.", findings.len());
-            self.failed = true;
         }
     }
 
