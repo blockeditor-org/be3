@@ -12,6 +12,8 @@ use beui_renderer_wgpu::{Draw, DrawAt, Repaint, Repainting, wgpu_color_in};
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 
+use crate::floor;
+use crate::head::EYE_HEIGHT;
 use crate::space::SKY;
 
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -56,6 +58,11 @@ struct SceneUniform {
     right: [f32; 4],
     up: [f32; 4],
     sky: [f32; 4],
+    ground: [f32; 4],
+    grid: [f32; 4],
+    axis: [f32; 4],
+    floor: [f32; 4],
+    inverse: [[f32; 4]; 4],
     options: [f32; 4],
 }
 
@@ -101,7 +108,8 @@ struct Target {
 
 struct Pipelines {
     format: wgpu::TextureFormat,
-    floor: wgpu::RenderPipeline,
+    background: wgpu::RenderPipeline,
+    grid: wgpu::RenderPipeline,
     panel: wgpu::RenderPipeline,
     chrome: wgpu::RenderPipeline,
     cursor: wgpu::RenderPipeline,
@@ -452,15 +460,25 @@ impl Gpu {
         }
         let device = &self.device;
         let shader = &self.shader;
-        let scene = Stage {
-            label: "space floor",
-            vertex: "floor_vertex",
-            fragment: "floor_fragment",
+        let background = Stage {
+            label: "space background",
+            vertex: "background_vertex",
+            fragment: "background_fragment",
             layouts: &[&self.scene_layout],
             format,
             samples: SAMPLES,
-            depth: Some(true),
+            depth: Some(false),
             blend: None,
+        };
+        let grid = Stage {
+            label: "space grid",
+            vertex: "grid_vertex",
+            fragment: "grid_fragment",
+            layouts: &[&self.scene_layout],
+            format,
+            samples: SAMPLES,
+            depth: Some(false),
+            blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
         };
         let panel = Stage {
             label: "space panel",
@@ -475,7 +493,13 @@ impl Gpu {
         self.target = None;
         self.pipelines = Some(Pipelines {
             format,
-            floor: pipeline(device, shader, scene),
+            background: pipeline_comparing(
+                device,
+                shader,
+                background,
+                wgpu::CompareFunction::Always,
+            ),
+            grid: pipeline_comparing(device, shader, grid, wgpu::CompareFunction::Always),
             panel: pipeline(device, shader, panel),
             chrome: pipeline(
                 device,
@@ -787,6 +811,11 @@ impl Gpu {
             right: frame.right.extend(0.0).to_array(),
             up: frame.up.extend(0.0).to_array(),
             sky: SKY.to_linear_f32(),
+            ground: floor::GROUND.to_linear_f32(),
+            grid: floor::GRID.to_linear_f32(),
+            axis: floor::AXIS.to_linear_f32(),
+            floor: [floor::EXTENT, floor::FADE_START, floor::FADE_END, EYE_HEIGHT],
+            inverse: frame.view_projection.inverse().to_cols_array_2d(),
             options: [f32::from(u8::from(at.format.is_srgb())), 0.0, 0.0, 0.0],
         };
         self.queue
@@ -845,7 +874,9 @@ impl Gpu {
             multiview_mask: None,
         });
         pass.set_bind_group(0, &self.scene_group, &[]);
-        pass.set_pipeline(&pipelines.floor);
+        pass.set_pipeline(&pipelines.background);
+        pass.draw(0..4, 0..1);
+        pass.set_pipeline(&pipelines.grid);
         pass.draw(0..4, 0..1);
         let sheets = [
             (&pipelines.panel, &self.panels),

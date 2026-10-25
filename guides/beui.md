@@ -3135,15 +3135,27 @@ all its 3D (`glam`) stays in the crate.
   trilinear and anisotropic filtering and a level-of-detail bias of -0.5
   (`SHARPEN` in space.wgsl), so a texture up to 1.4 times the panel's size
   on screen is read from its sharpest level;
-  then a 4x multisampled, depth-tested pass draws a floor grid and the panels
-  (their backs grey; nearer panels hide farther ones by depth, a carried
-  one too), and a
+  then a 4x multisampled pass draws the backdrop, the floor grid and the
+  panels. The backdrop (`floor.rs`, `background_fragment`) fills the view with
+  no depth and is coloured by each pixel's direction alone: `SKY` above the
+  horizon, `GROUND` below it, blended by `floor::ground_share` (the floor's
+  `floor::fade` at the distance a ray from `EYE_HEIGHT` would meet it), so
+  the floor is part of the sky, not a surface. Only the grid lines are 3D, on
+  the plane y = 0 around the eye, faded with distance as the floor colour is,
+  and blended over the backdrop without depth test or write before any panel,
+  so a panel under the floor is drawn over them and stays visible and
+  pickable (it is not hidden by anything but nearer panels). The panels are
+  depth-tested (their backs grey; nearer panels hide farther ones by depth, a
+  carried one too), and a
   `Drawing` copies it texel for texel into the platform window. A frame is composed again only
   when the head, a panel, the cursor or a window's output changed. A panel is
   a strip of `render::SEGMENTS` columns bent in the vertex shader. The
-  `Drawing` also paints (`picture.rs`, `Paints`): each panel's and its
-  chrome's paintings placed onto the projected surface cell by cell, far to
-  near, which is what the crate's painting tests compare.
+  `Drawing` also paints (`picture.rs`, `Paints`): the backdrop as a 16x16
+  mesh of the screen with each vertex's direction's colour, the grid lines
+  within 20 m as thin quads (fading out by 20 m, where the GPU's go on to
+  `floor::EXTENT`), then each panel's and its chrome's paintings placed onto
+  the projected surface cell by cell, far to near, which is what the crate's
+  painting tests compare.
 - Cursor: the host asks the platform for `CursorIcon::None` and draws its own
   in the scene, last and over everything, as a quad facing the head with its
   hotspot on the cursor's point (`Space::cursor_at`), or when that is out of
