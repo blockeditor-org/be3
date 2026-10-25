@@ -1327,6 +1327,7 @@ impl Space {
                 window,
                 rotation: panel.pose.rotation,
                 start: ray,
+                sight: chrome::Sight::new(ray.origin, panel.pose.position, self.head.rotation()),
             },
             Part::Roll => Gesture::Roll {
                 original: panel,
@@ -1348,7 +1349,6 @@ impl Space {
         let (Some(gesture), Some(ray)) = (self.chrome.gesture, self.cursor_ray()) else {
             return;
         };
-        let head = self.head.rotation();
         let Some(panel) = self.panel_mut(gesture.window()) else {
             return;
         };
@@ -1365,10 +1365,11 @@ impl Space {
                 }
             }
             Gesture::Turn {
-                rotation, start, ..
-            } => {
-                panel.pose.rotation = chrome::turned(rotation, start.direction, ray.direction, head)
-            }
+                rotation,
+                start,
+                sight,
+                ..
+            } => panel.pose.rotation = chrome::turned(rotation, start.direction, ray.direction, sight),
             Gesture::Roll { original, start } => {
                 if let Some(angle) = chrome::roll_angle(&original, ray) {
                     panel.pose.rotation = chrome::rolled(&original, start, angle);

@@ -3095,7 +3095,7 @@ all its 3D (`glam`) stays in the crate.
   panel behind another. Letting go of the
   button that was down when it began (or, if none was, the next click) ends it:
   the app gets that release where it grabbed, the panel faces the viewer
-  (`Panel::face`, the same facing about its centre; only a carry let go mid-turn still turns), and the host reports `WindowReport::Placed` with the panel's placement,
+  (`Panel::face`, the same facing about its centre, at once: a carry let go mid-turn snaps to it rather than finishing the turn), and the host reports `WindowReport::Placed` with the panel's placement,
   `space X Y Z QX QY QZ QW S B`: its position, rotation, `metres_per_point`
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
@@ -3212,11 +3212,23 @@ all its 3D (`glam`) stays in the crate.
   the move button starts the carry a title bar's `BeginMove` starts
   (`Space::begin_carry`, `Gesture::Move` while it lasts, for the cursor and
   the held look), ended by letting go. Dragging the rotate button turns the
-  panel about its centre (`Gesture::Turn`, `chrome::turned`) in the head's
-  frame: the ray's change of yaw in the view times `TURN_GAIN` about the
-  head's up, of pitch about the head's right, measured from where the drag
-  began, so dragging along the screen turns it along the screen however the
-  head is rolled or pitched, and it never rolls the panel however the cursor
+  panel about its centre as seen from the eye (`Gesture::Turn`,
+  `chrome::Sight`, `chrome::turned`), like a trackball: when the drag begins
+  it takes the sight line from the eye to the panel's centre, the head's up
+  made perpendicular to it (the sight's up) and their cross product (the
+  sight's right, along the screen's right). The cursor ray's change from
+  where the drag began is measured on the screen: its direction is the
+  change of the ray's point on the head's image plane, its size the angle
+  between the rays, times `TURN_GAIN` (2). Its horizontal part turns the
+  panel about the sight's up and its vertical part tilts it about the
+  sight's right, tilt first, so the edge nearer the eye follows the drag on
+  screen, a drag along the screen's axes turns about just one of them, and
+  a panel's edge level to the view stays level, wherever the panel is on
+  screen and however the head is rolled or pitched. For a panel straight ahead of a
+  level head and facing it, that is yaw about the vertical and pitch about the panel's own
+  horizontal axis. The gain is fixed rather than keeping the button under
+  the cursor: the button sits on the panel's vertical centre line, so a
+  turn about the sight's up hardly moves it on screen. The panel never rolls however the cursor
   circles. Dragging the roll button rolls it about its
   normal through its centre (`Gesture::Roll`, `chrome::roll_angle`,
   `chrome::rolled`) by the change in the cursor's angle around the centre on

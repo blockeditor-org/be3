@@ -108,6 +108,7 @@ pub enum Gesture {
         window: WindowId,
         rotation: Quat,
         start: Ray,
+        sight: Sight,
     },
     Roll {
         original: Panel,
@@ -300,20 +301,42 @@ pub fn scaled(original: &Panel, anchor: Pos2, grab: Pos2, pos: Pos2) -> Panel {
     panel
 }
 
-pub fn turned(rotation: Quat, from: Vec3, to: Vec3, head: Quat) -> Quat {
-    let (from, to) = (head.inverse() * from, head.inverse() * to);
-    let yaw = |direction: Vec3| direction.x.atan2(-direction.z);
-    let pitch = |direction: Vec3| direction.normalize_or_zero().y.clamp(-1.0, 1.0).asin();
-    let mut yawed = yaw(to) - yaw(from);
-    if yawed > PI {
-        yawed -= TAU;
-    } else if yawed < -PI {
-        yawed += TAU;
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Sight {
+    pub view: Quat,
+    pub forward: Vec3,
+    pub up: Vec3,
+    pub right: Vec3,
+}
+
+impl Sight {
+    pub fn new(eye: Vec3, centre: Vec3, view: Quat) -> Self {
+        let forward = (centre - eye).normalize_or(view * Vec3::NEG_Z);
+        let up = view * Vec3::Y;
+        let up = (up - forward * up.dot(forward)).normalize_or(forward.any_orthonormal_vector());
+        Self {
+            view,
+            forward,
+            up,
+            right: forward.cross(up),
+        }
     }
-    let pitched = pitch(to) - pitch(from);
-    let turn =
-        Quat::from_rotation_y(yawed * TURN_GAIN) * Quat::from_rotation_x(-pitched * TURN_GAIN);
-    (head * turn * head.inverse() * rotation).normalize()
+
+    fn on_screen(&self, direction: Vec3) -> glam::Vec2 {
+        let local = self.view.inverse() * direction;
+        glam::Vec2::new(local.x, local.y) / (-local.z).max(1e-4)
+    }
+
+    pub fn turn(&self, from: Vec3, to: Vec3) -> Quat {
+        let along = self.on_screen(to) - self.on_screen(from);
+        let angle = from.angle_between(to) * TURN_GAIN;
+        let along = along.normalize_or_zero() * angle;
+        Quat::from_axis_angle(self.up, along.x) * Quat::from_axis_angle(self.right, -along.y)
+    }
+}
+
+pub fn turned(rotation: Quat, from: Vec3, to: Vec3, sight: Sight) -> Quat {
+    (sight.turn(from, to) * rotation).normalize()
 }
 
 pub fn roll_angle(original: &Panel, ray: Ray) -> Option<f32> {
