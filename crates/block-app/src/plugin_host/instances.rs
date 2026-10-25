@@ -320,11 +320,7 @@ impl Instance {
 }
 
 fn own_content_type(block: EditorBlock) -> Option<Uuid> {
-    if crate::be::provided(block.block_type) {
-        return Some(block.block_type);
-    }
-    (block.view_block == Some(block.id))
-        .then_some(<be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE)
+    crate::be::provided(block.block_type).then_some(block.block_type)
 }
 
 impl Instance {

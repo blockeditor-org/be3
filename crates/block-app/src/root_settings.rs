@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, EditorView,
-    LINUX_DESKTOP_EDITOR, LiveEdit, MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent,
-    VIEW_EDITOR, WORKSPACE_EDITOR, WORKSPACE_TYPE,
+    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, LINUX_DESKTOP_EDITOR,
+    LiveEdit, MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent, VIEW_EDITOR,
+    VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -221,20 +221,15 @@ impl RootSettings {
 
     pub(crate) fn session_editor(&self, session: Uuid) -> Option<Uuid> {
         let mut cache = self.cache.borrow_mut();
-        Cache::read(
-            &mut cache.editors,
-            session,
-            EditorView::CONTENT_TYPE,
-            || {
-                Some(
-                    be::node(session)?
-                        .metadata
-                        .get(&VIEW_EDITOR)
-                        .filter(|editor| !editor.is_nil())
-                        .unwrap_or(self.shell),
-                )
-            },
-        )
+        Cache::read(&mut cache.editors, session, VIEW_TYPE, || {
+            Some(
+                be::node(session)?
+                    .metadata
+                    .get(&VIEW_EDITOR)
+                    .filter(|editor| !editor.is_nil())
+                    .unwrap_or(self.shell),
+            )
+        })
     }
 
     fn edit(&self, edit: &be_block::Edit) {
@@ -324,9 +319,9 @@ impl RootSettings {
         let session = Uuid::new_v4();
         be::create(
             session,
-            EditorView::CONTENT_TYPE,
+            VIEW_TYPE,
             BlockParent::Block(settings),
-            EditorView::metadata(editor, Some(name)),
+            BlockMetadata::view(editor, Some(name)),
             None,
         );
         Some(session)

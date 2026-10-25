@@ -1,6 +1,6 @@
 use super::*;
-use crate::editor_view::{EditorView, ViewState};
-use crate::{ChildChange, Root};
+use crate::{EditorView, ViewState};
+use be_block::{ChildChange, Root};
 use uuid::Uuid;
 
 #[test]
@@ -11,7 +11,7 @@ fn a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it() {
         Uuid::new_v4(),
         Uuid::new_v4(),
     );
-    let start = EditorView::document(Uuid::new_v4(), Some(content));
+    let start = EditorView::document(Some(content));
     let client = Uuid::new_v4();
     let view = edited(
         &start,

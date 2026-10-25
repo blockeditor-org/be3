@@ -210,7 +210,12 @@ impl Editors {
             state.parents.borrow_mut().insert(id, parent);
         }
         let registry = self.registry();
-        let wanted = editor.filter(|editor| registry.edits(*editor, block_type));
+        let opened = crate::editors::Opened {
+            id,
+            block_type,
+            view_block,
+        };
+        let wanted = editor.filter(|editor| registry.edits(*editor, opened));
         let replaced = self.with(|open| {
             let kept = open.get(&id).is_some_and(|existing| {
                 wanted.is_none_or(|wanted| existing.editor_id() == Some(wanted))
@@ -218,12 +223,7 @@ impl Editors {
             if kept {
                 return None;
             }
-            open.insert(
-                id,
-                registry
-                    .open_with(id, block_type, wanted)
-                    .viewed_by(view_block),
-            )
+            open.insert(id, registry.open_with(opened, wanted))
         });
         drop(replaced);
     }

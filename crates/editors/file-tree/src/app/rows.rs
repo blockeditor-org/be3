@@ -3,8 +3,9 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use workspace_ui_types::ViewState;
 
-use block_editor_beui::be_block::{ViewState, metadata::ICON_COLOR};
+use block_editor_beui::be_block::metadata::ICON_COLOR;
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };

@@ -1,6 +1,6 @@
-use block_editor_beui::be_block::{EditorView, FILES_EDITOR};
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use workspace_ui_types::EditorView;
 
 use super::*;
 
@@ -8,7 +8,7 @@ use super::*;
 fn a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown() {
     let folder = Uuid::new_v4();
     let child = Uuid::new_v4();
-    let mut fixture = viewed(EditorView::document(FILES_EDITOR, None));
+    let mut fixture = viewed(EditorView::document(None));
     let mut listed = BlockInfo::new(folder, Uuid::nil(), BlockParent::Block(MY_FILES));
     listed.references = vec![child];
     my_files(&mut fixture, vec![listed]);

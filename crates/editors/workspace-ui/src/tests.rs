@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
+use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
@@ -220,7 +220,7 @@ fn profiled(layout: Option<ViewState>) -> (Fixture, Uuid) {
 }
 
 fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uuid) {
-    let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
+    let mut profile = EditorView::document(None);
     if let Some(layout) = layout {
         let edit = profile
             .root()

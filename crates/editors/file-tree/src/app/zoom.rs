@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use workspace_ui_types::ViewState;
 
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;

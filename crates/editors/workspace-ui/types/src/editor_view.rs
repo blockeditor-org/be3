@@ -2,11 +2,10 @@ use be_model::{Document, Edit, LatestMap, Model, ObjectId, Stamp};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root};
+use be_block::{ChildChange, Root, VIEW_TYPE};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct EditorView {
-    pub editor: Uuid,
     pub content: Option<Uuid>,
     pub state: LatestMap<String, ViewState>,
 }
@@ -31,32 +30,16 @@ impl ViewState {
     }
 }
 
-pub fn now_milliseconds() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| {
-            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
-        })
-}
-
 impl EditorView {
-    pub fn new(editor: Uuid, content: Option<Uuid>) -> Self {
+    pub fn new(content: Option<Uuid>) -> Self {
         Self {
-            editor,
             content,
             state: LatestMap::default(),
         }
     }
 
-    pub fn document(editor: Uuid, content: Option<Uuid>) -> EditorViewContent {
-        Document::new(&Self::new(editor, content))
-    }
-
-    pub fn metadata(editor: Uuid, name: Option<String>) -> crate::BlockMetadata {
-        let mut metadata = crate::BlockMetadata::default();
-        metadata.put(&crate::NAME, name.as_ref());
-        metadata.insert(&crate::metadata::VIEW_EDITOR, &editor);
-        metadata
+    pub fn document(content: Option<Uuid>) -> EditorViewContent {
+        Document::new(&Self::new(content))
     }
 
     pub fn state(&self, key: &str) -> Option<&ViewState> {
@@ -90,7 +73,7 @@ impl EditorView {
 }
 
 impl Root for EditorView {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6564_6974_6f72_2d76_6965_772d_626c_6b31);
+    const CONTENT_TYPE: Uuid = VIEW_TYPE;
 
     fn references(&self) -> Vec<Uuid> {
         let mut references: Vec<Uuid> = self

@@ -13,6 +13,7 @@ use block_plugin_api::{
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
+use workspace_ui_types::{EditorViewContent, ViewState};
 
 use crate::{
     BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
@@ -542,24 +543,24 @@ impl Editor {
         self.state().host.view_block()
     }
 
-    pub fn view_content(&self) -> Option<ContentProjection<be_block::EditorViewContent>> {
+    pub fn view_content(&self) -> Option<ContentProjection<EditorViewContent>> {
         self.view_block()
-            .map(|block| self.content_of::<be_block::EditorViewContent>(block))
+            .map(|block| self.content_of::<EditorViewContent>(block))
     }
 
-    pub fn view_state(&self, key: &str) -> Option<be_block::ViewState> {
+    pub fn view_state(&self, key: &str) -> Option<ViewState> {
         self.view_content()?
             .read(|view| view.root().state(key).cloned())
             .ok()
             .flatten()
     }
 
-    pub fn set_view_state(&self, key: &str, state: Option<&be_block::ViewState>) {
+    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
         let Some(view) = self.view_content() else {
             return;
         };
         let client = self.state().host.client_id();
-        let now = be_block::editor_view::now_milliseconds();
+        let now = now_milliseconds();
         let edit = untrack(|| {
             view.read(|held| {
                 let root = held.root();
@@ -1505,3 +1506,11 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
 
 #[cfg(test)]
 mod tests;
+
+fn now_milliseconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}

@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::{EditorView, FILES_EDITOR};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use workspace_ui_types::EditorView;
 
 use super::*;
 
@@ -20,7 +20,7 @@ fn asks_for_children(fixture: &Fixture, folder: Uuid) -> bool {
 #[test]
 fn an_opened_folder_is_kept_open_in_the_view_and_reopens_open() {
     let folder = Uuid::new_v4();
-    let mut fixture = viewed(EditorView::document(FILES_EDITOR, None));
+    let mut fixture = viewed(EditorView::document(None));
     with_folder(&mut fixture, folder);
     assert!(!asks_for_children(&fixture, folder));
 

@@ -161,6 +161,13 @@ impl BlockMetadata {
         metadata
     }
 
+    pub fn view(editor: Uuid, name: Option<String>) -> Self {
+        let mut metadata = Self::default();
+        metadata.put(&NAME, name.as_ref());
+        metadata.insert(&VIEW_EDITOR, &editor);
+        metadata
+    }
+
     pub fn get<T: DeserializeOwned>(&self, key: &MetaKey<T>) -> Option<T> {
         from_cbor(self.entries(key.origin).get(&key.id)?)
     }

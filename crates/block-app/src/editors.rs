@@ -2,7 +2,6 @@ pub(crate) mod plugin;
 
 use std::{collections::HashMap, sync::Arc};
 
-use be_block::BlockContent;
 use be_graph::Access;
 use block_plugin_api::{EditorManifest, Edits, PluginManifest, TemplateCategory};
 use uuid::Uuid;
@@ -125,6 +124,13 @@ pub(crate) struct TemplateEntry {
     create: CreateOptions,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Opened {
+    pub(crate) id: Uuid,
+    pub(crate) block_type: Uuid,
+    pub(crate) view_block: Option<Uuid>,
+}
+
 struct RegisteredEditor {
     id: Uuid,
     edits: Edits,
@@ -134,11 +140,11 @@ struct RegisteredEditor {
 }
 
 impl RegisteredEditor {
-    fn edits(&self, block_type: Uuid) -> bool {
+    fn edits(&self, opened: Opened) -> bool {
         match self.edits {
-            Edits::Type(edited) => Uuid::from_bytes(edited) == block_type,
+            Edits::Type(edited) => Uuid::from_bytes(edited) == opened.block_type,
             Edits::Any => true,
-            Edits::Nothing => block_type == be_block::EditorViewContent::CONTENT_TYPE,
+            Edits::Nothing => opened.view_block == Some(opened.id),
         }
     }
 
@@ -307,25 +313,26 @@ impl EditorRegistry {
         )
     }
 
-    fn choice(&self, editor: Uuid, block_type: Uuid) -> Option<&RegisteredEditor> {
+    fn choice(&self, editor: Uuid, opened: Opened) -> Option<&RegisteredEditor> {
         self.editors
             .iter()
-            .find(|registered| registered.id == editor && registered.edits(block_type))
+            .find(|registered| registered.id == editor && registered.edits(opened))
     }
 
-    pub(crate) fn edits(&self, editor: Uuid, block_type: Uuid) -> bool {
-        self.choice(editor, block_type).is_some()
+    pub(crate) fn edits(&self, editor: Uuid, opened: Opened) -> bool {
+        self.choice(editor, opened).is_some()
     }
 
-    pub(crate) fn open_with(
-        &self,
-        id: Uuid,
-        block_type: Uuid,
-        editor: Option<Uuid>,
-    ) -> PluginEditor {
-        match editor.and_then(|editor| self.choice(editor, block_type)) {
+    pub(crate) fn open_with(&self, opened: Opened, editor: Option<Uuid>) -> PluginEditor {
+        let Opened {
+            id,
+            block_type,
+            view_block,
+        } = opened;
+        match editor.and_then(|editor| self.choice(editor, opened)) {
             Some(choice) => choice.open(id, block_type),
             None => self.open(id, block_type),
         }
+        .viewed_by(view_block)
     }
 }

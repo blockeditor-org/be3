@@ -849,8 +849,7 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
         return;
     }
     if let Some(node) = node
-        && node.content_type
-            != <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+        && !node.metadata.contains(&be_block::VIEW_EDITOR)
         && node.access.can_edit()
     {
         let from = match (node.parent, parent) {

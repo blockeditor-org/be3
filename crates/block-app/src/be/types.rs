@@ -1,5 +1,5 @@
 use be_block::{
-    BlockContent, CheckoutContent, DisplaySettingsContent, EditorViewContent, InputRemapperContent,
+    BlockContent, CheckoutContent, DisplaySettingsContent, InputRemapperContent,
     InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
 };
 use block_guest_abi::{Flow, Guest, Waker};
@@ -41,7 +41,6 @@ pub(crate) fn host_block_types() -> Vec<BlockTypeDescriptor> {
             "\u{e603}",
             BLUE,
         ),
-        described(EditorViewContent::CONTENT_TYPE, "View", "\u{e0ba}", TEAL),
         described(
             InputRemapperContent::CONTENT_TYPE,
             "Input Remaps",

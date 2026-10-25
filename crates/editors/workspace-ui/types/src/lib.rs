@@ -1,7 +1,9 @@
+mod editor_view;
 mod file;
 mod folder;
 mod workspace;
 
+pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use file::{AnyFile, FileContent, FileHeader};
 pub use folder::{Folder, FolderContent, FolderEntry};
 pub use workspace::{Workspace, WorkspaceContent};
@@ -25,6 +27,7 @@ impl BlobFile for AnyFile {
 }
 
 block_type_guest::be_block_types![
+    EditorViewContent,
     FileContent { file },
     FolderContent { directory },
     WorkspaceContent { root },

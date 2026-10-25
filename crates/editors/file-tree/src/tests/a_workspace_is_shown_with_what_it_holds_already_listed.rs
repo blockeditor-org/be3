@@ -1,6 +1,7 @@
-use block_editor_beui::be_block::{BlockContent, EditorView, FILES_EDITOR};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use workspace_ui_types::EditorView;
 use workspace_ui_types::WorkspaceContent;
 
 use super::*;
@@ -31,7 +32,7 @@ fn a_workspace_is_shown_with_what_it_holds_already_listed() {
     test.store().add_block(workspace);
     test.store().add_block(mine.clone());
     test.store().add_block(theirs.clone());
-    test.hold(None, EditorView::document(FILES_EDITOR, None));
+    test.hold(None, EditorView::document(None));
 
     let rows = [MY_FILES, team, mine.id, theirs.id].map(|id| format!("file-tree.{id}.row"));
     for _ in 0..20 {

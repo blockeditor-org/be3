@@ -1949,16 +1949,18 @@ impl BlockApp {
             self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
-        let view_type = be_block::EditorView::CONTENT_TYPE;
+        let view_type = be::node(id)?.content_type;
         self.block_types.insert(id, view_type);
         let open_as = self
             .editors
             .with(|open| open.get(&id).and_then(PluginEditor::editor_id));
         if open_as != Some(shell_editor) {
-            let editor = self
-                .registry
-                .open_with(id, view_type, Some(shell_editor))
-                .viewed_by(Some(id));
+            let opened = editors::Opened {
+                id,
+                block_type: view_type,
+                view_block: Some(id),
+            };
+            let editor = self.registry.open_with(opened, Some(shell_editor));
             if let Some(missing) = ShellRequest::ALL
                 .into_iter()
                 .find(|request| !editor.accepts(*request))

@@ -1,11 +1,12 @@
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
-    BlockContent, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
+    BlockContent, BlockMetadata, FILES_EDITOR, Recents, VIEW_EDITOR,
 };
 use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 
 use block_editor_beui::beui::icons::ICON_APP_WINDOW;
 use block_editor_beui::beui::reactive::*;
@@ -796,9 +797,9 @@ impl Workspace {
         let profile = self.editor.view_block()?;
         Some(self.blocks().create_with(
             EditorViewContent::CONTENT_TYPE,
-            Some(EditorView::document(editor, content).encode()),
+            Some(EditorView::document(content).encode()),
             BlockParent::Block(profile),
-            EditorView::metadata(editor, None),
+            BlockMetadata::view(editor, None),
         ))
     }
 
@@ -1124,12 +1125,7 @@ impl Workspace {
             })
             .or_else(|| {
                 (item.block_type == EditorViewContent::CONTENT_TYPE)
-                    .then(|| {
-                        self.editor
-                            .content_of::<EditorViewContent>(item.id)
-                            .read(|view| view.root().editor)
-                            .ok()
-                    })
+                    .then(|| self.info(item.id)?.metadata.get(&VIEW_EDITOR))
                     .flatten()
                     .filter(|editor| !editor.is_nil())
             })

@@ -1,6 +1,7 @@
 use std::cell::Cell;
+use workspace_ui_types::EditorViewContent;
 
-use block_editor_beui::be_block::{BlockContent, EditorViewContent, FILES_EDITOR, SettingsContent};
+use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;

@@ -98,9 +98,7 @@ impl EditorEntry {
         match self.edits {
             Edits::Type(edited) => edited == block_type,
             Edits::Any => true,
-            Edits::Nothing => {
-                block_type == <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
-            }
+            Edits::Nothing => false,
         }
     }
 }

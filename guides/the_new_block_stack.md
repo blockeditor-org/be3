@@ -784,7 +784,7 @@ The app's peer names no content type. Every block type runs in a type module
 (guides/type_modules.md): a plugin's own, which its manifest's `block_types` name
 and the app runs one instance of per plugin, staged beside the plugin as
 `NAME.wasm` with its `.cwasm` and its SHA-256 (`NAME.sha256`, the tag of its
-sessions); and `host_types::registrations()`, the settings types, the editor view, the
+sessions); and `host_types::registrations()`, the settings types, the
 repository and the checkout, which the app reads itself and runs in process
 (`be::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from
@@ -1371,7 +1371,7 @@ the logic editors use the topmost layer that has one, and make one for every
 device when there is none yet (`RootSetting::ensure`).
 
 A session is what a person has open, and is separate from the settings, so
-starting a new one keeps them. It is an `EditorView` of a shell editor:
+starting a new one keeps them. It is a view block (below) of a shell editor:
 workspace-ui (`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for
 a client run as the desktop with `block-app --session`. `Settings::sessions`
 lists every session, and `Settings::session(shell, client)` is the one this
@@ -1381,26 +1381,32 @@ creating one named after the device when the client has none, and reopens the
 shell when it changes. block-app's sessions screen (the organization list's
 dropdown, or Sessions and profiles in the app menu) picks the device's settings
 profile and its session, or starts a new one of either. A shell keeps its dock
-layout and recents in the session's state; every tab, and the file tree, is an
-`EditorView` child of the session that the layout references, naming the editor
+layout and recents in the session's state; every tab, and the file tree, is a
+view block child of the session that the layout references, naming the editor
 the tab shows it in, and closing a tab detaches its view. A tab on a block that is
-itself an `EditorView` (a session) uses it as its view and opens the editor it
+itself a view block (a session) uses it as its view and opens the editor it
 names, so a workspace-ui session opened on the desktop keeps its tabs in its own
 session and closing it leaves that session alone.
 
 ### View state
 
-What a person has open is blocks too, one generic type for all of it:
-`EditorView { editor, content, state }` names the editor that draws it (the
-`id` its manifest gives it, never a block type), the
-block it shows (none for the file tree or workspace-ui itself), and a
-`LatestMap` of opaque `ViewState { bytes, refs }` the editor owns. `refs` are the
-blocks an entry points at; `references()` is `content` plus every entry's refs,
-and a deleted or replaced child is blanked or repointed in place, so the bytes
-can index into `refs`. Whoever makes a view block also defines the
-`VIEW_EDITOR` metadata key to that editor (`EditorView::metadata`), and the host
-reads which editor opens a session from that key (`RootSettings::session_editor`)
-rather than decoding the view; a session without it opens in the shell asking.
+What a person has open is blocks too, view blocks. A view block is a block
+whose defined metadata names the editor that draws it in `VIEW_EDITOR` (the `id`
+its manifest gives it, never a block type): whoever makes one sets it with
+`BlockMetadata::view(editor, name)`, and that key, a host concept, is all
+anyone reads to know which editor opens the view (the host's
+`RootSettings::session_editor`, block-shell's `editor_of`, linux-desktop's
+session list) or that a block is a view at all (the host skips `DELETED_FROM` for
+one, and a block's places leave out the views that show it). A view made before
+the key, which names no editor, opens as a session in the shell asking and as a
+tab in its content's default editor. The content is workspace-ui's `EditorView`
+type (`workspace_ui_types::EditorView { content, state }`, its id
+`be_block::VIEW_TYPE`, which the host names only to create a session): the block
+it shows (none for the file tree or workspace-ui itself), and a `LatestMap` of
+opaque `ViewState { bytes, refs }` the editor owns. `refs` are the blocks an
+entry points at; `references()` is `content` plus every entry's refs, and a
+deleted or replaced child is blanked or repointed in place, so the bytes can
+index into `refs`.
 
 Both shells are built from `crates/block-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;
@@ -1412,9 +1418,11 @@ An editor learns its view block from `Open { view_block }`, which a parent sets
 with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
 `editor.set_view_state(key, state)` read and write it; writes skip the block's
 editability, since view state is the viewer's own. An editor on no content (the
-file tree, workspace-ui) is opened on its own view block, and the host links
-that block's content as an `EditorView`: its manifest names no `edits`, and the
-host opens it on a block of type `EditorView` only when asked for it by id.
+file tree, workspace-ui) is opened on its own view block: its manifest names no
+`edits`, so it is nobody's built-in editor and Open with never offers it, and the
+host opens it only when a parent names it for a block it places as its own view
+(`ChildTarget::viewed_by` the block itself), as the host does the shell on its
+session.
 `be_block::profile` holds the ids of the shells and the file tree.
 
 ### What to keep true

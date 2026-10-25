@@ -1585,6 +1585,7 @@ dependencies = [
  "serde_json",
  "text-editor-core",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -1717,6 +1718,7 @@ dependencies = [
  "serde_json",
  "settings-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -1778,6 +1780,7 @@ dependencies = [
  "paint-snapshot",
  "text-block-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -4747,6 +4750,7 @@ dependencies = [
  "block-ui-test",
  "calendar-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -10261,6 +10265,7 @@ dependencies = [
  "be-commit",
  "be-model",
  "block-type-guest",
+ "postcard",
  "serde",
  "uuid",
 ]

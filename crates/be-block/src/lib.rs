@@ -8,7 +8,6 @@ pub mod blob;
 pub mod block_url;
 pub mod device_class;
 pub mod display_settings;
-pub mod editor_view;
 pub mod history;
 pub mod input_remapper;
 pub mod input_settings;
@@ -28,7 +27,6 @@ pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
 pub use device_class::{ClassDefault, DeviceClass};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
-pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
@@ -38,7 +36,8 @@ pub use metadata::{
 };
 pub use model::Root;
 pub use profile::{
-    FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR, WORKSPACE_TYPE,
+    FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR,
+    WORKSPACE_TYPE,
 };
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
