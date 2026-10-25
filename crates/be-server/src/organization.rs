@@ -378,7 +378,19 @@ impl ServerStore {
             }
             return Ok(());
         }
-        if content_type != WORKSPACE_TYPE || parent != BlockParent::Root || administrator {
+        if content_type != WORKSPACE_TYPE || parent != BlockParent::Root {
+            return Ok(());
+        }
+        self.may_add_workspace(graph, connection, identity)
+    }
+
+    pub(crate) fn may_add_workspace(
+        &self,
+        graph: &BlockGraph,
+        connection: &Connection,
+        identity: Identity,
+    ) -> Result<(), ServerError> {
+        if identity.role == OrganizationRole::Administrator {
             return Ok(());
         }
         if self

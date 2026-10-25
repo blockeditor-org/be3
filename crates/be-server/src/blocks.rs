@@ -620,9 +620,15 @@ impl ServerStore {
                         .into(),
                 ));
             }
-            if let BlockParent::Block(target) = parent {
-                let content_type = graph.get(block).ok_or(ServerError::Corrupt)?.content_type;
-                require_parent_of(graph, &seen, content_type, target)?;
+            let node = graph.get(block).ok_or(ServerError::Corrupt)?;
+            match parent {
+                BlockParent::Block(target) => {
+                    require_parent_of(graph, &seen, node.content_type, target)?;
+                }
+                BlockParent::Root if node.parent != BlockParent::Root => {
+                    self.may_add_workspace(graph, database, identity)?;
+                }
+                BlockParent::Root | BlockParent::Detached => {}
             }
             let before = graph.audience(block);
             let transaction = database.unchecked_transaction()?;

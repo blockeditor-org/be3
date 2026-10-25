@@ -281,7 +281,9 @@ re-import once, and say so in `guides/frozen_formats.md`.
     heads it read). Sharing outside the organization: blocks are shared only
     with members, so blocked refuses contact links that carry access. Who
     makes workspaces: with administrators only, a member makes one workspace
-    of their own and no more. History: no prune removes a version younger than
+    of their own and no more, by creating one or by moving a block to the top
+    (`may_add_workspace`; be-client
+    `moving_a_block_to_the_top_follows_who_may_make_workspaces`). History: no prune removes a version younger than
     the policy's days, and `Peer::prune` keeps them too
     (`RetentionPolicy::keeping_all_within`). Storage quota: objects held by the
     organization's commits and blocks, and an upload past it is refused
