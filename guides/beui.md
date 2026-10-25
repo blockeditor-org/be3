@@ -926,9 +926,7 @@ the rows above and below. A page of rows with a `depth` is a tree: `expanded`,
 a `Binding<Option<bool>>` (`None` for a leaf), draws the chevron, Right and Left
 and the chevron write `Some(open)` to it, and the caller shows the rows of open
 branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check (with
-`radio` it is read as one choice of a group) at its start, in a column every row of a
-popup menu keeps once any of its rows can be checked (`MenuRowHandle::checks`;
-a sheet's rows keep theirs at the end, as a phone's lists do), and
+`radio` it is read as one choice of a group), and
 a page opens with the keyboard on that row. A row with an `action` takes its
 label, glyph, enabled state, tick and first shortcut (drawn muted at the row's
 end, or `shortcut` given) from it. `MenuNodes` builds the rows from a

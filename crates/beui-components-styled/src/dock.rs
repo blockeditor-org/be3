@@ -46,7 +46,6 @@ const BAR_SPACING: f32 = 2.0;
 const DIVIDER_HEIGHT: f32 = 18.0;
 const DIVIDER_MARGIN: f32 = 4.0;
 const SHARE_MARGIN: f32 = 2.0;
-const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 16.0;
 const ICON_SIDEBAR: f32 = TAB_HEIGHT + 2.0 * BAR_PADDING;
 const PREVIEW_PADDING: f32 = 8.0;
@@ -641,6 +640,10 @@ fn DockSideBar(
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
     let titles = create_memo(move || !icons_only.get());
+    let header = create_memo(move || match icons_only.get() {
+        true => Justify::Center,
+        false => Justify::SpaceBetween,
+    });
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
@@ -652,7 +655,7 @@ fn DockSideBar(
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
-                        justify=Justify::SpaceBetween
+                        justify={header}
                         spacing=BAR_SPACING
                     >
                         {grip}
@@ -870,7 +873,7 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
         false => TextColor::Faint,
     });
     view! {
-        <Frame width=GRIP_WIDTH padding={Sides::vertical(CONTROL_PADDING)}>
+        <Frame width=GRIP_WIDTH height=TAB_HEIGHT align=Align::Center>
             <Text size=TextSize::Sm color={color} align=TextAlign::Center>
                 <Icon glyph=ICON_GRIP_VERTICAL />
             </Text>

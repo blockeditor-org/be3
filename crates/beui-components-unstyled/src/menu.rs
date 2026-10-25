@@ -44,7 +44,6 @@ pub struct MenuRowHandle {
     pub checked: Prop<Option<bool>>,
     pub radio: bool,
     pub glyphs: Prop<bool>,
-    pub checks: Prop<bool>,
     pub shortcut: Prop<String>,
     pub disabled: Prop<bool>,
     pub danger: Prop<bool>,
@@ -293,7 +292,6 @@ struct State {
     titled: bool,
     pages: bool,
     glyphs: Memo<bool>,
-    checks: Memo<bool>,
     on_select: Callback<(Vec<usize>, MenuThen)>,
 }
 
@@ -333,15 +331,6 @@ pub(crate) fn MenuList(
                     .items()
                     .iter()
                     .any(|item| item.is_row() && item.glyph.get().is_some())
-            })
-        },
-        checks: {
-            let items = items.clone();
-            create_memo(move || {
-                items
-                    .items()
-                    .iter()
-                    .any(|item| item.is_row() && item.checked.get().is_some())
             })
         },
         on_select,
@@ -515,7 +504,6 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         checked: Prop::Static(None),
         radio: false,
         glyphs: Prop::Static(false),
-        checks: Prop::Static(false),
         shortcut: Prop::Static(String::new()),
         disabled: Prop::Static(false),
         danger: Prop::Static(false),
@@ -542,7 +530,6 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
         checked: item.checked.into_prop(),
         radio: item.radio,
         glyphs: Prop::Static(false),
-        checks: Prop::Static(false),
         shortcut: item.shortcut.into_prop(),
         disabled: item.disabled.into_prop(),
         danger: item.danger.into_prop(),
@@ -714,7 +701,6 @@ fn MenuRow(
         row.call(MenuRowHandle {
             has_submenu: has_children.into_prop(),
             glyphs: state.glyphs.into_prop(),
-            checks: state.checks.into_prop(),
             ..item_handle(MenuRowKind::Row, &face, &handle)
         })
     };

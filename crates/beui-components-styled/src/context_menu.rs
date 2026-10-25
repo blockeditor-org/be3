@@ -202,7 +202,6 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         checked,
         radio,
         glyphs,
-        checks,
         shortcut,
         disabled,
         danger,
@@ -255,9 +254,6 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
-                    <Show condition={checks}>
-                        <CheckSlot checked radio />
-                    </Show>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
                     <Show condition={has_lead}>
                         <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
@@ -288,6 +284,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             {shortcut}
                         </Text>
                     </Show>
+                    <MenuCheck checked radio />
                     <Show condition={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
@@ -306,17 +303,6 @@ pub(crate) fn GlyphSlot(glyph: Memo<Option<Glyph>>, color: Memo<TextColor>) -> N
             <Text color align=TextAlign::Center>
                 <Icon glyph={glyph} />
             </Text>
-        </Frame>
-    }
-}
-
-#[component]
-fn CheckSlot(checked: Prop<Option<bool>>, radio: bool) -> NodeId {
-    view! {
-        <Frame width={TextSize::Sm.icon_px()}>
-            <List spacing=0.0>
-                <MenuCheck checked radio />
-            </List>
         </Frame>
     }
 }
