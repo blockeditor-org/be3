@@ -930,8 +930,7 @@ listings and `read_contents` answer from it on `ClientError::Disconnected`, and
 `open` reads the local head first while it has unpublished commits.
 
 The app keeps one refs database per device, `be-refs.sqlite3` beside
-`be-objects/` in the data directory (`be::refs_in`; the web keeps it in memory
-until it gets OPFS). The worker builds its `Peer` once per workspace: with
+`be-objects/` in the data directory (`be::refs_in`, `/block` on the web). The worker builds its `Peer` once per workspace: with
 `Peer::cached` when the database already holds a session for that server,
 account and workspace, so the graph, listings and open blocks come up with no
 network, and otherwise with `Peer::signed_in` on the first connection. Every
