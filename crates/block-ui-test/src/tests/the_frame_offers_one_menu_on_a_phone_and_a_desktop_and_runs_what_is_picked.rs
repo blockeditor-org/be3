@@ -8,8 +8,10 @@ use super::*;
 
 struct ActionApp;
 
+#[component]
 impl BeuiApp for ActionApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Tidy editor={editor} />

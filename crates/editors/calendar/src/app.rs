@@ -14,8 +14,10 @@ use ui::CalendarEditor;
 
 pub struct CalendarApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CalendarApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

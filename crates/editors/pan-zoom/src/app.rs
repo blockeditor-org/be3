@@ -10,8 +10,10 @@ use ui::PanZoom;
 
 pub struct PanZoomApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for PanZoomApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <PanZoom editor={editor} />

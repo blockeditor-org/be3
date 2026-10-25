@@ -11,8 +11,10 @@ use ui::RepositoryView;
 
 pub struct RepositoryApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for RepositoryApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

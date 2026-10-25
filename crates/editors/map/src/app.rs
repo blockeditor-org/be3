@@ -22,8 +22,10 @@ use toolbar::MapToolbar;
 
 pub struct MapApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for MapApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -33,7 +35,8 @@ impl block_editor_beui::BeuiApp for MapApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <MapPreview editor={editor} />

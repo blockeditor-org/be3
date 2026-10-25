@@ -4,8 +4,10 @@ use beui::styled::*;
 
 struct RecordingApp;
 
+#[component]
 impl crate::BeuiApp for RecordingApp {
-    fn view(_editor: crate::Editor) -> beui::styled::Root {
+    #[component]
+    fn View(_editor: crate::Editor) -> beui::styled::Root {
         let node = {
             view! {
                 <Frame />

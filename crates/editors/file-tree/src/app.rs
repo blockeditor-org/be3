@@ -13,8 +13,10 @@ use ui::FileTreeEditor;
 
 pub struct FileTreeApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for FileTreeApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded label="Loading the files">
