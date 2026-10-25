@@ -9,8 +9,10 @@ const SLIDE_TYPE: Uuid = Uuid::from_u128(2);
 
 struct NestingApp;
 
+#[component]
 impl crate::BeuiApp for NestingApp {
-    fn view(editor: crate::Editor) -> beui::styled::Root {
+    #[component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {
             view! {
                 <Frame>

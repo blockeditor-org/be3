@@ -24,8 +24,10 @@ use ui::{DatabaseViewEditor, DatabaseViewPreview};
 
 pub struct DatabaseViewApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for DatabaseViewApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <DatabaseViewEditor editor={editor} />
@@ -33,7 +35,8 @@ impl block_editor_beui::BeuiApp for DatabaseViewApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <DatabaseViewPreview editor={editor} />
         }

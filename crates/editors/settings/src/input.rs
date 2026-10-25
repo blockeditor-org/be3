@@ -15,8 +15,10 @@ const INTRINSIC_HEIGHT: f32 = 520.0;
 
 pub struct InputSettingsApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for InputSettingsApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>|| {

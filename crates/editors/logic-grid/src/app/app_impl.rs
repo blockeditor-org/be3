@@ -11,8 +11,10 @@ use super::*;
 
 pub struct LogicGridApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for LogicGridApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -64,7 +66,8 @@ impl block_editor_beui::BeuiApp for LogicGridApp {
         })
     }
 
-    fn artifact_settings_view(artifacts: Artifacts) -> NodeId {
+    #[component]
+    fn ArtifactSettings(artifacts: Artifacts) -> NodeId {
         view! {
             <dynamic_artifact::Settings artifacts={artifacts} />
         }

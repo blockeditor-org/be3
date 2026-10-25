@@ -6,8 +6,10 @@ use super::*;
 
 struct PaletteApp;
 
+#[component]
 impl BeuiApp for PaletteApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Tidy editor={editor} />

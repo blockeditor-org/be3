@@ -50,14 +50,20 @@ pub use rotation::RotationPicker;
 pub use shared_caret::{SharedCaret, remote_carets};
 pub use version_control::{VersionHistory, VersionSteps, short_id};
 
+#[beui::reactive::component]
 pub trait BeuiApp: 'static {
-    fn view(editor: Editor) -> beui::styled::Root;
-    fn preview_view(_editor: Editor) -> beui::NodeId {
+    #[beui::reactive::component]
+    fn View(editor: Editor) -> beui::styled::Root;
+    #[beui::reactive::component]
+    fn Preview(editor: Editor) -> beui::NodeId {
+        let _ = editor;
         beui::reactive::view! {
             <beui::styled::Frame />
         }
     }
-    fn creation_view(_creation: Creation) -> beui::NodeId {
+    #[beui::reactive::component]
+    fn Creation(creation: Creation) -> beui::NodeId {
+        let _ = creation;
         beui::reactive::view! {
             <beui::styled::Frame />
         }
@@ -69,7 +75,9 @@ pub trait BeuiApp: 'static {
     fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
         Err("this editor does not generate artifacts".into())
     }
-    fn artifact_settings_view(_artifacts: Artifacts) -> beui::NodeId {
+    #[beui::reactive::component]
+    fn ArtifactSettings(artifacts: Artifacts) -> beui::NodeId {
+        let _ = artifacts;
         beui::reactive::view! {
             <beui::styled::Frame />
         }

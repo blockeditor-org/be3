@@ -3,8 +3,10 @@ use be_block::presence::{PresenceKind, UserActive};
 
 struct BlockIgnoringApp;
 
+#[beui::reactive::component]
 impl crate::BeuiApp for BlockIgnoringApp {
-    fn view(_editor: crate::Editor) -> beui::styled::Root {
+    #[beui::reactive::component]
+    fn View(_editor: crate::Editor) -> beui::styled::Root {
         let node = { beui::styled::Frame().build() };
         beui::reactive::view! {
             <beui::styled::Root>{node}</beui::styled::Root>

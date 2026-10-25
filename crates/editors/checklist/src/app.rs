@@ -11,8 +11,10 @@ use ui::Checklist;
 
 pub struct ChecklistApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for ChecklistApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

@@ -13,8 +13,10 @@ use ui::FolderEditor;
 
 pub struct WorkspaceIndexApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for WorkspaceIndexApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

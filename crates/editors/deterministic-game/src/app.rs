@@ -459,8 +459,10 @@ impl GameCreationModel for GameCreation {
 
 pub struct DeterministicGameApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for DeterministicGameApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         let game = store(BlockGame::new(editor));
         let snapshot = create_signal(GameSnapshot::Loading);
         create_effect(move || snapshot.set(game.value().snapshot()));
@@ -473,7 +475,8 @@ impl block_editor_beui::BeuiApp for DeterministicGameApp {
         }
     }
 
-    fn creation_view(creation: Creation) -> NodeId {
+    #[component]
+    fn Creation(creation: Creation) -> NodeId {
         let dialog = store(GameCreation::new(creation.clone()));
         let snapshot = create_signal(CreationSnapshot::default());
         create_effect(move || snapshot.set(dialog.value().snapshot()));

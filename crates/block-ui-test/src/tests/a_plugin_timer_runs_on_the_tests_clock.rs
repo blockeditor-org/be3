@@ -7,8 +7,10 @@ const ALARM: Duration = Duration::from_secs(60);
 
 struct AlarmApp;
 
+#[component]
 impl BeuiApp for AlarmApp {
-    fn view(_editor: Editor) -> Root {
+    #[component]
+    fn View(_editor: Editor) -> Root {
         view! {
             <Root>
                 <Alarm />

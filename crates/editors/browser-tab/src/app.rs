@@ -16,8 +16,10 @@ use ui::BrowserTab;
 
 pub struct BrowserTabApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for BrowserTabApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
