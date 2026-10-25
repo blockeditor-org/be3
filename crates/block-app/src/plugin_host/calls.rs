@@ -44,6 +44,10 @@ pub(super) enum EditorCall {
         old: [u8; 16],
         new: [u8; 16],
     },
+    ShowDialog {
+        block: [u8; 16],
+        dialog: block_plugin_api::ShellDialog,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -67,6 +67,8 @@ struct State {
     own_pick_tab: Cell<Option<TabId>>,
     tab_nodes: RefCell<HashMap<TabId, NodeRef>>,
     saved_titles: RefCell<HashMap<TabId, String>>,
+    next_ask: Cell<u64>,
+    share_asks: RefCell<Vec<block_editor_beui::Task>>,
 }
 
 #[derive(Clone, Copy)]
@@ -135,6 +137,8 @@ impl Workspace {
                 own_pick_tab: Cell::new(None),
                 tab_nodes: RefCell::new(HashMap::new()),
                 saved_titles: RefCell::new(HashMap::new()),
+                next_ask: Cell::new(0),
+                share_asks: RefCell::new(Vec::new()),
             }),
             editor,
             with_files,
@@ -180,12 +184,6 @@ impl Workspace {
         create_effect(move || {
             contacts.with(|_| ());
             untrack(|| workspace.relist_share());
-        });
-        workspace.editor.on_reply(move || {
-            if workspace.state.is_alive() {
-                workspace.share_listed();
-                workspace.imports_answered();
-            }
         });
         create_effect(move || {
             workspace.watch_artifacts();
@@ -439,7 +437,7 @@ impl Workspace {
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
         self.forget_share();
         if let OpenDialog::Share(block) = dialog {
-            let request = self.host().list_access(block);
+            let request = self.list_share(block);
             self.share.set(Some(Share::new(block, request)));
         }
         self.dialog.set(Some(dialog));
@@ -481,11 +479,27 @@ impl Workspace {
         self.dialog.set(None);
     }
 
+    fn ask_number(&self) -> u64 {
+        let state = self.state.value();
+        state.next_ask.set(state.next_ask.get() + 1);
+        state.next_ask.get()
+    }
+
+    fn list_share(&self, block: Uuid) -> u64 {
+        let ask = self.ask_number();
+        let workspace = *self;
+        let task = self
+            .editor
+            .then(self.host().list_access(block), move |listing| {
+                workspace.share_listed(ask, listing);
+            });
+        self.state.value().share_asks.borrow_mut().push(task);
+        ask
+    }
+
     fn forget_share(&self) {
-        if let Some(share) = self.share.get_untracked() {
-            for request in share.request.into_iter().chain(share.inviting) {
-                self.host().forget_request(request);
-            }
+        for task in std::mem::take(&mut *self.state.value().share_asks.borrow_mut()) {
+            task.cancel();
         }
         self.share.set(None);
     }
@@ -504,7 +518,14 @@ impl Workspace {
             if share.inviting.is_none() {
                 share.invite_link = None;
                 share.error = None;
-                share.inviting = Some(self.host().contact_link(share.block, share.pending_access));
+                let ask = self.ask_number();
+                let workspace = *self;
+                let asked = self.host().contact_link(share.block, share.pending_access);
+                let task = self.editor.then(asked, move |made| {
+                    workspace.contact_made(ask, made);
+                });
+                self.state.value().share_asks.borrow_mut().push(task);
+                share.inviting = Some(ask);
             }
             self.share.set(Some(share));
             return;
@@ -515,12 +536,9 @@ impl Workspace {
             reload = true;
         }
         if reload {
-            if let Some(request) = share.request.take() {
-                self.host().forget_request(request);
-            }
             share.error = None;
             share.relisting();
-            share.request = Some(self.host().list_access(share.block));
+            share.request = Some(self.list_share(share.block));
         }
         self.share.set(Some(share));
     }
@@ -531,27 +549,28 @@ impl Workspace {
         }
     }
 
-    fn share_listed(&self) {
+    fn contact_made(&self, ask: u64, made: Result<String, String>) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
-        if let Some(made) = share
-            .inviting
-            .and_then(|request| self.host().take_contact_link(request))
-        {
-            share.inviting = None;
-            match made {
-                block_editor_beui::ContactLinkResult::Made(link) => share.invite_link = Some(link),
-                block_editor_beui::ContactLinkResult::Failed(error) => share.error = Some(error),
-            }
-            self.share.set(Some(share.clone()));
+        if share.inviting != Some(ask) {
+            return;
         }
-        let Some(listing) = share
-            .request
-            .and_then(|request| self.host().take_access_listing(request))
-        else {
+        share.inviting = None;
+        match made {
+            Ok(link) => share.invite_link = Some(link),
+            Err(error) => share.error = Some(error),
+        }
+        self.share.set(Some(share));
+    }
+
+    fn share_listed(&self, ask: u64, listing: Result<Vec<block_editor_beui::AccessGrant>, String>) {
+        let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        if share.request != Some(ask) {
+            return;
+        }
         share.listed(listing);
         self.share.set(Some(share));
     }
@@ -696,7 +715,17 @@ impl Workspace {
         };
         if let PickAction::Import = action {
             if held.importing.is_none() {
-                held.importing = Some(self.host().import_blocks(held.import_parent()));
+                let ask = self.ask_number();
+                let workspace = *self;
+                let asked = self.host().import_blocks(held.import_parent());
+                self.editor.then(asked, move |imported| {
+                    if let Some(held) = workspace.pick(pick)
+                        && held.importing == Some(ask)
+                    {
+                        workspace.resolve(held.imported(imported));
+                    }
+                });
+                held.importing = Some(ask);
                 self.resolve(PickOutcome::Open(Box::new(held)));
             }
             return;
@@ -707,24 +736,6 @@ impl Workspace {
                 self.resolve(PickOutcome::Open(held));
             }
             answered => self.resolve(answered),
-        }
-    }
-
-    fn imports_answered(&self) {
-        let importing = self.picks.with_untracked(|picks| {
-            picks
-                .iter()
-                .filter_map(|held| Some((held.pick, held.importing?)))
-                .collect::<Vec<_>>()
-        });
-        let host = self.host();
-        for (pick, request) in importing {
-            let Some(imported) = host.take_import(request) else {
-                continue;
-            };
-            if let Some(held) = self.pick(pick) {
-                self.resolve(held.imported(imported));
-            }
         }
     }
 

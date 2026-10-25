@@ -1,6 +1,6 @@
 use crate::{
-    BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery, ChildContent, ChildPlacements,
-    EditorInstanceId, EditorMessage, HostReply, HostRequest, Message, ShellDialog, VersionCommand,
+    BlockCommand, BlockLocation, BlockPick, BlockQuery, ChildContent, ChildPlacements,
+    EditorInstanceId, EditorMessage, Message, VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -92,19 +92,6 @@ impl EditorMessage {
             | Self::VersionStatus { block_id, .. }
             | Self::Head { block_id, .. }
             | Self::Replica { block_id, .. } => existing(block_id),
-            Self::ShowDialog {
-                block_id, dialog, ..
-            } => {
-                existing(block_id);
-                if let ShellDialog::Rename {
-                    within: Some(within),
-                    ..
-                } = dialog
-                {
-                    existing(within);
-                }
-            }
-            Self::SetAccess { block_id, .. } => existing(block_id),
             Self::OpenBlock { block_id, via, .. } | Self::ShowBlock { block_id, via, .. } => {
                 existing(block_id);
                 via.iter_mut().for_each(existing);
@@ -160,49 +147,6 @@ impl EditorMessage {
             Self::PickAnswered { answer, .. } => match answer {
                 BlockPick::Chosen { block_id, .. } => existing(block_id),
                 BlockPick::Cancelled | BlockPick::Failed(_) => {}
-            },
-            Self::Request { request, .. } => match request {
-                HostRequest::PickBlock(filter) => {
-                    filter.excluded.iter_mut().for_each(&mut existing);
-                    if let Some(place) = &mut filter.place {
-                        location(place, &mut existing);
-                    }
-                }
-                HostRequest::ListRevisions(block_id)
-                | HostRequest::PreviewRevision { block_id, .. }
-                | HostRequest::RestoreRevision { block_id, .. }
-                | HostRequest::ReleaseRevision(block_id)
-                | HostRequest::ListAccess(block_id)
-                | HostRequest::ExportBlock(block_id)
-                | HostRequest::ReadPlainFile(block_id)
-                | HostRequest::ContactLink { block_id, .. } => existing(block_id),
-                HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
-                HostRequest::PickFile(_)
-                | HostRequest::SaveFile(_)
-                | HostRequest::Fetch(_)
-                | HostRequest::ListData
-                | HostRequest::ReadData(_) => {}
-            },
-            Self::Replied { reply, .. } => match reply {
-                HostReply::RevisionPreviewed(Ok(block_id))
-                | HostReply::BlockPicked(BlockPick::Chosen { block_id, .. })
-                | HostReply::BlocksImported(BlockImport::Imported { block_id, .. }) => {
-                    existing(block_id)
-                }
-                HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
-                | HostReply::RevisionsListed(_)
-                | HostReply::RevisionPreviewed(Err(_))
-                | HostReply::RevisionRestored(_)
-                | HostReply::RevisionReleased
-                | HostReply::FilePicked(_)
-                | HostReply::FileSaved(_)
-                | HostReply::PlainFileRead(_)
-                | HostReply::Fetched(_)
-                | HostReply::DataListed(_)
-                | HostReply::DataRead(_)
-                | HostReply::AccessListed(_)
-                | HostReply::ContactLinkMade(_)
-                | HostReply::BlocksImported(BlockImport::Cancelled | BlockImport::Failed(_)) => {}
             },
             Self::WatchArtifacts { blocks, .. }
             | Self::WatchHistory { blocks, .. }
@@ -297,5 +241,33 @@ fn query(query: &mut BlockQuery, visit: &mut impl FnMut(&mut [u8; 16])) {
         | BlockQuery::Parents(block_id)
         | BlockQuery::Block(block_id) => visit(block_id),
         BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared => {}
+    }
+}
+
+impl crate::embed::host_services::Call {
+    pub fn visit_block_ids(&mut self, visit: &mut impl FnMut(&mut [u8; 16])) {
+        match self {
+            Self::ListRevisions { block, .. }
+            | Self::PreviewRevision { block, .. }
+            | Self::RestoreRevision { block, .. }
+            | Self::ExportBlock { block, .. }
+            | Self::ReadPlainFile { block, .. }
+            | Self::ListAccess { block, .. }
+            | Self::SetAccess { block, .. }
+            | Self::MakeContactLink { block, .. } => visit(block),
+            Self::ReleaseRevision { preview } => visit(preview),
+            Self::ImportBlocks { parent, .. } => location(parent, visit),
+            Self::PickBlock { filter, .. } => {
+                filter.excluded.iter_mut().for_each(&mut *visit);
+                if let Some(place) = &mut filter.place {
+                    location(place, visit);
+                }
+            }
+            Self::PickFile { .. }
+            | Self::SaveFile { .. }
+            | Self::Fetch { .. }
+            | Self::ListData { .. }
+            | Self::ReadData { .. } => {}
+        }
     }
 }

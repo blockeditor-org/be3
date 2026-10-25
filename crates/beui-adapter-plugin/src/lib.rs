@@ -144,7 +144,6 @@ impl PluginSurface {
             self.runner.context().set_clock(now);
             beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
         }
-        self.platform.deliver_file_dialogs();
         let scale = region.scale_factor;
         let rect = region.rect;
         let area = SafeArea {

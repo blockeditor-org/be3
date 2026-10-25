@@ -44,8 +44,8 @@ pub(super) enum Command {
     },
     Revision {
         block: Uuid,
-        request: block_plugin_api::HostRequest,
-        reply: Box<dyn FnOnce(block_plugin_api::HostReply) + Send>,
+        request: super::revisions::Asked,
+        reply: Box<dyn FnOnce(super::revisions::Answered) + Send>,
     },
     Open {
         block: Uuid,

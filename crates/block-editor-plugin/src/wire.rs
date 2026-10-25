@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use block_plugin_api::{
     BarAction, ChildId, EditorInstanceId, EditorMessage, EditorRegion, FrameCommit, Message,
-    Opening, Rect, ScreenRequest, ScreenSet, Size, encode_frame,
+    Opening, Rect, ScreenRequest, ScreenSet, ShellDialog, Size, encode_frame,
     guest::{
         exports::plugin::{Guest, GuestEditor},
         host,
@@ -139,8 +139,9 @@ pub(crate) struct OpenEditor {
 impl Guest for Exports {
     type Editor = OpenEditor;
 
-    fn new_editor(&self, _: OpId, opening: Opening) -> OpenEditor {
+    fn new_editor(&self, op: OpId, opening: Opening) -> OpenEditor {
         let instance = opening.instance();
+        crate::asked::opened(instance, op);
         self.0.push(Message::Editor(opening.into()));
         OpenEditor {
             wire: self.0.clone(),
@@ -334,7 +335,14 @@ impl GuestEditor for OpenEditor {
         async move { replaced.await.unwrap_or(false) }
     }
 
+    fn show_dialog(&self, block: [u8; 16], dialog: ShellDialog) {
+        let block = uuid::Uuid::from_bytes(block);
+        self.wire
+            .call(self.instance, move |session| session.show_dialog(block, dialog));
+    }
+
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {
+        crate::asked::closed(self.instance);
         self.wire.push(Message::Editor(EditorMessage::Close {
             instance: self.instance,
         }));

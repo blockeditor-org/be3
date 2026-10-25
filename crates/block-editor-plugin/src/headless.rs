@@ -41,7 +41,8 @@ impl HeadlessPlugin {
             match delivery {
                 Delivery::Message(message) => replies.extend(self.receive(message)),
                 Delivery::Editor(instance, call) => {
-                    self.screens.call(instance, call);
+                    let screens = &mut self.screens;
+                    self.executor.enter(|| screens.call(instance, call));
                 }
             }
         }
@@ -57,15 +58,18 @@ impl HeadlessPlugin {
     }
 
     pub fn adopt(&mut self, instance: EditorInstanceId, app: Box<dyn Instance>, host: EditorHost) {
-        self.screens
-            .adopt(instance, EditorSession::adopt(instance, app, host));
+        let screens = &mut self.screens;
+        self.executor.enter(|| {
+            screens.adopt(instance, EditorSession::adopt(instance, app, host));
+        });
     }
 
     pub fn receive(&mut self, message: Message) -> Vec<Message> {
         if matches!(self.session.state(), State::Closed | State::Failed) {
             return Vec::new();
         }
-        self.screens.receive(&message);
+        let screens = &mut self.screens;
+        self.executor.enter(|| screens.receive(&message));
         let painting = matches!(
             &message,
             Message::Extension { key, .. } if *key == paint_format::PAINTING_EXTENSION
@@ -84,7 +88,10 @@ impl HeadlessPlugin {
             let Some(session) = self.screens.session(placement.instance) else {
                 continue;
             };
-            frames.push((*placement, session.run(placement.region, 0)));
+            frames.push((
+                *placement,
+                self.executor.enter(|| session.run(placement.region, 0)),
+            ));
             self.screens.ran(placement.instance);
         }
         self.drawn = true;

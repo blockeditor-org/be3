@@ -1,12 +1,12 @@
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DataListing, EditorInstanceId,
-    EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport, FrameSpec, HostPanel,
-    HostReply, HostRequest, MenuEntry, Message, Monitor, Occluder, PerformanceMeasurement,
-    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, ScreenWindow, Size, Stopped,
-    ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
+    ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameReport, FrameSpec, HostPanel, MenuEntry, Message, Monitor, Occluder,
+    PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
+    ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent,
+    WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests, embed::shell::Call as ShellCall};
 use block_type_guest::editor::{FromEditor, Gesture};
@@ -27,7 +27,9 @@ use super::{
     pieces,
     sent::Sent,
 };
-use crate::{editors::plugin::discovery, host, performance, platform::http};
+use crate::{host, performance};
+
+mod services;
 
 thread_local! {
     static PRESENCE_WANTED: std::cell::RefCell<std::collections::HashSet<EditorInstanceId>> =
@@ -59,7 +61,7 @@ pub(super) struct Instances {
     sent_block_types: Option<u64>,
     network: Vec<String>,
     plugin_id: String,
-    replies: Replies,
+    services: services::Services,
     epoch: u64,
     graph_seen: Option<u64>,
     audio_changes: AudioChanges,
@@ -77,25 +79,6 @@ struct AudioChanges {
 }
 
 impl Default for AudioChanges {
-    fn default() -> Self {
-        let (sender, receiver) = host::waking_channel();
-        Self { sender, receiver }
-    }
-}
-
-struct Reply {
-    epoch: u64,
-    instance: EditorInstanceId,
-    request_id: u64,
-    reply: HostReply,
-}
-
-struct Replies {
-    sender: host::WakingSender<Reply>,
-    receiver: std::sync::mpsc::Receiver<Reply>,
-}
-
-impl Default for Replies {
     fn default() -> Self {
         let (sender, receiver) = host::waking_channel();
         Self { sender, receiver }
@@ -722,6 +705,7 @@ impl Instances {
     }
 
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
+        self.withdraw_all(instance);
         self.waiting.remove(&instance);
         self.gone.insert(instance);
         let Some(entry) = self.entries.remove(&instance) else {
@@ -1432,6 +1416,7 @@ impl Instances {
             }
             entry.stale = true;
         }
+        self.forget_services();
         self.epoch += 1;
     }
 
@@ -2224,22 +2209,6 @@ impl Instances {
         })]
     }
 
-    pub(super) fn block_picked(
-        &self,
-        instance: EditorInstanceId,
-        request_id: u64,
-        pick: BlockPick,
-    ) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Message::Editor(EditorMessage::Replied {
-            instance,
-            request_id,
-            reply: HostReply::BlockPicked(pick),
-        })]
-    }
-
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
         let mut statuses: Vec<_> = self
             .entries
@@ -2587,24 +2556,6 @@ impl Instances {
 
     pub(super) fn pending(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
-        while let Ok(reply) = self.replies.receiver.try_recv() {
-            if reply.epoch == self.epoch && self.entries.contains_key(&reply.instance) {
-                if let HostReply::RevisionPreviewed(Ok(preview)) = &reply.reply {
-                    self.entries
-                        .get_mut(&reply.instance)
-                        .unwrap()
-                        .revision_previews
-                        .insert(Uuid::from_bytes(*preview));
-                }
-                messages.push(Message::Editor(EditorMessage::Replied {
-                    instance: reply.instance,
-                    request_id: reply.request_id,
-                    reply: reply.reply,
-                }));
-            } else if let HostReply::RevisionPreviewed(Ok(preview)) = reply.reply {
-                crate::be::revisions::release(Uuid::from_bytes(preview));
-            }
-        }
         let entries = &self.entries;
         self.head_reads.arrived(
             self.epoch,
@@ -2631,159 +2582,6 @@ impl Instances {
             }
         }
         messages
-    }
-
-    fn request(
-        &mut self,
-        instance: EditorInstanceId,
-        request_id: u64,
-        request: HostRequest,
-    ) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
-        };
-        let sender = self.replies.sender.clone();
-        let epoch = self.epoch;
-        let reply = move |reply: HostReply| {
-            let _ = sender.send(Reply {
-                epoch,
-                instance,
-                request_id,
-                reply,
-            });
-        };
-        match request {
-            request @ (HostRequest::ListRevisions(_)
-            | HostRequest::PreviewRevision { .. }
-            | HostRequest::RestoreRevision { .. }) => {
-                let block = match &request {
-                    HostRequest::ListRevisions(block) => *block,
-                    HostRequest::PreviewRevision { block_id, .. }
-                    | HostRequest::RestoreRevision { block_id, .. } => *block_id,
-                    _ => unreachable!(),
-                };
-                crate::be::revisions::request(Uuid::from_bytes(block), request, reply);
-            }
-            HostRequest::ReleaseRevision(preview) => {
-                let preview = Uuid::from_bytes(preview);
-                if entry.revision_previews.remove(&preview) {
-                    crate::be::revisions::release(preview);
-                }
-                reply(HostReply::RevisionReleased);
-            }
-            HostRequest::PickFile(filter) => {
-                host::pick_file(filter, move |picked| reply(HostReply::FilePicked(picked)));
-            }
-            HostRequest::SaveFile(file) => {
-                host::save_file(file, move |saved| reply(HostReply::FileSaved(saved)));
-            }
-            HostRequest::Fetch(url) => {
-                let fetched = move |body: Result<Vec<u8>, String>| {
-                    reply(HostReply::Fetched(fetch_result(body)));
-                };
-                match allowed(&url, &self.network) {
-                    true => http::fetch(url, Vec::new(), fetched),
-                    false => fetched(Err(format!("{REFUSED} {url}"))),
-                }
-            }
-            HostRequest::ListData => discovery::data_listing(&self.plugin_id, move |index| {
-                reply(HostReply::DataListed(match index {
-                    Ok(index) => match serde_json::from_slice(&index) {
-                        Ok(files) => DataListing::Files(files),
-                        Err(error) => DataListing::Failed(format!("the data index is {error}")),
-                    },
-                    Err(error) => DataListing::Failed(error),
-                }));
-            }),
-            HostRequest::ReadData(path) => discovery::data(&self.plugin_id, &path, move |body| {
-                reply(HostReply::DataRead(fetch_result(body)));
-            }),
-            HostRequest::ListAccess(block) => {
-                crate::be::list_access(Uuid::from_bytes(block), move |listed| {
-                    reply(HostReply::AccessListed(super::graph::grants_of(listed)));
-                });
-            }
-            HostRequest::ContactLink { block_id, access } => {
-                let offer = (Uuid::from_bytes(block_id), super::graph::access_of(access));
-                crate::be::make_contact_link(Some(offer), move |made| {
-                    reply(HostReply::ContactLinkMade(match made {
-                        Ok(link) => block_plugin_api::ContactLinkResult::Made(link),
-                        Err(error) => block_plugin_api::ContactLinkResult::Failed(error),
-                    }));
-                });
-            }
-            HostRequest::ExportBlock(block) => {
-                let block = Uuid::from_bytes(block);
-                if !self.can_view(block) {
-                    reply(HostReply::FileSaved(FileSave::Failed(
-                        "You can't view this block.".to_owned(),
-                    )));
-                    return true;
-                }
-                crate::be::export(block, move |exported| match exported {
-                    Ok((name, data)) => {
-                        let file = block_plugin_api::SavedFile {
-                            name,
-                            mime_type: be_client::transfer::MIME_TYPE.to_owned(),
-                            data,
-                        };
-                        host::save_file(file, move |saved| reply(HostReply::FileSaved(saved)));
-                    }
-                    Err(error) => reply(HostReply::FileSaved(FileSave::Failed(error))),
-                });
-            }
-            HostRequest::ReadPlainFile(block) => {
-                let block = Uuid::from_bytes(block);
-                if !self.can_view(block) {
-                    reply(HostReply::PlainFileRead(Err(
-                        "You can't view this block.".to_owned()
-                    )));
-                    return true;
-                }
-                crate::be::plain_file(block, move |read| {
-                    reply(HostReply::PlainFileRead(read.map(|file| {
-                        block_plugin_api::SavedFile {
-                            name: file.name.unwrap_or_default(),
-                            mime_type: file.media_type,
-                            data: file.bytes,
-                        }
-                    })));
-                });
-            }
-            HostRequest::ImportBlocks(parent) => {
-                let parent = super::graph::parent_of(parent);
-                if parent.block().is_some_and(|parent| !self.editable(parent)) {
-                    reply(HostReply::BlocksImported(BlockImport::Failed(
-                        "You can't add blocks here.".to_owned(),
-                    )));
-                    return true;
-                }
-                let filter = beui::FileFilter {
-                    name: "Block file".to_owned(),
-                    extensions: vec![be_client::transfer::EXTENSION.to_owned()],
-                    mime_types: vec![be_client::transfer::MIME_TYPE.to_owned()],
-                };
-                host::pick_file(filter, move |picked| {
-                    reply(HostReply::BlocksImported(match picked {
-                        Ok(Some(file)) => match crate::be::import(&file.data, parent) {
-                            Ok((block, block_type)) => BlockImport::Imported {
-                                block_id: block.into_bytes(),
-                                block_type: block_type.into_bytes(),
-                            },
-                            Err(error) => BlockImport::Failed(error),
-                        },
-                        Ok(None) => BlockImport::Cancelled,
-                        Err(error) => BlockImport::Failed(error),
-                    }));
-                });
-            }
-            HostRequest::PickBlock(filter) => {
-                entry
-                    .block_picks
-                    .push(BlockPickRequest { request_id, filter });
-            }
-        }
-        true
     }
 
     pub(super) fn shell_call(&mut self, call: ShellCall) -> bool {
@@ -2969,12 +2767,6 @@ impl Instances {
                     | EditorMessage::WatchArtifacts { .. }
                     | EditorMessage::WatchHostValue { .. }
                     | EditorMessage::WebViewCommand { .. }
-                    | EditorMessage::Request {
-                        request: HostRequest::Fetch(_)
-                            | HostRequest::ReadData(_)
-                            | HostRequest::ListData,
-                        ..
-                    }
             )
         {
             return false;
@@ -3004,19 +2796,6 @@ impl Instances {
                 self.entries
                     .get_mut(&instance)
                     .is_some_and(|entry| entry.host_values.act(key, action, shell))
-            }
-            EditorMessage::SetAccess {
-                block_id,
-                account,
-                access,
-                ..
-            } => {
-                crate::be::set_access(
-                    Uuid::from_bytes(block_id),
-                    Uuid::from_bytes(account),
-                    super::graph::access_of(access),
-                );
-                true
             }
             EditorMessage::OpenBlock {
                 instance,
@@ -3074,11 +2853,6 @@ impl Instances {
                     .push((Uuid::from_bytes(block_id), command));
                 true
             }
-            EditorMessage::Request {
-                instance,
-                request_id,
-                request,
-            } => self.request(instance, request_id, request),
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
             }
@@ -3280,19 +3054,27 @@ impl Instances {
     }
 
     pub(super) fn show_dialog(
-        &mut self,
+        &self,
         instance: EditorInstanceId,
         block: Uuid,
         dialog: block_plugin_api::ShellDialog,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::ShowDialog {
+        let mut dialog = dialog;
+        if let block_plugin_api::ShellDialog::Rename {
+            within: Some(within),
+            ..
+        } = &mut dialog
+        {
+            *within = self.local(instance, *within);
+        }
+        let block = self.local(instance, block.into_bytes());
+        vec![Outbound::Editor(
             instance,
-            block_id: block.into_bytes(),
-            dialog,
-        })]
+            EditorCall::ShowDialog { block, dialog },
+        )]
     }
 
     pub(super) fn show_panel(
@@ -3427,13 +3209,6 @@ fn ratio(current: f32, published: f32) -> f32 {
     match published > 0.0 && current > 0.0 {
         true => current / published,
         false => 1.0,
-    }
-}
-
-fn fetch_result(body: Result<Vec<u8>, String>) -> FetchResult {
-    match body {
-        Ok(body) => FetchResult::Body(body),
-        Err(error) => FetchResult::Failed(error),
     }
 }
 

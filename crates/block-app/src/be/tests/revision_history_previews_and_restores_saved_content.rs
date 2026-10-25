@@ -1,7 +1,7 @@
 use super::*;
-use block_plugin_api::{HostReply, HostRequest};
+use revisions::{Answered, Asked};
 
-fn request(block: Uuid, request: HostRequest) -> HostReply {
+fn request(block: Uuid, request: Asked) -> Answered {
     let (send, receive) = std::sync::mpsc::channel();
     revisions::request(block, request, move |reply| {
         send.send(reply).unwrap();
@@ -27,8 +27,8 @@ fn revision_history_previews_and_restores_saved_content() {
     flush();
     let second = node(block).unwrap().head.unwrap();
     assert_ne!(first, second);
-    let HostReply::RevisionsListed(Ok(entries)) =
-        request(block, HostRequest::ListRevisions(block.into_bytes()))
+    let Answered::Listed(Ok(entries)) =
+        request(block, Asked::List)
     else {
         panic!("history is listed");
     };
@@ -44,16 +44,12 @@ fn revision_history_previews_and_restores_saved_content() {
     );
     assert!(entries.windows(2).all(|pair| pair[0].time >= pair[1].time));
 
-    let HostReply::RevisionPreviewed(Ok(preview)) = request(
+    let Answered::Previewed(Ok(preview)) = request(
         block,
-        HostRequest::PreviewRevision {
-            block_id: block.into_bytes(),
-            commit: *first.hash().as_bytes(),
-        },
+        Asked::Preview(*first.hash().as_bytes()),
     ) else {
         panic!("the revision previews");
     };
-    let preview = Uuid::from_bytes(preview);
     let old = content(preview).expect("preview content exists");
     assert_eq!(
         CounterContent::decode(old.bytes()).unwrap().root().value(),
@@ -70,18 +66,15 @@ fn revision_history_previews_and_restores_saved_content() {
     assert!(matches!(
         request(
             block,
-            HostRequest::RestoreRevision {
-                block_id: block.into_bytes(),
-                commit: *first.hash().as_bytes()
-            }
+            Asked::Restore(*first.hash().as_bytes())
         ),
-        HostReply::RevisionRestored(Ok(()))
+        Answered::Restored(Ok(()))
     ));
     wait_for_count(block, 5);
     let restored = node(block).unwrap().head.unwrap();
     assert_ne!(restored, first);
-    let HostReply::RevisionsListed(Ok(entries)) =
-        request(block, HostRequest::ListRevisions(block.into_bytes()))
+    let Answered::Listed(Ok(entries)) =
+        request(block, Asked::List)
     else {
         panic!("history is listed again");
     };
@@ -97,16 +90,12 @@ fn revision_history_previews_and_restores_saved_content() {
     );
     let mut saw_ten = false;
     for entry in entries {
-        let HostReply::RevisionPreviewed(Ok(id)) = request(
+        let Answered::Previewed(Ok(id)) = request(
             block,
-            HostRequest::PreviewRevision {
-                block_id: block.into_bytes(),
-                commit: entry.commit,
-            },
+            Asked::Preview(entry.commit),
         ) else {
             panic!("retained history previews");
         };
-        let id = Uuid::from_bytes(id);
         saw_ten |= CounterContent::decode(content(id).unwrap().bytes())
             .unwrap()
             .root()
@@ -122,12 +111,9 @@ fn revision_history_previews_and_restores_saved_content() {
         matches!(
             request(
                 other,
-                HostRequest::PreviewRevision {
-                    block_id: other.into_bytes(),
-                    commit: *first.hash().as_bytes()
-                }
+                Asked::Preview(*first.hash().as_bytes())
             ),
-            HostReply::RevisionPreviewed(Err(_))
+            Answered::Previewed(Err(_))
         ),
         "a commit from another block is rejected"
     );

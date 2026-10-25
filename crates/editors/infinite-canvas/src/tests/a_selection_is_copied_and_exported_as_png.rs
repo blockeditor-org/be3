@@ -1,6 +1,7 @@
 use super::copying_as_svg_writes_every_shape_kind::palette_runs;
 use super::*;
-use block_editor_beui::{HostRequest, SavedFile};
+use block_editor_beui::SavedFile;
+use block_ui_test::HostCall;
 
 fn pixels(png: &[u8]) -> image::RgbaImage {
     image::load_from_memory_with_format(png, image::ImageFormat::Png)
@@ -51,8 +52,8 @@ fn a_selection_is_copied_and_exported_as_png() {
     let saved: Vec<SavedFile> = editor
         .take_requests()
         .into_iter()
-        .filter_map(|(_, request)| match request {
-            HostRequest::SaveFile(file) => Some(file),
+        .filter_map(|call| match call {
+            HostCall::SaveFile { file, .. } => Some(file),
             _ => None,
         })
         .collect();

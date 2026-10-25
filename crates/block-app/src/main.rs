@@ -2296,7 +2296,7 @@ impl BlockApp {
                     .into_iter()
                     .find_map(|id| Some((id, pickers.get(&id)?)))
                 else {
-                    source.answer(request.request_id, block_plugin_api::BlockPick::Cancelled);
+                    source.answer(request.op, block_plugin_api::BlockPick::Cancelled);
                     continue;
                 };
                 filter.anchor = filter.anchor.and_then(|anchor| {
@@ -2308,7 +2308,7 @@ impl BlockApp {
                 });
                 let within = block.and_then(|block| self.child_within(picker_id, block));
                 self.forwarded_picks
-                    .insert(pick, (source.clone(), request.request_id));
+                    .insert(pick, (source.clone(), request.op));
                 crate::plugin_host::request_pick(
                     &picker.plugin_id,
                     picker.instance,

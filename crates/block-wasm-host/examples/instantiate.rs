@@ -1,5 +1,5 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FrameChrome, FrameSpec,
+    EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameSpec,
     HelloAccepted, Message, ScreenId, ScreenRequest, ScreenSet, ViewportMetrics, decode_frame,
     encode_frame,
 };
@@ -37,14 +37,7 @@ fn main() {
     send(&mut plugin, open());
     send(&mut plugin, screens());
     check(plugin.step());
-    let opened = report("open", &mut plugin);
-    if !opened.fetches.is_empty() {
-        for request_id in opened.fetches {
-            send(&mut plugin, fetched(request_id));
-        }
-        check(plugin.step());
-        report("fetched", &mut plugin);
-    }
+    report("open", &mut plugin);
     send(
         &mut plugin,
         Message::DrawFrame {
@@ -79,44 +72,22 @@ fn main() {
 
 struct Report {
     drawn: bool,
-    fetches: Vec<u64>,
 }
 
 fn report(stage: &str, plugin: &mut Plugin) -> Report {
     let outbound = plugin.take_outbound();
     println!("{stage} sent {} frame(s)", outbound.len());
-    let mut report = Report {
-        drawn: false,
-        fetches: Vec::new(),
-    };
+    let mut report = Report { drawn: false };
     for frame in &outbound {
         match decode_frame(frame) {
             Ok(message) => {
                 report.drawn |= matches!(message, Message::Frame(_));
-                if let Message::Editor(EditorMessage::Request {
-                    request_id,
-                    request: block_plugin_api::HostRequest::Fetch(_),
-                    ..
-                }) = &message
-                {
-                    report.fetches.push(*request_id);
-                }
                 println!("  {message:?}");
             }
             Err(error) => println!("  undecodable: {error:?}"),
         }
     }
     report
-}
-
-fn fetched(request_id: u64) -> Message {
-    Message::Editor(EditorMessage::Replied {
-        instance: EditorInstanceId(1),
-        request_id,
-        reply: block_plugin_api::HostReply::Fetched(FetchResult::Failed(
-            "instantiate does not reach the network".to_owned(),
-        )),
-    })
 }
 
 fn send(plugin: &mut Plugin, message: Message) {

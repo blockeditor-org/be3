@@ -16,8 +16,8 @@ use uuid::Uuid;
 use workspace_ui_types::{EditorViewContent, ViewState};
 
 use crate::{
-    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
-    EditorHost, OwnedContentProjection, PickedBlock, Waker,
+    BlockFilter, BlockList, BlockParent, BlockQuery, Blocks, ContentProjection, EditorHost,
+    OwnedContentProjection, PickedBlock, Task, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use block_plugin_api::{AudioStatus, FitArea};
@@ -254,20 +254,21 @@ struct ChildRecord {
     zone: u64,
 }
 
-struct PendingPick {
-    picker: BlockPicker,
-    picked: Rc<dyn Fn(Result<PickedBlock, String>)>,
-}
-
 type Revision = OwnedSignal<u64>;
 
 type Wake = (Arc<AtomicU64>, Signal<u64>);
 
-fn watch_replies(replies: ReadSignal<u64>, replied: impl Fn() + 'static) {
-    create_effect(move || {
-        replies.get();
-        untrack(&replied);
-    });
+fn then<T: 'static>(
+    host: &EditorHost,
+    asked: impl std::future::Future<Output = Option<T>> + 'static,
+    answered: impl FnOnce(T) + 'static,
+) -> Task {
+    let owner = owner_scope();
+    host.then(asked, move |answer| {
+        if owner.as_ref().is_none_or(ScopeContext::is_alive) {
+            answered(answer);
+        }
+    })
 }
 
 struct Mirror([Revision; Pushed::ALL.len()]);
@@ -462,7 +463,7 @@ struct EditorState {
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
-    pick: RefCell<Option<PendingPick>>,
+    pick: RefCell<Option<Task>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
     children_moved: Cell<bool>,
@@ -665,12 +666,12 @@ impl Editor {
         self.state().pushed.watch(pushed)
     }
 
-    pub fn replies(&self) -> ReadSignal<u64> {
-        self.pushed(Pushed::Replies)
-    }
-
-    pub fn on_reply(&self, replied: impl Fn() + 'static) {
-        watch_replies(self.replies(), replied);
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        then(&self.state().host, asked, answered)
     }
 
     pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
@@ -854,14 +855,17 @@ impl Editor {
     pub fn pick_block(
         &self,
         filter: BlockFilter,
-        picked: impl Fn(Result<PickedBlock, String>) + 'static,
+        picked: impl FnOnce(Result<PickedBlock, String>) + 'static,
     ) {
-        let mut picker = BlockPicker::default();
-        picker.open(&self.state().host, filter);
-        *self.state().pick.borrow_mut() = Some(PendingPick {
-            picker,
-            picked: Rc::new(picked),
+        let asked = self.state().host.pick_block(filter);
+        let task = self.then(asked, move |answer| match answer {
+            Ok(Some(block)) => picked(Ok(block)),
+            Ok(None) => {}
+            Err(error) => picked(Err(error)),
         });
+        if let Some(earlier) = self.state().pick.replace(Some(task)) {
+            earlier.cancel();
+        }
     }
 
     pub(crate) fn register_child(
@@ -922,23 +926,6 @@ impl Editor {
             .iter()
             .map(|(_, record)| Rc::clone(record))
             .collect()
-    }
-
-    fn poll_pick(&self) {
-        let state = self.state();
-        let picked = {
-            let mut pending = state.pick.borrow_mut();
-            let Some(pick) = pending.as_mut() else {
-                return;
-            };
-            let Some(picked) = pick.picker.poll(&state.host) else {
-                return;
-            };
-            pending.take().map(|pick| (pick.picked, picked))
-        };
-        if let Some((callback, picked)) = picked {
-            callback(picked);
-        }
     }
 
     pub fn content(&self, node: &NodeRef) {
@@ -1195,9 +1182,6 @@ impl Editor {
         if pushed || state.children_moved.take() {
             self.follow_children();
         }
-        if pushed {
-            self.poll_pick();
-        }
     }
 
     fn pump(&self, blocks: Vec<Option<Uuid>>) {
@@ -1372,12 +1356,12 @@ impl Creation {
         *self.0.maker.borrow_mut() = Some(Rc::new(make));
     }
 
-    pub fn replies(&self) -> ReadSignal<u64> {
-        self.0.pushed.watch(Pushed::Replies)
-    }
-
-    pub fn on_reply(&self, replied: impl Fn() + 'static) {
-        watch_replies(self.replies(), replied);
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        then(&self.0.host, asked, answered)
     }
 
     pub fn create_block(&self) -> Result<Uuid, String> {

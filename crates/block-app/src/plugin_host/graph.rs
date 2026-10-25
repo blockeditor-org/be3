@@ -43,10 +43,9 @@ pub(crate) fn access_of(level: AccessLevel) -> be_graph::Access {
 
 pub(crate) fn grants_of(
     listed: Result<Vec<be_protocol::AccessEntry>, String>,
-) -> block_plugin_api::AccessListing {
-    match listed {
-        Ok(entries) => block_plugin_api::AccessListing::Listed(
-            entries
+) -> Result<Vec<block_plugin_api::AccessGrant>, String> {
+    listed.map(|entries| {
+        entries
                 .into_iter()
                 .map(|entry| block_plugin_api::AccessGrant {
                     account: entry.account.into_bytes(),
@@ -61,10 +60,8 @@ pub(crate) fn grants_of(
                     effective: level_of(entry.effective),
                     waiting: entry.waiting,
                 })
-                .collect(),
-        ),
-        Err(error) => block_plugin_api::AccessListing::Failed(error),
-    }
+                .collect()
+    })
 }
 
 pub(crate) fn level_of(access: be_graph::Access) -> AccessLevel {

@@ -374,15 +374,6 @@ impl Screens {
                     );
                 }
             }
-            Message::Editor(EditorMessage::ShowDialog {
-                instance,
-                block_id,
-                dialog,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.show_dialog(Uuid::from_bytes(*block_id), *dialog);
-                }
-            }
             Message::Editor(EditorMessage::ShowPanel { instance, panel }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.show_panel(*panel);
@@ -440,15 +431,6 @@ impl Screens {
                 self.block_types = Rc::new(catalog(descriptors));
                 for session in self.sessions.values() {
                     session.set_block_types(Rc::clone(&self.block_types));
-                }
-            }
-            Message::Editor(EditorMessage::Replied {
-                instance,
-                request_id,
-                reply,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.replied(*request_id, reply.clone());
                 }
             }
             Message::Editor(EditorMessage::WebViewEvent {

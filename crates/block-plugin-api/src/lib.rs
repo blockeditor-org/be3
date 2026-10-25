@@ -23,13 +23,14 @@ be_ops_bindgen::generate!({
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
-        "menu-command", "menu-check", "menu-pin", "menu-heading",
+        "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter",
     ],
     inline: [
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
-        "undo-operation-command", "performance-duration", "performance-count", "view-zoom", "artifact-described",
+        "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
+        "artifact-described", "rename-dialog",
     ],
     own_debug: ["font-face"],
 });
@@ -39,6 +40,9 @@ pub use blocks::{
     AccessLevel, ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation,
     BlockMetadata, BlockQuery, ConflictSide, HostPanel, StoredHead, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
+};
+pub use host_services::{
+    AccessGrant, BlockFilter, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
     ArtifactDescription, BarAction, DroppedFile, FitArea, MenuCheck, MenuCommand, MenuHeading,
@@ -430,39 +434,6 @@ pub struct PreviewImage {
 pub struct SettingsProgress {
     pub changed: bool,
     pub summary: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum ShellDialog {
-    Rename {
-        anchor: Option<Rect>,
-        within: Option<[u8; 16]>,
-    },
-    Share,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AccessGrant {
-    pub account: [u8; 16],
-    pub email: String,
-    pub display_name: String,
-    pub administrator: bool,
-    pub author: bool,
-    pub granted: Option<AccessLevel>,
-    pub effective: AccessLevel,
-    pub waiting: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AccessListing {
-    Listed(Vec<AccessGrant>),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ContactLinkResult {
-    Made(String),
-    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -916,35 +887,12 @@ pub enum EditorMessage {
         action: Vec<u8>,
     },
 
-    ShowDialog {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        dialog: ShellDialog,
-    },
-
-    SetAccess {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        account: [u8; 16],
-        access: AccessLevel,
-    },
-
     BlockCommand {
         instance: EditorInstanceId,
         block_id: [u8; 16],
         command: BlockCommand,
     },
 
-    Request {
-        instance: EditorInstanceId,
-        request_id: u64,
-        request: HostRequest,
-    },
-    Replied {
-        instance: EditorInstanceId,
-        request_id: u64,
-        reply: HostReply,
-    },
     PlayAudio {
         instance: EditorInstanceId,
         command: AudioCommand,
@@ -1086,11 +1034,7 @@ impl EditorMessage {
             | Self::WatchHostValue { instance, .. }
             | Self::HostValue { instance, .. }
             | Self::HostAction { instance, .. }
-            | Self::ShowDialog { instance, .. }
-            | Self::SetAccess { instance, .. }
             | Self::BlockCommand { instance, .. }
-            | Self::Request { instance, .. }
-            | Self::Replied { instance, .. }
             | Self::PlayAudio { instance, .. }
             | Self::AudioStatus { instance, .. }
             | Self::WebViewCommand { instance, .. }
@@ -1164,80 +1108,6 @@ pub struct HistoryState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Revision {
-    pub commit: [u8; 32],
-    pub time: i64,
-    pub current: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum HostRequest {
-    ListRevisions([u8; 16]),
-    PreviewRevision {
-        block_id: [u8; 16],
-        commit: [u8; 32],
-    },
-    RestoreRevision {
-        block_id: [u8; 16],
-        commit: [u8; 32],
-    },
-    ReleaseRevision([u8; 16]),
-    PickFile(FileFilter),
-    SaveFile(SavedFile),
-    PickBlock(BlockFilter),
-    ListAccess([u8; 16]),
-    Fetch(String),
-    ListData,
-    ReadData(String),
-    ExportBlock([u8; 16]),
-    ReadPlainFile([u8; 16]),
-    ImportBlocks(BlockLocation),
-    ContactLink {
-        block_id: [u8; 16],
-        access: AccessLevel,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HostReply {
-    RevisionsListed(Result<Vec<Revision>, String>),
-    RevisionPreviewed(Result<[u8; 16], String>),
-    RevisionRestored(Result<(), String>),
-    RevisionReleased,
-
-    FilePicked(FilePick),
-    FileSaved(FileSave),
-    PlainFileRead(Result<SavedFile, String>),
-    BlockPicked(BlockPick),
-    Fetched(FetchResult),
-    DataListed(DataListing),
-    DataRead(FetchResult),
-    AccessListed(AccessListing),
-    BlocksImported(BlockImport),
-    ContactLinkMade(ContactLinkResult),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BlockImport {
-    Imported {
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-    },
-    Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct BlockFilter {
-    pub name: String,
-    pub block_types: Vec<[u8; 16]>,
-    pub excluded: Vec<[u8; 16]>,
-    pub templates: bool,
-    pub place: Option<BlockLocation>,
-    pub anchor: Option<Rect>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockPick {
     Chosen {
         block_id: [u8; 16],
@@ -1246,18 +1116,6 @@ pub enum BlockPick {
         placed: bool,
     },
     Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FetchResult {
-    Body(Vec<u8>),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DataListing {
-    Files(Vec<String>),
     Failed(String),
 }
 
@@ -1410,8 +1268,6 @@ impl EditorMessage {
             | Self::Close { .. }
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
-            | Self::ShowDialog { .. }
-            | Self::Replied { .. }
             | Self::AudioStatus { .. }
             | Self::WebViewEvent { .. }
             | Self::PickRequested { .. }
@@ -1424,9 +1280,7 @@ impl EditorMessage {
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::BlockCommand { .. }
-            | Self::Request { .. }
             | Self::PlayAudio { .. }
-            | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
             | Self::WebViewCommand { .. }
             | Self::WatchArtifacts { .. }
@@ -1712,8 +1566,6 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
 
 fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
-        EditorMessage::Request { request, .. } => validate_request(request),
-        EditorMessage::Replied { reply, .. } => validate_reply(reply),
         EditorMessage::PickRequested { filter, .. } => block_filter(filter),
         EditorMessage::PickAnswered { answer, .. } => match answer {
             BlockPick::Failed(error) => string(error),
@@ -1844,85 +1696,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             WebViewEvent::History(_) => Ok(()),
         },
         _ => Ok(()),
-    }
-}
-
-fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
-    match request {
-        HostRequest::PickFile(filter) => {
-            string(&filter.name)?;
-            collection(filter.extensions.len())?;
-            collection(filter.mime_types.len())?;
-            strings(filter.extensions.iter().chain(&filter.mime_types))
-        }
-        HostRequest::SaveFile(file) => {
-            string(&file.name)?;
-            string(&file.mime_type)?;
-            blob(&file.data)
-        }
-        HostRequest::PickBlock(filter) => block_filter(filter),
-        HostRequest::ListAccess(_)
-        | HostRequest::ListRevisions(_)
-        | HostRequest::PreviewRevision { .. }
-        | HostRequest::RestoreRevision { .. }
-        | HostRequest::ReleaseRevision(_) => Ok(()),
-        HostRequest::ListData => Ok(()),
-        HostRequest::Fetch(url) => string(url),
-        HostRequest::ReadData(path) => string(path),
-        HostRequest::ExportBlock(_)
-        | HostRequest::ReadPlainFile(_)
-        | HostRequest::ImportBlocks(_)
-        | HostRequest::ContactLink { .. } => Ok(()),
-    }
-}
-
-fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
-    match reply {
-        HostReply::RevisionsListed(Ok(revisions)) => collection(revisions.len()),
-        HostReply::RevisionsListed(Err(error))
-        | HostReply::RevisionPreviewed(Err(error))
-        | HostReply::RevisionRestored(Err(error)) => string(error),
-        HostReply::RevisionPreviewed(Ok(_))
-        | HostReply::RevisionRestored(Ok(()))
-        | HostReply::RevisionReleased => Ok(()),
-        HostReply::FilePicked(Ok(Some(file))) => string(&file.name).and_then(|()| blob(&file.data)),
-        HostReply::PlainFileRead(Ok(file)) => {
-            string(&file.name)?;
-            string(&file.mime_type)?;
-            blob(&file.data)
-        }
-        HostReply::Fetched(FetchResult::Body(body))
-        | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
-        HostReply::DataListed(DataListing::Files(files)) => {
-            collection(files.len())?;
-            strings(files)
-        }
-        HostReply::FilePicked(Err(message))
-        | HostReply::PlainFileRead(Err(message))
-        | HostReply::FileSaved(FileSave::Failed(message))
-        | HostReply::BlockPicked(BlockPick::Failed(message))
-        | HostReply::Fetched(FetchResult::Failed(message))
-        | HostReply::DataRead(FetchResult::Failed(message))
-        | HostReply::DataListed(DataListing::Failed(message))
-        | HostReply::AccessListed(AccessListing::Failed(message))
-        | HostReply::BlocksImported(BlockImport::Failed(message))
-        | HostReply::ContactLinkMade(
-            ContactLinkResult::Made(message) | ContactLinkResult::Failed(message),
-        ) => string(message),
-        HostReply::AccessListed(AccessListing::Listed(grants)) => {
-            collection(grants.len())?;
-            for grant in grants {
-                string(&grant.email)?;
-                string(&grant.display_name)?;
-            }
-            Ok(())
-        }
-        HostReply::FilePicked(Ok(None))
-        | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
-        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
-        | HostReply::BlocksImported(BlockImport::Imported { .. } | BlockImport::Cancelled) => {
-            Ok(())
-        }
     }
 }
 

@@ -1131,7 +1131,7 @@ file type from the file the user picks.
 
 A block file (`be_client::transfer`, the file `be download` writes) carries a
 block and everything under it. A plugin asks the host for one with
-`HostRequest::ExportBlock`, answered like `SaveFile`: the worker lists the tree
+host-services' `export-block`, answered like `save-file`: the worker lists the tree
 a level at a time (starting from the view when asked for a database inside
 one), all of a level's `ListChildren` together, and fills in each block's
 bytes, from its open session or else its head, so it works for content types
@@ -1141,10 +1141,10 @@ the app does not know.
 commit and chunks (those that fit in half a frame, and none for a head the
 client says it already holds), and anything left out is fetched afterwards, so
 a tree costs one round trip, not three per block.
-`HostRequest::ImportBlocks(parent)` has the host pick a file and `be::import`
+host-services' `import-blocks(parent)` has the host pick a file and `be::import`
 it: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, and each block is created and given its bytes as its first commit. The
-reply, `BlocksImported`, names the outermost block. The tree is in the mirror
+answer names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop
 (`worker/uploads.rs`), so commands for other blocks are not held up.
 `Peer::import_blocks` mints every block's keys and writes its commit locally,
@@ -1708,7 +1708,7 @@ public key it verified this way, never to one the server hands it.
   finishes) and seals a share only to those keys. The share dialog lists
   contacts and current grantees, lists them again when the `Contacts` host
   value changes and after each grant it makes, and its "Invite someone new"
-  makes a link carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
+  makes a link carrying a pending grant of the block (host-services' `make-contact-link`). Invite
   member and Agents show only in a company organization, and Members (list,
   change a role, remove, invite) only to its administrators.
 

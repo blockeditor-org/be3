@@ -22,11 +22,8 @@ fn zooming_in_draws_deeper_tiles_over_the_shallower_ones() {
             .iter()
             .all(|(_, url)| tile_drawn(&editor, &tile_test_id(url)))
     );
-    for (request, _) in &deeper {
-        editor.reply(
-            *request,
-            HostReply::Fetched(FetchResult::Body(ocean_tile())),
-        );
+    for (request, _) in deeper {
+        editor.answer(request, Ok(ocean_tile()));
     }
     let rest = serve_tiles(&mut editor);
 

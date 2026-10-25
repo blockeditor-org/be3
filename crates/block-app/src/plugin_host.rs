@@ -175,7 +175,7 @@ pub(crate) struct ChildCommit {
 }
 
 pub(crate) struct BlockPickRequest {
-    pub(crate) request_id: u64,
+    pub(crate) op: u64,
     pub(crate) filter: block_plugin_api::BlockFilter,
 }
 

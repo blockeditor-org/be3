@@ -8,13 +8,15 @@ use std::{
 
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
+use crate::asked::{Asked, Task, asking};
+use block_plugin_api::guest::host_services;
 use block_plugin_api::{
-    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
-    BlockCommand, BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
-    ChildPlacement, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult,
-    FilePick, FileSave, FitArea, HostAction, HostPanel, HostReply, HostRequest, HostValue,
-    HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId, decode_host, encode_host,
+    AccessGrant, AccessLevel, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
+    BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
+    ChildStatus, EditorInstanceId, EditorRegion, FilePick, FileSave, FitArea, HostAction,
+    HostPanel, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision,
+    ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
+    encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -375,7 +377,6 @@ struct View {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Pushed {
-    Replies,
     Peers,
     Histories,
     Artifacts,
@@ -391,8 +392,7 @@ pub enum Pushed {
 }
 
 impl Pushed {
-    pub const ALL: [Self; 13] = [
-        Self::Replies,
+    pub const ALL: [Self; 12] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -424,7 +424,6 @@ pub struct EditorHost {
     host_values: Rc<RefCell<HostValues>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
-    access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
     pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
@@ -451,9 +450,8 @@ pub struct EditorHost {
     drag: Rc<Cell<Option<BlockDrag>>>,
     files: Rc<RefCell<Option<FileDrop>>>,
     drag_accepted: Rc<Cell<Option<bool>>>,
-    requests: Rc<RefCell<Vec<(u64, HostRequest)>>>,
-    replies: Rc<RefCell<HashMap<u64, HostReply>>>,
-    next_request: Rc<Cell<u64>>,
+    instance: Rc<Cell<Option<EditorInstanceId>>>,
+    tasks: Rc<RefCell<Vec<Task>>>,
     editable: Rc<Cell<bool>>,
     block_type: Rc<Cell<Option<Uuid>>>,
     client_id: Rc<Cell<Uuid>>,
@@ -1352,165 +1350,111 @@ impl EditorHost {
         self.drag_accepted.set(Some(accepted));
     }
 
-    fn ask(&self, request: HostRequest) -> u64 {
-        let id = self.next_request.get() + 1;
-        self.next_request.set(id);
-        self.requests.borrow_mut().push((id, request));
-        id
+    pub(crate) fn set_instance(&self, instance: EditorInstanceId) {
+        self.instance.set(Some(instance));
     }
 
-    pub fn list_revisions(&self, block: Uuid) -> u64 {
-        self.ask(HostRequest::ListRevisions(block.into_bytes()))
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        let host = self.clone();
+        let task = crate::asked::spawn(async move {
+            if let Some(answer) = asked.await {
+                answered(answer);
+                host.changed();
+            }
+        });
+        let mut tasks = self.tasks.borrow_mut();
+        tasks.retain(|task| !task.is_finished());
+        tasks.push(task.clone());
+        task
     }
 
-    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> u64 {
-        self.ask(HostRequest::PreviewRevision {
-            block_id: block.into_bytes(),
-            commit,
-        })
+    pub(crate) fn cancel_tasks(&self) {
+        for task in std::mem::take(&mut *self.tasks.borrow_mut()) {
+            task.cancel();
+        }
     }
 
-    pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> u64 {
-        self.ask(HostRequest::RestoreRevision {
-            block_id: block.into_bytes(),
-            commit,
-        })
+    fn ask<R>(&self, ask: impl FnOnce() -> R) -> R {
+        asking(self.instance.get(), ask)
+    }
+
+    pub fn list_revisions(&self, block: Uuid) -> Asked<Result<Vec<Revision>, String>> {
+        Asked::of(self.ask(|| host_services::list_revisions(block.into_bytes())))
+    }
+
+    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<Uuid, String>> {
+        Asked::of(self.ask(|| host_services::preview_revision(block.into_bytes(), commit)))
+            .map(|previewed| previewed.map(Uuid::from_bytes))
+    }
+
+    pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<(), String>> {
+        Asked::of(self.ask(|| host_services::restore_revision(block.into_bytes(), commit)))
     }
 
     pub fn release_revision(&self, preview: Uuid) {
-        self.ask(HostRequest::ReleaseRevision(preview.into_bytes()));
+        self.ask(|| host_services::release_revision(preview.into_bytes()));
     }
 
-    pub fn take_revisions(
-        &self,
-        request: u64,
-    ) -> Option<Result<Vec<block_plugin_api::Revision>, String>> {
-        match self.take_reply(request)? {
-            HostReply::RevisionsListed(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn pick_file(&self, filter: FileFilter) -> Asked<FilePick> {
+        Asked::of(self.ask(|| host_services::pick_file(filter)))
     }
 
-    pub fn take_revision_preview(&self, request: u64) -> Option<Result<Uuid, String>> {
-        match self.take_reply(request)? {
-            HostReply::RevisionPreviewed(result) => Some(result.map(Uuid::from_bytes)),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn save_file(&self, file: SavedFile) -> Asked<FileSave> {
+        Asked::of(self.ask(|| host_services::save_file(file)))
     }
 
-    pub fn take_revision_restore(&self, request: u64) -> Option<Result<(), String>> {
-        match self.take_reply(request)? {
-            HostReply::RevisionRestored(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn export_block(&self, block_id: Uuid) -> Asked<FileSave> {
+        Asked::of(self.ask(|| host_services::export_block(block_id.into_bytes())))
     }
 
-    pub fn pick_file(&self, filter: FileFilter) -> u64 {
-        self.ask(HostRequest::PickFile(filter))
+    pub fn read_plain_file(&self, block_id: Uuid) -> Asked<Result<SavedFile, String>> {
+        Asked::of(self.ask(|| host_services::read_plain_file(block_id.into_bytes())))
     }
 
-    pub fn take_pick(&self, request: u64) -> Option<FilePick> {
-        match self.take_reply(request)? {
-            HostReply::FilePicked(pick) => Some(pick),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn save_file(&self, file: SavedFile) -> u64 {
-        self.ask(HostRequest::SaveFile(file))
-    }
-
-    pub fn take_save(&self, request: u64) -> Option<FileSave> {
-        match self.take_reply(request)? {
-            HostReply::FileSaved(save) => Some(save),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn export_block(&self, block_id: Uuid) -> u64 {
-        self.ask(HostRequest::ExportBlock(block_id.into_bytes()))
-    }
-
-    pub fn read_plain_file(&self, block_id: Uuid) -> u64 {
-        self.ask(HostRequest::ReadPlainFile(block_id.into_bytes()))
-    }
-
-    pub fn take_plain_file(&self, request: u64) -> Option<Result<SavedFile, String>> {
-        match self.take_reply(request)? {
-            HostReply::PlainFileRead(read) => Some(read),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn import_blocks(&self, parent: BlockParent) -> u64 {
-        self.ask(HostRequest::ImportBlocks(parent.encode()))
-    }
-
-    pub fn take_import(&self, request: u64) -> Option<Result<Option<(Uuid, Uuid)>, String>> {
-        let import = match self.take_reply(request)? {
-            HostReply::BlocksImported(import) => import,
-            reply => return self.mismatched(request, reply),
-        };
-        Some(match import {
-            BlockImport::Imported {
-                block_id,
-                block_type,
-            } => Ok(Some((
-                Uuid::from_bytes(block_id),
-                Uuid::from_bytes(block_type),
-            ))),
-            BlockImport::Cancelled => Ok(None),
-            BlockImport::Failed(error) => Err(error),
+    pub fn import_blocks(&self, parent: BlockParent) -> Asked<Result<Option<(Uuid, Uuid)>, String>> {
+        Asked::of(self.ask(|| host_services::import_blocks(parent.encode()))).map(|imported| {
+            imported.map(|imported| {
+                imported.map(|imported| {
+                    (
+                        Uuid::from_bytes(imported.block_id),
+                        Uuid::from_bytes(imported.block_type),
+                    )
+                })
+            })
         })
     }
 
-    pub fn pick_block(&self, mut filter: BlockFilter) -> u64 {
+    pub fn pick_block(&self, mut filter: BlockFilter) -> Asked<Result<Option<PickedBlock>, String>> {
         let origin = self.region.get().origin;
         filter.anchor = filter.anchor.map(|anchor| anchor.translate(-origin));
-        self.ask(HostRequest::PickBlock(filter))
-    }
-
-    pub fn list_access(&self, block_id: Uuid) -> u64 {
-        self.ask(HostRequest::ListAccess(block_id.into_bytes()))
-    }
-
-    pub fn take_access_listing(&self, request: u64) -> Option<AccessListing> {
-        match self.take_reply(request)? {
-            HostReply::AccessListed(listing) => Some(listing),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn contact_link(&self, block_id: Uuid, access: AccessLevel) -> u64 {
-        self.ask(HostRequest::ContactLink {
-            block_id: block_id.into_bytes(),
-            access,
+        Asked::of(self.ask(|| host_services::pick_block(filter))).map(|picked| {
+            picked.map(|picked| {
+                picked.map(|picked| PickedBlock {
+                    id: Uuid::from_bytes(picked.block_id),
+                    block_type: Uuid::from_bytes(picked.block_type),
+                    linked: picked.linked,
+                    placed: picked.placed,
+                })
+            })
         })
     }
 
-    pub fn take_contact_link(&self, request: u64) -> Option<ContactLinkResult> {
-        match self.take_reply(request)? {
-            HostReply::ContactLinkMade(made) => Some(made),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn list_access(&self, block_id: Uuid) -> Asked<Result<Vec<AccessGrant>, String>> {
+        Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
+    }
+
+    pub fn contact_link(&self, block_id: Uuid, access: AccessLevel) -> Asked<Result<String, String>> {
+        Asked::of(self.ask(|| host_services::make_contact_link(block_id.into_bytes(), access)))
     }
 
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
-        self.access_changes
-            .borrow_mut()
-            .push((block_id, account, access));
-        self.changed();
-    }
-
-    pub(crate) fn take_access_changes(&self) -> Vec<(Uuid, Uuid, AccessLevel)> {
-        std::mem::take(&mut self.access_changes.borrow_mut())
-    }
-
-    pub fn take_block_pick(&self, request: u64) -> Option<BlockPick> {
-        match self.take_reply(request)? {
-            HostReply::BlockPicked(pick) => Some(pick),
-            reply => self.mismatched(request, reply),
-        }
+        self.ask(|| {
+            host_services::set_access(block_id.into_bytes(), account.into_bytes(), access)
+        });
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
@@ -1543,63 +1487,18 @@ impl EditorHost {
         self.push(Pushed::Audio);
     }
 
-    pub fn fetch(&self, url: impl Into<String>) -> u64 {
-        self.ask(HostRequest::Fetch(url.into()))
+    pub fn fetch(&self, url: impl Into<String>) -> Asked<Result<Vec<u8>, String>> {
+        let url = url.into();
+        Asked::of(self.ask(|| host_services::fetch(url)))
     }
 
-    pub fn take_fetch(&self, request: u64) -> Option<FetchResult> {
-        match self.take_reply(request)? {
-            HostReply::Fetched(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn list_data(&self) -> Asked<Result<Vec<String>, String>> {
+        Asked::of(self.ask(host_services::list_data))
     }
 
-    pub fn list_data(&self) -> u64 {
-        self.ask(HostRequest::ListData)
-    }
-
-    pub fn take_data_listing(&self, request: u64) -> Option<DataListing> {
-        match self.take_reply(request)? {
-            HostReply::DataListed(listing) => Some(listing),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn read_data(&self, path: impl Into<String>) -> u64 {
-        self.ask(HostRequest::ReadData(path.into()))
-    }
-
-    pub fn take_data(&self, request: u64) -> Option<FetchResult> {
-        match self.take_reply(request)? {
-            HostReply::DataRead(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn take_requests(&self) -> Vec<(u64, HostRequest)> {
-        std::mem::take(&mut self.requests.borrow_mut())
-    }
-
-    pub fn set_reply(&self, request: u64, reply: HostReply) {
-        if matches!(reply, HostReply::RevisionReleased) {
-            return;
-        }
-        self.replies.borrow_mut().insert(request, reply);
-        self.push(Pushed::Replies);
-    }
-
-    fn take_reply(&self, request: u64) -> Option<HostReply> {
-        self.replies.borrow_mut().remove(&request)
-    }
-
-    fn mismatched<T>(&self, request: u64, reply: HostReply) -> Option<T> {
-        eprintln!("the host answered request {request} with an unrelated {reply:?}");
-        None
-    }
-
-    pub fn forget_request(&self, request: u64) {
-        self.requests.borrow_mut().retain(|(id, _)| *id != request);
-        self.replies.borrow_mut().remove(&request);
+    pub fn read_data(&self, path: impl Into<String>) -> Asked<Result<Vec<u8>, String>> {
+        let path = path.into();
+        Asked::of(self.ask(|| host_services::read_data(path)))
     }
 
     pub fn open_web_view(&self, web_view: WebViewId, url: impl Into<String>) {
@@ -2023,86 +1922,6 @@ impl EditorHost {
             .into_iter()
             .map(|(group, measurements)| (group.to_string(), measurements))
             .collect()
-    }
-}
-
-#[derive(Default)]
-pub struct FileSaver {
-    request: Option<u64>,
-    reading: Option<u64>,
-}
-
-impl FileSaver {
-    pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
-        self.reading = None;
-        self.request = Some(host.save_file(file));
-    }
-
-    pub fn export(&mut self, host: &EditorHost, block_id: Uuid) {
-        self.reading = None;
-        self.request = Some(host.export_block(block_id));
-    }
-
-    pub fn export_plain(&mut self, host: &EditorHost, block_id: Uuid) {
-        self.request = None;
-        self.reading = Some(host.read_plain_file(block_id));
-    }
-
-    pub fn is_saving(&self) -> bool {
-        self.request.is_some() || self.reading.is_some()
-    }
-
-    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<bool, String>> {
-        if let Some(reading) = self.reading {
-            let read = host.take_plain_file(reading)?;
-            self.reading = None;
-            match read {
-                Ok(file) => self.save(host, file),
-                Err(error) => return Some(Err(error)),
-            }
-        }
-        let save = host.take_save(self.request?)?;
-        self.request = None;
-        Some(match save {
-            FileSave::Saved => Ok(true),
-            FileSave::Cancelled => Ok(false),
-            FileSave::Failed(error) => Err(error),
-        })
-    }
-}
-
-#[derive(Default)]
-pub struct BlockPicker {
-    request: Option<u64>,
-}
-
-impl BlockPicker {
-    pub fn open(&mut self, host: &EditorHost, filter: BlockFilter) {
-        self.request = Some(host.pick_block(filter));
-    }
-
-    pub fn is_open(&self) -> bool {
-        self.request.is_some()
-    }
-
-    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<PickedBlock, String>> {
-        let pick = host.take_block_pick(self.request?)?;
-        self.request = None;
-        match pick {
-            BlockPick::Chosen {
-                block_id,
-                block_type,
-                linked,
-                placed,
-            } => Some(Ok(PickedBlock {
-                id: Uuid::from_bytes(block_id),
-                block_type: Uuid::from_bytes(block_type),
-                linked,
-                placed,
-            })),
-            BlockPick::Cancelled => None,
-            BlockPick::Failed(error) => Some(Err(error)),
-        }
     }
 }
 

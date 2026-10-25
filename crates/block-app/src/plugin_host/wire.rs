@@ -9,10 +9,23 @@ use block_plugin_api::{
         exports::plugin::{self, Editor},
         host::Call,
         shell::Call as ShellCall,
+        host_services,
     },
     encode_frame,
-    ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket},
+    ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Started, Ticket},
 };
+
+pub(super) struct Service {
+    pub(super) instance: EditorInstanceId,
+    pub(super) op: Option<OpId>,
+    pub(super) call: host_services::Call,
+}
+
+#[derive(Default)]
+pub(super) struct Services {
+    pub(super) asked: Vec<Service>,
+    pub(super) withdrawn: Vec<OpId>,
+}
 
 pub(super) struct Wire {
     connection: Connection,
@@ -24,6 +37,8 @@ pub(super) struct Wire {
     utc_offset: Watch<i32>,
     fonts: Watch<Fonts>,
     input: Watch<Vec<InputBatch>>,
+    services: Services,
+    serving: HashMap<OpId, EditorInstanceId>,
 }
 
 enum Answering {
@@ -115,6 +130,8 @@ impl Default for Wire {
             utc_offset: Watch::default(),
             fonts: Watch::default(),
             input: Watch::default(),
+            services: Services::default(),
+            serving: HashMap::new(),
         }
     }
 }
@@ -227,6 +244,44 @@ impl Wire {
                     (instance, Answering::Replaced(request_id, ticket)),
                 );
             }
+            EditorCall::ShowDialog { block, dialog } => {
+                editor.show_dialog(connection, block, dialog);
+            }
+        }
+    }
+
+    pub(super) fn take_services(&mut self) -> Services {
+        std::mem::take(&mut self.services)
+    }
+
+    pub(super) fn answer(&mut self, op: OpId, outcome: Outcome) {
+        if self.serving.remove(&op).is_some() {
+            self.connection.complete(op, outcome);
+        }
+    }
+
+    fn editor_of(&self, parent: Option<OpId>) -> Option<EditorInstanceId> {
+        let parent = parent?;
+        self.editors
+            .iter()
+            .find(|(_, editor)| editor.op() == parent)
+            .map(|(instance, _)| *instance)
+    }
+
+    fn serve(&mut self, started: Started) {
+        let op = started.op;
+        let Some(instance) = self.editor_of(started.parent) else {
+            self.connection
+                .complete(op, Outcome::Err(OpError::Denied));
+            return;
+        };
+        if let Some(call) = host_services::Call::accept(&mut self.connection, started) {
+            self.serving.insert(op, instance);
+            self.services.asked.push(Service {
+                instance,
+                op: Some(op),
+                call,
+            });
         }
     }
 
@@ -247,11 +302,25 @@ impl Wire {
     fn heard(&mut self, event: Incoming, heard: &mut Vec<Heard>) -> Result<(), String> {
         let connection = &mut self.connection;
         let call = match event {
+            Incoming::Started(started) if host_services::Call::accepts(&started) => {
+                self.serve(started);
+                return Ok(());
+            }
             Incoming::Started(started) => match Call::accept(connection, started) {
                 Some(call) => call,
                 None => return Ok(()),
             },
             Incoming::Called(called) => {
+                if let Some(call) = host_services::Call::accept_direct(&called) {
+                    if let Some(instance) = self.editor_of(called.parent) {
+                        self.services.asked.push(Service {
+                            instance,
+                            op: None,
+                            call,
+                        });
+                    }
+                    return Ok(());
+                }
                 if let Some(call) = ShellCall::accept_direct(&called) {
                     heard.push(Heard::Shell(call));
                     return Ok(());
@@ -292,6 +361,10 @@ impl Wire {
                 return Ok(());
             }
             Incoming::Canceled { op } => {
+                if self.serving.remove(&op).is_some() {
+                    connection.complete(op, Outcome::Err(OpError::Canceled));
+                    self.services.withdrawn.push(op);
+                }
                 self.preferences.closed(op);
                 self.utc_offset.closed(op);
                 self.fonts.closed(op);

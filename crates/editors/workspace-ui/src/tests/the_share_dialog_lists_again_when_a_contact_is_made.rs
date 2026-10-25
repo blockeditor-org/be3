@@ -1,4 +1,5 @@
-use block_editor_beui::{Contacts, HostContact, HostRequest, ShellDialog};
+use block_editor_beui::{Contacts, HostContact, ShellDialog};
+use block_ui_test::HostCall;
 
 use super::*;
 
@@ -7,7 +8,9 @@ fn listings(fixture: &mut Fixture, block: Uuid) -> usize {
         .test
         .take_requests()
         .into_iter()
-        .filter(|(_, asked)| *asked == HostRequest::ListAccess(block.into_bytes()))
+        .filter(|call| {
+            matches!(call, HostCall::ListAccess { block: asked, .. } if *asked == block.into_bytes())
+        })
         .count()
 }
 

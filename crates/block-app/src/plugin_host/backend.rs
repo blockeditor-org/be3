@@ -1,9 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use block_plugin_api::{Message, PluginManifest, ScreenDamage};
+use block_plugin_api::{Message, PluginManifest, ScreenDamage, ops::Outcome};
 
 use super::calls::{EditorCall, Heard};
-use super::wire::Wire;
+use super::wire::{Services, Wire};
 use crate::{editors::plugin::discovery, host};
 use block_guest_host::Worker;
 pub(super) use block_guest_host::{Deadline, StepTime};
@@ -127,6 +127,26 @@ impl Backend {
             self.fail(failure);
         }
         messages
+    }
+
+    pub(super) fn take_services(&mut self) -> Services {
+        self.wire.take_services()
+    }
+
+    pub(super) fn answer(&mut self, answers: Vec<(block_plugin_api::ops::OpId, Outcome)>) {
+        for (op, outcome) in answers {
+            self.wire.answer(op, outcome);
+        }
+        self.flush();
+    }
+
+    fn flush(&mut self) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
     }
 
     pub(super) fn received_frame(&mut self) -> Option<Frame> {

@@ -12,22 +12,6 @@ fn hello() -> Message {
     })
 }
 
-fn request(instance: u64, request_id: u64, request: HostRequest) -> Message {
-    Message::Editor(EditorMessage::Request {
-        instance: EditorInstanceId(instance),
-        request_id,
-        request,
-    })
-}
-
-fn reply(instance: u64, request_id: u64, reply: HostReply) -> Message {
-    Message::Editor(EditorMessage::Replied {
-        instance: EditorInstanceId(instance),
-        request_id,
-        reply,
-    })
-}
-
 fn frame(serial: u64) -> FrameCommit {
     FrameCommit {
         serial,
@@ -97,6 +81,7 @@ mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_menu_nested_too_deeply_is_refused_while_decoding;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod a_screen_readers_action_round_trips_and_a_huge_tree_is_refused;
+mod an_artifact_settings_child_round_trips;
 mod an_intercepted_key_round_trips;
 mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
@@ -107,14 +92,10 @@ mod block_types_round_trip;
 mod child_placements_round_trip;
 mod child_statuses_round_trip;
 mod creation_messages_round_trip;
-mod data_messages_round_trip;
 mod epaper_messages_round_trip;
 mod every_block_id_a_message_carries_is_visited;
 mod every_editor_manifest_parses;
 mod every_key_round_trips;
-mod fetch_messages_round_trip;
-mod file_pick_messages_round_trip;
-mod file_save_messages_round_trip;
 mod forwarded_picks_and_creation_children_round_trip;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;
@@ -130,8 +111,8 @@ mod multiplexed_messages_round_trip;
 mod notification_messages_round_trip;
 mod open_block_request_round_trips;
 mod open_messages_round_trip;
-mod pick_block_messages_round_trip;
 mod pointer_motion_round_trips;
+mod an_oversized_block_filter_is_refused;
 mod power_messages_round_trip;
 mod preference_messages_round_trip;
 mod region_sizes_round_trip;
@@ -142,7 +123,6 @@ mod rejects_truncated_frame;
 mod rejects_unknown_message_kind;
 mod rejects_unordered_occluders;
 mod replica_frames_round_trip;
-mod shell_dialog_and_access_messages_round_trip;
 mod show_block_request_round_trips;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;

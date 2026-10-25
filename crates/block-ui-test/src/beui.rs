@@ -8,7 +8,7 @@ use block_editor_beui::be_block::{LiveEdit, Merge};
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
-    EditorRegion, HostReply, HostRequest, Occluder, OwnedEditor, PeerPresence, SeededContent,
+    EditorRegion, Occluder, OwnedEditor, PeerPresence, SeededContent,
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::Opening;
@@ -19,12 +19,19 @@ use block_plugin_api::{
     FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
     ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, ViewportMetrics,
 };
+use block_plugin_api::{
+    embed::host_services::Call,
+    ops::{OpError, OpId, Outcome, Reply},
+};
 use std::marker::PhantomData;
 
 enum Inbound {
     Message(Message),
     Frames(Vec<Vec<u8>>),
 }
+
+pub type HostCall = Call;
+
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
@@ -78,6 +85,7 @@ pub struct BeuiTest<A: BeuiApp> {
     intrinsic: Option<Vec2>,
     exited: bool,
     draft: Vec<u8>,
+    requests: Vec<(Option<OpId>, Call)>,
     screens: u64,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
@@ -252,6 +260,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             intrinsic: None,
             exited: false,
             draft: data,
+            requests: Vec::new(),
             screens: 0,
             wakes,
             clock: std::time::Duration::ZERO,
@@ -702,13 +711,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
-    pub fn reply(&mut self, request_id: u64, reply: HostReply) {
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::Replied {
-                instance: INSTANCE,
-                request_id,
-                reply,
-            })));
+    pub fn answer<T: serde::Serialize>(&mut self, reply: Reply<T>, answer: T) {
+        reply.send(&mut self.connection, &answer);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
     }
 
     pub fn report_children(&mut self, report: impl Fn(&ChildPlacement) -> ChildStatus) {
@@ -776,6 +782,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         for message in std::mem::take(&mut self.inbox) {
             self.deliver(message);
         }
+        self.hear();
     }
 
     pub fn settle(&mut self) {
@@ -872,6 +879,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         for message in inbox {
             self.deliver(message);
         }
+        self.hear();
         let output = self
             .plugin
             .draw()
@@ -961,8 +969,27 @@ impl<A: BeuiApp> BeuiTest<A> {
                     self.completed.insert(op, outcome);
                     continue;
                 }
-                _ => continue,
+                Incoming::Started(started) => {
+                    let op = started.op;
+                    if Call::accepts(&started)
+                        && let Some(call) = Call::accept(&mut self.connection, started)
+                    {
+                        self.requests.push((Some(op), call));
+                    }
+                    continue;
+                }
+                Incoming::Canceled { op } => {
+                    self.requests.retain(|(asked, _)| *asked != Some(op));
+                    self.connection
+                        .complete(op, Outcome::Err(OpError::Canceled));
+                    continue;
+                }
+                Incoming::Yielded { .. } => continue,
             };
+            if let Some(call) = Call::accept_direct(&called) {
+                self.requests.push((None, call));
+                continue;
+            }
             let Some(call) = ShellCall::accept_direct(&called) else {
                 panic!(
                     "the plugin called {}, which the test does not answer",
@@ -983,6 +1010,10 @@ impl<A: BeuiApp> BeuiTest<A> {
                 _ => {}
             }
             self.calls.push(call);
+        }
+        if self.connection.has_outbound() {
+            let frames = self.connection.take_outbound();
+            self.inbox.push(Inbound::Frames(frames));
         }
     }
 
@@ -1074,13 +1105,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::ShowDialog {
-                instance: INSTANCE,
-                block_id: block.into_bytes(),
-                dialog,
-            },
-        )));
+        self.call(|editor, connection| {
+            editor.show_dialog(connection, block.into_bytes(), dialog)
+        });
     }
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
@@ -1101,18 +1128,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_access_changes(&mut self) -> Vec<(Uuid, Uuid, block_plugin_api::AccessLevel)> {
-        self.take_where(|message| match message {
-            EditorMessage::SetAccess {
-                block_id,
+        self.take_requests_where(|call| match call {
+            Call::SetAccess {
+                block,
                 account,
                 access,
-                ..
-            } => Some((
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*account),
-                *access,
-            )),
-            _ => None,
+            } => Ok((Uuid::from_bytes(block), Uuid::from_bytes(account), access)),
+            call => Err(call),
         })
     }
 
@@ -1166,20 +1188,25 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn has_requests(&self) -> bool {
-        self.sent
-            .iter()
-            .any(|message| matches!(message, EditorMessage::Request { .. }))
+        !self.requests.is_empty()
     }
 
-    pub fn take_requests(&mut self) -> Vec<(u64, HostRequest)> {
-        self.take_where(|message| match message {
-            EditorMessage::Request {
-                request_id,
-                request,
-                ..
-            } => Some((*request_id, request.clone())),
-            _ => None,
-        })
+    pub fn take_requests(&mut self) -> Vec<Call> {
+        std::mem::take(&mut self.requests)
+            .into_iter()
+            .map(|(_, call)| call)
+            .collect()
+    }
+
+    pub fn take_requests_where<T>(&mut self, pick: impl Fn(Call) -> Result<T, Call>) -> Vec<T> {
+        let mut picked = Vec::new();
+        for (op, call) in std::mem::take(&mut self.requests) {
+            match pick(call) {
+                Ok(value) => picked.push(value),
+                Err(call) => self.requests.push((op, call)),
+            }
+        }
+        picked
     }
 
     pub fn take_opens(&mut self) -> Vec<block_editor_beui::OpenRequest> {

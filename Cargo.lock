@@ -1831,6 +1831,7 @@ dependencies = [
  "host-types",
  "image",
  "paint-snapshot",
+ "serde",
  "text-block-types",
  "uuid",
  "workspace-ui-types",

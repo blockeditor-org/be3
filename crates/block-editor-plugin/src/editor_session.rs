@@ -5,7 +5,7 @@ use block_plugin_api::ops::guest::Sender;
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
     EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit, FrameReport,
-    HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder,
+    HostPanel, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder,
     RegionSize, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics,
     WebViewEvent, WebViewId,
 };
@@ -91,6 +91,12 @@ struct RegionState {
     age: u32,
 }
 
+impl Drop for EditorSession {
+    fn drop(&mut self) {
+        self.host.cancel_tasks();
+    }
+}
+
 impl EditorSession {
     pub fn new(instance: EditorInstanceId, waker: Waker, open: Open) -> Self {
         let host = EditorHost::new(waker);
@@ -98,6 +104,7 @@ impl EditorSession {
     }
 
     pub fn adopt(instance: EditorInstanceId, app: Box<dyn Instance>, host: EditorHost) -> Self {
+        host.set_instance(instance);
         Self {
             app,
             instance,
@@ -538,21 +545,6 @@ impl EditorSession {
         if self.host.take_paste_request() {
             shell::paste(instance);
         }
-        for (block_id, account, access) in self.host.take_access_changes() {
-            messages.push(Message::Editor(EditorMessage::SetAccess {
-                instance,
-                block_id: block_id.into_bytes(),
-                account: account.into_bytes(),
-                access,
-            }));
-        }
-        for (request_id, request) in self.host.take_requests() {
-            messages.push(Message::Editor(EditorMessage::Request {
-                instance,
-                request_id,
-                request,
-            }));
-        }
         for (pick, answer) in self.host.take_pick_answers() {
             messages.push(Message::Editor(EditorMessage::PickAnswered {
                 instance,
@@ -726,10 +718,6 @@ impl EditorSession {
         };
         let used = (content.max - origin).max(Vec2::ZERO);
         state.used = Some(vec2(used.x.round(), used.y.round()));
-    }
-
-    pub(crate) fn replied(&self, request_id: u64, reply: HostReply) {
-        self.host.set_reply(request_id, reply);
     }
 
     pub(crate) fn web_view_event(&self, web_view: WebViewId, event: WebViewEvent) {

@@ -397,6 +397,7 @@ impl Runtime {
             messages.push(self.instances.screen_set(next.screens).into());
         }
         messages.extend(self.instances.pending().into_iter().map(Outbound::from));
+        self.serve();
         messages.extend(self.instances.configure(&messages).map(Outbound::from));
         let awaited = messages.iter().any(|message| {
             matches!(
@@ -605,6 +606,20 @@ impl Runtime {
         }
     }
 
+    fn serve(&mut self) {
+        let services = self.backend.take_services();
+        for op in services.withdrawn {
+            self.instances.withdraw(op);
+        }
+        for service in services.asked {
+            self.instances.serve(service);
+        }
+        let answers = self.instances.take_answers();
+        if !answers.is_empty() {
+            self.backend.answer(answers);
+        }
+    }
+
     fn pump(&mut self) {
         if self.error.is_some() {
             return;
@@ -612,6 +627,7 @@ impl Runtime {
         let now = self.milliseconds();
         let before = self.session.state().clone();
         let received = self.backend.receive();
+        self.serve();
         if *self.session.state() == SessionState::Idle && self.backend.ready() {
             self.session.start(now);
         }
@@ -1236,8 +1252,8 @@ pub(crate) fn block_picked(
     pick: BlockPick,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.block_picked(instance, request_id, pick);
-        runtime.send(messages);
+        runtime.instances.block_picked(instance, request_id, pick);
+        runtime.serve();
     });
 }
 
@@ -1581,8 +1597,8 @@ pub(crate) fn show_dialog(
     dialog: block_plugin_api::ShellDialog,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.show_dialog(instance, block, dialog);
-        runtime.send(messages);
+        let calls = runtime.instances.show_dialog(instance, block, dialog);
+        runtime.send(calls);
     });
 }
 

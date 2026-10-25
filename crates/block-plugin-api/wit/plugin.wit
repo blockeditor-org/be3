@@ -5,6 +5,7 @@ interface plugin {
     use types.{editor-region, frame-commit, opening, screen-request, size, uuid};
     use shell-types.{bar-action, child-id, drag-over, file-drop, focus};
     use be3:ui/types@0.1.0.{rect};
+    use host-services.{shell-dialog};
 
     /// An editor instance. Dropping it closes it.
     resource editor {
@@ -60,6 +61,9 @@ interface plugin {
 
         /// Puts a block in place of a child block; false when the editor cannot.
         replace-child: async func(old: uuid, new: uuid) -> bool;
+
+        /// Shows one of the dialogs the instance that draws the window draws.
+        show-dialog: func(block: uuid, dialog: shell-dialog);
     }
 
     /// The screens the host shows, replacing the ones it showed before.
@@ -83,5 +87,6 @@ world editor-plugin {
     import host;
     import blocks;
     import shell;
+    import host-services;
     export plugin;
 }
