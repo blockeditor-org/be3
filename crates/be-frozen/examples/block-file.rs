@@ -197,11 +197,5 @@ fn text(error: impl Display) -> String {
 }
 
 fn sources() -> be_cli::tracker::Sources {
-    Box::new(|| {
-        vec![
-            be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
-            be_types_host::in_process::<database_types::BlockTypes>("be3.database"),
-            be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
-        ]
-    })
+    Box::new(first_party_types::sources)
 }

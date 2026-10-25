@@ -77,21 +77,7 @@ pub(crate) fn provided(content_type: Uuid) -> bool {
 
 #[cfg(test)]
 pub(crate) fn provided(content_type: Uuid) -> bool {
-    [
-        host_types(),
-        calendar_types::block_types(),
-        checklist_types::block_types(),
-        counter_types::block_types(),
-        terminal_types::block_types(),
-        browser_tab_types::block_types(),
-        image_block_types::block_types(),
-        workspace_ui_types::block_types(),
-        database_types::block_types(),
-        text_block_types::block_types(),
-        presentation_types::block_types(),
-    ]
-    .iter()
-    .any(|module| module.knows(content_type))
+    host_types().knows(content_type) || first_party_types::knows(content_type)
 }
 
 impl Guest for HostTypes {
@@ -134,41 +120,19 @@ pub(super) async fn sources() -> Vec<Source> {
 
 #[cfg(test)]
 pub(super) async fn sources() -> Vec<Source> {
-    vec![
-        in_process::<HostTypes>("host-types"),
-        plugin::<calendar_types::BlockTypes>("be3.calendar", calendar_types::registrations()),
-        plugin::<checklist_types::BlockTypes>("be3.checklist", checklist_types::registrations()),
-        plugin::<Crashing>("be3.counter", counter_types::registrations()),
-        plugin::<terminal_types::BlockTypes>("be3.terminal", terminal_types::registrations()),
-        plugin::<browser_tab_types::BlockTypes>(
-            "be3.browser-tab",
-            browser_tab_types::registrations(),
-        ),
-        plugin::<image_block_types::BlockTypes>("be3.image", image_block_types::registrations()),
-        plugin::<workspace_ui_types::BlockTypes>(
-            "be3.workspace-ui",
-            workspace_ui_types::registrations(),
-        ),
-        plugin::<database_types::BlockTypes>("be3.database", database_types::registrations()),
-        plugin::<text_block_types::BlockTypes>("be3.text", text_block_types::registrations()),
-        plugin::<presentation_types::BlockTypes>(
-            "be3.presentation",
-            presentation_types::registrations(),
-        ),
-    ]
-}
-
-#[cfg(test)]
-fn plugin<G: Guest + 'static>(
-    name: &str,
-    registrations: Vec<block_type_guest::Registration>,
-) -> Source {
-    in_process::<G>(name).declaring(
-        registrations
-            .iter()
-            .map(|registration| registration.info().content_type)
-            .collect(),
-    )
+    let mut sources = vec![in_process::<HostTypes>("host-types")];
+    sources.extend(
+        first_party_types::sources()
+            .into_iter()
+            .map(|source| match source.name.as_str() {
+                "be3.counter" => first_party_types::in_process::<Crashing>(
+                    "be3.counter",
+                    counter_types::registrations(),
+                ),
+                _ => source,
+            }),
+    );
+    sources
 }
 
 #[cfg(not(test))]

@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 
 [dev-dependencies]
+first-party-types = { path = "../first-party-types" }
 be-block = { path = "../be-block" }
 be-cli = { path = "../be-cli" }
 be-client = { path = "../be-client" }

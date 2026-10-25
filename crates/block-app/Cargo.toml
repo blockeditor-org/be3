@@ -102,7 +102,8 @@ rodio = "0.20"
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
 # The plugins' type modules, which the unit tests run in process beside the
-# first-party one.
+# host's own (first-party-types), and name the blocks of.
+first-party-types = { path = "../first-party-types" }
 calendar-types = { path = "../editors/calendar/types" }
 checklist-types = { path = "../editors/checklist/types" }
 counter-types = { path = "../editors/counter/types" }

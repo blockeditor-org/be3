@@ -65,14 +65,7 @@ fn manifests() {
 
 fn sources() -> crate::tracker::Sources {
     manifests();
-    Box::new(|| {
-        vec![
-            be_types_host::in_process::<workspace_ui_types::BlockTypes>("be3.workspace-ui"),
-            be_types_host::in_process::<database_types::BlockTypes>("be3.database"),
-            be_types_host::in_process::<terminal_types::BlockTypes>("be3.terminal"),
-            be_types_host::in_process::<text_block_types::BlockTypes>("be3.text"),
-        ]
-    })
+    Box::new(first_party_types::sources)
 }
 
 struct Harness {

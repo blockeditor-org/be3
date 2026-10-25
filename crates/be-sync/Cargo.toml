@@ -23,6 +23,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 
 [dev-dependencies]
+first-party-types = { path = "../first-party-types" }
 be-keys = { path = "../be-keys" }
 be-server = { path = "../be-server" }
 build-id = { path = "../build-id" }

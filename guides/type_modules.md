@@ -225,5 +225,6 @@ plugin's `Source` the types its manifest declares (`Source::declaring`): `Module
 registers only those from that module's `Hello`, and no module's `Hello` takes a
 type another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
-and an app built from one tree share sessions. Tests run the types crates they
-need in process (`in_process::<my_block_types::BlockTypes>`).
+and an app built from one tree share sessions. Tests and examples of a host run
+every first-party types crate in process with `first_party_types::sources()`
+(`crates/first-party-types`), named by plugin id and declaring each module's types.

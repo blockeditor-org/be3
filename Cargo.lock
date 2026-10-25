@@ -738,6 +738,7 @@ dependencies = [
  "block-ui",
  "build-id",
  "database-types",
+ "first-party-types",
  "futures-util",
  "ghostty-vt",
  "portable-pty",
@@ -826,6 +827,7 @@ dependencies = [
  "be-types-host",
  "build-id",
  "database-types",
+ "first-party-types",
  "rusqlite",
  "text-block-types",
  "tokio",
@@ -1009,6 +1011,7 @@ dependencies = [
  "be-vcs",
  "block-type-api",
  "build-id",
+ "first-party-types",
  "futures-util",
  "ignore",
  "image-block-types",
@@ -1516,6 +1519,7 @@ dependencies = [
  "counter-types",
  "database-types",
  "directories-next",
+ "first-party-types",
  "futures-util",
  "host-types",
  "image",
@@ -3380,6 +3384,40 @@ name = "finl_unicode"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80bb028c8b4148c9ee0cca68fcd9add6044e81d3619f48577ddf13a263d047a2"
+
+[[package]]
+name = "first-party-types"
+version = "0.1.0"
+dependencies = [
+ "audio-block-types",
+ "be-types-host",
+ "beui-gallery-types",
+ "block-guest-abi",
+ "block-type-guest",
+ "browser-tab-types",
+ "calendar-types",
+ "checklist-types",
+ "counter-types",
+ "database-types",
+ "deterministic-game-types",
+ "image-block-types",
+ "infinite-canvas-types",
+ "logic-grid-types",
+ "map-types",
+ "pan-zoom-types",
+ "pdf-types",
+ "pixel-art-types",
+ "pixel-ray-tracer-types",
+ "presentation-types",
+ "scene-3d-types",
+ "settings-types",
+ "terminal-types",
+ "text-block-types",
+ "triangle-types",
+ "uuid",
+ "video-block-types",
+ "workspace-ui-types",
+]
 
 [[package]]
 name = "fix-rust-source"
