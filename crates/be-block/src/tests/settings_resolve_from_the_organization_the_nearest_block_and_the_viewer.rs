@@ -90,15 +90,23 @@ fn settings_resolve_from_the_organization_the_nearest_block_and_the_viewer() {
     );
 
     let policy = Resolution::resolve(ResolutionLayers {
-        block: Some((folder, Kept { offline: Some(false) })),
+        block: Some((
+            folder,
+            Kept {
+                offline: Some(false),
+            },
+        )),
         this_device: Some(Kept {
             offline: Some(true),
         }),
         ..ResolutionLayers::default()
     });
-    assert_eq!(policy.value(), Kept {
-        offline: Some(false)
-    });
+    assert_eq!(
+        policy.value(),
+        Kept {
+            offline: Some(false)
+        }
+    );
     assert_eq!(
         policy.locked_by(|layer| layer.offline),
         Some(SettingsSource::Block(folder))

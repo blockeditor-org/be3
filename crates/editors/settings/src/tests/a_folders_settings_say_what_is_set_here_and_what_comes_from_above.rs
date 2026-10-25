@@ -31,8 +31,15 @@ fn named(id: Uuid, block_type: Uuid, parent: BlockParent, name: &str, settings: 
 
 #[test]
 fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
-    let [workspace, folder, workspace_settings, folder_settings, tags, workspace_hotbar, hotbar] =
-        std::array::from_fn(|_| Uuid::new_v4());
+    let [
+        workspace,
+        folder,
+        workspace_settings,
+        folder_settings,
+        tags,
+        workspace_hotbar,
+        hotbar,
+    ] = std::array::from_fn(|_| Uuid::new_v4());
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(Uuid::new_v4());
@@ -95,7 +102,12 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
         }])),
     );
     editor.run();
-    assert!(editor.document().find_test_id(&format!("settings.above.{TAGS}.open")).is_some());
+    assert!(
+        editor
+            .document()
+            .find_test_id(&format!("settings.above.{TAGS}.open"))
+            .is_some()
+    );
     assert!(
         editor
             .document()

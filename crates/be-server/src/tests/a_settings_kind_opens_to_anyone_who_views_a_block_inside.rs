@@ -19,7 +19,10 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
             },
         })
         .await;
-    assert!(matches!(response, ServerMessage::Block { .. }), "{response:?}");
+    assert!(
+        matches!(response, ServerMessage::Block { .. }),
+        "{response:?}"
+    );
     block
 }
 

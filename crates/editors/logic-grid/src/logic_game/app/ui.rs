@@ -2,7 +2,9 @@ use beui::Wrap;
 use uuid::Uuid;
 
 use block_editor_beui::Editor;
-use block_editor_beui::beui::icons::{ICON_BLOCKS, ICON_CIRCLE_CHECK, ICON_EARTH, ICON_PLUS, ICON_TRASH};
+use block_editor_beui::beui::icons::{
+    ICON_BLOCKS, ICON_CIRCLE_CHECK, ICON_EARTH, ICON_PLUS, ICON_TRASH,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};

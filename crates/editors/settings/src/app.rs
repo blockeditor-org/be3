@@ -12,8 +12,8 @@ use block::{BlockSettingsView, is_block_settings};
 use block_editor_beui::BlockQuery;
 use block_editor_beui::beui::ItemSize;
 use block_editor_beui::beui::styled::{Frame, List};
-use uuid::Uuid;
 use ui::{SettingsProfileView, SettingsView};
+use uuid::Uuid;
 
 const INTRINSIC_WIDTH: f32 = 360.0;
 const INTRINSIC_HEIGHT: f32 = 240.0;
@@ -31,19 +31,26 @@ impl block_editor_beui::BeuiApp for SettingsApp {
             <Root>
                 <Loaded>
                     <List spacing=0.0>
-                    <Dynamic value={shown}>|shown: Option<Option<Uuid>>| {
-                        match shown {
-                            Some(Some(owner)) => view! {
-                                <BlockSettingsView @sizing=ItemSize::Percent(100.0) editor={editor} owner={owner} />
-                            },
-                            Some(None) => view! {
-                                <SettingsView @sizing=ItemSize::Percent(100.0) editor={editor} />
-                            },
-                            None => view! {
-                                <Frame @sizing=ItemSize::Percent(100.0) />
-                            },
-                        }
-                    }</Dynamic>
+                        <Dynamic value={shown}>|shown: Option<Option<Uuid>>| {
+                            match shown {
+                                Some(Some(owner)) => view! {
+                                    <BlockSettingsView
+                                        @sizing=ItemSize::Percent(100.0)
+                                        editor={editor}
+                                        owner={owner}
+                                    />
+                                },
+                                Some(None) => view! {
+                                    <SettingsView
+                                        @sizing=ItemSize::Percent(100.0)
+                                        editor={editor}
+                                    />
+                                },
+                                None => view! {
+                                    <Frame @sizing=ItemSize::Percent(100.0) />
+                                },
+                            }
+                        }</Dynamic>
                     </List>
                 </Loaded>
             </Root>

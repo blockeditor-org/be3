@@ -79,7 +79,10 @@ impl<R: Layered> Resolution<R> {
         let policy = organization_policy.map(|layer| (SettingsSource::OrganizationPolicy, layer));
         let (chosen, locked): (Vec<_>, Vec<_>) = match R::RULE {
             KindRule::Default => (
-                [organization_default, block].into_iter().chain(own).collect(),
+                [organization_default, block]
+                    .into_iter()
+                    .chain(own)
+                    .collect(),
                 vec![policy],
             ),
             KindRule::Policy => (

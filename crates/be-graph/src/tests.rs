@@ -209,7 +209,10 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
             };
         }
         if !best.can_view()
-            && node.grants.get(&ANYONE_INSIDE).is_some_and(|open| open.can_view())
+            && node
+                .grants
+                .get(&ANYONE_INSIDE)
+                .is_some_and(|open| open.can_view())
             && let Some(owner) = owner_of(graph, id)
         {
             let inside: Vec<Uuid> = graph

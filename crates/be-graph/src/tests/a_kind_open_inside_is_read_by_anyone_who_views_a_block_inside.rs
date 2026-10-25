@@ -16,10 +16,16 @@ fn a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside() {
         .insert(workspace, BlockNode::new(TYPE, owner, BlockParent::Root))
         .unwrap();
     graph
-        .insert(folder, BlockNode::new(TYPE, owner, BlockParent::Block(workspace)))
+        .insert(
+            folder,
+            BlockNode::new(TYPE, owner, BlockParent::Block(workspace)),
+        )
         .unwrap();
     graph
-        .insert(note, BlockNode::new(TYPE, owner, BlockParent::Block(folder)))
+        .insert(
+            note,
+            BlockNode::new(TYPE, owner, BlockParent::Block(folder)),
+        )
         .unwrap();
     graph
         .insert(
@@ -29,7 +35,10 @@ fn a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside() {
         .unwrap();
     for kind in [open, closed] {
         graph
-            .insert(kind, BlockNode::new(TYPE, owner, BlockParent::Block(settings)))
+            .insert(
+                kind,
+                BlockNode::new(TYPE, owner, BlockParent::Block(settings)),
+            )
             .unwrap();
     }
     graph.grant(open, ANYONE_INSIDE, Access::View).unwrap();

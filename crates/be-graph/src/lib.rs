@@ -176,7 +176,8 @@ impl BlockGraph {
             self.backrefs.entry(*reference).or_default().insert(id);
         }
         self.children.entry(node.parent).or_default().insert(id);
-        if let (true, BlockParent::Block(owner)) = (node.content_type == SETTINGS_TYPE, node.parent) {
+        if let (true, BlockParent::Block(owner)) = (node.content_type == SETTINGS_TYPE, node.parent)
+        {
             self.settings.entry(owner).or_default().insert(id);
         }
         self.entries.entry(node.author).or_default().insert(id);
@@ -264,7 +265,11 @@ impl BlockGraph {
         let previous = std::mem::replace(&mut self.node_mut(id)?.parent, parent);
         unindex(&mut self.children, previous, id);
         self.children.entry(parent).or_default().insert(id);
-        if self.blocks.get(&id).is_some_and(|node| node.content_type == SETTINGS_TYPE) {
+        if self
+            .blocks
+            .get(&id)
+            .is_some_and(|node| node.content_type == SETTINGS_TYPE)
+        {
             if let BlockParent::Block(owner) = previous {
                 unindex(&mut self.settings, owner, id);
             }
@@ -536,9 +541,9 @@ impl BlockGraph {
     }
 
     pub fn views_inside(&self, owner: Uuid, account: Uuid) -> bool {
-        self.entry_points(account).into_iter().any(|entry| {
-            self.is_inside(owner, entry) && self.inherited(entry, account).can_view()
-        })
+        self.entry_points(account)
+            .into_iter()
+            .any(|entry| self.is_inside(owner, entry) && self.inherited(entry, account).can_view())
     }
 
     pub fn inside_viewers(&self, owner: Uuid) -> BTreeSet<Uuid> {
@@ -646,7 +651,11 @@ impl BlockGraph {
         for owner in owners {
             for settings in self.settings_of(owner) {
                 for kind in self.child_ids(settings) {
-                    if self.blocks.get(&kind).is_some_and(BlockNode::is_open_inside) {
+                    if self
+                        .blocks
+                        .get(&kind)
+                        .is_some_and(BlockNode::is_open_inside)
+                    {
                         stack.push((kind, Access::View));
                     }
                 }

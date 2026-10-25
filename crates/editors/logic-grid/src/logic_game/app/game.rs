@@ -184,7 +184,11 @@ impl Game {
             .editor
             .nearest_settings(self.editor.block_id(), HotbarContent::CONTENT_TYPE);
         let world = self.editor.block_id();
-        create_memo(move || set.get().filter(|set| set.owner == world).map(|set| set.block))
+        create_memo(move || {
+            set.get()
+                .filter(|set| set.owner == world)
+                .map(|set| set.block)
+        })
     }
 
     pub(crate) fn can_manage(&self) -> Memo<bool> {

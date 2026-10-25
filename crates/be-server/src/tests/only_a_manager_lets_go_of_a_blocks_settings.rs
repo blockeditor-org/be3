@@ -1,7 +1,11 @@
 use super::*;
 use be_graph::{Access, SETTINGS_TYPE};
 
-async fn set_references(client: &mut TestClient, block: Uuid, references: Vec<Uuid>) -> ServerMessage {
+async fn set_references(
+    client: &mut TestClient,
+    block: Uuid,
+    references: Vec<Uuid>,
+) -> ServerMessage {
     client
         .send(|request| ClientMessage::SetMetadata {
             request,
@@ -42,7 +46,10 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
             },
         })
         .await;
-    assert!(matches!(created, ServerMessage::Block { .. }), "{created:?}");
+    assert!(
+        matches!(created, ServerMessage::Block { .. }),
+        "{created:?}"
+    );
     let held = set_references(&mut owner, workspace, vec![settings]).await;
     assert!(matches!(held, ServerMessage::Block { .. }), "{held:?}");
 
@@ -56,7 +63,10 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
         "an editor let go of the workspace's settings: {dropped:?}"
     );
     let dropped = set_references(&mut owner, workspace, Vec::new()).await;
-    assert!(matches!(dropped, ServerMessage::Block { .. }), "{dropped:?}");
+    assert!(
+        matches!(dropped, ServerMessage::Block { .. }),
+        "{dropped:?}"
+    );
 
     harness.stop().await;
 }

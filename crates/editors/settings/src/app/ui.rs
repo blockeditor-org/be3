@@ -145,37 +145,37 @@ fn Workspaces(editor: Editor) -> NodeId {
     let listed = create_memo(move || !workspaces.with(Vec::is_empty));
     view! {
         <List spacing=0.0>
-        <Show condition={listed}>
-            <Section
-                title="Workspaces"
-                caption="What a workspace sets applies to everything inside it, for everyone who can view it."
-            >
-                <List spacing=ROW_SPACING>
-                    <ForEach keys={workspaces}>|workspace: Uuid| {
-                        let label = create_memo(move || block::name_of(editor, workspace));
-                        let set = create_memo(move || editor.settings_block(workspace).is_some());
-                        let manages =
-                            create_memo(move || editor.blocks().access(workspace).can_manage());
-                        let detail = create_memo(move || match (set.get(), manages.get()) {
-                            (true, _) => "Has settings of its own".to_owned(),
-                            (false, true) => "Nothing set yet".to_owned(),
-                            (false, false) => "Nothing set, and only its managers set them".to_owned(),
-                        });
-                        let unopenable = create_memo(move || !set.get() && !manages.get());
-                        view! {
-                            <SettingRow
-                                label={label}
-                                detail={detail}
-                                glyph=ICON_FOLDER_COG
-                                disabled={unopenable}
-                                @test_id={format!("settings.workspace.{workspace}")}
-                                on_click={move || block::open_settings_of(editor, workspace)}
-                            />
-                        }
-                    }</ForEach>
-                </List>
-            </Section>
-        </Show>
+            <Show condition={listed}>
+                <Section
+                    title="Workspaces"
+                    caption="What a workspace sets applies to everything inside it, for everyone who can view it."
+                >
+                    <List spacing=ROW_SPACING>
+                        <ForEach keys={workspaces}>|workspace: Uuid| {
+                            let label = create_memo(move || block::name_of(editor, workspace));
+                            let set = create_memo(move || editor.settings_block(workspace).is_some());
+                            let manages =
+                                create_memo(move || editor.blocks().access(workspace).can_manage());
+                            let detail = create_memo(move || match (set.get(), manages.get()) {
+                                (true, _) => "Has settings of its own".to_owned(),
+                                (false, true) => "Nothing set yet".to_owned(),
+                                (false, false) => "Nothing set, and only its managers set them".to_owned(),
+                            });
+                            let unopenable = create_memo(move || !set.get() && !manages.get());
+                            view! {
+                                <SettingRow
+                                    label={label}
+                                    detail={detail}
+                                    glyph=ICON_FOLDER_COG
+                                    disabled={unopenable}
+                                    @test_id={format!("settings.workspace.{workspace}")}
+                                    on_click={move || block::open_settings_of(editor, workspace)}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
+                </Section>
+            </Show>
         </List>
     }
 }

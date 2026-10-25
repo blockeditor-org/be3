@@ -155,7 +155,8 @@ impl Editor {
                     .map(|held| layers(&editor, &held, R::CONTENT_TYPE, client))
                     .unwrap_or_default();
                 let organization = editor.organization_layers(R::CONTENT_TYPE);
-                let set = kinds.and_then(|kinds| kinds.with(|kinds| kinds.get(&R::CONTENT_TYPE).copied()));
+                let set = kinds
+                    .and_then(|kinds| kinds.with(|kinds| kinds.get(&R::CONTENT_TYPE).copied()));
                 Resolution::resolve(ResolutionLayers {
                     organization_policy: read(organization.policy),
                     organization_default: read(organization.default),

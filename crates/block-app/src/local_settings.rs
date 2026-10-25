@@ -163,7 +163,9 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
                     settings.apply();
                     self.applied = Some(settings);
                 }
-                Err(error) => eprintln!("block-app: the saved {name} settings are unreadable: {error}"),
+                Err(error) => {
+                    eprintln!("block-app: the saved {name} settings are unreadable: {error}")
+                }
             },
             Ok(None) => {}
             Err(error) => eprintln!("block-app: the saved {name} settings were not read: {error}"),

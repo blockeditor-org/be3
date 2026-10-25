@@ -8,7 +8,8 @@ use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, AccessListing, BlockParent, BlockQuery, Editor, SetKind};
 use uuid::Uuid;
 
-const NOTHING_HERE: &str = "Nothing is set here yet. Editors set what applies inside, such as a game world's hotbar.";
+const NOTHING_HERE: &str =
+    "Nothing is set here yet. Editors set what applies inside, such as a game world's hotbar.";
 const ONLY_MANAGERS: &str = "Only the people who manage it change these.";
 const ANYONE_INSIDE_LABEL: &str = "Anyone inside";
 const MEMBERS_ONLY_LABEL: &str = "Members only";
@@ -66,7 +67,9 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
             true => String::new(),
             false => format!(" {ONLY_MANAGERS}"),
         };
-        format!("What is set here applies to everything inside this {kind}, unless a block inside sets its own.{changed}")
+        format!(
+            "What is set here applies to everything inside this {kind}, unless a block inside sets its own.{changed}"
+        )
     });
     let parent = create_memo(move || {
         editor

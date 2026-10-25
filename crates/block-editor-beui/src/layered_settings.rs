@@ -306,7 +306,8 @@ where
         let source = {
             let setting = setting.clone();
             create_memo(move || {
-                let locked = resolved.with(|resolved| resolved.locked_by(|layer| setting.get(layer)));
+                let locked =
+                    resolved.with(|resolved| resolved.locked_by(|layer| setting.get(layer)));
                 locked.map(|source| match source {
                     SettingsSource::Block(owner) => {
                         let types = editor.block_types();
