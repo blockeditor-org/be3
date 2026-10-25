@@ -1195,6 +1195,7 @@ dependencies = [
  "bytemuck",
  "glam",
  "paint-snapshot",
+ "pollster",
  "wgpu",
 ]
 

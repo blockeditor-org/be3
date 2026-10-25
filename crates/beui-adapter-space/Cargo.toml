@@ -15,6 +15,7 @@ wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 [dev-dependencies]
 beui-font-freetype = { path = "../beui-font-freetype" }
 paint-snapshot = { path = "../paint-snapshot" }
+pollster = "0.4"
 
 [lints]
 workspace = true

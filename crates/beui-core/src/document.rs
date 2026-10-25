@@ -1428,7 +1428,7 @@ impl Document {
         repaints.extend(cache.take_due(now));
         cache.mark(&repaints, &self.arena);
         self.arena.recycle(released);
-        let mut window_damage = Region::NOTHING;
+        let mut window_damage = None;
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             let verifying = verifying_paint();
@@ -1438,27 +1438,29 @@ impl Document {
             let cache = self.paint_cache.get_mut();
             let moves = cache.take_moves();
             let stale = cache.take_stale();
-            let everything = self.damage.is_everything();
+            let mut taken = self.damage.take();
+            let everything = taken.is_everything();
             let windowed = !self.windows.paintings.is_empty();
-            let whole = self.damage.take(self.window_bounds(rect));
-            window_damage = whole;
-            let region = whole.clipped(rect);
+            let region = taken.of(WindowId::MAIN, rect);
             let (region, moved) = match (everything, windowed) {
                 (true, _) => (region, None),
                 (false, true) => {
                     let mut region = region;
-                    for moved in &moves {
-                        region.add(moved.viewport.intersect(rect));
-                        window_damage.add(moved.viewport);
-                    }
-                    for stale in &stale {
-                        region.add(stale.rect.intersect(rect));
-                        window_damage.add(stale.rect);
+                    let changed = moves
+                        .iter()
+                        .map(|moved| (moved.window, moved.viewport))
+                        .chain(stale.iter().map(|stale| (stale.window, stale.rect)));
+                    for (window, rect_moved) in changed {
+                        match window.is_main() {
+                            true => region.add(rect_moved.intersect(rect)),
+                            false => taken.add(window, rect_moved),
+                        }
                     }
                     (region, None)
                 }
                 (false, false) => self.settle_moves(moves, stale, region, rect),
             };
+            window_damage = Some(taken);
             if let Some(previous) = previous {
                 self.verify_paint(ctx, rect, &previous, &region, moved, everything);
             }
@@ -1482,7 +1484,7 @@ impl Document {
             ctx.note_animating();
         }
         ctx.show_painting(&self.painting, rect);
-        self.show_windows(ctx, window_damage);
+        self.show_windows(ctx, window_damage.as_ref());
         if ctx.automated() {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
@@ -1515,6 +1517,7 @@ impl Document {
     fn paint(&mut self, ctx: &Context) {
         let mut roots = Vec::new();
         if let Some(root) = self.root {
+            self.paint_cache.get_mut().paint_into(WindowId::MAIN);
             paint::paint(self, &ctx.window_painter(WindowId::MAIN), &self.rects, root);
             roots.push((WindowId::MAIN, root));
         }
@@ -1530,6 +1533,7 @@ impl Document {
             let scrim = self.overlay_scrim(overlay);
             let content = self.overlay_content(overlay);
             let painter = ctx.window_painter(layer.window);
+            self.paint_cache.get_mut().paint_into(layer.window);
             for root in [Some(scrim), content].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
                     paint::paint(self, &painter, &self.rects, root);
@@ -1538,7 +1542,7 @@ impl Document {
             }
         }
         let cache = self.paint_cache.get_mut();
-        cache.settle_roots(roots.iter().map(|(_, root)| *root).collect());
+        cache.settle_roots(&roots);
         if cache.take_recorded() {
             let mut main = Vec::new();
             let mut windows: Vec<(WindowId, crate::window::hosted::Painting)> = Vec::new();
@@ -1557,7 +1561,7 @@ impl Document {
             self.painting = main;
             self.windows.paintings = windows;
         }
-        self.damage.add_region(cache.take_damage());
+        self.damage.add_regions(cache.take_damage());
     }
 
     fn settle_moves(

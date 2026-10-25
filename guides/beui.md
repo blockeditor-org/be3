@@ -2827,9 +2827,13 @@ index 0, which hit testing, press claims and forwarding use, so a press in
 one window never reaches another's nodes at the same coordinates. Focus,
 key routing and tab order stay one across every window. `Document::window_of`
 names the window a node is in, `window_rect` its rectangle and `open_windows`
-the windows the host shows. Damage is not told apart by window: each window
-gets the frame's damage clipped to its size (the whole window when it opens or
-resizes), and scrolling blits are turned into damage while any window is open.
+the windows the host shows. Every window's rectangle starts at the origin, so
+damage is told apart by window: the paint cache files what each root's nodes
+damage under the window it paints into (`PaintCache::paint_into`,
+`damage::WindowRegions`), and each window gets only its own, clipped to its
+size (the whole window when it opens or resizes), so a window resizing or
+animating leaves the others' paintings untouched. Scrolling blits are turned
+into damage while any window is open.
 Each window has its own pixels per point: a host reports one with
 `WindowReport::Scaled { window, pixels_per_point }` (the main window
 included), and until it does a window uses the context's. The document lays
@@ -3026,12 +3030,18 @@ all its 3D (`glam`) stays in the crate.
   `LEAST_SCALE` (0.5) and `MOST_SCALE` (4) and no larger than
   `LARGEST_TEXTURE` (4096) texels a side. It keeps a scale until the panel
   needs more, or `KEPT_STEPS` (2) steps less, and a panel out of sight keeps
-  its own, so walking about redraws a window only now and then. A change is
+  its own, so walking about redraws a window only now and then. A new scale
+  waits until the panel has wanted it for `SETTLE` (250 ms of
+  `HostView::now`, the host asking for a frame when the wait is over), and a
+  panel being carried, resized or reshaped by its chrome keeps the one it has
+  until the gesture ends, so a scale never changes every frame. A change is
   reported as `WindowReport::Scaled` (`Space::scale` reads it), and the app
-  lays the window out again at it.
+  lays the document out again at it. A new window takes its scale at once.
 - Drawing: each window's display is drawn by its own
   `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
-  `pixels_per_point`, only when that window's output changed, sampled with
+  `pixels_per_point`, only when that window's output changed. A window that
+  changes size gets a new texture but keeps its renderer, whose pipelines and
+  glyph atlases cost far more to build than a resize step's whole frame. It is sampled with
   trilinear and anisotropic filtering and a level-of-detail bias of -0.5
   (`SHARPEN` in space.wgsl), so a texture up to 1.4 times the panel's size
   on screen is read from its sharpest level;

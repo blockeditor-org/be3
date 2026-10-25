@@ -566,6 +566,7 @@ mod dragging_a_color_wheels_ring_turns_its_hue;
 mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
 mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
 mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
+mod resizing_a_window_in_space_lays_out_and_paints_only_that_window;
 mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
 mod dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it;
 mod dragging_a_number_input_sideways_changes_its_value;
@@ -2874,6 +2875,10 @@ impl InSpace {
         self.runner
             .frame(&mut Nowhere, beui_core::app::SafeArea::default());
         ::reactive::flush();
+    }
+
+    pub(crate) fn output(&self) -> &beui_core::context::FrameOutput {
+        self.runner.output().expect("the runner has run a frame")
     }
 
     pub(crate) fn settle(&mut self) {

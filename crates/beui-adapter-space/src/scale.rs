@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use beui_core::geometry::{Pos2, Vec2, pos2};
 use glam::Vec4;
 
@@ -12,6 +14,7 @@ pub const LEAST_SCALE: f32 = 0.5;
 pub const MOST_SCALE: f32 = 4.0;
 pub const LARGEST_TEXTURE: f32 = 4096.0;
 const OUTLINE_STEPS: usize = 8;
+pub const SETTLE: Duration = Duration::from_millis(250);
 
 pub fn wanted(panel: &Panel, head: &Head, platform: Vec2) -> Option<f32> {
     if platform.x < 1.0 || platform.y < 1.0 {

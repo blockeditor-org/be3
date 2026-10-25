@@ -55,6 +55,7 @@ mod bench {
         paint: Duration,
         placed: usize,
         painted: usize,
+        changed: usize,
     }
 
     impl Bench {
@@ -113,6 +114,9 @@ mod bench {
             let started = Instant::now();
             self.runner.present();
             let present = started.elapsed();
+            let changed = self.runner.output().map_or(0, |output| {
+                output.windows.iter().filter(|window| window.changed).count()
+            });
             let latest = self.app().document.performance().latest;
             Timed {
                 frame,
@@ -121,6 +125,7 @@ mod bench {
                 paint: latest.timings.paint,
                 placed: latest.work.placed,
                 painted: latest.work.painted_nodes,
+                changed,
             }
         }
 
@@ -232,8 +237,17 @@ mod bench {
         let (paint, _) = median(&|timed| timed.paint);
         let placed = frames.iter().map(|timed| timed.placed).max().unwrap_or(0);
         let painted = frames.iter().map(|timed| timed.painted).max().unwrap_or(0);
+        let changed = frames.iter().map(|timed| timed.changed).max().unwrap_or(0);
+        if std::env::var_os("VERBOSE").is_some() {
+            for timed in frames {
+                println!(
+                    "  frame {:>9.2?} present {:>9.2?} placed {:>5} painted {:>5} windows changed {}",
+                    timed.frame, timed.present, timed.placed, timed.painted, timed.changed
+                );
+            }
+        }
         println!(
-            "{label:<28} median {total:>9.2?} worst {worst:>9.2?} (frame {frame:>9.2?} present {present:>9.2?} layout {layout:>8.2?} paint {paint:>8.2?}) most placed {placed:>5} painted {painted:>5}"
+            "{label:<28} median {total:>9.2?} worst {worst:>9.2?} (frame {frame:>9.2?} present {present:>9.2?} layout {layout:>8.2?} paint {paint:>8.2?}) most placed {placed:>5} painted {painted:>5} windows changed {changed}"
         );
     }
 

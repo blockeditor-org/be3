@@ -6486,6 +6486,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -6503,6 +6504,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -6520,6 +6522,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -6537,6 +6540,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -6554,6 +6558,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -6571,6 +6576,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -6588,6 +6594,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },

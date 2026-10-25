@@ -93,6 +93,7 @@ pub struct Space {
     modifiers: Modifiers,
     shown: Option<(Shown, WindowOutput)>,
     scales: Vec<(WindowId, f32)>,
+    rescaling: Vec<(WindowId, f32, Instant)>,
 }
 
 impl Default for Space {
@@ -136,6 +137,7 @@ impl Space {
             modifiers: Modifiers::NONE,
             shown: None,
             scales: Vec::new(),
+            rescaling: Vec::new(),
         }
     }
 
@@ -151,24 +153,57 @@ impl Space {
     }
 
     fn rescale(&mut self) {
+        let gripped = [
+            self.gripped(),
+            self.chrome.gesture.as_ref().map(Gesture::window),
+        ];
         for panel in &self.panels {
-            let held = self
-                .scales
-                .iter()
-                .find(|(window, _)| *window == panel.window)
-                .map(|(_, scale)| *scale);
+            let window = panel.window;
+            let held = self.scale(window);
             let wanted = crate::scale::wanted(panel, &self.head, self.platform);
             let scale = crate::scale::chosen(held, wanted, panel.size, self.pixels_per_point);
-            if held == Some(scale) {
-                continue;
+            if held.is_some() {
+                if held == Some(scale) || gripped.contains(&Some(window)) {
+                    self.rescaling.retain(|(waiting, ..)| *waiting != window);
+                    continue;
+                }
+                let Some(now) = self.clock else {
+                    continue;
+                };
+                let since = self
+                    .rescaling
+                    .iter()
+                    .find(|(waiting, next, _)| *waiting == window && *next == scale)
+                    .map(|(.., since)| *since);
+                let Some(since) = since else {
+                    self.rescaling.retain(|(waiting, ..)| *waiting != window);
+                    self.rescaling.push((window, scale, now));
+                    continue;
+                };
+                if now.saturating_duration_since(since) < crate::scale::SETTLE {
+                    continue;
+                }
+                self.rescaling.retain(|(waiting, ..)| *waiting != window);
             }
-            self.scales.retain(|(window, _)| *window != panel.window);
-            self.scales.push((panel.window, scale));
+            self.scales.retain(|(held, _)| *held != window);
+        self.rescaling.retain(|(waiting, ..)| *waiting != window);
+            self.scales.push((window, scale));
             self.reports.push(Incoming::Window(WindowReport::Scaled {
-                window: panel.window,
+                window,
                 pixels_per_point: scale,
             }));
         }
+    }
+
+    fn settled_in(&self) -> Duration {
+        let Some(now) = self.clock else {
+            return Duration::MAX;
+        };
+        self.rescaling
+            .iter()
+            .map(|(.., since)| (*since + crate::scale::SETTLE).saturating_duration_since(now))
+            .min()
+            .unwrap_or(Duration::MAX)
     }
 
     pub fn panel(&self, window: WindowId) -> Option<&Panel> {
@@ -882,6 +917,7 @@ impl Space {
         }
         self.panels.retain(|panel| panel.window != window);
         self.scales.retain(|(held, _)| *held != window);
+        self.rescaling.retain(|(waiting, ..)| *waiting != window);
         if let Some(compositor) = &self.compositor {
             compositor.forget(window);
         }
@@ -1007,7 +1043,7 @@ impl WindowHost for Space {
             || self.carry.is_some_and(|carry| carry.turning(self.clock));
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
-            false => Duration::MAX,
+            false => self.settled_in(),
         };
         self.app_locked = self.app_locks(output);
         let state = self.window_state(output);

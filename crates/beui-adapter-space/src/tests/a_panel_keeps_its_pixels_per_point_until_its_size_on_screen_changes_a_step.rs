@@ -26,7 +26,8 @@ fn a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step() 
     );
 
     space.head.position.z -= 0.6;
-    let sent = send(&mut space, now, []);
+    send(&mut space, now, []);
+    let sent = send(&mut space, later(now, 1.0), []);
     let nearer = space.scale(window).expect("the panel has a scale");
     assert!(nearer > held);
     assert!(

@@ -5,7 +5,7 @@ use reactive::{Get, Set};
 
 use crate::base::overlay::OverlayNode;
 use crate::context::Context;
-use crate::damage::Region;
+use crate::damage::{Region, Taken};
 use crate::display::Display;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
@@ -270,7 +270,7 @@ impl Document {
         }
     }
 
-    pub(crate) fn show_windows(&mut self, ctx: &Context, damage: Region) {
+    pub(crate) fn show_windows(&mut self, ctx: &Context, damage: Option<&Taken>) {
         let open = self.open_windows();
         self.windows.shown.retain(|window, _| open.contains(window));
         for window in open {
@@ -280,7 +280,7 @@ impl Document {
             let resized = self.windows.shown.insert(window, rect.size()) != Some(rect.size());
             let damage = match resized {
                 true => Region::from(rect),
-                false => damage.clipped(rect),
+                false => damage.map_or(Region::NOTHING, |damage| damage.of(window, rect)),
             };
             let painting = self
                 .windows
@@ -295,12 +295,5 @@ impl Document {
                 .and_then(|spec| spec.title.clone());
             ctx.show_window(window, rect.size(), &painting, damage, title);
         }
-    }
-
-    pub(crate) fn window_bounds(&self, main: Rect) -> Rect {
-        self.open_windows()
-            .into_iter()
-            .filter_map(|window| self.window_rect(window))
-            .fold(main, |bounds, rect| bounds.union(rect))
     }
 }

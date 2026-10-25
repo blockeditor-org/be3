@@ -183,6 +183,24 @@ impl Compositor {
     }
 }
 
+#[cfg(test)]
+impl Compositor {
+    pub(crate) fn paint_windows(&self) {
+        let mut gpu = self.0.borrow_mut();
+        let mut encoder = gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        gpu.paint_windows(&mut encoder);
+        gpu.queue.submit([encoder.finish()]);
+    }
+
+    pub(crate) fn drawn(&self, window: WindowId) -> Option<(u64, (u32, u32))> {
+        let gpu = self.0.borrow();
+        let panel = gpu.panels.get(&window)?;
+        Some((panel.renderer.id(), panel.size))
+    }
+}
+
 struct SpaceDraw {
     gpu: Compositor,
     frame: Frame,
@@ -636,9 +654,12 @@ impl Gpu {
                 (level(index), group)
             })
             .collect();
-        let uniform = match self.sheets(chrome).remove(&window) {
-            Some(panel) => panel.uniform,
-            None => uniform_buffer(&self.device, "space panel", size_of::<PanelUniform>()),
+        let (renderer, uniform) = match self.sheets(chrome).remove(&window) {
+            Some(panel) => (panel.renderer, panel.uniform),
+            None => (
+                beui_renderer_wgpu::Renderer::new(&self.device, self.format),
+                uniform_buffer(&self.device, "space panel", size_of::<PanelUniform>()),
+            ),
         };
         let whole = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -659,7 +680,6 @@ impl Gpu {
                 },
             ],
         });
-        let renderer = beui_renderer_wgpu::Renderer::new(&self.device, self.format);
         self.sheets(chrome).insert(
             window,
             Panel {
