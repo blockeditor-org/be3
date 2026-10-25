@@ -208,7 +208,7 @@ impl FontBackend for BrowserFonts {
         let measured: Rc<str> = css_font(font).into();
         let (ascent, descent) = self.metrics(&measured, pixel_size);
         let line_height = shape.line();
-        let baseline = ((line_height - (ascent + descent)) / 2.0).round() + ascent;
+        let baseline = ((line_height - (ascent + descent)) / 2.0).floor() + ascent;
         let mut pen = 0.0;
         let mut cursors = Vec::new();
         for step in self.steps(&measured, text) {

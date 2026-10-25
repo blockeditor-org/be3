@@ -168,7 +168,7 @@ impl FreetypeFonts {
         self.refresh();
         let (ascent, descent) = self.metrics(family, pixel_size);
         let line_height = shape.line();
-        let baseline = ((line_height - (ascent - descent)) / 2.0).round() + ascent;
+        let baseline = ((line_height - (ascent - descent)) / 2.0).floor() + ascent;
         let shaped = self.shaped(text, family, pixel_size);
         let mut placed = Vec::with_capacity(shaped.len());
         let mut cursors = Vec::with_capacity(shaped.len() + 1);
