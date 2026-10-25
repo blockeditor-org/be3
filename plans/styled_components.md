@@ -351,6 +351,95 @@ and for ellipsis. Update guides/beui.md, which says to give paragraphs
 `wrap=Wrap::Words` (around line 3693) and describes the base `Text` props
 (around line 640).
 
+## 9. One way to lay out a modal's buttons
+
+Today a modal's buttons end up in one of four places, and which one depends
+on who wrote it:
+
+- **`Dialog`'s footer.** `confirm`, `cancel`, `destructive` and
+  `extra_actions`. About 16 dialogs use it. Extra actions mix Delete
+  (danger, calendar), Copy (secondary, export) and others.
+- **Inside the content, where the author put them.**
+  - Invite: "Create invite link", with a `Spinner` placed by hand.
+  - Members: an inline Remove/Keep. Remove is a blue Primary although it's
+    destructive, and the dialog has no visible close.
+  - Share: Add and Invite in the content, Done in the footer.
+  - Text settings, About and logic-grid bits have no footer at all.
+  - pixel-art imports `Dialog` as `Modal` and draws its own buttons.
+- **Sheets, with no convention.** database "Filter and display" puts a ghost
+  Done top right, and phone details has none. block-shell's picker switches
+  between `Dialog` and `ModalSheet` by width itself (`picker_view.rs:477`).
+- **Dock dialogs.**
+  - A window has a title-bar X.
+  - Rename, a card, draws its own X and has no confirm button.
+  - Plugin editors opened as dialogs draw whatever they like.
+
+### Actions are data with roles; the modal places them
+
+- **Actions are data.** An action has a label, a role (`Primary`, `Cancel`,
+  `Destructive`, `Secondary`), `disabled`, `busy` and `on_click`. The modal
+  decides placement, order, style, focus and keys. This replaces `confirm`,
+  `cancel`, `destructive` and `extra_actions`. It lives in §1's
+  `unstyled::Dialog`, and styled paints it.
+- **Two kinds**, as GNOME's libadwaita has them.
+  - **An alert** is a decision: leave, discard, delete, approve. Its actions
+    go in the footer and its role is AlertDialog. Enter does the primary
+    unless it's destructive. A destructive primary is red, and focus starts
+    on Cancel.
+  - **A dialog** is content: settings, members, inspect, about. It has a
+    title row with a close X, and a footer only when there's something to
+    confirm. Every modal has a visible way out.
+- **Wide layout.** The footer is right-aligned: secondary actions on the left,
+  then Cancel, then Primary (the macOS and GNOME order). It stays put while
+  the content scrolls.
+- **Narrow or touch layout.** A dialog becomes a sheet on its own, the way
+  menus do, so the picker's hand-written switch goes. An alert stays a
+  centred card. In both, the footer is pinned to the bottom with full-width
+  buttons, primary first, and stays above the on-screen keyboard.
+- **Busy actions.** `busy` disables the action and shows progress in its
+  button. This replaces the hand-placed spinners.
+- **Confirmations inside a dialog are nested alerts.** Members' Remove/Keep
+  becomes an alert with a red Remove.
+- **Row and control actions stay in the content**: a member's role, removing
+  a member, share's Add. Only the modal's own actions go in the footer.
+- **Convert every modal listed above**, the dock's Rename included.
+
+### The dialog's inside is one component that plugins use too
+
+Split the dialog into an outer part and an inner part:
+
+- **The outer part** belongs to whoever shows the dialog: placement, scrim,
+  presence, the card or sheet frame, back and dismiss.
+- **The inner part** is a styled `DialogBody`: the title row with its close
+  X, the scrolling content, and the pinned footer with role actions, laid out
+  wide or narrow. `Dialog` and `ModalSheet` use it.
+
+A plugin opened as a dialog gets the whole area inside the frame, with no
+padding and no shell title bar. A beui plugin builds its contents with the
+same `DialogBody`, so it defines its own buttons with the code beui uses for
+its own dialogs. The plugin protocol stays free of beui: it carries only
+what any framework needs.
+
+- **Back and dismiss go to the plugin first.** Back already reaches a plugin
+  as input. Escape, back and a press on the scrim reach the plugin, whose
+  `DialogBody` runs its Cancel action. That way a form with unsaved changes
+  can ask before closing. The plugin asks the host to close it. The host
+  closes it itself only if the plugin doesn't answer.
+- **Size.** The plugin reports the height it wants, so a card or sheet fits
+  its content, and the host passes back the size it got. Reuse the
+  intrinsic sizes the protocol already has for child placements if they
+  fit.
+- **Keyboard and safe area.** The host tells the plugin the bottom inset (the
+  on-screen keyboard, a phone's gesture bar), so the pinned footer stays
+  visible.
+- **Window dialogs** keep a frame but no title bar. Moving one by dragging
+  its title row needs the plugin to report that row as a drag region. Check
+  whether anything moves dialogs today before adding that.
+- **Other frameworks.** A plugin written with another framework (egui, say)
+  gets the same area and messages and draws its own version. Only beui
+  plugins match the shell's look exactly, which follows from keeping the
+  protocol free of beui.
+
 ## Order
 
 1. §1's `Modal`, `Dialog` and `EveryScreen`, then the §3 moves that depend on
