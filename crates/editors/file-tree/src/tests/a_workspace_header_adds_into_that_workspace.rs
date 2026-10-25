@@ -49,10 +49,12 @@ fn a_workspace_header_adds_into_that_workspace() {
     fixture.test.click(&add);
     fixture.settle();
     let asked = fixture.test.take_requests();
-    let [HostCall::PickBlock {
-        reply: pick,
-        filter,
-    }]: [_; 1] = asked.try_into().unwrap_or_else(|asked: Vec<_>| {
+    let [
+        HostCall::PickBlock {
+            reply: pick,
+            filter,
+        },
+    ]: [_; 1] = asked.try_into().unwrap_or_else(|asked: Vec<_>| {
         panic!("the header's add asked for {asked:?} rather than a block")
     })
     else {

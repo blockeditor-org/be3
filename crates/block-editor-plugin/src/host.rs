@@ -6,9 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::asked::{Asked, Task, asking};
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
-use crate::asked::{Asked, Task, asking};
 use block_plugin_api::guest::host_services;
 use block_plugin_api::{
     AccessGrant, AccessLevel, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
@@ -1415,7 +1415,10 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::read_plain_file(block_id.into_bytes())))
     }
 
-    pub fn import_blocks(&self, parent: BlockParent) -> Asked<Result<Option<(Uuid, Uuid)>, String>> {
+    pub fn import_blocks(
+        &self,
+        parent: BlockParent,
+    ) -> Asked<Result<Option<(Uuid, Uuid)>, String>> {
         Asked::of(self.ask(|| host_services::import_blocks(parent.encode()))).map(|imported| {
             imported.map(|imported| {
                 imported.map(|imported| {
@@ -1428,7 +1431,10 @@ impl EditorHost {
         })
     }
 
-    pub fn pick_block(&self, mut filter: BlockFilter) -> Asked<Result<Option<PickedBlock>, String>> {
+    pub fn pick_block(
+        &self,
+        mut filter: BlockFilter,
+    ) -> Asked<Result<Option<PickedBlock>, String>> {
         let origin = self.region.get().origin;
         filter.anchor = filter.anchor.map(|anchor| anchor.translate(-origin));
         Asked::of(self.ask(|| host_services::pick_block(filter))).map(|picked| {
@@ -1447,14 +1453,16 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
     }
 
-    pub fn contact_link(&self, block_id: Uuid, access: AccessLevel) -> Asked<Result<String, String>> {
+    pub fn contact_link(
+        &self,
+        block_id: Uuid,
+        access: AccessLevel,
+    ) -> Asked<Result<String, String>> {
         Asked::of(self.ask(|| host_services::make_contact_link(block_id.into_bytes(), access)))
     }
 
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
-        self.ask(|| {
-            host_services::set_access(block_id.into_bytes(), account.into_bytes(), access)
-        });
+        self.ask(|| host_services::set_access(block_id.into_bytes(), account.into_bytes(), access));
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {

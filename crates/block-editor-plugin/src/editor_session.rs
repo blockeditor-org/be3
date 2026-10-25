@@ -5,9 +5,9 @@ use block_plugin_api::ops::guest::Sender;
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
     EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit, FrameReport,
-    HostPanel, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder,
-    RegionSize, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics,
-    WebViewEvent, WebViewId,
+    HostPanel, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewEvent,
+    WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};

@@ -9,9 +9,10 @@ fn listing(fixture: &mut Fixture, block: Uuid) -> Option<Reply<Result<Vec<Revisi
         .into_iter()
         .rev()
         .find_map(|call| match call {
-            HostCall::ListRevisions { reply, block: asked } if asked == block.into_bytes() => {
-                Some(reply)
-            }
+            HostCall::ListRevisions {
+                reply,
+                block: asked,
+            } if asked == block.into_bytes() => Some(reply),
             _ => None,
         })
 }

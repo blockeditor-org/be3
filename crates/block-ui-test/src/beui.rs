@@ -8,8 +8,8 @@ use block_editor_beui::be_block::{LiveEdit, Merge};
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
-    EditorRegion, Occluder, OwnedEditor, PeerPresence, SeededContent,
-    ShownPresence, ViewChange, WebViewCommand, WebViewId,
+    EditorRegion, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange,
+    WebViewCommand, WebViewId,
 };
 use block_plugin_api::Opening;
 use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
@@ -1105,9 +1105,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {
-        self.call(|editor, connection| {
-            editor.show_dialog(connection, block.into_bytes(), dialog)
-        });
+        self.call(|editor, connection| editor.show_dialog(connection, block.into_bytes(), dialog));
     }
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {

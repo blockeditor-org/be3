@@ -12,10 +12,7 @@ pub(crate) struct HostPlatform {
 
 impl HostPlatform {
     pub(crate) fn new(host: EditorHost) -> Self {
-        Self {
-            host,
-            tree: None,
-        }
+        Self { host, tree: None }
     }
 
     pub(crate) fn take_tree(&mut self) -> Option<TreeUpdate> {

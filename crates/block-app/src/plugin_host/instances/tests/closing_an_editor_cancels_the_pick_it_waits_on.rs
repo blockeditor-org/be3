@@ -105,7 +105,11 @@ fn closing_an_editor_cancels_the_pick_it_waits_on() {
         })
         .collect();
     canceled.sort_unstable();
-    assert_eq!(canceled, vec![shown, asked], "both picks are answered canceled");
+    assert_eq!(
+        canceled,
+        vec![shown, asked],
+        "both picks are answered canceled"
+    );
 
     instances.block_picked(
         INSTANCE,

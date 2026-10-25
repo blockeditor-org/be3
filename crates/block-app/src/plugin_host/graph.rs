@@ -46,21 +46,18 @@ pub(crate) fn grants_of(
 ) -> Result<Vec<block_plugin_api::AccessGrant>, String> {
     listed.map(|entries| {
         entries
-                .into_iter()
-                .map(|entry| block_plugin_api::AccessGrant {
-                    account: entry.account.into_bytes(),
-                    email: entry.email,
-                    display_name: entry.display_name,
-                    administrator: matches!(
-                        entry.role,
-                        be_protocol::OrganizationRole::Administrator
-                    ),
-                    author: entry.author,
-                    granted: entry.granted.map(level_of),
-                    effective: level_of(entry.effective),
-                    waiting: entry.waiting,
-                })
-                .collect()
+            .into_iter()
+            .map(|entry| block_plugin_api::AccessGrant {
+                account: entry.account.into_bytes(),
+                email: entry.email,
+                display_name: entry.display_name,
+                administrator: matches!(entry.role, be_protocol::OrganizationRole::Administrator),
+                author: entry.author,
+                granted: entry.granted.map(level_of),
+                effective: level_of(entry.effective),
+                waiting: entry.waiting,
+            })
+            .collect()
     })
 }
 

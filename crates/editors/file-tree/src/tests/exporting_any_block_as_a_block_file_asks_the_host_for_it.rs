@@ -48,10 +48,9 @@ fn exporting_any_block_as_a_block_file_asks_the_host_for_it() {
     });
     assert_eq!(block, folder);
 
-    fixture.test.answer(
-        request,
-        FileSave::Failed("The disk is full".to_owned()),
-    );
+    fixture
+        .test
+        .answer(request, FileSave::Failed("The disk is full".to_owned()));
     fixture.settle();
     assert!(
         fixture.says("The disk is full"),

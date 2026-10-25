@@ -8,8 +8,8 @@ use block_plugin_api::{
     embed::{
         exports::plugin::{self, Editor},
         host::Call,
-        shell::Call as ShellCall,
         host_services,
+        shell::Call as ShellCall,
     },
     encode_frame,
     ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Started, Ticket},
@@ -271,8 +271,7 @@ impl Wire {
     fn serve(&mut self, started: Started) {
         let op = started.op;
         let Some(instance) = self.editor_of(started.parent) else {
-            self.connection
-                .complete(op, Outcome::Err(OpError::Denied));
+            self.connection.complete(op, Outcome::Err(OpError::Denied));
             return;
         };
         if let Some(call) = host_services::Call::accept(&mut self.connection, started) {

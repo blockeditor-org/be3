@@ -1,7 +1,6 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameSpec,
-    HelloAccepted, Message, ScreenId, ScreenRequest, ScreenSet, ViewportMetrics, decode_frame,
-    encode_frame,
+    EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameSpec, HelloAccepted, Message,
+    ScreenId, ScreenRequest, ScreenSet, ViewportMetrics, decode_frame, encode_frame,
 };
 use block_wasm_host::{Host, Plugin};
 

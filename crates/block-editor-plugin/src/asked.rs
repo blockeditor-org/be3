@@ -28,9 +28,8 @@ pub(crate) fn closed(instance: EditorInstanceId) {
 }
 
 pub(crate) fn asking<R>(instance: Option<EditorInstanceId>, ask: impl FnOnce() -> R) -> R {
-    let editor = instance.and_then(|instance| {
-        EDITORS.with(|editors| editors.borrow().get(&instance).copied())
-    });
+    let editor = instance
+        .and_then(|instance| EDITORS.with(|editors| editors.borrow().get(&instance).copied()));
     match editor {
         Some(editor) => guest::with_parent(editor, ask),
         None => ask(),

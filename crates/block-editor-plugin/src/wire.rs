@@ -337,8 +337,9 @@ impl GuestEditor for OpenEditor {
 
     fn show_dialog(&self, block: [u8; 16], dialog: ShellDialog) {
         let block = uuid::Uuid::from_bytes(block);
-        self.wire
-            .call(self.instance, move |session| session.show_dialog(block, dialog));
+        self.wire.call(self.instance, move |session| {
+            session.show_dialog(block, dialog)
+        });
     }
 
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {

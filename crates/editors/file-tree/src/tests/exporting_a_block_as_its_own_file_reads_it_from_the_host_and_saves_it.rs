@@ -61,14 +61,13 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
             _ => None,
         })
         .collect();
-    let [(request, saved)]: [_; 1] = saves.try_into().unwrap_or_else(|saves: Vec<_>| {
-        panic!("the file the host read is saved, asked {saves:?}")
-    });
+    let [(request, saved)]: [_; 1] = saves
+        .try_into()
+        .unwrap_or_else(|saves: Vec<_>| panic!("the file the host read is saved, asked {saves:?}"));
     assert_eq!(saved, file);
-    fixture.test.answer(
-        request,
-        FileSave::Failed("The disk is full".to_owned()),
-    );
+    fixture
+        .test
+        .answer(request, FileSave::Failed("The disk is full".to_owned()));
     fixture.settle();
     assert!(
         fixture.says("The disk is full"),

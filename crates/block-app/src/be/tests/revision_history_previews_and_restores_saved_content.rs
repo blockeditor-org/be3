@@ -27,9 +27,7 @@ fn revision_history_previews_and_restores_saved_content() {
     flush();
     let second = node(block).unwrap().head.unwrap();
     assert_ne!(first, second);
-    let Answered::Listed(Ok(entries)) =
-        request(block, Asked::List)
-    else {
+    let Answered::Listed(Ok(entries)) = request(block, Asked::List) else {
         panic!("history is listed");
     };
     assert!(
@@ -44,10 +42,8 @@ fn revision_history_previews_and_restores_saved_content() {
     );
     assert!(entries.windows(2).all(|pair| pair[0].time >= pair[1].time));
 
-    let Answered::Previewed(Ok(preview)) = request(
-        block,
-        Asked::Preview(*first.hash().as_bytes()),
-    ) else {
+    let Answered::Previewed(Ok(preview)) = request(block, Asked::Preview(*first.hash().as_bytes()))
+    else {
         panic!("the revision previews");
     };
     let old = content(preview).expect("preview content exists");
@@ -64,18 +60,13 @@ fn revision_history_previews_and_restores_saved_content() {
         "live edits do not reach the preview"
     );
     assert!(matches!(
-        request(
-            block,
-            Asked::Restore(*first.hash().as_bytes())
-        ),
+        request(block, Asked::Restore(*first.hash().as_bytes())),
         Answered::Restored(Ok(()))
     ));
     wait_for_count(block, 5);
     let restored = node(block).unwrap().head.unwrap();
     assert_ne!(restored, first);
-    let Answered::Listed(Ok(entries)) =
-        request(block, Asked::List)
-    else {
+    let Answered::Listed(Ok(entries)) = request(block, Asked::List) else {
         panic!("history is listed again");
     };
     assert!(
@@ -90,10 +81,7 @@ fn revision_history_previews_and_restores_saved_content() {
     );
     let mut saw_ten = false;
     for entry in entries {
-        let Answered::Previewed(Ok(id)) = request(
-            block,
-            Asked::Preview(entry.commit),
-        ) else {
+        let Answered::Previewed(Ok(id)) = request(block, Asked::Preview(entry.commit)) else {
             panic!("retained history previews");
         };
         saw_ten |= CounterContent::decode(content(id).unwrap().bytes())
@@ -109,10 +97,7 @@ fn revision_history_previews_and_restores_saved_content() {
     wait_for_count(other, 0);
     assert!(
         matches!(
-            request(
-                other,
-                Asked::Preview(*first.hash().as_bytes())
-            ),
+            request(other, Asked::Preview(*first.hash().as_bytes())),
             Answered::Previewed(Err(_))
         ),
         "a commit from another block is rejected"

@@ -140,7 +140,12 @@ impl Instances {
         }
     }
 
-    fn scoped(&self, instance: EditorInstanceId, inward: bool, ids: &mut dyn FnMut(&mut dyn FnMut(&mut [u8; 16]))) {
+    fn scoped(
+        &self,
+        instance: EditorInstanceId,
+        inward: bool,
+        ids: &mut dyn FnMut(&mut dyn FnMut(&mut [u8; 16])),
+    ) {
         let scope = self.entries.get(&instance).and_then(|entry| {
             let block = entry.role.block()?.id;
             let source = revisions::source(block).unwrap_or(block);
@@ -172,7 +177,9 @@ impl Instances {
             op,
             mut call,
         } = service;
-        self.scoped(instance, true, &mut |visit| call.visit_block_ids(&mut |id| visit(id)));
+        self.scoped(instance, true, &mut |visit| {
+            call.visit_block_ids(&mut |id| visit(id))
+        });
         let previewing = self
             .entries
             .get(&instance)
@@ -192,11 +199,15 @@ impl Instances {
         match call {
             Call::ListRevisions { reply, block } => {
                 let answering = self.answering(instance, reply);
-                revisions::request(Uuid::from_bytes(block), revisions::Asked::List, move |listed| {
-                    if let revisions::Answered::Listed(listed) = listed {
-                        answering.send(listed);
-                    }
-                });
+                revisions::request(
+                    Uuid::from_bytes(block),
+                    revisions::Asked::List,
+                    move |listed| {
+                        if let revisions::Answered::Listed(listed) = listed {
+                            answering.send(listed);
+                        }
+                    },
+                );
             }
             Call::PreviewRevision {
                 reply,
@@ -290,14 +301,14 @@ impl Instances {
                         return;
                     }
                     answering.imported(match picked {
-                        Ok(Some(file)) => crate::be::import(&file.data, parent).map(
-                            |(block, block_type)| {
+                        Ok(Some(file)) => {
+                            crate::be::import(&file.data, parent).map(|(block, block_type)| {
                                 Some(ImportedBlock {
                                     block_id: block.into_bytes(),
                                     block_type: block_type.into_bytes(),
                                 })
-                            },
-                        ),
+                            })
+                        }
                         Ok(None) => Ok(None),
                         Err(error) => Err(error),
                     });
@@ -331,7 +342,10 @@ impl Instances {
                 access,
             } => {
                 let answering = self.answering(instance, reply);
-                let offer = (Uuid::from_bytes(block), super::super::graph::access_of(access));
+                let offer = (
+                    Uuid::from_bytes(block),
+                    super::super::graph::access_of(access),
+                );
                 crate::be::make_contact_link(Some(offer), move |made| answering.send(made));
             }
             Call::Fetch { reply, url } => {
@@ -389,7 +403,12 @@ impl Instances {
         self.services.answers.clear();
     }
 
-    pub(in crate::plugin_host) fn block_picked(&mut self, instance: EditorInstanceId, op: OpId, pick: BlockPick) {
+    pub(in crate::plugin_host) fn block_picked(
+        &mut self,
+        instance: EditorInstanceId,
+        op: OpId,
+        pick: BlockPick,
+    ) {
         let served = self
             .services
             .serving
@@ -415,9 +434,7 @@ impl Instances {
             BlockPick::Failed(error) => Err(error),
         };
         let answer: Result<Option<PickedBlock>, String> = picked;
-        self.services
-            .answers
-            .push((op, Outcome::returned(&answer)));
+        self.services.answers.push((op, Outcome::returned(&answer)));
     }
 
     pub(super) fn deliver_answers(&mut self) {
@@ -440,7 +457,8 @@ impl Instances {
                     continue;
                 }
                 Answer::Previewed(previewed) => {
-                    if let (Ok(preview), Some(entry)) = (&previewed, self.entries.get_mut(&instance))
+                    if let (Ok(preview), Some(entry)) =
+                        (&previewed, self.entries.get_mut(&instance))
                     {
                         entry.revision_previews.insert(*preview);
                     }

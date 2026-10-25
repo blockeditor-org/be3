@@ -18,9 +18,10 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         .take_requests()
         .into_iter()
         .find_map(|call| match call {
-            HostCall::ListAccess { reply, block: asked } if asked == block.into_bytes() => {
-                Some(reply)
-            }
+            HostCall::ListAccess {
+                reply,
+                block: asked,
+            } if asked == block.into_bytes() => Some(reply),
             _ => None,
         })
         .expect("opening the share dialog asks who can open the block");
@@ -70,14 +71,10 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         vec![(block, friend, AccessLevel::Edit)]
     );
     assert!(
-        fixture
-            .test
-            .take_requests()
-            .iter()
-            .any(|call| matches!(
-                call,
-                HostCall::ListAccess { block: asked, .. } if *asked == block.into_bytes()
-            )),
+        fixture.test.take_requests().iter().any(|call| matches!(
+            call,
+            HostCall::ListAccess { block: asked, .. } if *asked == block.into_bytes()
+        )),
         "the members are listed again after a grant"
     );
 }
