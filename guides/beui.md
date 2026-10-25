@@ -2881,7 +2881,8 @@ adapter as a `HostedAdapter { adapter, host }`. The runner calls it at three
 points:
 
 - `setup(&Setup)` after the renderers load and whenever the GPU is replaced;
-  `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format.
+  `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
+  and `setup.get::<Context>()` the app's context, for laying out text and icons.
 - `input(&mut Vec<Incoming>, &HostView)` with everything that arrived for the
   frame (the platform's input and a driver's), before the app sees it: it may
   rewrite, drop or add entries, name each pointer event's window in that
@@ -2914,8 +2915,17 @@ wraps the adapter `BEUI_SPACE_ADAPTER` names (the platform's own by default, or
 Everything it does is in the host, so no platform adapter knows about it, and
 all its 3D (`glam`) stays in the crate.
 
-- Panels: `Space::panels` is a list of `Panel { window, pose, size }` keyed by
-  `WindowId`; a panel is `size / POINTS_PER_METRE` (1000) metres. On the first
+- Panels: `Space::panels` is a list of `Panel { window, pose, size,
+  metres_per_point, bend }` (`Panel::new` starts flat at 1 / `POINTS_PER_METRE`)
+  keyed by `WindowId`; a panel is `size * metres_per_point` metres
+  (`Panel::metres`), and `bend` is the angle its width wraps round a vertical
+  cylinder whose axis is in front of it, so its sides come toward the viewer
+  (0 is flat, `MOST_BEND` half a cylinder). `Panel::world`, `offset` and
+  `intersect` work on that surface, flat or bent, and on its extension past
+  the window's edges; `frame_at(pos)` is the surface's point and turn at a
+  window point and `anchor(pos, frame)` places a reshaped panel so that point
+  stays put, which keeps a resized or scaled panel's fixed corner where it was
+  on a bent panel too. On the first
   frame it opens the main window's panel at the platform window's size in
   points, at eye height straight ahead, far enough that it fills 80% of the
   view's width, and reports that size (`WindowReport::Resized`).
@@ -2934,7 +2944,8 @@ all its 3D (`glam`) stays in the crate.
   removes the panel and its texture; the main window's panel never closes.
 - Pointer: input in physical or logical pixels is the platform's; a ray from
   the eye through the cursor picks the nearest panel's front (`panel::pick`) and
-  the app gets the input as that window's, in its points. Moving onto another
+  the app gets the input as that window's, in its points (on a bent panel, the
+  point of the curved surface the ray meets). Moving onto another
   panel just names the new window, held button or not (no `PointerLeft`), so
   a drag goes on across windows. Moving off every panel sends the last window
   `PointerLeft`; while a button is held, moves and the release then go to the
@@ -2976,15 +2987,17 @@ all its 3D (`glam`) stays in the crate.
   `space X Y Z QX QY QZ QW` (`Pose::placement`, `Pose::from_placement`). Poses
   live in memory.
 - Resize: on `WindowRequest::BeginResize(window, edge)` (`resize::Resize`)
-  the cursor's ray meets the panel's plane as it was, and that edge or corner
+  the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
   `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
   app lays out at it the same frame; the app sees no moves meanwhile, and the
   carry's rule for letting go ends it, with a `Placed` for the panel's new
   centre.
 - Sharpness (`scale`): each frame `Space` gives every panel the pixels per
-  point it shows at on screen: the frustum-clipped panel's nearest depth,
-  as screen pixels per point there, times `SUPERSAMPLE` (1.25, so the main
+  point it shows at on screen: the frustum-clipped panel's nearest depth
+  (its outline sampled along the top and bottom edges, so a bent panel's
+  nearer sides count), as screen pixels per point there (so a panel scaled
+  up by its chrome gets more), times `SUPERSAMPLE` (1.25, so the main
   panel's first 80% view is drawn at exactly the platform's scale), rounded
   up to a step of `STEPS_PER_DOUBLING` (4) per doubling, between
   `LEAST_SCALE` (0.5) and `MOST_SCALE` (4) and no larger than
@@ -3003,7 +3016,11 @@ all its 3D (`glam`) stays in the crate.
   (their backs grey; nearer panels hide farther ones by depth, except a lifted
   carried panel, drawn last with its depth test off), and a
   `Drawing` copies it texel for texel into the platform window. A frame is composed again only
-  when the head, a panel, the cursor or a window's output changed.
+  when the head, a panel, the cursor or a window's output changed. A panel is
+  a strip of `render::SEGMENTS` columns bent in the vertex shader. The
+  `Drawing` also paints (`picture.rs`, `Paints`): each panel's and its
+  chrome's paintings placed onto the projected surface cell by cell, far to
+  near, which is what the crate's painting tests compare.
 - Cursor: the host asks the platform for `CursorIcon::None` and draws its own
   in the scene, last and over everything, as a quad facing the head with its
   hotspot on the cursor's ray, `CURSOR_LIFT` (1%) of the distance in front of
@@ -3013,11 +3030,43 @@ all its 3D (`glam`) stays in the crate.
   distance (`Space::cursor_scale`, metres per point) so it covers as many
   pixels as it has points at any depth. It shows the icon that the window
   under it, holding the press, or being carried or resized asks for
-  (`Space::cursor_icon`), an arrow over nothing. `cursor::Sprite` paints that
+  (`Space::cursor_icon`), a resize, grab or pointing hand over chrome, an
+  arrow over nothing. `cursor::Sprite` paints that
   icon with `beui_core::drawn_cursor::paint`, the same drawing the inspector's
   mouse simulation shows on a touchscreen, through a `Context` of its own with
   only the icon font, and the compositor draws it into a texture like a window
   only when the icon or the scale changes.
+- Chrome: the host draws and handles controls of its own around every panel
+  (`chrome.rs`), sized in metres so they keep their size however the panel
+  is scaled: an L bracket just outside each corner, and under the bottom edge
+  a pill with a rotate button (`ICON_ROTATE_3D`) and a curvature button
+  (`ICON_SPLINE`). They are faint (`FAINT`) until the cursor is on the panel
+  or its chrome. `chrome::layout` places the parts and `chrome::part_at` finds
+  one at a window point outside the window's rectangle; the cursor's ray
+  picks chrome on a panel's extended surface when it is nearer than any
+  panel (`chrome::pick`), and also a driver's point outside its window. Over
+  another panel's content only the chrome of the panel the cursor is on (or
+  whose chrome it is on, or is dragging) counts, so a window popped out over
+  the main one does not take clicks from the content its brackets cover. Input
+  on chrome never reaches the app (the window under it last gets
+  `PointerLeft`), and the cursor shows what a part does. While an app holds a
+  button, chrome is ignored. Dragging a bracket scales the panel
+  (`Gesture::Scale`): `metres_per_point` grows or shrinks with how far the
+  cursor goes along the diagonal from the opposite corner, which stays put,
+  between `SMALLEST_SCALE` and `LARGEST_SCALE` of where it began, so the
+  window keeps its points, gets no `Resized` and keeps its aspect. Dragging
+  the rotate button turns the panel about its centre (`Gesture::Turn`,
+  `chrome::turned`): the ray's change of yaw times `TURN_GAIN` about the
+  vertical, of pitch about the panel's own horizontal. Both report `Placed`
+  when let go. A carry later turns the panel back to face the viewer
+  (`carry::facing`), so it overrides that rotation. The curvature button
+  opens a slider in the pill (`Chrome::slider`), and clicking or dragging
+  along it sets `bend` from 0 to `MOST_BEND` about the panel's centre. Scale
+  and slider drags map the ray onto the panel as it was when they began.
+  Each panel's chrome is a display list (`chrome::output`, icons laid out
+  with the app's `Context`, which `Setup` provides) drawn into a texture of
+  its own only when its `Look` changes, on the extended surface `LIFT` in
+  front of the panel, after every unlifted panel and not at all on a lifted one.
 
 ### The on-screen keyboard
 

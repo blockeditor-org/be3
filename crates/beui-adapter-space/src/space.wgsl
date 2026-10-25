@@ -62,6 +62,9 @@ const SHARPEN: f32 = -0.5;
 
 struct Panel {
     model: mat4x4<f32>,
+    shape: vec4<f32>,
+    span: vec4<f32>,
+    extra: vec4<f32>,
 };
 
 @group(1) @binding(0) var<uniform> panel: Panel;
@@ -73,12 +76,26 @@ struct PanelOut {
     @location(0) uv: vec2<f32>,
 };
 
+const SEGMENTS: u32 = 48u;
+
 @vertex
 fn panel_vertex(@builtin(vertex_index) index: u32) -> PanelOut {
-    let at = corner(index);
+    let weight = vec2<f32>(f32(index / 2u) / f32(SEGMENTS), f32(index & 1u));
+    let at = mix(panel.span.xy, panel.span.zw, weight);
+    let width = panel.shape.x;
+    let bend = panel.shape.z;
+    let across = (at.x - 0.5) * width;
+    let up = (0.5 - at.y) * panel.shape.y;
+    var local = vec3<f32>(across, up, panel.shape.w);
+    if bend > 1e-4 {
+        let radius = width / bend;
+        let angle = across / radius;
+        let normal = vec3<f32>(-sin(angle), 0.0, cos(angle));
+        local = vec3<f32>(radius * sin(angle), up, radius * (1.0 - cos(angle))) + normal * panel.shape.w;
+    }
     var out: PanelOut;
-    out.position = scene.view_projection * panel.model * vec4<f32>(at - 0.5, 0.0, 1.0);
-    out.uv = vec2<f32>(at.x, 1.0 - at.y);
+    out.position = scene.view_projection * panel.model * vec4<f32>(local, 1.0);
+    out.uv = weight;
     return out;
 }
 
@@ -89,6 +106,14 @@ fn panel_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @locat
         return vec4<f32>(encode(vec3<f32>(0.05, 0.055, 0.065)), 1.0);
     }
     return vec4<f32>(color.rgb, 1.0);
+}
+
+@fragment
+fn chrome_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    if !front {
+        discard;
+    }
+    return textureSample(panel_texture, panel_sampler, input.uv) * panel.extra.x;
 }
 
 @fragment

@@ -1,7 +1,9 @@
 pub mod carry;
 pub mod cursor;
+pub mod chrome;
 pub mod head;
 pub mod panel;
+mod picture;
 mod render;
 pub mod resize;
 pub mod scale;

@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, WindowOutput};
+use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::Layer;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
@@ -18,9 +18,10 @@ use glam::{Mat4, Quat, Vec3};
 
 use crate::carry::{Carry, NEAREST};
 use crate::cursor::{self, Sprite};
+use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part};
 use crate::head::{Head, Ray};
 use crate::panel::{Hit, Panel, Pose, pick};
-use crate::render::{Compositor, Frame, PanelFrame};
+use crate::render::{ChromeFrame, Compositor, Frame, PanelFrame};
 use crate::resize::Resize;
 
 pub const SKY: Color32 = Color32::from_rgb(22, 25, 31);
@@ -61,6 +62,7 @@ struct Shown {
     lifted: Option<WindowId>,
     cursor: Option<Vec3>,
     icon: CursorIcon,
+    chrome: Vec<(WindowId, Look, f32)>,
 }
 
 pub struct Space {
@@ -68,7 +70,10 @@ pub struct Space {
     pub panels: Vec<Panel>,
     pub carry: Option<Carry>,
     pub resize: Option<Resize>,
+    pub chrome: Chrome,
     compositor: Option<Compositor>,
+    context: Option<Context>,
+    chrome_shown: Vec<(WindowId, Look, WindowOutput)>,
     platform: Vec2,
     pixels_per_point: f32,
     now: Option<Instant>,
@@ -105,7 +110,10 @@ impl Space {
             panels: Vec::new(),
             carry: None,
             resize: None,
+            chrome: Chrome::default(),
             compositor: None,
+            context: None,
+            chrome_shown: Vec::new(),
             platform: Vec2::ZERO,
             pixels_per_point: 1.0,
             now: None,
@@ -196,9 +204,11 @@ impl Space {
 
     pub fn cursor_point(&self) -> Option<Vec3> {
         match self.cursor? {
-            Cursor::Platform(at) => self
-                .pick(self.head.ray(self.platform, at.to_vec2()))
-                .map(|hit| hit.point),
+            Cursor::Platform(at) => {
+                let ray = self.head.ray(self.platform, at.to_vec2());
+                let on_chrome = self.chrome_hit(ray).map(|(_, hit)| hit);
+                on_chrome.or(self.pick(ray)).map(|hit| hit.point)
+            }
             Cursor::Window(window, pos) => self.panel(window).map(|panel| panel.world(pos)),
         }
     }
@@ -217,6 +227,10 @@ impl Space {
     }
 
     pub fn cursor_icon(&self, output: &FrameOutput) -> CursorIcon {
+        let held = self.chrome.gesture.map(|gesture| gesture.part());
+        if let Some(part) = held.or(self.chrome.hovered.map(|(_, part)| part)) {
+            return chrome_cursor(part, held.is_some());
+        }
         let driven = match self.cursor {
             Some(Cursor::Window(window, _)) => Some(window),
             _ => None,
@@ -249,6 +263,9 @@ impl Space {
                 (rotation * Vec3::Z).extend(0.0),
                 middle.extend(1.0),
             ),
+            metres: glam::Vec2::ONE,
+            bend: 0.0,
+            chrome: None,
         }
     }
 
@@ -257,14 +274,14 @@ impl Space {
             return;
         }
         let size = self.platform / self.pixels_per_point;
-        let mut panel = Panel {
-            window: WindowId::MAIN,
-            pose: Pose {
+        let mut panel = Panel::new(
+            WindowId::MAIN,
+            Pose {
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             size,
-        };
+        );
         let half_width = (crate::head::FOV_Y / 2.0).tan() * self.platform.x / self.platform.y;
         let distance = panel.metres().x / 2.0 / (FILLED * half_width);
         panel.pose.position = self.head.position + Vec3::new(0.0, 0.0, -distance);
@@ -325,6 +342,13 @@ impl Space {
         if let Some(pos) = position(&input) {
             self.cursor = Some(Cursor::Window(window, pos));
         }
+        if matches!(
+            input,
+            Input::PointerMoved(_) | Input::PointerButton { .. }
+        ) && self.chrome_pointer(&input, out)
+        {
+            return;
+        }
         if self.resize.is_some()
             && let Some(ray) = self.cursor_ray()
         {
@@ -350,12 +374,18 @@ impl Space {
                         carry.aim(&self.head, Head::direction(self.platform, at.to_vec2()));
                     }
                     (None, Some(_)) => self.resize_to(ray, out),
-                    (None, None) => self.point(Input::PointerMoved(at), at, out),
+                    (None, None) => {
+                        if !self.chrome_pointer(&input, out) {
+                            self.point(input, at, out);
+                        }
+                    }
                 }
             }
             Input::PointerButton { pos, .. } => {
                 self.cursor = Some(Cursor::Platform(pos));
-                self.button(input, out);
+                if !self.chrome_pointer(&input, out) {
+                    self.button(input, out);
+                }
             }
             Input::Scroll(delta) if self.carry.is_some() => {
                 let lines = scrolled(delta, self.pixels_per_point).y / SCROLL_LINE;
@@ -690,7 +720,7 @@ impl Space {
                 WindowPlacement::AtPointer => None,
             }
             .unwrap_or_else(|| self.at_pointer(size));
-            self.panels.push(Panel { window, pose, size });
+            self.panels.push(Panel::new(window, pose, size));
         }
         let Some(panel) = self.panel(window) else {
             return;
@@ -715,9 +745,9 @@ impl Space {
         let Some(panel) = self.panel_mut(window) else {
             return;
         };
-        let corner = panel.world(Pos2::ZERO);
+        let corner = panel.frame_at(Pos2::ZERO);
         panel.size = size;
-        panel.pose.position = corner - panel.pose.rotation * panel.offset(Pos2::ZERO);
+        panel.anchor(Pos2::ZERO, corner);
         self.reports
             .push(Incoming::Window(WindowReport::Resized { window, size }));
     }
@@ -731,14 +761,14 @@ impl Space {
             (hit.distance - OPEN_NEARER).max(NEAREST)
         });
         let point = ray.at(distance);
-        let mut panel = Panel {
-            window: WindowId::MAIN,
-            pose: Pose {
+        let mut panel = Panel::new(
+            WindowId::MAIN,
+            Pose {
                 position: point,
                 rotation: Quat::IDENTITY,
             },
             size,
-        };
+        );
         panel.face(self.head.position);
         let grab = pos2(OPEN_GRAB.x.min(size.x / 2.0), OPEN_GRAB.y.min(size.y / 2.0));
         panel.pose.position = point - panel.pose.rotation * panel.offset(grab);
@@ -747,11 +777,8 @@ impl Space {
 
     fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<Pose> {
         let other = self.panel(other)?;
-        let mut panel = Panel {
-            window: WindowId::MAIN,
-            pose: other.pose,
-            size,
-        };
+        let mut panel = Panel::new(WindowId::MAIN, other.pose, size);
+        panel.metres_per_point = other.metres_per_point;
         let corner = other.offset(at);
         let local = |panel: &Panel| {
             other.pose.rotation.inverse() * (panel.pose.position - other.pose.position)
@@ -799,6 +826,20 @@ impl Space {
         if self.resize.is_some_and(|resize| resize.window == window) {
             self.resize = None;
         }
+        if self.chrome.hovered.is_some_and(|(on, _)| on == window) {
+            self.chrome.hovered = None;
+        }
+        if self
+            .chrome
+            .gesture
+            .is_some_and(|gesture| gesture.window() == window)
+        {
+            self.chrome.gesture = None;
+        }
+        if self.chrome.slider == Some(window) {
+            self.chrome.slider = None;
+        }
+        self.chrome_shown.retain(|(on, ..)| *on != window);
     }
 
     pub fn end_carry(&mut self, out: &mut Vec<Incoming>) {
@@ -846,8 +887,10 @@ impl Space {
 impl WindowHost for Space {
     fn setup(&mut self, setup: &Setup) {
         self.compositor = setup.get::<GpuSetup>().map(Compositor::new);
+        self.context = setup.get::<Context>().cloned();
         self.shown = None;
         self.sprite.repaint();
+        self.chrome_shown.clear();
     }
 
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
@@ -892,7 +935,8 @@ impl WindowHost for Space {
             false => Duration::MAX,
         };
         let state = self.window_state(output);
-        let Some(compositor) = &self.compositor else {
+        let chrome_changed = self.refresh_chrome(view.pixels_per_point);
+        let Some(compositor) = self.compositor.clone() else {
             return Hosted {
                 window: WindowOutput {
                     window: state,
@@ -901,7 +945,7 @@ impl WindowHost for Space {
                 repaint_after,
             };
         };
-        let mut changed = false;
+        let mut changed = chrome_changed;
         for window in &output.windows {
             if self.panel(window.id).is_some() {
                 changed |= compositor.update(window);
@@ -920,6 +964,11 @@ impl WindowHost for Space {
             lifted: self.lifted(),
             cursor: self.cursor_at(),
             icon,
+            chrome: self
+                .chrome_shown
+                .iter()
+                .map(|(window, look, _)| (*window, *look, self.chrome_opacity(*window)))
+                .collect(),
         };
         let size = view.platform / view.pixels_per_point;
         if let Some((last, window)) = &mut self.shown
@@ -934,22 +983,7 @@ impl WindowHost for Space {
                 repaint_after,
             };
         }
-        let frame = Frame {
-            view_projection: self.head.view_projection(view.platform),
-            eye: self.head.position,
-            right: self.head.rotation() * Vec3::X,
-            up: self.head.rotation() * Vec3::Y,
-            cursor: shown.cursor.map(|at| self.cursor_frame(at)),
-            panels: self
-                .panels
-                .iter()
-                .map(|panel| PanelFrame {
-                    window: panel.window,
-                    model: panel.model(),
-                })
-                .collect(),
-            lifted: shown.lifted,
-        };
+        let frame = self.scene(&output.windows, view);
         let rect = Rect::from_min_size(Pos2::ZERO, size);
         let window = WindowOutput {
             id: WindowId::MAIN,
@@ -970,6 +1004,228 @@ impl WindowHost for Space {
             window,
             repaint_after,
         }
+    }
+}
+
+impl Space {
+    pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &HostView) -> Frame {
+        self.refresh_chrome(view.pixels_per_point);
+        Frame {
+            pixels_per_point: view.pixels_per_point,
+            windows: windows.to_vec(),
+            chrome: self
+                .chrome_shown
+                .iter()
+                .map(|(_, _, output)| output.clone())
+                .collect(),
+            view_projection: self.head.view_projection(view.platform),
+            eye: self.head.position,
+            right: self.head.rotation() * Vec3::X,
+            up: self.head.rotation() * Vec3::Y,
+            cursor: self.cursor_at().map(|at| self.cursor_frame(at)),
+            panels: self
+                .panels
+                .iter()
+                .map(|panel| PanelFrame {
+                    window: panel.window,
+                    model: panel.model(),
+                    metres: panel.metres(),
+                    bend: panel.bend,
+                    chrome: Some(ChromeFrame {
+                        span: chrome::span(panel),
+                        opacity: self.chrome_opacity(panel.window),
+                    }),
+                })
+                .collect(),
+            lifted: self.lifted(),
+        }
+    }
+
+    fn chrome_active(&self, window: WindowId) -> bool {
+        self.hovered == Some(window)
+            || self.chrome.hovered.is_some_and(|(on, _)| on == window)
+            || self
+                .chrome
+                .gesture
+                .is_some_and(|gesture| gesture.window() == window)
+            || self.chrome.slider == Some(window)
+    }
+
+    fn chrome_hit(&self, ray: Ray) -> Option<(Part, Hit)> {
+        if self.lifted().is_some() {
+            return None;
+        }
+        let app = self.pick(ray);
+        let active = |window| app.is_none() || self.chrome_active(window);
+        let (part, hit) = chrome::pick(&self.panels, ray, self.chrome.slider, active)?;
+        app.is_none_or(|app| hit.distance < app.distance)
+            .then_some((part, hit))
+    }
+
+    fn chrome_opacity(&self, window: WindowId) -> f32 {
+        match self.chrome_active(window) {
+            true => 1.0,
+            false => chrome::FAINT,
+        }
+    }
+
+    fn refresh_chrome(&mut self, pixels_per_point: f32) -> bool {
+        let mut changed = false;
+        let mut shown = Vec::with_capacity(self.panels.len());
+        for panel in &self.panels {
+            let scale = self
+                .context
+                .as_ref()
+                .map_or(pixels_per_point, Context::pixels_per_point);
+            let look = chrome::look(panel, &self.chrome, scale);
+            let held = self
+                .chrome_shown
+                .iter()
+                .find(|(window, held, _)| *window == panel.window && *held == look);
+            match held {
+                Some(held) => shown.push(held.clone()),
+                None => {
+                    let output = chrome::output(panel.window, &look, self.context.as_ref());
+                    if let Some(compositor) = &self.compositor {
+                        compositor.update_chrome(&output);
+                    }
+                    changed = true;
+                    shown.push((panel.window, look, output));
+                }
+            }
+        }
+        self.chrome_shown = shown;
+        changed
+    }
+
+    fn on_chrome(&self) -> Option<(WindowId, Part)> {
+        match self.cursor? {
+            Cursor::Platform(at) => {
+                let ray = self.head.ray(self.platform, at.to_vec2());
+                let (part, hit) = self.chrome_hit(ray)?;
+                Some((hit.window, part))
+            }
+            Cursor::Window(window, pos) => {
+                let panel = self.panel(window)?;
+                chrome::part_at(panel, pos, self.chrome.slider == Some(window))
+                    .map(|part| (window, part))
+            }
+        }
+    }
+
+    fn chrome_pointer(&mut self, input: &Input, out: &mut Vec<Incoming>) -> bool {
+        if self.gripped().is_some() {
+            return false;
+        }
+        if self.chrome.gesture.is_some() {
+            match input {
+                Input::PointerButton { pressed: false, .. } => self.end_gesture(out),
+                Input::PointerButton { pressed: true, .. } => {}
+                _ => self.drag_chrome(),
+            }
+            return true;
+        }
+        if self.pressed > 0 {
+            self.chrome.hovered = None;
+            return false;
+        }
+        self.chrome.hovered = self.on_chrome();
+        let Some((window, part)) = self.chrome.hovered else {
+            return false;
+        };
+        match input {
+            Input::PointerButton { pressed: false, .. } => return false,
+            Input::PointerButton { pressed: true, .. } => {
+                self.leave(out);
+                self.begin_gesture(window, part);
+            }
+            _ => self.leave(out),
+        }
+        true
+    }
+
+    fn begin_gesture(&mut self, window: WindowId, part: Part) {
+        let (Some(panel), Some(ray)) = (self.panel(window).copied(), self.cursor_ray()) else {
+            return;
+        };
+        let at = panel.intersect(ray).map(|hit| hit.pos);
+        self.chrome.gesture = Some(match part {
+            Part::Scale(corner) => Gesture::Scale {
+                original: panel,
+                anchor: corner.opposite().of(panel.size),
+                grab: at.unwrap_or(corner.of(panel.size)),
+            },
+            Part::Turn => Gesture::Turn {
+                window,
+                rotation: panel.pose.rotation,
+                start: ray,
+            },
+            Part::Bend => {
+                self.chrome.slider = match self.chrome.slider {
+                    Some(open) if open == window => None,
+                    _ => Some(window),
+                };
+                Gesture::Press { window }
+            }
+            Part::Slider => Gesture::Bend { original: panel },
+        });
+        self.drag_chrome();
+    }
+
+    fn drag_chrome(&mut self) {
+        let (Some(gesture), Some(ray)) = (self.chrome.gesture, self.cursor_ray()) else {
+            return;
+        };
+        let Some(panel) = self.panel_mut(gesture.window()) else {
+            return;
+        };
+        match gesture {
+            Gesture::Scale {
+                original,
+                anchor,
+                grab,
+            } => {
+                if let Some(hit) = original.intersect(ray) {
+                    let scaled = chrome::scaled(&original, anchor, grab, hit.pos);
+                    panel.metres_per_point = scaled.metres_per_point;
+                    panel.pose = scaled.pose;
+                }
+            }
+            Gesture::Turn {
+                rotation, start, ..
+            } => panel.pose.rotation = chrome::turned(rotation, start.direction, ray.direction),
+            Gesture::Bend { original } => {
+                if let Some(hit) = original.intersect(ray) {
+                    panel.bend = chrome::bend_of(&original, hit.pos);
+                }
+            }
+            Gesture::Press { .. } => {}
+        }
+    }
+
+    fn end_gesture(&mut self, out: &mut Vec<Incoming>) {
+        let Some(gesture) = self.chrome.gesture.take() else {
+            return;
+        };
+        if matches!(gesture, Gesture::Scale { .. } | Gesture::Turn { .. })
+            && let Some(panel) = self.panel(gesture.window())
+        {
+            out.push(Incoming::Window(WindowReport::Placed {
+                window: panel.window,
+                placement: panel.pose.placement(),
+            }));
+        }
+        self.chrome.hovered = self.on_chrome();
+    }
+}
+
+fn chrome_cursor(part: Part, held: bool) -> CursorIcon {
+    match part {
+        Part::Scale(Corner::TopLeft | Corner::BottomRight) => CursorIcon::ResizeNwSe,
+        Part::Scale(_) => CursorIcon::ResizeNeSw,
+        Part::Turn | Part::Slider if held => CursorIcon::Grabbing,
+        Part::Turn | Part::Slider => CursorIcon::Grab,
+        Part::Bend => CursorIcon::PointingHand,
     }
 }
 

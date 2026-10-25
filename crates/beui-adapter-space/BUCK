@@ -2,4 +2,6 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
 cargo_library()
 
-cargo_test()
+# The tests paint the scene natively (picture.rs) and compare the paintings in
+# snapshots/.
+cargo_test(paints = True)

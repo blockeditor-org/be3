@@ -2,7 +2,7 @@ use beui_core::geometry::{Pos2, Vec2, pos2};
 use glam::Vec4;
 
 use crate::head::{FOV_Y, Head};
-use crate::panel::{POINTS_PER_METRE, Panel};
+use crate::panel::Panel;
 
 pub const SUPERSAMPLE: f32 = 1.25;
 pub const STEPS_PER_DOUBLING: f32 = 4.0;
@@ -11,25 +11,29 @@ pub const SLACK_STEPS: f32 = 0.1;
 pub const LEAST_SCALE: f32 = 0.5;
 pub const MOST_SCALE: f32 = 4.0;
 pub const LARGEST_TEXTURE: f32 = 4096.0;
+const OUTLINE_STEPS: usize = 8;
 
 pub fn wanted(panel: &Panel, head: &Head, platform: Vec2) -> Option<f32> {
     if platform.x < 1.0 || platform.y < 1.0 {
         return None;
     }
     let view_projection = head.view_projection(platform);
-    let corners = [
-        pos2(0.0, 0.0),
-        pos2(panel.size.x, 0.0),
-        pos2(panel.size.x, panel.size.y),
-        pos2(0.0, panel.size.y),
-    ]
-    .map(|corner: Pos2| view_projection * panel.world(corner).extend(1.0));
-    let nearest = clipped(corners.to_vec())
+    let along = |step: usize| panel.size.x * step as f32 / OUTLINE_STEPS as f32;
+    let outline: Vec<Vec4> = (0..=OUTLINE_STEPS)
+        .map(|step| pos2(along(step), 0.0))
+        .chain(
+            (0..=OUTLINE_STEPS)
+                .rev()
+                .map(|step| pos2(along(step), panel.size.y)),
+        )
+        .map(|at: Pos2| view_projection * panel.world(at).extend(1.0))
+        .collect();
+    let nearest = clipped(outline)
         .iter()
         .map(|corner| corner.w)
         .reduce(f32::min)?;
     let focal = platform.y / 2.0 / (FOV_Y / 2.0).tan();
-    Some(SUPERSAMPLE * focal / nearest.max(f32::EPSILON) / POINTS_PER_METRE)
+    Some(SUPERSAMPLE * focal / nearest.max(f32::EPSILON) * panel.metres_per_point)
 }
 
 fn clipped(mut polygon: Vec<Vec4>) -> Vec<Vec4> {

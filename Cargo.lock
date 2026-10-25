@@ -1194,6 +1194,7 @@ dependencies = [
  "beui-renderer-wgpu",
  "bytemuck",
  "glam",
+ "paint-snapshot",
  "wgpu",
 ]
 

@@ -11,6 +11,7 @@ use beui_core::window::{
 use glam::Vec3;
 
 use crate::Space;
+use crate::chrome::{self, Corner, Part};
 use crate::head::Head;
 use crate::panel::{Panel, Pose};
 
@@ -24,6 +25,7 @@ mod a_miss_leaves_the_panel;
 mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;
 mod a_nearer_panel_is_drawn_at_more_pixels_per_point;
 mod a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step;
+mod a_ray_hits_a_curved_panel_on_its_bent_surface;
 mod a_ray_hits_the_nearest_panel_where_it_points;
 mod a_released_panel_turns_to_face_the_viewer;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
@@ -31,6 +33,8 @@ mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
 mod a_window_opened_over_another_sits_where_that_window_would_show_it_a_little_in_front;
 mod closing_a_window_removes_its_panel;
+mod dragging_a_corner_handle_scales_the_panel_and_keeps_its_points;
+mod dragging_the_rotate_control_turns_the_panel_until_it_is_carried;
 mod holding_ctrl_and_shift_steers_the_head;
 mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
 mod keys_a_driver_sends_steer_too;
@@ -41,6 +45,9 @@ mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 mod the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platform_one;
 mod the_cursor_sits_just_in_front_of_the_panel_at_the_same_size_to_the_eye;
 mod the_cursor_sprite_draws_the_icon_around_its_hotspot;
+mod the_chrome_around_a_curved_panel;
+mod the_chrome_of_a_window_over_another_leaves_its_content_alone;
+mod the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve;
 mod windows_opened_over_the_same_spot_stack_toward_the_viewer;
 
 const PLATFORM: Vec2 = vec2(800.0, 600.0);
@@ -144,11 +151,7 @@ fn ahead(distance: f32) -> Pose {
 }
 
 fn panel(window: WindowId, pose: Pose) -> Panel {
-    Panel {
-        window,
-        pose,
-        size: vec2(1000.0, 500.0),
-    }
+    Panel::new(window, pose, vec2(1000.0, 500.0))
 }
 
 fn later(now: Instant, seconds: f32) -> Instant {
@@ -241,4 +244,32 @@ fn eye_distance(space: &Space) -> f32 {
         .cursor_at()
         .expect("the cursor is shown")
         .distance(space.head.position)
+}
+
+fn screen(space: &Space, world: Vec3) -> Pos2 {
+    let clip = space.head.view_projection(PLATFORM) * world.extend(1.0);
+    pos2(
+        (clip.x / clip.w + 1.0) / 2.0 * PLATFORM.x,
+        (1.0 - clip.y / clip.w) / 2.0 * PLATFORM.y,
+    )
+}
+
+fn part_pos(panel: &Panel, part: Part, slider: bool) -> Pos2 {
+    let metres = panel.metres();
+    let (_, rect) = chrome::layout(vec2(metres.x, metres.y), slider)
+        .parts
+        .into_iter()
+        .find(|(found, _)| *found == part)
+        .expect("the chrome has that part");
+    let centre = rect.center();
+    pos2(
+        centre.x / panel.metres_per_point,
+        centre.y / panel.metres_per_point,
+    )
+}
+
+fn on_part(space: &Space, window: WindowId, part: Part) -> Pos2 {
+    let panel = space.panel(window).expect("the window has a panel");
+    let slider = space.chrome.slider == Some(window);
+    screen(space, panel.world(part_pos(panel, part, slider)))
 }

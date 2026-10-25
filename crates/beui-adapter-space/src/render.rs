@@ -4,7 +4,8 @@ use std::rc::Rc;
 
 use beui_core::context::WindowOutput;
 use beui_core::drawing::Drawing;
-use beui_core::geometry::vec2;
+use beui_core::geometry::{Rect, vec2};
+use beui_core::painting::{Painting, Paints};
 use beui_core::window::WindowId;
 use beui_renderer_wgpu::present::GpuSetup;
 use beui_renderer_wgpu::{Draw, DrawAt, Repaint, Repainting, wgpu_color_in};
@@ -16,14 +17,29 @@ use crate::space::SKY;
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 const SAMPLES: u32 = 4;
 
+pub const SEGMENTS: u32 = 48;
+const VERTICES: u32 = 2 * (SEGMENTS + 1);
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ChromeFrame {
+    pub span: [f32; 4],
+    pub opacity: f32,
+}
+
 #[derive(Clone, Debug)]
 pub struct PanelFrame {
     pub window: WindowId,
     pub model: Mat4,
+    pub metres: glam::Vec2,
+    pub bend: f32,
+    pub chrome: Option<ChromeFrame>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Frame {
+    pub pixels_per_point: f32,
+    pub windows: Vec<WindowOutput>,
+    pub chrome: Vec<WindowOutput>,
     pub view_projection: Mat4,
     pub eye: Vec3,
     pub right: Vec3,
@@ -48,6 +64,9 @@ struct SceneUniform {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct PanelUniform {
     model: [[f32; 4]; 4],
+    shape: [f32; 4],
+    span: [f32; 4],
+    extra: [f32; 4],
 }
 
 #[repr(C)]
@@ -85,6 +104,7 @@ struct Pipelines {
     floor: wgpu::RenderPipeline,
     panel: wgpu::RenderPipeline,
     lifted: wgpu::RenderPipeline,
+    chrome: wgpu::RenderPipeline,
     cursor: wgpu::RenderPipeline,
     blit: wgpu::RenderPipeline,
 }
@@ -108,6 +128,8 @@ struct Gpu {
     target: Option<Target>,
     panels: HashMap<WindowId, Panel>,
     pending: HashMap<WindowId, Pending>,
+    chrome: HashMap<WindowId, Panel>,
+    chrome_pending: HashMap<WindowId, Pending>,
 }
 
 #[derive(Clone)]
@@ -135,14 +157,26 @@ impl Compositor {
         true
     }
 
+    pub fn update_chrome(&self, output: &WindowOutput) {
+        self.0.borrow_mut().chrome_pending.insert(
+            output.id,
+            Pending {
+                output: output.clone(),
+                whole: true,
+            },
+        );
+    }
+
     pub fn forget(&self, window: WindowId) {
         let mut gpu = self.0.borrow_mut();
         gpu.panels.remove(&window);
         gpu.pending.remove(&window);
+        gpu.chrome.remove(&window);
+        gpu.chrome_pending.remove(&window);
     }
 
     pub fn drawing(&self, frame: Frame) -> Drawing {
-        beui_renderer_wgpu::drawing(SpaceDraw {
+        beui_renderer_wgpu::painted_drawing(SpaceDraw {
             gpu: self.clone(),
             frame,
         })
@@ -152,6 +186,12 @@ impl Compositor {
 struct SpaceDraw {
     gpu: Compositor,
     frame: Frame,
+}
+
+impl Paints for SpaceDraw {
+    fn painting(&self, rect: Rect) -> Option<Painting> {
+        crate::picture::painting(&self.frame, rect)
+    }
 }
 
 impl Draw for SpaceDraw {
@@ -374,6 +414,8 @@ impl Gpu {
             target: None,
             panels: HashMap::new(),
             pending: HashMap::new(),
+            chrome: HashMap::new(),
+            chrome_pending: HashMap::new(),
         }
     }
 
@@ -420,6 +462,20 @@ impl Gpu {
                     ..panel
                 },
                 wgpu::CompareFunction::Always,
+            ),
+            chrome: pipeline(
+                device,
+                shader,
+                Stage {
+                    label: "space chrome",
+                    vertex: "panel_vertex",
+                    fragment: "chrome_fragment",
+                    layouts: &[&self.scene_layout, &self.texture_layout],
+                    format,
+                    samples: SAMPLES,
+                    depth: Some(false),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                },
             ),
             cursor: pipeline_comparing(
                 device,
@@ -524,9 +580,16 @@ impl Gpu {
         });
     }
 
-    fn panel(&mut self, window: WindowId, size: (u32, u32)) {
+    fn sheets(&mut self, chrome: bool) -> &mut HashMap<WindowId, Panel> {
+        match chrome {
+            true => &mut self.chrome,
+            false => &mut self.panels,
+        }
+    }
+
+    fn panel(&mut self, chrome: bool, window: WindowId, size: (u32, u32)) {
         if self
-            .panels
+            .sheets(chrome)
             .get(&window)
             .is_some_and(|panel| panel.size == size)
         {
@@ -573,7 +636,7 @@ impl Gpu {
                 (level(index), group)
             })
             .collect();
-        let uniform = match self.panels.remove(&window) {
+        let uniform = match self.sheets(chrome).remove(&window) {
             Some(panel) => panel.uniform,
             None => uniform_buffer(&self.device, "space panel", size_of::<PanelUniform>()),
         };
@@ -596,10 +659,11 @@ impl Gpu {
                 },
             ],
         });
-        self.panels.insert(
+        let renderer = beui_renderer_wgpu::Renderer::new(&self.device, self.format);
+        self.sheets(chrome).insert(
             window,
             Panel {
-                renderer: beui_renderer_wgpu::Renderer::new(&self.device, self.format),
+                renderer,
                 size,
                 level: level(0),
                 mips,
@@ -612,16 +676,29 @@ impl Gpu {
 
     fn paint_windows(&mut self, encoder: &mut wgpu::CommandEncoder) {
         let largest = self.device.limits().max_texture_dimension_2d;
-        let pending: Vec<(WindowId, Pending)> = self.pending.drain().collect();
-        for (window, pending) in pending {
+        let pending: Vec<(bool, WindowId, Pending)> = self
+            .pending
+            .drain()
+            .map(|(window, pending)| (false, window, pending))
+            .chain(
+                self.chrome_pending
+                    .drain()
+                    .map(|(window, pending)| (true, window, pending)),
+            )
+            .collect();
+        for (chrome, window, pending) in pending {
             let output = &pending.output;
             let scale = output.pixels_per_point;
             let size = (
                 ((output.size.x * scale).round() as u32).clamp(1, largest),
                 ((output.size.y * scale).round() as u32).clamp(1, largest),
             );
-            self.panel(window, size);
-            let Some(panel) = self.panels.get_mut(&window) else {
+            self.panel(chrome, window, size);
+            let sheets = match chrome {
+                true => &mut self.chrome,
+                false => &mut self.panels,
+            };
+            let Some(panel) = sheets.get_mut(&window) else {
                 continue;
             };
             let background = output.window.appearance.clear_color;
@@ -695,13 +772,24 @@ impl Gpu {
             }),
         );
         for panel in frame.panels.iter().chain(&frame.cursor) {
+            let uniform = |lift: f32, span: [f32; 4], opacity: f32| PanelUniform {
+                model: panel.model.to_cols_array_2d(),
+                shape: [panel.metres.x, panel.metres.y, panel.bend, lift],
+                span,
+                extra: [opacity, 0.0, 0.0, 0.0],
+            };
             if let Some(drawn) = self.panels.get(&panel.window) {
                 self.queue.write_buffer(
                     &drawn.uniform,
                     0,
-                    bytemuck::bytes_of(&PanelUniform {
-                        model: panel.model.to_cols_array_2d(),
-                    }),
+                    bytemuck::bytes_of(&uniform(0.0, [0.0, 0.0, 1.0, 1.0], 1.0)),
+                );
+            }
+            if let (Some(chrome), Some(drawn)) = (panel.chrome, self.chrome.get(&panel.window)) {
+                self.queue.write_buffer(
+                    &drawn.uniform,
+                    0,
+                    bytemuck::bytes_of(&uniform(crate::chrome::LIFT, chrome.span, chrome.opacity)),
                 );
             }
         }
@@ -733,14 +821,19 @@ impl Gpu {
         pass.draw(0..4, 0..1);
         let lifted = |panel: &&PanelFrame| Some(panel.window) == frame.lifted;
         let (above, below): (Vec<&PanelFrame>, _) = frame.panels.iter().partition(lifted);
-        for (pipeline, panels) in [(&pipelines.panel, below), (&pipelines.lifted, above)] {
+        let sheets = [
+            (&pipelines.panel, &below, &self.panels),
+            (&pipelines.chrome, &below, &self.chrome),
+            (&pipelines.lifted, &above, &self.panels),
+        ];
+        for (pipeline, panels, drawn) in sheets {
             pass.set_pipeline(pipeline);
             for panel in panels {
-                if let Some(drawn) = self.panels.get(&panel.window)
+                if let Some(drawn) = drawn.get(&panel.window)
                     && drawn.painted
                 {
                     pass.set_bind_group(1, &drawn.group, &[]);
-                    pass.draw(0..4, 0..1);
+                    pass.draw(0..VERTICES, 0..1);
                 }
             }
         }
@@ -750,7 +843,7 @@ impl Gpu {
         {
             pass.set_pipeline(&pipelines.cursor);
             pass.set_bind_group(1, &drawn.group, &[]);
-            pass.draw(0..4, 0..1);
+            pass.draw(0..VERTICES, 0..1);
         }
     }
 }
