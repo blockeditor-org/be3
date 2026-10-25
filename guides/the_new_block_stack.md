@@ -1435,7 +1435,10 @@ settings block and the kind, and `LayeredSettingsRow` says "Set by your organiza
 or "Set in *Folder*" for a field another layer fixes. A kind block granted View for
 the pseudo-account `be_graph::ANYONE_INSIDE` is readable by anyone who can view a block
 inside the settings' owner, not only by its members (`BlockGraph::views_inside`); the
-settings editor switches that grant per kind.
+settings editor switches that grant per kind. Past the first ancestor the viewer can't
+view, the walk takes those from `BlockQuery::OpenSettings(block)` (the server's
+`Listing::OpenSettings`: the nearest open kind of each type above), and a `SetKind`
+found there names its settings block as its owner, since the owner is hidden.
 
 A change syncs by default: it is written to the every-device block. A setting is
 kept on this device exactly when this device's profile block sets it; then changes

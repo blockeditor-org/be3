@@ -56,6 +56,7 @@ pub enum BlockQuery {
     Backrefs(Uuid),
     Parents(Uuid),
     Block(Uuid),
+    OpenSettings(Uuid),
 }
 
 impl BlockQuery {
@@ -70,6 +71,7 @@ impl BlockQuery {
             Self::Backrefs(id) => Wire::Backrefs(id.into_bytes()),
             Self::Parents(id) => Wire::Parents(id.into_bytes()),
             Self::Block(id) => Wire::Block(id.into_bytes()),
+            Self::OpenSettings(id) => Wire::OpenSettings(id.into_bytes()),
         }
     }
 
@@ -84,6 +86,7 @@ impl BlockQuery {
             Wire::Backrefs(id) => Self::Backrefs(Uuid::from_bytes(id)),
             Wire::Parents(id) => Self::Parents(Uuid::from_bytes(id)),
             Wire::Block(id) => Self::Block(Uuid::from_bytes(id)),
+            Wire::OpenSettings(id) => Self::OpenSettings(Uuid::from_bytes(id)),
         }
     }
 }

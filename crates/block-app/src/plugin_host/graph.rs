@@ -13,6 +13,7 @@ pub(crate) fn query_of(query: BlockQuery) -> Query {
         BlockQuery::Backrefs(id) => Query::Backrefs(Uuid::from_bytes(id)),
         BlockQuery::Parents(id) => Query::Parents(Uuid::from_bytes(id)),
         BlockQuery::Block(id) => Query::Block(Uuid::from_bytes(id)),
+        BlockQuery::OpenSettings(id) => Query::OpenSettings(Uuid::from_bytes(id)),
     }
 }
 

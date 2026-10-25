@@ -136,10 +136,10 @@ re-import once, and say so in `guides/frozen_formats.md`.
    anyone who views a block inside its settings' owner (`BlockGraph::views_inside`,
    `visible`, `viewers`, and `sealed_to` for its key), and only a kind under a
    block's settings takes that grant. The client grants it when it makes a kind
-   whose `VISIBILITY` is `Inside`, and the settings editor switches it. Left:
-   the client walk stops at the first ancestor it can't view, so a viewer who
-   only sees a block inside can't find an open kind yet; it needs a listing
-   of the open kinds above a block (server, `be-client`, the app's graph).
+   whose `VISIBILITY` is `Inside`, and the settings editor switches it. Where
+   the walk meets an ancestor the viewer can't view, it takes the nearest open
+   kind of each type above from `Listing::OpenSettings` (`BlockQuery::OpenSettings`),
+   which the server pushes again whenever an open kind changes.
    Tests: be-graph `a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside`,
    be-server `a_settings_kind_opens_to_anyone_who_views_a_block_inside`.
 8. **Settings editor.** A section for the current workspace and one for any

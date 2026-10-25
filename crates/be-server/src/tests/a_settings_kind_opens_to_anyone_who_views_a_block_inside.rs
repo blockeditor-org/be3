@@ -63,6 +63,22 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     assert!(matches!(opened, ServerMessage::Ok { .. }), "{opened:?}");
     assert_eq!(access_of(&mut guest, kind).await, Access::View);
     assert!(!access_of(&mut guest, settings).await.can_view());
+    let listed = guest
+        .send(|request| ClientMessage::ListOpenSettings {
+            request,
+            block: note,
+        })
+        .await;
+    let ServerMessage::Blocks { blocks, .. } = listed else {
+        panic!("listing the open settings failed: {listed:?}");
+    };
+    assert_eq!(
+        blocks
+            .iter()
+            .map(|summary| (summary.id, summary.opens_inside))
+            .collect::<Vec<_>>(),
+        [(kind, true)]
+    );
 
     let key = Uuid::new_v4();
     let stored = owner

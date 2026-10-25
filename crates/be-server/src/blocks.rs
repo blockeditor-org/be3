@@ -162,6 +162,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         scope: Some(graph.scope(block)),
         revision,
         held: graph.holds(block),
+        opens_inside: node.is_open_inside() && graph.settings_owner(block).is_some(),
     })
 }
 
@@ -699,6 +700,39 @@ impl ServerStore {
                 .filter_map(|referrer| summary_with(graph, &seen, referrer))
                 .filter(|block| block.access.can_know_exists())
                 .collect())
+        })
+        .await
+    }
+
+    pub async fn list_open_settings(
+        &self,
+        identity: Identity,
+        block: Uuid,
+    ) -> Result<Vec<BlockSummary>, ServerError> {
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
+            let mut found: BTreeMap<Uuid, BlockSummary> = BTreeMap::new();
+            for owner in graph.ancestors(block) {
+                if seen.can_view(graph, owner) || !graph.is_inside(owner, block) {
+                    continue;
+                }
+                for settings in graph.settings_of(owner) {
+                    for kind in graph.children(BlockParent::Block(settings)) {
+                        let Some(node) = graph.get(kind) else {
+                            continue;
+                        };
+                        if !node.is_open_inside() || found.contains_key(&node.content_type) {
+                            continue;
+                        }
+                        if let Some(summary) = summary_with(graph, &seen, kind)
+                            .filter(|summary| summary.access.can_view())
+                        {
+                            found.insert(node.content_type, summary);
+                        }
+                    }
+                }
+            }
+            Ok(found.into_values().collect())
         })
         .await
     }

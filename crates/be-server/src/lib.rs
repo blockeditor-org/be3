@@ -968,6 +968,10 @@ impl Connection {
                 request,
                 blocks: self.list(Listing::References(block)).await?,
             }),
+            ClientMessage::ListOpenSettings { request, block } => Ok(ServerMessage::Blocks {
+                request,
+                blocks: self.list(Listing::OpenSettings(block)).await?,
+            }),
             ClientMessage::Unlist { request, listing } => {
                 self.identity()?;
                 self.hub.unlist(self.client, listing).await;
@@ -1423,6 +1427,7 @@ impl Connection {
             Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
             Listing::References(block) => self.store.list_references(identity, block).await?,
             Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
+            Listing::OpenSettings(block) => self.store.list_open_settings(identity, block).await?,
         };
         self.hub.listed(self.client, listing, &blocks).await;
         Ok(blocks)

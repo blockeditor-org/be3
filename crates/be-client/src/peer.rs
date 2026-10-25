@@ -1756,6 +1756,13 @@ impl<S: ObjectStore> Peer<S> {
         .await
     }
 
+    pub async fn open_settings(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
+        self.listed(Listing::OpenSettings(block), |request| {
+            ClientMessage::ListOpenSettings { request, block }
+        })
+        .await
+    }
+
     pub async fn referenced(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
         self.listed(Listing::References(block), |request| {
             ClientMessage::ListReferences { request, block }

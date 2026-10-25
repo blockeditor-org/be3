@@ -349,7 +349,8 @@ fn query(query: &mut BlockQuery, visit: &mut impl FnMut(&mut [u8; 16])) {
         | BlockQuery::References(block_id)
         | BlockQuery::Backrefs(block_id)
         | BlockQuery::Parents(block_id)
-        | BlockQuery::Block(block_id) => visit(block_id),
+        | BlockQuery::Block(block_id)
+        | BlockQuery::OpenSettings(block_id) => visit(block_id),
         BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared => {}
     }
 }

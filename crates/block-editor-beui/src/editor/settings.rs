@@ -33,7 +33,7 @@ pub type KindsAbove = BTreeMap<Uuid, SetKind>;
 
 #[derive(Default)]
 pub(super) struct SettingsCache {
-    walks: HashMap<Uuid, [BlockList; 2]>,
+    walks: HashMap<Uuid, [BlockList; 3]>,
     kinds: HashMap<Uuid, Memo<KindsAbove>>,
     resolved: HashMap<(Uuid, TypeId), Box<dyn Any>>,
     created: HashMap<Uuid, Uuid>,
@@ -73,6 +73,7 @@ impl Editor {
             let walk = [
                 blocks.watch(BlockQuery::Block(block)),
                 blocks.watch(BlockQuery::Parents(block)),
+                blocks.watch(BlockQuery::OpenSettings(block)),
             ];
             state.settings.borrow_mut().walks.insert(block, walk);
             create_memo(move || editor.walk(block))
@@ -86,12 +87,10 @@ impl Editor {
         let mut found = KindsAbove::new();
         let mut current = block;
         for _ in 0..MAX_DEPTH {
-            let Some(info) = blocks.info(current) else {
+            let Some(info) = blocks.info(current).filter(|info| info.access.can_view()) else {
+                self.open_above(block, &mut found);
                 break;
             };
-            if !info.access.can_view() {
-                break;
-            }
             if let Some(settings) = self.settings_block(current) {
                 let kinds = self
                     .content_of::<SettingsContent>(settings)
@@ -111,6 +110,27 @@ impl Editor {
             current = parent;
         }
         found
+    }
+
+    fn open_above(&self, block: Uuid, found: &mut KindsAbove) {
+        let open = self
+            .state()
+            .settings
+            .borrow()
+            .walks
+            .get(&block)
+            .map(|[_, _, open]| open.read().unwrap_or_default())
+            .unwrap_or_default();
+        for info in open {
+            let Some(BlockParent::Block(settings)) = info.parent else {
+                continue;
+            };
+            found.entry(info.block_type).or_insert(SetKind {
+                owner: settings,
+                settings,
+                block: info.id,
+            });
+        }
     }
 
     pub fn nearest_settings(&self, block: Uuid, kind: Uuid) -> Memo<Option<SetKind>> {

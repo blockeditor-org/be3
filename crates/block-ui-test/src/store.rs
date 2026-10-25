@@ -1107,6 +1107,7 @@ impl ContentStore {
                 chain
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
+            BlockQuery::OpenSettings(_) => Vec::new(),
         };
         listed
             .into_iter()

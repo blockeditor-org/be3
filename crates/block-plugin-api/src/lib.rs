@@ -1391,6 +1391,7 @@ pub enum BlockQuery {
     Backrefs([u8; 16]),
     Parents([u8; 16]),
     Block([u8; 16]),
+    OpenSettings([u8; 16]),
 }
 
 pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;

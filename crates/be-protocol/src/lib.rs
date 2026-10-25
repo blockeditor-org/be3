@@ -124,6 +124,7 @@ pub enum Listing {
     Backrefs(Uuid),
     Block(Uuid),
     References(Uuid),
+    OpenSettings(Uuid),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -142,6 +143,8 @@ pub struct BlockSummary {
     pub scope: Option<Uuid>,
     pub revision: u64,
     pub held: bool,
+    #[serde(default)]
+    pub opens_inside: bool,
 }
 
 impl BlockSummary {
@@ -160,6 +163,7 @@ impl BlockSummary {
             scope: None,
             revision: 0,
             held: true,
+            opens_inside: false,
         }
     }
 }
@@ -516,6 +520,10 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
     },
+    ListOpenSettings {
+        request: u64,
+        block: Uuid,
+    },
     Unlist {
         request: u64,
         listing: Listing,
@@ -717,6 +725,7 @@ impl ClientMessage {
             | Self::ListDeleted { request }
             | Self::ListBackrefs { request, .. }
             | Self::ListReferences { request, .. }
+            | Self::ListOpenSettings { request, .. }
             | Self::Unlist { request, .. }
             | Self::ListHistory { request, .. }
             | Self::PruneHistory { request, .. }

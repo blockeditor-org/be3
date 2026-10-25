@@ -41,6 +41,7 @@ pub(crate) enum Query {
     Parents(Uuid),
     Block(Uuid),
     Subtree(Uuid),
+    OpenSettings(Uuid),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -156,6 +157,9 @@ impl Graph {
             Query::Block(block) => {
                 into.insert(Listing::Block(block));
             }
+            Query::OpenSettings(block) => {
+                into.insert(Listing::OpenSettings(block));
+            }
             Query::References(block) => {
                 into.insert(Listing::Block(block));
                 into.insert(Listing::References(block));
@@ -251,6 +255,18 @@ impl Graph {
             && matches!(listed.fetch, Fetch::Loaded | Fetch::Failed(_))
         {
             listed.fetch = Fetch::Wanted;
+        }
+    }
+
+    pub(crate) fn relist_open_settings(&mut self) {
+        let open: Vec<Listing> = self
+            .listings
+            .keys()
+            .filter(|listing| matches!(listing, Listing::OpenSettings(_)))
+            .copied()
+            .collect();
+        for listing in open {
+            self.relist(listing);
         }
     }
 
@@ -508,6 +524,15 @@ impl Graph {
                 .collect(),
             Query::Parents(block) => return self.ancestors(block),
             Query::Block(block) => return self.nodes.get(&block).cloned().into_iter().collect(),
+            Query::OpenSettings(block) => self
+                .listings
+                .get(&Listing::OpenSettings(block))
+                .into_iter()
+                .flat_map(|listed| listed.members.iter())
+                .filter_map(|block| self.nodes.get(block))
+                .filter(|node| node.access.can_view())
+                .cloned()
+                .collect(),
             Query::Subtree(root) => self
                 .subtree(root)
                 .into_iter()
@@ -657,7 +682,7 @@ fn member(listing: Listing, node: &Node, nodes: &HashMap<Uuid, Node>) -> Option<
         Listing::References(block) => nodes
             .get(&block)
             .map(|referrer| referrer.references.contains(&node.id)),
-        Listing::Shared => None,
+        Listing::Shared | Listing::OpenSettings(_) => None,
     }
 }
 

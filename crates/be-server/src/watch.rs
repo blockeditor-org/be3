@@ -31,6 +31,7 @@ struct Facts {
     held: bool,
     entry: bool,
     references: Vec<Uuid>,
+    opens_inside: bool,
 }
 
 impl Facts {
@@ -40,6 +41,7 @@ impl Facts {
             held: summary.held,
             entry,
             references: summary.references.clone(),
+            opens_inside: summary.opens_inside,
         }
     }
 }
@@ -58,6 +60,11 @@ impl Interest {
                 .is_some_and(|parent| self.listings.contains(&Listing::Children(parent)))
             || (facts.parent.is_some() && !facts.held && self.listings.contains(&Listing::Deleted))
             || (facts.entry && self.listings.contains(&Listing::Shared))
+            || (facts.opens_inside
+                && self
+                    .listings
+                    .iter()
+                    .any(|listing| matches!(listing, Listing::OpenSettings(_))))
             || facts
                 .references
                 .iter()

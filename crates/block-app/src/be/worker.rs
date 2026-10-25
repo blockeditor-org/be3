@@ -1756,6 +1756,9 @@ async fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, event: Opti
             if shared_into_view && !held.graph.covers(block.id) {
                 held.graph.relist(Listing::Shared);
             }
+            if block.opens_inside {
+                held.graph.relist_open_settings();
+            }
         }
         Some(ServerMessage::BlockRemoved { block, revision }) => {
             shared
@@ -1895,6 +1898,7 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
                 Listing::Backrefs(block) => peer.backrefs(block).await,
                 Listing::References(block) => peer.referenced(block).await,
                 Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
+                Listing::OpenSettings(block) => peer.open_settings(block).await,
             }
         }));
         let (_, answers) = futures_util::future::join(unlists, lists).await;
@@ -1945,6 +1949,7 @@ fn listing_failure(listing: Listing) -> &'static str {
         Listing::Backrefs(_) => "Couldn't load what links here",
         Listing::References(_) => "Couldn't load what this block links to",
         Listing::Block(_) => "Couldn't load this block",
+        Listing::OpenSettings(_) => "Couldn't load the settings above this block",
     }
 }
 

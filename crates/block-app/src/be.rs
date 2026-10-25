@@ -765,6 +765,7 @@ fn sourced(query: Query) -> Query {
         Query::Parents(id) => Query::Parents(revisions::source(id).unwrap_or(id)),
         Query::Subtree(id) => Query::Subtree(revisions::source(id).unwrap_or(id)),
         Query::Block(id) => Query::Block(revisions::source(id).unwrap_or(id)),
+        Query::OpenSettings(id) => Query::OpenSettings(revisions::source(id).unwrap_or(id)),
         other => other,
     }
 }
