@@ -10,6 +10,8 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
+infinite-canvas-types = { path = "../infinite-canvas/types" }
+presentation-types = { path = "types" }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

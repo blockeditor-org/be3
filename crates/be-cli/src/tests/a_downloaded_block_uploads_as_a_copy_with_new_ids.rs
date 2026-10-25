@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     run(&tracker, "new-database Issues --prefix BE")
         .await
         .unwrap();
@@ -87,6 +87,7 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
         )
         .await
         .unwrap(),
+        sources(),
     );
     let refused = run(&elsewhere, &format!("upload {file}"))
         .await

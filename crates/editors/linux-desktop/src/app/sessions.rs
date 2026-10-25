@@ -1,11 +1,13 @@
 use block_editor_beui::BlockParent;
+use block_editor_beui::be_block::BlockMetadata;
 use block_editor_beui::be_block::{
-    BlockContent, EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
+    BlockContent, Settings, SettingsContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::root_settings::RootSettings;
 use block_shell::Workspace;
 use uuid::Uuid;
+use workspace_ui_types::EditorViewContent;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Session {
@@ -43,10 +45,11 @@ impl Sessions {
         };
         let editor = self.workspace.editor();
         let count = self.listed.with_untracked(Vec::len);
-        let session = editor.blocks().create_named(
-            &EditorView::document(WORKSPACE_EDITOR, None),
+        let session = editor.blocks().create_with(
+            EditorViewContent::CONTENT_TYPE,
+            None,
             BlockParent::Block(settings),
-            format!("Session {}", count + 1),
+            BlockMetadata::view(WORKSPACE_EDITOR, Some(format!("Session {}", count + 1))),
         );
         editor
             .content_of::<SettingsContent>(settings)
@@ -65,10 +68,10 @@ fn listed(workspace: &Workspace) -> Vec<Session> {
         .sessions()
         .into_iter()
         .filter(|session| {
-            editor
-                .content_of::<EditorViewContent>(*session)
-                .read(|view| view.root().editor)
-                == Ok(WORKSPACE_EDITOR)
+            workspace
+                .info(*session)
+                .and_then(|info| info.metadata.get(&VIEW_EDITOR))
+                == Some(WORKSPACE_EDITOR)
         })
         .map(|block| Session {
             block,

@@ -1,5 +1,4 @@
 use block_editor_beui::Fit;
-use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -9,6 +8,7 @@ use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
+use pdf_types::PdfContent;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 

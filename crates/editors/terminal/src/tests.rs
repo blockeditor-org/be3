@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::be_model::{Anchor, FieldRef, List};
 use block_editor_beui::be_block::presence::PresenceKind;
-use block_editor_beui::be_block::terminal::{
+use terminal_types::{
     Terminal, TerminalColor, TerminalColors, TerminalContent, TerminalCursor, TerminalHost,
     TerminalLine, TerminalMessage, TerminalShell, TerminalSize, TerminalStyle,
 };

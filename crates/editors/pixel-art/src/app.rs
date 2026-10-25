@@ -1,11 +1,9 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::BlockContent;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::pixel_art::PixelColor;
-use block_editor_beui::be_block::pixel_art::{default_palette, size_of};
-use block_editor_beui::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
@@ -13,6 +11,9 @@ use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{
     ArtifactDescription, Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
 };
+use pixel_art_types::PixelColor;
+use pixel_art_types::{PixelArtContent, PixelArtDocument};
+use pixel_art_types::{default_palette, size_of};
 
 use crate::artifact;
 use crate::artifact::Settings;
@@ -23,6 +24,7 @@ pub(crate) mod pane;
 pub(crate) mod state;
 
 use canvas::{ArtworkCanvas, HoverLabel};
+use image_block_types::ImageContent;
 use pane::Pane;
 use state::Tools;
 

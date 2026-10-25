@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block::presence::ChannelKind;
-use be_block::terminal::{
+use terminal_types::{
     Key, Modifiers, TerminalContent, TerminalKey, TerminalMessage, TerminalSize,
 };
 use be_cli::terminal_host::{Host, HostOptions};
@@ -58,7 +58,8 @@ fn a_terminal_host_takes_over_a_session_this_peer_opened_first() {
             .enable_all()
             .build()
             .expect("the host's runtime starts");
-        runtime.block_on(async move {
+        let local = tokio::task::LocalSet::new();
+        local.block_on(&runtime, async move {
             let peer = outside_peer(config).await;
             let mut host = Host::new(HostOptions {
                 command: vec!["sh".to_owned()],
@@ -66,7 +67,8 @@ fn a_terminal_host_takes_over_a_session_this_peer_opened_first() {
                 user: "agent".to_owned(),
             })
             .expect("the host starts");
-            host.serve_until(peer, block, async {
+            let sources = super::super::types::sources().await;
+            host.serve_until(peer, block, sources, async {
                 let _ = stopped.await;
             })
             .await

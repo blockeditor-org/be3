@@ -1,5 +1,5 @@
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::terminal::TerminalWheel;
+use terminal_types::TerminalWheel;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, icons::*};

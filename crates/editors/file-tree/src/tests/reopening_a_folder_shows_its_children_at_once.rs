@@ -7,9 +7,9 @@ fn reopening_a_folder_shows_its_children_at_once() {
     let mut fixture = editor();
     let folder = Uuid::new_v4();
     let child = Uuid::new_v4();
-    let mut listed = BlockInfo::new(folder, Uuid::nil(), BlockParent::Root);
+    let mut listed = BlockInfo::new(folder, Uuid::nil(), BlockParent::Block(MY_FILES));
     listed.references = vec![child];
-    fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
+    my_files(&mut fixture, vec![listed]);
     fixture.settle();
     let chevron = format!("file-tree.{folder}.chevron");
     let row = format!("file-tree.{child}.row");

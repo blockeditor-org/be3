@@ -1,5 +1,5 @@
 use super::*;
-use be_block::terminal::TerminalSize;
+use terminal_types::TerminalSize;
 
 #[test]
 fn rows_that_scroll_off_the_screen_are_taken_as_history() {

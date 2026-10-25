@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use be_block::terminal::{
+use terminal_types::{
     HISTORY_LINES, TerminalColor, TerminalColors, TerminalCursor, TerminalCursorStyle, TerminalKey,
     TerminalLine, TerminalSize, TerminalStyle, TerminalWheel,
 };
@@ -201,10 +201,10 @@ impl Emulator {
             {
                 let key = TerminalKey {
                     key: match up {
-                        true => be_block::terminal::Key::ArrowUp,
-                        false => be_block::terminal::Key::ArrowDown,
+                        true => terminal_types::Key::ArrowUp,
+                        false => terminal_types::Key::ArrowDown,
                     },
-                    modifiers: be_block::terminal::Modifiers::default(),
+                    modifiers: terminal_types::Modifiers::default(),
                     text: String::new(),
                     pressed: true,
                 };

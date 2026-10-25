@@ -1,11 +1,12 @@
-use block_editor_beui::be_block::pixel_art::Artwork;
-use block_editor_beui::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
+use block_editor_beui::be_block::{ArtifactSource, BlockContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
 use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
+use image_block_types::{ImageContent, ImageFile};
+use pixel_art_types::{Artwork, PixelArtContent};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -73,10 +74,7 @@ fn generate(
             ExtendedColorType::Rgba8,
         )
         .map_err(|error| error.to_string())?;
-    Ok(ImageContent::from_file(
-        format!("{source_name} Export"),
-        png,
-    ))
+    Ok(ImageFile::from_file(format!("{source_name} Export"), png))
 }
 
 fn magnified(art: &Artwork, scale: u32) -> Vec<u8> {

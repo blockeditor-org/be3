@@ -1,9 +1,5 @@
 use beui::Wrap;
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue, short_id};
-use block_editor_beui::be_block::database_schema::{
-    ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
-};
 use block_editor_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -11,6 +7,10 @@ use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
 use block_editor_beui::database::{ChoiceMark, choice_color};
 use block_editor_beui::narrow_chrome;
+use database_types::database::{DatabaseRow, DatabaseValue, short_id};
+use database_types::database_schema::{
+    ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
+};
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
@@ -103,8 +103,7 @@ pub fn RowBeside(
 ) -> NodeId {
     let selected = create_memo(move || {
         match enabled
-            && data.kind.get()
-                != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet
+            && data.kind.get() != database_types::database_view::DatabaseViewKind::Spreadsheet
         {
             true => data.selected_row(),
             false => None,

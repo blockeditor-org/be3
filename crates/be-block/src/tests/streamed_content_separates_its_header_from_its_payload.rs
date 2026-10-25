@@ -15,21 +15,21 @@ fn streamed_content_separates_its_header_from_its_payload() {
     );
 
     let (decoded_header, decoded_payload) =
-        decode_streamed::<ImageHeader>(&encoded[..start + 16]).unwrap();
+        decode_streamed::<Header>(&encoded[..start + 16]).unwrap();
     assert_eq!(decoded_header, header("frame.png"));
     assert_eq!(decoded_payload, payload[..16]);
 
-    assert_eq!(ImageContent::decode(&encoded).unwrap(), content);
+    assert_eq!(BytesContent::decode(&encoded).unwrap(), content);
     assert_eq!(content.payload(), payload.as_slice());
     assert_eq!(
-        ImageContent::from_parts(header("frame.png"), payload.clone()),
+        BytesContent::from_parts(header("frame.png"), payload.clone()),
         content
     );
 
     assert_eq!(payload_start(&[1, 2]), Err(ContentError::Truncated));
     assert_eq!(
-        ImageContent::decode(&encoded[..start - 1]),
+        BytesContent::decode(&encoded[..start - 1]),
         Err(ContentError::Truncated)
     );
-    assert!(ImageContent::decode(&[0xff, 0xff, 0, 0, 7]).is_err());
+    assert!(BytesContent::decode(&[0xff, 0xff, 0, 0, 7]).is_err());
 }

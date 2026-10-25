@@ -1,10 +1,10 @@
 use beui::Wrap;
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasShape};
 use block_editor_beui::beui::icons::{ICON_EYE, ICON_EYE_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, NodeId};
+use infinite_canvas_types::{CanvasEntity, CanvasShape};
 use uuid::Uuid;
 
 use crate::geometry::entity_kind_label;

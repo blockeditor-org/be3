@@ -1,10 +1,10 @@
-use block_editor_beui::be_block::canvas::CanvasProfile;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{BottomDock, node_anchor, sheet_open};
+use infinite_canvas_types::CanvasProfile;
 
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;

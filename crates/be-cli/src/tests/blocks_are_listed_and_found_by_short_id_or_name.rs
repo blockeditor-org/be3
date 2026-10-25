@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn blocks_are_listed_and_found_by_short_id_or_name() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let made = run(&tracker, "new-database Issues --prefix BE")
         .await
         .unwrap();

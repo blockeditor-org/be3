@@ -1,19 +1,21 @@
-use be_block::terminal::{Key, Modifiers, TerminalMessage};
+use terminal_types::{Key, Modifiers, TerminalMessage};
 
-use super::terminal::{SIZE, Setup, host};
+use super::terminal::{SIZE, Setup, host, serve};
 use super::*;
 
 #[tokio::test]
 async fn a_terminal_host_encodes_keys_for_the_mode_its_program_set() {
+    tokio::task::LocalSet::new().run_until(hosted()).await;
+}
+
+async fn hosted() {
     let setup = Setup::start().await;
     let agent = setup.agent().await;
     let mut host = host("build-box");
     let (stop, stopped) = oneshot::channel::<()>();
 
     let (served, ()) = tokio::join!(
-        host.serve_until(agent, setup.block, async {
-            let _ = stopped.await;
-        }),
+        serve(&mut host, agent, setup.block, stopped),
         async {
             let mut viewer = setup.viewer().await;
             viewer

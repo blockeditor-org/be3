@@ -1,6 +1,7 @@
 use super::*;
+use workspace_ui_types::FolderContent;
 
-use be_block::{DELETED_FROM, DeletedFrom, FolderContent};
+use be_block::{DELETED_FROM, DeletedFrom};
 use be_graph::BlockParent;
 
 #[test]

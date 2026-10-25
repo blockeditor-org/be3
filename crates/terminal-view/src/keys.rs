@@ -1,4 +1,4 @@
-use be_block::terminal::TerminalKey;
+use terminal_types::TerminalKey;
 use beui::{Key, KeyPress};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

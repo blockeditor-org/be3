@@ -9,14 +9,15 @@ use std::{
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
-    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
-    BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    FitArea, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId,
-    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, decode_host, encode_host,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
+    BlockCommand, BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
+    ChildPlacement, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult,
+    FilePick, FileSave, FitArea, HostAction, HostPanel, HostReply, HostRequest, HostValue,
+    HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange,
+    WebViewCommand, WebViewEvent, WebViewId, decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
+use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2};
 use uuid::Uuid;
@@ -48,15 +49,19 @@ impl HostContent {
             applied: 0,
         }
     }
+
+    pub fn snapshot(self) -> Snapshot {
+        Snapshot {
+            content_type: self.content_type,
+            bytes: self.bytes,
+            session: self.session,
+            unsettled: self.unsettled,
+            applied: self.applied,
+        }
+    }
 }
 
-type ContentOperation = (Option<Uuid>, Outgoing);
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Outgoing {
-    Operation(Vec<u8>),
-    Gesture(GesturePhase),
-}
+type ContentOperation = (Option<Uuid>, FromEditor);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShownPresence {
@@ -96,12 +101,6 @@ pub struct PeerPresence {
     pub client: u64,
     pub kind: Uuid,
     pub value: Vec<u8>,
-}
-
-#[derive(Clone)]
-pub enum ContentUpdate {
-    Snapshot(HostContent),
-    Operations(Vec<block_plugin_api::ContentOperation>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -150,6 +149,15 @@ pub struct BlockHistory {
     pub can_undo: bool,
     pub can_redo: bool,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredHead {
+    pub commit: [u8; 32],
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
+}
+
+pub type HeadRead = Result<Option<StoredHead>, String>;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtifactState {
@@ -379,10 +387,11 @@ pub enum Pushed {
     Version,
     HostValues,
     PeerMessages,
+    Heads,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -395,6 +404,7 @@ impl Pushed {
         Self::Version,
         Self::HostValues,
         Self::PeerMessages,
+        Self::Heads,
     ];
 }
 
@@ -429,6 +439,9 @@ pub struct EditorHost {
     histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
     watched_history: Rc<RefCell<Vec<Uuid>>>,
     reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
+    heads: Rc<RefCell<HashMap<Uuid, HeadRead>>>,
+    watched_heads: Rc<RefCell<Vec<Uuid>>>,
+    reported_heads: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
@@ -453,7 +466,7 @@ pub struct EditorHost {
     region: Rc<Cell<Region>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
-    audio_commands: Rc<RefCell<Vec<(Uuid, AudioCommand)>>>,
+    audio_commands: Rc<RefCell<Vec<AudioCommand>>>,
     audio_status: Rc<RefCell<AudioStatus>>,
     web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
@@ -473,7 +486,9 @@ pub struct EditorHost {
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
     next_frame: Rc<Cell<Option<Duration>>>,
-    content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
+    content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
+    followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
+    asked: Rc<RefCell<HashSet<Option<Uuid>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
     resend_requests: Rc<RefCell<Vec<Option<Uuid>>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
@@ -749,6 +764,36 @@ impl EditorHost {
         self.push(Pushed::Histories);
     }
 
+    pub fn watch_head(&self, block: Uuid) {
+        let mut watched = self.watched_heads.borrow_mut();
+        if !watched.contains(&block) {
+            watched.push(block);
+            watched.sort();
+        }
+    }
+
+    pub fn head(&self, block: Uuid) -> Option<HeadRead> {
+        self.heads.borrow().get(&block).cloned()
+    }
+
+    pub(crate) fn take_head_watch(&self) -> Option<Vec<Uuid>> {
+        let blocks = self.watched_heads.borrow().clone();
+        let mut reported = self.reported_heads.borrow_mut();
+        if reported
+            .as_ref()
+            .map_or(blocks.is_empty(), |reported| *reported == blocks)
+        {
+            return None;
+        }
+        *reported = Some(blocks.clone());
+        Some(blocks)
+    }
+
+    pub fn set_head(&self, block: Uuid, head: HeadRead) {
+        self.heads.borrow_mut().insert(block, head);
+        self.push(Pushed::Heads);
+    }
+
     pub fn undo(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()
@@ -937,26 +982,54 @@ impl EditorHost {
     }
 
     pub fn set_block_content(&self, content: HostContent) {
-        self.update_content(None, ContentUpdate::Snapshot(content));
+        self.update_content(None, ToEditor::Snapshot(content.snapshot()));
     }
 
     pub fn set_content_of(&self, block: Uuid, content: HostContent) {
-        self.update_content(Some(block), ContentUpdate::Snapshot(content));
+        self.update_content(Some(block), ToEditor::Snapshot(content.snapshot()));
     }
 
-    pub fn push_content_operations(&self, operations: Vec<block_plugin_api::ContentOperation>) {
-        self.update_content(None, ContentUpdate::Operations(operations));
+    pub fn push_content_operations(&self, operations: Vec<EditorOperation>) {
+        self.update_content(None, ToEditor::Operations(operations));
     }
 
-    pub fn push_content_operations_of(
-        &self,
-        block: Uuid,
-        operations: Vec<block_plugin_api::ContentOperation>,
-    ) {
-        self.update_content(Some(block), ContentUpdate::Operations(operations));
+    pub fn push_content_operations_of(&self, block: Uuid, operations: Vec<EditorOperation>) {
+        self.update_content(Some(block), ToEditor::Operations(operations));
     }
 
-    fn update_content(&self, block: Option<Uuid>, update: ContentUpdate) {
+    pub fn receive_from_replica(&self, block: Option<Uuid>, message: ToEditor) {
+        match message {
+            ToEditor::Presence(peers) => self.set_peers(
+                block,
+                peers
+                    .into_iter()
+                    .map(|peer| PeerPresence {
+                        client: peer.client,
+                        kind: peer.kind,
+                        value: peer.value,
+                    })
+                    .collect(),
+            ),
+            ToEditor::PeerMessages(messages) => self.push_peer_messages(
+                block,
+                messages
+                    .into_iter()
+                    .map(|message| PeerMessage {
+                        from: message.from,
+                        channel: message.channel,
+                        payload: message.payload,
+                    })
+                    .collect(),
+            ),
+            content @ (ToEditor::Snapshot(_) | ToEditor::Operations(_)) => {
+                if self.followed.borrow().contains_key(&block) {
+                    self.update_content(block, content);
+                }
+            }
+        }
+    }
+
+    fn update_content(&self, block: Option<Uuid>, update: ToEditor) {
         self.content_updates
             .borrow_mut()
             .entry(block)
@@ -969,27 +1042,55 @@ impl EditorHost {
         self.content_updates.borrow().keys().copied().collect()
     }
 
-    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
+    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ToEditor> {
         self.content_updates
             .borrow_mut()
             .remove(&block)
             .unwrap_or_default()
     }
 
+    pub(crate) fn follow(&self, block: Option<Uuid>) {
+        *self.followed.borrow_mut().entry(block).or_default() += 1;
+        self.asked.borrow_mut().insert(block);
+        self.request_content_resend(block);
+    }
+
+    pub(crate) fn unfollow(&self, block: Option<Uuid>) {
+        let mut followed = self.followed.borrow_mut();
+        let Some(count) = followed.get_mut(&block) else {
+            return;
+        };
+        *count -= 1;
+        if *count == 0 {
+            followed.remove(&block);
+            self.content_updates.borrow_mut().remove(&block);
+        }
+    }
+
+    pub fn ask_for_peers(&self, block: Option<Uuid>) {
+        if self.asked.borrow_mut().insert(block) {
+            self.request_content_resend(block);
+        }
+    }
+
+    pub(crate) fn send_to_replica(&self, block: Option<Uuid>, message: FromEditor) {
+        match message {
+            FromEditor::Resend => self.request_content_resend(block),
+            FromEditor::ShowPresence { kind, value } => self.show_presence(block, kind, value),
+            FromEditor::SendToPeers {
+                to,
+                channel,
+                payload,
+            } => self.send_to_peers(block, to, channel, payload),
+            message
+            @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
+                self.content_operations.borrow_mut().push((block, message));
+            }
+        }
+    }
+
     pub fn operate_content(&self, operation: Vec<u8>) {
-        self.operate_content_at(None, operation);
-    }
-
-    pub(crate) fn operate_content_at(&self, block: Option<Uuid>, operation: Vec<u8>) {
-        self.content_operations
-            .borrow_mut()
-            .push((block, Outgoing::Operation(operation)));
-    }
-
-    pub(crate) fn gesture_at(&self, block: Option<Uuid>, phase: GesturePhase) {
-        self.content_operations
-            .borrow_mut()
-            .push((block, Outgoing::Gesture(phase)));
+        self.send_to_replica(None, FromEditor::Operate(operation));
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
@@ -1009,8 +1110,8 @@ impl EditorHost {
         taken
             .into_iter()
             .filter_map(|(_, outgoing)| match outgoing {
-                Outgoing::Operation(operation) => Some(operation),
-                Outgoing::Gesture(_) => None,
+                FromEditor::Operate(operation) => Some(operation),
+                _ => None,
             })
             .collect()
     }
@@ -1330,6 +1431,17 @@ impl EditorHost {
         self.ask(HostRequest::ExportBlock(block_id.into_bytes()))
     }
 
+    pub fn read_plain_file(&self, block_id: Uuid) -> u64 {
+        self.ask(HostRequest::ReadPlainFile(block_id.into_bytes()))
+    }
+
+    pub fn take_plain_file(&self, request: u64) -> Option<Result<SavedFile, String>> {
+        match self.take_reply(request)? {
+            HostReply::PlainFileRead(read) => Some(read),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
     pub fn import_blocks(&self, parent: BlockParent) -> u64 {
         self.ask(HostRequest::ImportBlocks(parent.encode()))
     }
@@ -1401,23 +1513,28 @@ impl EditorHost {
         }
     }
 
-    pub fn play_audio(&self, block_id: Uuid) {
+    pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
         self.audio_commands
             .borrow_mut()
-            .push((block_id, AudioCommand::Toggle));
+            .push(AudioCommand::Load(AudioSource {
+                media_type: media_type.into(),
+                bytes,
+            }));
     }
 
-    pub fn reset_audio(&self, block_id: Uuid) {
-        self.audio_commands
-            .borrow_mut()
-            .push((block_id, AudioCommand::Reset));
+    pub fn play_audio(&self) {
+        self.audio_commands.borrow_mut().push(AudioCommand::Toggle);
+    }
+
+    pub fn reset_audio(&self) {
+        self.audio_commands.borrow_mut().push(AudioCommand::Reset);
     }
 
     pub fn audio(&self) -> AudioStatus {
         self.audio_status.borrow().clone()
     }
 
-    pub(crate) fn take_audio_commands(&self) -> Vec<(Uuid, AudioCommand)> {
+    pub(crate) fn take_audio_commands(&self) -> Vec<AudioCommand> {
         std::mem::take(&mut self.audio_commands.borrow_mut())
     }
 
@@ -1912,22 +2029,38 @@ impl EditorHost {
 #[derive(Default)]
 pub struct FileSaver {
     request: Option<u64>,
+    reading: Option<u64>,
 }
 
 impl FileSaver {
     pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
+        self.reading = None;
         self.request = Some(host.save_file(file));
     }
 
     pub fn export(&mut self, host: &EditorHost, block_id: Uuid) {
+        self.reading = None;
         self.request = Some(host.export_block(block_id));
     }
 
+    pub fn export_plain(&mut self, host: &EditorHost, block_id: Uuid) {
+        self.request = None;
+        self.reading = Some(host.read_plain_file(block_id));
+    }
+
     pub fn is_saving(&self) -> bool {
-        self.request.is_some()
+        self.request.is_some() || self.reading.is_some()
     }
 
     pub fn poll(&mut self, host: &EditorHost) -> Option<Result<bool, String>> {
+        if let Some(reading) = self.reading {
+            let read = host.take_plain_file(reading)?;
+            self.reading = None;
+            match read {
+                Ok(file) => self.save(host, file),
+                Err(error) => return Some(Err(error)),
+            }
+        }
         let save = host.take_save(self.request?)?;
         self.request = None;
         Some(match save {

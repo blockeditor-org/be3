@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, EditorView,
-    EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit, MY_FILES, NAME, Root, SettingsContent,
-    SettingsProfileContent, WORKSPACE_EDITOR, WorkspaceContent,
+    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, LINUX_DESKTOP_EDITOR,
+    LiveEdit, MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent, VIEW_EDITOR,
+    VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -165,9 +165,7 @@ impl RootSettings {
         let found = be::query(be::Query::Roots)
             .into_iter()
             .filter(|node| {
-                node.content_type == WorkspaceContent::CONTENT_TYPE
-                    && node.author == Some(account)
-                    && node.metadata.get(&MY_FILES) == Some(true)
+                node.author == Some(account) && node.metadata.get(&MY_FILES) == Some(true)
             })
             .map(|node| node.id)
             .min();
@@ -181,13 +179,7 @@ impl RootSettings {
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
             metadata.insert(&MY_FILES, &true);
-            be::create(
-                block,
-                WorkspaceContent::CONTENT_TYPE,
-                BlockParent::Root,
-                metadata,
-                Some(WorkspaceContent::default().encode()),
-            );
+            be::create(block, WORKSPACE_TYPE, BlockParent::Root, metadata, None);
             self.created_files = Some(block);
         }
         self.my_files()
@@ -229,30 +221,22 @@ impl RootSettings {
 
     pub(crate) fn session_editor(&self, session: Uuid) -> Option<Uuid> {
         let mut cache = self.cache.borrow_mut();
-        Cache::read(
-            &mut cache.editors,
-            session,
-            EditorViewContent::CONTENT_TYPE,
-            || {
-                Some(
-                    decode::<EditorViewContent>(session)
-                        .map(|document| document.root().editor)
-                        .filter(|editor| !editor.is_nil())
-                        .unwrap_or(self.shell),
-                )
-            },
-        )
+        Cache::read(&mut cache.editors, session, VIEW_TYPE, || {
+            Some(
+                be::node(session)?
+                    .metadata
+                    .get(&VIEW_EDITOR)
+                    .filter(|editor| !editor.is_nil())
+                    .unwrap_or(self.shell),
+            )
+        })
     }
 
     fn edit(&self, edit: &be_block::Edit) {
         let Some(block) = self.find() else {
             return;
         };
-        be::operate_from(
-            block,
-            be::next_origin(),
-            SettingsContent::encode_operation(edit),
-        );
+        be::operate(block, SettingsContent::encode_operation(edit));
     }
 
     fn named(block: Uuid, fallback: &str) -> String {
@@ -335,10 +319,10 @@ impl RootSettings {
         let session = Uuid::new_v4();
         be::create(
             session,
-            EditorViewContent::CONTENT_TYPE,
+            VIEW_TYPE,
             BlockParent::Block(settings),
-            BlockMetadata::named(name),
-            Some(EditorView::document(editor, None).encode()),
+            BlockMetadata::view(editor, Some(name)),
+            None,
         );
         Some(session)
     }

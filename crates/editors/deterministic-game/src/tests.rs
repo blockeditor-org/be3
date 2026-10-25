@@ -1,9 +1,11 @@
 use block_editor_beui::be_block::BlockContent;
 
-use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
 use block_editor_beui::beui::{Pos2, Vec2};
 use block_editor_beui::{Creation, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use deterministic_game_types::{
+    DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
+};
 use game_api::{GameAction, GameActionOption};
 use game_host::Game;
 use uuid::Uuid;
@@ -62,6 +64,9 @@ fn placed(
     if in_viewport {
         harness = harness.in_viewport();
     }
+    harness
+        .store()
+        .register(deterministic_game_types::registrations());
     harness.hold(
         None,
         DeterministicGameContent::new(&DeterministicGame::of(module_block)),
@@ -74,7 +79,7 @@ fn placed(
     }
     harness.hold(
         Some(module_block),
-        GameModuleContent::from_file("game.wasm", module),
+        GameModuleFile::from_file("game.wasm", module),
     );
     harness.run();
     harness

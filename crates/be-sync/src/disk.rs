@@ -251,3 +251,50 @@ pub fn set_executable(path: &Path, executable: bool) -> Result<(), String> {
 pub fn set_executable(_: &Path, _: bool) -> Result<(), String> {
     Ok(())
 }
+
+const RESERVED: [&str; 4] = ["CON", "PRN", "AUX", "NUL"];
+
+const FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+const MAX_FILE_NAME_BYTES: usize = 255;
+
+pub fn name_problem(name: &str) -> Option<String> {
+    if name.is_empty() {
+        return Some("it has no name".to_owned());
+    }
+    if name == "." || name == ".." {
+        return Some(format!("{name} names a directory itself"));
+    }
+    if let Some(character) = name
+        .chars()
+        .find(|character| FORBIDDEN.contains(character) || character.is_control())
+    {
+        return Some(match character {
+            '/' | '\\' => format!("{character} separates directories in a path"),
+            character if character.is_control() => {
+                format!(
+                    "it holds the control character U+{:04X}",
+                    u32::from(character)
+                )
+            }
+            character => format!("{character} is not allowed in a file name on Windows"),
+        });
+    }
+    if name.ends_with(['.', ' ']) {
+        return Some("Windows drops a dot or space at the end of a file name".to_owned());
+    }
+    let stem = name.split('.').next().unwrap_or(name).trim_end();
+    let upper = stem.to_ascii_uppercase();
+    let numbered = ["COM", "LPT"].iter().any(|prefix| {
+        upper.len() == 4 && upper.starts_with(prefix) && upper.as_bytes()[3].is_ascii_digit()
+    });
+    if RESERVED.contains(&upper.as_str()) || numbered {
+        return Some(format!("{stem} is a device name on Windows"));
+    }
+    if name.len() > MAX_FILE_NAME_BYTES {
+        return Some(format!(
+            "it is longer than the {MAX_FILE_NAME_BYTES} bytes a file name may be"
+        ));
+    }
+    None
+}

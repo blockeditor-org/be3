@@ -48,5 +48,29 @@
       ]
     }
   },
+  "block_types": {
+    "database": {
+      "id": "00646174-6162-6173-652d-626c6f636b01",
+      "display_name": "Database",
+      "icon": "\ue0ad",
+      "color": [172, 145, 47],
+      "module": "database_types.wasm"
+    },
+    "schema": {
+      "id": "64617461-6261-7365-2d73-6368656d6101",
+      "display_name": "Database Schema",
+      "icon": "\ue4db",
+      "color": [65, 145, 210],
+      "module": "database_types.wasm"
+    },
+    "view": {
+      "id": "00006461-7461-6261-7365-2d7669657701",
+      "display_name": "Database View",
+      "icon": "\ue157",
+      "color": [44, 158, 128],
+      "exported_whole": true,
+      "module": "database_types.wasm"
+    }
+  },
   "entry_point": "database.wasm"
 }

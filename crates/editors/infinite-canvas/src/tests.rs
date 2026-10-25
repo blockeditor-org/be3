@@ -1,26 +1,26 @@
 use std::collections::{BTreeMap, HashSet};
 
-use block_editor_beui::be_block::canvas::Canvas;
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasLook,
-    CanvasPathPoint, CanvasPoint, CanvasProfile, CanvasShape, CanvasStrokeStyle, CanvasTextSize,
-    CanvasTransform, InfiniteCanvasOperation,
-};
-use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::PresenceKind;
 use block_editor_beui::be_block::{
-    CanvasContent, DisplaySettings, Root, Settings, SettingsContent, SettingsProfile,
-    SettingsProfileContent,
+    DisplaySettings, Root, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
 };
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use database_types::database::DatabaseValue;
+use infinite_canvas_types::Canvas;
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasLook,
+    CanvasPathPoint, CanvasPoint, CanvasProfile, CanvasShape, CanvasStrokeStyle, CanvasTextSize,
+    CanvasTransform, InfiniteCanvasOperation,
+};
 use uuid::Uuid;
 
 use crate::app::CanvasApp;
 use crate::app::state::{attach_component, remove_component, set_component_value};
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use block_editor_beui::beui::{PenPhase, PointerButton};
+use infinite_canvas_types::CanvasContent;
 
 mod a_bottom_dock_builds_its_tools_only_once_it_opens;
 mod a_direct_editor_entity_draws_the_frame_it_reserves;

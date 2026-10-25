@@ -1,8 +1,5 @@
 use beui::Wrap;
 use block_editor_beui::Toolbar;
-use block_editor_beui::be_block::pixel_art::{
-    MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
-};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -16,6 +13,9 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Dialog as Modal;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Pressable;
+use pixel_art_types::{
+    MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
+};
 
 use crate::canvas::ZOOM_STEP;
 use crate::color::{parse_hex_color, swatch_color};

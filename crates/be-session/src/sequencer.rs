@@ -45,6 +45,17 @@ pub enum SessionMessage {
     Replaced {
         head: CommitId,
     },
+    Moved {
+        head: CommitId,
+    },
+    Kept {
+        commit: CommitId,
+        base: Option<CommitId>,
+        edits: Option<KeptEdits>,
+    },
+    Saved {
+        commit: CommitId,
+    },
     Presence {
         kind: uuid::Uuid,
         value: Option<Vec<u8>>,
@@ -61,6 +72,12 @@ pub enum Inherited {
     Duplicate,
     Renumbered,
     Unnumbered,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptEdits {
+    pub applied: u64,
+    pub sealed: Option<CommitId>,
 }
 
 #[derive(Clone, Debug, Default)]

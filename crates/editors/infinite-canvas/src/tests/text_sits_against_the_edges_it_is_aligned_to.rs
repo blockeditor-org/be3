@@ -1,7 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{
-    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
-};
+use infinite_canvas_types::{CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign};
 
 #[test]
 fn text_sits_against_the_edges_it_is_aligned_to() {

@@ -2,7 +2,7 @@ use beui::Wrap;
 use std::collections::HashSet;
 
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::WorkspaceContent;
+use block_editor_beui::be_block::{BlockMetadata, WORKSPACE_TYPE};
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SPARKLES,
@@ -17,12 +17,10 @@ use block_editor_beui::{
 };
 use uuid::Uuid;
 
-use super::export::{Export, ExportFormat, Exporter, formats};
+use super::export::{Export, ExportFormat, Exporter};
 use super::menu::{RowMenu, RowTools};
 use super::rename::Renaming;
-use super::rows::{
-    Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker, is_workspace,
-};
+use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use super::zoom::{Zoom, ZoomBar, zooms};
 use block_editor_beui::beui::TextAlign;
 
@@ -174,7 +172,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         };
         picker.open(
             editor,
-            Some(id),
+            id,
             [id].into_iter().collect::<HashSet<Uuid>>(),
             node_anchor(&new_button),
         );
@@ -254,9 +252,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
                             >|face: TreeRowFace<RowKey>| {
                                 let row = tree.row(face.key.clone());
-                                let workspace = row.get_untracked().is_some_and(|row| {
-                                    row.section && is_workspace(row.block_type)
-                                });
+                                let workspace = row.get_untracked().is_some_and(|row| row.is_workspace());
                                 if workspace {
                                     return view! {
                                         <SectionRow
@@ -375,10 +371,11 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
 }
 
 fn new_workspace(editor: Editor, renaming: Renaming) {
-    let id = editor.blocks().create_named(
-        &WorkspaceContent::default(),
+    let id = editor.blocks().create_with(
+        WORKSPACE_TYPE,
+        None,
         BlockParent::Root,
-        "New workspace",
+        BlockMetadata::named("New workspace"),
     );
     renaming.rename_when_shown(id, None);
 }
@@ -461,7 +458,7 @@ fn TreeRow(
         };
         picker.open(
             editor,
-            Some(id),
+            id,
             [id].into_iter().collect::<HashSet<Uuid>>(),
             picker.row_anchor(&row.key),
         );
@@ -614,7 +611,7 @@ fn glyph_size() -> Memo<TextSize> {
 pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: Option<Rect>) {
     picker.open(
         editor,
-        Some(id),
+        id,
         [editor.block_id(), id]
             .into_iter()
             .collect::<HashSet<Uuid>>(),
@@ -685,12 +682,12 @@ pub(crate) fn ExportAs(
     let block = create_memo(move || {
         row.get()
             .filter(|row| row.access.can_view())
-            .and_then(|row| Some((row.id?, row.block_type, row.label)))
+            .and_then(|row| Some((row.id?, row.block_type)))
     });
     let shown = create_memo(move || {
         block
             .get()
-            .map_or_else(Vec::new, |(_, block_type, _)| formats(block_type))
+            .map_or_else(Vec::new, |(_, block_type)| exporter.formats(block_type))
     });
     let keys = create_memo(move || {
         shown.with(|shown| shown.iter().map(|(format, _)| *format).collect::<Vec<_>>())
@@ -705,7 +702,7 @@ pub(crate) fn ExportAs(
                         shown
                             .iter()
                             .find(|(shown, _)| *shown == format)
-                            .map(|(_, label)| (*label).to_owned())
+                            .map(|(_, label)| label.clone())
                             .unwrap_or_default()
                     })
                 });
@@ -718,8 +715,8 @@ pub(crate) fn ExportAs(
                         label={label}
                         row_test_id={named}
                         on_click={move || {
-                            if let Some((id, block_type, name)) = block.get_untracked() {
-                                exporter.export(Export { id, block_type, name, format });
+                            if let Some((id, _)) = block.get_untracked() {
+                                exporter.export(Export { id, format });
                             }
                         }}
                     />
@@ -873,14 +870,14 @@ impl Picker {
     pub(crate) fn open(
         &self,
         editor: Editor,
-        parent: Option<Uuid>,
+        parent: Uuid,
         excluded: HashSet<Uuid>,
         anchor: Option<Rect>,
     ) {
         self.error.set(None);
         let inner = self.inner.value();
-        inner.target.set(parent);
-        let place = parent.map_or(BlockParent::Root, BlockParent::Block);
+        inner.target.set(Some(parent));
+        let place = BlockParent::Block(parent);
         inner.picker.borrow_mut().open(
             &editor.host(),
             BlockFilter {
@@ -943,12 +940,7 @@ fn picker(
             return;
         }
         match target {
-            None => {
-                if !picked.linked {
-                    tree.blocks().set_parent(picked.id, BlockParent::Root);
-                }
-                host.open_block(picked.id, picked.block_type);
-            }
+            None => host.open_block(picked.id, picked.block_type),
             Some(parent) => {
                 host.place_block(picked.id, picked.block_type, parent, picked.linked);
                 host.open_block_via(picked.id, picked.block_type, parent);

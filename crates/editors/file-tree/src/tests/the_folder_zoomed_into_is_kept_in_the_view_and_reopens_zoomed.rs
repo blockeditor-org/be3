@@ -1,9 +1,12 @@
-use block_editor_beui::be_block::{BlockContent, EditorView, FILES_EDITOR, FolderContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use workspace_ui_types::EditorView;
+use workspace_ui_types::FolderContent;
 
 use super::*;
 
 fn with_folder(fixture: &mut Fixture, folder: Uuid, notes: Uuid) {
+    folders_zoom(fixture);
     let mut projects = BlockInfo::new(
         folder,
         FolderContent::CONTENT_TYPE,
@@ -23,7 +26,7 @@ fn with_folder(fixture: &mut Fixture, folder: Uuid, notes: Uuid) {
 #[test]
 fn the_folder_zoomed_into_is_kept_in_the_view_and_reopens_zoomed() {
     let (folder, notes) = (Uuid::from_u128(2), Uuid::from_u128(3));
-    let mut fixture = viewed_on_phone(EditorView::document(FILES_EDITOR, None));
+    let mut fixture = viewed_on_phone(EditorView::document(None));
     with_folder(&mut fixture, folder, notes);
     fixture.test.click(format!("file-tree.{folder}.row"));
     fixture.settle();

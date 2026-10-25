@@ -2,7 +2,6 @@ use beui::Key;
 use block_editor_beui::PeerPresence;
 use block_editor_beui::be_block::block_url::block_url;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
-use block_editor_beui::be_block::{TextBlock, TextContent};
 use block_editor_beui::beui::Modifiers;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -11,6 +10,7 @@ use uuid::Uuid;
 use crate::app::TextApp;
 use crate::app::embeds::{image_embed_directive, parse_embeds};
 use crate::presence::TextCursor;
+use text_block_types::{TextBlock, TextContent};
 
 mod a_link_to_a_block_you_cannot_see_reads_no_access_beside_one_you_can;
 mod a_long_text_fades_at_the_edges_it_scrolls_past_beside_its_scrollbar;

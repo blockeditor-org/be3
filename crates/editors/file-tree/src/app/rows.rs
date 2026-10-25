@@ -3,16 +3,15 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use workspace_ui_types::ViewState;
 
-use block_editor_beui::be_block::{ViewState, metadata::ICON_COLOR};
+use block_editor_beui::be_block::metadata::ICON_COLOR;
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::block_ui::BlockTypes;
-pub(crate) use block_editor_beui::sections::{
-    is_workspace, own_system, shared_with_me, workspaces,
-};
+use block_editor_beui::block_ui::{BlockTypes, Press};
+pub(crate) use block_editor_beui::sections::{own_system, shared_with_me, workspaces};
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};
@@ -43,6 +42,7 @@ pub(crate) struct Row {
     pub(crate) section: bool,
     pub(crate) expandable: bool,
     pub(crate) expanded: bool,
+    pub(crate) press: Press,
     pub(crate) container: Option<Uuid>,
     pub(crate) source: BlockParent,
     pub(crate) is_reference: bool,
@@ -90,6 +90,7 @@ impl Row {
             section: false,
             expandable: false,
             expanded: false,
+            press: Press::Open,
             container: None,
             source: BlockParent::Root,
             is_reference: false,
@@ -105,6 +106,10 @@ impl Row {
             deleted: false,
             marked_deleted: false,
         }
+    }
+
+    pub(crate) fn is_workspace(&self) -> bool {
+        self.section && self.id.is_some()
     }
 }
 
@@ -187,7 +192,6 @@ pub(crate) struct Tree {
 }
 
 struct Inner {
-    client: Blocks,
     watched: Rc<RefCell<Watched>>,
 }
 
@@ -279,9 +283,7 @@ impl Tree {
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
-            let loose = clock
-                .listed(&shared)
-                .map(|shared| shared_with_me(held, shared));
+            let loose = clock.listed(&shared).map(shared_with_me);
             watched.system = system.iter().flatten().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
             let shown: HashSet<Uuid> = sections
@@ -355,7 +357,7 @@ impl Tree {
         });
 
         Self {
-            inner: store(Inner { client, watched }),
+            inner: store(Inner { watched }),
             rows: create_memo(move || rows.get()),
             folded,
             expanded,
@@ -382,10 +384,6 @@ impl Tree {
                 .insert(id, block_type)
         });
         self.remembered.update(|count| *count += 1);
-    }
-
-    pub(crate) fn blocks(&self) -> Blocks {
-        self.inner.with(|inner| inner.client.clone())
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {
@@ -762,6 +760,7 @@ pub(crate) fn describe(
         section: false,
         expandable,
         expanded: expandable && expanded,
+        press: types.press(reference.block_type),
         container,
         source,
         is_reference,

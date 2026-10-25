@@ -1,4 +1,4 @@
-use be_block::terminal::{Key, TerminalKey};
+use terminal_types::{Key, TerminalKey};
 use ghostty_vt::{Key as Code, KeyInput, Mods};
 
 pub(super) fn key_input(key: &TerminalKey) -> KeyInput<'_> {

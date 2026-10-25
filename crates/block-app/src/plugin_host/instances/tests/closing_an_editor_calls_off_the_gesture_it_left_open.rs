@@ -2,8 +2,10 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, Counter, CounterContent, LiveEdit};
-use block_plugin_api::{GesturePhase, WatchedContent};
+use be_block::{BlockContent, LiveEdit};
+use block_plugin_api::WatchedContent;
+use block_type_guest::editor::Gesture;
+use counter_types::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
     crate::be::wait_for(Duration::from_secs(20), |shared| {
@@ -37,26 +39,29 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
         }],
     }));
     next_screens(&mut instances);
+    assert!(to_replica(&mut instances, watched, &FromEditor::Resend));
     counted(watched, 0);
 
     let add = |amount| CounterContent::encode_operation(&Counter::add(amount));
-    assert!(instances.editor_message(EditorMessage::Operate {
-        instance: INSTANCE,
-        block_id: watched.into_bytes(),
-        operation: add(2),
-    }));
-    assert!(instances.editor_message(EditorMessage::Gesture {
-        instance: INSTANCE,
-        block_id: watched.into_bytes(),
-        phase: GesturePhase::Begin,
-    }));
-    assert!(instances.editor_message(EditorMessage::Operate {
-        instance: INSTANCE,
-        block_id: watched.into_bytes(),
-        operation: add(3),
-    }));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &FromEditor::Operate(add(2))
+    ));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &FromEditor::Gesture(Gesture::Begin)
+    ));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &FromEditor::Operate(add(3))
+    ));
     counted(watched, 5);
 
     assert!(instances.remove(INSTANCE));
+    crate::be::flush();
+    crate::be::open(watched, CounterContent::CONTENT_TYPE);
     counted(watched, 2);
 }

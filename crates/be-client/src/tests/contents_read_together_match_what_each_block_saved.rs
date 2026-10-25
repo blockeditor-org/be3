@@ -1,6 +1,5 @@
 use super::*;
-
-use be_block::{TextBlock, TextContent};
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn contents_read_together_match_what_each_block_saved() {

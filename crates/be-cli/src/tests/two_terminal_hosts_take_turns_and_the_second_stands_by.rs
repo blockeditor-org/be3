@@ -1,20 +1,14 @@
-use be_block::presence::PresenceKind;
-use be_block::terminal::{TerminalHost, TerminalMessage};
+use terminal_types::TerminalMessage;
 
-use super::terminal::{SIZE, Setup, Viewer, host};
+use super::terminal::{SIZE, Setup, host, serve};
 use super::*;
-
-fn hosts_present(viewer: &Viewer) -> usize {
-    viewer
-        .live
-        .presence()
-        .keys()
-        .filter(|(_, kind)| *kind == TerminalHost::ID)
-        .count()
-}
 
 #[tokio::test]
 async fn two_terminal_hosts_take_turns_and_the_second_stands_by() {
+    tokio::task::LocalSet::new().run_until(hosted()).await;
+}
+
+async fn hosted() {
     let setup = Setup::start().await;
     let first_agent = setup.agent().await;
     let second_agent = setup.agent().await;
@@ -25,18 +19,12 @@ async fn two_terminal_hosts_take_turns_and_the_second_stands_by() {
 
     let (first_served, second_served, ()) = tokio::join!(
         async {
-            first
-                .serve_until(first_agent, setup.block, async {
-                    let _ = first_stopped.await;
-                })
+            serve(&mut first, first_agent, setup.block, first_stopped)
                 .await
                 .inspect_err(|error| eprintln!("the first host failed: {error}"))
         },
         async {
-            second
-                .serve_until(second_agent, setup.block, async {
-                    let _ = second_stopped.await;
-                })
+            serve(&mut second, second_agent, setup.block, second_stopped)
                 .await
                 .inspect_err(|error| eprintln!("the second host failed: {error}"))
         },
@@ -44,13 +32,13 @@ async fn two_terminal_hosts_take_turns_and_the_second_stands_by() {
             let viewer = setup.viewer().await;
             let mut viewer = viewer;
             viewer
-                .until("saw both hosts arrive", |viewer| hosts_present(viewer) == 2)
+                .until("saw both hosts arrive", |viewer| viewer.hosts_present() == 2)
                 .await;
-            viewer.leave(&setup).await;
+            viewer.leave().await;
             let mut viewer = setup.viewer().await;
             viewer
                 .until("saw one host writing and both present", |viewer| {
-                    viewer.machine().is_some() && hosts_present(viewer) == 2
+                    viewer.machine().is_some() && viewer.hosts_present() == 2
                 })
                 .await;
             let writer = viewer.machine().unwrap();

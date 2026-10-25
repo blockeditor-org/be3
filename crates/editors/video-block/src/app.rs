@@ -1,7 +1,6 @@
-use block_editor_beui::be_block::VideoContent;
+use video_block_types::VideoContent;
 
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::video::{VideoFrameRate, VideoOperation};
 use block_editor_beui::beui::icons::{
     ICON_CORNER_DOWN_RIGHT, ICON_PAUSE, ICON_PLAY, ICON_PLUS, ICON_SCAN, ICON_SCISSORS,
     ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_TRASH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
@@ -12,6 +11,7 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Toolbar};
 use uuid::Uuid;
+use video_block_types::{VideoFrameRate, VideoOperation};
 
 pub(crate) mod effects;
 pub(crate) mod player;

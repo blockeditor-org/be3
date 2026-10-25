@@ -5,7 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-block = { path = "../be-block" }
+terminal-types = { path = "../editors/terminal/types" }
 ghostty-vt = { path = "../ghostty-vt" }
 
 [lints]

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_block::ObjectId;
-use be_block::terminal::{
+use terminal_types::{
     TerminalColor, TerminalColors, TerminalCursor, TerminalLine, TerminalStyle, logical_lines,
 };
 use beui::{Color32, Wrap};

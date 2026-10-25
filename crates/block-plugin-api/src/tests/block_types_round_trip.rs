@@ -13,6 +13,8 @@ fn block_types_round_trip() {
                 delete: true,
                 replace: false,
             },
+            press: Press::Zoom,
+            plain_file: true,
         }],
         templates: vec![TemplateDescriptor {
             editor: [7; 16],
@@ -42,6 +44,8 @@ fn block_types_round_trip() {
             color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
+            press: Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: Vec::new(),

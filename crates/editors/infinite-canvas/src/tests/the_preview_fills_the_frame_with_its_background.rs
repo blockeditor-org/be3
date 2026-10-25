@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn the_preview_fills_the_frame_with_its_background() {

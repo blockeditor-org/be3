@@ -1,6 +1,8 @@
 use super::*;
+use workspace_ui_types::WorkspaceContent;
 
-use be_block::{BlockMetadata, TextBlock, TextContent, WorkspaceContent};
+use be_block::BlockMetadata;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn two_peers_of_one_account_read_each_others_blocks() {

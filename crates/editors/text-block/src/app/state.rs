@@ -9,7 +9,6 @@ use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
 use block_editor_beui::SharedCaret;
 use block_editor_beui::be_block::presence::pick_free_color;
-use block_editor_beui::be_block::{ImageContent, TextContent};
 use block_editor_beui::live_text::Synced;
 use block_editor_beui::{BlockList, Blocks};
 use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBase};
@@ -20,6 +19,8 @@ use crate::document::{BlockDocument, TextBody, inside_block_url, reference_range
 use crate::presence::TextCursor;
 
 use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
+use image_block_types::ImageContent;
+use text_block_types::TextContent;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct FocusedEmbed {

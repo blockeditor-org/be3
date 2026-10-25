@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_choice_option_takes_a_colour_an_icon_and_closes_rows() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     board(&tracker).await;
     let status = |schema: &str| {
         schema

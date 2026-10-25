@@ -7,7 +7,6 @@ use be_store::{Hash, StoreError};
 pub mod connection;
 pub mod contacts;
 pub mod keys;
-pub mod live;
 pub mod peer;
 pub mod transfer;
 mod transport;
@@ -15,7 +14,6 @@ mod transport;
 pub use connection::Connection;
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
-pub use live::{ChannelMessage, Conflict, Journaled, Live, SEAL_INTERVAL};
 pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
 
 pub fn socket_url(server_url: &str) -> String {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_block::ObjectId;
-use be_block::terminal::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
+use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 use beui::reactive::*;
 use beui::rich::{SpanBackground, TextCaret};
 use beui::styled::*;

@@ -1,0 +1,38 @@
+[package]
+name = "first-party-types"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-types-host = { path = "../be-types-host" }
+block-guest-abi = { path = "../block-guest-abi" }
+block-type-guest = { path = "../block-type-guest" }
+uuid = "1"
+audio-block-types = { path = "../editors/audio-block/types" }
+beui-gallery-types = { path = "../editors/beui-gallery/types" }
+browser-tab-types = { path = "../editors/browser-tab/types" }
+calendar-types = { path = "../editors/calendar/types" }
+checklist-types = { path = "../editors/checklist/types" }
+counter-types = { path = "../editors/counter/types" }
+database-types = { path = "../editors/database/types" }
+deterministic-game-types = { path = "../editors/deterministic-game/types" }
+image-block-types = { path = "../editors/image-block/types" }
+infinite-canvas-types = { path = "../editors/infinite-canvas/types" }
+logic-grid-types = { path = "../editors/logic-grid/types" }
+map-types = { path = "../editors/map/types" }
+pan-zoom-types = { path = "../editors/pan-zoom/types" }
+pdf-types = { path = "../editors/pdf/types" }
+pixel-art-types = { path = "../editors/pixel-art/types" }
+pixel-ray-tracer-types = { path = "../editors/pixel-ray-tracer/types" }
+presentation-types = { path = "../editors/presentation/types" }
+scene-3d-types = { path = "../editors/scene-3d/types" }
+settings-types = { path = "../editors/settings/types" }
+terminal-types = { path = "../editors/terminal/types" }
+text-block-types = { path = "../editors/text-block/types" }
+triangle-types = { path = "../editors/triangle/types" }
+video-block-types = { path = "../editors/video-block/types" }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::{Rect, pos2};
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn panning_paints_no_selection_handle_again() {

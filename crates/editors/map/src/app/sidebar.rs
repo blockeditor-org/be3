@@ -1,6 +1,4 @@
 use beui::Wrap;
-use block_editor_beui::be_block::Map;
-use block_editor_beui::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
@@ -9,6 +7,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Pressable;
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget};
+use map_types::Map;
+use map_types::{MAX_LATITUDE, MapColor, MapPoint};
 use uuid::Uuid;
 
 use crate::points::marker_color;
@@ -221,8 +221,8 @@ struct MapRegionEdges {
     east: f64,
 }
 
-impl From<block_editor_beui::be_block::map::MapRegion> for MapRegionEdges {
-    fn from(region: block_editor_beui::be_block::map::MapRegion) -> Self {
+impl From<map_types::MapRegion> for MapRegionEdges {
+    fn from(region: map_types::MapRegion) -> Self {
         Self {
             north: region.north,
             south: region.south,
@@ -232,7 +232,7 @@ impl From<block_editor_beui::be_block::map::MapRegion> for MapRegionEdges {
     }
 }
 
-impl From<MapRegionEdges> for block_editor_beui::be_block::map::MapRegion {
+impl From<MapRegionEdges> for map_types::MapRegion {
     fn from(edges: MapRegionEdges) -> Self {
         Self::new(edges.west, edges.south, edges.east, edges.north)
     }

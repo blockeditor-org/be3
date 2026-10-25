@@ -2,19 +2,19 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
-use block_editor_beui::be_block::{Edit, Map, MapContent};
+use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use map_types::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use uuid::Uuid;
 
 use crate::geo::MapView;
 use crate::raster::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
+use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const WORLD_POINTS: f32 = 1024.0;
 pub(crate) const MAX_SCALE: f32 = 32768.0;
@@ -503,7 +503,7 @@ impl MapState {
                 base.longitude + step * index as f64,
                 base.latitude - step * index as f64,
             );
-            self.import(ImageContent::from_file(file.name, file.data), position);
+            self.import(ImageFile::from_file(file.name, file.data), position);
         }
     }
 
@@ -512,7 +512,7 @@ impl MapState {
         if let Pasted::Image(file) = pasted {
             self.import_error.set(None);
             let position = inner.view_center.get();
-            self.import(ImageContent::from_file(file.name, file.data), position);
+            self.import(ImageFile::from_file(file.name, file.data), position);
         }
     }
 

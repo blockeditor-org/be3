@@ -1744,7 +1744,7 @@ impl BlockApp {
         };
         let addable = |parent: Uuid| {
             be::node(parent)
-                .and_then(|parent| be_block::block_types::block_type(parent.content_type))
+                .and_then(|parent| editors::plugin::discovery::block_type(parent.content_type))
                 .is_some_and(|block_type| block_type.children.add)
         };
         if let Some(BlockParent::Block(parent)) = node.parent
@@ -1759,17 +1759,19 @@ impl BlockApp {
             _ => node.metadata.get(&be_block::DELETED_FROM),
         };
         let destination = match from {
-            Some(be_block::DeletedFrom::Root) => {
+            Some(be_block::DeletedFrom::Root) if addable(root) => {
                 be::set_parent(root, BlockParent::Root);
                 return;
             }
             Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
                 parent
             }
-            Some(be_block::DeletedFrom::Block(_)) | None => match self.root_settings.my_files() {
-                Some(files) => files,
-                None => return,
-            },
+            Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
+                match self.root_settings.my_files() {
+                    Some(files) => files,
+                    None => return,
+                }
+            }
         };
         let listed = be::node(destination).is_some_and(|parent| parent.references.contains(&root));
         match listed {
@@ -1947,16 +1949,18 @@ impl BlockApp {
             self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
-        let view_type = be_block::EditorView::CONTENT_TYPE;
+        let view_type = be::node(id)?.content_type;
         self.block_types.insert(id, view_type);
         let open_as = self
             .editors
             .with(|open| open.get(&id).and_then(PluginEditor::editor_id));
         if open_as != Some(shell_editor) {
-            let editor = self
-                .registry
-                .open_with(id, view_type, Some(shell_editor))
-                .viewed_by(Some(id));
+            let opened = editors::Opened {
+                id,
+                block_type: view_type,
+                view_block: Some(id),
+            };
+            let editor = self.registry.open_with(opened, Some(shell_editor));
             if let Some(missing) = ShellRequest::ALL
                 .into_iter()
                 .find(|request| !editor.accepts(*request))

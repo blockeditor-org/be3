@@ -26,5 +26,14 @@
       ]
     }
   },
+  "block_types": {
+    "image": {
+      "id": "696d6167-652d-626c-6f63-6b2d74797001",
+      "display_name": "Image",
+      "icon": "\ue0f6",
+      "color": [64, 155, 173],
+      "module": "image_block_types.wasm"
+    }
+  },
   "entry_point": "image_block.wasm"
 }

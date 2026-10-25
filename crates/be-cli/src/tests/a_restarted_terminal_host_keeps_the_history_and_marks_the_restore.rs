@@ -1,19 +1,21 @@
-use be_block::terminal::{TerminalMessage, TerminalStyle};
+use terminal_types::{TerminalMessage, TerminalStyle};
 
-use super::terminal::{SIZE, Setup, host};
+use super::terminal::{SIZE, Setup, host, serve};
 use super::*;
 
 #[tokio::test]
 async fn a_restarted_terminal_host_keeps_the_history_and_marks_the_restore() {
+    tokio::task::LocalSet::new().run_until(hosted()).await;
+}
+
+async fn hosted() {
     let setup = Setup::start().await;
     let agent = setup.agent().await;
 
     let mut first = host("build-box");
     let (stop, stopped) = oneshot::channel::<()>();
     let (served, ()) = tokio::join!(
-        first.serve_until(agent.clone(), setup.block, async {
-            let _ = stopped.await;
-        }),
+        serve(&mut first, agent.clone(), setup.block, stopped),
         async {
             let mut viewer = setup.viewer().await;
             viewer
@@ -28,7 +30,7 @@ async fn a_restarted_terminal_host_keeps_the_history_and_marks_the_restore() {
                     viewer.answered("before-2")
                 })
                 .await;
-            viewer.leave(&setup).await;
+            viewer.leave().await;
             stop.send(()).unwrap();
         }
     );
@@ -38,9 +40,7 @@ async fn a_restarted_terminal_host_keeps_the_history_and_marks_the_restore() {
     let mut second = host("build-box");
     let (stop, stopped) = oneshot::channel::<()>();
     let (served, ()) = tokio::join!(
-        second.serve_until(agent, setup.block, async {
-            let _ = stopped.await;
-        }),
+        serve(&mut second, agent, setup.block, stopped),
         async {
             let mut viewer = setup.viewer().await;
             viewer

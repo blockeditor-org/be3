@@ -5,17 +5,18 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use be_block::ObjectId;
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{
-    Terminal, TerminalContent, TerminalHost, TerminalMessage, TerminalShell, TerminalSize,
-};
-use be_client::{Live, Peer, SEAL_INTERVAL};
+use be_client::Peer;
 use be_store::ObjectStore;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
-use tokio::sync::{broadcast::error::RecvError, mpsc};
+use terminal_types::{
+    Terminal, TerminalContent, TerminalHost, TerminalMessage, TerminalShell, TerminalSize,
+};
+use tokio::sync::mpsc;
 use tokio::time::Instant;
 use uuid::Uuid;
 
-use crate::session::explain;
+use crate::replica::Session;
+use crate::tracker::Sources;
 
 mod document;
 
@@ -25,7 +26,8 @@ const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const READ_CHUNK: usize = 16 * 1024;
 const LONGEST_RETRY: Duration = Duration::from_secs(30);
 const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
+
+type Hosted<S> = Session<S, TerminalContent>;
 
 #[derive(Clone, Debug, Default)]
 pub struct HostOptions {
@@ -85,36 +87,6 @@ enum Ended {
     Disconnected(String),
 }
 
-struct Schedule {
-    unsealed_since: Option<Instant>,
-    heartbeat: Instant,
-    claim: Instant,
-}
-
-impl Schedule {
-    fn new() -> Self {
-        let now = Instant::now();
-        Self {
-            unsealed_since: None,
-            heartbeat: now + HEARTBEAT_INTERVAL,
-            claim: now,
-        }
-    }
-
-    fn next(&self, owner: bool, standing_by: bool) -> Instant {
-        let mut next = Instant::now() + HEARTBEAT_INTERVAL;
-        if let Some(since) = self.unsealed_since {
-            next = next.min(since + SEAL_INTERVAL);
-        }
-        match owner {
-            true => next = next.min(self.heartbeat),
-            false if !standing_by => next = next.min(self.claim),
-            false => {}
-        }
-        next
-    }
-}
-
 impl Host {
     pub fn new(options: HostOptions) -> Result<Self, String> {
         let (sender, events) = mpsc::unbounded_channel();
@@ -131,9 +103,10 @@ impl Host {
         })
     }
 
-    pub async fn run<S: ObjectStore>(
+    pub async fn run<S: ObjectStore + 'static>(
         &mut self,
         connect: impl AsyncFn() -> Result<(Arc<Peer<S>>, Uuid), String>,
+        sources: &Sources,
         shutdown: impl Future<Output = ()>,
     ) -> Result<(), String> {
         let mut shutdown = std::pin::pin!(shutdown);
@@ -143,7 +116,7 @@ impl Host {
             let ended = match connect().await {
                 Ok((peer, block)) => {
                     connected = true;
-                    self.serve(peer, block, shutdown.as_mut()).await
+                    self.serve(peer, block, sources(), shutdown.as_mut()).await
                 }
                 Err(error) if !connected => return Err(error),
                 Err(error) => Ended::Refused(error),
@@ -173,127 +146,118 @@ impl Host {
         }
     }
 
-    pub async fn serve_until<S: ObjectStore>(
+    pub async fn serve_until<S: ObjectStore + 'static>(
         &mut self,
         peer: Arc<Peer<S>>,
         block: Uuid,
+        sources: Vec<be_types_host::Source>,
         shutdown: impl Future<Output = ()>,
     ) -> Result<(), String> {
         let shutdown = std::pin::pin!(shutdown);
-        match self.serve(peer, block, shutdown).await {
+        match self.serve(peer, block, sources, shutdown).await {
             Ended::Shutdown => Ok(()),
             Ended::Refused(error) | Ended::Disconnected(error) => Err(error),
         }
     }
 
-    async fn serve<S: ObjectStore>(
+    async fn serve<S: ObjectStore + 'static>(
         &mut self,
         peer: Arc<Peer<S>>,
         block: Uuid,
+        sources: Vec<be_types_host::Source>,
         mut shutdown: std::pin::Pin<&mut impl Future<Output = ()>>,
     ) -> Ended {
-        let mut doorbell = peer.connection().subscribe();
-        let mut live = match Live::<S, TerminalContent>::join(Arc::clone(&peer), block).await {
-            Ok(live) => live,
-            Err(error) => return Ended::Refused(explain(error)),
+        let mut session = match Hosted::open(peer, block, sources).await {
+            Ok(session) => session,
+            Err(error) => return Ended::Refused(error),
         };
         let shown = TerminalHost {
             machine: self.options.machine.clone(),
             user: self.options.user.clone(),
         };
         let presence = serde_json::to_vec(&shown).unwrap_or_default();
-        if let Err(error) = live.set_presence(TerminalHost::ID, Some(presence)).await {
-            return Ended::Refused(explain(error));
-        }
+        session.show(TerminalHost::ID, Some(presence));
+        session.settle().await;
         eprintln!("be: hosting a terminal for block {block}");
         self.writing = false;
-        let mut schedule = Schedule::new();
+        let mut claim = Instant::now();
         let outcome = loop {
-            if let Err(error) = self.step(&mut live, &mut schedule).await {
+            if let Err(error) = self.step(&mut session, &mut claim).await {
                 break Err(error);
             }
-            let next = schedule.next(live.is_owner(), standing_by(&live));
+            let claiming = !session.is_owner() && !standing_by(&session);
+            let next = claim.max(Instant::now());
             tokio::select! {
                 () = shutdown.as_mut() => break Ok(()),
-                rung = doorbell.recv() => match rung {
-                    Ok(_) | Err(RecvError::Lagged(_)) => {
-                        if let Err(error) = self.answer(&mut live).await {
-                            break Err(error);
-                        }
+                woken = session.next() => {
+                    if let Err(error) = session.handle(woken).await {
+                        break Err(error);
                     }
-                    Err(RecvError::Closed) => break Err("the connection to the server closed".to_owned()),
-                },
+                    if let Err(error) = self.answer(&mut session) {
+                        break Err(error);
+                    }
+                }
                 Some(event) = self.events.recv() => {
                     self.take(event);
                     while let Ok(event) = self.events.try_recv() {
                         self.take(event);
                     }
                 }
-                () = tokio::time::sleep_until(next) => {}
+                () = tokio::time::sleep_until(next), if claiming => {}
             }
         };
         match outcome {
             Ok(()) => {
-                if live.is_owner() && self.writing {
-                    let _ = self.write(&mut live).await;
-                    let _ = live.seal().await;
+                if session.is_owner() && self.writing {
+                    self.write(&mut session);
                 }
-                let _ = live.set_presence(TerminalHost::ID, None).await;
-                let _ = peer.leave_session(block).await;
+                session.show(TerminalHost::ID, None);
+                session.settle().await;
+                session.close().await;
                 Ended::Shutdown
             }
             Err(error) => Ended::Disconnected(error),
         }
     }
 
-    async fn step<S: ObjectStore>(
+    async fn step<S: ObjectStore + 'static>(
         &mut self,
-        live: &mut Live<S, TerminalContent>,
-        schedule: &mut Schedule,
+        session: &mut Hosted<S>,
+        claim: &mut Instant,
     ) -> Result<(), String> {
-        let now = Instant::now();
-        if !live.is_owner() {
+        if !session.is_owner() {
             if self.writing {
                 eprintln!("be: another client took over the terminal; standing by");
                 self.writing = false;
             }
-            if standing_by(live) || live.is_catching_up() || now < schedule.claim {
-                return Ok(());
+            let now = Instant::now();
+            if !standing_by(session) && now >= *claim {
+                *claim = now + CLAIM_INTERVAL;
+                session.claim();
+                session.settle().await;
             }
-            schedule.claim = now + CLAIM_INTERVAL;
-            if !live.claim().await.map_err(explain)? {
+            if !session.is_owner() {
                 return Ok(());
             }
         }
         if !self.writing {
-            self.take_over(live).await?;
-            schedule.heartbeat = now + HEARTBEAT_INTERVAL;
+            self.take_over(session)?;
         }
         if self.dirty {
-            self.write(live).await?;
+            self.write(session);
         }
-        if live.is_clean() {
-            schedule.unsealed_since = None;
-        } else {
-            let since = *schedule.unsealed_since.get_or_insert(now);
-            if now >= since + SEAL_INTERVAL {
-                live.seal().await.map_err(explain)?;
-                schedule.unsealed_since = None;
-                schedule.heartbeat = now + HEARTBEAT_INTERVAL;
-            }
-        }
-        if now >= schedule.heartbeat {
-            schedule.heartbeat = now + HEARTBEAT_INTERVAL;
-            live.heartbeat().await.map_err(explain)?;
-        }
+        session.settle().await;
         Ok(())
     }
 
-    async fn take_over<S: ObjectStore>(
+    fn take_over<S: ObjectStore + 'static>(
         &mut self,
-        live: &mut Live<S, TerminalContent>,
+        session: &mut Hosted<S>,
     ) -> Result<(), String> {
-        let document = live.content();
+        let client = session.client();
+        let Some(document) = session.content() else {
+            return Ok(());
+        };
         let recorded = document.field(ObjectId::ROOT, Terminal::SHELL);
         let ours = self.shell.is_some()
             && recorded.map(|shell| shell.id) == self.record.map(|shell| shell.id);
@@ -304,8 +268,8 @@ impl Host {
             let marker = (!empty).then(|| format!("Restored session: {}", now_utc()));
             changes = document::retire(document, marker);
         }
-        if document.field(ObjectId::ROOT, Terminal::HOST) != Some(live.client()) {
-            changes.push(Terminal::HOST.set(ObjectId::ROOT, &Some(live.client())));
+        if document.field(ObjectId::ROOT, Terminal::HOST) != client {
+            changes.push(Terminal::HOST.set(ObjectId::ROOT, &client));
         }
         if self.shell.is_none() {
             let size = document.field(ObjectId::ROOT, Terminal::SIZE);
@@ -314,7 +278,7 @@ impl Host {
             }
         }
         for edit in document::edits(changes) {
-            live.edit(edit).await.map_err(explain)?;
+            session.edit(edit);
         }
         self.writing = true;
         self.dirty = true;
@@ -325,41 +289,35 @@ impl Host {
         Ok(())
     }
 
-    async fn write<S: ObjectStore>(
-        &mut self,
-        live: &mut Live<S, TerminalContent>,
-    ) -> Result<(), String> {
+    fn write<S: ObjectStore + 'static>(&mut self, session: &mut Hosted<S>) {
+        let Some(document) = session.content() else {
+            return;
+        };
         self.dirty = false;
         let (returned, scrolled) = self.emulator.take_scrolled();
         let shown = self.emulator.shown();
-        let changes = document::sync(live.content(), &returned, scrolled, &shown, self.record);
+        let changes = document::sync(document, &returned, scrolled, &shown, self.record);
         for edit in document::edits(changes) {
-            live.edit(edit).await.map_err(explain)?;
+            session.edit(edit);
         }
-        Ok(())
     }
 
-    async fn answer<S: ObjectStore>(
-        &mut self,
-        live: &mut Live<S, TerminalContent>,
-    ) -> Result<(), String> {
-        live.poll().await.map_err(explain)?;
-        live.catch_up().await.map_err(explain)?;
-        for message in live.take_channel() {
+    fn answer<S: ObjectStore + 'static>(&mut self, session: &mut Hosted<S>) -> Result<(), String> {
+        for message in session.take_messages() {
             if message.channel != TerminalMessage::ID || !self.writing {
                 continue;
             }
             let Some(decoded) = TerminalMessage::decode(&message.payload) else {
                 continue;
             };
-            self.receive(live, decoded).await?;
+            self.receive(session, decoded)?;
         }
         Ok(())
     }
 
-    async fn receive<S: ObjectStore>(
+    fn receive<S: ObjectStore + 'static>(
         &mut self,
-        live: &mut Live<S, TerminalContent>,
+        session: &mut Hosted<S>,
         message: TerminalMessage,
     ) -> Result<(), String> {
         if let TerminalMessage::Resize(size) = message {
@@ -367,10 +325,12 @@ impl Host {
             return Ok(());
         }
         if self.shell.is_none() {
-            self.write(live).await?;
-            let changes = document::retire(live.content(), None);
-            for edit in document::edits(changes) {
-                live.edit(edit).await.map_err(explain)?;
+            self.write(session);
+            if let Some(document) = session.content() {
+                let changes = document::retire(document, None);
+                for edit in document::edits(changes) {
+                    session.edit(edit);
+                }
             }
             self.emulator.reset(self.size);
             return self.start_shell();
@@ -486,10 +446,14 @@ impl Host {
     }
 }
 
-fn standing_by<S: ObjectStore>(live: &Live<S, TerminalContent>) -> bool {
-    live.state()
-        .owner
-        .is_some_and(|owner| live.presence().contains_key(&(owner, TerminalHost::ID)))
+fn standing_by<S: ObjectStore + 'static>(session: &Hosted<S>) -> bool {
+    let Some(owner) = session.state().and_then(|state| state.owner) else {
+        return false;
+    };
+    session
+        .presence()
+        .iter()
+        .any(|peer| peer.client == owner && peer.kind == TerminalHost::ID)
 }
 
 impl Drop for Host {

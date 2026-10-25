@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::VideoContent;
-use block_editor_beui::be_block::video::{
-    DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
-};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::{BlockFilter, BlockPicker, ChildTarget, ContentProjection, Editor};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
+use video_block_types::VideoContent;
+use video_block_types::{
+    DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
+};
 
 use crate::timeline::{MAX_PIXELS_PER_FRAME, MIN_PIXELS_PER_FRAME};
 

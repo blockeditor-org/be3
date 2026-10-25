@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::be_model::{FieldRef, List};
-use block_editor_beui::be_block::terminal::{
+use terminal_types::{
     Terminal, TerminalColors, TerminalContent, TerminalCursor, TerminalHost, TerminalLine,
     TerminalMessage, TerminalShell, TerminalSize, TerminalWheel,
 };

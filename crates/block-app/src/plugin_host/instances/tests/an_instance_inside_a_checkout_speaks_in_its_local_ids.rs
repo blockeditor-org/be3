@@ -2,9 +2,10 @@ use super::*;
 use uuid::Uuid;
 
 use be_block::version_control::{masked, scope_mask};
-use be_block::{BlockContent, BlockMetadata, CheckoutContent, TextContent};
+use be_block::{BlockContent, BlockMetadata, CheckoutContent};
 use be_graph::BlockParent;
 use block_plugin_api::{BlockInfo, BlockLocation, BlockQuery};
+use text_block_types::TextContent;
 
 fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
     BlockInfo {

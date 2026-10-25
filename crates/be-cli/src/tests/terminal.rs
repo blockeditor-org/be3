@@ -3,15 +3,16 @@ use std::time::Duration;
 
 use be_block::ObjectId;
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{
+use terminal_types::{
     Key, Modifiers, Terminal, TerminalContent, TerminalHost, TerminalKey, TerminalLine,
     TerminalMessage, TerminalSize,
 };
-use be_client::{Live, Peer};
+use be_client::Peer;
 use be_graph::Access;
 use be_store::FileStore;
 
 use super::*;
+use crate::replica::Session;
 use crate::session::connect_live;
 use crate::terminal_host::{Host, HostOptions};
 
@@ -27,7 +28,7 @@ pub(super) struct Setup {
 impl Setup {
     pub async fn start() -> Self {
         let harness = Harness::start().await;
-        let owner = Tracker::new(harness.owner().await);
+        let owner = Tracker::new(harness.owner().await, sources());
         let block = Uuid::now_v7();
         owner
             .peer()
@@ -58,7 +59,7 @@ impl Setup {
 
     pub async fn viewer(&self) -> Viewer {
         Viewer {
-            live: Live::join(self.owner.shared_peer(), self.block)
+            session: Session::open(self.owner.shared_peer(), self.block, sources()())
                 .await
                 .unwrap(),
         }
@@ -78,26 +79,56 @@ pub(super) fn host(machine: &str) -> Host {
     .unwrap()
 }
 
+pub(super) async fn serve(
+    host: &mut Host,
+    peer: Arc<Peer<FileStore>>,
+    block: Uuid,
+    stopped: oneshot::Receiver<()>,
+) -> Result<(), String> {
+    host.serve_until(peer, block, sources()(), async {
+        let _ = stopped.await;
+    })
+    .await
+}
+
 pub(super) struct Viewer {
-    pub live: Live<MemoryStore, TerminalContent>,
+    pub session: Session<MemoryStore, TerminalContent>,
 }
 
 impl Viewer {
     pub fn root(&self) -> Terminal {
-        self.live.content().root()
+        self.session
+            .content()
+            .map(|content| content.root())
+            .unwrap_or_default()
+    }
+
+    pub fn hosts_present(&self) -> usize {
+        self.session
+            .presence()
+            .iter()
+            .filter(|peer| peer.kind == TerminalHost::ID)
+            .count()
+    }
+
+    fn shown(&self, host: u64) -> Option<&[u8]> {
+        self.session
+            .presence()
+            .iter()
+            .find(|peer| peer.client == host && peer.kind == TerminalHost::ID)
+            .map(|peer| peer.value.as_slice())
     }
 
     pub fn host(&self) -> Option<u64> {
-        let host = self.live.content().field(ObjectId::ROOT, Terminal::HOST)?;
-        self.live
-            .presence()
-            .contains_key(&(host, TerminalHost::ID))
-            .then_some(host)
+        let host = self
+            .session
+            .content()?
+            .field(ObjectId::ROOT, Terminal::HOST)?;
+        self.shown(host).map(|_| host)
     }
 
     pub fn machine(&self) -> Option<String> {
-        let host = self.host()?;
-        let value = self.live.presence().get(&(host, TerminalHost::ID))?;
+        let value = self.shown(self.host()?)?;
         serde_json::from_slice::<TerminalHost>(value)
             .ok()
             .map(|shown| shown.machine)
@@ -121,12 +152,11 @@ impl Viewer {
             .join("\n")
     }
 
-    pub async fn send(&self, message: TerminalMessage) {
+    pub async fn send(&mut self, message: TerminalMessage) {
         let host = self.host().expect("a host is writing the terminal");
-        self.live
-            .send_channel(Some(host), TerminalMessage::ID, message.encode())
-            .await
-            .unwrap();
+        self.session
+            .send(Some(host), TerminalMessage::ID, message.encode());
+        self.session.settle().await;
     }
 
     pub fn answered(&self, answer: &str) -> bool {
@@ -135,7 +165,7 @@ impl Viewer {
             .any(|line| line.ends_with(answer) && !line.contains("echo"))
     }
 
-    pub async fn key(&self, key: Key, modifiers: Modifiers) {
+    pub async fn key(&mut self, key: Key, modifiers: Modifiers) {
         self.send(TerminalMessage::Key(TerminalKey {
             key,
             modifiers,
@@ -145,7 +175,7 @@ impl Viewer {
         .await;
     }
 
-    pub async fn run(&self, line: &str) {
+    pub async fn run(&mut self, line: &str) {
         self.send(TerminalMessage::Paste(line.to_owned())).await;
         self.key(Key::Enter, Modifiers::NONE).await;
     }
@@ -153,25 +183,25 @@ impl Viewer {
     pub async fn until(&mut self, what: &str, ready: impl Fn(&Self) -> bool) {
         let reached = tokio::time::timeout(PATIENCE, async {
             loop {
-                self.live.poll().await.unwrap();
                 if ready(self) {
                     return;
                 }
-                self.live.wait().await.unwrap();
+                let woken = self.session.next().await;
+                self.session.handle(woken).await.unwrap();
             }
         })
         .await;
         assert!(
             reached.is_ok(),
-            "the viewer never {what}; it is {} in {:?} at {:?}, and the terminal holds:\n{}",
-            self.live.client(),
-            self.live.state(),
-            self.live.head(),
+            "the viewer never {what}; it is {:?} in {:?} with {:?}, and the terminal holds:\n{}",
+            self.session.client(),
+            self.session.state(),
+            self.session.status(),
             self.text()
         );
     }
 
-    pub async fn leave(self, setup: &Setup) {
-        setup.owner.peer().leave_session(setup.block).await.unwrap();
+    pub async fn leave(self) {
+        self.session.close().await;
     }
 }

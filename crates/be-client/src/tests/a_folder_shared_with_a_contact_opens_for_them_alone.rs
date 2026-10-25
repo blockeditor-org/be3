@@ -1,7 +1,8 @@
 use super::*;
+use workspace_ui_types::FolderContent;
 
-use be_block::{FolderContent, TextBlock, TextContent};
 use be_graph::Access;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_folder_shared_with_a_contact_opens_for_them_alone() {

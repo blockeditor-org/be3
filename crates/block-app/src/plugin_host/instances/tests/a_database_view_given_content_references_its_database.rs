@@ -4,7 +4,7 @@ use uuid::Uuid;
 use std::time::Duration;
 
 use be_block::BlockContent;
-use be_block::database_view::{DatabaseView, DatabaseViewContent};
+use database_types::database_view::{DatabaseView, DatabaseViewContent};
 
 fn seed(instances: &mut Instances, block: Uuid, database: Uuid) {
     instances.editor_message(EditorMessage::SeedContent {
@@ -28,6 +28,12 @@ fn a_database_view_given_content_references_its_database() {
     let mut instances = placed_on(view, DatabaseViewContent::CONTENT_TYPE);
 
     seed(&mut instances, view, database);
+    crate::be::flush();
+    to_replica(
+        &mut instances,
+        view,
+        &block_type_guest::editor::FromEditor::Resend,
+    );
     instances.next_screens(PASS);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&view)?;

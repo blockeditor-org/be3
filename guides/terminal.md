@@ -8,16 +8,28 @@ from inside block-app.
 
 ## The pieces
 
-- `be_block::terminal`: the block's document (`Terminal`, below), the
-  `TerminalHost` presence a host shows (its machine and user), and
-  `TerminalMessage`, what viewers send the host. Its line helpers
-  (`TerminalLine::spans`, `push`, `join`, `truncate`, `logical_lines`) are what
-  both sides use to read and build lines.
+- `terminal_types` (`crates/editors/terminal/types`, the terminal plugin's
+  type module): the block's document (`Terminal`, below), the `TerminalHost`
+  presence a host shows (its machine and user), and `TerminalMessage`, what
+  viewers send the host. Its line helpers (`TerminalLine::spans`, `push`,
+  `join`, `truncate`, `logical_lines`) are what both sides use to read and build
+  lines.
 - `be TARGET terminal-host [-- PROGRAM ARGUMENTS...]` (`crates/be-cli`,
   `terminal_host.rs` and `terminal_host/`): the host. It signs in as an agent,
-  joins the block's live session, shows `TerminalHost`, runs the shell (the
-  user's default one, or PROGRAM) in a PTY, keeps an emulator of it, and writes
-  what the emulator shows into the document.
+  opens the block's replica in the type module (`replica::Session`, below),
+  shows `TerminalHost`, runs the shell (the user's default one, or PROGRAM) in a
+  PTY, keeps an emulator of it, and writes what the emulator shows into the
+  document.
+- `be_cli::replica::Session<S, C>`: one block's replica as `be` holds it, the
+  same `be_types_host::Replicas` the app's peer runs, attached as the host's own
+  editor (`HOST_EDITOR`) through an `EditorMirror<C>`. `content` is the mirror's
+  content and `edit` operates on it; `show` and `send` are
+  `FromEditor::ShowPresence` and `SendToPeers`, `presence` and `take_messages`
+  what came back as `ToEditor::Presence` and `PeerMessages`; `is_owner`,
+  `client` and `state` read the replica's status and lease, and `claim` asks the
+  replica to claim the lease (`Event::Claim`). `next` waits for the server, the
+  module or a deadline without losing anything when dropped, and `handle` acts
+  on it. It needs a tokio `LocalSet`, where the replica's IO runs.
 - `crates/terminal-emulator`: that emulator (`Emulator`): ghostty-vt fed the
   PTY's bytes, read back as `TerminalLine`s (the rows that scrolled off and the
   shown rows, `Shown`), and the key, paste and wheel encoders. The host and
@@ -58,7 +70,7 @@ underline, strikethrough; bytes past the last run are the default style) and
 changed row is one small edit. Rows drop their trailing blanks unless they wrap.
 
 After every read of the PTY (and every queued read behind it), the host writes
-the difference as ordinary `Live` edits, split under 256 KiB:
+the difference as ordinary edits through its `Session`, split under 256 KiB:
 
 - It feeds the emulator 256 bytes at a time and after each piece reads the rows
   that scrolled past the `Anchor`, so a large read cannot scroll rows out of the
@@ -71,20 +83,21 @@ the difference as ordinary `Live` edits, split under 256 KiB:
 - Then it compares every shown row with the document and sets what differs, and
   sets the cursor, size, colours, title, shell and alternate screen.
 
-The stack seals it on its own schedule: the host seals `SEAL_INTERVAL`
-(`be_client`, the same 750 ms the app's worker uses) after its first unsealed
-edit.
+The replica seals it on its own schedule, `SEAL_INTERVAL` (750 ms) after its
+first unsealed edit, as every owner does (guides/type_modules.md).
 
 ## Who writes
 
 Ownership of the live session is the lock between hosts. A host writes only
-while `live.is_owner()`. When another client that shows `TerminalHost` owns the
-session it stands by; otherwise it calls `claim()` every 3 seconds until it is
-granted (a viewer that owns the session seals nothing, so its 30 second lease
-lapses), and first as soon as it has caught up after joining, since `claim()`
-refuses until then. The viewer then follows the host like any old owner
-(guides/the_new_block_stack.md). While it owns the session it heartbeats every 10 seconds
-(`Live::heartbeat`) so a quiet shell keeps the lease.
+while its replica owns the session. When another client that shows
+`TerminalHost` owns the session it stands by; otherwise it calls `claim()` every
+3 seconds until it is granted (a viewer that owns the session seals nothing, so
+its 30 second lease lapses). The replica ignores a claim until it has caught up
+after joining, so the host never numbers the session from zero. The viewer then
+follows the host like any old owner (guides/type_modules.md). The host's
+replica heartbeats only when it seals; nothing claims from an owner that shows
+`TerminalHost`, so a quiet shell's lapsed lease is not taken while it is
+connected.
 
 When a host becomes the writer it sets `host`, and unless the document's
 `shell` is the shell it is already running, it restores: the old screen's rows
@@ -137,7 +150,10 @@ top bar says no machine is running it, with a popover of the setup steps.
 
 Viewers send the client in `host`, while it shows `TerminalHost`, peer messages
 on the block's live session (guides/the_new_block_stack.md, Peer messages), so
-the server relays them sealed and cannot read the terminal:
+the server relays them sealed and cannot read the terminal. Host and app are
+replicas of one session, so both must run the same build of the module that
+holds `TerminalContent` (the session's tag, guides/type_modules.md): `be`
+carries that build in its executable.
 
 - `Resize(size)`: the viewer's view changed, or it found the host.
 - `Key(TerminalKey)`: a key (beui's `Key`), its modifiers, the text it typed
@@ -167,15 +183,15 @@ come before a public release.
 
 ## Tests
 
-- `be-cli`, each a real host running `sh` for an agent and a viewer reading
-  the document on a real server:
+- `be-cli`, each a real host running `sh` for an agent and a viewer (a
+  `Session` of its own) reading the document on a real server:
   `a_terminal_host_writes_its_shell_into_the_document_for_its_viewers`,
   `a_restarted_terminal_host_keeps_the_history_and_marks_the_restore`,
   `two_terminal_hosts_take_turns_and_the_second_stands_by` and
   `a_terminal_host_encodes_keys_for_the_mode_its_program_set`.
 - `block-app`'s `a_terminal_host_answers_this_peer_through_the_blocks_session`:
   a real host against the app's own stack, read from the block's content.
-- ghostty-vt's tests cover rows, history, the encoders and paste; be-block's
+- ghostty-vt's tests cover rows, history, the encoders and paste; terminal-types'
   cover the line helpers and the messages.
 - The editor's tests hold a document and drive presence and peer messages
   through block-ui-test (`hold`, `set_peers`, `take_sent_to_peers`): input

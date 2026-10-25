@@ -2,10 +2,6 @@ use std::cell::Cell;
 use std::sync::Arc;
 
 use block_editor_beui::be_block::be_model::ObjectId;
-use block_editor_beui::be_block::canvas::{
-    Canvas, CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextStyle,
-    CanvasTextVerticalAlign, CanvasTextWeight, Entity,
-};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
@@ -17,6 +13,10 @@ use block_editor_beui::beui::{
 };
 use block_editor_beui::live_text::{FieldOf, LiveText, Synced};
 use block_editor_beui::{SharedCaret, remote_carets};
+use infinite_canvas_types::{
+    Canvas, CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextStyle,
+    CanvasTextVerticalAlign, CanvasTextWeight, Entity,
+};
 use text_editor_core::schema::basic::Basic;
 use text_editor_core::{EditorCommand, TextBuffer};
 use uuid::Uuid;

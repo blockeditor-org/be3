@@ -1,6 +1,7 @@
 use super::*;
-use be_block::{BlockContent, CounterContent, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
 use block_plugin_api::{HostReply, HostRequest};
+use counter_types::CounterContent;
 
 #[test]
 fn revision_history_editors_cannot_mutate_any_block() {
@@ -8,10 +9,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
     harness.connect();
     let block = Uuid::new_v4();
     crate::be::hold(block, CounterContent::CONTENT_TYPE);
-    crate::be::operate_from(
+    crate::be::operate(
         block,
-        0,
-        CounterContent::encode_operation(&be_block::Counter::add(1)),
+        CounterContent::encode_operation(&counter_types::Counter::add(1)),
     );
     crate::be::flush();
     let head = crate::be::wait_for(std::time::Duration::from_secs(20), |shared| {
@@ -39,11 +39,13 @@ fn revision_history_editors_cannot_mutate_any_block() {
     let mut instances = placed_on(preview, CounterContent::CONTENT_TYPE);
     let before = crate::be::content(block).unwrap().bytes().to_vec();
     for target in [block, preview] {
-        assert!(!instances.editor_message(EditorMessage::Operate {
-            instance: INSTANCE,
-            block_id: target.into_bytes(),
-            operation: CounterContent::encode_operation(&be_block::Counter::add(99))
-        }));
+        assert!(!to_replica(
+            &mut instances,
+            target,
+            &FromEditor::Operate(CounterContent::encode_operation(
+                &counter_types::Counter::add(99)
+            ))
+        ));
         assert!(!instances.editor_message(EditorMessage::ReplaceContent {
             instance: INSTANCE,
             block_id: target.into_bytes(),
@@ -66,10 +68,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
     }
     let child = Uuid::new_v4();
     crate::be::open(child, CounterContent::CONTENT_TYPE);
-    crate::be::operate_from(
+    crate::be::operate(
         child,
-        0,
-        CounterContent::encode_operation(&be_block::Counter::add(7)),
+        CounterContent::encode_operation(&counter_types::Counter::add(7)),
     );
     crate::be::flush();
     crate::be::close(child);
@@ -102,11 +103,13 @@ fn revision_history_editors_cannot_mutate_any_block() {
         "a nested preview never joins a live session"
     );
     let mut nested = placed_on(descendant, CounterContent::CONTENT_TYPE);
-    assert!(!nested.editor_message(EditorMessage::Operate {
-        instance: INSTANCE,
-        block_id: child.into_bytes(),
-        operation: CounterContent::encode_operation(&be_block::Counter::add(99))
-    }));
+    assert!(!to_replica(
+        &mut nested,
+        child,
+        &FromEditor::Operate(CounterContent::encode_operation(
+            &counter_types::Counter::add(99)
+        ))
+    ));
     crate::be::flush();
     assert_eq!(crate::be::content(block).unwrap().bytes().to_vec(), before);
     crate::be::revisions::release(preview);
