@@ -62,6 +62,16 @@ opens by itself when a field is tapped. With no keyboard for Ctrl+Alt+Backspace,
 fingers on the screen for three seconds ends the session (`escape.rs`), which works as long as
 the adapter's event loop runs. The power button is logind's, which powers off by default.
 
+## Reading books
+
+The PineNote's reader is KOReader, a Wayland program that opens in the tab of the book's block
+(guides/linux_desktop.md, Files opened in programs). Install a KOReader build that comes with a `.desktop` entry
+whose `MimeType` lists `application/epub+zip` (a distribution package or the AppImage with an
+entry written for it), and keep
+`shared-mime-info`, whose `globs2` turns that into `.epub`. A book synced or imported into a
+workspace is a file block; clicking it opens KOReader at the place it was left, after a restart
+too, with KOReader's own settings.
+
 ## Building and installing
 
 Build the app with its plugins for arm64 here, copy the directory to the PineNote, and install

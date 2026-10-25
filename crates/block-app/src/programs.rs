@@ -84,6 +84,7 @@ enum Stage {
 }
 
 struct Session {
+    parent: Uuid,
     block_type: Uuid,
     editor: Uuid,
     stage: Stage,
@@ -109,7 +110,7 @@ pub(crate) fn opens(editor: Uuid) -> bool {
     is_program(editor) && with(|sessions| sessions.names.contains_key(&editor))
 }
 
-pub(crate) fn show(block: Uuid, block_type: Uuid, editor: Uuid) {
+pub(crate) fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
     let replaced = with(|sessions| {
         if let Some(session) = sessions.open.get_mut(&block)
             && session.editor == editor
@@ -120,6 +121,7 @@ pub(crate) fn show(block: Uuid, block_type: Uuid, editor: Uuid) {
         let old = sessions.open.insert(
             block,
             Session {
+                parent,
                 block_type,
                 editor,
                 stage: Stage::Wanted,
@@ -166,25 +168,33 @@ pub(crate) fn reopen(block: Uuid) {
     crate::compositor::changed();
 }
 
-pub(crate) fn close(block: Uuid) {
-    let window = with(|sessions| {
-        let session = sessions.open.get_mut(&block)?;
-        match session.stage {
-            Stage::Running(window) => {
-                session.closing = true;
-                Some(window)
-            }
-            Stage::Launching => {
-                session.closing = true;
-                None
-            }
-            _ => {
-                sessions.open.remove(&block);
-                None
+pub(crate) fn close(closed: Uuid) {
+    let windows = with(|sessions| {
+        let inside: Vec<Uuid> = sessions
+            .open
+            .iter()
+            .filter(|(block, session)| **block == closed || session.parent == closed)
+            .map(|(block, _)| *block)
+            .collect();
+        let mut windows = Vec::new();
+        for block in inside {
+            let Some(session) = sessions.open.get_mut(&block) else {
+                continue;
+            };
+            match session.stage {
+                Stage::Running(window) => {
+                    session.closing = true;
+                    windows.push(window);
+                }
+                Stage::Launching => session.closing = true,
+                _ => {
+                    sessions.open.remove(&block);
+                }
             }
         }
+        windows
     });
-    if let Some(window) = window {
+    for window in windows {
         wayland::close(window);
     }
 }

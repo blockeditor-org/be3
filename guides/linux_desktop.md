@@ -402,7 +402,7 @@ program can also be started against a driven app directly: the app hands the sam
 `drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
 tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
@@ -560,6 +560,65 @@ program's executable, the first word of the client's `/proc` command line (an X1
 argument can be a secret. linux-desktop opens a placeholder with that entry, else one from
 `Programs` whose `StartupWMClass` or id matches the app id, else the executable. The host runs
 a `Launch` that arrives before it has listed the programs once the list is in.
+
+### Files opened in programs
+
+On Linux a program installed with a `.desktop` entry is an editor of every block whose type has a
+plain-file form (guides/type_modules.md) and whose file name has an extension the entry's
+`MimeType` names, so a book (an EPUB file block, the fallback type that holds any bytes; it needs
+no type of its own) opens in KOReader, and later a `.kra` in Krita or a `.blend` in Blender, as a
+tab of whichever shell opened it, the workspace-ui inside linux-desktop included. be-wayland's
+`programs` reads `MimeType` (`DesktopEntry::mime_types`) and turns MIME types into extensions with
+shared-mime-info's `mime/globs2` and `mime/aliases` in the XDG data dirs (`MimeGlobs`).
+
+block-app's `src/programs.rs` scans the programs once the compositor runs and adds one
+`EditorDescriptor` per program that opens anything to the catalog every plugin gets: `Edits::Any`,
+the program's name, and `extensions`. Its editor id is `programs::editor_id`, `program\0` in the
+high half and a hash of the desktop id in the low, so a tab saved with it names the same program
+on the next start. block-ui's `BlockCatalog` matches such an editor by the block's file name
+(`BlockInfo::file_name`: its intrinsic name, the file it came from, so a renamed book still
+matches) and only for a type with a plain-file form: `editors_for(block_type, file_name)` lists
+it after the type's own editors (the file tree's Open with), and `own_editor` falls back to the
+first one for a type with no editor of its own (the EPUB's default). Elsewhere (the web,
+Android, Windows, macOS) no program is listed, so nothing changes there.
+
+The plugin side is only that editor id on a `ChildTarget`; the host does the rest. When a
+child region asks for a block in a listed program (`programs::opens`), `HostedChild` shows a
+`ProgramSurface` instead of a plugin, and `programs::show` starts a session for the block:
+
+- **Write out.** `be::plain_file` asks the block's type module for `Request::ToFile`, the same
+  file form `be sync` writes, and `programs/files.rs` puts it at a path that stays the same for
+  the block, `DATA/files/<block id>/<file name>` in the app's data directory (not a cache). It
+  writes only when the bytes differ, so what a program keeps beside the file stays valid:
+  KOReader's default `document_metadata_folder` (`doc`) keeps the reading position in
+  `<name>.sdr/` next to the book, so the book resumes with KOReader's own settings and none of
+  ours. `.written` beside the file records the size and time it was left at.
+- **Launch.** `wayland::Programs::open_file` runs the entry with the path in place of its first
+  `%f`, `%F`, `%u` or `%U` (appended when the line has none), tagged with the block, so its
+  first top-level window is bound to the session (`wayland::opening_windows`) and drawn in the
+  region by `WindowSurface`. Until then the region says it is opening; once the program exits
+  it says so with Open again (`program.reopen`).
+- **Hidden from the shell.** A bound window is left out of `HostWindows`
+  (`programs::bound_windows`), so linux-desktop does not float it and keeps no placeholder for
+  it; its dialogs are listed as top-level windows of their own.
+- **Write back.** The file's folder is watched (`programs/watch.rs`, the `notify` crate), and
+  when the file's size or time differs from what was recorded, its bytes go back into the block
+  as `Change::FromFile` (`be::from_file`), a commit like any other edit. A file changed while
+  nothing watched it (the app ended first) is taken back instead of written over when the block
+  is next opened.
+- **Close.** Closing the tab closes its editor (`programs::close`, from `close_editor`, which
+  also closes the sessions of blocks an editor being closed showed), which asks the window to
+  close (`xdg_toplevel.close`), so the program saves as it would when its own window is closed.
+
+A restored tab names the same block and editor, so a session that is started again opens the
+book in KOReader by itself, where it was left: no placeholder, and no program arguments stored.
+Two sessions never share a file, since the path is per block. A single-instance program that
+hands a second file to its running process (Krita's default) opens its window from that process,
+which is not tagged, so it shows as an ordinary window instead.
+
+To try it, give a program a `.desktop` entry in `/usr/local/share/applications` (`:dev` moves
+`XDG_DATA_HOME`, so the user's own entries are not read there), get a file into a workspace with
+`be WORKSPACE sync DIR` (an agent's credentials, guides/tracker.md), and click it in the files.
 
 ### X11 programs
 

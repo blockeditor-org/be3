@@ -1474,7 +1474,7 @@ fn HostedChild(
             return Kind::Unavailable;
         }
         if let Some(program) = editor.filter(|editor| crate::programs::opens(*editor)) {
-            crate::programs::show(id, block_type, program);
+            crate::programs::show(id, block_type, program, parent);
             return Kind::Program(id);
         }
         editors.ensure(id, block_type, view_block, editor, parent);
