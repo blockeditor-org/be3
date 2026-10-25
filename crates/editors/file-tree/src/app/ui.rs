@@ -16,6 +16,7 @@ use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{
     Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
+use block_editor_beui::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter};
@@ -99,7 +100,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             | RowKey::Note(_)
             | RowKey::SharedNote
             | RowKey::OrphansNote
-            | RowKey::SystemNote => None,
+            | RowKey::SystemNote
+            | RowKey::Pinned(_) => None,
         };
         tree.toggle(&key, id, !expanded);
     };
@@ -400,7 +402,8 @@ fn ancestors(key: &RowKey) -> Vec<RowKey> {
         | RowKey::Note(_)
         | RowKey::SharedNote
         | RowKey::OrphansNote
-        | RowKey::SystemNote => Vec::new(),
+        | RowKey::SystemNote
+        | RowKey::Pinned(_) => Vec::new(),
     }
 }
 
@@ -416,6 +419,10 @@ fn row_test_id(key: &RowKey) -> String {
         RowKey::SharedNote => "note.shared".to_owned(),
         RowKey::OrphansNote => "note.orphans".to_owned(),
         RowKey::SystemNote => "note.system".to_owned(),
+        RowKey::Pinned(path) => match path.get(1) {
+            Some(id) => format!("pinned.{id}"),
+            None => "pinned".to_owned(),
+        },
     };
     format!("file-tree.{named}")
 }
@@ -434,6 +441,11 @@ fn TreeRow(
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let has_glyph = create_memo(move || glyph.get().is_some());
     let generated = create_memo(move || row.get().is_some_and(|row| row.dynamic_artifact));
+    let tag_keys = create_memo(move || {
+        row.get()
+            .map(|row| row.tags.iter().map(|tag| tag.id).collect::<Vec<_>>())
+            .unwrap_or_default()
+    });
     let access = create_memo(move || {
         row.get()
             .filter(|row| row.id.is_some())
@@ -498,6 +510,14 @@ fn TreeRow(
                     <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                 </Show>
             </List>
+            <ForEach keys={tag_keys}>|tag: Uuid| {
+                let shown = create_memo(move || {
+                    row.get()
+                        .and_then(|row| row.tags.into_iter().find(|held| held.id == tag))
+                        .unwrap_or(ShownTag { id: tag, name: String::new(), color: Default::default() })
+                });
+                view! { <TagChip tag={shown} size=TextSize::Xs /> }
+            }</ForEach>
             <Show condition={generated}>
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>

@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::app::WorkspaceUiApp;
 
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
+mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_block_tabs_menu_previews_its_access_and_comes_back;
 mod a_closed_tab_gives_up_its_view_block;

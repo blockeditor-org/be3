@@ -7,9 +7,11 @@ use workspace_ui_types::ViewState;
 
 use block_editor_beui::be_block::SETTINGS;
 use block_editor_beui::be_block::metadata::ICON_COLOR;
+use block_editor_beui::be_block::{BlockContent, HomeContent, SettingsContent};
 use block_editor_beui::beui::icons::{
-    ICON_BOXES, ICON_DATABASE, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
+    ICON_BOXES, ICON_DATABASE, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
+use block_editor_beui::tags::{ShownTag, tags_of};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::{BlockTypes, Press};
 pub(crate) use block_editor_beui::sections::{own_system, shared_with_me, workspaces};
@@ -28,6 +30,7 @@ pub(crate) enum RowKey {
     SharedNote,
     OrphansNote,
     SystemNote,
+    Pinned(Vec<Uuid>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -60,6 +63,7 @@ pub(crate) struct Row {
     pub(crate) marked_deleted: bool,
     pub(crate) sets_access: bool,
     pub(crate) settings: Option<Uuid>,
+    pub(crate) tags: Vec<ShownTag>,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -110,6 +114,7 @@ impl Row {
             marked_deleted: false,
             sets_access: false,
             settings: None,
+            tags: Vec::new(),
         }
     }
 
@@ -184,6 +189,7 @@ struct Watched {
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
     system: HashSet<Uuid>,
+    shown: HashMap<Uuid, Listing>,
 }
 
 #[derive(Clone, Copy)]
@@ -303,6 +309,10 @@ impl Tree {
                     .entry(*id)
                     .or_insert_with(|| Listing::watch(&building, BlockQuery::References(*id)));
             }
+            let pinned: HashMap<Uuid, Vec<Uuid>> = shown
+                .iter()
+                .map(|section| (*section, pinned_in(editor, *section)))
+                .collect();
             let mut builder = Builder {
                 account: host.account_id(),
                 client: &building,
@@ -310,6 +320,8 @@ impl Tree {
                 watched: &mut watched,
                 clock,
                 rows: Vec::new(),
+                pinned,
+                seen: HashSet::new(),
             };
             match listed {
                 Ok(_) if sections.is_empty() => {
@@ -328,7 +340,9 @@ impl Tree {
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
             let due = builder.clock.due;
+            let seen = std::mem::take(&mut builder.seen);
             let built = builder.rows;
+            watched.shown.retain(|id, _| seen.contains(id));
             drop(watched);
             if let Some(due) = due {
                 timer.start(due.saturating_duration_since(clock.now));
@@ -447,7 +461,11 @@ impl Tree {
                     }
                 });
             }
-            RowKey::Note(_) | RowKey::SharedNote | RowKey::OrphansNote | RowKey::SystemNote => {}
+            RowKey::Note(_)
+            | RowKey::SharedNote
+            | RowKey::OrphansNote
+            | RowKey::SystemNote
+            | RowKey::Pinned(_) => {}
         }
     }
 
@@ -478,6 +496,22 @@ impl Tree {
     }
 }
 
+fn pinned_in(editor: Editor, section: Uuid) -> Vec<Uuid> {
+    let Some(settings) = editor.settings_block(section) else {
+        return Vec::new();
+    };
+    let Ok(Some(home)) = editor
+        .content_of::<SettingsContent>(settings)
+        .read(|settings| settings.root().kind(HomeContent::CONTENT_TYPE))
+    else {
+        return Vec::new();
+    };
+    editor
+        .content_of::<HomeContent>(home)
+        .read(|home| home.root().pinned())
+        .unwrap_or_default()
+}
+
 struct Builder<'a> {
     account: Uuid,
     client: &'a Blocks,
@@ -485,6 +519,8 @@ struct Builder<'a> {
     watched: &'a mut Watched,
     clock: Clock,
     rows: Vec<Row>,
+    pinned: HashMap<Uuid, Vec<Uuid>>,
+    seen: HashSet<Uuid>,
 }
 
 fn note_for(
@@ -593,10 +629,63 @@ impl Builder<'_> {
         }) else {
             return;
         };
+        self.push_pinned(section.id);
         let mut path = path;
         for child in children {
             self.push(child, 1, Some(section.id), &mut path, false);
         }
+    }
+
+    fn shown_block(&mut self, id: Uuid) -> Option<BlockInfo> {
+        self.seen.insert(id);
+        let client = self.client;
+        let listing = self
+            .watched
+            .shown
+            .entry(id)
+            .or_insert_with(|| Listing::watch(client, BlockQuery::Block(id)));
+        self.clock.listed(listing).ok()?.into_iter().next()
+    }
+
+    fn push_pinned(&mut self, section: Uuid) {
+        let pinned = self.pinned.get(&section).cloned().unwrap_or_default();
+        if pinned.is_empty() {
+            return;
+        }
+        self.rows.push(Row {
+            glyph: Some(ICON_PIN),
+            ..Row::note_at(RowKey::Pinned(vec![section]), 1, "Pinned")
+        });
+        for id in pinned {
+            let Some(info) = self.shown_block(id).filter(|info| !info.deleted) else {
+                continue;
+            };
+            let mut row = describe(
+                self.client,
+                self.types,
+                &self.watched.block_types,
+                &info,
+                Placement {
+                    key: RowKey::Pinned(vec![section, id]),
+                    depth: 2,
+                    container: None,
+                    expanded: false,
+                    trashed: false,
+                },
+                |id| id.to_string(),
+            );
+            row.expandable = false;
+            row.can_delete = false;
+            row.tags = self.tags_of(&info);
+            self.rows.push(row);
+        }
+    }
+
+    fn tags_of(&mut self, info: &BlockInfo) -> Vec<ShownTag> {
+        tags_of(&info.metadata)
+            .into_iter()
+            .filter_map(|tag| self.shown_block(tag).map(|tag| ShownTag::of(&tag)))
+            .collect()
     }
 
     fn push_shared(&mut self, shared: Result<Vec<BlockInfo>, Option<String>>, open: bool) {
@@ -665,6 +754,8 @@ impl Builder<'_> {
         );
         let expanded = row.expanded;
         let trashed = trashed || row.deleted;
+        let mut row = row;
+        row.tags = self.tags_of(&reference);
         self.rows.push(row);
         if !expanded || path.contains(&reference.id) {
             return;
@@ -789,6 +880,7 @@ pub(crate) fn describe(
             .get(&SETTINGS)
             .map(|settings| settings.0)
             .filter(|_| ordinary && access.can_view()),
+        tags: Vec::new(),
     }
 }
 

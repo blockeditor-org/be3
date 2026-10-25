@@ -976,6 +976,9 @@ impl ContentStore {
         }
         let queries = self.0.borrow().watched_queries.clone();
         for query in queries {
+            if self.leaves_to_the_test(query) {
+                continue;
+            }
             let listed = self.query(query);
             let mut inner = self.0.borrow_mut();
             if inner.answered.get(&query) == Some(&listed) {
@@ -1003,9 +1006,21 @@ impl ContentStore {
         owed || {
             let queries = self.0.borrow().watched_queries.clone();
             queries.into_iter().any(|query| {
+                if self.leaves_to_the_test(query) {
+                    return false;
+                }
                 let listed = self.query(query);
                 self.0.borrow().answered.get(&query) != Some(&listed)
             })
+        }
+    }
+
+    fn leaves_to_the_test(&self, query: BlockQuery) -> bool {
+        match query {
+            BlockQuery::Block(block) | BlockQuery::Parents(block) => {
+                !self.0.borrow().graph.contains_key(&block)
+            }
+            _ => false,
         }
     }
 

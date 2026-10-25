@@ -387,6 +387,38 @@ impl Editor {
         Some(block)
     }
 
+    pub fn change_block_kind<R>(&self, owner: Uuid, edit: be_block::Edit) -> Option<Uuid>
+    where
+        R: Layered + 'static,
+        Document<R>: BlockContent + LiveEdit<Op = be_block::Edit> + Clone + Default,
+    {
+        let kinds = self.kinds_above(owner);
+        let here = untrack(|| {
+            kinds.with(|kinds| {
+                kinds
+                    .get(&R::CONTENT_TYPE)
+                    .filter(|set| set.owner == owner)
+                    .map(|set| set.block)
+            })
+        })
+        .or_else(|| {
+            let settings = untrack(|| self.settings_block(owner))?;
+            self.state()
+                .settings
+                .borrow()
+                .created_kinds
+                .get(&(settings, R::CONTENT_TYPE))
+                .copied()
+        });
+        if let Some(block) = here {
+            self.content_of::<Document<R>>(block).operate(edit);
+            return Some(block);
+        }
+        let mut content = Document::<R>::default();
+        content.apply(&edit);
+        self.ensure_block_kind::<R>(owner, content)
+    }
+
     pub fn clear_block_kind(&self, settings: Uuid, kind: Uuid) {
         if EDIT_KINDS.contains(&kind) {
             let owner = untrack(|| self.settings_owner(settings)).unwrap_or(settings);

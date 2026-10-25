@@ -23,6 +23,7 @@ mod related_content;
 mod rotation;
 pub mod sections;
 mod shared_caret;
+pub mod tags;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;

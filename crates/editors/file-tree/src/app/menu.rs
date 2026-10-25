@@ -10,6 +10,7 @@ use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use super::export::Exporter;
+use super::kinds::{HomeItems, OpensIn, TagsMenu};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree};
 use super::ui::{ExportAs, OpenWith, Picker, add_to_section, leavable};
@@ -200,6 +201,22 @@ fn BlockMenu<F: Fn() + 'static>(
     );
     let rooted = create_memo(move || edit.get() || !row.get().is_some_and(|row| row.can_delete));
     let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
+    let taggable = create_memo(move || row.get().is_some_and(|row| row.can_edit && !row.deleted));
+    let choosable = create_memo(move || {
+        row.get().is_some_and(|row| {
+            row.can_edit && editor.block_types().editors_for(row.block_type).len() > 1
+        })
+    });
+    let homeable = create_memo(move || {
+        row.get().is_some_and(|row| {
+            !row.deleted
+                && row.id.is_some_and(|id| {
+                    editor
+                        .workspace_of(id)
+                        .is_some_and(|workspace| workspace != id && editor.blocks().access(workspace).can_manage())
+                })
+        })
+    });
     let rows = tree.rows();
     let destinations = create_memo(move || {
         let here = row.get().and_then(|row| row.container);
@@ -301,6 +318,15 @@ fn BlockMenu<F: Fn() + 'static>(
             </Show>
             <Appearance editor picker row />
             <BlockSettings editor row row_test_id={"file-tree.settings".to_owned()} />
+            <Show condition={taggable}>
+                <TagsMenu editor row />
+            </Show>
+            <Show condition={choosable}>
+                <OpensIn editor row />
+            </Show>
+            <Show condition={homeable}>
+                <HomeItems editor row />
+            </Show>
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"

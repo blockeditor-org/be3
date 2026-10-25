@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
-    BlockContent, BlockMetadata, FILES_EDITOR, Recents, VIEW_EDITOR,
+    BlockContent, BlockMetadata, FILES_EDITOR, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
 };
 use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
@@ -1128,6 +1128,16 @@ impl Workspace {
                     .then(|| self.info(item.id)?.metadata.get(&VIEW_EDITOR))
                     .flatten()
                     .filter(|editor| !editor.is_nil())
+            })
+            .or_else(|| {
+                self.info(item.id)?
+                    .metadata
+                    .get(&PREFERRED_EDITOR)
+                    .filter(|editor| {
+                        types
+                            .editor(*editor)
+                            .is_some_and(|entry| entry.edits(item.block_type))
+                    })
             })
             .or_else(|| {
                 self.default_editors

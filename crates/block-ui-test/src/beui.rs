@@ -1014,6 +1014,22 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn take_definitions(&mut self, key: Uuid) -> Vec<(Uuid, Option<Vec<u8>>)> {
+        let wanted = key.into_bytes();
+        self.take_where(|message| match message {
+            EditorMessage::Define {
+                block_id,
+                key,
+                value,
+                ..
+            } if *key == wanted => Some((
+                Uuid::from_bytes(*block_id),
+                value.as_ref().map(|value| value.to_vec()),
+            )),
+            _ => None,
+        })
+    }
+
     pub fn take_access_changes(&mut self) -> Vec<(Uuid, Uuid, block_plugin_api::AccessLevel)> {
         self.take_where(|message| match message {
             EditorMessage::SetAccess {

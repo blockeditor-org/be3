@@ -52,8 +52,8 @@ pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use workspace_settings::{
-    EDIT_KINDS, Home, HomeContent, PREFERRED_EDITOR, PREFIXES, PrefixRegistry,
-    PrefixRegistryContent, TAG_COLOR, TAG_DEFINITIONS, TAGGED, Tag, TagColor, TagContent, Tags,
+    EDIT_KINDS, Home, HomeContent, PREFERRED_EDITOR, PREFIXES, PREFIXES_TYPE, PrefixRegistry,
+    PrefixRegistryContent, TAG_COLOR, TAG_DEFINITIONS, TAGGED, TAGS_TYPE, Tag, TagColor, TagContent, Tags,
     TagsContent, edit_kind_key, normal_prefix,
 };
 pub use version_control::{
