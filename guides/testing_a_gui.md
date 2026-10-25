@@ -397,7 +397,12 @@ which close() checks, so a test that ends without calling it fails too.
   the block a tab shows.
 - record() and snapshot() are a painting as in an editor test (4), named
   snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
-  host's own document with each plugin's painting put where the host composites its surface.
+  host's own document with each plugin's painting put where the host composites its surface,
+  and each preview a plugin shows, which its painting marks with `paint_format::preview_key`,
+  replaced by the painting of the preview it shows. A preview waits out its cooldown before it
+  paints a second change (guides/adding_a_plugin_editor.md, Drawing the block itself), and the
+  clock is stopped, so a test that changes a block and then looks at a preview of it pauses for
+  `PREVIEW_COOLDOWN` first.
   They also fail, as in an editor test, on what the window shows out of bounds (`drive
   overflows`), in the host or in any plugin shown, whatever the crop.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the

@@ -7,9 +7,9 @@ use be_block::presence::{ChannelKind, PresenceKind};
 use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
-    SettingsProgress, TopBar, WebViewId,
+    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
+    EditorCapabilities, HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry,
+    ResizeMode, SettingsProgress, TopBar, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -203,6 +203,7 @@ pub struct ChildState {
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
     pub settings: Option<SettingsProgress>,
+    pub preview: ChildPreview,
 }
 
 impl ChildState {
@@ -230,6 +231,7 @@ impl ChildState {
             menu: status.menu,
             creation: status.creation,
             settings: status.settings,
+            preview: status.preview,
         }
     }
 }

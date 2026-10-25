@@ -599,6 +599,7 @@ impl Paints for RegionDrawing {
             else {
                 continue;
             };
+            let screen = super::previews::painting(screen.clone());
             found = true;
             primitives.extend(screen.placed(Placement {
                 source: [source.min.x, source.min.y, source.max.x, source.max.y],

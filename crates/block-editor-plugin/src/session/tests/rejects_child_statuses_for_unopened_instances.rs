@@ -20,6 +20,7 @@ fn status(instance: EditorInstanceId) -> ChildStatus {
         menu: Vec::new(),
         creation: None,
         settings: None,
+        preview: Default::default(),
     }
 }
 

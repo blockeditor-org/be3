@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::app::PresentationApp;
 
 mod a_slide_template_makes_a_canvas_with_its_placeholders;
+mod a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip;
 mod detaching_a_slide_takes_it_off_the_deck;
 mod dragging_a_slide_onto_another_reorders_the_deck;
 mod editing_gives_the_slide_the_whole_stage;

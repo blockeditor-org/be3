@@ -168,6 +168,7 @@ web-sys = { version = "0.3", features = [
     "HtmlElement",
     "HtmlInputElement",
     "HtmlMediaElement",
+    "ImageBitmap",
     "Location",
     "MessageEvent",
     "Node",

@@ -1601,6 +1601,7 @@ dependencies = [
  "be-model",
  "beui",
  "beui-adapter-plugin",
+ "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",

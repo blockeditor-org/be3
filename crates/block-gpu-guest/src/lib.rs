@@ -50,6 +50,32 @@ pub fn acquire_surface_texture(surface: u32) -> Result<wgpu::Texture, String> {
 }
 
 // unsafe(ffi)
+pub fn import_texture(image: u64) -> Option<wgpu::Texture> {
+    let handle = unsafe { imports::texture_import(image) };
+    if handle == abi::NULL_HANDLE {
+        return None;
+    }
+    let descriptor = describe(handle).ok()?;
+    Some(wgpu::Texture::from_custom(
+        objects::Texture { handle },
+        &wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width: descriptor.size.width,
+                height: descriptor.size.height,
+                depth_or_array_layers: descriptor.size.depth_or_array_layers,
+            },
+            mip_level_count: descriptor.mip_level_count,
+            sample_count: descriptor.sample_count,
+            dimension: convert::wgpu_texture_dimension(descriptor.dimension),
+            format: convert::wgpu_texture_format(descriptor.format),
+            usage: wgpu::TextureUsages::from_bits_truncate(descriptor.usage),
+            view_formats: &[],
+        },
+    ))
+}
+
+// unsafe(ffi)
 pub fn surface_age(surface: u32) -> u32 {
     unsafe { imports::surface_age(surface) }
 }

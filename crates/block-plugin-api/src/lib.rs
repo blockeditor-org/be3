@@ -402,6 +402,23 @@ pub struct ChildStatus {
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
     pub settings: Option<SettingsProgress>,
+    pub preview: ChildPreview,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChildPreview {
+    #[default]
+    Hosted,
+    Waiting,
+    Label,
+    Image(PreviewImage),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PreviewImage {
+    pub image: u64,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

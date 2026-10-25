@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap};
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, Color32, NodeId, TextAlign};
+use beui::{Align, NodeId, TextAlign};
 use block_plugin_api::{BlockCommand, BlockLocation, EditorInstanceId, EditorRegion, FrameSpec};
 use uuid::Uuid;
 
@@ -141,45 +141,22 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let kind = content.get_untracked();
     let text = create_memo(move || match content.get() {
         HostItem::Notice { text, .. } => text,
-        HostItem::Fallback { name, .. } => name,
         HostItem::Unsupported { block, .. } => format!("Block: {block}"),
     });
     let detail = create_memo(move || match content.get() {
         HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
         _ => String::new(),
     });
-    let italic = create_memo(move || {
-        matches!(
-            content.get(),
-            HostItem::Fallback {
-                automatic: true,
-                ..
-            }
-        )
-    });
     let spinning =
         create_memo(move || matches!(content.get(), HostItem::Notice { spinner: true, .. }));
     let glyph = create_memo(move || match content.get() {
-        HostItem::Fallback { icon, .. } | HostItem::Notice { icon, .. } => icon,
+        HostItem::Notice { icon, .. } => icon,
         HostItem::Unsupported { .. } => None,
     });
     let has_glyph = create_memo(move || glyph.get().is_some());
-    let (surface, outline, color) = match kind {
-        HostItem::Fallback { .. } => (
-            Color32::from_gray(28),
-            Color32::from_gray(75),
-            TextColor::Custom(Color32::from_gray(211)),
-        ),
-        _ => (Color32::TRANSPARENT, Color32::TRANSPARENT, TextColor::Muted),
-    };
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
-        <Frame
-            fill={ColorRole::custom(surface)}
-            border={Border::new(ColorRole::Custom(outline)).width(1.0)}
-            radius={Radius::custom(5.0)}
-            padding=12.0
-        >
+        <Frame padding=12.0>
             <List spacing=8.0 align=Align::Center>
                 <Show condition={unsupported}>
                     <Text style=TextStyle::HEADING align=TextAlign::Center>
@@ -187,11 +164,11 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                     </Text>
                 </Show>
                 <Show condition={has_glyph}>
-                    <Text size=TextSize::Xl color=color align=TextAlign::Center>
+                    <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
-                <Text align=TextAlign::Center color=color italic>{text}</Text>
+                <Text align=TextAlign::Center color=TextColor::Muted>{text}</Text>
                 <Show condition={unsupported}>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
                 </Show>
