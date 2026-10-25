@@ -387,7 +387,10 @@ polling either.
 
 A block being edited is in a session, which each device holds in its type
 module's replica (`block-type-guest`, guides/type_modules.md); the peer only
-relays, seals and stores for it. The owner sequences and broadcasts; a follower
+relays, seals and stores for it. A relay goes on the connection in order without
+waiting for the server's answer to the one before (`Peer::relay` returns it, and
+be-types-host waits for it apart), so a pen stroke's thousands of operations cost no more
+round trips before the seal than one does. The owner sequences and broadcasts; a follower
 applies its own edit immediately, rebases it against operations that arrive in
 between, and reconciles against the owner's echo. A replica keeps `confirmed`
 (server-ordered) and `visible` (`confirmed` plus pending). A seal writes a
