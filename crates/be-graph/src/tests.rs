@@ -13,6 +13,7 @@ mod access_names_the_block_it_comes_from;
 mod access_to_one_block_agrees_with_mapping_the_whole_graph;
 mod an_account_sees_what_lies_below_its_entry_points;
 mod an_author_edits_only_what_lies_where_it_can_see;
+mod an_author_keeps_no_more_of_a_settings_kind_than_its_settings;
 mod object_references_are_counted_not_traced;
 mod references_do_not_keep_a_block_alive;
 mod the_audience_of_a_block_holds_everyone_who_may_know_it;
@@ -198,10 +199,18 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
             BlockParent::Root | BlockParent::Detached => (Access::None, true),
         };
         let mut best = node.grants.get(&account).copied().unwrap_or_default();
-        if parent.can_view() {
+        if node.parent.block().is_some_and(|parent| in_settings(graph, parent)) {
+            best = match parent.can_view() {
+                true => parent,
+                false => best.min(Access::KnowExists),
+            };
+        } else if parent.can_view() {
             best = best.max(parent);
         }
-        if node.author == account && parent_viewable {
+        if node.author == account
+            && parent_viewable
+            && !node.parent.block().is_some_and(|parent| in_settings(graph, parent))
+        {
             best = Access::Manage;
         }
         if node.content_type == TAGS_TYPE && matches!(node.parent, BlockParent::Block(_)) {
@@ -238,6 +247,25 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
         }
         memo.insert(id, best);
         best
+    }
+    fn in_settings(graph: &BlockGraph, block: Uuid) -> bool {
+        let mut path = vec![block];
+        let mut current = block;
+        loop {
+            let node = graph.get(current).unwrap();
+            if matches!(node.parent, BlockParent::Block(_))
+                && (node.content_type == SETTINGS_TYPE || node.content_type == TAGS_TYPE)
+            {
+                return true;
+            }
+            match node.parent {
+                BlockParent::Block(parent) if !path.contains(&parent) && graph.contains(parent) => {
+                    path.push(parent);
+                    current = parent;
+                }
+                _ => return false,
+            }
+        }
     }
     fn owner_of(graph: &BlockGraph, kind: Uuid) -> Option<Uuid> {
         let held = graph.get(kind)?;
