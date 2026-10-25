@@ -78,7 +78,10 @@ impl Draw for PictureDraw {
             0.0,
             0.0,
         ];
-        let bytes: Vec<u8> = values.iter().flat_map(|value| value.to_le_bytes()).collect();
+        let bytes: Vec<u8> = values
+            .iter()
+            .flat_map(|value| value.to_le_bytes())
+            .collect();
         queue.write_buffer(&bound.buffer, 0, &bytes);
         *held = Some(bound);
     }

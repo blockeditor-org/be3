@@ -37,7 +37,10 @@ impl Previews {
     fn retire(&mut self, image: u64) {
         for (plugin, offered) in &mut self.offered {
             if offered.remove(&image) {
-                self.withdrawn.entry(plugin.clone()).or_default().push(image);
+                self.withdrawn
+                    .entry(plugin.clone())
+                    .or_default()
+                    .push(image);
             }
         }
     }

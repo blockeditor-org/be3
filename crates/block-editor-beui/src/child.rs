@@ -169,10 +169,7 @@ fn SubregionView(
     };
     let inner = match content.map(|content| content.call(handle)) {
         Some(child) => view! {
-            <Layers>
-                {picture}
-                {child}
-            </Layers>
+            <Layers>{picture}{child}</Layers>
         },
         None => picture,
     };
@@ -229,7 +226,9 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
-                <Text color=TextColor::Muted align=beui::TextAlign::Center italic={italic}>{name}</Text>
+                <Text color=TextColor::Muted align=beui::TextAlign::Center italic={italic}>
+                    {name}
+                </Text>
             </List>
         </Frame>
     }

@@ -493,10 +493,7 @@ impl Painting {
                 corners[at] = Some(vertex.pos);
             }
         }
-        Some((
-            image,
-            [corners[0]?, corners[1]?, corners[2]?, corners[3]?],
-        ))
+        Some((image, [corners[0]?, corners[1]?, corners[2]?, corners[3]?]))
     }
 
     pub fn placed(&self, placement: Placement) -> Vec<Primitive> {

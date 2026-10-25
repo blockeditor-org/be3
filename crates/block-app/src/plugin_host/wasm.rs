@@ -108,7 +108,12 @@ pub(super) fn pictures(frame: &SurfaceFrame, surfaces: &[u32]) -> Vec<(u32, Pict
         .textures
         .iter()
         .filter(|presented| surfaces.contains(&presented.surface))
-        .filter_map(|presented| Some((presented.surface, super::surface::copied(&presented.texture)?)))
+        .filter_map(|presented| {
+            Some((
+                presented.surface,
+                super::surface::copied(&presented.texture)?,
+            ))
+        })
         .collect()
 }
 

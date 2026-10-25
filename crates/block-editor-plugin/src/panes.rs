@@ -76,7 +76,8 @@ impl Panes {
                     }
                 }
             }
-            match (changed, seen) {
+            let shown = seen || placement.region == EditorRegion::Preview;
+            match (changed, shown) {
                 (true, true) => {
                     if placement.region == EditorRegion::Preview {
                         let fresh = fresh.contains(&placement.surface);

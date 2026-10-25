@@ -33,9 +33,9 @@ impl Cooldown {
             (true, _) => Held::Settling {
                 until: now + PREVIEW_COOLDOWN,
             },
-            (false, Some(Held::Settling { until })) if now < *until => Held::Settling {
-                until: *until,
-            },
+            (false, Some(Held::Settling { until })) if now < *until => {
+                Held::Settling { until: *until }
+            }
             (false, _) => Held::Painted { at: now },
         };
         self.held.insert(surface, held);

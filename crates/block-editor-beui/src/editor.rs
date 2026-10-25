@@ -7,9 +7,9 @@ use be_block::presence::{ChannelKind, PresenceKind};
 use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress, EditorCapabilities,
-    HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
-    SettingsProgress, TopBar, WebViewId,
+    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
+    EditorCapabilities, HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry,
+    ResizeMode, SettingsProgress, TopBar, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;

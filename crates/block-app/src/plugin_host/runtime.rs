@@ -9,11 +9,11 @@ use std::{
 use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameCommit, FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES,
-    Message, Monitor, PluginManifest, PresentedFrame, PreviewImage, RegionSize, ScreenDamage,
-    ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, SessionState, SurfaceFormat, SurfaceSpec,
-    ViewChange, decode_host, encode_host,
+    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorMessage,
+    EditorRegion, FrameCommit, FrameSpec, HostAction, HostPanel, HostSession, HostValue,
+    MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest, PresentedFrame, PreviewImage,
+    RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
+    SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 

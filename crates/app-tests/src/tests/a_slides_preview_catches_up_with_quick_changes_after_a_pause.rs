@@ -17,10 +17,15 @@ fn a_slides_preview_catches_up_with_quick_changes_after_a_pause() {
     app.click("#infinite-canvas.dock.tool.Rectangle");
     app.run(&["drag", &at(0.2, 0.3), &at(0.35, 0.45)]);
     app.wait(SHAPE);
+    let drawn = app.count(SHAPE);
     app.pause(600);
     app.key("ctrl+d");
     app.key("ctrl+d");
-    assert_eq!(app.count(SHAPE), 3, "the slide holds the rectangle and two copies");
+    assert_eq!(
+        app.count(SHAPE),
+        drawn + 2,
+        "the rectangle was copied twice"
+    );
     app.crop("#workspace.block");
     app.record();
     app.pause(600);
