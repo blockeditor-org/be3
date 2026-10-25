@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use be_block::{Landed, LiveEdit, Merge, Settling};
 use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, SessionState};
-use be_session::{Follower, OpId, Resume, Sequencer, SessionMessage, SessionOp};
+use be_session::{Follower, KeptEdits, OpId, Resume, Sequencer, SessionMessage, SessionOp};
 use block_type_api::{
     Change, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, ReplicaId, Reply,
     RequestId, SessionTag, Status, Token, Written,
@@ -21,6 +21,7 @@ pub const SEAL_INTERVAL: u64 = 750;
 const JOURNAL_LIMIT: usize = 1024;
 const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 const REPLACE_ATTEMPTS: u8 = 4;
+const OP_HEADS: usize = 64;
 const DIVERGED: &str = "an edit from a peer running a different version";
 
 pub(crate) struct Opened {
@@ -124,17 +125,40 @@ enum Job<C> {
         reply: Option<RequestId>,
         outright: bool,
     },
-    Keep {
-        commit: CommitId,
-        base: Option<CommitId>,
-        attempts: u8,
-    },
+    Keep(Keeping),
+    Oversized,
     Release,
+}
+
+#[derive(Clone, Copy)]
+struct Handed {
+    commit: CommitId,
+    base: Option<CommitId>,
+    edits: Option<KeptEdits>,
+}
+
+#[derive(Clone, Copy)]
+struct Keeping {
+    commit: CommitId,
+    base: Option<CommitId>,
+    edits: Option<KeptEdits>,
+    from: ClientId,
+    attempts: u8,
 }
 
 enum Slot<C> {
     Waiting(Token),
     Ready(C),
+}
+
+impl Handed {
+    fn message(&self) -> SessionMessage {
+        SessionMessage::Kept {
+            commit: self.commit,
+            base: self.base,
+            edits: self.edits,
+        }
+    }
 }
 
 enum Then {
@@ -156,6 +180,10 @@ enum Then {
         head: CommitId,
     },
     Replacement,
+    Handed {
+        keeping: Keeping,
+        replay: bool,
+    },
     FastForward {
         to: CommitId,
     },
@@ -186,9 +214,8 @@ enum AfterPublish<C> {
         value: C,
     },
     Kept {
-        commit: CommitId,
-        base: Option<CommitId>,
-        attempts: u8,
+        keeping: Keeping,
+        merged: Option<C>,
     },
 }
 
@@ -204,6 +231,20 @@ enum AfterStash<C> {
         reply: Option<RequestId>,
     },
     Keep,
+    Ancestor {
+        content: C,
+        applied: u64,
+    },
+    Hand {
+        content: C,
+        applied: u64,
+        ancestor: Option<CommitId>,
+    },
+    Handed {
+        keeping: Keeping,
+        value: C,
+        count: usize,
+    },
 }
 
 enum Wait<C> {
@@ -263,6 +304,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     replaced_at: u64,
     reached: Option<CommitId>,
     awaiting: Option<CommitId>,
+    replacing: bool,
+    handed: Vec<Handed>,
+    op_heads: Vec<Option<CommitId>>,
+    saved: VecDeque<CommitId>,
     loaded: bool,
     released: bool,
     reported: Reported,
@@ -376,6 +421,10 @@ where
             replaced_at: 0,
             reached: None,
             awaiting: None,
+            replacing: false,
+            handed: Vec::new(),
+            op_heads: Vec::new(),
+            saved: VecDeque::new(),
             loaded: false,
             released: false,
             reported: Reported::default(),
@@ -411,11 +460,8 @@ where
                 reply,
                 outright,
             } => self.replace(content, reply, outright),
-            Job::Keep {
-                commit,
-                base,
-                attempts,
-            } => self.keep(commit, base, attempts),
+            Job::Keep(keeping) => self.keep(keeping),
+            Job::Oversized => self.oversized(),
             Job::Release => self.release(),
         }
     }
@@ -660,6 +706,36 @@ where
             Then::Replacement => {
                 self.history.clear();
                 self.replace(next(), None, true);
+            }
+            Then::Handed { keeping, replay } => {
+                let (value, conflicts) = match replay {
+                    true => (self.replayed(next(), &keeping), None),
+                    false => {
+                        let ancestor = next();
+                        let theirs = next();
+                        match C::merge3(&ancestor, &self.confirmed, &theirs) {
+                            MergeResult::Clean(value) => (value, None),
+                            MergeResult::Conflicted { value, conflicts } => {
+                                (value, Some(conflicts))
+                            }
+                        }
+                    }
+                };
+                match conflicts {
+                    None => self.publish_kept(keeping, Some(value)),
+                    Some(count) => {
+                        let content = self.written(&self.confirmed);
+                        self.stash(
+                            self.base,
+                            content,
+                            AfterStash::Handed {
+                                keeping,
+                                value,
+                                count,
+                            },
+                        );
+                    }
+                }
             }
             Then::FastForward { to } => {
                 self.reached = Some(to);
@@ -912,6 +988,7 @@ where
                         self.in_flight = 0;
                         self.covered = true;
                         self.awaiting = Some(head);
+                        self.replacing = true;
                         self.confirmed = content.clone();
                         self.replace_visible(content);
                         let owner = self.state.owner;
@@ -929,10 +1006,21 @@ where
                 }
             }
             AfterPublish::Merged { value } => self.take_merged(value, head),
-            AfterPublish::Kept { .. } => {
-                if let Some(head) = head {
-                    self.settle_at(head);
+            AfterPublish::Kept { keeping, merged } => {
+                let Some(head) = head else {
+                    return;
+                };
+                if let Some(value) = merged {
+                    self.confirmed = value;
+                    self.replace_visible(self.confirmed.clone());
+                    self.reload = true;
                 }
+                if self.saved.len() >= OP_HEADS {
+                    self.saved.pop_front();
+                }
+                self.saved.push_back(keeping.commit);
+                self.acknowledge(&keeping);
+                self.settle_at(head);
             }
         }
     }
@@ -962,18 +1050,116 @@ where
                 self.publish_replacement(content, reply, true, Some(merging), self.base, 0);
             }
             AfterStash::Keep => {
-                let base = self.base;
-                if let Role::Follower(follower) = &mut self.role {
-                    follower.take_pending();
-                }
-                self.unsent.clear();
-                self.in_flight = 0;
-                self.covered = true;
+                self.drop_unconfirmed();
                 self.rebuild_visible();
-                let owner = self.state.owner;
-                self.send(owner, &SessionMessage::Kept { commit, base });
+                self.hand(Handed {
+                    commit,
+                    base: self.base,
+                    edits: None,
+                });
+            }
+            AfterStash::Ancestor { content, applied } => {
+                let written = self.written(&content);
+                self.stash(
+                    Some(commit),
+                    written,
+                    AfterStash::Hand {
+                        content,
+                        applied,
+                        ancestor: Some(commit),
+                    },
+                );
+            }
+            AfterStash::Hand {
+                content,
+                applied,
+                ancestor,
+            } => {
+                self.drop_unconfirmed();
+                self.confirmed = content;
+                self.rebuild_visible();
+                let sealed = self.base;
+                self.hand(Handed {
+                    commit,
+                    base: ancestor,
+                    edits: Some(KeptEdits { applied, sealed }),
+                });
+            }
+            AfterStash::Handed {
+                keeping,
+                value,
+                count,
+            } => {
+                self.conflict(commit, keeping.commit, count);
+                self.jobs.push_front(Job::Keep(Keeping {
+                    commit,
+                    base: self.base,
+                    edits: None,
+                    from: self.client,
+                    attempts: 0,
+                }));
+                self.publish_kept(keeping, Some(value));
             }
         }
+    }
+
+    fn acknowledge(&mut self, keeping: &Keeping) {
+        match keeping.from == self.client {
+            true => self.handed.retain(|handed| handed.commit != keeping.commit),
+            false => self.send(
+                Some(keeping.from),
+                &SessionMessage::Saved {
+                    commit: keeping.commit,
+                },
+            ),
+        }
+    }
+
+    fn drop_unconfirmed(&mut self) {
+        if let Role::Follower(follower) = &mut self.role {
+            follower.take_pending();
+        }
+        self.unsent.clear();
+        self.in_flight = 0;
+        self.covered = true;
+    }
+
+    fn hand(&mut self, handed: Handed) {
+        self.handed.push(handed);
+        let owner = self.state.owner;
+        self.send(owner, &handed.message());
+    }
+
+    fn handing_edits(&self) -> bool {
+        self.handed.iter().any(|handed| handed.edits.is_some())
+    }
+
+    fn publish_kept(&mut self, keeping: Keeping, merged: Option<C>) {
+        let content = self.written(merged.as_ref().unwrap_or(&self.confirmed));
+        self.publish(
+            self.base,
+            Some(Merging {
+                base: keeping.base,
+                ours: keeping.commit,
+            }),
+            content,
+            AfterPublish::Kept { keeping, merged },
+        );
+    }
+
+    fn replayed(&self, mut value: C, keeping: &Keeping) -> C {
+        let (Role::Owner(sequencer), Some(edits)) = (&self.role, keeping.edits) else {
+            return value;
+        };
+        for op in sequencer.since(edits.applied) {
+            if op.id.client == keeping.from {
+                continue;
+            }
+            if let Ok(operation) = C::decode_operation(&op.payload) {
+                value.apply(&operation);
+            }
+        }
+        value
     }
 
     fn rejected(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
@@ -1013,19 +1199,14 @@ where
                 self.publish_replacement(content, reply, outright, merging, head, attempts + 1);
             }
             AfterPublish::Merged { value } => self.take_merged(value, None),
-            AfterPublish::Kept {
-                commit,
-                base,
-                attempts,
-            } => {
-                if attempts + 1 >= REPLACE_ATTEMPTS {
+            AfterPublish::Kept { keeping, .. } => {
+                if keeping.attempts + 1 >= REPLACE_ATTEMPTS {
                     return self.error("an edit a follower kept could not be saved");
                 }
-                self.jobs.push_front(Job::Keep {
-                    commit,
-                    base,
-                    attempts: attempts + 1,
-                });
+                self.jobs.push_front(Job::Keep(Keeping {
+                    attempts: keeping.attempts + 1,
+                    ..keeping
+                }));
                 self.jobs.push_front(Job::Reconcile);
             }
         }
@@ -1042,6 +1223,9 @@ where
         };
         self.loaded = true;
         self.described = true;
+        if self.is_owner() {
+            self.op_heads = vec![self.base];
+        }
         if let Role::Follower(_) = &self.role {
             self.greet();
         }
@@ -1160,12 +1344,10 @@ where
             origin,
         );
         let payload = C::encode_operation(&operation);
-        if payload.len() > LARGEST_RELAYED_OPERATION {
-            self.jobs.push_front(Job::Replace {
-                content: self.visible.clone(),
-                reply: None,
-                outright: false,
-            });
+        let size = payload.len();
+        let oversized = size > LARGEST_RELAYED_OPERATION;
+        if oversized && self.is_owner() {
+            self.hand_over_oversized();
             return true;
         }
         match &mut self.role {
@@ -1181,9 +1363,11 @@ where
                 self.broadcast(&SessionMessage::Accepted { op });
             }
             Role::Follower(follower)
-                if follower.pending() > 0 || !self.unsent.is_empty() || self.awaiting.is_some() =>
+                if oversized
+                    || follower.pending() > 0
+                    || !self.unsent.is_empty()
+                    || self.awaiting.is_some() =>
             {
-                let size = payload.len();
                 let leftover = match self.unsent.back_mut() {
                     Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
                         let leftover = C::absorb_operation(last, operation);
@@ -1197,6 +1381,9 @@ where
                 };
                 self.unsent
                     .extend(leftover.map(|operation| (operation, size, 1)));
+                if oversized {
+                    self.flush();
+                }
             }
             Role::Follower(follower) => {
                 let message = follower.submit(payload);
@@ -1644,14 +1831,23 @@ where
                 }
                 self.read(vec![Some(head)], Then::Absorb { head });
             }
-            SessionMessage::Kept { commit, base } => {
+            SessionMessage::Kept {
+                commit,
+                base,
+                edits,
+            } => {
                 if self.is_owner() {
-                    self.jobs.push_front(Job::Keep {
+                    self.jobs.push_front(Job::Keep(Keeping {
                         commit,
                         base,
+                        edits,
+                        from,
                         attempts: 0,
-                    });
+                    }));
                 }
+            }
+            SessionMessage::Saved { commit } => {
+                self.handed.retain(|handed| handed.commit != commit);
             }
             SessionMessage::Presence { kind, value } => {
                 if from == self.client {
@@ -1685,6 +1881,14 @@ where
                         return;
                     }
                     self.awaiting = None;
+                    self.replacing = false;
+                }
+                if reload.is_some() && self.handing_edits() {
+                    let owner = self.state.owner;
+                    for handed in self.handed.clone() {
+                        self.send(owner, &handed.message());
+                    }
+                    return;
                 }
                 if reload.is_none() && follower.applied() != sequence {
                     return self.greet();
@@ -1741,6 +1945,7 @@ where
         self.replace_visible(self.confirmed.clone());
         self.base = Some(head);
         self.reload = true;
+        self.op_heads.clear();
         match unsealed.is_empty() {
             true => self.settle_at(head),
             false => self.jobs.push_front(Job::Seal {
@@ -1771,6 +1976,13 @@ where
         };
         if follower.pending() > 0 || self.awaiting.is_some() {
             return;
+        }
+        if self
+            .unsent
+            .front()
+            .is_some_and(|(_, bound, _)| *bound > LARGEST_RELAYED_OPERATION)
+        {
+            return self.hand_over_oversized();
         }
         let Some((operation, _, weight)) = self.unsent.pop_front() else {
             return;
@@ -1885,13 +2097,22 @@ where
         if !owner_changed {
             return;
         }
-        self.awaiting = None;
+        let replacement = self.awaiting.take().filter(|_| self.replacing);
+        self.replacing = false;
         if !self.state.is_owner(self.client) {
             let applied = follower.applied();
             let resubmit = follower.resynchronize(applied);
             let owner = self.state.owner;
             for message in resubmit {
                 self.send(owner, &message);
+            }
+            if let Some(head) = replacement {
+                self.awaiting = Some(head);
+                self.replacing = true;
+                self.send(owner, &SessionMessage::Replaced { head });
+            }
+            for handed in self.handed.clone() {
+                self.send(owner, &handed.message());
             }
             if self.catching_up {
                 self.greet();
@@ -1913,7 +2134,13 @@ where
             }
         }
         self.in_flight = 0;
-        for (operation, ..) in std::mem::take(&mut self.unsent) {
+        let mut oversized = false;
+        for (operation, bound, _) in std::mem::take(&mut self.unsent) {
+            if bound > LARGEST_RELAYED_OPERATION {
+                self.confirmed.apply(&operation);
+                oversized = true;
+                continue;
+            }
             let id = OpId {
                 client: self.client,
                 counter: sequencer.sequence() + 1,
@@ -1923,10 +2150,35 @@ where
                 accepted.push(op);
             }
         }
+        if oversized {
+            self.hand_over_oversized();
+        }
+        let replays = sequencer.inherited() == 0 && !self.handing_edits() && !oversized;
+        self.op_heads = match replays {
+            true => vec![self.base],
+            false => Vec::new(),
+        };
         self.role = Role::Owner(sequencer);
         self.replace_visible(self.confirmed.clone());
-        for op in accepted {
-            self.broadcast(&SessionMessage::Accepted { op });
+        for handed in self.handed.clone() {
+            self.jobs.push_back(Job::Keep(Keeping {
+                commit: handed.commit,
+                base: handed.base,
+                edits: None,
+                from: self.client,
+                attempts: 0,
+            }));
+        }
+        match replacement {
+            Some(head) => {
+                let content = self.confirmed.clone();
+                self.publish_replacement(content, None, true, None, Some(head), 0);
+            }
+            None => {
+                for op in accepted {
+                    self.broadcast(&SessionMessage::Accepted { op });
+                }
+            }
         }
     }
 
@@ -1972,28 +2224,77 @@ where
             return;
         }
         let awaited = self.awaiting.replace(head).is_some();
+        self.replacing = false;
         self.history.clear();
-        if !awaited && !self.is_clean() {
+        if !awaited && self.has_unsaved() {
             let content = self.written(&self.visible);
             self.stash(self.base, content, AfterStash::Keep);
         }
     }
 
-    fn keep(&mut self, commit: CommitId, base: Option<CommitId>, attempts: u8) {
-        if !self.is_owner() {
+    fn keep(&mut self, keeping: Keeping) {
+        let Role::Owner(sequencer) = &self.role else {
+            return;
+        };
+        if self.saved.contains(&keeping.commit) {
+            return self.acknowledge(&keeping);
+        }
+        let Some(edits) = keeping
+            .edits
+            .filter(|edits| edits.applied >= self.replaced_at)
+        else {
+            return self.publish_kept(keeping, None);
+        };
+        let replay = sequencer.inherited() == 0
+            && edits.applied <= sequencer.sequence()
+            && sequencer.sequence() - sequencer.pending_operations() as u64 <= edits.applied
+            && self.op_heads.contains(&edits.sealed);
+        let commits = match replay {
+            true => vec![Some(keeping.commit)],
+            false => vec![keeping.base, Some(keeping.commit)],
+        };
+        self.read(commits, Then::Handed { keeping, replay });
+    }
+
+    fn hand_over_oversized(&mut self) {
+        if !self.jobs.iter().any(|job| matches!(job, Job::Oversized)) {
+            self.jobs.push_front(Job::Oversized);
+        }
+    }
+
+    fn oversized(&mut self) {
+        let Role::Follower(follower) = &self.role else {
+            return self.replace(self.visible.clone(), None, false);
+        };
+        if follower.pending() > 0 || self.awaiting.is_some() || self.unsent.is_empty() {
             return;
         }
-        let content = self.written(&self.confirmed);
-        self.publish(
-            self.base,
-            Some(Merging { base, ours: commit }),
-            content,
-            AfterPublish::Kept {
-                commit,
-                base,
-                attempts,
-            },
-        );
+        if self.diverged {
+            return self.error(DIVERGED);
+        }
+        let applied = follower.applied();
+        let content = self.visible.clone();
+        if applied == self.sealed && !self.handing_edits() {
+            let written = self.written(&content);
+            return self.stash(
+                self.base,
+                written,
+                AfterStash::Hand {
+                    content,
+                    applied,
+                    ancestor: self.base,
+                },
+            );
+        }
+        let ancestor = self.written(&self.confirmed);
+        self.stash(self.base, ancestor, AfterStash::Ancestor { content, applied });
+    }
+
+    fn has_unsaved(&self) -> bool {
+        match &self.role {
+            Role::Owner(sequencer) => !sequencer.is_clean(),
+            Role::Follower(follower) => !self.is_clean() || follower.applied() > self.sealed,
+        }
     }
 
     fn reconcile(&mut self) {
@@ -2070,7 +2371,7 @@ where
             }
             return;
         }
-        if outright && !self.is_clean() {
+        if outright && self.has_unsaved() {
             let kept = match self.role {
                 Role::Owner(_) => self.written(&self.confirmed),
                 Role::Follower(_) => self.written(&self.visible),
@@ -2115,6 +2416,13 @@ where
         self.sealed_state = self.confirmed.session_state();
         self.owes_since = None;
         let reload = std::mem::take(&mut self.reload).then(|| self.sealed_state.clone());
+        if reload.is_some() {
+            self.op_heads.clear();
+        }
+        if self.op_heads.len() >= OP_HEADS {
+            self.op_heads.remove(0);
+        }
+        self.op_heads.push(Some(head));
         self.broadcast(&SessionMessage::Sealed {
             head,
             sequence,

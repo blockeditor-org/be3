@@ -93,30 +93,49 @@ Peers exchange `wire::Wire`: be-session's `SessionMessage`, `Tag` and
 an owner answers another tag with `Incompatible` and then ignores that peer's
 submits and catch-ups, and the follower marks itself incompatible and diverged, so
 two builds of a type never edit one session. The session itself is owner
-sequencing, follower rebase and `apply_beneath`, the 1 MiB relay limit (a larger
-edit is published as a commit, and a follower's queued edits are absorbed into
-pieces no larger), `Snapshot`/`Sealed`/`reload`, `Replaced`, `Moved`, `Kept`, takeover with
-`Sequencer::continuing`, presence and channel messages. Its rules: an owner that owes a seal seals `SEAL_INTERVAL` (750 ms) after it started
-owing; a rejected seal reconciles and seals once more; reconcile merges unsaved work
-into whatever it fast-forwards or merges onto and stashes our side when the merge
-conflicts; a head moved from elsewhere reconciles an owner, and one this device
-published outside the session (`from_this_device`), or a follower's edit too large
-to relay, sends a follower's owner `Moved`, which it reloads with its unsealed
-operations on top.
+sequencing, follower rebase and `apply_beneath`, the 1 MiB relay limit (a follower's
+queued edits are absorbed into pieces no larger), `Snapshot`/`Sealed`/`reload`,
+`Replaced`, `Moved`, `Kept`/`Saved`, takeover with `Sequencer::continuing`, presence
+and channel messages. Its rules: an owner that owes a seal seals `SEAL_INTERVAL`
+(750 ms) after it started owing; a rejected seal reconciles and seals once more;
+reconcile merges unsaved work into whatever it fast-forwards or merges onto and
+stashes our side when the merge conflicts; a head moved from elsewhere reconciles an
+owner, and one this device published outside the session (`from_this_device`) sends
+a follower's owner `Moved`, which it reloads with its unsealed operations on top.
+
+A follower hands the owner a commit with `Kept { commit, base, edits }`: `commit` is
+a stash, and `edits` (`KeptEdits`) says whether its content is to be merged in. The
+follower stays responsible for every stash it sent until the owner answers `Saved`:
+after a takeover it sends them again to the new owner, or as the new owner publishes
+them itself. An owner remembers what it saved, so a repeated `Kept` is only answered.
+
+An edit too large to relay never goes through the session. An owner publishes it as
+a commit. A follower queues it behind whatever it has in flight, and once nothing
+is, stashes its content (on top of a stash of its content as of its last applied
+sequence, unless that is its sealed head) and sends `Kept` with `edits`: that
+sequence and its sealed head. When the owner's log still holds every operation after
+that sequence and that head is one of its seals since its last reload, it takes the
+stash and replays those operations except the follower's own; otherwise it merges
+the stash with the follower's ancestor as base. Either way it publishes the result
+with the stash as second parent, so each edit lands once. Until `Saved` the follower
+skips reloads, sending its `Kept` again each time.
 
 A whole-content replacement (`Change::Replace`, `FromFile`, `FromEditor::Replace`)
 wins outright. The replica that does it first stashes what it has not saved (an
-owner's unsealed content, a follower's unconfirmed edits) and publishes the
-replacement with that stash as a second parent. An owner that replaced moves its
-sequence on by one and drops any `Submit` based before it, and sends its followers
-`Replaced`; a follower that still had unconfirmed edits stashes them and sends the
-commit to the owner as `Kept`, which the owner publishes as the second parent of a
-seal. A follower that replaced sends the owner `Replaced`, and the owner, unless it
-already took that head with nothing unsaved, publishes the replacement's content
-again on top of whatever it holds, the same way, so a reconcile that merged its
-unsaved work into the replacement first is overruled. A follower waiting on an
-owner's replacement holds its edits back and ignores operations and seals until the
-owner's `Sealed` for that head. Every editor is sent a snapshot of the replacement.
+owner's unsealed content; a follower's unconfirmed edits and the operations it
+applied since its last seal, which only it may hold if the owner is gone) and
+publishes the replacement with that stash as a second parent. An owner that replaced
+moves its sequence on by one and drops any `Submit` based before it, and sends its
+followers `Replaced`; a follower with anything unsaved stashes it and hands it to
+the owner with `Kept`, which the owner publishes as the second parent of a seal. A
+follower that replaced sends the owner `Replaced`, and the owner, unless it already
+took that head with nothing unsaved, publishes the replacement's content again on
+top of whatever it holds, the same way, so a reconcile that merged its unsaved work
+into the replacement first is overruled. If the owner changes before answering, the
+follower sends the new owner `Replaced` again, or as the new owner publishes its
+content as an owner's replacement. A follower waiting on a replacement holds its
+edits back and ignores operations and seals until the owner's `Sealed` for that
+head. Every editor is sent a snapshot of the replacement.
 
 ## Editors are endpoints
 

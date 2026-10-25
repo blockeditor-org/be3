@@ -51,6 +51,10 @@ pub enum SessionMessage {
     Kept {
         commit: CommitId,
         base: Option<CommitId>,
+        edits: Option<KeptEdits>,
+    },
+    Saved {
+        commit: CommitId,
     },
     Presence {
         kind: uuid::Uuid,
@@ -60,6 +64,12 @@ pub enum SessionMessage {
         channel: uuid::Uuid,
         payload: Vec<u8>,
     },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptEdits {
+    pub applied: u64,
+    pub sealed: Option<CommitId>,
 }
 
 #[derive(Clone, Debug, Default)]
