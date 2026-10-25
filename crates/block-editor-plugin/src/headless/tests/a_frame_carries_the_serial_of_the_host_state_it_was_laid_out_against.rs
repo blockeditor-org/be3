@@ -55,9 +55,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
 
 fn drawn(plugin: &mut HeadlessPlugin) -> FrameCommit {
     plugin.draw();
-    plugin
-        .outbound()
-        .expect("a drawn plugin commits a frame")
+    plugin.outbound().expect("a drawn plugin commits a frame")
 }
 
 #[test]
@@ -76,15 +74,15 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
     plugin.adopt(INSTANCE, Box::new(Still), EditorHost::new(Waker::default()));
     plugin
         .open(Opening::Block(OpenBlock {
-        instance: INSTANCE,
-        editor: [6; 16],
-        block_id: [1; 16],
-        block_type: [2; 16],
-        view_block: None,
-        account_id: [3; 16],
-        organization_id: [4; 16],
-        client_id: [5; 16],
-        editable: true,
+            instance: INSTANCE,
+            editor: [6; 16],
+            block_id: [1; 16],
+            block_type: [2; 16],
+            view_block: None,
+            account_id: [3; 16],
+            organization_id: [4; 16],
+            client_id: [5; 16],
+            editable: true,
         }))
         .unwrap();
 

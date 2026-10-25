@@ -127,7 +127,6 @@ impl Default for Wire {
 }
 
 impl Wire {
-    /// Answers the plugin's `connect`.
     pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
         if let Some(reply) = self.connecting.take() {
             reply.send(&mut self.connection, accepted);
@@ -645,10 +644,10 @@ impl Wire {
                 }
                 match (self.draws.remove(&op), outcome) {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
-                        let commit: block_plugin_api::FrameCommit =
-                            block_plugin_api::ops::decode(&bytes).ok_or(
-                                "the plugin answered a draw with a frame that did not decode",
-                            )?;
+                        let commit: block_plugin_api::FrameCommit = block_plugin_api::ops::decode(
+                            &bytes,
+                        )
+                        .ok_or("the plugin answered a draw with a frame that did not decode")?;
                         commit.validate().map_err(|error| {
                             format!("the plugin drew a frame it may not: {error}")
                         })?;

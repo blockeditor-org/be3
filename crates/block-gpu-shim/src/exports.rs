@@ -1,7 +1,4 @@
-use block_gpu_host::{
-    Gpu,
-    block_gpu_abi::embed::device::Caller,
-};
+use block_gpu_host::{Gpu, block_gpu_abi::embed::device::Caller};
 use wasm_bindgen::JsCast;
 
 use crate::{Shim, with};

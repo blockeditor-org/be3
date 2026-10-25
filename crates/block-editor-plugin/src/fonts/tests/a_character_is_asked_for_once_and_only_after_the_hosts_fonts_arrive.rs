@@ -15,12 +15,12 @@ fn a_character_is_asked_for_once_and_only_after_the_hosts_fonts_arrive() {
 
     plugin
         .set_fonts(Fonts {
-        replace: true,
-        faces: vec![FontFace {
-            role: FontRole::Text,
-            index: 0,
-            data: vec![1],
-        }],
+            replace: true,
+            faces: vec![FontFace {
+                role: FontRole::Text,
+                index: 0,
+                data: vec![1],
+            }],
         })
         .unwrap();
     report_missing(['\u{4e2d}']);

@@ -82,7 +82,6 @@ pub struct TemplateDocument {
     pub block_type: Option<String>,
 }
 
-/// A template's category as a manifest spells it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CategoryDocument {

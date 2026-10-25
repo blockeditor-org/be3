@@ -73,7 +73,9 @@ fn a_description_keeps_every_kind_of_node_property() {
             live: false,
         }],
     };
-    let carried = crate::ops::encode(&crate::accessibility::Description::from(description.clone()));
+    let carried = crate::ops::encode(&crate::accessibility::Description::from(
+        description.clone(),
+    ));
     let decoded: Description = crate::ops::decode::<crate::accessibility::Description>(&carried)
         .expect("the description decodes")
         .into();

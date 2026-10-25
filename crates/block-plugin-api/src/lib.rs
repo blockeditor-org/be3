@@ -57,14 +57,14 @@ pub use host_services::{
     AccessGrant, BlockFilter, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
-    BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
-    PanMode, Press, ResizeMode, TemplateCategory,
-};
-pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, BlockPick, Catalog,
     ChildPreview, CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand,
     MenuHeading, MenuItem, MenuItemKind, MenuPin, PerformanceMeasurement, PreviewImage,
     SettingsProgress, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+};
+pub use shell_types::{
+    BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
+    PanMode, Press, ResizeMode, TemplateCategory,
 };
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, EditorRegion, FontFace,
@@ -78,11 +78,11 @@ pub use types::{
 mod accesskit_mirror;
 mod block_ids;
 mod host_value;
+mod input;
 mod linux;
 mod manifest;
 mod nesting;
 mod opening;
-mod input;
 mod watch;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
@@ -239,8 +239,6 @@ fn close_submenu(open: &mut Vec<Vec<MenuEntry>>, headings: &mut Vec<MenuHeading>
     }
 }
 
-/// What a screen describes to assistive technology, with AccessKit's own
-/// tree; it crosses the protocol as `accessibility::Description`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Description {
     pub tree: Option<accesskit::TreeUpdate>,
@@ -681,8 +679,6 @@ impl fmt::Display for DecodeError {
 impl std::error::Error for DecodeError {}
 
 impl FrameCommit {
-    /// Whether every child placement's occluders are in the order they cover
-    /// the children in, which is what `ChildPlacements::occluded` reads.
     pub fn validate(&self) -> Result<(), DecodeError> {
         for placements in &self.children {
             let mut covered = 0;

@@ -517,10 +517,7 @@ impl Runtime {
     }
 
     fn request_painting(&mut self) {
-        if self.error.is_some()
-            || !self.instances.has_mounted()
-            || !self.session.running()
-        {
+        if self.error.is_some() || !self.instances.has_mounted() || !self.session.running() {
             return;
         }
         self.painting = true;
@@ -909,15 +906,9 @@ impl Runtime {
                     self.instances.translate(&mut answered, true);
                     self.instances.answered(answered.0, answered.1)
                 }
-                Answer::Frame(commit) => {
-                    self.commit(commit)
-                }
-                Answer::Laid(laid) => {
-                    self.lay(laid)
-                }
-                Answer::Blocks(instance, call) => {
-                    self.instances.blocks_call(instance, call)
-                }
+                Answer::Frame(commit) => self.commit(commit),
+                Answer::Laid(laid) => self.lay(laid),
+                Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
                 Answer::HostValues(instance, call) => {
                     self.instances.host_values_call(instance, call)
                 }

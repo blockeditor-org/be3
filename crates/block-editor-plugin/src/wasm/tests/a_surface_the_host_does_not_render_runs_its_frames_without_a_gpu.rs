@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use crate::editor_session::EditorSession;
 use crate::screens::Screens;
-use crate::wire::Delivery;
 use crate::wasm::{Surfaces, surface_gpu};
+use crate::wire::Delivery;
 use crate::{EditorHost, Frame, Instance, Region, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
@@ -65,21 +65,21 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             editable: true,
         })),
         Delivery::Screens(vec![ScreenRequest {
-                screen: ScreenId(1),
-                instance: INSTANCE,
-                region: EditorRegion::Frame,
-                frame: None,
-                metrics: ViewportMetrics {
-                    logical: Size {
-                        width: 100.0,
-                        height: 80.0,
-                    },
-                    visible: block_plugin_api::Pos2::ZERO,
-                    pixel_width: 100,
-                    pixel_height: 80,
-                    scale_factor: 1.0,
-                    monitors: Vec::new(),
+            screen: ScreenId(1),
+            instance: INSTANCE,
+            region: EditorRegion::Frame,
+            frame: None,
+            metrics: ViewportMetrics {
+                logical: Size {
+                    width: 100.0,
+                    height: 80.0,
                 },
+                visible: block_plugin_api::Pos2::ZERO,
+                pixel_width: 100,
+                pixel_height: 80,
+                scale_factor: 1.0,
+                monitors: Vec::new(),
+            },
         }]),
         Delivery::Configure(1),
     ] {

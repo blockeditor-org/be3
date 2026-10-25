@@ -102,9 +102,7 @@ pub(crate) fn answer(query: BlockQuery) -> Vec<BlockInfo> {
 pub(crate) fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
     entries
         .iter()
-        .map(|(key, value)| {
-            (key.into_bytes(), value.clone())
-        })
+        .map(|(key, value)| (key.into_bytes(), value.clone()))
         .collect()
 }
 

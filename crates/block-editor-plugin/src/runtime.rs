@@ -35,8 +35,6 @@ impl Runtime {
         self.session.hello()
     }
 
-    /// Takes what the host asked for and answers it through the world's
-    /// imports, inside the executor. True once the plugin was shut down.
     pub(crate) fn step(
         &mut self,
         batch: Vec<Delivery>,

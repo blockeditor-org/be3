@@ -36,7 +36,6 @@ impl HeadlessPlugin {
         }
     }
 
-    /// Takes the host's be-ops frames, as a runtime would.
     pub fn deliver(&mut self, frames: Vec<Vec<u8>>) -> Result<(), String> {
         self.executor.step(frames, &mut self.frames)?;
         for delivery in self.wire.take_inbox() {
@@ -129,8 +128,6 @@ impl HeadlessPlugin {
         frames
     }
 
-    /// The frame drawn since the last call, if one was; what else changed
-    /// reaches the host through the world's imports, as `take_frames` gives them.
     pub fn outbound(&mut self) -> Option<FrameCommit> {
         let commit = std::mem::take(&mut self.drawn).then(|| self.screens.commit());
         let screens = &mut self.screens;

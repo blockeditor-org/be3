@@ -12,8 +12,6 @@ pub enum State {
     Closed,
 }
 
-/// What the host may ask of the plugin in each state: a delivery out of order
-/// is an error that stops the plugin.
 pub struct ClientSession {
     state: State,
     screens: HashSet<ScreenId>,
@@ -91,13 +89,15 @@ impl ClientSession {
                 self.screens = screens.iter().map(|screen| screen.screen).collect();
                 Ok(())
             }
-            (State::Running, Delivery::Input(input)) => match self.screens.contains(&input.screen) {
-                true => Ok(()),
-                false => Err(format!(
-                    "input arrived for screen {}, which this plugin was not given",
-                    input.screen.0
-                )),
-            },
+            (State::Running, Delivery::Input(input)) => {
+                match self.screens.contains(&input.screen) {
+                    true => Ok(()),
+                    false => Err(format!(
+                        "input arrived for screen {}, which this plugin was not given",
+                        input.screen.0
+                    )),
+                }
+            }
             (State::Running, Delivery::Open(opening)) => {
                 let instance = opening.instance();
                 match self.instances.insert(instance) {

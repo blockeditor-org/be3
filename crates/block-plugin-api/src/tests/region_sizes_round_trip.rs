@@ -22,5 +22,4 @@ fn region_sizes_round_trip() {
         ..frame(4)
     };
     round_trips(&message);
-
 }

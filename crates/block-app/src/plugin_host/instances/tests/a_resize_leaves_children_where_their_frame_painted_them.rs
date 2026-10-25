@@ -3,10 +3,7 @@ use super::*;
 #[test]
 fn a_resize_leaves_children_where_their_frame_painted_them() {
     let mut instances = placed();
-    assert_eq!(
-        configure(&mut instances),
-        Some(PluginCall::Configure(1))
-    );
+    assert_eq!(configure(&mut instances), Some(PluginCall::Configure(1)));
     instances.set_children(child(
         Rect::from_min_size(pos2(0.0, 50.0), vec2(20.0, 20.0)),
         false,
@@ -30,10 +27,7 @@ fn a_resize_leaves_children_where_their_frame_painted_them() {
 
     let shrunk = vec2(100.0, 60.0);
     resize(&mut instances, shrunk, 1.0);
-    assert_eq!(
-        configure(&mut instances),
-        Some(PluginCall::Configure(2))
-    );
+    assert_eq!(configure(&mut instances), Some(PluginCall::Configure(2)));
     let rect = Rect::from_min_size(pos2(10.0, 10.0), shrunk);
     let (children, _) = instances.host_children(INSTANCE, REGION, rect, rect, None);
     assert_eq!(

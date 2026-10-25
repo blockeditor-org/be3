@@ -1,6 +1,5 @@
 use block_plugin_api::{Hello, HelloAccepted, Preferences, SurfaceSpec, SurfaceSupport};
 
-/// How long a plugin has to say hello, or to finish shutting down.
 const LIFECYCLE_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,8 +19,6 @@ pub(super) enum SessionFailure {
     ShutdownTimedOut,
 }
 
-/// Where the host's side of a plugin is in its life: started, connected (its
-/// `connect` answered with the surface it may draw on), shutting down, closed.
 pub(super) struct Session {
     state: SessionState,
     host_name: String,
@@ -59,7 +56,6 @@ impl Session {
         self.deadline = Some(now_milliseconds + LIFECYCLE_TIMEOUT_MILLISECONDS);
     }
 
-    /// The answer to the plugin's `connect`, which starts the session.
     pub(super) fn connect(&mut self, hello: &Hello, preferences: Preferences) -> HelloAccepted {
         if self.state != SessionState::Starting {
             self.fail(SessionFailure::Protocol(
@@ -80,7 +76,6 @@ impl Session {
         }
     }
 
-    /// Whether the plugin is to be asked to shut down.
     pub(super) fn shutdown(&mut self, now_milliseconds: u64) -> bool {
         match self.state {
             SessionState::Idle | SessionState::Closed | SessionState::Failed(_) => {

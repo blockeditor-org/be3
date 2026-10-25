@@ -1,17 +1,11 @@
 use crate::ops::{Connection, OpError, OpId, Outcome, Reply};
 
-/// The host's side of a latest-value watch, a resource whose
-/// `next: async func() -> T` the plugin calls again each time it is answered.
-/// A change answers a waiting `next` at once, or is held, folded into the
-/// changes after it, until the plugin asks.
 pub struct Watch<T> {
     open: Option<OpId>,
     waiting: Option<OpId>,
     held: Option<T>,
 }
 
-/// A value already encoded as the watch's result type, for a host that works
-/// out a watch's value as bytes.
 pub struct Encoded(pub Vec<u8>);
 
 impl<T> Default for Watch<T> {
@@ -40,13 +34,10 @@ impl<T> Watch<T> {
         self.open == Some(op)
     }
 
-    /// Whether the plugin waits for the next value.
     pub fn waiting(&self) -> bool {
         self.waiting.is_some()
     }
 
-    /// Answers a `next` the plugin gave up on as canceled; false when it was
-    /// not this watch's.
     pub fn withdraw(&mut self, connection: &mut Connection, next: OpId) -> bool {
         if self.waiting != Some(next) {
             return false;
@@ -56,7 +47,6 @@ impl<T> Watch<T> {
         true
     }
 
-    /// Takes the plugin's `next`, answering one it called before as canceled.
     fn wait(&mut self, connection: &mut Connection, next: OpId) {
         if let Some(earlier) = self.waiting.replace(next) {
             connection.complete(earlier, Outcome::Err(OpError::Canceled));
@@ -94,7 +84,6 @@ impl Watch<Encoded> {
         self.answer(connection, |Encoded(bytes)| Outcome::Ok(bytes));
     }
 
-    /// Answers the waiting `next` as canceled, when the watch ends.
     pub fn end(&mut self, connection: &mut Connection) {
         if let Some(next) = self.waiting.take() {
             connection.complete(next, Outcome::Err(OpError::Canceled));

@@ -78,7 +78,6 @@ fn main() {
     plugin.stop();
 }
 
-/// The host's side of the plugin's world, answering only what a frame needs.
 struct Session {
     connection: Connection,
     draw: Option<OpId>,
@@ -116,7 +115,10 @@ impl Session {
                 }
                 Incoming::Completed { op, outcome } if Some(op) == self.draw => {
                     self.drawn = matches!(outcome, Outcome::Ok(_));
-                    println!("  a frame, {}", if self.drawn { "drawn" } else { "refused" });
+                    println!(
+                        "  a frame, {}",
+                        if self.drawn { "drawn" } else { "refused" }
+                    );
                 }
                 event => println!("  {event:?}"),
             }

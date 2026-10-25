@@ -2,10 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use block_editor_beui::FromEditor;
 use block_plugin_api::{
-    BlockCommand, EditorInstanceId, VersionCommand,
+    BlockCommand, EditorInstanceId, Encoded, VersionCommand,
     blocks::{BlockHistory, OpenRequest},
     embed::blocks::Call,
-    Encoded,
     ops::{Connection, OpError, OpId, Outcome, Producer, encode},
 };
 use uuid::Uuid;
@@ -22,7 +21,6 @@ enum Subject {
     Shows,
 }
 
-/// A watch the editor opened, with what reached it since the host last answered.
 struct Watch {
     subject: Subject,
     answering: block_plugin_api::Watch<Encoded>,

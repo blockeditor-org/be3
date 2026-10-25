@@ -8,9 +8,9 @@ fn a_message_waits_for_the_instance_it_names_to_be_opened() {
     assert!(instances.gate(vec![presence.clone()]).is_empty());
 
     let opened = instances.next_screens(PASS).opened;
-    let open = opened.iter().position(|message| {
-        matches!(message, Outbound::Open(_))
-    });
+    let open = opened
+        .iter()
+        .position(|message| matches!(message, Outbound::Open(_)));
     let held = opened.iter().position(|message| message == &presence);
 
     assert!(open.is_some());

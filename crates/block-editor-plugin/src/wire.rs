@@ -18,8 +18,6 @@ use crate::editor_session::EditorSession;
 
 pub(crate) type EditorCall = Box<dyn FnOnce(&mut EditorSession)>;
 
-/// What the host's calls ask of the plugin, queued in the order they came so
-/// the runtime takes them in its next step.
 pub(crate) enum Delivery {
     Accepted(HelloAccepted),
     Preferences(Preferences),
@@ -89,13 +87,11 @@ impl Shared {
         self.push(Delivery::Call(Box::new(call)));
     }
 
-    /// Whether a draw the host asked for waits for its frame.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn drawing(&self) -> bool {
         !self.0.borrow().draws.is_empty()
     }
 
-    /// Answers the oldest draw the host asked for with the frame drawn.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn drawn(&self, commit: FrameCommit) {
         let draw = self.0.borrow_mut().draws.pop_front();
@@ -112,7 +108,6 @@ impl Shared {
         }
     }
 
-    /// Introduces the plugin, which hears nothing else before the host's answer.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn connect(&self, hello: Hello) {
         let wire = self.clone();

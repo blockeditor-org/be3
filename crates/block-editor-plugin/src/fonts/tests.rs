@@ -16,7 +16,6 @@ fn accepted(plugin: &mut HeadlessPlugin) {
         .unwrap();
 }
 
-/// The characters the plugin asked the host for since the last call.
 fn asked(plugin: &mut HeadlessPlugin) -> Vec<Vec<char>> {
     plugin.outbound();
     let mut host = Connection::new(Side::Host);

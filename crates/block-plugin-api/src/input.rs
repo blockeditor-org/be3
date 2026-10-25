@@ -9,9 +9,6 @@ impl InputBatch {
         }
     }
 
-    /// Adds a batch to those waiting for the plugin: it merges into the last
-    /// one when that is for the same screen, so a burst of input the plugin
-    /// has not taken yet arrives as one batch, in order.
     pub fn queue(batches: &mut Vec<InputBatch>, incoming: InputBatch) {
         match batches.last_mut() {
             Some(last) if last.screen == incoming.screen => last.merge(&incoming),

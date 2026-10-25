@@ -14,5 +14,4 @@ fn a_screen_readers_action_round_trips() {
     ))
     .expect("the request decodes");
     assert_eq!(ActionRequest::from(carried), action);
-
 }

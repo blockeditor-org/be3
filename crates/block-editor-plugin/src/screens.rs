@@ -209,8 +209,6 @@ impl Screens {
         self.surface
     }
 
-    /// Applies what the host delivered; true when the screens it touched must
-    /// draw again.
     pub(crate) fn deliver(&mut self, delivery: Delivery) -> bool {
         match delivery {
             Delivery::Accepted(accepted) => {
@@ -340,8 +338,6 @@ impl Screens {
         self.touch_everything();
     }
 
-    /// Tells the host, through the world's imports, what changed in the
-    /// editors that ran or woke since the last step.
     pub(crate) fn outbound(&mut self) {
         let missing = crate::fonts::take_missing();
         if !missing.is_empty() {

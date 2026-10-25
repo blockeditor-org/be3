@@ -5,7 +5,10 @@ fn round_trips<T>(value: &T)
 where
     T: Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
 {
-    assert_eq!(crate::ops::decode::<T>(&crate::ops::encode(value)).as_ref(), Some(value));
+    assert_eq!(
+        crate::ops::decode::<T>(&crate::ops::encode(value)).as_ref(),
+        Some(value)
+    );
 }
 
 fn hello() -> Hello {

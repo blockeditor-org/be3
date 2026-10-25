@@ -13,19 +13,19 @@ fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
 
     plugin
         .set_fonts(Fonts {
-        replace: true,
-        faces: vec![
-            FontFace {
-                role: FontRole::Text,
-                index: 0,
-                data: vec![1, 2, 3],
-            },
-            FontFace {
-                role: FontRole::Icons,
-                index: 0,
-                data: vec![4],
-            },
-        ],
+            replace: true,
+            faces: vec![
+                FontFace {
+                    role: FontRole::Text,
+                    index: 0,
+                    data: vec![1, 2, 3],
+                },
+                FontFace {
+                    role: FontRole::Icons,
+                    index: 0,
+                    data: vec![4],
+                },
+            ],
         })
         .unwrap();
     assert_eq!(

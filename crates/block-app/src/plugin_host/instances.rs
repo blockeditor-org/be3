@@ -1,16 +1,16 @@
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
+use block_plugin_api::embed::host_values::Call as HostValues;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
-    ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
-    FrameReport, FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PerformanceMeasurement,
-    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped,
-    ViewChange, WebViewEvent, WebViewId,
+    ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion, FrameReport,
+    FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
+    PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size,
+    Stopped, ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests, embed::shell::Call as ShellCall, ops::OpId,
 };
-use block_plugin_api::embed::host_values::Call as HostValues;
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
     collections::{HashMap, HashSet},
@@ -1400,28 +1400,24 @@ impl Instances {
                             editable
                         },
                     }),
-                    InstanceRole::Creation(editor, template) => {
-                        Opening::Creation(OpenCreation {
-                            instance,
-                            editor: editor.into_bytes(),
-                            template: template.to_owned(),
-                            account_id,
-                            organization_id,
-                            client_id,
-                        })
-                    }
-                    InstanceRole::Artifact(editor, block) => {
-                        Opening::Artifact(OpenArtifact {
-                            instance,
-                            editor: editor.into_bytes(),
-                            block_id: block.id.into_bytes(),
-                            block_type: block.block_type.into_bytes(),
-                            account_id,
-                            organization_id,
-                            client_id,
-                            data: entry.artifact.data.clone(),
-                        })
-                    }
+                    InstanceRole::Creation(editor, template) => Opening::Creation(OpenCreation {
+                        instance,
+                        editor: editor.into_bytes(),
+                        template: template.to_owned(),
+                        account_id,
+                        organization_id,
+                        client_id,
+                    }),
+                    InstanceRole::Artifact(editor, block) => Opening::Artifact(OpenArtifact {
+                        instance,
+                        editor: editor.into_bytes(),
+                        block_id: block.id.into_bytes(),
+                        block_type: block.block_type.into_bytes(),
+                        account_id,
+                        organization_id,
+                        client_id,
+                        data: entry.artifact.data.clone(),
+                    }),
                 })));
                 let mut statuses: Vec<_> = entry
                     .screens
@@ -2502,8 +2498,11 @@ impl Instances {
         messages
     }
 
-    /// A watch of a host value an editor opened, or an action it asked for.
-    pub(super) fn host_values_call(&mut self, instance: EditorInstanceId, call: HostValues) -> bool {
+    pub(super) fn host_values_call(
+        &mut self,
+        instance: EditorInstanceId,
+        call: HostValues,
+    ) -> bool {
         let shell = self.shell == Some(instance);
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
@@ -2514,7 +2513,9 @@ impl Instances {
             .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
         match call {
             HostValues::WatchNew { key, .. } => entry.host_values.watch(key),
-            HostValues::Act { key, action } if !preview => entry.host_values.act(key, action, shell),
+            HostValues::Act { key, action } if !preview => {
+                entry.host_values.act(key, action, shell)
+            }
             HostValues::Act { .. } | HostValues::WatchNext { .. } => false,
         }
     }

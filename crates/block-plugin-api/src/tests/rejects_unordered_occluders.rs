@@ -42,5 +42,9 @@ fn rejects_unordered_occluders() {
         placements(vec![occluder(1), occluder(0)]).validate(),
         Err(DecodeError::MalformedPayload)
     );
-    assert!(placements(vec![occluder(0), occluder(1)]).validate().is_ok());
+    assert!(
+        placements(vec![occluder(0), occluder(1)])
+            .validate()
+            .is_ok()
+    );
 }

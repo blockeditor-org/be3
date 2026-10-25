@@ -30,8 +30,6 @@ use std::marker::PhantomData;
 
 type Delivered = Box<dyn FnOnce(&mut HeadlessPlugin) -> Result<(), String>>;
 
-/// What the test host sends the plugin, in order: be-ops frames of the world's
-/// calls, or a value the host pushes, delivered as the plugin's wire would.
 enum Inbound {
     Pushed(Delivered),
     Frames(Vec<Vec<u8>>),
