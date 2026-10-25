@@ -17,6 +17,8 @@ use crate::{
     plugin_host::{BlockPickRequest, wire::Service},
 };
 
+type Visit<'a> = dyn FnMut(&mut [u8; 16]) + 'a;
+
 struct Delivered {
     epoch: u64,
     instance: EditorInstanceId,
@@ -144,7 +146,7 @@ impl Instances {
         &self,
         instance: EditorInstanceId,
         inward: bool,
-        ids: &mut dyn FnMut(&mut dyn FnMut(&mut [u8; 16])),
+        ids: &mut dyn FnMut(&mut Visit<'_>),
     ) {
         let scope = self.entries.get(&instance).and_then(|entry| {
             let block = entry.role.block()?.id;

@@ -245,7 +245,7 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
         history.entries.with(|entries| {
             entries
                 .iter()
-                .map(|entry| (entry.commit, entry.clone()))
+                .map(|entry| (entry.commit, *entry))
                 .collect::<HashMap<_, _>>()
         })
     });
