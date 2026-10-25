@@ -362,17 +362,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             scale_factor: self.scale_factor,
             monitors: self.monitors.clone(),
         };
-        self.inbox
-            .push(Inbound::from(Message::Screens(ScreenSet {
-                request_id: self.screens,
-                screens: vec![ScreenRequest {
-                    screen: SCREEN,
-                    instance: INSTANCE,
-                    region,
-                    metrics,
-                    frame: self.frame,
-                }],
-            })));
+        self.inbox.push(Inbound::from(Message::Screens(ScreenSet {
+            request_id: self.screens,
+            screens: vec![ScreenRequest {
+                screen: SCREEN,
+                instance: INSTANCE,
+                region,
+                metrics,
+                frame: self.frame,
+            }],
+        })));
     }
 
     pub fn block_id(&self) -> Option<Uuid> {
