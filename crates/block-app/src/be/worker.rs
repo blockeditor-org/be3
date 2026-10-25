@@ -560,9 +560,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
         };
         let handled = replicas.handled;
-        if matches!(woken, Woken::Module) {
-            replicas.pump((&peer, shared)).await;
-        }
+        let pumped = matches!(woken, Woken::Module) && replicas.pump((&peer, shared)).await;
         if !matches!(woken, Woken::Module) || replicas.handled != handled {
             shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
         }
@@ -637,6 +635,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 false
             }
         };
+        moved |= pumped;
         moved |= replicas.pump((&peer, shared)).await;
         rekey_changed(&peer, replicas, &mut keyed, shared).await;
         let before = version_revisions(shared);
