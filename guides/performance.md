@@ -26,6 +26,18 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   paints them and exports the folder again. It fails unless both exports are identical and
   each block paints the same on both devices. "Save" is how long `hurry on` takes to settle
   after the edit shows: the seal the app would wait 750 ms for, published to the server.
+- The pen line goes in 1,000 samples a frame (`drive pen draw FROM TO STEPS PER_FRAME`), so
+  `canvas.line-draw`, from its first sample until the whole line shows, is the work the
+  samples cause (the canvas's edits, relaying them, the replica, the plugin applying them)
+  and not the cost of 10,000 frames, which a person drawing never waits on.
+  `canvas.line-longest-frame` and `canvas.line-longest-plugin-frame` are the longest host
+  frame and the longest canvas plugin step meanwhile (`drive frames`, guides/running/drive.md):
+  a frame packed with samples is where a per-sample cost that grows with the stroke shows as
+  stutter, and since a host frame waits at most 8 ms for its plugins, the plugin's own line
+  is where the canvas's share shows. The run fails unless the exported stroke holds exactly
+  the samples the canvas keeps, where they were drawn: it keeps a sample only when it is more
+  than a point from the last one it kept (about one in twelve of these, `canvas.line-points`),
+  so dropping one it would have kept moves the points after it.
   It takes about three minutes; set the two sizes lower while working on it. It needs
   `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the app loads, which the suite sets.
 

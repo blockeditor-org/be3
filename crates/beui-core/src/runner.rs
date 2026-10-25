@@ -411,6 +411,7 @@ impl Runner {
     }
 
     fn run_frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
+        let started = std::time::Instant::now();
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {
             Ok(false) => {}
@@ -667,6 +668,8 @@ impl Runner {
         if let Some(automation) = &mut self.automation
             && let Some(dump) = self.context.kept_accessibility()
         {
+            let took = started.elapsed();
+            let others = self.app.other_frames();
             self.actions = std::mem::take(&mut output.actions);
             let rendered = dump.rendered();
             let view = View {
@@ -688,6 +691,7 @@ impl Runner {
                     false => frame.again(),
                 },
             };
+            automation.framed(took, others);
             automation.end(
                 &view,
                 settled,

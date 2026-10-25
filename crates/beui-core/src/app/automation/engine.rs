@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -8,6 +8,7 @@ use super::target::{describe, locate, node, point, scaled};
 use super::window::{Resize, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes};
 use crate::app::accessibility_dump::{ACTIONS, Line};
+use crate::app::FrameTimes;
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
@@ -30,6 +31,8 @@ pub const USAGE: &str = "Reading:
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
+  frames                    how many frames ran since the last frames, and the longest one's wall time:
+                            the window's, and those the app ran elsewhere, such as a plugin's
   actions [all]             the actions the command palette would list (all: every one)
   env                       NAME=VALUE lines a program needs to show its windows inside the app,
                             such as WAYLAND_DISPLAY; empty when the app hosts no programs
@@ -63,8 +66,9 @@ Pen:
   pen move TARGET [PRESSURE]   the pen hovers over TARGET, or moves there pressed down with PRESSURE
   pen down TARGET [PRESSURE]   the tip touches TARGET, PRESSURE from 0 to 1 (0.5)
   pen up [TARGET]           the tip lifts; the pen stays in range
-  pen draw FROM TO [STEPS]  the tip down at FROM, along in STEPS (8) with the pressure rising and
-                            falling, and up at TO
+  pen draw FROM TO [STEPS [PER_FRAME]]   the tip down at FROM, along in STEPS (8) with the
+                            pressure rising and falling, PER_FRAME (1) samples in each frame, and
+                            up at TO
   pen leave                 the pen goes out of range
   back                      the system back gesture, whole
   back [left|right] / back PROGRESS / back commit|cancel   step by step, PROGRESS from 0 to 1
@@ -205,6 +209,8 @@ pub struct Automation {
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
     saves: Vec<(u64, FileSaveRequest, FileSaveAnswer)>,
     dialogs: u64,
+    frames: FrameTimes,
+    other_frames: BTreeMap<String, FrameTimes>,
 }
 
 impl Automation {
@@ -221,7 +227,31 @@ impl Automation {
             picks: Vec::new(),
             saves: Vec::new(),
             dialogs: 0,
+            frames: FrameTimes::default(),
+            other_frames: BTreeMap::new(),
         }
+    }
+
+    pub fn framed(&mut self, took: Duration, others: Vec<(String, FrameTimes)>) {
+        self.frames.add(took);
+        for (name, times) in others {
+            self.other_frames.entry(name).or_default().merge(times);
+        }
+    }
+
+    fn take_frames(&mut self) -> String {
+        let window = std::mem::take(&mut self.frames);
+        let others = std::mem::take(&mut self.other_frames);
+        std::iter::once(("window".to_owned(), window))
+            .chain(others)
+            .map(|(name, times)| {
+                format!(
+                    "{name}: {} frames, the longest {:.3} ms\n",
+                    times.count,
+                    times.longest.as_secs_f64() * 1000.0
+                )
+            })
+            .collect()
     }
 
     pub fn clock_stopped(&self) -> bool {
@@ -637,6 +667,7 @@ impl Automation {
         match command.as_str() {
             "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "tree" => Ok(Started::Done(Reply::Text(view.tree.to_owned()))),
+            "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
             "ids" => {
                 let mut ids: Vec<(&str, &Line)> = view
                     .lines
@@ -806,13 +837,20 @@ impl Automation {
                     "draw" => {
                         let from = at(argument(1)?)?;
                         let to = at(argument(2)?)?;
-                        let steps: usize = match arguments.get(3) {
-                            Some(steps) => steps
-                                .parse()
-                                .map_err(|_| format!("{steps} is not a number of steps"))?,
-                            None => 8,
+                        let count = |index: usize, default: usize, what: &str| match arguments
+                            .get(index)
+                        {
+                            Some(text) => text
+                                .parse::<usize>()
+                                .map_err(|_| format!("{text} is not a number of {what}")),
+                            None => Ok(default),
                         };
-                        self.gestures.pen_draw(from, to, steps)?
+                        let steps = count(3, 8, "steps")?;
+                        let per_frame = count(4, 1, "samples a frame")?;
+                        if per_frame == 0 {
+                            return Err("pen draw puts at least one sample in each frame".to_owned());
+                        }
+                        self.gestures.pen_draw(from, to, steps, per_frame)?
                     }
                     "leave" => self.gestures.pen_leave()?,
                     other => {

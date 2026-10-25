@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::context::Context;
 use crate::geometry::{Rect, Vec2, pos2};
@@ -52,6 +53,28 @@ pub trait App: std::any::Any {
     }
 
     fn request_painting(&mut self) {}
+
+    fn other_frames(&mut self) -> Vec<(String, FrameTimes)> {
+        Vec::new()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FrameTimes {
+    pub count: u64,
+    pub longest: Duration,
+}
+
+impl FrameTimes {
+    pub fn add(&mut self, took: Duration) {
+        self.count += 1;
+        self.longest = self.longest.max(took);
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.count += other.count;
+        self.longest = self.longest.max(other.longest);
+    }
 }
 
 pub struct Setup {
