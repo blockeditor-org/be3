@@ -2461,7 +2461,12 @@ Beui does not hold the pointer itself - it asks. `PointerLock` sets
 it: the winit runner locks the cursor and hides it, and a plugin region passes
 it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). An
 adapter reads raw motion only while `Runner::window()`, the state it was
-shown, holds the pointer. What comes back is
+shown, holds the pointer, and while it does sends no absolute `PointerMoved`
+(winit, web and drm alike), since a held pointer's position means nothing.
+The winit adapter lets the grab go itself the moment its window loses focus
+and takes it back on focus only if the shown state still asks, since X11's
+and macOS's grabs outlive focus; a browser drops its lock on blur by itself.
+What comes back is
 `Event::PointerMotion`, a delta with no position, which the document delivers to
 the focused node while the pointer is held and nowhere at all while it is not.
 So a control that is not the one holding the pointer never sees motion, and a
@@ -2942,21 +2947,39 @@ all its 3D (`glam`) stays in the crate.
   none, turned to face the viewer (yaw only). `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
-- Pointer: input in physical or logical pixels is the platform's; a ray from
-  the eye through the cursor picks the nearest panel's front (`panel::pick`) and
-  the app gets the input as that window's, in its points (on a bent panel, the
-  point of the curved surface the ray meets). Moving onto another
+- Grab: while its window has focus the host holds the pointer
+  (`Space::grabbed`; it asks for `pointer_locked` all that time), so the mouse
+  sends only `PointerMotion`. Losing focus (`Input::Focus(false)`) or
+  Ctrl+Shift+Escape lets it go, and then the first press into the window grabs
+  it again and reaches nothing, nor does its release. While a window the
+  cursor is on asks for pointer lock itself, motion goes to it instead and
+  the cursor stays put.
+- Pointer: the cursor is a point in the world (`Space::cursor`), and every
+  press, move and hover goes where the ray from the eye through the cursor as
+  drawn (`Space::cursor_ray`, `cursor_screen`) meets the nearest panel's front
+  (`Space::pick`): the app gets it as that window's, in its points (on a bent
+  panel, the point of the curved surface the ray meets). A press's own
+  position is ignored. An absolute position, a `PointerMoved` in pixels or in a
+  window's points (a driver's, mapped onto that window's panel), puts the
+  cursor where its ray hits; `PointerMotion` moves it from where it is drawn by
+  as many screen pixels (no further than `CURSOR_MARGIN` points inside the
+  edge); either saves it `CURSOR_LIFT` (1%) of the distance in front of what
+  it hits, or on a miss at the last hit's distance (`OPEN_DISTANCE` before any
+  hit). Turning the head and walking leave it at its point, so it slides
+  across the view; one that would leave the view is drawn, and points, just
+  inside the edge without moving its point, so turning back finds it where it
+  was, and moving the mouse from the edge starts from where it is drawn. While
+  a panel is carried the cursor stays on its grabbed point. Moving onto another
   panel just names the new window, held button or not (no `PointerLeft`), so
   a drag goes on across windows. Moving off every panel sends the last window
   `PointerLeft`; while a button is held, moves and the release then go to the
   window the press began in, at the point the ray meets that panel's plane,
   outside its rectangle. That is how an app tells a drop on nothing (the dock
   floats a tab dropped there into a window opened `AtPointer`). Presses that
-  miss reach nothing. Input in points is a driver's (`drive` sees the app's
-  main window): it passes through unchanged and only moves the 3D cursor.
+  miss reach nothing.
 - Head: holding Ctrl and Shift (either side) steers. Ctrl or Shift alone
   still reaches the app; when the other joins it the app sees both keys let go and its modifiers cleared. While steering
-  the host asks for pointer lock, `PointerMotion` turns the head (yaw, and
+  `PointerMotion` turns the head (yaw, and
   pitch clamped short of straight up or down) and W, A, S and D, by their
   place, walk along the floor relative to where the head faces, timed from
   `HostView::now`. No key pressed while steering reaches the app, nor its
@@ -3023,10 +3046,9 @@ all its 3D (`glam`) stays in the crate.
   near, which is what the crate's painting tests compare.
 - Cursor: the host asks the platform for `CursorIcon::None` and draws its own
   in the scene, last and over everything, as a quad facing the head with its
-  hotspot on the cursor's ray, `CURSOR_LIFT` (1%) of the distance in front of
-  the panel the ray hits (`Space::cursor_at`). On a miss it stays on the ray
-  at the last hit's distance (`OPEN_DISTANCE` before any hit), and it goes
-  only when the pointer leaves the platform window. Its size grows with
+  hotspot on the cursor's point (`Space::cursor_at`), or when that is out of
+  view on the clamped ray, just in front of what it hits there. It goes only
+  when the pointer leaves the platform window. Its size grows with
   distance (`Space::cursor_scale`, metres per point) so it covers as many
   pixels as it has points at any depth. It shows the icon that the window
   under it, holding the press, or being carried or resized asks for

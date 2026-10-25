@@ -42,6 +42,10 @@ own to be driven:
   Test those through `Space` and a `Runner` instead (`InSpace` in crates/beui/src/tests.rs).
   Holding a walking key keeps frames coming, so the command waits out its settle timeout and
   the head walks far; turn with `drive motion` while Ctrl and Shift are held instead.
+  A driver's pointer goes through the same rule as the mouse's: a position puts the 3D cursor
+  on the main panel there, and the input goes to whatever panel or chrome is in front of it.
+  After `drive key ctrl+shift+escape`, or a lost focus, the next click only grabs the pointer
+  again and reaches nothing.
 
 `be-drive launch` (crates/be-drive) sets the headless adapter, its sizes and the socket (the
 headless adapter goes in `BEUI_SPACE_ADAPTER` when `BEUI_ADAPTER=space` is already set, so
@@ -192,7 +196,7 @@ them back the way the system does when it claims a gesture. `keydown` on a key t
 is already down repeats it. `motion DX DY` is relative motion (`Input::PointerMotion`), what a
 locked pointer reports: it reaches what holds pointer lock, such as a 3D view's look, and turns
 the head in space while Ctrl and Shift are held (`drive keydown ctrl; drive keydown shift;
-drive motion 200 0; drive keyup shift; drive keyup ctrl`). `a11y TARGET` with no action prints the node a screen reader would
+drive motion 200 0; drive keyup shift; drive keyup ctrl`), and otherwise moves space's cursor. `a11y TARGET` with no action prints the node a screen reader would
 act on and the actions it offers; acting goes through the accessibility tree rather than the
 pointer or keys, the path a screen reader takes, and reaches plugins' nodes too.
 
