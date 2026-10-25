@@ -151,6 +151,7 @@ const MAX_CONNECTIONS: usize = 1024;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 const OUTBOUND_FRAMES: usize = 64;
 const INBOUND_FRAMES: usize = 16;
 const PING_FRAME_BYTES: usize = 64;
@@ -509,12 +510,12 @@ where
                         let Some(notification) = notification else { return Ok(()) };
                         let frame = encode(&notification).map_err(|_| ServerError::Corrupt)?;
                         if send(Message::Binary(frame)).await.is_err() {
-                            return Ok(());
+                            arriving.close();
                         }
                     }
                     _ = pings.tick() => {
                         if send(Message::Ping(Vec::new())).await.is_err() {
-                            return Ok(());
+                            arriving.close();
                         }
                     }
                     bytes = arriving.recv() => {
@@ -522,7 +523,7 @@ where
                         for message in client.answer(&bytes).await {
                             let frame = encode(&message).map_err(|_| ServerError::Corrupt)?;
                             if send(Message::Binary(frame)).await.is_err() {
-                                return Ok(());
+                                arriving.close();
                             }
                         }
                     }
@@ -531,9 +532,15 @@ where
         }
     };
     let served = async {
+        tokio::pin!(answering);
         tokio::select! {
-            outcome = answering => outcome,
-            outcome = reading => outcome,
+            outcome = &mut answering => outcome,
+            outcome = reading => {
+                match tokio::time::timeout(DRAIN_TIMEOUT, answering).await {
+                    Ok(answered) => outcome.and(answered),
+                    Err(_) => outcome,
+                }
+            }
         }
     };
     let (outcome, written) = tokio::join!(served, writing);
