@@ -1,7 +1,7 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::WebViewCommand;
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
-use block_plugin_api::guest::{debug, shell};
+use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
@@ -413,10 +413,8 @@ impl EditorSession {
                 asked.send(answer);
             }
         }
-        for (key, action) in self.host.take_host_actions() {
-            crate::asked::asking(Some(instance), || {
-                block_plugin_api::guest::host_values::act(key, action)
-            });
+        for call in self.host.take_acts() {
+            crate::asked::asking(Some(instance), call);
         }
         for commit in self.host.take_child_commits() {
             shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name);
@@ -447,16 +445,8 @@ impl EditorSession {
                 },
             );
         }
-        for key in self.host.take_host_watches() {
-            let watch = crate::asked::asking(Some(instance), || {
-                block_plugin_api::guest::host_values::Watch::new(key.clone())
-            });
-            let host = self.host.clone();
-            spawn(async move {
-                while let Ok(value) = watch.next().await {
-                    host.receive_host_value(key.clone(), value);
-                }
-            });
+        for opening in self.host.take_watch_openings() {
+            opening(&self.host, instance);
         }
     }
 

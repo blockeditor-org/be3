@@ -51,7 +51,7 @@ impl Backend {
             module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
             worker: None,
             mailbox: None,
-            wire: Wire::default(),
+            wire: Wire::granting(plugin.extensions.clone()),
             started: host::now(),
             error: None,
         }
@@ -61,7 +61,7 @@ impl Backend {
         self.shutdown();
         self.started = host::now();
         self.error = None;
-        self.wire = Wire::default();
+        self.wire = Wire::granting(plugin.extensions.clone());
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;

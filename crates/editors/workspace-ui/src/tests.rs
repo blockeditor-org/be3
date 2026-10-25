@@ -3,7 +3,7 @@ use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
 use block_editor_beui::{
-    BlockParent, ChildContent, EditorHost, HostWindows, OwnedEditor, WindowAction,
+    BlockParent, ChildContent, EditorHost, OwnedEditor, WindowAction, WindowsWatch,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -183,10 +183,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         app_id: "test".to_owned(),
         parent: parent.map(block_editor_beui::HostWindowId),
         modal: false,
-        size: block_plugin_api::Size {
-            width: 320.0,
-            height: 200.0,
-        },
+        size: block_editor_beui::beui::Vec2::new(320.0, 200.0),
         fullscreen: None,
         responding: true,
         focused: false,

@@ -8,17 +8,19 @@ use block_plugin_api::{
     HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
-        debug::Call as DebugCall,
+        debug::debug::Call as DebugCall,
         exports::{
-            paintings,
+            debug::paintings,
             plugin::{self, Editor},
         },
         host::Call,
         host_services,
-        host_values::Call as HostValues,
         shell::Call as ShellCall,
     },
-    ops::{Connection, Incoming, OpError, OpId, Outcome, Producer, Reply, Side, Started, Ticket},
+    ops::{
+        Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side,
+        Started, Ticket,
+    },
 };
 
 #[derive(Default)]
@@ -45,7 +47,8 @@ pub(super) struct Wire {
     picks: HashMap<(EditorInstanceId, u64), OpId>,
     painting: HashMap<OpId, Ticket<Vec<u8>>>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
-    host_values: HashMap<OpId, WatchedHostValue>,
+    published: HashMap<OpId, PublishedWatch>,
+    extensions: Vec<String>,
     web_views: HashMap<OpId, ShownWebView>,
     preferences: Watch<Preferences>,
     utc_offset: Watch<i32>,
@@ -58,7 +61,7 @@ pub(super) struct Wire {
     held: Held,
 }
 
-type WatchedHostValue = ((EditorInstanceId, String), Watch<Vec<u8>>);
+type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
 
 type ShownWebView = (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>);
 
@@ -109,7 +112,8 @@ impl Default for Wire {
             picks: HashMap::new(),
             painting: HashMap::new(),
             audio: HashMap::new(),
-            host_values: HashMap::new(),
+            published: HashMap::new(),
+            extensions: Vec::new(),
             web_views: HashMap::new(),
             preferences: Watch::default(),
             utc_offset: Watch::default(),
@@ -125,6 +129,13 @@ impl Default for Wire {
 }
 
 impl Wire {
+    pub(super) fn granting(extensions: Vec<String>) -> Self {
+        Self {
+            extensions,
+            ..Self::default()
+        }
+    }
+
     pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
         if let Some(reply) = self.connecting.take() {
             reply.send(&mut self.connection, accepted);
@@ -193,13 +204,13 @@ impl Wire {
         };
         let connection = &mut self.connection;
         match call {
-            EditorCall::HostValue { key, value } => {
-                for (_, watch) in self
-                    .host_values
+            EditorCall::Watched { open, value } => {
+                for (_, _, watch) in self
+                    .published
                     .values_mut()
-                    .filter(|(watched, _)| *watched == (instance, key.clone()))
+                    .filter(|(watcher, watched, _)| (*watcher, *watched) == (instance, open))
                 {
-                    watch.change(connection, |_| value.clone());
+                    watch.set(connection, value.to_vec());
                 }
             }
             EditorCall::AudioStatus(status) => {
@@ -329,34 +340,56 @@ impl Wire {
         }
     }
 
-    fn host_values(
-        &mut self,
-        op: Option<OpId>,
-        parent: Option<OpId>,
-        call: HostValues,
-        heard: &mut Vec<Heard>,
-    ) {
-        if let HostValues::WatchNext { this, reply } = call {
-            let connection = &mut self.connection;
-            match self.host_values.get_mut(&this.op()) {
-                Some((_, watch)) => watch.next(connection, reply),
-                None => reply.fail(connection, OpError::Canceled),
-            }
-            return;
-        }
-        let Some(instance) = self.editor_of(parent) else {
-            if let Some(op) = op {
-                self.connection.complete(op, Outcome::Err(OpError::Denied));
-            }
+    fn published_watch(&mut self, started: Started, heard: &mut Vec<Heard>) {
+        let Some(watching) = super::published::watching(started.method) else {
             return;
         };
-        if let HostValues::WatchNew { resource, key } = &call {
-            let mut watch = Watch::default();
-            watch.opened(resource.op());
-            self.host_values
-                .insert(resource.op(), ((instance, key.clone()), watch));
+        let connection = &mut self.connection;
+        if watching.next == started.method {
+            match started
+                .parent
+                .and_then(|watch| self.published.get_mut(&watch))
+            {
+                Some((_, _, watch)) => watch.next_encoded(connection, started.op),
+                None => connection.complete(started.op, Outcome::Err(OpError::Canceled)),
+            }
+            return;
         }
-        heard.push(Heard::HostValues(instance, call));
+        let instance = self.editor_of(started.parent);
+        let refused = match instance {
+            None => Some(OpError::Denied),
+            Some(_) => self.refusal(watching.interface),
+        };
+        let (Some(instance), None) = (instance, refused) else {
+            self.connection
+                .complete(started.op, Outcome::Err(refused.unwrap_or(OpError::Denied)));
+            return;
+        };
+        let mut watch = Watch::default();
+        watch.opened(started.op);
+        self.published
+            .insert(started.op, (instance, watching.open, watch));
+        heard.push(Heard::Watch(instance, watching.open));
+    }
+
+    fn refusal(&self, interface: &str) -> Option<OpError> {
+        let extension = block_plugin_api::extension_of(interface)?;
+        if !self.extensions.iter().any(|granted| granted == extension) {
+            return Some(OpError::Denied);
+        }
+        (!super::published::offered(extension)).then_some(OpError::Unsupported)
+    }
+
+    fn published_call(&mut self, called: Called, heard: &mut Vec<Heard>) {
+        let Some(interface) = super::published::interface_of(&called) else {
+            return;
+        };
+        if self.refusal(interface).is_some() {
+            return;
+        }
+        if let Some(instance) = self.editor_of(called.parent) {
+            heard.push(Heard::Called(instance, called));
+        }
     }
 
     fn watch_call(&mut self, call: ShellCall, heard: &mut Vec<Heard>) {
@@ -602,11 +635,8 @@ impl Wire {
                 self.serve(started, heard);
                 return Ok(());
             }
-            Incoming::Started(started) if HostValues::accepts(&started) => {
-                let (op, parent) = (started.op, started.parent);
-                if let Some(call) = HostValues::accept(&mut self.connection, started) {
-                    self.host_values(Some(op), parent, call, heard);
-                }
+            Incoming::Started(started) if super::published::watching(started.method).is_some() => {
+                self.published_watch(started, heard);
                 return Ok(());
             }
             Incoming::Started(started) if DebugCall::accepts(&started) => {
@@ -643,8 +673,8 @@ impl Wire {
                     }
                     return Ok(());
                 }
-                if let Some(call) = HostValues::accept_direct(&called) {
-                    self.host_values(None, called.parent, call, heard);
+                if super::published::interface_of(&called).is_some() {
+                    self.published_call(called, heard);
                     return Ok(());
                 }
                 if let Some(call) = DebugCall::accept_direct(&called) {
@@ -705,6 +735,14 @@ impl Wire {
                 if self.ended(op, heard) {
                     return Ok(());
                 }
+                let connection = &mut self.connection;
+                if self
+                    .published
+                    .values_mut()
+                    .any(|(_, _, watch)| watch.withdraw(connection, op))
+                {
+                    return Ok(());
+                }
                 if self.serving.remove(&op).is_some() {
                     self.connection
                         .complete(op, Outcome::Err(OpError::Canceled));
@@ -713,13 +751,13 @@ impl Wire {
                 let watched = self.child_statuses.values().any(|watch| watch.is(op))
                     || self.audio.values().any(|watch| watch.is(op))
                     || self.web_views.contains_key(&op)
-                    || self.host_values.contains_key(&op)
+                    || self.published.contains_key(&op)
                     || self.block_types.is(op)
                     || self.debug_templates.is(op);
                 self.child_statuses.retain(|_, watch| !watch.is(op));
                 self.audio.retain(|_, watch| !watch.is(op));
                 self.web_views.remove(&op);
-                self.host_values.remove(&op);
+                self.published.remove(&op);
                 if watched {
                     self.connection
                         .complete(op, Outcome::Err(OpError::Canceled));

@@ -2,6 +2,7 @@ use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
     BlockContent, BlockMetadata, FILES_EDITOR, Recents, VIEW_EDITOR,
 };
+use block_editor_beui::linux_desktop;
 use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -14,12 +15,12 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
-use block_editor_beui::beui::{NodeId, Rect, Vec2, vec2};
+use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildState, Contacts, Editor, EditorHost, Failure, FocusedBlock,
-    HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog,
-    WindowAction,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, Editor, EditorHost, Failure, FocusedBlock,
+    HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog, WindowAction,
+    WindowsWatch,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -115,7 +116,7 @@ impl Workspace {
         let renaming = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
-        let windows = editor.host_value::<HostWindows>();
+        let windows = editor.watch::<WindowsWatch>();
         let kept = create_signal(Kept::default());
         let desk = create_memo(move || {
             kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
@@ -180,7 +181,7 @@ impl Workspace {
         create_effect(move || {
             workspace.report_focus();
         });
-        let contacts = workspace.editor.host_value::<Contacts>();
+        let contacts = workspace.editor.watch::<ContactsWatch>();
         create_effect(move || {
             contacts.with(|_| ());
             untrack(|| workspace.relist_share());
@@ -211,9 +212,12 @@ impl Workspace {
                     .iter()
                     .any(|record| record.key == *key && record.fullscreen);
                 if fullscreen {
-                    self.host().act(WindowAction::Fullscreen {
-                        window: *window,
-                        fullscreen: true,
+                    let window = *window;
+                    self.host().act(move || {
+                        linux_desktop::windows::request(WindowAction::Fullscreen {
+                            window,
+                            fullscreen: true,
+                        })
                     });
                 }
             }
@@ -1190,9 +1194,13 @@ impl Workspace {
     fn close(&self, tab: TabId) {
         if let Some(key) = tab_window(tab) {
             match self.desk.with_untracked(|desk| desk.window(key)) {
-                Some(window) => self.host().act(WindowAction::Close(window)),
+                Some(window) => self
+                    .host()
+                    .act(move || linux_desktop::windows::request(WindowAction::Close(window))),
                 None if self.keeps_windows => self.dismiss(key),
-                None => self.host().act(WindowAction::Close(key)),
+                None => self
+                    .host()
+                    .act(move || linux_desktop::windows::request(WindowAction::Close(key))),
             }
             return;
         }
@@ -1429,10 +1437,7 @@ pub fn WindowTab(
     });
     let fullscreen = create_memo(move || info.get()?.fullscreen);
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
-    let size = create_memo(move || {
-        info.get()
-            .map(|info| vec2(info.size.width, info.size.height))
-    });
+    let size = create_memo(move || info.get().map(|info| info.size));
     let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
     let editor = workspace.editor();
     let tab = window_tab(key);
@@ -1507,11 +1512,7 @@ pub fn AttachedWindow(
         info.get()
             .map_or_else(|| "Window".to_owned(), |info| window_title(&info))
     });
-    let size = create_memo(move || {
-        info.get().map_or(Vec2::ZERO, |info| {
-            shown_size(vec2(info.size.width, info.size.height))
-        })
-    });
+    let size = create_memo(move || info.get().map_or(Vec2::ZERO, |info| shown_size(info.size)));
     let followed = create_memo(|| None);
     let modal = create_memo(move || info.get().is_some_and(|info| info.modal));
     let responding = create_memo(move || info.get().is_none_or(|info| info.responding));

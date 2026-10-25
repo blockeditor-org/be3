@@ -27,7 +27,9 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
         },
         notification(3, "Mail", "Sam", "See you there"),
     ]);
-    fixture.test.take_actions::<NotificationReport>();
+    fixture
+        .test
+        .take_host_calls(block_ui_test::requested::notification_report);
 
     fixture.test.click("desktop.notifications");
     fixture.settle();
@@ -47,8 +49,14 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
     assert_eq!(
         fixture.signals(),
         vec![
-            NotificationSignal::ActionInvoked(1, "reply".to_owned()),
-            NotificationSignal::Closed(1, NotificationCloseReason::Dismissed),
+            NotificationSignal::ActionInvoked {
+                id: 1,
+                key: "reply".to_owned()
+            },
+            NotificationSignal::Closed {
+                id: 1,
+                reason: NotificationCloseReason::Dismissed
+            },
         ]
     );
     assert!(!fixture.test.shown(&toast(1)));
@@ -57,7 +65,10 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
     fixture.settle();
     assert_eq!(
         fixture.signals(),
-        vec![NotificationSignal::ActionInvoked(2, "pause".to_owned())],
+        vec![NotificationSignal::ActionInvoked {
+            id: 2,
+            key: "pause".to_owned()
+        }],
         "a resident notification stays open"
     );
     assert!(!fixture.test.shown(&toast(2)), "but its toast goes");
@@ -66,10 +77,10 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
     fixture.settle();
     assert_eq!(
         fixture.signals(),
-        vec![NotificationSignal::Closed(
-            3,
-            NotificationCloseReason::Dismissed
-        )]
+        vec![NotificationSignal::Closed {
+            id: 3,
+            reason: NotificationCloseReason::Dismissed
+        }]
     );
 
     fixture.test.click("desktop.notifications");

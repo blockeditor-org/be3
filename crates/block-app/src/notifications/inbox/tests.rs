@@ -24,13 +24,11 @@ fn notify(ids: &Mutex<Ids>, sender: &Sender<NotificationRequest>, replaces: u32)
     let mut ids = ids.lock().unwrap();
     let id = ids.assign(replaces);
     sender
-        .send(NotificationRequest::Notify(Box::new(
-            IncomingNotification {
-                id,
-                summary: format!("number {id}"),
-                ..IncomingNotification::default()
-            },
-        )))
+        .send(NotificationRequest::Notify(IncomingNotification {
+            id,
+            summary: format!("number {id}"),
+            ..IncomingNotification::default()
+        }))
         .unwrap();
     id
 }

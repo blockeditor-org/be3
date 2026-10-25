@@ -27,6 +27,8 @@ pub struct ManifestDocument {
     pub entry_point: String,
     #[serde(default)]
     pub network: Vec<String>,
+    #[serde(default)]
+    pub extensions: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -193,6 +195,7 @@ impl ManifestDocument {
                 .collect::<Result<_, _>>()?,
             entry_point: self.entry_point,
             network: self.network,
+            extensions: self.extensions,
         };
         manifest.validate()?;
         Ok(manifest)

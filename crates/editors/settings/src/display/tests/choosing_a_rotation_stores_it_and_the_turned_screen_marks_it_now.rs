@@ -14,7 +14,7 @@ fn choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now() {
 
     settings
         .editor
-        .set_host_value::<Displays>(&vec![turned(Rotation::Clockwise90)]);
+        .set_watched::<DisplaysWatch>(&vec![turned(Rotation::Clockwise90)]);
     settings.run();
     settings
         .editor

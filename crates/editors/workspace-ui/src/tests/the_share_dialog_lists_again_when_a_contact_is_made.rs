@@ -1,4 +1,4 @@
-use block_editor_beui::{Contacts, HostContact, ShellDialog};
+use block_editor_beui::{ContactsWatch, HostContact, ShellDialog};
 use block_ui_test::HostCall;
 
 use super::*;
@@ -21,12 +21,14 @@ fn the_share_dialog_lists_again_when_a_contact_is_made() {
     fixture.settle();
     assert_eq!(listings(&mut fixture, block), 1);
 
-    fixture.test.set_host_value::<Contacts>(&vec![HostContact {
-        account: [7; 16],
-        display_name: "Ada".to_owned(),
-        email: "ada@example.org".to_owned(),
-        verified: true,
-    }]);
+    fixture
+        .test
+        .set_watched::<ContactsWatch>(&vec![HostContact {
+            account: [7; 16],
+            display_name: "Ada".to_owned(),
+            email: "ada@example.org".to_owned(),
+            verified: true,
+        }]);
     fixture.settle();
     assert_eq!(
         listings(&mut fixture, block),

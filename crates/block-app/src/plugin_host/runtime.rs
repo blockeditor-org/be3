@@ -10,10 +10,9 @@ use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
-    FrameCommit, FrameSpec, HostAction, HostPanel, HostValue, Monitor, Opening, PluginManifest,
-    PresentedFrame, PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange,
-    decode_host, encode_host,
+    FrameCommit, FrameSpec, HostPanel, Monitor, Opening, PluginManifest, PresentedFrame,
+    PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
+    ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange, Watched,
 };
 use uuid::Uuid;
 
@@ -59,7 +58,7 @@ struct Host {
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
-    published: HashMap<String, Arc<Vec<u8>>>,
+    published: HashMap<block_plugin_api::ops::MethodId, Arc<Vec<u8>>>,
     shell: Option<(String, EditorInstanceId)>,
     grabbed: bool,
 }
@@ -96,8 +95,8 @@ impl Host {
             .entry(plugin.identity.id.clone())
             .or_insert_with(|| {
                 let mut runtime = Runtime::new(plugin, surface);
-                for (key, value) in published {
-                    runtime.instances.set_host_value(key, Arc::clone(value));
+                for (open, value) in published {
+                    runtime.instances.publish(*open, Arc::clone(value));
                 }
                 runtime.instances.set_shell(shell);
                 runtime
@@ -171,8 +170,12 @@ enum Answer {
     Editor(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
-    HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
-    Debug(EditorInstanceId, block_plugin_api::embed::debug::Call),
+    Watch(EditorInstanceId, block_plugin_api::ops::MethodId),
+    Called(EditorInstanceId, block_plugin_api::ops::Called),
+    Debug(
+        EditorInstanceId,
+        block_plugin_api::embed::debug::debug::Call,
+    ),
     Ended(block_plugin_api::ops::OpId),
     Service(super::wire::Service),
     Withdrawn(block_plugin_api::ops::OpId),
@@ -194,7 +197,8 @@ impl From<Heard> for Answer {
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
-            Heard::HostValues(instance, call) => Self::HostValues(instance, call),
+            Heard::Watch(instance, open) => Self::Watch(instance, open),
+            Heard::Called(instance, called) => Self::Called(instance, called),
             Heard::Debug(instance, call) => Self::Debug(instance, call),
             Heard::Ended(op) => Self::Ended(op),
             Heard::Service(service) => Self::Service(service),
@@ -855,7 +859,8 @@ impl Runtime {
                 | Answer::Editor(..)
                 | Answer::Paintings(_)
                 | Answer::Blocks(..)
-                | Answer::HostValues(..)
+                | Answer::Watch(..)
+                | Answer::Called(..)
                 | Answer::Debug(..)
                 | Answer::Ended(_)
                 | Answer::Service(_)
@@ -914,9 +919,8 @@ impl Runtime {
                 Answer::Frame(commit) => self.commit(commit),
                 Answer::Laid(laid) => self.lay(laid),
                 Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
-                Answer::HostValues(instance, call) => {
-                    self.instances.host_values_call(instance, call)
-                }
+                Answer::Watch(instance, open) => self.instances.watch_published(instance, open),
+                Answer::Called(instance, called) => self.instances.published_call(instance, called),
                 Answer::Debug(instance, call) => {
                     let mut asked = (instance, call);
                     self.instances.translate(&mut asked, true);
@@ -1492,21 +1496,21 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
     });
 }
 
-pub(crate) fn publish<T: HostValue>(value: &T::Value) {
-    let bytes = encode_host(value);
+pub(crate) fn publish<W: Watched>(value: &W::Value) {
+    let bytes = block_plugin_api::ops::encode(value);
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         if host
             .published
-            .get(T::KEY)
+            .get(&W::OPEN)
             .is_some_and(|published| **published == bytes)
         {
             return;
         }
         let value = Arc::new(bytes);
-        host.published.insert(T::KEY.to_owned(), Arc::clone(&value));
+        host.published.insert(W::OPEN, Arc::clone(&value));
         for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime.instances.set_host_value(T::KEY, Arc::clone(&value)) {
+            if runtime.instances.publish(W::OPEN, Arc::clone(&value)) {
                 runtime.pacing.needed = true;
                 mark(plugin_id);
                 host::request_repaint();
@@ -1516,24 +1520,25 @@ pub(crate) fn publish<T: HostValue>(value: &T::Value) {
 }
 
 #[cfg(target_os = "linux")]
-pub(crate) fn watched<T: HostValue>() -> bool {
+pub(crate) fn watched<W: Watched>() -> bool {
     HOST.with(|host| {
         host.borrow()
             .runtimes
             .values()
-            .any(|runtime| runtime.instances.watches_host_value(T::KEY))
+            .any(|runtime| runtime.instances.watches_published(W::OPEN))
     })
 }
 
-pub(crate) fn take_actions<A: HostAction>() -> Vec<A> {
+pub(crate) fn take_calls<C>(
+    accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+) -> Vec<C> {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();
         runtimes.sort_by_key(|(left, _)| *left);
         runtimes
             .into_iter()
-            .flat_map(|(_, runtime)| runtime.instances.take_host_actions(A::KEY))
-            .filter_map(|action| decode_host(&action))
+            .flat_map(|(_, runtime)| runtime.instances.take_calls(&accept))
             .collect()
     })
 }

@@ -3,6 +3,7 @@ use block_editor_beui::beui::icons::ICON_VOLUME_X;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{ChoiceOption, PopoverHandle};
+use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
 use super::media::volume_glyph;
@@ -41,7 +42,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Slider
                     @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(volume, move |level: f32| editor.act(MediaRequest::SetVolume(level)))}
+                    value={Binding::new(volume, move |level: f32| editor.act(move || linux_desktop::media::request(MediaRequest::SetVolume(level))))}
                     label="Volume"
                     @test_id={"desktop.volume.level"}
                 />
@@ -50,7 +51,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Mute"</Text>
                 <Switch
-                    on={Binding::new(muted, move |mute: bool| editor.act(MediaRequest::SetMute(mute)))}
+                    on={Binding::new(muted, move |mute: bool| editor.act(move || linux_desktop::media::request(MediaRequest::SetMute(mute))))}
                     label="Mute"
                     @test_id={"desktop.volume.mute"}
                 />
@@ -82,7 +83,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             outputs.with_untracked(|outputs| outputs.get(index).map(|output| output.id.clone()))
         });
         if let Some(id) = chosen {
-            editor.act(MediaRequest::ChooseOutput(id));
+            editor.act(move || linux_desktop::media::request(MediaRequest::ChooseOutput(id)));
         }
     };
     view! {

@@ -16,9 +16,17 @@ Rust on both sides is generated from it into this crate. The world imports:
   the shell around it, its menus, children, audio, web views and creations;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
   waits for, files, picks, revisions, access, fetches and staged data;
-- `be3:host-values/host-values` (`wit/deps/host-values`), an extension beside the
-  core protocol: values and actions of a particular host under string keys, the
-  Linux desktop session's among them;
+- `account` and `contacts` (`account.wit`): whether the account administers its
+  company, the base of block links, where preferences come from, and the
+  account's contacts, which the host answers only to the shell;
+- the interfaces of `be3:linux-desktop` (`wit/deps/linux-desktop`), an extension
+  beside the core protocol rather than part of it: what a host running a Linux
+  desktop session offers the editors that draw it, one interface per part of the
+  session (windows, input devices and remaps, displays, power, media, Wi-Fi,
+  e-paper, notifications, the screen lock, programs, the tray). A plugin's
+  manifest names the extensions it uses (`extensions`); the host answers a call
+  into one it did not name `denied`, and a host without the session answers its
+  watches `unsupported`;
 - `be3:debug/debug` (`wit/deps/debug`), the debugging extension, beside the core
   protocol too: performance measurements, simulating a lower access to a block,
   and which catalog templates are for debugging (the picker's Debug group). The
@@ -45,6 +53,9 @@ resource, so the host knows the instance from the call's parent and closing an
 editor ends everything it opened. A value the plugin follows is a resource
 whose `next` answers with the latest value once it changed; a change made while
 the plugin does not ask is kept, folded into the ones after it, until it does.
+One named `*-watch` with a `constructor()` and `next` and nothing else is a
+latest-value watch, which be-ops-bindgen implements `be_ops::Watched` for, so
+an editor follows any of them with `editor.watch::<W>()`.
 Input is one of them: batches for one screen that the plugin has not taken yet
 merge, a run of pointer moves or pixel scrolls folding into its last unless the
 screen asked for every sample, everything else kept in order. A watch answered

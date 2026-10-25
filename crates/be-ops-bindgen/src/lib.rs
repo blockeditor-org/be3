@@ -162,6 +162,36 @@ struct Generator {
     resolve: Resolve,
     options: Options,
     methods: BTreeMap<u32, String>,
+    package: Option<wit_parser::PackageId>,
+}
+
+#[derive(Default)]
+struct Modules {
+    root: TokenStream,
+    nested: BTreeMap<String, (Ident, TokenStream)>,
+}
+
+impl Modules {
+    fn push(&mut self, nest: Option<Ident>, module: &Ident, items: TokenStream) {
+        let item = quote! { pub mod #module { #items } };
+        match nest {
+            None => self.root.extend(item),
+            Some(nest) => self
+                .nested
+                .entry(nest.to_string())
+                .or_insert_with(|| (nest, TokenStream::new()))
+                .1
+                .extend(item),
+        }
+    }
+
+    fn finish(self) -> TokenStream {
+        let mut out = self.root;
+        for (_, (nest, items)) in self.nested {
+            out.extend(quote! { pub mod #nest { #items } });
+        }
+        out
+    }
 }
 
 enum Shape {
@@ -204,8 +234,10 @@ impl Generator {
             resolve,
             options,
             methods: BTreeMap::new(),
+            package: None,
         };
         let world = generator.resolve.worlds[world].clone();
+        generator.package = world.package;
         let interfaces = |items: &wit_parser::IndexMap<_, WorldItem>| {
             items
                 .values()
@@ -238,14 +270,16 @@ impl Generator {
             generator.register(*interface)?;
         }
         let generator = generator;
-        let mut types = TokenStream::new();
+        let mut types = Modules::default();
         let mut defined = BTreeSet::new();
         for interface in imports.iter().chain(&exports) {
             generator.types_of(*interface, &mut defined, &mut types)?;
         }
+        let types = types.finish();
         let mut args = TokenStream::new();
-        let mut guest_imports = TokenStream::new();
-        let mut embed_imports = TokenStream::new();
+        let mut guest_imports = Modules::default();
+        let mut embed_imports = Modules::default();
+        let mut watches = Vec::new();
         let mut direct_imports = Vec::new();
         let mut import_shims = Vec::new();
         let mut import_arms = Vec::new();
@@ -274,6 +308,7 @@ impl Generator {
             }
             let methods = generator.methods(*interface)?;
             args.extend(generator.args(&module, &methods));
+            watches.extend(generator.watches(&methods));
             let guest = generator.guest_import(&module, &methods)?;
             let embed = generator.embed_import(&module, &methods);
             for method in &methods {
@@ -294,11 +329,13 @@ impl Generator {
                     });
                 }
             }
-            guest_imports.extend(quote! { pub mod #module { #guest } });
-            embed_imports.extend(quote! { pub mod #module { #embed } });
+            let nest = generator.nest(*interface);
+            guest_imports.push(nest.clone(), &module, guest);
+            embed_imports.push(nest, &module, embed);
         }
-        let mut guest_exports = TokenStream::new();
-        let mut embed_exports = TokenStream::new();
+        let (guest_imports, embed_imports) = (guest_imports.finish(), embed_imports.finish());
+        let mut guest_exports = Modules::default();
+        let mut embed_exports = Modules::default();
         let mut bounds = Vec::new();
         let mut dispatches = Vec::new();
         for interface in exports.iter().filter(callable) {
@@ -319,17 +356,20 @@ impl Generator {
                     });
                 }
             }
-            guest_exports.extend(quote! { pub mod #module { #guest } });
-            embed_exports.extend(quote! { pub mod #module { #embed } });
-            bounds.push(quote! { exports::#module::Guest });
+            let nest = generator.nest(*interface);
+            guest_exports.push(nest.clone(), &module, guest);
+            embed_exports.push(nest, &module, embed);
+            let path = generator.module_path(*interface);
+            bounds.push(quote! { exports::#path::Guest });
             dispatches.push(quote! {
                 if let ::core::option::Option::Some(served) =
-                    exports::#module::dispatch(&guest, resources, started.clone())
+                    exports::#path::dispatch(&guest, resources, started.clone())
                 {
                     return served;
                 }
             });
         }
+        let (guest_exports, embed_exports) = (guest_exports.finish(), embed_exports.finish());
         let lister = format_ident!("{}_local_imports", generator.options.world.to_snake_case());
         let listing = match local_entries.is_empty() {
             true => TokenStream::new(),
@@ -435,6 +475,8 @@ impl Generator {
             pub mod embed {
                 pub const IMPORTS: &[(&str, &str)] = &[#(#direct_imports),*];
 
+                pub const WATCHES: &[::be_ops::Watching] = &[#(#watches),*];
+
                 #embed_imports
 
                 pub mod exports {
@@ -451,6 +493,22 @@ impl Generator {
                 .as_deref()
                 .unwrap_or("world"),
         )
+    }
+
+    fn nest(&self, interface: InterfaceId) -> Option<Ident> {
+        let package = self.resolve.interfaces[interface].package?;
+        if Some(package) == self.package {
+            return None;
+        }
+        Some(snake(&self.resolve.packages[package].name.name))
+    }
+
+    fn module_path(&self, interface: InterfaceId) -> TokenStream {
+        let module = self.module_name(interface);
+        match self.nest(interface) {
+            Some(nest) => quote!(#nest::#module),
+            None => quote!(#module),
+        }
     }
 
     fn used(&self, interface: InterfaceId) -> Option<&syn::Path> {
@@ -503,7 +561,7 @@ impl Generator {
                     return Ok(quote!(#path));
                 }
                 if let (Some(name), TypeOwner::Interface(owner)) = (&def.name, def.owner) {
-                    let module = self.module_name(owner);
+                    let module = self.module_path(owner);
                     let name = camel(name);
                     return Ok(quote!(crate::#module::#name));
                 }
@@ -540,7 +598,7 @@ impl Generator {
                                 match self.used(owner) {
                                     Some(path) => quote!(#path::#name),
                                     None => {
-                                        let module = self.module_name(owner);
+                                        let module = self.module_path(owner);
                                         quote!(crate::#module::#name)
                                     }
                                 }
@@ -728,7 +786,7 @@ impl Generator {
         &self,
         interface: InterfaceId,
         defined: &mut BTreeSet<InterfaceId>,
-        out: &mut TokenStream,
+        out: &mut Modules,
     ) -> Result<(), String> {
         if !defined.insert(interface) || self.used(interface).is_some() {
             return Ok(());
@@ -861,11 +919,7 @@ impl Generator {
             });
         }
         let module = self.module_name(interface);
-        out.extend(quote! {
-            pub mod #module {
-                #items
-            }
-        });
+        out.push(self.nest(interface), &module, items);
         Ok(())
     }
 
@@ -916,7 +970,10 @@ impl Generator {
             .resolve
             .id_of(interface)
             .ok_or("an interface of the world has no name")?;
-        let module = self.module_name(interface).to_string();
+        let module = match self.nest(interface) {
+            Some(nest) => format!("{nest}_{}", self.module_name(interface)),
+            None => self.module_name(interface).to_string(),
+        };
         let mut methods = Vec::new();
         let interface = &self.resolve.interfaces[interface];
         for (key, function) in &interface.functions {
@@ -992,6 +1049,60 @@ impl Generator {
             });
         }
         Ok(methods)
+    }
+
+    fn watched<'a>(
+        &self,
+        methods: &'a [Method<'a>],
+    ) -> Vec<(String, &'a Method<'a>, &'a Method<'a>, &'a Type)> {
+        let mut watched = Vec::new();
+        let mut resources = BTreeMap::<TypeId, Vec<&Method<'_>>>::new();
+        for method in methods {
+            if let Some(resource) = method.function.kind.resource() {
+                resources.entry(resource).or_default().push(method);
+            }
+        }
+        for (resource, methods) in resources {
+            let name = self.resolve.types[resource]
+                .name
+                .clone()
+                .unwrap_or_default();
+            if !name.ends_with("-watch") {
+                continue;
+            }
+            let open = methods.iter().find(|method| {
+                matches!(method.function.kind, FunctionKind::Constructor(_))
+                    && method.params.is_empty()
+            });
+            let next = methods.iter().find(|method| {
+                matches!(method.function.kind, FunctionKind::AsyncMethod(_))
+                    && method.function.item_name() == "next"
+                    && method.params.is_empty()
+            });
+            if let (2, Some(open), Some(next)) = (methods.len(), open, next)
+                && let Shape::Call(Some(value)) = &next.shape
+            {
+                watched.push((name, *open, *next, value));
+            }
+        }
+        watched
+    }
+
+    fn watches(&self, methods: &[Method<'_>]) -> Vec<TokenStream> {
+        self.watched(methods)
+            .into_iter()
+            .map(|(_, open, next, _)| {
+                let interface = &open.interface;
+                let (open, next) = (&open.constant, &next.constant);
+                quote! {
+                    ::be_ops::Watching {
+                        interface: #interface,
+                        open: crate::__args::#open,
+                        next: crate::__args::#next,
+                    }
+                }
+            })
+            .collect()
     }
 
     fn args(&self, _module: &Ident, methods: &[Method<'_>]) -> TokenStream {
@@ -1117,6 +1228,29 @@ impl Generator {
                         pub fn #name(#(#params),*) -> ::be_ops::guest::Stream<#item> {
                             ::be_ops::guest::stream(crate::__args::#constant, &#args)
                         }
+                    }
+                }
+            });
+        }
+        for (resource, open, next, value) in self.watched(methods) {
+            let name = camel(&resource);
+            let value = self.ty(value)?;
+            let interface = &open.interface;
+            let (open, next) = (&open.constant, &next.constant);
+            out.extend(quote! {
+                impl ::be_ops::Watched for #name {
+                    type Value = #value;
+
+                    const INTERFACE: &'static str = #interface;
+                    const OPEN: ::be_ops::MethodId = crate::__args::#open;
+                    const NEXT: ::be_ops::MethodId = crate::__args::#next;
+
+                    fn open() -> Self {
+                        Self::new()
+                    }
+
+                    fn next(&self) -> ::be_ops::guest::Pending<#value> {
+                        #name::next(self)
                     }
                 }
             });

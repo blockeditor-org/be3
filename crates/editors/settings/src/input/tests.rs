@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::InputSettingsContent;
 use block_editor_beui::be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
 use block_editor_beui::beui::{Key, Modifiers};
-use block_editor_beui::{EditorHost, HostInputDevice, InputDevices, OwnedEditor};
+use block_editor_beui::{EditorHost, HostInputDevice, InputDevicesWatch, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -19,7 +19,7 @@ mod typing_a_layout_stores_it;
 
 fn editor(devices: Vec<HostInputDevice>) -> BeuiTest<InputSettingsApp> {
     let host = EditorHost::default();
-    host.set_host_value::<InputDevices>(&devices);
+    host.set_watched::<InputDevicesWatch>(&devices);
     open(host)
 }
 

@@ -3,7 +3,7 @@ use block_plugin_api::{
     ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello,
     InputBatch, Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest,
     Size, WebViewEvent, WebViewId,
-    embed::{debug::Call as DebugCall, shell::Call as ShellCall},
+    embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
 
@@ -68,9 +68,9 @@ pub(super) enum EditorCall {
     FileDropLeft,
     ChildStatuses(Vec<ChildStatus>),
     Pick(PickRequest),
-    HostValue {
-        key: String,
-        value: Vec<u8>,
+    Watched {
+        open: block_plugin_api::ops::MethodId,
+        value: std::sync::Arc<Vec<u8>>,
     },
     AudioStatus(AudioStatus),
     WebViewEvent {
@@ -133,7 +133,8 @@ pub(super) enum Heard {
     Answer(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
-    HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
+    Watch(EditorInstanceId, block_plugin_api::ops::MethodId),
+    Called(EditorInstanceId, block_plugin_api::ops::Called),
     Debug(EditorInstanceId, DebugCall),
     Ended(block_plugin_api::ops::OpId),
     Service(super::wire::Service),

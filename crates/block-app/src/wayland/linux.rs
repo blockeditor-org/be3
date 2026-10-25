@@ -8,7 +8,7 @@ use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin};
+use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, WindowOrigin};
 
 struct Running {
     compositor: Compositor,
@@ -268,10 +268,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                 app_id: info.app_id,
                 parent: info.parent.map(|parent| HostWindowId(parent.0)),
                 modal: info.modal,
-                size: Size {
-                    width: info.size.x,
-                    height: info.size.y,
-                },
+                size: info.size,
                 fullscreen: info.fullscreen,
                 responding: info.responding,
                 focused: windows.focused() == Some(info.id),

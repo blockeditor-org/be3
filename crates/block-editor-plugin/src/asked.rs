@@ -8,7 +8,7 @@ use std::{
 };
 
 use block_plugin_api::{
-    EditorInstanceId, Failure, FilePick, FileSave,
+    EditorInstanceId, Failure, FilePick, FileSave, Watched,
     ops::{
         OpError, OpId,
         guest::{self, Pending},
@@ -25,6 +25,18 @@ pub(crate) fn opened(instance: EditorInstanceId, editor: OpId) {
 
 pub(crate) fn closed(instance: EditorInstanceId) {
     EDITORS.with(|editors| editors.borrow_mut().remove(&instance));
+}
+
+pub(crate) fn follow<W: Watched>(
+    instance: Option<EditorInstanceId>,
+    mut each: impl FnMut(W::Value) + 'static,
+) {
+    guest::spawn(async move {
+        let watch = asking(instance, W::open);
+        while let Ok(value) = watch.next().await {
+            each(value);
+        }
+    });
 }
 
 pub(crate) fn asking<R>(instance: Option<EditorInstanceId>, ask: impl FnOnce() -> R) -> R {

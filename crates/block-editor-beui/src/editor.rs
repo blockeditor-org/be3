@@ -8,8 +8,8 @@ use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
-    EditorCapabilities, HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry,
-    ResizeMode, SettingsProgress, TopBar, WebViewId,
+    EditorCapabilities, HostPanel, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
+    SettingsProgress, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -408,7 +408,7 @@ impl OwnedEditor {
             children_moved: Cell::new(false),
             wakes: Rc::default(),
             pushed,
-            host_values: RefCell::default(),
+            watches: RefCell::default(),
             files,
             placed,
         });
@@ -469,7 +469,7 @@ struct EditorState {
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
-    host_values: RefCell<std::collections::HashMap<&'static str, Revision>>,
+    watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
 }
@@ -758,36 +758,39 @@ impl Editor {
         self.state().host.take_panel_requests()
     }
 
-    pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
+    pub fn watch<W: Watched>(&self) -> Memo<W::Value>
+    where
+        W::Value: Default,
+    {
         let host = self.state().host.clone();
-        let revision = self.host_value_revision(T::KEY);
+        let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
-            host.host_value::<T>()
+            host.watched::<W>().unwrap_or_default()
         })
     }
 
-    pub fn host_offers<T: HostValue>(&self) -> Memo<bool> {
+    pub fn offered<W: Watched>(&self) -> Memo<bool> {
         let host = self.state().host.clone();
-        let revision = self.host_value_revision(T::KEY);
+        let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
-            host.host_offers::<T>()
+            host.offers::<W>()
         })
     }
 
-    fn host_value_revision(&self, key: &'static str) -> ReadSignal<u64> {
+    fn watch_revision<W: Watched>(&self) -> ReadSignal<u64> {
         let host = &self.state().host;
         self.state()
-            .host_values
+            .watches
             .borrow_mut()
-            .entry(key)
-            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(key)))
+            .entry(std::any::TypeId::of::<W>())
+            .or_insert_with(|| OwnedSignal::new(host.watch_revision::<W>()))
             .read_only()
     }
 
-    pub fn act<A: HostAction>(&self, action: A) {
-        self.state().host.act(action);
+    pub fn act(&self, call: impl FnOnce() + 'static) {
+        self.state().host.act(call);
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {
@@ -1132,14 +1135,14 @@ impl Editor {
         }
         if pushed {
             state.pushed.sync(&state.host);
-            let keys: Vec<_> = state
-                .host_values
+            let watches: Vec<_> = state
+                .watches
                 .borrow()
                 .iter()
-                .map(|(key, revision)| (*key, revision.handle()))
+                .map(|(watch, revision)| (*watch, revision.handle()))
                 .collect();
-            for (key, revision) in keys {
-                revision.set(state.host.host_value_revision(key));
+            for (watch, revision) in watches {
+                revision.set(state.host.watch_revision_of(watch));
             }
             state
                 .files

@@ -14,7 +14,7 @@ fn raised(id: u64, title: &str, times: u64) -> block_editor_beui::HostWindow {
 #[test]
 fn a_window_the_host_raises_brings_its_hidden_tab_forward() {
     let (mut fixture, _) = editor();
-    fixture.host.set_host_value::<HostWindows>(&vec![
+    fixture.host.set_watched::<WindowsWatch>(&vec![
         window(7, "Terminal", None),
         window(8, "Browser", None),
     ]);
@@ -27,7 +27,7 @@ fn a_window_the_host_raises_brings_its_hidden_tab_forward() {
 
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![raised(7, "Terminal", 1), raised(8, "Browser", 0)]);
+        .set_watched::<WindowsWatch>(&vec![raised(7, "Terminal", 1), raised(8, "Browser", 0)]);
     fixture.settle();
     assert_eq!(
         shown_windows(&fixture),
@@ -37,14 +37,13 @@ fn a_window_the_host_raises_brings_its_hidden_tab_forward() {
 
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![raised(7, "Terminal", 1), raised(8, "Browser", 1)]);
+        .set_watched::<WindowsWatch>(&vec![raised(7, "Terminal", 1), raised(8, "Browser", 1)]);
     fixture.settle();
     assert_eq!(shown_windows(&fixture), vec![8]);
 
-    fixture.host.set_host_value::<HostWindows>(&vec![
-        raised(7, "Terminal - ~", 1),
-        raised(8, "Browser", 1),
-    ]);
+    fixture
+        .host
+        .set_watched::<WindowsWatch>(&vec![raised(7, "Terminal - ~", 1), raised(8, "Browser", 1)]);
     fixture.settle();
     assert_eq!(
         shown_windows(&fixture),
@@ -52,10 +51,9 @@ fn a_window_the_host_raises_brings_its_hidden_tab_forward() {
         "a window raised before is not raised again by other news of it"
     );
 
-    fixture.host.set_host_value::<HostWindows>(&vec![
-        raised(7, "Terminal - ~", 2),
-        raised(8, "Browser", 1),
-    ]);
+    fixture
+        .host
+        .set_watched::<WindowsWatch>(&vec![raised(7, "Terminal - ~", 2), raised(8, "Browser", 1)]);
     fixture.settle();
     assert_eq!(
         shown_windows(&fixture),

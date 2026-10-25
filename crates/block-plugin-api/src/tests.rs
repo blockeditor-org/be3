@@ -89,7 +89,8 @@ fn region_screen(
 mod a_description_keeps_every_kind_of_node_property;
 mod a_frame_says_which_host_state_it_was_laid_out_against;
 mod a_layout_gives_each_shown_screen_its_own_surface;
-mod a_menu_nested_too_deeply_is_refused_while_decoding;
+mod a_manifest_grants_only_extensions_the_host_knows;
+mod a_menu_nested_too_deeply_is_refused_while_nesting;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod a_screen_readers_action_round_trips;
 mod a_show_request_already_waiting_moves_to_the_end;
@@ -102,7 +103,6 @@ mod child_placements_round_trip;
 mod child_statuses_round_trip;
 mod creation_children_round_trip;
 mod creation_messages_round_trip;
-mod epaper_messages_round_trip;
 mod every_block_id_a_message_carries_is_visited;
 mod every_editor_manifest_parses;
 mod every_key_round_trips;
@@ -128,13 +128,9 @@ mod wifi_messages_round_trip;
 mod window_requests_round_trip;
 mod zoom_gesture_round_trips;
 
-fn host_value_round_trips<T: HostValue>(value: T::Value)
+fn watched_round_trips<W: Watched>(value: W::Value)
 where
-    T::Value: std::fmt::Debug,
+    W::Value: std::fmt::Debug,
 {
-    assert_eq!(decode_host::<T::Value>(&encode_host(&value)), Some(value));
-}
-
-fn host_action_round_trips<A: HostAction + PartialEq + std::fmt::Debug>(action: A) {
-    assert_eq!(decode_host::<A>(&encode_host(&action)), Some(action));
+    round_trips(&value);
 }

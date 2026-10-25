@@ -83,7 +83,7 @@ host has taken an edit.
 
 Whatever else the plugin sends the host is kept for the test to read: take_view_changes(),
 take_requests(), take_opens(), take_block_commands() (blocks.act), take_shell_commands() (shell.act: share, leave, rename, close, the app menu) and the other take_ methods drain one
-kind, take_actions::<A>() the host actions it asked for, and clear_calls() drops what is kept. The host's side of a conversation goes in the same way the
+kind, take_host_calls(reader) the calls of the account and extension interfaces it made (block_ui_test::requested has a reader per function), and clear_calls() drops what is kept. The host's side of a conversation goes in the same way the
 app sends it: set_view, set_chrome, with_top_bar, drag_block, answer, set_histories,
 set_peers, report_children, resize and presence_visible each queue the call the app
 would make. Setting the same state on the EditorHost directly skips the protocol, and the
@@ -132,7 +132,7 @@ paints a frame, for a timer that is longer than an animation:
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
 wait(by) moves the clock on without painting and hands the plugin what the host has queued
-(a set_host_value, say), the way a call reaches an idle editor between frames; the next
+(a set_watched, say), the way a call reaches an idle editor between frames; the next
 run() paints the frame that takes it. Whatever the editor's effects do with it at the top of
 that frame reads that frame's time from `timer::now()`, not the last frame painted.
 

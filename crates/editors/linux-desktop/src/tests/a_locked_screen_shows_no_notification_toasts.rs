@@ -1,4 +1,4 @@
-use block_editor_beui::ScreenLocked;
+use block_editor_beui::ScreenLockedWatch;
 
 use super::*;
 
@@ -15,7 +15,7 @@ fn a_locked_screen_shows_no_notification_toasts() {
     assert!(fixture.test.shown(&toast(1)));
     assert!(fixture.says("hunter2"));
 
-    fixture.test.set_host_value::<ScreenLocked>(&true);
+    fixture.test.set_watched::<ScreenLockedWatch>(&true);
     fixture.settle();
     assert!(
         !fixture.test.shown(&toast(1)) && !fixture.says("hunter2"),
@@ -28,7 +28,7 @@ fn a_locked_screen_shows_no_notification_toasts() {
         "nor does one that arrives while it is"
     );
 
-    fixture.test.set_host_value::<ScreenLocked>(&false);
+    fixture.test.set_watched::<ScreenLockedWatch>(&false);
     fixture.settle();
     assert!(
         fixture.test.shown(&toast(1)) && fixture.test.shown(&toast(2)),

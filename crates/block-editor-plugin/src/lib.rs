@@ -30,31 +30,33 @@ mod wire;
 
 pub use asked::{Asked, Task};
 pub use block_plugin_api::accesskit;
+pub use block_plugin_api::guest::linux_desktop;
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, Administrator, ArtifactAction, AudioCommand, AudioOutput,
+    AccessGrant, AccessLevel, AdministratorWatch, ArtifactAction, AudioCommand, AudioOutput,
     AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick,
     BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
-    ChildPlacement, ChildPreview, ChildStatus, ConflictSide, Contacts, CreationProgress,
-    CursorIcon, DescribedAction, Description, DisplayMode, Displays, EditorCapabilities,
-    EditorDescriptor, EditorInstanceId, EditorRegion, Edits, Epaper, EpaperRequest, Failure,
-    FileSave, FrameChrome, FrameSpec, HostAction, HostContact, HostDisplay, HostImage,
-    HostInputDevice, HostNotificationAction, HostPanel, HostProgram, HostTrayItem, HostValue,
-    HostWindow, HostWindowId, HostWindows, ImeArea, ImportedBlock, IncomingNotification, Input,
-    InputDevices, InteractionMode, Key, KeyChord, LinkBase, Media, MediaLevel, MediaLevels,
-    MediaRequest, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers,
-    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
-    NotificationSignal, NotificationUrgency, Notifications, Occluder, PenPhase, PickedBlock,
-    PlayerCommand, PointerButton, Power, PowerAction, PowerAvailability, Press, PreviewImage,
-    ProgramAction, Programs, RemapState, Remaps, ResizeMode, Revision, Rotation, ScreenLocked,
+    ChildPlacement, ChildPreview, ChildStatus, ConflictSide, ContactsWatch, CreationProgress,
+    CursorIcon, DescribedAction, Description, DisplayMode, DisplaysWatch, EditorCapabilities,
+    EditorDescriptor, EditorInstanceId, EditorRegion, Edits, EpaperWatch, Failure, FileSave,
+    FrameChrome, FrameSpec, HostContact, HostDisplay, HostImage, HostInputDevice,
+    HostNotificationAction, HostPanel, HostProgram, HostTrayItem, HostWindow, HostWindowId,
+    ImeArea, ImportedBlock, IncomingNotification, Input, InputDevicesWatch, InteractionMode, Key,
+    KeyChord, LinkBaseWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuCheck,
+    MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason,
+    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
+    NotificationUrgency, NotificationsWatch, Occluder, PenPhase, PickedBlock, PlayerCommand,
+    PointerButton, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage, ProgramAction,
+    ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation, ScreenLockedWatch,
     ScreenPlacement, ScrollDelta, SettingsProgress, ShellCommand, ShellDialog, Size, Stopped,
-    SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase, Tray,
-    TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus, ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId, Wifi, WifiLink, WifiNetwork, WifiRequest,
-    WifiSecurity, WifiStatus, WindowAction, WindowOrigin, WindowRequests,
+    SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
+    TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
+    VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowOrigin,
+    WindowRequests, WindowsWatch,
 };
 pub use block_plugin_api::{
-    HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
+    HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,
 };
 pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;

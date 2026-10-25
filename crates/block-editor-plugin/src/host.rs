@@ -1,4 +1,5 @@
 use std::{
+    any::{Any, TypeId},
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -13,10 +14,9 @@ use block_plugin_api::guest::host_services;
 use block_plugin_api::{
     AccessGrant, AccessLevel, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, EditorInstanceId, EditorRegion, Failure, FilePick, FileSave, FitArea, HostAction,
-    HostPanel, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision,
-    ShellCommand, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
-    decode_host, encode_host,
+    ChildStatus, EditorInstanceId, EditorRegion, Failure, FilePick, FileSave, FitArea, HostPanel,
+    HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision, ShellCommand, ShellDialog,
+    Size, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -378,7 +378,7 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
-    HostValues,
+    Watches,
     PeerMessages,
     Heads,
 }
@@ -394,26 +394,28 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
-        Self::HostValues,
+        Self::Watches,
         Self::PeerMessages,
         Self::Heads,
     ];
 }
 
+type Opening = Box<dyn FnOnce(&EditorHost, EditorInstanceId)>;
+
 #[derive(Default)]
-struct HostValues {
-    values: HashMap<String, Vec<u8>>,
-    revisions: HashMap<String, u64>,
-    watched: HashSet<String>,
-    unreported: Vec<String>,
-    actions: Vec<(String, Vec<u8>)>,
+struct Watches {
+    values: HashMap<TypeId, Rc<dyn Any>>,
+    revisions: HashMap<TypeId, u64>,
+    watched: HashSet<TypeId>,
+    opening: Vec<Opening>,
+    calls: Vec<Box<dyn FnOnce()>>,
 }
 
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
-    host_values: Rc<RefCell<HostValues>>,
+    watches: Rc<RefCell<Watches>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     withdrawn_picks: Rc<RefCell<Vec<u64>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
@@ -635,67 +637,80 @@ impl EditorHost {
         self.push(Pushed::Shows);
     }
 
-    pub fn host_value<T: HostValue>(&self) -> T::Value {
-        self.watch_host_value(T::KEY);
-        self.host_values
+    pub fn watched<W: Watched>(&self) -> Option<W::Value> {
+        self.watch::<W>();
+        self.watches
             .borrow()
             .values
-            .get(T::KEY)
-            .and_then(|bytes| decode_host(bytes))
-            .unwrap_or_default()
+            .get(&TypeId::of::<W>())
+            .and_then(|value| value.downcast_ref::<W::Value>())
+            .cloned()
     }
 
-    pub fn host_offers<T: HostValue>(&self) -> bool {
-        self.watch_host_value(T::KEY);
-        self.host_values.borrow().values.contains_key(T::KEY)
+    pub fn offers<W: Watched>(&self) -> bool {
+        self.watch::<W>();
+        self.watches
+            .borrow()
+            .values
+            .contains_key(&TypeId::of::<W>())
     }
 
-    fn watch_host_value(&self, key: &str) {
-        let mut values = self.host_values.borrow_mut();
-        if !values.watched.contains(key) {
-            values.watched.insert(key.to_owned());
-            values.unreported.push(key.to_owned());
-        }
-    }
-
-    pub fn set_host_value<T: HostValue>(&self, value: &T::Value) {
-        self.receive_host_value(T::KEY.to_owned(), encode_host(value));
-    }
-
-    pub(crate) fn receive_host_value(&self, key: String, bytes: Vec<u8>) {
-        let mut values = self.host_values.borrow_mut();
-        if values.values.get(&key) == Some(&bytes) {
+    fn watch<W: Watched>(&self) {
+        let mut watches = self.watches.borrow_mut();
+        if !watches.watched.insert(TypeId::of::<W>()) {
             return;
         }
-        *values.revisions.entry(key.clone()).or_default() += 1;
-        values.values.insert(key, bytes);
-        drop(values);
-        self.push(Pushed::HostValues);
+        watches
+            .opening
+            .push(Box::new(|host: &EditorHost, instance| {
+                let host = host.clone();
+                crate::asked::follow::<W>(Some(instance), move |value| {
+                    host.set_watched::<W>(&value)
+                });
+            }));
     }
 
-    pub fn host_value_revision(&self, key: &str) -> u64 {
-        self.host_values
+    pub fn set_watched<W: Watched>(&self, value: &W::Value) {
+        let mut watches = self.watches.borrow_mut();
+        let key = TypeId::of::<W>();
+        if watches
+            .values
+            .get(&key)
+            .and_then(|held| held.downcast_ref::<W::Value>())
+            == Some(value)
+        {
+            return;
+        }
+        *watches.revisions.entry(key).or_default() += 1;
+        watches.values.insert(key, Rc::new(value.clone()));
+        drop(watches);
+        self.push(Pushed::Watches);
+    }
+
+    pub fn watch_revision<W: Watched>(&self) -> u64 {
+        self.watch_revision_of(TypeId::of::<W>())
+    }
+
+    pub fn watch_revision_of(&self, watch: TypeId) -> u64 {
+        self.watches
             .borrow()
             .revisions
-            .get(key)
+            .get(&watch)
             .copied()
             .unwrap_or_default()
     }
 
-    pub(crate) fn take_host_watches(&self) -> Vec<String> {
-        std::mem::take(&mut self.host_values.borrow_mut().unreported)
+    pub(crate) fn take_watch_openings(&self) -> Vec<Opening> {
+        std::mem::take(&mut self.watches.borrow_mut().opening)
     }
 
-    pub fn act<A: HostAction>(&self, action: A) {
-        self.host_values
-            .borrow_mut()
-            .actions
-            .push((A::KEY.to_owned(), encode_host(&action)));
+    pub fn act(&self, call: impl FnOnce() + 'static) {
+        self.watches.borrow_mut().calls.push(Box::new(call));
         self.changed();
     }
 
-    pub(crate) fn take_host_actions(&self) -> Vec<(String, Vec<u8>)> {
-        std::mem::take(&mut self.host_values.borrow_mut().actions)
+    pub(crate) fn take_acts(&self) -> Vec<Box<dyn FnOnce()>> {
+        std::mem::take(&mut self.watches.borrow_mut().calls)
     }
 
     pub fn show_block(&self, request: ShowRequest) {

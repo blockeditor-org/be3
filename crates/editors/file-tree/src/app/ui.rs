@@ -13,7 +13,7 @@ use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem,
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{
-    Administrator, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
+    AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
 use uuid::Uuid;
 
@@ -930,6 +930,6 @@ fn picker(
 }
 
 pub(crate) fn leavable(editor: Editor, row: Memo<Option<Row>>) -> Memo<bool> {
-    let administrator = editor.host_value::<Administrator>();
+    let administrator = editor.watch::<AdministratorWatch>();
     create_memo(move || !administrator.get() && row.get().is_some_and(|row| row.can_leave))
 }

@@ -31,6 +31,10 @@ be_ops_bindgen::generate!({
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "interaction-mode", "pan-mode",
         "editor-capabilities", "resize-mode", "child-operations", "press", "template-category",
+        "host-preference-sources", "host-contact", "host-image", "window-origin", "remap-state",
+        "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
+        "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
+        "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
     ],
     inline: [
         "rename-command", "artifact-command", "unlink-command",
@@ -39,13 +43,14 @@ be_ops_bindgen::generate!({
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "artifact-described", "rename-dialog", "creation-options",
         "block-child", "creation-child", "artifact-settings-child",
+        "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
+        "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
     lenient: ["editor-capabilities", "child-operations"],
     ordered: ["child-content"],
     own_debug: ["font-face"],
 });
 
-pub use access::AccessLevel;
 pub use accessibility::DescribedAction;
 pub use be_ops as ops;
 pub use blocks::{
@@ -53,10 +58,11 @@ pub use blocks::{
     BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind,
     VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
-pub use debug::{DebugTemplate, PerformanceMeasurement};
+pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use host_services::{
     AccessGrant, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
+pub use shared::access::AccessLevel;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
     CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading,
@@ -76,30 +82,51 @@ pub use types::{
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 
+pub use account::HostPreferenceSources;
+pub use be_ops::Watched;
+pub use contacts::HostContact;
+pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
+pub use guest::contacts::ContactsWatch;
+pub use guest::linux_desktop::{
+    displays::DisplaysWatch,
+    epaper::EpaperWatch,
+    input::{InputDevicesWatch, RemapsWatch},
+    media::MediaWatch,
+    notifications::NotificationsWatch,
+    power::PowerWatch,
+    programs::ProgramsWatch,
+    screen_lock::ScreenLockedWatch,
+    tray::TrayWatch,
+    wifi::WifiWatch,
+    windows::WindowsWatch,
+};
+pub use linux::TrayMenuEntry;
+pub use linux_desktop::{
+    displays::HostDisplay,
+    input::{HostInputDevice, RemapState},
+    media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
+    notifications::{
+        HostNotificationAction, IncomingNotification, NotificationCloseReason, NotificationInbox,
+        NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
+    },
+    power::{PowerAction, PowerAvailability},
+    programs::{HostProgram, ProgramAction},
+    tray::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
+    types::HostImage,
+    wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
+    windows::{HostWindow, WindowAction, WindowOrigin},
+};
+
 mod accesskit_mirror;
 mod block_ids;
-mod host_value;
 mod input;
 mod linux;
 mod manifest;
 mod nesting;
 mod opening;
+pub mod requested;
 mod watch;
 pub use block_ids::BlockIdRole;
-pub use host_value::{
-    Administrator, Contacts, HostAction, HostContact, HostImage, HostPreferenceSources, HostValue,
-    LinkBase, PreferenceSources, decode_host, encode_host,
-};
-pub use linux::{
-    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostInputDevice,
-    HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
-    IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
-    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
-    NotificationSignal, NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction,
-    PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray,
-    TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, Wifi, WifiLink, WifiNetwork, WifiRequest,
-    WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
-};
 pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
@@ -159,6 +186,9 @@ pub struct EditorInstanceId(pub u64);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ScreenId(pub u64);
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct HostWindowId(pub u64);
+
 impl TopBar {
     pub fn shown(self) -> bool {
         matches!(self, Self::Shown)
@@ -194,9 +224,15 @@ impl MenuEntry {
     }
 
     pub fn flatten(entries: &[MenuEntry]) -> Vec<MenuItem> {
-        fn flatten_into(entries: &[MenuEntry], depth: u32, items: &mut Vec<MenuItem>) {
-            for entry in entries {
-                let kind = match entry {
+        nesting::flatten(
+            entries,
+            |entry| match entry {
+                MenuEntry::Submenu(submenu) => &submenu.entries,
+                MenuEntry::Command(_) | MenuEntry::Separator => &[],
+            },
+            |entry, depth| MenuItem {
+                depth,
+                kind: match entry {
                     MenuEntry::Command(command) => MenuItemKind::Command(command.clone()),
                     MenuEntry::Separator => MenuItemKind::Separator,
                     MenuEntry::Submenu(submenu) => MenuItemKind::Submenu(MenuHeading {
@@ -204,66 +240,41 @@ impl MenuEntry {
                         label: submenu.label.clone(),
                         glyph: submenu.glyph.clone(),
                     }),
-                };
-                items.push(MenuItem { depth, kind });
-                if let MenuEntry::Submenu(submenu) = entry {
-                    flatten_into(&submenu.entries, depth + 1, items);
-                }
-            }
-        }
-        let mut items = Vec::new();
-        flatten_into(entries, 0, &mut items);
-        items
+                },
+            },
+        )
     }
 
     pub fn nest(items: Vec<MenuItem>) -> Result<Vec<MenuEntry>, DecodeError> {
-        collection(items.len())?;
-        let mut open: Vec<Vec<MenuEntry>> = vec![Vec::new()];
-        let mut headings: Vec<MenuHeading> = Vec::new();
-        for item in items {
-            let depth = item.depth as usize;
+        for item in &items {
             let opens = matches!(item.kind, MenuItemKind::Submenu(_)) as usize;
-            if depth + opens > MAX_MENU_DEPTH {
+            if item.depth as usize + opens > MAX_MENU_DEPTH {
                 return Err(DecodeError::LimitExceeded("menu depth"));
             }
-            if depth >= open.len() {
-                return Err(DecodeError::MalformedPayload);
-            }
-            while open.len() > depth + 1 {
-                close_submenu(&mut open, &mut headings);
-            }
-            match item.kind {
-                MenuItemKind::Command(command) => {
+        }
+        nesting::nest(
+            items,
+            |item| item.depth,
+            |item, entries| match item.kind {
+                MenuItemKind::Command(command) if entries.is_empty() => {
                     strings([&command.id, &command.label, &command.glyph])?;
-                    open[depth].push(MenuEntry::Command(command));
+                    Ok(MenuEntry::Command(command))
                 }
-                MenuItemKind::Separator => open[depth].push(MenuEntry::Separator),
+                MenuItemKind::Separator if entries.is_empty() => Ok(MenuEntry::Separator),
                 MenuItemKind::Submenu(heading) => {
                     strings([&heading.id, &heading.label, &heading.glyph])?;
-                    headings.push(heading);
-                    open.push(Vec::new());
+                    Ok(MenuEntry::Submenu(MenuSubmenu {
+                        id: heading.id,
+                        label: heading.label,
+                        glyph: heading.glyph,
+                        entries,
+                    }))
                 }
-            }
-        }
-        while open.len() > 1 {
-            close_submenu(&mut open, &mut headings);
-        }
-        Ok(open.pop().unwrap_or_default())
-    }
-}
-
-fn close_submenu(open: &mut Vec<Vec<MenuEntry>>, headings: &mut Vec<MenuHeading>) {
-    let entries = open.pop().unwrap_or_default();
-    let Some(heading) = headings.pop() else {
-        return;
-    };
-    if let Some(parent) = open.last_mut() {
-        parent.push(MenuEntry::Submenu(MenuSubmenu {
-            id: heading.id,
-            label: heading.label,
-            glyph: heading.glyph,
-            entries,
-        }));
+                MenuItemKind::Command(_) | MenuItemKind::Separator => {
+                    Err(DecodeError::MalformedPayload)
+                }
+            },
+        )
     }
 }
 
@@ -364,6 +375,23 @@ pub struct PluginManifest {
     pub block_types: Vec<BlockTypeManifest>,
     pub entry_point: String,
     pub network: Vec<String>,
+    pub extensions: Vec<String>,
+}
+
+pub const EXTENSIONS: &[&str] = &["be3:linux-desktop"];
+
+pub fn is_published(interface: &str) -> bool {
+    interface == AdministratorWatch::INTERFACE
+        || interface == ContactsWatch::INTERFACE
+        || extension_of(interface).is_some()
+}
+
+pub fn extension_of(interface: &str) -> Option<&'static str> {
+    let package = interface.split_once('/')?.0;
+    EXTENSIONS
+        .iter()
+        .copied()
+        .find(|extension| *extension == package)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -427,6 +455,10 @@ pub struct TemplateManifest {
 }
 
 impl PluginManifest {
+    pub fn grants(&self, extension: &str) -> bool {
+        self.extensions.iter().any(|granted| granted == extension)
+    }
+
     pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
         self.editors.iter().find(|editor| editor.id == id)
     }
@@ -483,6 +515,7 @@ pub enum ManifestError {
     InvalidEditorId,
     InvalidRegions,
     InvalidNetworkHost,
+    UnknownExtension,
     NoEditors,
     DuplicateEditor,
     DuplicateBlockType,
@@ -505,6 +538,9 @@ impl fmt::Display for ManifestError {
             }
             Self::InvalidNetworkHost => {
                 formatter.write_str("a network host is not a plain host name")
+            }
+            Self::UnknownExtension => {
+                formatter.write_str("an extension is not one the host knows, or is named twice")
             }
             Self::NoEditors => {
                 formatter.write_str("the plugin declares no editors and no block types")
@@ -575,6 +611,13 @@ impl PluginManifest {
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
             {
                 return Err(ManifestError::InvalidNetworkHost);
+            }
+        }
+        for (index, extension) in self.extensions.iter().enumerate() {
+            if !EXTENSIONS.contains(&extension.as_str())
+                || self.extensions[..index].contains(extension)
+            {
+                return Err(ManifestError::UnknownExtension);
             }
         }
         Ok(())

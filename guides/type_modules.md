@@ -94,7 +94,11 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   for a case named `type`, generated as `Type`), and a function may not share its name
   with a type of its interface, so a function that takes a `hello` is not `hello`.
   A package's dependencies may also sit in a `deps/<name>/` folder beside its files,
-  which is how an extension package travels with the world that imports it. Ids and
+  which is how an extension package travels with the world that imports it. An
+  interface of a package other than the world's is generated under a module named after
+  its package, in the types, `guest` and `embed` alike (`shared::ids`,
+  `linux_desktop::power`, `guest::linux_desktop::power`), so two packages may name an
+  interface alike. Ids and
   access levels have one shape in every package: `be3:shared` (crates/be-ops/wit, its
   buck `foreign_resources` `//crates/be-ops:wit`) holds `uuid` (16 bytes), `hash` (32)
   and their aliases by what they name (`block-id`, `content-type-id`, `commit-id`, ...);
@@ -115,7 +119,12 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   functions and resource handles that return `Ticket<T>`s to decode the completion
   with. A resource's constructor is a long-lived op whose id is the handle; its async
   methods are ops with it as parent, its sync ones direct calls naming it, and
-  `resource_drop` cancels it. The shapes follow wit-bindgen's, so moving to it later
+  `resource_drop` cancels it. A resource named `*-watch` whose only functions are a
+  `constructor()` and `next: async func() -> T` is a latest-value watch: the guest's
+  handle implements `be_ops::Watched` (its `Value`, its interface, the two method ids,
+  `open()` and `next()`), and `embed::WATCHES` lists every watch the world imports as a
+  `be_ops::Watching`, so a host can serve a watch by its method ids and an editor follow
+  any of them with one accessor (block-editor-beui's `editor.watch::<W>()`). The shapes follow wit-bindgen's, so moving to it later
   changes little: the guest traits take `&self` of a guest instance instead of
   statics, since tests run many modules on one thread, and the constructor lives on
   `Guest` as `new_<resource>`, handed its op id.

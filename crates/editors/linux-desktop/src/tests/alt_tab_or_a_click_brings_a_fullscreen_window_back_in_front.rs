@@ -11,7 +11,7 @@ fn windows(fixture: &mut Fixture, focused: u64) {
     };
     fixture
         .test
-        .set_host_value::<HostWindows>(&vec![calculator, host_window(2, focused == 2)]);
+        .set_watched::<WindowsWatch>(&vec![calculator, host_window(2, focused == 2)]);
     fixture.settle();
 }
 

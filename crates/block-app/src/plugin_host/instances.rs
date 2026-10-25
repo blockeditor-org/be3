@@ -1,6 +1,5 @@
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_plugin_api::embed::host_values::Call as HostValues;
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
@@ -10,7 +9,7 @@ use block_plugin_api::{
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
-    embed::{debug::Call as DebugCall, shell::Call as ShellCall},
+    embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
     ops::OpId,
 };
 use block_type_guest::editor::{FromEditor, Gesture};
@@ -26,9 +25,9 @@ use super::{
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadReads, Heads},
-    host_values::{Published, Watched},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
+    published::{Published, Watched},
     sent::Sent,
 };
 use crate::{host, performance};
@@ -132,7 +131,7 @@ struct Instance {
     presenting: bool,
     presented: bool,
     reported_presenting: bool,
-    host_values: Watched,
+    published: Watched,
     unshown_web_views: Vec<WebViewId>,
     presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
@@ -280,7 +279,7 @@ impl Instance {
             presenting: false,
             presented: false,
             reported_presenting: false,
-            host_values: Watched::default(),
+            published: Watched::default(),
             unshown_web_views: Vec::new(),
             presence_visible: None,
             replacements: HashMap::new(),
@@ -1344,7 +1343,7 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
-            entry.host_values.forget_reported();
+            entry.published.forget_reported();
             entry.heads = Heads::default();
             entry.artifact_watch = Some(Vec::new());
             entry.watches.clear();
@@ -1542,7 +1541,7 @@ impl Instances {
                 ));
             }
             let mut reported = Vec::new();
-            entry.host_values.report(
+            entry.published.report(
                 instance,
                 self.shell == Some(instance),
                 &self.published,
@@ -2540,12 +2539,23 @@ impl Instances {
         messages
     }
 
-    pub(super) fn host_values_call(
+    pub(super) fn watch_published(
         &mut self,
         instance: EditorInstanceId,
-        call: HostValues,
+        open: block_plugin_api::ops::MethodId,
     ) -> bool {
-        let shell = self.shell == Some(instance);
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        entry.published.watch(open);
+        true
+    }
+
+    pub(super) fn published_call(
+        &mut self,
+        instance: EditorInstanceId,
+        called: block_plugin_api::ops::Called,
+    ) -> bool {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
@@ -2553,13 +2563,7 @@ impl Instances {
             .role
             .block()
             .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
-        match call {
-            HostValues::WatchNew { key, .. } => entry.host_values.watch(key),
-            HostValues::Act { key, action } if !preview => {
-                entry.host_values.act(key, action, shell)
-            }
-            HostValues::Act { .. } | HostValues::WatchNext { .. } => false,
-        }
+        !preview && entry.published.call(called)
     }
 
     pub(super) fn shell_call(&mut self, call: ShellCall) -> bool {
@@ -2865,20 +2869,25 @@ impl Instances {
         )]
     }
 
-    pub(super) fn set_host_value(&mut self, key: &str, value: Arc<Vec<u8>>) -> bool {
-        self.published.insert(key.to_owned(), value);
-        self.watches_host_value(key)
+    pub(super) fn publish(
+        &mut self,
+        open: block_plugin_api::ops::MethodId,
+        value: Arc<Vec<u8>>,
+    ) -> bool {
+        self.published.insert(open, value);
+        self.watches_published(open)
     }
 
-    pub(super) fn watches_host_value(&self, key: &str) -> bool {
-        self.entries.iter().any(|(instance, entry)| {
-            entry
-                .host_values
-                .watches(key, self.shell == Some(*instance))
-        })
+    pub(super) fn watches_published(&self, open: block_plugin_api::ops::MethodId) -> bool {
+        self.entries
+            .iter()
+            .any(|(instance, entry)| entry.published.watches(open, self.shell == Some(*instance)))
     }
 
-    pub(super) fn take_host_actions(&mut self, key: &str) -> Vec<Vec<u8>> {
+    pub(super) fn take_calls<C>(
+        &mut self,
+        accept: &impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+    ) -> Vec<C> {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         instances
@@ -2886,7 +2895,7 @@ impl Instances {
             .flat_map(|instance| {
                 self.entries
                     .get_mut(&instance)
-                    .map(|entry| entry.host_values.take_actions(key))
+                    .map(|entry| entry.published.take_calls(accept))
                     .unwrap_or_default()
             })
             .collect()

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use block_plugin_api::{TrayMenuEntry, TrayStatus, TrayToggle};
+use block_plugin_api::{TrayMenuItem, TrayStatus, TrayToggle};
 use zbus::zvariant::{OwnedValue, Value};
 
 use super::model::*;

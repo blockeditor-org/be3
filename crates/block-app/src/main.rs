@@ -813,7 +813,7 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn take_power_request(&mut self) {
-        let request = plugin_host::take_actions::<block_plugin_api::PowerAction>().pop();
+        let request = plugin_host::take_calls(block_plugin_api::requested::power).pop();
         if let Some(action) = request
             && self
                 .published_power
@@ -858,7 +858,7 @@ impl BlockApp {
         let locked = lock.locked();
         wayland::set_locked(locked);
         remap::set_locked(locked);
-        plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
+        plugin_host::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         if locked {
             self.app_menu = None;
         }
@@ -870,7 +870,7 @@ impl BlockApp {
         availability.lock = !locked;
         if self.published_power != Some(availability) {
             self.published_power = Some(availability);
-            plugin_host::publish::<block_plugin_api::Power>(&availability);
+            plugin_host::publish::<block_plugin_api::PowerWatch>(&availability);
         }
     }
 
@@ -904,12 +904,12 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn run_media(&mut self) {
-        let requests = plugin_host::take_actions::<block_plugin_api::MediaRequest>();
+        let requests = plugin_host::take_calls(block_plugin_api::requested::media);
         if self.media.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::MediaWatch>())
         {
             self.media = Some(media::Media::start());
-            plugin_host::publish::<block_plugin_api::Media>(
+            plugin_host::publish::<block_plugin_api::MediaWatch>(
                 &block_plugin_api::MediaLevels::default(),
             );
         }
@@ -920,18 +920,20 @@ impl BlockApp {
             media.request(request);
         }
         if let Some(levels) = media.frame() {
-            plugin_host::publish::<block_plugin_api::Media>(&levels);
+            plugin_host::publish::<block_plugin_api::MediaWatch>(&levels);
         }
     }
 
     #[cfg(target_os = "linux")]
     fn run_wifi(&mut self) {
-        let requests = plugin_host::take_actions::<block_plugin_api::WifiRequest>();
+        let requests = plugin_host::take_calls(block_plugin_api::requested::wifi);
         if self.wifi.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Wifi>())
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::WifiWatch>())
         {
             self.wifi = Some(wifi::Wifi::start());
-            plugin_host::publish::<block_plugin_api::Wifi>(&block_plugin_api::WifiStatus::default());
+            plugin_host::publish::<block_plugin_api::WifiWatch>(
+                &block_plugin_api::WifiStatus::default(),
+            );
         }
         let Some(wifi) = &mut self.wifi else {
             return;
@@ -940,7 +942,7 @@ impl BlockApp {
             wifi.request(request);
         }
         if let Some(status) = wifi.frame() {
-            plugin_host::publish::<block_plugin_api::Wifi>(&status);
+            plugin_host::publish::<block_plugin_api::WifiWatch>(&status);
         }
     }
 
@@ -2154,9 +2156,9 @@ impl BlockApp {
         }
         if Some(wayland::revision()) != self.windows_sent {
             self.windows_sent = Some(wayland::revision());
-            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed());
+            plugin_host::publish::<block_plugin_api::WindowsWatch>(&wayland::listed());
         }
-        for action in plugin_host::take_actions::<block_plugin_api::WindowAction>() {
+        for action in plugin_host::take_calls(block_plugin_api::requested::window) {
             match action {
                 block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
                 block_plugin_api::WindowAction::Close(window) => wayland::close(window),
@@ -2792,7 +2794,7 @@ impl BlockApp {
         } else {
             accounts::link_base(&self.server_url)
         };
-        plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
+        plugin_host::publish::<block_plugin_api::LinkBaseWatch>(&link_base);
         self.publish_administrator();
         be::start(be::Config {
             server_url: self.server_url.clone(),
@@ -2808,7 +2810,7 @@ impl BlockApp {
     }
 
     fn publish_administrator(&self) {
-        plugin_host::publish::<block_plugin_api::Administrator>(
+        plugin_host::publish::<block_plugin_api::AdministratorWatch>(
             &self.organization.as_ref().is_some_and(|organization| {
                 organization.kind == be_protocol::OrganizationKind::Company
                     && organization.role == OrganizationRole::Administrator

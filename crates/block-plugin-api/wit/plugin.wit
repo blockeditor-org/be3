@@ -98,14 +98,27 @@ interface plugin {
 
 /// Everything an editor plugin and its host say to each other: the gpu it
 /// draws with (answered inside the plugin's own worker or thread), what it asks
-/// of the host, and what it offers.
+/// of the host, and what it offers. The `be3:linux-desktop` interfaces are an
+/// extension a plugin uses only when its manifest names it.
 world editor-plugin {
     import be3:gpu/device@0.1.0;
     import host;
     import blocks;
     import shell;
     import host-services;
-    import be3:host-values/host-values@0.1.0;
+    import account;
+    import contacts;
+    import be3:linux-desktop/windows@0.1.0;
+    import be3:linux-desktop/input@0.1.0;
+    import be3:linux-desktop/displays@0.1.0;
+    import be3:linux-desktop/power@0.1.0;
+    import be3:linux-desktop/media@0.1.0;
+    import be3:linux-desktop/wifi@0.1.0;
+    import be3:linux-desktop/epaper@0.1.0;
+    import be3:linux-desktop/notifications@0.1.0;
+    import be3:linux-desktop/screen-lock@0.1.0;
+    import be3:linux-desktop/programs@0.1.0;
+    import be3:linux-desktop/tray@0.1.0;
     import be3:debug/debug@0.1.0;
     export plugin;
     export be3:debug/paintings@0.1.0;

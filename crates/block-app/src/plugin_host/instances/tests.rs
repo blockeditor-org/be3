@@ -94,58 +94,42 @@ fn input_events<T: Clone + Into<Outbound>>(messages: &[T]) -> Vec<Input> {
         .collect()
 }
 
-fn publish<T: block_plugin_api::HostValue>(instances: &mut Instances, value: &T::Value) -> bool {
-    instances.set_host_value(T::KEY, Arc::new(block_plugin_api::encode_host(value)))
+fn publish<W: block_plugin_api::Watched>(instances: &mut Instances, value: &W::Value) -> bool {
+    instances.publish(W::OPEN, Arc::new(block_plugin_api::ops::encode(value)))
 }
 
-fn host_values_sent<T: block_plugin_api::HostValue>(messages: &[Outbound]) -> Vec<T::Value> {
+fn watched_sent<W: block_plugin_api::Watched>(messages: &[Outbound]) -> Vec<W::Value> {
     messages
         .iter()
         .filter_map(|message| match message {
-            Outbound::Editor(instance, EditorCall::HostValue { key, value })
-                if *instance == INSTANCE && key == T::KEY =>
+            Outbound::Editor(instance, EditorCall::Watched { open, value })
+                if *instance == INSTANCE && *open == W::OPEN =>
             {
-                block_plugin_api::decode_host(value)
+                block_plugin_api::ops::decode(value)
             }
             _ => None,
         })
         .collect()
 }
 
-fn watch_key(instances: &mut Instances, key: &str) -> bool {
-    instances.host_values_call(
+fn watch<W: block_plugin_api::Watched>(instances: &mut Instances) -> bool {
+    instances.watch_published(INSTANCE, W::OPEN)
+}
+
+fn host_call<W: block_plugin_api::Watched, A: serde::Serialize>(
+    instances: &mut Instances,
+    function: &str,
+    args: &A,
+) -> bool {
+    instances.published_call(
         INSTANCE,
-        HostValues::WatchNew {
-            resource: block_plugin_api::embed::host_values::Watch(0),
-            key: key.to_owned(),
+        block_plugin_api::ops::Called {
+            name: format!("{}#{function}", W::INTERFACE),
+            parent: None,
+            answered: false,
+            args: block_plugin_api::ops::encode(args),
         },
     )
-}
-
-fn watch<T: block_plugin_api::HostValue>(instances: &mut Instances) -> bool {
-    watch_key(instances, T::KEY)
-}
-
-fn act_on(instances: &mut Instances, key: &str, action: Vec<u8>) -> bool {
-    instances.host_values_call(
-        INSTANCE,
-        HostValues::Act {
-            key: key.to_owned(),
-            action,
-        },
-    )
-}
-
-fn act<A: block_plugin_api::HostAction>(instances: &mut Instances, action: &A) -> bool {
-    act_on(instances, A::KEY, block_plugin_api::encode_host(action))
-}
-
-fn take_actions<A: block_plugin_api::HostAction>(instances: &mut Instances) -> Vec<A> {
-    instances
-        .take_host_actions(A::KEY)
-        .iter()
-        .filter_map(|action| block_plugin_api::decode_host(action))
-        .collect()
 }
 
 fn configure(instances: &mut Instances) -> Option<PluginCall> {
@@ -299,7 +283,6 @@ mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
-mod a_host_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers;
 mod a_listing_the_host_could_not_load_reaches_the_plugin_as_failed;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
@@ -311,8 +294,8 @@ mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_plugin_hears_its_childrens_statuses_again;
 mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
 mod a_restarted_plugin_no_longer_shows_its_regions_stopped;
-mod a_shell_only_host_value_reaches_only_the_shell;
 mod a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard;
+mod a_watched_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_zoomed_region_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_editor_can_read_and_edit_a_block_it_watches;
@@ -325,9 +308,10 @@ mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod closing_an_editor_cancels_the_pick_it_waits_on;
-mod host_actions_reach_the_host_only_from_the_shell;
+mod host_calls_are_taken_by_kind_in_the_order_they_came;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
 mod revision_history_editors_cannot_mutate_any_block;
+mod the_contacts_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
 
 fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {

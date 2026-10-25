@@ -158,6 +158,25 @@ pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Option<T> {
     postcard::from_bytes(bytes).ok()
 }
 
+pub trait Watched: Sized + 'static {
+    type Value: Serialize + DeserializeOwned + Clone + PartialEq + 'static;
+
+    const INTERFACE: &'static str;
+    const OPEN: MethodId;
+    const NEXT: MethodId;
+
+    fn open() -> Self;
+
+    fn next(&self) -> guest::Pending<Self::Value>;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Watching {
+    pub interface: &'static str,
+    pub open: MethodId,
+    pub next: MethodId,
+}
+
 pub const fn method_id(name: &str) -> MethodId {
     let bytes = name.as_bytes();
     let mut hash: u32 = 0x811c_9dc5;

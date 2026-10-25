@@ -13,8 +13,7 @@ use block_editor_beui::{
 };
 use block_plugin_api::Opening;
 use block_plugin_api::embed::blocks::Call as BlocksCall;
-use block_plugin_api::embed::debug::Call as DebugCall;
-use block_plugin_api::embed::host_values::Call as HostValues;
+use block_plugin_api::embed::debug::debug::Call as DebugCall;
 use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
@@ -83,7 +82,7 @@ pub struct BeuiTest<A: BeuiApp> {
     link: crate::link::Link,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
-    host_actions: Vec<(String, Vec<u8>)>,
+    extension_calls: Vec<block_plugin_api::ops::Called>,
     web_views: std::collections::HashMap<
         block_plugin_api::ops::OpId,
         (
@@ -92,10 +91,13 @@ pub struct BeuiTest<A: BeuiApp> {
         ),
     >,
     web_view_commands: Vec<(WebViewId, WebViewCommand)>,
-    host_values: std::collections::HashMap<String, Vec<u8>>,
-    host_value_watches: std::collections::HashMap<
+    published: std::collections::HashMap<block_plugin_api::ops::MethodId, Vec<u8>>,
+    published_watches: std::collections::HashMap<
         block_plugin_api::ops::OpId,
-        (String, block_plugin_api::Watch<Vec<u8>>),
+        (
+            block_plugin_api::ops::MethodId,
+            block_plugin_api::Watch<block_plugin_api::Encoded>,
+        ),
     >,
     asked_picks: Vec<(
         u64,
@@ -279,11 +281,11 @@ impl<A: BeuiApp> BeuiTest<A> {
             link: crate::link::Link::new(INSTANCE),
             editor: None,
             calls: Vec::new(),
-            host_actions: Vec::new(),
+            extension_calls: Vec::new(),
             web_views: std::collections::HashMap::new(),
             web_view_commands: Vec::new(),
-            host_values: std::collections::HashMap::new(),
-            host_value_watches: std::collections::HashMap::new(),
+            published: std::collections::HashMap::new(),
+            published_watches: std::collections::HashMap::new(),
             asked_picks: Vec::new(),
             child_statuses: block_plugin_api::Watch::default(),
             block_types: block_plugin_api::Watch::default(),
@@ -707,22 +709,22 @@ impl<A: BeuiApp> BeuiTest<A> {
         }));
     }
 
-    pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
-        let value = block_plugin_api::encode_host(value);
-        for (key, watch) in self.host_value_watches.values_mut() {
-            if key == T::KEY {
-                watch.change(&mut self.connection, |_| value.clone());
+    pub fn set_watched<W: block_plugin_api::Watched>(&mut self, value: &W::Value) {
+        let value = block_plugin_api::ops::encode(value);
+        for (open, watch) in self.published_watches.values_mut() {
+            if *open == W::OPEN {
+                watch.set(&mut self.connection, value.clone());
             }
         }
-        self.host_values.insert(T::KEY.to_owned(), value);
+        self.published.insert(W::OPEN, value);
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
     }
 
-    pub fn watches<T: block_plugin_api::HostValue>(&self) -> bool {
-        self.host_value_watches
+    pub fn watches<W: block_plugin_api::Watched>(&self) -> bool {
+        self.published_watches
             .values()
-            .any(|(key, _)| key == T::KEY)
+            .any(|(open, _)| *open == W::OPEN)
     }
 
     pub fn answer<T: serde::Serialize>(&mut self, reply: Reply<T>, answer: T) {
@@ -971,112 +973,121 @@ impl<A: BeuiApp> BeuiTest<A> {
             });
         }
         while let Some(event) = self.connection.next_event() {
-            let called =
-                match event {
-                    Incoming::Started(started) if ShellCall::accepts(&started) => {
-                        let connection = &mut self.connection;
-                        match ShellCall::accept(connection, started) {
-                            Some(ShellCall::ChildStatusesWatchNew { resource, .. }) => {
-                                self.child_statuses.opened(resource.op())
-                            }
-                            Some(ShellCall::ChildStatusesWatchNext { reply, .. }) => {
-                                self.child_statuses.next(connection, reply)
-                            }
-                            Some(ShellCall::BlockTypesWatchNew { resource }) => {
-                                self.block_types.opened(resource.op())
-                            }
-                            Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
-                                self.block_types.next(connection, reply)
-                            }
-                            Some(ShellCall::WebViewNew {
-                                resource, id, url, ..
-                            }) => {
-                                let mut watch = block_plugin_api::Watch::default();
-                                watch.opened(resource.op());
-                                self.web_views.insert(resource.op(), (id, watch));
-                                self.web_view_commands.push((id, WebViewCommand::Open(url)));
-                            }
-                            Some(ShellCall::WebViewNextEvents { this, reply }) => {
-                                match self.web_views.get_mut(&this.op()) {
-                                    Some((_, watch)) => watch.next(connection, reply),
-                                    None => reply
-                                        .fail(connection, block_plugin_api::ops::OpError::Canceled),
+            let called = match event {
+                Incoming::Started(started) if ShellCall::accepts(&started) => {
+                    let connection = &mut self.connection;
+                    match ShellCall::accept(connection, started) {
+                        Some(ShellCall::ChildStatusesWatchNew { resource, .. }) => {
+                            self.child_statuses.opened(resource.op())
+                        }
+                        Some(ShellCall::ChildStatusesWatchNext { reply, .. }) => {
+                            self.child_statuses.next(connection, reply)
+                        }
+                        Some(ShellCall::BlockTypesWatchNew { resource }) => {
+                            self.block_types.opened(resource.op())
+                        }
+                        Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
+                            self.block_types.next(connection, reply)
+                        }
+                        Some(ShellCall::WebViewNew {
+                            resource, id, url, ..
+                        }) => {
+                            let mut watch = block_plugin_api::Watch::default();
+                            watch.opened(resource.op());
+                            self.web_views.insert(resource.op(), (id, watch));
+                            self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                        }
+                        Some(ShellCall::WebViewNextEvents { this, reply }) => {
+                            match self.web_views.get_mut(&this.op()) {
+                                Some((_, watch)) => watch.next(connection, reply),
+                                None => {
+                                    reply.fail(connection, block_plugin_api::ops::OpError::Canceled)
                                 }
                             }
-                            _ => {}
                         }
-                        continue;
+                        _ => {}
                     }
-                    Incoming::Started(started) if DebugCall::accepts(&started) => {
-                        let connection = &mut self.connection;
-                        match DebugCall::accept(connection, started) {
-                            Some(DebugCall::DebugTemplatesWatchNew { resource }) => {
-                                self.debug_templates.opened(resource.op())
-                            }
-                            Some(DebugCall::DebugTemplatesWatchNext { reply, .. }) => {
-                                self.debug_templates.next(connection, reply)
-                            }
-                            _ => {}
+                    continue;
+                }
+                Incoming::Started(started) if DebugCall::accepts(&started) => {
+                    let connection = &mut self.connection;
+                    match DebugCall::accept(connection, started) {
+                        Some(DebugCall::DebugTemplatesWatchNew { resource }) => {
+                            self.debug_templates.opened(resource.op())
                         }
-                        continue;
-                    }
-                    Incoming::Started(started) if HostValues::accepts(&started) => {
-                        let connection = &mut self.connection;
-                        match HostValues::accept(connection, started) {
-                            Some(HostValues::WatchNew { resource, key }) => {
-                                let mut watch = block_plugin_api::Watch::default();
-                                watch.opened(resource.op());
-                                if let Some(value) = self.host_values.get(&key) {
-                                    watch.change(connection, |_| value.clone());
-                                }
-                                self.host_value_watches.insert(resource.op(), (key, watch));
-                            }
-                            Some(HostValues::WatchNext { this, reply }) => {
-                                match self.host_value_watches.get_mut(&this.op()) {
-                                    Some((_, watch)) => watch.next(connection, reply),
-                                    None => reply
-                                        .fail(connection, block_plugin_api::ops::OpError::Canceled),
-                                }
-                            }
-                            _ => {}
+                        Some(DebugCall::DebugTemplatesWatchNext { reply, .. }) => {
+                            self.debug_templates.next(connection, reply)
                         }
-                        continue;
+                        _ => {}
                     }
-                    Incoming::Started(started) if BlocksCall::accepts(&started) => {
-                        if let Some(call) = BlocksCall::accept(&mut self.connection, started) {
-                            self.link.call(call, &self.store, &mut self.connection);
+                    continue;
+                }
+                Incoming::Started(started) if published(started.method).is_some() => {
+                    let connection = &mut self.connection;
+                    let watching = published(started.method).unwrap_or_else(|| unreachable!());
+                    if watching.open == started.method {
+                        let mut watch = block_plugin_api::Watch::default();
+                        watch.opened(started.op);
+                        if let Some(value) = self.published.get(&watching.open) {
+                            watch.set(connection, value.clone());
                         }
+                        self.published_watches
+                            .insert(started.op, (watching.open, watch));
                         continue;
                     }
-                    Incoming::Canceled { op } if self.link.holds(op) => {
-                        self.link.ended(op, &self.store, &mut self.connection);
+                    match started
+                        .parent
+                        .and_then(|parent| self.published_watches.get_mut(&parent))
+                    {
+                        Some((_, watch)) => watch.next_encoded(connection, started.op),
+                        None => connection.complete(started.op, Outcome::Err(OpError::Canceled)),
+                    }
+                    continue;
+                }
+                Incoming::Started(started) if BlocksCall::accepts(&started) => {
+                    if let Some(call) = BlocksCall::accept(&mut self.connection, started) {
+                        self.link.call(call, &self.store, &mut self.connection);
+                    }
+                    continue;
+                }
+                Incoming::Canceled { op } if self.link.holds(op) => {
+                    self.link.ended(op, &self.store, &mut self.connection);
+                    continue;
+                }
+                Incoming::Called(called) => called,
+                Incoming::Completed { op, outcome } => {
+                    self.completed.insert(op, outcome);
+                    continue;
+                }
+                Incoming::Started(started) => {
+                    let op = started.op;
+                    if Call::accepts(&started)
+                        && let Some(call) = Call::accept(&mut self.connection, started)
+                    {
+                        self.requests.push((Some(op), call));
+                    }
+                    continue;
+                }
+                Incoming::Canceled { op } => {
+                    let connection = &mut self.connection;
+                    if self
+                        .published_watches
+                        .values_mut()
+                        .any(|(_, watch)| watch.withdraw(connection, op))
+                    {
                         continue;
                     }
-                    Incoming::Called(called) => called,
-                    Incoming::Completed { op, outcome } => {
-                        self.completed.insert(op, outcome);
-                        continue;
+                    self.published_watches.remove(&op);
+                    if let Some((id, _)) = self.web_views.remove(&op) {
+                        self.web_view_commands.push((id, WebViewCommand::Close));
                     }
-                    Incoming::Started(started) => {
-                        let op = started.op;
-                        if Call::accepts(&started)
-                            && let Some(call) = Call::accept(&mut self.connection, started)
-                        {
-                            self.requests.push((Some(op), call));
-                        }
-                        continue;
-                    }
-                    Incoming::Canceled { op } => {
-                        if let Some((id, _)) = self.web_views.remove(&op) {
-                            self.web_view_commands.push((id, WebViewCommand::Close));
-                        }
-                        self.requests.retain(|(asked, _)| *asked != Some(op));
-                        self.connection
-                            .complete(op, Outcome::Err(OpError::Canceled));
-                        continue;
-                    }
-                    Incoming::Yielded { .. } | Incoming::Credited { .. } => continue,
-                };
+                    self.requests.retain(|(asked, _)| *asked != Some(op));
+                    self.connection
+                        .complete(op, Outcome::Err(OpError::Canceled));
+                    continue;
+                }
+                Incoming::Yielded { .. } | Incoming::Credited { .. } => continue,
+            };
             if let Some(call) = Call::accept_direct(&called) {
                 self.requests.push((None, call));
                 continue;
@@ -1088,8 +1099,12 @@ impl<A: BeuiApp> BeuiTest<A> {
             if DebugCall::accept_direct(&called).is_some() {
                 continue;
             }
-            if let Some(HostValues::Act { key, action }) = HostValues::accept_direct(&called) {
-                self.host_actions.push((key, action));
+            if called
+                .name
+                .split_once('#')
+                .is_some_and(|(interface, _)| block_plugin_api::is_published(interface))
+            {
+                self.extension_calls.push(called);
                 continue;
             }
             let Some(call) = ShellCall::accept_direct(&called) else {
@@ -1153,7 +1168,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn clear_calls(&mut self) {
         self.calls.clear();
-        self.host_actions.clear();
+        self.extension_calls.clear();
     }
 
     pub fn take_shell_commands(&mut self) -> Vec<(Uuid, block_plugin_api::ShellCommand)> {
@@ -1368,23 +1383,25 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn actions<Act: block_plugin_api::HostAction>(&self) -> Vec<Act> {
-        self.host_actions
-            .iter()
-            .filter_map(host_action::<Act>)
-            .collect()
+    pub fn host_calls<C>(
+        &self,
+        accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+    ) -> Vec<C> {
+        self.extension_calls.iter().filter_map(accept).collect()
     }
 
-    pub fn take_actions<Act: block_plugin_api::HostAction>(&mut self) -> Vec<Act> {
+    pub fn take_host_calls<C>(
+        &mut self,
+        accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+    ) -> Vec<C> {
         let mut taken = Vec::new();
-        self.host_actions
-            .retain(|asked| match host_action::<Act>(asked) {
-                Some(action) => {
-                    taken.push(action);
-                    false
-                }
-                None => true,
-            });
+        self.extension_calls.retain(|called| match accept(called) {
+            Some(call) => {
+                taken.push(call);
+                false
+            }
+            None => true,
+        });
         taken
     }
 
@@ -2004,8 +2021,12 @@ impl Viewport {
     }
 }
 
-fn host_action<A: block_plugin_api::HostAction>((key, action): &(String, Vec<u8>)) -> Option<A> {
-    (key == A::KEY)
-        .then(|| block_plugin_api::decode_host(action))
-        .flatten()
+fn published(method: block_plugin_api::ops::MethodId) -> Option<block_plugin_api::ops::Watching> {
+    block_plugin_api::embed::WATCHES
+        .iter()
+        .find(|watching| {
+            (watching.open == method || watching.next == method)
+                && block_plugin_api::is_published(watching.interface)
+        })
+        .copied()
 }

@@ -4,9 +4,9 @@ use block_plugin_api::{
     BarAction, ChildId, EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, HelloAccepted,
     InputBatch, Opening, Preferences, Rect, ScreenId, ScreenRequest, ShellDialog, Size,
     guest::{
-        debug,
+        debug::debug,
         exports::{
-            paintings,
+            debug::paintings,
             plugin::{Guest, GuestEditor},
         },
         host, shell,
@@ -18,6 +18,7 @@ use block_plugin_api::{
     shell_types::{DragOver, FileDrop, Focus},
 };
 
+use crate::asked::follow;
 use crate::editor_session::EditorSession;
 
 pub(crate) type EditorCall = Box<dyn FnOnce(&mut EditorSession)>;
@@ -124,44 +125,27 @@ impl Shared {
 
     pub(crate) fn watch_shell(&self) {
         let wire = self.clone();
-        spawn(async move {
-            let watch = shell::BlockTypesWatch::new();
-            while let Ok(catalog) = watch.next().await {
-                wire.screens(move |screens| screens.set_catalog(catalog));
-            }
+        follow::<shell::BlockTypesWatch>(None, move |catalog| {
+            wire.screens(move |screens| screens.set_catalog(catalog));
         });
         let wire = self.clone();
-        spawn(async move {
-            let watch = debug::DebugTemplatesWatch::new();
-            while let Ok(templates) = watch.next().await {
-                wire.screens(move |screens| screens.set_debug_templates(templates));
-            }
+        follow::<debug::DebugTemplatesWatch>(None, move |templates| {
+            wire.screens(move |screens| screens.set_debug_templates(templates));
         });
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn watch(&self) {
         let wire = self.clone();
-        spawn(async move {
-            let watch = host::PreferencesWatch::new();
-            while let Ok(preferences) = watch.next().await {
-                wire.push(Delivery::Preferences(preferences));
-            }
+        follow::<host::PreferencesWatch>(None, move |preferences| {
+            wire.push(Delivery::Preferences(preferences));
         });
         let wire = self.clone();
-        spawn(async move {
-            let watch = host::UtcOffsetWatch::new();
-            while let Ok(seconds) = watch.next().await {
-                wire.push(Delivery::UtcOffset(seconds));
-            }
+        follow::<host::UtcOffsetWatch>(None, move |seconds| {
+            wire.push(Delivery::UtcOffset(seconds))
         });
         let wire = self.clone();
-        spawn(async move {
-            let watch = host::FontsWatch::new();
-            while let Ok(fonts) = watch.next().await {
-                wire.push(Delivery::Fonts(fonts));
-            }
-        });
+        follow::<host::FontsWatch>(None, move |fonts| wire.push(Delivery::Fonts(fonts)));
         let wire = self.clone();
         spawn(async move {
             let input = host::Input::new();

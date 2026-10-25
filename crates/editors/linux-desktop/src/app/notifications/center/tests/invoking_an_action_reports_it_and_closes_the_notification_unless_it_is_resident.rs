@@ -28,9 +28,18 @@ fn invoking_an_action_reports_it_and_closes_the_notification_unless_it_is_reside
     assert_eq!(
         center.take_signals(),
         vec![
-            NotificationSignal::ActionInvoked(message, "reply".to_owned()),
-            NotificationSignal::Closed(message, NotificationCloseReason::Dismissed),
-            NotificationSignal::ActionInvoked(player, "pause".to_owned()),
+            NotificationSignal::ActionInvoked {
+                id: message,
+                key: "reply".to_owned()
+            },
+            NotificationSignal::Closed {
+                id: message,
+                reason: NotificationCloseReason::Dismissed
+            },
+            NotificationSignal::ActionInvoked {
+                id: player,
+                key: "pause".to_owned()
+            },
         ]
     );
     assert_eq!(listed(&center), vec![player], "a resident one stays listed");

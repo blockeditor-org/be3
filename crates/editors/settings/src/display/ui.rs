@@ -3,7 +3,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
-    ChangesToast, Displays, Editor, LayeredSettings, LayeredSettingsRow, Power,
+    ChangesToast, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow, PowerWatch,
 };
 
 use super::appearance::AppearanceSection;
@@ -16,8 +16,8 @@ pub(super) type Settings = LayeredSettings<DisplaySettings>;
 pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     let read_only = editor.read_only();
     let merged = settings.effective();
-    let offered = editor.host_offers::<Displays>();
-    let displays = editor.host_value::<Displays>();
+    let offered = editor.offered::<DisplaysWatch>();
+    let displays = editor.watch::<DisplaysWatch>();
     let ids = create_memo(move || {
         displays.with(|displays| {
             displays
@@ -31,7 +31,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
     let in_bar_row = settings.row(&rotate_in_bar);
     let show_in_bar = settings.setter(&rotate_in_bar);
-    let power = editor.host_offers::<Power>();
+    let power = editor.offered::<PowerWatch>();
     let page = NodeRef::new();
     view! {
         <SettingsPage @node_ref=&page>

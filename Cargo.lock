@@ -1739,7 +1739,6 @@ dependencies = [
  "accesskit",
  "be-ops",
  "be-ops-bindgen",
- "bincode",
  "block-gpu-abi",
  "serde",
  "serde_bytes",
