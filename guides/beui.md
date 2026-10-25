@@ -969,8 +969,9 @@ guides/beui_keyboard.md, Actions and the command palette), each row's test id
 menu and a plugin's frame menu. `lead` is a few muted words before
 an item's icon on the same line, read with its label (`New in` before a folder's
 name). The dropdown is as wide as its widest row, between a least width and a
-greatest one past which labels end in an ellipsis, is never taller than a fixed
-height, and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
+greatest one past which labels end in an ellipsis, is as tall as its rows up to
+the window's height, scrolls beyond that, and scrolls the row the keyboard is on
+into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
 shows while `open` holds, under `anchor` at `placement`, as the sheet while
 `sheet` holds, at least `min_width` wide, and reports `on_dismiss` for Escape or a press
