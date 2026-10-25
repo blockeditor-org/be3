@@ -311,7 +311,8 @@ pub fn turned(rotation: Quat, from: Vec3, to: Vec3, head: Quat) -> Quat {
         yawed += TAU;
     }
     let pitched = pitch(to) - pitch(from);
-    let turn = Quat::from_rotation_y(yawed * TURN_GAIN) * Quat::from_rotation_x(-pitched * TURN_GAIN);
+    let turn =
+        Quat::from_rotation_y(yawed * TURN_GAIN) * Quat::from_rotation_x(-pitched * TURN_GAIN);
     (head * turn * head.inverse() * rotation).normalize()
 }
 

@@ -31,7 +31,10 @@ fn dragging_the_rotate_control_with_the_head_rolled_turns_the_panel_along_the_vi
         axis.dot(up) > 0.999,
         "about the head's up, not the world's: {axis:?} {up:?}"
     );
-    assert!(main(&space).normal().dot(right) > 0.05, "to the screen's right");
+    assert!(
+        main(&space).normal().dot(right) > 0.05,
+        "to the screen's right"
+    );
     assert!(close(main(&space).pose.position, start.pose.position));
 
     let down = grab + vec2(0.0, 60.0);
