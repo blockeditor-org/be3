@@ -1023,6 +1023,7 @@ impl ServerStore {
                         role: OrganizationRole::Editor,
                         author: false,
                         granted: node.grants.get(&account).copied(),
+                        inherited: Access::None,
                         effective: node.grants.get(&account).copied().unwrap_or_default(),
                         source: node.grants.contains_key(&account).then_some(block),
                         contact: false,
@@ -1034,6 +1035,13 @@ impl ServerStore {
                     continue;
                 };
                 let role = crate::store::decode_role(&role)?;
+                if company
+                    && role == OrganizationRole::Administrator
+                    && account != identity.account
+                {
+                    continue;
+                }
+                let granted = node.grants.get(&account).copied();
                 let (effective, source) = match role {
                     OrganizationRole::Administrator => (Access::Manage, None),
                     OrganizationRole::Editor => match graph.inherited_from(block, account) {
@@ -1041,13 +1049,18 @@ impl ServerStore {
                         _ => (graph.effective_access(block, account), None),
                     },
                 };
+                let inherited = match (role, granted) {
+                    (OrganizationRole::Administrator, _) | (_, None) => effective,
+                    (OrganizationRole::Editor, Some(_)) => graph.inherited_above(block, account),
+                };
                 entries.push(AccessEntry {
                     account,
                     email,
                     display_name,
                     role,
                     author: node.author == account,
-                    granted: node.grants.get(&account).copied(),
+                    granted,
+                    inherited,
                     effective,
                     source,
                     contact: contacts.contains(&account),

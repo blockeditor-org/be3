@@ -26,7 +26,26 @@ pub(crate) struct Member {
     pub(crate) fixed: Option<String>,
     pub(crate) note: Option<String>,
     pub(crate) access: AccessLevel,
+    pub(crate) inherited: AccessLevel,
     pub(crate) removable: bool,
+}
+
+impl Member {
+    pub(crate) fn choices(&self) -> Vec<AccessLevel> {
+        GRANTABLE
+            .into_iter()
+            .filter(|level| *level >= self.inherited)
+            .collect()
+    }
+
+    pub(crate) fn choose(&self, access: AccessLevel) -> Option<AccessLevel> {
+        match access {
+            _ if access == self.access => None,
+            _ if access <= self.inherited && self.removable => Some(AccessLevel::None),
+            _ if access <= self.inherited => None,
+            _ => Some(access),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -216,8 +235,11 @@ fn member(grant: &AccessGrant, me: Uuid, block: Uuid, name_of: &impl Fn(Uuid) ->
         note,
         access: match fixed {
             Some(_) => grant.effective,
-            None => grant.granted.unwrap_or(AccessLevel::None),
+            None => grant
+                .effective
+                .max(grant.granted.unwrap_or(AccessLevel::None)),
         },
+        inherited: grant.inherited,
         removable: fixed.is_none()
             && grant
                 .granted

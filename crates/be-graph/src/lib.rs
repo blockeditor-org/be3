@@ -520,6 +520,27 @@ impl BlockGraph {
         (above, source.filter(|_| above > Access::None))
     }
 
+    pub fn inherited_above(&self, id: Uuid, account: Uuid) -> Access {
+        let Some(node) = self.blocks.get(&id) else {
+            return Access::None;
+        };
+        let (above, parent_viewable) = match node.parent {
+            BlockParent::Block(parent) if self.blocks.contains_key(&parent) => {
+                let level = self.inherited(parent, account);
+                (level, level.can_view())
+            }
+            BlockParent::Block(_) => (Access::None, false),
+            BlockParent::Root | BlockParent::Detached => (Access::None, true),
+        };
+        let mut ungranted = node.clone();
+        ungranted.grants.remove(&account);
+        let level = level_below(&ungranted, account, above, parent_viewable);
+        match !level.can_view() && self.opens_to(id, account) {
+            true => Access::View,
+            false => level,
+        }
+    }
+
     pub fn set_inside(&self, id: Uuid) -> usize {
         self.subtree(id)
             .into_iter()

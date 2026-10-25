@@ -444,6 +444,7 @@ pub struct AccessGrant {
     pub administrator: bool,
     pub author: bool,
     pub granted: Option<AccessLevel>,
+    pub inherited: AccessLevel,
     pub effective: AccessLevel,
     pub source: Option<[u8; 16]>,
     pub waiting: bool,
@@ -1421,7 +1422,7 @@ pub struct BlockInfo {
     pub sets_access: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum AccessLevel {
     None,
     KnowExists,

@@ -98,6 +98,7 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
                 administrator: false,
                 author: false,
                 granted: Some(AccessLevel::View),
+                inherited: AccessLevel::None,
                 effective: AccessLevel::View,
                 source: Some(hotbar.into_bytes()),
                 waiting: false,

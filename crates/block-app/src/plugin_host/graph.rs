@@ -61,6 +61,7 @@ pub(crate) fn grants_of(
                     ),
                     author: entry.author,
                     granted: entry.granted.map(level_of),
+                    inherited: level_of(entry.inherited),
                     effective: level_of(entry.effective),
                     source: entry.source.map(Uuid::into_bytes),
                     waiting: entry.waiting,

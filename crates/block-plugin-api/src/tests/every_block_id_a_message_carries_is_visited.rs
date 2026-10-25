@@ -32,6 +32,7 @@ fn every_block_id_a_message_carries_is_visited() {
                     administrator: false,
                     author: false,
                     granted: None,
+                    inherited: AccessLevel::None,
                     effective: AccessLevel::Edit,
                     source: Some([1; 16]),
                     waiting: false,

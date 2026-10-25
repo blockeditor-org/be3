@@ -102,7 +102,13 @@ re-import once, and say so in `guides/frozen_formats.md`.
    whose grant (or authorship) first reached the effective level going down
    (`BlockGraph::inherited_from`); `AccessEntry::source`, `AccessList { company,
    set_inside }` (`BlockGraph::set_inside` counts blocks below with grants of
-   their own).
+   their own). `AccessEntry::inherited` is what reaches the block from above
+   (`BlockGraph::inherited_above`), so someone with inherited access shows it
+   and is offered only higher levels to grant here; choosing the inherited
+   level again removes the grant here. In a company the administrators line
+   is the one place administrators appear: the list leaves them out, except
+   the one looking (be-server
+   `the_access_list_leaves_administrators_to_the_organization_line`).
 5. **File tree icons.** (Done.) A clickable share icon on a block whose access is set
    on it, opening the share dialog; a clickable settings icon on a block that
    has settings, opening them. Icons come from `beui_core::icons`. Done: a

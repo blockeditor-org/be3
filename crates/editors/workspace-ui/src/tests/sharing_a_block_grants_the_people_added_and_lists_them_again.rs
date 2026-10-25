@@ -29,6 +29,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         administrator: false,
         author: false,
         granted,
+        inherited: AccessLevel::None,
         effective: granted.unwrap_or(AccessLevel::None),
         source: granted.map(|_| block.into_bytes()),
         waiting: false,

@@ -37,6 +37,7 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
         administrator: false,
         author: false,
         granted: None,
+        inherited: effective,
         effective,
         source: Some(source.into_bytes()),
         waiting: false,
@@ -52,7 +53,13 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
                 person("Ada", AccessLevel::Edit, team),
                 AccessGrant {
                     granted: Some(AccessLevel::View),
+                    inherited: AccessLevel::None,
                     ..person("Grace", AccessLevel::View, block)
+                },
+                AccessGrant {
+                    granted: Some(AccessLevel::Manage),
+                    inherited: AccessLevel::View,
+                    ..person("Linus", AccessLevel::Manage, block)
                 },
             ],
             company: true,
@@ -68,6 +75,10 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
     assert!(
         fixture.says("Can view, set here"),
         "a grant on the block says so"
+    );
+    assert!(
+        !fixture.says("Select..."),
+        "someone whose access comes from above shows it, not a blank choice"
     );
     assert!(
         fixture.says(

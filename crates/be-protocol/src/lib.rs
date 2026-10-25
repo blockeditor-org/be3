@@ -299,6 +299,7 @@ pub struct AccessEntry {
     pub role: OrganizationRole,
     pub author: bool,
     pub granted: Option<Access>,
+    pub inherited: Access,
     pub effective: Access,
     pub source: Option<Uuid>,
     pub contact: bool,

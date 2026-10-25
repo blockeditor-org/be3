@@ -26,6 +26,12 @@ fn access_names_the_block_it_comes_from() {
         (Access::Manage, Some(id(3)))
     );
     assert_eq!(
+        graph.inherited_above(id(3), reader),
+        Access::Edit,
+        "what reaches a block from above leaves out its own grant"
+    );
+    assert_eq!(graph.inherited_above(id(1), reader), Access::None);
+    assert_eq!(
         graph.inherited_from(id(1), AUTHOR),
         (Access::Manage, Some(id(1)))
     );

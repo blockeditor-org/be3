@@ -41,6 +41,7 @@ fn shell_dialog_and_access_messages_round_trip() {
                     administrator: false,
                     author: false,
                     granted: Some(AccessLevel::View),
+                    inherited: AccessLevel::None,
                     effective: AccessLevel::Edit,
                     source: Some([5; 16]),
                     waiting: true,

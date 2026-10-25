@@ -507,10 +507,15 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
             .map(|member| member.access.label().to_owned())
             .unwrap_or_default()
     });
-    let selected = create_memo(move || {
+    let choices = create_memo(move || {
         member
             .get()
-            .and_then(|member| GRANTABLE.iter().position(|access| *access == member.access))
+            .map(|member| member.choices())
+            .unwrap_or_default()
+    });
+    let selected = create_memo(move || {
+        let access = member.get()?.access;
+        choices.get().iter().position(|choice| *choice == access)
     });
     let removable = create_memo(move || member.get().is_some_and(|member| member.removable));
     view! {
@@ -551,19 +556,18 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 let Some(member) = member.get_untracked() else {
                                     return;
                                 };
-                                let Some(access) = index.and_then(|index| GRANTABLE.get(index).copied()) else {
+                                let Some(access) = index.and_then(|index| choices.get_untracked().get(index).copied()) else {
                                     return;
                                 };
-                                if access != member.access {
+                                if let Some(access) = member.choose(access) {
                                     act.call(ShareAction::SetAccess(member.id, access));
                                 }
                             })}
                             label="Access"
                             options={view! {
-                                <ChoiceOption label={AccessLevel::Manage.label()} />
-                                <ChoiceOption label={AccessLevel::Edit.label()} />
-                                <ChoiceOption label={AccessLevel::View.label()} />
-                                <ChoiceOption label={AccessLevel::KnowExists.label()} />
+                                <ForEach keys={choices}>|level: AccessLevel| {
+                                    view! { <ChoiceOption label={level.label()} /> }
+                                }</ForEach>
                             }}
                         />
                     </Show>

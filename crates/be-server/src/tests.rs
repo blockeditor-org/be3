@@ -81,6 +81,7 @@ mod repeated_failed_sign_ins_lock_the_account_out;
 mod revoking_an_http_session_removes_its_access;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
+mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
