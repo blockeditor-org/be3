@@ -41,13 +41,15 @@ const FIRST: Uuid = Uuid::from_u128(1);
 const SECOND: Uuid = Uuid::from_u128(2);
 
 struct Slow {
+    waker: Waker,
     answering: Vec<Vec<u8>>,
 }
 
 impl Guest for Slow {
-    fn start(_: Waker, outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+    fn start(waker: Waker, outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
         outbound.push(hello(FIRST));
         Ok(Self {
+            waker,
             answering: Vec::new(),
         })
     }
@@ -60,6 +62,9 @@ impl Guest for Slow {
     ) -> Result<Flow, String> {
         outbound.append(&mut self.answering);
         self.answering = answers(inbound);
+        if !self.answering.is_empty() {
+            self.waker.wake();
+        }
         Ok(Flow::Running)
     }
 }

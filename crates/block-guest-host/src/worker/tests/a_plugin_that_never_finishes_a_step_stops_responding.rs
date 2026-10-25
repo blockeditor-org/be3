@@ -14,6 +14,10 @@ impl Channel for Stuck {
         true
     }
 
+    fn take_woken(&mut self) -> bool {
+        true
+    }
+
     fn receive(&mut self) -> Received<Self::Presented> {
         match self.events.pop() {
             Some(event) => Received::Event(event),

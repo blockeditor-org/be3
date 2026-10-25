@@ -90,6 +90,7 @@ self.onmessage = async (event) => {
 struct Inbox {
     events: VecDeque<Event<Infallible>>,
     stopped: bool,
+    woken: bool,
 }
 
 pub(in crate::plugin_host) struct WebProtocolAdapter {
@@ -181,6 +182,10 @@ impl Channel for WebProtocolAdapter {
         self.worker.post_message(&message).is_ok()
     }
 
+    fn take_woken(&mut self) -> bool {
+        std::mem::take(&mut self.inbox.borrow_mut().woken)
+    }
+
     fn receive(&mut self) -> Received<Infallible> {
         let mut inbox = self.inbox.borrow_mut();
         match inbox.events.pop_front() {
@@ -221,6 +226,7 @@ fn listen(
         let kind = get(&data, "kind").as_string().unwrap_or_default();
         let event = match kind.as_str() {
             "wake" => {
+                inbox.borrow_mut().woken = true;
                 crate::host::wake();
                 return;
             }
@@ -232,8 +238,12 @@ fn listen(
                     .unwrap_or_else(|| "The plugin worker failed.".to_owned()),
             ),
         };
-        let quiet = event.quiet(get(&data, "woken").is_truthy());
-        inbox.borrow_mut().events.push_back(event);
+        let woken = get(&data, "woken").is_truthy();
+        let quiet = event.quiet(woken);
+        let mut held = inbox.borrow_mut();
+        held.woken |= woken;
+        held.events.push_back(event);
+        drop(held);
         if block_guest_host::wakes(quiet, &waiting) {
             crate::host::wake();
         }

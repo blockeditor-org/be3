@@ -3,7 +3,7 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
         Arc,
-        atomic::AtomicBool,
+        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     },
     thread,
@@ -65,6 +65,7 @@ pub fn wait_for_workers(within: Duration) {
 
 pub struct Threaded<P> {
     steps: Sender<Vec<Vec<u8>>>,
+    woken: Arc<AtomicBool>,
     events: Receiver<Event<P>>,
     interrupt: Box<dyn Fn() + Send>,
     thread: Option<Stopping>,
@@ -99,6 +100,10 @@ impl<P: Presented> Channel for Threaded<P> {
         }
     }
 
+    fn take_woken(&mut self) -> bool {
+        self.woken.swap(false, Ordering::AcqRel)
+    }
+
     fn wait(&mut self, timeout: Duration) -> Option<Received<P>> {
         Some(match self.events.recv_timeout(timeout) {
             Ok(event) => Received::Event(event),
@@ -110,7 +115,7 @@ impl<P: Presented> Channel for Threaded<P> {
 
 pub fn spawn<R: Runnable + 'static>(
     options: Spawn,
-    load: impl FnOnce() -> Result<R, String> + Send + 'static,
+    load: impl FnOnce(Wake) -> Result<R, String> + Send + 'static,
 ) -> Result<Threaded<R::Presented>, String> {
     let Spawn {
         name,
@@ -122,25 +127,35 @@ pub fn spawn<R: Runnable + 'static>(
     let (steps, orders) = mpsc::channel();
     let (reports, events) = mpsc::channel();
     let (ending, ended) = mpsc::channel();
+    let woken = Arc::new(AtomicBool::new(false));
+    let guest_wake: Wake = {
+        let woken = Arc::clone(&woken);
+        let wake = Arc::clone(&wake);
+        Arc::new(move || {
+            woken.store(true, Ordering::Release);
+            wake();
+        })
+    };
     let handle = thread::Builder::new()
         .name(name)
         .spawn(move || {
             let _ending: Sender<()> = ending;
             let failed = reports.clone();
-            let woken = Arc::clone(&wake);
+            let failing = Arc::clone(&wake);
             let ran = contain(Box::new(move || {
-                run(load, orders, reports, wake, waiting);
+                run(move || load(guest_wake), orders, reports, wake, waiting);
             }));
             if let Err(panic) = ran {
                 let _ = failed.send(Event::Failed(format!(
                     "The app failed while running it: {panic}"
                 )));
-                woken();
+                failing();
             }
         })
         .map_err(|error| format!("the guest's thread could not start: {error}"))?;
     Ok(Threaded {
         steps,
+        woken,
         events,
         interrupt,
         thread: Some(Stopping { handle, ended }),

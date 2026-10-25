@@ -97,6 +97,7 @@ self.onmessage = async (event) => {
 #[derive(Default)]
 struct Inbox {
     events: VecDeque<Event<Infallible>>,
+    woken: bool,
 }
 
 pub struct WebGuest {
@@ -149,6 +150,10 @@ impl Channel for WebGuest {
             .is_ok()
     }
 
+    fn take_woken(&mut self) -> bool {
+        std::mem::take(&mut self.inbox.borrow_mut().woken)
+    }
+
     fn receive(&mut self) -> Received<Infallible> {
         match self.inbox.borrow_mut().events.pop_front() {
             Some(event) => Received::Event(event),
@@ -183,6 +188,7 @@ fn listen(
         let kind = get(&data, "kind").as_string().unwrap_or_default();
         let event = match kind.as_str() {
             "wake" => {
+                inbox.borrow_mut().woken = true;
                 wake();
                 return;
             }
@@ -194,8 +200,12 @@ fn listen(
                     .unwrap_or_else(|| "The guest's worker failed.".to_owned()),
             ),
         };
-        let quiet = event.quiet(get(&data, "woken").is_truthy());
-        inbox.borrow_mut().events.push_back(event);
+        let woken = get(&data, "woken").is_truthy();
+        let quiet = event.quiet(woken);
+        let mut held = inbox.borrow_mut();
+        held.woken |= woken;
+        held.events.push_back(event);
+        drop(held);
         if crate::wakes(quiet, &waiting) {
             wake();
         }

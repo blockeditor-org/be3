@@ -17,6 +17,7 @@ pub struct InProcess<G: Guest> {
     guest: Option<G>,
     events: VecDeque<Event<Infallible>>,
     woken: Arc<AtomicBool>,
+    taken: bool,
     waiting: Arc<AtomicBool>,
     wake: Wake,
 }
@@ -36,6 +37,7 @@ impl<G: Guest> InProcess<G> {
             guest: None,
             events: VecDeque::new(),
             woken,
+            taken: false,
             waiting,
             wake,
         };
@@ -77,7 +79,7 @@ impl<G: Guest> Channel for InProcess<G> {
             )));
             return true;
         };
-        let woken = self.woken.swap(false, Ordering::AcqRel);
+        let woken = std::mem::take(&mut self.taken) | self.woken.swap(false, Ordering::AcqRel);
         let mut outbound = Vec::new();
         let started = Instant::now();
         let stepped = catch_unwind(AssertUnwindSafe(|| {
@@ -104,6 +106,12 @@ impl<G: Guest> Channel for InProcess<G> {
         };
         self.report(event);
         true
+    }
+
+    fn take_woken(&mut self) -> bool {
+        let woken = self.woken.swap(false, Ordering::AcqRel);
+        self.taken |= woken;
+        woken
     }
 
     fn receive(&mut self) -> Received<Infallible> {

@@ -90,7 +90,6 @@ impl PureHost {
         waiting: Arc<AtomicBool>,
     ) -> Result<Threaded<Infallible>, String> {
         let interrupter = self.interrupter();
-        let notify = Arc::clone(&wake);
         thread::spawn(
             Spawn {
                 name,
@@ -99,9 +98,9 @@ impl PureHost {
                 interrupt: Box::new(move || interrupter.interrupt()),
                 contain: thread::catch,
             },
-            move || {
+            move |wake| {
                 let guest = load(&self)?;
-                guest.on_wake(move || notify());
+                guest.on_wake(move || wake());
                 Ok(guest)
             },
         )

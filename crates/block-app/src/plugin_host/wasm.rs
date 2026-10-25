@@ -71,9 +71,9 @@ pub(super) fn spawn(
             interrupt: Box::new(move || interrupter.interrupt()),
             contain: |run| crate::panic_guard::contain(run),
         },
-        move || {
+        move |wake| {
             let plugin = host.load_from(&module, discovery::read)?;
-            plugin.on_wake(crate::host::wake);
+            plugin.on_wake(move || wake());
             Ok(Editor(plugin))
         },
     )

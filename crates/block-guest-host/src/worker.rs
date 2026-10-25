@@ -95,6 +95,8 @@ pub trait Channel {
 
     fn receive(&mut self) -> Received<Self::Presented>;
 
+    fn take_woken(&mut self) -> bool;
+
     fn wait(&mut self, _timeout: Duration) -> Option<Received<Self::Presented>> {
         None
     }
@@ -109,6 +111,10 @@ impl<C: Channel + ?Sized> Channel for Box<C> {
 
     fn receive(&mut self) -> Received<Self::Presented> {
         (**self).receive()
+    }
+
+    fn take_woken(&mut self) -> bool {
+        (**self).take_woken()
     }
 
     fn wait(&mut self, timeout: Duration) -> Option<Received<Self::Presented>> {
@@ -175,6 +181,9 @@ impl<C: Channel> Worker<C> {
             }
         }
         if !self.ready || self.stepping {
+            return None;
+        }
+        if !self.channel.take_woken() && self.pending.is_empty() {
             return None;
         }
         let carrying = !self.pending.is_empty();

@@ -106,9 +106,12 @@ own memory. `crates/block-guest-echo` is the smallest one, which the tests start
 The host half is `crates/block-guest-host`, which the editor host and anything else that runs a
 guest share:
 - `Worker<C: Channel>` queues frames, steps the guest once it is ready, carries what it sent and
-  finds a step that runs past `STEP_TIMEOUT`.
+  finds a step that runs past `STEP_TIMEOUT`. It steps only when frames are waiting or the guest
+  woke (`Channel::take_woken`), so an idle guest costs nothing to poll; a guest that holds
+  output back for a later step wakes itself.
 - `thread::spawn` runs a `thread::Runnable` on a thread of its own and is the `Channel` for it;
-  dropping it interrupts the guest. Editors (`plugin_host/wasm.rs`) and pure guests both use it.
+  its loader is handed the `Wake` to give the guest, which marks the guest woken before it
+  reaches the host. Dropping it interrupts the guest. Editors (`plugin_host/wasm.rs`) and pure guests both use it.
 - `InProcess<G: Guest>` runs a guest's Rust in the same process, for unit tests.
 - `web::WebGuest` runs a pure guest in a web worker of its own, with frames moved as
   transferable buffers and nothing else in the worker: no gpu shim, no dylink, no
