@@ -108,17 +108,51 @@ re-import once, and say so in `guides/frozen_formats.md`.
    needed to change it: Edit for the prefix registry and tags, Manage for the
    rest. Resolution walks ancestors and stops at the first one the viewer
    can't view; cache the result per block, pushed when an ancestor's settings
-   change, never polled.
+   change, never polled. Done (client): a block's settings block is pointed to
+   by its `be_block::SETTINGS` metadata (a `BlockRef`, so it holds the
+   settings block) and lists one block per kind in `Settings::kinds`, like the
+   user's root settings. Each `Layered` kind declares `NAME`, `FOLLOWS`
+   (`Block` or `Viewer`: viewer kinds skip the block layer), `RULE` (`Default`
+   or `Policy`: a policy's set fields are fixed for later layers) and
+   `VISIBILITY`. `be_block::Resolution::resolve` combines the layers and says
+   which layer set a field (`source_of`, `locked_by`); `Editor::kinds_above`
+   walks and caches the nearest kind blocks per block, `Editor::resolved_settings`
+   caches the resolution per block and kind, and `Editor::organization_layers`
+   is the slot steps 14 and 15 fill. Every kind is Manage for now: the server
+   checks a kind only through its settings block, whose `kinds` pointers it
+   can't read, so an Edit kind (prefix registry, tags) needs its own rule in
+   `level_below` and `require_parent_of` once its type exists. Dropping the
+   reference to a block's settings block (its `SETTINGS` metadata) needs Manage
+   (`require_keeping_settings`). Tests: be-block
+   `settings_resolve_from_the_organization_the_nearest_block_and_the_viewer`,
+   be-server `only_a_manager_lets_go_of_a_blocks_settings`.
 7. **Visibility per kind.** "Anyone who can view a block inside" or "members
    only", chosen by the block's managers. Defaults: the prefix registry and tag
    definitions are visible to anyone inside, so a block shared alone still
    shows its tags and resolves `BE-ABC`; everything else is members only. This
    reveals tag names and prefixes to everyone a single block is shared with,
-   which is why it is a setting.
+   which is why it is a setting. Done in the graph and server: a kind block
+   granted View to the pseudo-account `be_graph::ANYONE_INSIDE` is viewable by
+   anyone who views a block inside its settings' owner (`BlockGraph::views_inside`,
+   `visible`, `viewers`, and `sealed_to` for its key), and only a kind under a
+   block's settings takes that grant. The client grants it when it makes a kind
+   whose `VISIBILITY` is `Inside`, and the settings editor switches it. Left:
+   the client walk stops at the first ancestor it can't view, so a viewer who
+   only sees a block inside can't find an open kind yet; it needs a listing
+   of the open kinds above a block (server, `be-client`, the app's graph).
+   Tests: be-graph `a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside`,
+   be-server `a_settings_kind_opens_to_anyone_who_views_a_block_inside`.
 8. **Settings editor.** A section for the current workspace and one for any
    block that has settings, opened from the block's menu so that putting
    settings on a folder is rare and deliberate. Where a value comes from
    another layer, say so ("set in *Folder X*", "set by your organization").
+   Done: the user's settings list their workspaces, each opening (or, for a
+   manager, making) its settings; a settings block under a block shows what is
+   set there, who may read each kind, and what comes from above ("Set in
+   *Team*"); "Settings" in the file tree's and the shell's block menus opens or
+   makes it. A setting row fixed by another layer says where ("Set by your
+   organization", "Set in *Folder X*"). Painting:
+   `a_folders_settings_say_what_is_set_here_and_what_comes_from_above`.
 
 ## 4. Workspace settings
 
@@ -133,7 +167,11 @@ re-import once, and say so in `guides/frozen_formats.md`.
     Edit on the block. "Every block with tag X" is a `Query::Backrefs` on the
     tag. Personal tags are the same type in the user's settings.
 11. **Hotbar.** A workspace or game world can set a default hotbar, and the
-    user's own hotbar overrides it.
+    user's own hotbar overrides it. Done: `Hotbar` follows the block, a
+    manager of a game world gives it a hotbar from their own ("Give this world
+    a hotbar"), and a grid starts from the nearest one until its player
+    changes theirs; resetting the hotbar returns to it. Painting:
+    `a_manager_gives_the_world_a_hotbar_that_players_start_from`.
 12. **Default editors (ask).** Whether these have a workspace layer at all.
     Editors for one block type are views over the same data, so which one opens
     a block is a viewer preference, and a workspace layer adds a second place

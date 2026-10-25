@@ -1,6 +1,7 @@
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::be_block::{BlockContent, SettingsContent};
 use block_editor_beui::{BlockInfo, BlockParent, Rect};
 use uuid::Uuid;
 
@@ -18,12 +19,14 @@ pub(crate) enum Action {
     Unlink,
     Delete,
     Restore,
+    Settings,
 }
 
 pub(crate) struct Permissions {
     pub(crate) add: bool,
     pub(crate) edit: bool,
     pub(crate) share: bool,
+    pub(crate) settings: bool,
     pub(crate) delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) is_reference: bool,
@@ -40,6 +43,7 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
         [5] => Some(Action::Unlink),
         [6] => Some(Action::Delete),
         [7] => Some(Action::Restore),
+        [8] => Some(Action::Settings),
         _ => None,
     }
 }
@@ -89,6 +93,8 @@ pub(crate) fn permissions(
         add: types.child_edits(reference.block_type).add && can_edit,
         edit: can_edit,
         share: workspace.can_manage(reference.id),
+        settings: workspace.can_manage(reference.id)
+            || workspace.editor().settings_block(reference.id).is_some(),
         delete: source.is_some_and(|source| {
             source != BlockParent::Detached && can_delete_from(workspace, source)
         }) && (is_reference || can_edit),
@@ -130,6 +136,14 @@ pub(crate) fn apply(
             }
         }
         Action::Restore => workspace.host().restore_block(reference.id),
+        Action::Settings => {
+            if let Some(settings) = workspace.editor().ensure_settings_block(reference.id) {
+                workspace.open(
+                    TabItem::new(settings, SettingsContent::CONTENT_TYPE),
+                    Some(reference.id),
+                );
+            }
+        }
         Action::Delete => {
             if let Some(source) = permissions.source {
                 workspace
@@ -168,6 +182,7 @@ pub(crate) fn ReferenceMenuItem(
                     reference.parent,
                     permissions.is_reference,
                     !permissions.share,
+                    !permissions.settings,
                 )
             })
         })
@@ -177,6 +192,7 @@ pub(crate) fn ReferenceMenuItem(
     let delete = create_memo(move || rights.get().is_none_or(|rights| rights.2));
     let unlink = create_memo(move || rights.get().is_none_or(|rights| rights.3));
     let share = create_memo(move || rights.get().is_none_or(|rights| rights.6));
+    let settings = create_memo(move || rights.get().is_none_or(|rights| rights.7));
     let files = create_memo(move || workspace.my_files());
     let rooted = create_memo(move || {
         let files = files.get();
@@ -223,6 +239,7 @@ pub(crate) fn ReferenceMenuItem(
             <MenuItem label="Unlink" disabled={unlink} />
             <MenuItem label={delete_label} disabled={delete} />
             <MenuItem label="Restore" disabled={restore} />
+            <MenuItem label="Settings" disabled={settings} />
         </MenuItem>
     }
 }

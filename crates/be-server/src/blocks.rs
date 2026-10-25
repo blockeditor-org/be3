@@ -119,6 +119,21 @@ fn require_parent_of(
     }
 }
 
+fn require_keeping_settings(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    block: Uuid,
+    references: &[Uuid],
+) -> Result<(), ServerError> {
+    let dropped = graph.settings_of(block).into_iter().any(|settings| {
+        graph.references(block).contains(&settings) && !references.contains(&settings)
+    });
+    match dropped {
+        true => require_manage(graph, seen, block),
+        false => Ok(()),
+    }
+}
+
 fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockSummary> {
     summary_with(graph, &visibility(identity), block)
 }
@@ -234,6 +249,7 @@ impl ServerStore {
                     format!("block {block} has content at {head}, so its metadata is published with it"),
                 ));
             }
+            require_keeping_settings(graph, &visibility(identity), block, &references)?;
             let relinked = relinked(graph, block, &references);
             let organization = identity.organization.to_string();
             let transaction = database.unchecked_transaction()?;
@@ -442,6 +458,7 @@ impl ServerStore {
                 return Ok(PublishOutcome::Published(commit, None));
             }
             let references = distinct(references);
+            require_keeping_settings(graph, &visibility(identity), block, &references)?;
             let relinked = relinked(graph, block, &references);
             let redescribed = (relinked.is_some()
                 || graph

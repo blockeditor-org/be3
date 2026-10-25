@@ -1578,6 +1578,7 @@ async fn apply(
                 .find(|contact| contact.account == account)
                 .and_then(|contact| contact.public);
             let granted = match verified {
+                _ if account == be_graph::ANYONE_INSIDE => peer.open_inside(block, access).await,
                 Some(public) => peer.share(block, account, access, &public).await,
                 None => peer.grant(block, account, access).await,
             };

@@ -1,7 +1,8 @@
 use block_editor_beui::Editor;
+use block_editor_beui::be_block::{BlockContent, SettingsContent};
 use block_editor_beui::beui::icons::{
     ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE, ICON_PENCIL_LINE,
-    ICON_ROTATE_CCW_CLOCK, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+    ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -140,6 +141,7 @@ fn SectionMenu<F: Fn() + 'static>(
                 row_test_id={"file-tree.section.delete".to_owned()}
             />
             <Appearance editor picker row />
+            <BlockSettings editor row row_test_id={"file-tree.section.settings".to_owned()} />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
@@ -298,6 +300,7 @@ fn BlockMenu<F: Fn() + 'static>(
                 />
             </Show>
             <Appearance editor picker row />
+            <BlockSettings editor row row_test_id={"file-tree.settings".to_owned()} />
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"
@@ -330,6 +333,33 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
             glyph=ICON_PALETTE
             disabled
             row_test_id="file-tree.appearance"
+            on_click={open}
+        />
+    }
+}
+
+#[component]
+fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) -> MenuItem {
+    let shown = create_memo(move || row.get().and_then(|row| row.id));
+    let has = create_memo(move || shown.get().and_then(|id| editor.settings_block(id)));
+    let disabled = create_memo(move || {
+        has.get().is_none() && !row.get().is_some_and(|row| row.access.can_manage())
+    });
+    let open = move || {
+        if let Some(id) = shown.get_untracked()
+            && let Some(settings) = editor.ensure_settings_block(id)
+        {
+            editor
+                .host()
+                .open_block(settings, SettingsContent::CONTENT_TYPE);
+        }
+    };
+    view! {
+        <MenuItem
+            label="Settings"
+            glyph=ICON_SETTINGS
+            disabled
+            row_test_id
             on_click={open}
         />
     }

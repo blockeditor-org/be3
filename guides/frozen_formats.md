@@ -52,7 +52,8 @@ forever.
 
 Section 1 of `plans/settings.md` is a second, one-time break of the same kind:
 its changes (metadata that points to a block, with `ARTIFACT` now pointing to
-its source; the access model; settings blocks) land together, and then the one
+its source; the access model; settings blocks, their `SETTINGS` metadata and
+the `ANYONE_INSIDE` grant on a kind) land together, and then the one
 server with data is wiped and its content re-imported once from a block file.
 Until then they may change saved data incompatibly; afterwards the rules below
 hold again.

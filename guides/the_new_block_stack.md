@@ -1412,6 +1412,31 @@ editor of each block type, keyed by the editor ids the host's catalog lists (see
 guides/adding_a_plugin_editor.md), and `Editor::inherited_settings` what the layers
 below an editor's block resolve to.
 
+A block may have settings too, which apply to everything inside it: a workspace's,
+a folder's, a game world's. They are a `Settings` block whose parent is that block,
+pointed to by the block's `SETTINGS` metadata (a `BlockRef`, so the block holds it),
+with one child block per kind in its `kinds` like the user's. Only a manager of the
+block makes, changes or lets go of them (be-graph's `level_below`, be-server's
+`require_parent_of` and `require_keeping_settings`). Each kind declares on `Layered`
+its `NAME`, whether it follows the block or the viewer (`FOLLOWS`: theme and input
+follow the viewer and never read a block's settings; the logic hotbar follows the
+block), whether a block's value is a default the user's layers override or a policy
+that fixes what it sets (`RULE`), and who may read it (`VISIBILITY`). Resolution
+(`be_block::Resolution::resolve`) stacks, from the bottom: the organization's defaults,
+the nearest block with settings for that kind, the every-device block, this device's,
+then whatever is a policy (a block's, for a policy kind, and the organization's), and
+says which layer set a field (`source_of`, `locked_by`). `Editor::kinds_above(block)`
+walks a block and its ancestors, stopping at the first the viewer can't view, and keeps
+the nearest kind blocks per block for the editor's life; `Editor::resolved_settings`
+keeps the resolution per block and kind; `Editor::effective_settings` is the resolution
+for the editor's own block; `Editor::organization_layers` is where the organization's
+two layers will come from, and gives none yet. `Editor::ensure_block_kind` makes the
+settings block and the kind, and `LayeredSettingsRow` says "Set by your organization"
+or "Set in *Folder*" for a field another layer fixes. A kind block granted View for
+the pseudo-account `be_graph::ANYONE_INSIDE` is readable by anyone who can view a block
+inside the settings' owner, not only by its members (`BlockGraph::views_inside`); the
+settings editor switches that grant per kind.
+
 A change syncs by default: it is written to the every-device block. A setting is
 kept on this device exactly when this device's profile block sets it; then changes
 go there and the other devices' value no longer reaches it. Nothing else is stored to

@@ -1576,6 +1576,15 @@ impl<S: ObjectStore> Peer<S> {
         self.seal_share(block, account, public).await
     }
 
+    pub async fn open_inside(&self, block: Uuid, access: Access) -> Result<(), ClientError> {
+        self.grant(block, be_graph::ANYONE_INSIDE, access).await?;
+        if !access.can_view() {
+            return Ok(());
+        }
+        let keys = self.own_scope(block).await?;
+        self.put_keys(keys).await
+    }
+
     pub async fn seal_share(
         &self,
         block: Uuid,
