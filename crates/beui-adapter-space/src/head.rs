@@ -8,6 +8,7 @@ pub const FAR: f32 = 200.0;
 pub const TURN_PER_PIXEL: f32 = 0.0025;
 pub const MAX_PITCH: f32 = 1.5;
 pub const WALK_SPEED: f32 = 1.5;
+pub const ROLL_PER_SECOND: f32 = 1.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Ray {
@@ -26,6 +27,7 @@ pub struct Head {
     pub position: Vec3,
     pub yaw: f32,
     pub pitch: f32,
+    pub roll: f32,
 }
 
 impl Default for Head {
@@ -34,13 +36,16 @@ impl Default for Head {
             position: Vec3::new(0.0, EYE_HEIGHT, 0.0),
             yaw: 0.0,
             pitch: 0.0,
+            roll: 0.0,
         }
     }
 }
 
 impl Head {
     pub fn rotation(&self) -> Quat {
-        Quat::from_rotation_y(-self.yaw) * Quat::from_rotation_x(self.pitch)
+        Quat::from_rotation_y(-self.yaw)
+            * Quat::from_rotation_x(self.pitch)
+            * Quat::from_rotation_z(self.roll)
     }
 
     pub fn facing(&self) -> Quat {
@@ -48,8 +53,15 @@ impl Head {
     }
 
     pub fn look(&mut self, motion: Vec2) {
+        let motion = glam::Vec2::from_angle(-self.roll).rotate(glam::Vec2::new(motion.x, motion.y));
         self.yaw += motion.x * TURN_PER_PIXEL;
         self.pitch = (self.pitch - motion.y * TURN_PER_PIXEL).clamp(-MAX_PITCH, MAX_PITCH);
+    }
+
+    pub fn tilt(&mut self, roll: f32, seconds: f32) {
+        self.roll = (self.roll + roll * ROLL_PER_SECOND * seconds + std::f32::consts::PI)
+            .rem_euclid(std::f32::consts::TAU)
+            - std::f32::consts::PI;
     }
 
     pub fn walk(&mut self, strafe: f32, forward: f32, seconds: f32) {

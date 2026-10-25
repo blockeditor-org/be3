@@ -20,10 +20,12 @@ fn a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer() {
         "its corner is on the cursor's ray, just in front of what the ray hit"
     );
     let normal = panel.normal();
-    assert!(normal.y.abs() < 1e-4, "it stands upright: {normal:?}");
-    let toward = space.head.position - panel.world(OPEN_GRAB);
-    let level = Vec3::new(toward.x, 0.0, toward.z).normalize();
-    assert!(close(normal, level), "it faces the viewer: {normal:?}");
+    assert!(level(&panel) < 1e-4, "its edges are level: {normal:?}");
+    let toward = (space.head.position - panel.world(OPEN_GRAB)).normalize();
+    assert!(
+        toward.y.abs() > 0.05 && close(normal, toward),
+        "it faces the viewer, tilted up toward the eye: {normal:?}"
+    );
     assert_eq!(
         reports(&sent),
         [

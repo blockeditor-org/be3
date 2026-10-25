@@ -40,7 +40,6 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     let mut panels: Vec<&PanelFrame> = frame.panels.iter().collect();
     let distance = |panel: &PanelFrame| panel.model.w_axis.truncate().distance(eye);
     panels.sort_by(|a, b| distance(b).total_cmp(&distance(a)));
-    panels.sort_by_key(|panel| Some(panel.window) == frame.lifted);
     let find = |outputs: &[WindowOutput], panel: &PanelFrame| {
         outputs
             .iter()
@@ -55,7 +54,6 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
             out.place(frame, rect, panel, &picture, [0.0, 0.0, 1.0, 1.0], 0.0, 1.0);
         }
         if let Some(chrome) = panel.chrome
-            && Some(panel.window) != frame.lifted
             && let Some(output) = find(&frame.chrome, panel)
         {
             let picture = painting::painting(

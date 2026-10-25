@@ -37,7 +37,7 @@ fn text(context: &Context, at: Pos2, text: &str, font: FontId, color: Color32) -
     })
 }
 
-fn window(context: &Context, id: WindowId, size: Vec2, title: &str) -> WindowOutput {
+pub(super) fn window(context: &Context, id: WindowId, size: Vec2, title: &str) -> WindowOutput {
     let ink = Color32::from_rgb(40, 44, 52);
     let mut layers = vec![
         rect(

@@ -1,4 +1,4 @@
-use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
+use beui_core::geometry::{Pos2, Vec2, pos2};
 use beui_core::window::{HostPlacement, WindowId};
 use glam::{Mat4, Quat, Vec3};
 
@@ -189,12 +189,10 @@ impl Panel {
         self.intersect(ray).filter(|hit| self.contains(hit.pos))
     }
 
-    pub fn face(&mut self, eye: Vec3) {
-        let toward = eye - self.pose.position;
-        if vec2(toward.x, toward.z).length() < 1e-4 {
-            return;
+    pub fn face(&mut self, eye: Vec3, roll: f32) {
+        if let Some(rotation) = crate::carry::facing(eye, self.pose.position, Vec3::ZERO, roll) {
+            self.pose.rotation = rotation;
         }
-        self.pose.rotation = Quat::from_rotation_y(toward.x.atan2(toward.z));
     }
 }
 

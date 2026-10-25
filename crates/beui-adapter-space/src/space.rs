@@ -56,7 +56,6 @@ struct Shown {
     platform: Vec2,
     head: Head,
     panels: Vec<Panel>,
-    lifted: Option<WindowId>,
     cursor: Option<Vec3>,
     icon: CursorIcon,
     chrome: Vec<(WindowId, Look, f32)>,
@@ -283,15 +282,8 @@ impl Space {
         self.panels.iter_mut().find(|panel| panel.window == window)
     }
 
-    pub fn lifted(&self) -> Option<WindowId> {
-        self.carry.filter(Carry::lifted).map(|carry| carry.window)
-    }
-
     pub fn pick(&self, ray: Ray) -> Option<Hit> {
-        self.lifted()
-            .and_then(|window| self.panel(window))
-            .and_then(|panel| panel.hit(ray))
-            .or_else(|| pick(&self.panels, ray))
+        pick(&self.panels, ray)
     }
 
     pub fn focused(&self) -> Option<WindowId> {
@@ -500,6 +492,7 @@ impl Space {
         let strafe = held(Key::D) - held(Key::A);
         let forward = held(Key::W) - held(Key::S);
         self.head.walk(strafe, forward, seconds);
+        self.head.tilt(held(Key::Q) - held(Key::E), seconds);
     }
 
     fn take(&mut self, incoming: Incoming, out: &mut Vec<Incoming>) {
@@ -551,8 +544,11 @@ impl Space {
             } => self.press(input, button, pressed, out),
             Input::Scroll(delta) if self.carry.is_some() => {
                 let lines = scrolled(delta, self.pixels_per_point).y / SCROLL_LINE;
-                if let Some(carry) = &mut self.carry {
-                    carry.scroll(lines);
+                let (head, now, others) = (self.head, self.clock, self.panels.clone());
+                if let Some(carry) = &mut self.carry
+                    && let Some(panel) = others.iter().find(|panel| panel.window == carry.window)
+                {
+                    carry.scroll(lines, &head, panel, &others, now);
                 }
             }
             Input::ScrollStarted | Input::ScrollEnded if self.carry.is_some() => {}
@@ -689,6 +685,7 @@ impl Space {
 
     fn gripped(&self) -> Option<WindowId> {
         self.carry
+            .as_ref()
             .map(|carry| carry.window)
             .or(self.resize.map(|resize| resize.window))
     }
@@ -701,7 +698,7 @@ impl Space {
             match pressed {
                 true => self.grip_pressed += 1,
                 false if self.grip_held => {
-                    let grab = match self.carry {
+                    let grab = match &self.carry {
                         Some(_) => self.grab_pos(window),
                         None => self.beyond(window, ray),
                     };
@@ -806,7 +803,10 @@ impl Space {
     fn key(&mut self, units: Units, keystroke: Keystroke, out: &mut Vec<Incoming>) {
         let stroke = Stroke::of(&keystroke);
         let placed = keystroke.evdev.and_then(Key::from_evdev).or(keystroke.key);
-        let walks = matches!(placed, Some(Key::W | Key::A | Key::S | Key::D));
+        let walks = matches!(
+            placed,
+            Some(Key::W | Key::A | Key::S | Key::D | Key::Q | Key::E)
+        );
         if !keystroke.pressed
             && let Some(key) = placed
         {
@@ -1004,7 +1004,7 @@ impl Space {
             },
             size,
         );
-        panel.face(self.head.position);
+        panel.face(self.head.position, self.head.roll);
         let grab = pos2(OPEN_GRAB.x.min(size.x / 2.0), OPEN_GRAB.y.min(size.y / 2.0));
         panel.pose.position = point - panel.pose.rotation * panel.offset(grab);
         panel.pose
@@ -1060,7 +1060,11 @@ impl Space {
             self.captured = None;
             self.pressed = 0;
         }
-        if self.carry.is_some_and(|carry| carry.window == window) {
+        if self
+            .carry
+            .as_ref()
+            .is_some_and(|carry| carry.window == window)
+        {
             self.carry = None;
         }
         if self.resize.is_some_and(|resize| resize.window == window) {
@@ -1083,19 +1087,19 @@ impl Space {
     }
 
     pub fn end_carry(&mut self, out: &mut Vec<Incoming>) {
-        let Some(carry) = self.carry.take() else {
+        let Some(mut carry) = self.carry.take() else {
             return;
         };
         if let Some(Gesture::Move { .. }) = self.chrome.gesture {
             self.chrome.gesture = None;
             self.chrome.hovered = self.on_chrome();
         }
-        let (head, now) = (self.head, self.clock);
+        let (head, now, others) = (self.head, self.clock, self.panels.clone());
         let Some(panel) = self.panel_mut(carry.window) else {
             return;
         };
-        carry.place(&head, panel, now);
-        panel.face(head.position);
+        carry.place(&head, panel, &others, now);
+        panel.face(head.position, head.roll);
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
             placement: panel.placement(),
@@ -1103,14 +1107,16 @@ impl Space {
     }
 
     fn place_carried(&mut self) {
-        let (head, now) = (self.head, self.clock);
-        if let Some(carry) = self.carry
-            && let Some(panel) = self.panel_mut(carry.window)
-        {
-            carry.place(&head, panel, now);
+        let (head, now, others) = (self.head, self.clock, self.panels.clone());
+        let Some(mut carry) = self.carry.take() else {
+            return;
+        };
+        if let Some(panel) = self.panel_mut(carry.window) {
+            carry.place(&head, panel, &others, now);
             let grabbed = carry.grabbed_at(&head);
             self.cursor = Some(head.position + (grabbed - head.position) * (1.0 - CURSOR_LIFT));
         }
+        self.carry = Some(carry);
     }
 
     fn app_locks(&self, output: &FrameOutput) -> bool {
@@ -1180,7 +1186,10 @@ impl WindowHost for Space {
         self.rescale();
         self.remember_cursor();
         let animating = self.steering() && !self.walking.is_empty()
-            || self.carry.is_some_and(|carry| carry.turning(self.clock));
+            || self
+                .carry
+                .as_ref()
+                .is_some_and(|carry| carry.turning(self.clock));
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
             false => self.settled_in().min(self.hold.due_in(self.clock)),
@@ -1212,7 +1221,6 @@ impl WindowHost for Space {
             platform: view.platform,
             head: self.head,
             panels: self.panels.clone(),
-            lifted: self.lifted(),
             cursor: self.cursor_at(),
             icon,
             chrome: self
@@ -1288,14 +1296,10 @@ impl Space {
                     }),
                 })
                 .collect(),
-            lifted: self.lifted(),
         }
     }
 
     fn chrome_hit(&self, ray: Ray) -> Option<(Part, Hit)> {
-        if self.lifted().is_some() {
-            return None;
-        }
         let app = self.pick(ray);
         let (part, hit) = chrome::pick(&self.panels, ray, self.chrome.slider)?;
         app.is_none_or(|app| hit.distance < app.distance)

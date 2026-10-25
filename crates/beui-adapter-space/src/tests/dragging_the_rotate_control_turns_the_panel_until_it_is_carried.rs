@@ -40,7 +40,7 @@ fn dragging_the_rotate_control_turns_the_panel_until_it_is_carried() {
     send(&mut space, later(now, 1.0), [button(middle, false)]);
     let normal = main(&space).normal();
     assert!(
-        normal.y.abs() < 1e-4,
+        facing_eye(&space, main(&space)) < 1e-3 && level(main(&space)) < 1e-4,
         "a carry turns it back to face the viewer: {normal:?}"
     );
 }

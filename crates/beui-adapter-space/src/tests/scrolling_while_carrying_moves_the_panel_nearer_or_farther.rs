@@ -9,7 +9,7 @@ fn scrolling_while_carrying_moves_the_panel_nearer_or_farther() {
         [Input::PointerMoved(centre()), button(centre(), true)],
     );
     space.begin_carry(WindowId::MAIN);
-    let start = space.carry.unwrap().distance;
+    let start = space.carry.as_ref().unwrap().distance;
     let ray = space.head.ray(PLATFORM, centre().to_vec2());
 
     let scrolled = send(
@@ -22,7 +22,7 @@ fn scrolling_while_carrying_moves_the_panel_nearer_or_farther() {
         [],
         "the app gets no scroll during a carry"
     );
-    let farther = space.carry.unwrap().distance;
+    let farther = space.carry.as_ref().unwrap().distance;
     assert!(farther > start, "scrolling forward pushes it away");
     let hit = main(&space).hit(ray).unwrap();
     assert!(
@@ -32,12 +32,12 @@ fn scrolling_while_carrying_moves_the_panel_nearer_or_farther() {
 
     send(&mut space, now, [scroll(-6.0)]);
     assert!(
-        space.carry.unwrap().distance < start,
+        space.carry.as_ref().unwrap().distance < start,
         "scrolling back pulls it in"
     );
     send(&mut space, now, [scroll(-1000.0)]);
     assert_eq!(
-        space.carry.unwrap().distance,
+        space.carry.as_ref().unwrap().distance,
         crate::carry::NEAREST,
         "but not into the viewer's face"
     );

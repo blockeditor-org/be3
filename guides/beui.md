@@ -3008,7 +3008,7 @@ all its 3D (`glam`) stays in the crate.
   `OVER_NEARER` nearer for each panel already there, and `AtPointer` puts the
   point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
   in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
-  none, turned to face the viewer (yaw only). A window that opens takes the
+  none, turned to face the viewer as a carry leaves a panel (`Panel::face`, see Carry). A window that opens takes the
   focus (see Focus); a window asked for again keeps its panel and leaves the
   focus alone. `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
@@ -3050,10 +3050,16 @@ all its 3D (`glam`) stays in the crate.
   miss reach nothing.
 - Head: holding Ctrl and Shift (either side) steers. Ctrl or Shift alone
   still reaches the app; when the other joins it the app sees both keys let go and its modifiers cleared. While steering
-  `PointerMotion` turns the head (yaw, and
-  pitch clamped short of straight up or down) and W, A, S and D, by their
-  place, walk along the floor relative to where the head faces, timed from
-  `HostView::now`. No key pressed while steering reaches the app, nor its
+  `PointerMotion` turns the head (yaw about the vertical, and
+  pitch clamped short of straight up or down), W, A, S and D, by their
+  place, walk along the floor relative to where the head faces, and Q and E
+  roll it left and right (`Head::roll`, `ROLL_PER_SECOND`), all timed from
+  `HostView::now`. `Head::rotation` is yaw, then pitch, then roll about the
+  view direction; the view, cursor rays, the screen edge clamp and `scale`
+  all go through it, so the cursor moves along the rolled screen's axes.
+  Mouse steering with the head rolled first turns the motion by the roll
+  into the level frame, so moving the mouse along the screen turns the view
+  along the screen while yaw stays about the vertical and the roll stays put. No key pressed while steering reaches the app, nor its
   release, and clicks reach it without Ctrl or Shift, so an app in space never
   sees a Ctrl+Shift chord. Keys, modifiers and `PointerMotion` sent by `drive`
   go through the same rule (a driver's motion is in points, scaled to pixels
@@ -3066,18 +3072,36 @@ all its 3D (`glam`) stays in the crate.
   grabbed point (`Carry::aim`); steering turns it with the head instead. From
   the moment it is grabbed it also turns, over `TURN_SECONDS` of
   `HostView::now` (smoothstep, `carry::Turn`), from that carried rotation
-  to facing the viewer from its centre (yaw only, about the grabbed point:
-  `carry::facing`), and then keeps facing them, so letting go turns it no
-  further. Scroll changes the distance and does
-  not reach the app; the app sees no pointer moves meanwhile. While it is no
-  farther than where it was picked up (`Carry::lifted`, `Space::lifted`), the
-  carried panel draws over every other panel whatever their depth, and the
-  cursor's ray picks it first (`Space::pick`); scrolled farther than that, depth
-  orders it like any other, so pushing it away puts it behind a nearer panel.
-  Letting go of the
+  to facing the viewer: its normal through its centre points at the eye (yaw
+  and pitch), rolled about it by the head's roll so its up matches the
+  head's up (level edges when the head is level), turned about the grabbed
+  point so that stays on the ray (`carry::facing`, closed form), and then
+  keeps facing them, so letting go turns it no further.
+  The carry keeps the panel really in front of what it is carried over:
+  `Carry::distance` is the wanted distance (where it was picked up, changed
+  by scroll) and `Carry::at` the one it is drawn at, the largest no farther
+  than the wanted one at which every other panel is at least `IN_FRONT`
+  (1.5 cm) behind it, solved afresh every frame (`Carry::reach`: a step
+  along the worst ray, then bisection). Rays from the eye go through a 5x5
+  grid of the carried panel's surface with its chrome, onto each other
+  panel's surface, and through a grid of each other panel onto the carried
+  one, flat or bent (`Panel::intersect`). A ray that lands outside the
+  other rectangle counts less by `RAMP` (1) times how far outside, so the
+  panel comes forward as its edge nears another panel and goes back as it
+  leaves: the drawn distance is continuous, with no easing and no jump.
+  So it is in front because it is nearer, drawn and picked by depth like any
+  panel, and letting go changes nothing. Picking a panel up that another
+  covers brings it in front of that one at once, as a desktop raises a
+  dragged window. Scroll changes the distance from where it is drawn (`at`)
+  and does not reach the app; the app sees no pointer moves meanwhile. A
+  scroll farther that some panel would stop takes the carried panel through
+  it to `IN_FRONT` behind it, and it stays behind that panel
+  (`Carry::behind`) for the rest of the carry, until a scroll nearer leaves
+  it less than `IN_FRONT` behind; that is the only way to put a carried
+  panel behind another. Letting go of the
   button that was down when it began (or, if none was, the next click) ends it:
   the app gets that release where it grabbed, the panel faces the viewer
-  (yaw only; only a carry let go mid-turn still turns), and the host reports `WindowReport::Placed` with the panel's placement,
+  (`Panel::face`, the same facing about its centre; only a carry let go mid-turn still turns), and the host reports `WindowReport::Placed` with the panel's placement,
   `space X Y Z QX QY QZ QW S B`: its position, rotation, `metres_per_point`
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it (the dock in its saved layout) and hands it back when it opens the
@@ -3118,8 +3142,8 @@ all its 3D (`glam`) stays in the crate.
   (`SHARPEN` in space.wgsl), so a texture up to 1.4 times the panel's size
   on screen is read from its sharpest level;
   then a 4x multisampled, depth-tested pass draws a floor grid and the panels
-  (their backs grey; nearer panels hide farther ones by depth, except a lifted
-  carried panel, drawn last with its depth test off), and a
+  (their backs grey; nearer panels hide farther ones by depth, a carried
+  one too), and a
   `Drawing` copies it texel for texel into the platform window. A frame is composed again only
   when the head, a panel, the cursor or a window's output changed. A panel is
   a strip of `render::SEGMENTS` columns bent in the vertex shader. The
@@ -3190,15 +3214,15 @@ all its 3D (`glam`) stays in the crate.
   `chrome::rolled`) by the change in the cursor's angle around the centre on
   the panel's surface as it was, so the button, below the centre, stays under
   the cursor like a dial's knob. Scale, turn, roll and slider drags report
-  `Placed` when let go. A carry later turns the panel back to face the viewer upright
-  (`carry::facing`), so it overrides rotation and roll. The curvature button
+  `Placed` when let go. A carry later turns the panel back to face the viewer with
+  its roll matching the head's (`carry::facing`), so it overrides rotation and roll. The curvature button
   opens a slider in the pill (`Chrome::slider`), and clicking or dragging
   along it sets `bend` from 0 to `MOST_BEND` about the panel's centre. Scale,
   roll and slider drags map the ray onto the panel as it was when they began.
   Each panel's chrome is a display list (`chrome::output`, icons laid out
   with the app's `Context`, which `Setup` provides) drawn into a texture of
   its own only when its `Look` changes, on the extended surface `LIFT` in
-  front of the panel, after every unlifted panel and not at all on a lifted one.
+  front of the panel, after every panel.
 
 ### The on-screen keyboard
 

@@ -46,7 +46,6 @@ pub struct Frame {
     pub up: Vec3,
     pub cursor: Option<PanelFrame>,
     pub panels: Vec<PanelFrame>,
-    pub lifted: Option<WindowId>,
 }
 
 #[repr(C)]
@@ -104,7 +103,6 @@ struct Pipelines {
     format: wgpu::TextureFormat,
     floor: wgpu::RenderPipeline,
     panel: wgpu::RenderPipeline,
-    lifted: wgpu::RenderPipeline,
     chrome: wgpu::RenderPipeline,
     cursor: wgpu::RenderPipeline,
     blit: wgpu::RenderPipeline,
@@ -479,15 +477,6 @@ impl Gpu {
             format,
             floor: pipeline(device, shader, scene),
             panel: pipeline(device, shader, panel),
-            lifted: pipeline_comparing(
-                device,
-                shader,
-                Stage {
-                    label: "space lifted panel",
-                    ..panel
-                },
-                wgpu::CompareFunction::Always,
-            ),
             chrome: pipeline(
                 device,
                 shader,
@@ -858,16 +847,13 @@ impl Gpu {
         pass.set_bind_group(0, &self.scene_group, &[]);
         pass.set_pipeline(&pipelines.floor);
         pass.draw(0..4, 0..1);
-        let lifted = |panel: &&PanelFrame| Some(panel.window) == frame.lifted;
-        let (above, below): (Vec<&PanelFrame>, _) = frame.panels.iter().partition(lifted);
         let sheets = [
-            (&pipelines.panel, &below, &self.panels),
-            (&pipelines.chrome, &below, &self.chrome),
-            (&pipelines.lifted, &above, &self.panels),
+            (&pipelines.panel, &self.panels),
+            (&pipelines.chrome, &self.chrome),
         ];
-        for (pipeline, panels, drawn) in sheets {
+        for (pipeline, drawn) in sheets {
             pass.set_pipeline(pipeline);
-            for panel in panels {
+            for panel in &frame.panels {
                 if let Some(drawn) = drawn.get(&panel.window)
                     && drawn.painted
                 {

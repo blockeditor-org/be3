@@ -13,7 +13,7 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
         .hit(space.head.ray(PLATFORM, grab.to_vec2()))
         .unwrap();
     space.begin_carry(WindowId::MAIN);
-    let distance = space.carry.unwrap().distance;
+    let distance = space.carry.as_ref().unwrap().distance;
 
     let facing = |space: &Space, at: Pos2| {
         let panel = main(space);

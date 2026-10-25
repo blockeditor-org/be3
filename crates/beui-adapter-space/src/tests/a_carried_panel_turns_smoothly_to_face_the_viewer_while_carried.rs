@@ -20,12 +20,7 @@ fn a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried() {
         "it starts at the rotation it had"
     );
 
-    let facing = |space: &Space| {
-        let panel = main(space);
-        let toward = space.head.position - panel.pose.position;
-        let level = Vec3::new(toward.x, 0.0, toward.z).normalize();
-        panel.normal().angle_between(level)
-    };
+    let facing = |space: &Space| facing_eye(space, main(space));
     let start = facing(&space);
     let mut last = start;
     for step in 1..=4 {
@@ -45,7 +40,7 @@ fn a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried() {
     let done = later(now, TURN_SECONDS);
     send(&mut space, done, []);
     assert!(facing(&space) < 1e-3, "then it faces the viewer");
-    assert!(main(&space).normal().y.abs() < 1e-4, "upright");
+    assert!(level(main(&space)) < 1e-4, "with its edges level");
 
     let moved = grab + vec2(250.0, 80.0);
     send(&mut space, later(done, 0.1), [Input::PointerMoved(moved)]);

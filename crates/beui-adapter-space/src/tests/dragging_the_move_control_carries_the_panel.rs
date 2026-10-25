@@ -21,8 +21,7 @@ fn dragging_the_move_control_carries_the_panel() {
             .all(|(_, input)| *input == Input::PointerLeft),
         "the app sees no press"
     );
-    assert_eq!(space.carry.map(|carry| carry.window), Some(window));
-    assert_eq!(space.lifted(), Some(window), "it comes to the front");
+    assert_eq!(space.carry.as_ref().map(|carry| carry.window), Some(window));
     assert_eq!(
         space.cursor_icon(&app_frame(CursorIcon::Default)),
         CursorIcon::Grabbing
