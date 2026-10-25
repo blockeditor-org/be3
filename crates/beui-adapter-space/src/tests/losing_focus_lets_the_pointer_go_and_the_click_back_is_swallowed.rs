@@ -29,7 +29,11 @@ fn losing_focus_lets_the_pointer_go_and_the_click_back_is_swallowed() {
         now,
         [button(centre(), true), button(centre(), false)],
     );
-    assert_eq!(delivered(&clicked), [], "the click back into the window is swallowed");
+    assert_eq!(
+        delivered(&clicked),
+        [],
+        "the click back into the window is swallowed"
+    );
     assert!(space.grabbed(), "and grabs the pointer again");
     assert!(
         space

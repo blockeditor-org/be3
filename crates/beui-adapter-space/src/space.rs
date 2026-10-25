@@ -248,9 +248,11 @@ impl Space {
             return Some(saved);
         }
         let ray = self.cursor_ray()?;
-        let distance = self.cursor_point().map_or(saved.distance(ray.origin), |point| {
-            point.distance(ray.origin) * (1.0 - CURSOR_LIFT)
-        });
+        let distance = self
+            .cursor_point()
+            .map_or(saved.distance(ray.origin), |point| {
+                point.distance(ray.origin) * (1.0 - CURSOR_LIFT)
+            });
         Some(ray.at(distance))
     }
 

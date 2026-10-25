@@ -20,10 +20,18 @@ fn ctrl_shift_escape_lets_the_pointer_go_until_the_next_click() {
     let moved = delivered(&send(&mut space, now, [Input::PointerMoved(at)]));
     assert_eq!(moved.len(), 1, "a free pointer still hovers the app");
     let clicked = send(&mut space, now, [button(at, true), button(at, false)]);
-    assert_eq!(delivered(&clicked), [], "the click that grabs it again is swallowed");
+    assert_eq!(
+        delivered(&clicked),
+        [],
+        "the click that grabs it again is swallowed"
+    );
     assert!(space.grabbed());
 
-    let got = delivered(&send(&mut space, now, [button(at, true), button(at, false)]));
+    let got = delivered(&send(
+        &mut space,
+        now,
+        [button(at, true), button(at, false)],
+    ));
     assert_eq!(got.len(), 2, "the next click reaches the app: {got:?}");
 
     let output = app_frame(CursorIcon::Default);
