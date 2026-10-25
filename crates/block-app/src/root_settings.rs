@@ -162,7 +162,7 @@ impl RootSettings {
         if let Some((seen, found)) = cache.my_files
             && seen == revision
         {
-            return found.or(self.created_files);
+            return found.or_else(|| self.created_files());
         }
         let found = be::query(be::Query::Roots)
             .into_iter()
@@ -172,15 +172,29 @@ impl RootSettings {
             .map(|node| node.id)
             .min();
         cache.my_files = Some((revision, found));
-        found.or(self.created_files)
+        found.or_else(|| self.created_files())
+    }
+
+    fn created_files(&self) -> Option<Uuid> {
+        self.created_files.filter(|block| {
+            be::node(*block).is_none_or(|node| node.parent != Some(BlockParent::Detached))
+        })
     }
 
     pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
         if self.my_files().is_none()
             && be::ready(be::Query::Roots)
             && let Some((account, organization)) = be::identity()
+            && be::ready(be::Query::Block(be_block::my_files(organization, account)))
         {
             let block = be_block::my_files(organization, account);
+            if let Some(deleted) = be::node(block) {
+                if deleted.parent == Some(BlockParent::Detached) {
+                    be::set_parent(block, BlockParent::Root);
+                    self.created_files = Some(block);
+                }
+                return self.my_files();
+            }
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
             metadata.insert(&MY_FILES, &true);

@@ -651,7 +651,9 @@ impl Session<'_> {
         self.uploads.connect(peer);
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            held.graph.want(Owner::Host, vec![Query::Roots]);
+            let my_files = be_block::my_files(peer.organization(), peer.account());
+            held.graph
+                .want(Owner::Host, vec![Query::Roots, Query::Block(my_files)]);
         }
         match open {
             Some(open) => self.arrive(open).await,
