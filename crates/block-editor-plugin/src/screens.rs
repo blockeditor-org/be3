@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId, ScreenLayout,
-    ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId,
+    ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;

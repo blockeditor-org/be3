@@ -1,5 +1,5 @@
 use block_editor_beui::beui::Key;
-use block_editor_beui::{ShellCommand, BlockInfo, BlockParent};
+use block_editor_beui::{BlockInfo, BlockParent, ShellCommand};
 
 use super::*;
 

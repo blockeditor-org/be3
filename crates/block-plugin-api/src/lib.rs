@@ -47,21 +47,21 @@ be_ops_bindgen::generate!({
 
 pub use access::AccessLevel;
 pub use accessibility::DescribedAction;
-pub use debug::{DebugTemplate, PerformanceMeasurement};
 pub use be_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockMetadata,
     BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind,
     VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
+pub use debug::{DebugTemplate, PerformanceMeasurement};
 pub use host_services::{
     AccessGrant, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
-    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog,
-    ChildPreview, CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand,
-    MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage, SettingsProgress, ShellCommand,
-    Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
+    CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading,
+    MenuItem, MenuItemKind, MenuPin, PreviewImage, SettingsProgress, ShellCommand, Stopped,
+    TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,

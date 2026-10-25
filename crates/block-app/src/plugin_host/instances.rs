@@ -2,11 +2,11 @@ use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::embed::host_values::Call as HostValues;
 use block_plugin_api::{
-    AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
-    ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion, FrameReport,
-    FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
-    PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size,
-    ShellCommand, Stopped, ViewChange, WebViewEvent, WebViewId,
+    AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
+    FrameReport, FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation,
+    Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenWindow, ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -1394,7 +1394,9 @@ impl Instances {
                         == be_types_host::Plain::File;
             }
             opened.push(Outbound::Plugin(PluginCall::BlockTypes(block_types)));
-            opened.push(Outbound::Plugin(PluginCall::DebugTemplates(debug_templates)));
+            opened.push(Outbound::Plugin(PluginCall::DebugTemplates(
+                debug_templates,
+            )));
         }
         for instance in instances {
             let scope = self.scope(instance);
@@ -2632,9 +2634,9 @@ impl Instances {
                 entry.intrinsic = intrinsic;
                 return changed;
             }
-            ShellCall::Act { block, command, .. } => {
-                entry.shell_commands.push((Uuid::from_bytes(block), command))
-            }
+            ShellCall::Act { block, command, .. } => entry
+                .shell_commands
+                .push((Uuid::from_bytes(block), command)),
             ShellCall::LeaveFrame { .. } => entry.leaving = true,
             ShellCall::RegionStopped {
                 region, stopped, ..
@@ -2789,9 +2791,8 @@ impl Instances {
                 entry.simulated.push((Uuid::from_bytes(block), access));
                 true
             }
-            DebugCall::DebugTemplatesWatchNew { .. } | DebugCall::DebugTemplatesWatchNext { .. } => {
-                false
-            }
+            DebugCall::DebugTemplatesWatchNew { .. }
+            | DebugCall::DebugTemplatesWatchNext { .. } => false,
         }
     }
 

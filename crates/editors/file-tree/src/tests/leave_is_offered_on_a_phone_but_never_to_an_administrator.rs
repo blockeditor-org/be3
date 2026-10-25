@@ -1,5 +1,5 @@
 use block_editor_beui::{
-    AccessLevel, Administrator, ShellCommand, BlockInfo, BlockParent, BlockQuery,
+    AccessLevel, Administrator, BlockInfo, BlockParent, BlockQuery, ShellCommand,
 };
 
 use super::*;

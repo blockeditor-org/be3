@@ -1,8 +1,8 @@
 use block_plugin_api::{
     ArtifactDescription, AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog,
-    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello, InputBatch,
-    Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
-    WebViewId,
+    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello,
+    InputBatch, Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest,
+    Size, WebViewEvent, WebViewId,
     embed::{debug::Call as DebugCall, shell::Call as ShellCall},
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
@@ -242,9 +242,10 @@ impl BlockIds for ShellCall {
             return;
         };
         match self {
-            Self::DragBlock { block_id, .. } | Self::Act { block: block_id, .. } => {
-                visit(instance, BlockIdRole::Existing, block_id)
-            }
+            Self::DragBlock { block_id, .. }
+            | Self::Act {
+                block: block_id, ..
+            } => visit(instance, BlockIdRole::Existing, block_id),
             Self::Focused { focus, .. } => focus_ids(instance, focus, visit),
             Self::CommitChild {
                 parent: BlockLocation::Block(block_id),

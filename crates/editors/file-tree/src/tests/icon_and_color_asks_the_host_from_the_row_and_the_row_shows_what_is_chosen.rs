@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR};
 use block_editor_beui::beui::icons::ICON_FILE_TEXT;
 use block_editor_beui::{
-    ShellCommand, BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations,
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, ShellCommand,
 };
 
 use super::*;

@@ -15,8 +15,8 @@ use block_plugin_api::{
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, EditorInstanceId, EditorRegion, Failure, FilePick, FileSave, FitArea, HostAction,
     HostPanel, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision,
-    ShellCommand, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
-    encode_host,
+    ShellCommand, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};

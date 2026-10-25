@@ -161,8 +161,6 @@ impl RegisteredEditor {
     }
 }
 
-/// What the host tells plugins of its block types and templates: the core
-/// protocol's catalog, and which templates the be3:debug extension lists apart.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PluginCatalog {
     pub(crate) catalog: block_plugin_api::Catalog,
