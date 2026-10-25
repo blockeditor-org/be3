@@ -472,6 +472,11 @@ pub(crate) fn sealed_to(
     if !matches!(node.parent, be_graph::BlockParent::Block(_)) {
         accounts.insert(node.author);
     }
+    if node.is_open_inside()
+        && let Some(owner) = graph.settings_owner(block)
+    {
+        accounts.extend(graph.inside_viewers(owner));
+    }
     let mut viewers = BTreeSet::new();
     for account in accounts {
         if is_viewer(connection, graph, organization, account, block)? {

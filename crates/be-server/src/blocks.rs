@@ -1,5 +1,7 @@
 use be_commit::CommitId;
-use be_graph::{Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE};
+use be_graph::{
+    ANYONE_INSIDE, Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE,
+};
 use be_protocol::{
     AccessEntry, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, OrganizationRole,
 };
@@ -845,7 +847,14 @@ impl ServerStore {
                 true => {}
                 false => require_manage(graph, &visibility(identity), block)?,
             }
-            if access > Access::None && account != identity.account {
+            if account == ANYONE_INSIDE {
+                if graph.settings_owner(block).is_none() || access > Access::View {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "only a kind of settings opens to anyone who can view a block inside, and only to view".into(),
+                    ));
+                }
+            } else if access > Access::None && account != identity.account {
                 if !crate::store::is_member_of(database, account, identity.organization)? {
                     return Err(ServerError::Refused(
                         ErrorCode::PermissionDenied,
@@ -914,6 +923,20 @@ impl ServerStore {
                         },
                     )
                     .optional()?;
+                if account == ANYONE_INSIDE {
+                    entries.push(AccessEntry {
+                        account,
+                        email: String::new(),
+                        display_name: "Anyone who can view a block inside".into(),
+                        role: OrganizationRole::Editor,
+                        author: false,
+                        granted: node.grants.get(&account).copied(),
+                        effective: node.grants.get(&account).copied().unwrap_or_default(),
+                        contact: false,
+                        waiting: false,
+                    });
+                    continue;
+                }
                 let Some((email, display_name, role)) = row else {
                     continue;
                 };

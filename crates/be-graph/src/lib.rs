@@ -15,6 +15,8 @@ pub use access::Access;
 
 pub const SETTINGS_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_636b_3032);
 
+pub const ANYONE_INSIDE: Uuid = Uuid::from_u128(0x616e_796f_6e65_2d69_6e73_6964_652d_3031);
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum BlockParent {
     #[default]
@@ -86,6 +88,7 @@ pub struct BlockGraph {
     blocks: BTreeMap<Uuid, BlockNode>,
     backrefs: BTreeMap<Uuid, BTreeSet<Uuid>>,
     children: HashMap<BlockParent, BTreeSet<Uuid>>,
+    settings: HashMap<Uuid, BTreeSet<Uuid>>,
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
     loose: BTreeSet<Uuid>,
     revision: u64,
@@ -94,6 +97,12 @@ pub struct BlockGraph {
 impl BlockNode {
     pub fn is_block_settings(&self) -> bool {
         self.content_type == SETTINGS_TYPE && matches!(self.parent, BlockParent::Block(_))
+    }
+
+    pub fn is_open_inside(&self) -> bool {
+        self.grants
+            .get(&ANYONE_INSIDE)
+            .is_some_and(|level| level.can_view())
     }
 }
 
@@ -167,6 +176,9 @@ impl BlockGraph {
             self.backrefs.entry(*reference).or_default().insert(id);
         }
         self.children.entry(node.parent).or_default().insert(id);
+        if let (true, BlockParent::Block(owner)) = (node.content_type == SETTINGS_TYPE, node.parent) {
+            self.settings.entry(owner).or_default().insert(id);
+        }
         self.entries.entry(node.author).or_default().insert(id);
         for account in node.grants.keys() {
             self.entries.entry(*account).or_default().insert(id);
@@ -252,6 +264,14 @@ impl BlockGraph {
         let previous = std::mem::replace(&mut self.node_mut(id)?.parent, parent);
         unindex(&mut self.children, previous, id);
         self.children.entry(parent).or_default().insert(id);
+        if self.blocks.get(&id).is_some_and(|node| node.content_type == SETTINGS_TYPE) {
+            if let BlockParent::Block(owner) = previous {
+                unindex(&mut self.settings, owner, id);
+            }
+            if let BlockParent::Block(owner) = parent {
+                self.settings.entry(owner).or_default().insert(id);
+            }
+        }
         self.refresh_loose(id);
         Ok(())
     }
@@ -382,6 +402,10 @@ impl BlockGraph {
             }
         }
         unindex(&mut self.children, node.parent, id);
+        if let BlockParent::Block(owner) = node.parent {
+            unindex(&mut self.settings, owner, id);
+        }
+        self.settings.remove(&id);
         self.loose.remove(&id);
         for child in self
             .children
@@ -454,11 +478,90 @@ impl BlockGraph {
         };
         let mut above = Access::None;
         let mut parent_viewable = matches!(top.parent, BlockParent::Root | BlockParent::Detached);
-        for node in chain.into_iter().rev() {
+        let ids: Vec<Uuid> = std::iter::once(id).chain(self.ancestors(id)).collect();
+        for (block, node) in ids.into_iter().zip(chain).rev() {
             above = level_below(node, account, above, parent_viewable);
+            if !above.can_view() && self.opens_to(block, account) {
+                above = Access::View;
+            }
             parent_viewable = above.can_view();
         }
         above
+    }
+
+    pub fn settings_of(&self, owner: Uuid) -> Vec<Uuid> {
+        self.settings
+            .get(&owner)
+            .map(|set| set.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn settings_owner(&self, kind: Uuid) -> Option<Uuid> {
+        let settings = self.blocks.get(&kind)?.parent.block()?;
+        let node = self.blocks.get(&settings)?;
+        match node.is_block_settings() {
+            true => node.parent.block(),
+            false => None,
+        }
+    }
+
+    fn open_owner(&self, block: Uuid) -> Option<Uuid> {
+        match self.blocks.get(&block)?.is_open_inside() {
+            true => self.settings_owner(block),
+            false => None,
+        }
+    }
+
+    fn opens_to(&self, block: Uuid, account: Uuid) -> bool {
+        self.open_owner(block)
+            .is_some_and(|owner| self.views_inside(owner, account))
+    }
+
+    pub fn is_inside(&self, owner: Uuid, block: Uuid) -> bool {
+        let mut current = block;
+        for _ in 0..=self.blocks.len() {
+            let Some(node) = self.blocks.get(&current) else {
+                return false;
+            };
+            if node.is_block_settings() {
+                return false;
+            }
+            match node.parent.block() {
+                Some(parent) if parent == owner => return true,
+                Some(parent) => current = parent,
+                None => return false,
+            }
+        }
+        false
+    }
+
+    pub fn views_inside(&self, owner: Uuid, account: Uuid) -> bool {
+        self.entry_points(account).into_iter().any(|entry| {
+            self.is_inside(owner, entry) && self.inherited(entry, account).can_view()
+        })
+    }
+
+    pub fn inside_viewers(&self, owner: Uuid) -> BTreeSet<Uuid> {
+        let mut viewers = BTreeSet::new();
+        let mut stack: Vec<Uuid> = self.child_ids(owner).collect();
+        while let Some(block) = stack.pop() {
+            let Some(node) = self.blocks.get(&block) else {
+                continue;
+            };
+            if node.is_block_settings() {
+                continue;
+            }
+            viewers.insert(node.author);
+            viewers.extend(
+                node.grants
+                    .iter()
+                    .filter(|(_, level)| level.can_view())
+                    .map(|(account, _)| *account),
+            );
+            stack.extend(self.child_ids(block));
+        }
+        viewers.remove(&ANYONE_INSIDE);
+        viewers
     }
 
     pub fn effective_access(&self, id: Uuid, account: Uuid) -> Access {
@@ -526,7 +629,29 @@ impl BlockGraph {
                 false => {}
             }
         }
+        let mut owners = BTreeSet::new();
+        for (root, _) in &roots {
+            let mut current = *root;
+            while let Some(node) = self.blocks.get(&current) {
+                let Some(parent) = node.parent.block() else {
+                    break;
+                };
+                if node.is_block_settings() || !owners.insert(parent) {
+                    break;
+                }
+                current = parent;
+            }
+        }
         let mut stack = roots;
+        for owner in owners {
+            for settings in self.settings_of(owner) {
+                for kind in self.child_ids(settings) {
+                    if self.blocks.get(&kind).is_some_and(BlockNode::is_open_inside) {
+                        stack.push((kind, Access::View));
+                    }
+                }
+            }
+        }
         while let Some((id, level)) = stack.pop() {
             raise(&mut levels, id, level);
             for child in self.child_ids(id) {
@@ -568,7 +693,11 @@ impl BlockGraph {
                     .filter(|(_, level)| level.can_view())
                     .map(|(account, _)| *account),
             );
+            if let Some(owner) = self.open_owner(block) {
+                viewers.extend(self.inside_viewers(owner));
+            }
         }
+        viewers.remove(&ANYONE_INSIDE);
         viewers
     }
 
