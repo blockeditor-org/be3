@@ -814,7 +814,12 @@ impl Gpu {
             ground: floor::GROUND.to_linear_f32(),
             grid: floor::GRID.to_linear_f32(),
             axis: floor::AXIS.to_linear_f32(),
-            floor: [floor::EXTENT, floor::FADE_START, floor::FADE_END, EYE_HEIGHT],
+            floor: [
+                floor::EXTENT,
+                floor::FADE_START,
+                floor::FADE_END,
+                EYE_HEIGHT,
+            ],
             inverse: frame.view_projection.inverse().to_cols_array_2d(),
             options: [f32::from(u8::from(at.format.is_srgb())), 0.0, 0.0, 0.0],
         };

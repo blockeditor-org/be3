@@ -170,7 +170,8 @@ impl Out {
         };
         let alpha = |at: Vec3| {
             let distance = (at - eye).with_y(0.0).length();
-            floor::fade(distance) * (1.0 - floor::smoothstep(GRID_REACH * 0.6, GRID_REACH, distance))
+            floor::fade(distance)
+                * (1.0 - floor::smoothstep(GRID_REACH * 0.6, GRID_REACH, distance))
         };
         let (centre_x, centre_z) = (eye.x.round() as i32, eye.z.round() as i32);
         let reach = GRID_REACH as i32;
@@ -179,8 +180,16 @@ impl Out {
             for along in (-reach..reach).step_by(GRID_SEGMENT) {
                 for crosses_x in [true, false] {
                     let (fixed, from, to) = match crosses_x {
-                        true => (centre_x + line, centre_z + along, centre_z + along + GRID_SEGMENT as i32),
-                        false => (centre_z + line, centre_x + along, centre_x + along + GRID_SEGMENT as i32),
+                        true => (
+                            centre_x + line,
+                            centre_z + along,
+                            centre_z + along + GRID_SEGMENT as i32,
+                        ),
+                        false => (
+                            centre_z + line,
+                            centre_x + along,
+                            centre_x + along + GRID_SEGMENT as i32,
+                        ),
                     };
                     let point = |at: i32| match crosses_x {
                         true => Vec3::new(fixed as f32, 0.0, at as f32),

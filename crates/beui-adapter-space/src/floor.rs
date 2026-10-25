@@ -28,7 +28,9 @@ pub fn background(direction: Vec3) -> Color32 {
     let share = ground_share(direction);
     let sky = SKY.to_array();
     let ground = GROUND.to_array();
-    let mix = |at: usize| (f32::from(sky[at]) + (f32::from(ground[at]) - f32::from(sky[at])) * share).round() as u8;
+    let mix = |at: usize| {
+        (f32::from(sky[at]) + (f32::from(ground[at]) - f32::from(sky[at])) * share).round() as u8
+    };
     Color32::from_rgb(mix(0), mix(1), mix(2))
 }
 
