@@ -1,6 +1,7 @@
 use be_block::{
-    BlockContent, CheckoutContent, DisplaySettingsContent, InputRemapperContent,
-    InputSettingsContent, RepositoryContent, SettingsContent, SettingsProfileContent,
+    BlockContent, CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
+    InputSettingsContent, PrefixRegistryContent, RepositoryContent, SettingsContent,
+    SettingsProfileContent, TagContent, TagsContent,
 };
 use block_guest_abi::{Flow, Guest, Waker};
 use block_plugin_api::{BlockTypeDescriptor, ChildOperations, Press};
@@ -61,6 +62,15 @@ pub(crate) fn host_block_types() -> Vec<BlockTypeDescriptor> {
             GOLD,
         ),
         described(SettingsContent::CONTENT_TYPE, "Settings", "\u{e154}", TEAL),
+        described(
+            PrefixRegistryContent::CONTENT_TYPE,
+            "Database prefixes",
+            "\u{e154}",
+            TEAL,
+        ),
+        described(TagsContent::CONTENT_TYPE, "Tags", "\u{e154}", TEAL),
+        described(TagContent::CONTENT_TYPE, "Tag", "\u{e154}", TEAL),
+        described(HomeContent::CONTENT_TYPE, "Home", "\u{e154}", TEAL),
         described(
             SettingsProfileContent::CONTENT_TYPE,
             "Settings Profile",

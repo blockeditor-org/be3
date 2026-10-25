@@ -2,6 +2,7 @@ use super::*;
 
 mod a_cycle_is_refused_when_reparenting;
 mod a_detached_subtree_is_pending_deletion;
+mod a_kind_an_editor_changes_hangs_from_its_owner;
 mod a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside;
 mod a_lower_grant_never_reduces_inherited_access;
 mod a_parent_holds_a_child_only_while_it_references_it;
@@ -89,9 +90,10 @@ fn random_graph(seed: u64, size: u128) -> (BlockGraph, Random) {
                 .block(&graph)
                 .map_or(BlockParent::Root, BlockParent::Block),
         };
-        let content_type = match random.chance(15) {
-            true => SETTINGS_TYPE,
-            false => TYPE,
+        let content_type = match random.below(20) {
+            0..=2 => SETTINGS_TYPE,
+            3 => TAGS_TYPE,
+            _ => TYPE,
         };
         let mut node = BlockNode::new(content_type, random.account(), parent);
         if random.chance(25) {
@@ -202,6 +204,12 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
         if node.author == account && parent_viewable {
             best = Access::Manage;
         }
+        if node.content_type == TAGS_TYPE && matches!(node.parent, BlockParent::Block(_)) {
+            best = match parent {
+                above if above.can_view() => best.min(above.max(Access::View)),
+                _ => best.min(Access::KnowExists),
+            };
+        }
         if node.content_type == SETTINGS_TYPE && matches!(node.parent, BlockParent::Block(_)) {
             best = match parent {
                 Access::Manage => Access::Manage,
@@ -232,7 +240,11 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
         best
     }
     fn owner_of(graph: &BlockGraph, kind: Uuid) -> Option<Uuid> {
-        let settings = graph.get(kind)?.parent.block()?;
+        let held = graph.get(kind)?;
+        if held.content_type == TAGS_TYPE {
+            return held.parent.block();
+        }
+        let settings = held.parent.block()?;
         let node = graph.get(settings)?;
         match (node.content_type == SETTINGS_TYPE, node.parent) {
             (true, BlockParent::Block(owner)) => Some(owner),
@@ -246,7 +258,7 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
             if parent == owner {
                 return path.iter().all(|step| {
                     let node = graph.get(*step).unwrap();
-                    !(node.content_type == SETTINGS_TYPE
+                    !((node.content_type == SETTINGS_TYPE || node.content_type == TAGS_TYPE)
                         && matches!(node.parent, BlockParent::Block(_)))
                 });
             }

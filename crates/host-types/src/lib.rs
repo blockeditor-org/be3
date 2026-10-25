@@ -1,6 +1,7 @@
 use be_block::{
-    CheckoutContent, DisplaySettingsContent, InputRemapperContent, InputSettingsContent,
-    RepositoryContent, SettingsContent, SettingsProfileContent,
+    CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
+    InputSettingsContent, PrefixRegistryContent, RepositoryContent, SettingsContent,
+    SettingsProfileContent, TagContent, TagsContent,
 };
 use block_type_guest::Registration;
 
@@ -13,5 +14,9 @@ pub fn registrations() -> Vec<Registration> {
         Registration::of::<SettingsProfileContent>().undo::<SettingsProfileContent>(),
         Registration::of::<RepositoryContent>(),
         Registration::of::<CheckoutContent>(),
+        Registration::of::<PrefixRegistryContent>(),
+        Registration::of::<TagsContent>().undo::<TagsContent>(),
+        Registration::of::<TagContent>().undo::<TagContent>(),
+        Registration::of::<HomeContent>().undo::<HomeContent>(),
     ]
 }

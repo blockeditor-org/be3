@@ -718,19 +718,17 @@ impl ServerStore {
                 if seen.can_view(graph, owner) || !graph.is_inside(owner, block) {
                     continue;
                 }
-                for settings in graph.settings_of(owner) {
-                    for kind in graph.children(BlockParent::Block(settings)) {
-                        let Some(node) = graph.get(kind) else {
-                            continue;
-                        };
-                        if !node.is_open_inside() || found.contains_key(&node.content_type) {
-                            continue;
-                        }
-                        if let Some(summary) = summary_with(graph, &seen, kind)
-                            .filter(|summary| summary.access.can_view())
-                        {
-                            found.insert(node.content_type, summary);
-                        }
+                for kind in graph.kinds_of(owner) {
+                    let Some(node) = graph.get(kind) else {
+                        continue;
+                    };
+                    if !node.is_open_inside() || found.contains_key(&node.content_type) {
+                        continue;
+                    }
+                    if let Some(summary) = summary_with(graph, &seen, kind)
+                        .filter(|summary| summary.access.can_view())
+                    {
+                        found.insert(node.content_type, summary);
                     }
                 }
             }
@@ -898,6 +896,9 @@ impl ServerStore {
                     ));
                 }
                 true => {}
+                false if account == ANYONE_INSIDE && graph.get(block).is_some_and(BlockNode::is_edit_kind) => {
+                    require_edit(graph, &visibility(identity), block)?;
+                }
                 false => require_manage(graph, &visibility(identity), block)?,
             }
             if account == ANYONE_INSIDE {

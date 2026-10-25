@@ -22,6 +22,7 @@ pub mod settings;
 pub mod settling;
 pub mod streamed;
 pub mod version_control;
+pub mod workspace_settings;
 
 pub use be_graph::ANYONE_INSIDE;
 pub use be_model;
@@ -49,6 +50,11 @@ pub use settings::{
 pub use settling::{Landed, Settling};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
+};
+pub use workspace_settings::{
+    EDIT_KINDS, Home, HomeContent, PREFERRED_EDITOR, PREFIXES, PrefixRegistry,
+    PrefixRegistryContent, TAG_COLOR, TAG_DEFINITIONS, TAGGED, Tag, TagColor, TagContent, Tags,
+    TagsContent, edit_kind_key, normal_prefix,
 };
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,

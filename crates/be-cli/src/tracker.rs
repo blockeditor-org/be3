@@ -25,6 +25,8 @@ use crate::blocks::{Entry, Found, Index, find_in, is_top, short_of};
 use crate::session::explain;
 use text_block_types::TextContent;
 
+mod prefixes;
+
 const ATTEMPTS: usize = 8;
 const CLIENT: u64 = 0x6265_2d63_6c69;
 
@@ -528,11 +530,6 @@ impl<S: ObjectStore> Tracker<S> {
             .await?;
             level = below.into_iter().flatten().collect();
         }
-        if looks_like_row(wanted) {
-            return Err(format!(
-                "a row is named within its database: be DATABASE row {wanted}"
-            ));
-        }
         Err(format!(
             "nothing is called {wanted}; `be ls` lists the blocks at the top"
         ))
@@ -991,8 +988,9 @@ impl<S: ObjectStore> Tracker<S> {
         columns.apply(&DatabaseSchema::add_field("Title", DatabaseFieldType::String).1);
         self.save(schema, &columns).await?;
         let mut content = DatabaseContent::new(&Database::with_schema(schema));
-        content.apply(&Database::set_prefix(prefix));
+        content.apply(&Database::set_prefix(prefix.clone()));
         self.save(database, &content).await?;
+        self.register(database, &prefix).await?;
         self.invalidate().await;
         Ok((view, database))
     }
@@ -1949,7 +1947,7 @@ fn yes(setting: &str, value: &str) -> Result<bool, String> {
     }
 }
 
-fn looks_like_row(text: &str) -> bool {
+pub(crate) fn looks_like_row(text: &str) -> bool {
     let Some((prefix, code)) = text.trim().rsplit_once('-') else {
         return false;
     };

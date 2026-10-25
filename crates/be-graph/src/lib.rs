@@ -17,6 +17,12 @@ pub const SETTINGS_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_
 
 pub const ANYONE_INSIDE: Uuid = Uuid::from_u128(0x616e_796f_6e65_2d69_6e73_6964_652d_3031);
 
+pub const PREFIXES_TYPE: Uuid = Uuid::from_u128(0x7072_6566_6978_6573_2d6b_696e_642d_3031);
+
+pub const TAGS_TYPE: Uuid = Uuid::from_u128(0x7461_6773_2d6b_696e_642d_6265_3364_3031);
+
+pub const EDIT_KINDS: [Uuid; 2] = [PREFIXES_TYPE, TAGS_TYPE];
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum BlockParent {
     #[default]
@@ -99,6 +105,10 @@ impl BlockNode {
         self.content_type == SETTINGS_TYPE && matches!(self.parent, BlockParent::Block(_))
     }
 
+    pub fn is_edit_kind(&self) -> bool {
+        EDIT_KINDS.contains(&self.content_type) && matches!(self.parent, BlockParent::Block(_))
+    }
+
     pub fn is_open_inside(&self) -> bool {
         self.grants
             .get(&ANYONE_INSIDE)
@@ -117,11 +127,15 @@ fn level_below(node: &BlockNode, account: Uuid, parent: Access, parent_viewable:
         (false, true) => granted.max(parent),
         (false, false) => granted,
     };
-    match node.is_block_settings() {
-        false => level,
-        true if parent.can_manage() => Access::Manage,
-        true if parent.can_view() => level.min(Access::View),
-        true => level.min(Access::KnowExists),
+    let ceiling = match (node.is_block_settings(), node.is_edit_kind()) {
+        (true, _) if parent.can_manage() => Access::Manage,
+        (true, _) => Access::View,
+        (false, true) => parent.max(Access::View),
+        (false, false) => return level,
+    };
+    match parent.can_view() {
+        true => level.min(ceiling),
+        false => level.min(Access::KnowExists),
     }
 }
 
@@ -521,8 +535,25 @@ impl BlockGraph {
             .unwrap_or_default()
     }
 
+    pub fn kinds_of(&self, owner: Uuid) -> Vec<Uuid> {
+        let mut kinds: Vec<Uuid> = self
+            .settings_of(owner)
+            .into_iter()
+            .flat_map(|settings| self.child_ids(settings).collect::<Vec<_>>())
+            .collect();
+        kinds.extend(
+            self.child_ids(owner)
+                .filter(|child| self.blocks.get(child).is_some_and(BlockNode::is_edit_kind)),
+        );
+        kinds
+    }
+
     pub fn settings_owner(&self, kind: Uuid) -> Option<Uuid> {
-        let settings = self.blocks.get(&kind)?.parent.block()?;
+        let node = self.blocks.get(&kind)?;
+        if node.is_edit_kind() {
+            return node.parent.block();
+        }
+        let settings = node.parent.block()?;
         let node = self.blocks.get(&settings)?;
         match node.is_block_settings() {
             true => node.parent.block(),
@@ -548,7 +579,7 @@ impl BlockGraph {
             let Some(node) = self.blocks.get(&current) else {
                 return false;
             };
-            if node.is_block_settings() {
+            if node.is_block_settings() || node.is_edit_kind() {
                 return false;
             }
             match node.parent.block() {
@@ -573,7 +604,7 @@ impl BlockGraph {
             let Some(node) = self.blocks.get(&block) else {
                 continue;
             };
-            if node.is_block_settings() {
+            if node.is_block_settings() || node.is_edit_kind() {
                 continue;
             }
             viewers.insert(node.author);
@@ -661,7 +692,7 @@ impl BlockGraph {
                 let Some(parent) = node.parent.block() else {
                     break;
                 };
-                if node.is_block_settings() || !owners.insert(parent) {
+                if node.is_block_settings() || node.is_edit_kind() || !owners.insert(parent) {
                     break;
                 }
                 current = parent;
@@ -669,15 +700,13 @@ impl BlockGraph {
         }
         let mut stack = roots;
         for owner in owners {
-            for settings in self.settings_of(owner) {
-                for kind in self.child_ids(settings) {
-                    if self
-                        .blocks
-                        .get(&kind)
-                        .is_some_and(BlockNode::is_open_inside)
-                    {
-                        stack.push((kind, Access::View));
-                    }
+            for kind in self.kinds_of(owner) {
+                if self
+                    .blocks
+                    .get(&kind)
+                    .is_some_and(BlockNode::is_open_inside)
+                {
+                    stack.push((kind, Access::View));
                 }
             }
         }
@@ -712,6 +741,9 @@ impl BlockGraph {
             let Some(node) = self.blocks.get(&block) else {
                 break;
             };
+            if let Some(owner) = self.open_owner(block) {
+                viewers.extend(self.inside_viewers(owner));
+            }
             if node.is_block_settings() {
                 continue;
             }
@@ -722,9 +754,6 @@ impl BlockGraph {
                     .filter(|(_, level)| level.can_view())
                     .map(|(account, _)| *account),
             );
-            if let Some(owner) = self.open_owner(block) {
-                viewers.extend(self.inside_viewers(owner));
-            }
         }
         viewers.remove(&ANYONE_INSIDE);
         viewers
