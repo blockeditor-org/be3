@@ -7,8 +7,8 @@ use super::gestures::{Frames, Gestures};
 use super::target::{describe, locate, node, point, scaled};
 use super::window::{Resize, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes};
-use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::app::FrameTimes;
+use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
@@ -837,18 +837,19 @@ impl Automation {
                     "draw" => {
                         let from = at(argument(1)?)?;
                         let to = at(argument(2)?)?;
-                        let count = |index: usize, default: usize, what: &str| match arguments
-                            .get(index)
-                        {
-                            Some(text) => text
-                                .parse::<usize>()
-                                .map_err(|_| format!("{text} is not a number of {what}")),
-                            None => Ok(default),
-                        };
+                        let count =
+                            |index: usize, default: usize, what: &str| match arguments.get(index) {
+                                Some(text) => text
+                                    .parse::<usize>()
+                                    .map_err(|_| format!("{text} is not a number of {what}")),
+                                None => Ok(default),
+                            };
                         let steps = count(3, 8, "steps")?;
                         let per_frame = count(4, 1, "samples a frame")?;
                         if per_frame == 0 {
-                            return Err("pen draw puts at least one sample in each frame".to_owned());
+                            return Err(
+                                "pen draw puts at least one sample in each frame".to_owned()
+                            );
                         }
                         self.gestures.pen_draw(from, to, steps, per_frame)?
                     }

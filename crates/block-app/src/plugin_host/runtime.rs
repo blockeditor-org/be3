@@ -43,7 +43,11 @@ thread_local! {
 }
 
 pub(crate) fn take_steps() -> Vec<(String, beui::FrameTimes)> {
-    STEPS.with(|steps| std::mem::take(&mut *steps.borrow_mut()).into_iter().collect())
+    STEPS.with(|steps| {
+        std::mem::take(&mut *steps.borrow_mut())
+            .into_iter()
+            .collect()
+    })
 }
 
 struct Host {
