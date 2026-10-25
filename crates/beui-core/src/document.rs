@@ -1513,10 +1513,9 @@ impl Document {
     }
 
     fn paint(&mut self, ctx: &Context) {
-        let painter = ctx.painter();
         let mut roots = Vec::new();
         if let Some(root) = self.root {
-            paint::paint(self, &painter, &self.rects, root);
+            paint::paint(self, &ctx.window_painter(WindowId::MAIN), &self.rects, root);
             roots.push((WindowId::MAIN, root));
         }
         let layers = self.layers();
@@ -1530,6 +1529,7 @@ impl Document {
             }
             let scrim = self.overlay_scrim(overlay);
             let content = self.overlay_content(overlay);
+            let painter = ctx.window_painter(layer.window);
             for root in [Some(scrim), content].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
                     paint::paint(self, &painter, &self.rects, root);
@@ -2350,7 +2350,7 @@ impl Document {
     }
 
     pub fn viewport_rect(&self) -> Rect {
-        self.windows.viewport.unwrap_or_else(|| {
+        self.windows.viewport.map(|(_, rect)| rect).unwrap_or_else(|| {
             self.viewport
                 .as_ref()
                 .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
@@ -2381,7 +2381,7 @@ impl Document {
 
     pub fn measure_root(&mut self, ctx: &Context, available: Vec2) -> Option<Vec2> {
         let root = self.root?;
-        let painter = ctx.painter();
+        let painter = ctx.window_painter(WindowId::MAIN);
         let context = self.reactive_scope().context();
         let mut measured = None;
         {
@@ -2429,7 +2429,7 @@ impl Document {
         let rects = Rc::clone(&self.rects);
         self.placing.clear();
         if let Some(root) = self.root {
-            let painter = ctx.painter();
+            let painter = ctx.window_painter(WindowId::MAIN);
             let placed = &*rects;
             self.layout_parent = None;
             crate::current::run_in(self, |document| {
@@ -2520,7 +2520,7 @@ impl Document {
             };
             let painter = Painter::resumed(ctx.clone(), state);
             self.layout_parent = self.arena.parent(boundary);
-            let viewport = self.window_rect(self.window_of(boundary));
+            let viewport = self.window_viewport(self.window_of(boundary));
             let held = self.swap_window_viewport(viewport);
             layout::layout(self, &painter, boundary, placed.rect, rects);
             self.swap_window_viewport(held);

@@ -60,7 +60,6 @@ struct BlitUniform {
 
 struct Pending {
     output: WindowOutput,
-    scale: f32,
     whole: bool,
 }
 
@@ -120,7 +119,7 @@ impl Compositor {
         Self(Rc::new(RefCell::new(Gpu::new(setup))))
     }
 
-    pub fn update(&self, output: &WindowOutput, scale: f32) -> bool {
+    pub fn update(&self, output: &WindowOutput) -> bool {
         let mut gpu = self.0.borrow_mut();
         let known = gpu.panels.contains_key(&output.id) || gpu.pending.contains_key(&output.id);
         if known && !output.changed {
@@ -131,7 +130,6 @@ impl Compositor {
             output.id,
             Pending {
                 output: output.clone(),
-                scale,
                 whole,
             },
         );
@@ -617,7 +615,7 @@ impl Gpu {
         let pending: Vec<(WindowId, Pending)> = self.pending.drain().collect();
         for (window, pending) in pending {
             let output = &pending.output;
-            let scale = pending.scale;
+            let scale = output.pixels_per_point;
             let size = (
                 ((output.size.x * scale).round() as u32).clamp(1, largest),
                 ((output.size.y * scale).round() as u32).clamp(1, largest),

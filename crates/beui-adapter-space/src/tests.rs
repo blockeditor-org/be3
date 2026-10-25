@@ -19,6 +19,8 @@ mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
 mod a_miss_leaves_the_panel;
 mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;
+mod a_nearer_panel_is_drawn_at_more_pixels_per_point;
+mod a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step;
 mod a_ray_hits_the_nearest_panel_where_it_points;
 mod a_released_panel_turns_to_face_the_viewer;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
@@ -186,7 +188,21 @@ fn reports(incoming: &[Incoming]) -> Vec<WindowReport> {
     incoming
         .iter()
         .filter_map(|incoming| match incoming {
+            Incoming::Window(WindowReport::Scaled { .. }) => None,
             Incoming::Window(report) => Some(report.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn scaled(incoming: &[Incoming]) -> Vec<(WindowId, f32)> {
+    incoming
+        .iter()
+        .filter_map(|incoming| match incoming {
+            Incoming::Window(WindowReport::Scaled {
+                window,
+                pixels_per_point,
+            }) => Some((*window, *pixels_per_point)),
             _ => None,
         })
         .collect()

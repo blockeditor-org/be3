@@ -2799,8 +2799,8 @@ closes or leaves the tree. When `size` changes while it is open, to something
 other than the size the host last reported, the document asks for it with
 `Resize`; the window keeps the reported size until the host answers, so an
 app that follows `Resized` reports in its `size` never fights the host; `on_report` hears the host's `Resized`, `Placed`
-(the `HostPlacement` to store and hand back as `placement` next time) and
-`Closed`, after which the window stays shut until the app closes and opens it
+(the `HostPlacement` to store and hand back as `placement` next time),
+`Scaled` and `Closed`, after which the window stays shut until the app closes and opens it
 again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 `LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
 how floating windows looked before there were windows, so an app looks the
@@ -2822,6 +2822,18 @@ names the window a node is in, `window_rect` its rectangle and `open_windows`
 the windows the host shows. Damage is not told apart by window: each window
 gets the frame's damage clipped to its size (the whole window when it opens or
 resizes), and scrolling blits are turned into damage while any window is open.
+Each window has its own pixels per point: a host reports one with
+`WindowReport::Scaled { window, pixels_per_point }` (the main window
+included), and until it does a window uses the context's. The document lays
+out and paints each window's tree, and everything opened inside it, with
+`Context::window_painter(window)`, whose `PainterState::raster` is that
+window's pixels per point over the context's, so its text is shaped and
+rasterized for the size it is drawn at, as a zoomed canvas's is
+(`Document::viewport_window` names the window being laid out, since the
+overlays above a node are out of the arena then). A change of scale lays
+the whole document out again, as a change of the platform's scale does, and
+the window's output is damaged whole. `WindowOutput::pixels_per_point` is the
+scale the output was drawn for, which a host draws it at.
 The cursor goes to the window the pointer is over, the IME area to the window
 holding the focus, and the rest of `WindowState` stays on the main window.
 The accessibility tree stays one tree, with each window's nodes in its own
@@ -2967,14 +2979,28 @@ all its 3D (`glam`) stays in the crate.
   app lays out at it the same frame; the app sees no moves meanwhile, and the
   carry's rule for letting go ends it, with a `Placed` for the panel's new
   centre.
+- Sharpness (`scale`): each frame `Space` gives every panel the pixels per
+  point it shows at on screen: the frustum-clipped panel's nearest depth,
+  as screen pixels per point there, times `SUPERSAMPLE` (1.25, so the main
+  panel's first 80% view is drawn at exactly the platform's scale), rounded
+  up to a step of `STEPS_PER_DOUBLING` (4) per doubling, between
+  `LEAST_SCALE` (0.5) and `MOST_SCALE` (4) and no larger than
+  `LARGEST_TEXTURE` (4096) texels a side. It keeps a scale until the panel
+  needs more, or `KEPT_STEPS` (2) steps less, and a panel out of sight keeps
+  its own, so walking about redraws a window only now and then. A change is
+  reported as `WindowReport::Scaled` (`Space::scale` reads it), and the app
+  lays the window out again at it.
 - Drawing: each window's display is drawn by its own
-  `beui_renderer_wgpu::Renderer` into a mipmapped texture, only when that
-  window's output changed, sampled with trilinear and anisotropic filtering;
+  `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
+  `pixels_per_point`, only when that window's output changed, sampled with
+  trilinear and anisotropic filtering and a level-of-detail bias of -0.5
+  (`SHARPEN` in space.wgsl), so a texture up to 1.4 times the panel's size
+  on screen is read from its sharpest level;
   then a 4x multisampled, depth-tested pass draws a floor grid, the panels
   (their backs grey; nearer panels hide farther ones by depth, except a lifted
   carried panel, drawn last with its depth test off) and a cursor
   disc where the ray meets a panel, and a
-  `Drawing` blits it into the platform window. A frame is composed again only
+  `Drawing` copies it texel for texel into the platform window. A frame is composed again only
   when the head, a panel, the cursor or a window's output changed.
 
 ### The on-screen keyboard

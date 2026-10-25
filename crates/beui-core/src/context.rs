@@ -21,7 +21,7 @@ use crate::geometry::{Pos2, Rect, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded, Recording};
-use crate::painter::{Painter, Scope, Shape};
+use crate::painter::{Painter, PainterState, Scope, Shape};
 use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
 use crate::screen_simulation::ScreenSimulation;
 use crate::screens::Screen;
@@ -41,6 +41,7 @@ struct Kept {
 struct KnownWindow {
     size: Option<Vec2>,
     placement: Option<HostPlacement>,
+    pixels_per_point: Option<f32>,
 }
 
 struct ShownWindow {
@@ -219,6 +220,7 @@ pub struct WindowOutput {
     pub changed: bool,
     pub damage: Region,
     pub moved: Option<Moved>,
+    pub pixels_per_point: f32,
 }
 
 impl WindowOutput {
@@ -665,13 +667,38 @@ impl Context {
         let filters = crate::display::filters(&layers);
         let moved = self.settle_moves(&layers, scale);
         self.inner.window_reports.borrow_mut().clear();
+        let shown_ids: Vec<WindowId> = self
+            .inner
+            .shown_windows
+            .borrow()
+            .iter()
+            .map(|shown| shown.id)
+            .collect();
+        let window_scales: Vec<(WindowId, f32)> = std::iter::once(WindowId::MAIN)
+            .chain(shown_ids)
+            .map(|window| (window, self.window_pixels_per_point(window)))
+            .collect();
         let previous = self.inner.previous.replace(Some(Previous {
             pixels_per_point: scale,
+            windows: window_scales.clone(),
             filters: filters.clone(),
         }));
-        let rescaled = previous
-            .as_ref()
-            .is_none_or(|old| old.pixels_per_point != scale);
+        let rescaled = |window: WindowId, now: f32| {
+            previous.as_ref().is_none_or(|old| {
+                old.pixels_per_point != scale
+                    || old
+                        .windows
+                        .iter()
+                        .find(|(held, _)| *held == window)
+                        .is_some_and(|(_, was)| *was != now)
+            })
+        };
+        let main_scale = window_scales[0].1;
+        let main_rescaled = rescaled(WindowId::MAIN, main_scale);
+        let main_resampled = main_rescaled
+            && previous
+                .as_ref()
+                .is_some_and(|old| old.pixels_per_point == scale);
         if let Some(old) = &previous {
             for index in 0..old.filters.len().max(filters.len()) {
                 let (was, now) = (old.filters.get(index), filters.get(index));
@@ -686,10 +713,7 @@ impl Context {
         let damage = reported
             .iter()
             .fold(Region::NOTHING, |region, rect| region.union((*rect).into()));
-        let changed = match previous {
-            Some(old) if old.pixels_per_point == scale => !damage.is_empty() || moved.is_some(),
-            _ => true,
-        };
+        let changed = main_rescaled || !damage.is_empty() || moved.is_some();
         let copied_text = self.inner.copied_text.borrow_mut().take();
         if let Some(text) = &copied_text {
             let watchers = self.inner.copy_watchers.borrow().clone();
@@ -712,18 +736,25 @@ impl Context {
             None => None,
         };
         let (main, others) = self.window_states(self.shown_window());
+        let main_size = self.window_size(WindowId::MAIN).unwrap_or(Vec2::ZERO);
         let mut windows = vec![WindowOutput {
             id: WindowId::MAIN,
-            size: self.window_size(WindowId::MAIN).unwrap_or(Vec2::ZERO),
+            size: main_size,
             layers,
             window: main,
             changed,
-            damage,
+            damage: match main_resampled {
+                true => Region::from(Rect::from_min_size(Pos2::ZERO, main_size)),
+                false => damage,
+            },
             moved,
+            pixels_per_point: main_scale,
         }];
         let shown = std::mem::take(&mut *self.inner.shown_windows.borrow_mut());
-        for (shown, window) in shown.into_iter().zip(others) {
-            let damage = match rescaled {
+        for ((shown, window), (_, window_scale)) in
+            shown.into_iter().zip(others).zip(window_scales.into_iter().skip(1))
+        {
+            let damage = match rescaled(shown.id, window_scale) {
                 true => Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)),
                 false => shown.damage,
             };
@@ -735,6 +766,7 @@ impl Context {
                 changed: !damage.is_empty(),
                 damage,
                 moved: None,
+                pixels_per_point: window_scale,
             });
         }
         FrameOutput {
@@ -961,6 +993,31 @@ impl Context {
             .and_then(|known| known.size)
     }
 
+    pub fn window_pixels_per_point(&self, window: WindowId) -> f32 {
+        self.inner
+            .windows
+            .borrow()
+            .get(&window)
+            .and_then(|known| known.pixels_per_point)
+            .filter(|scale| *scale > 0.0 && scale.is_finite())
+            .unwrap_or_else(|| self.inner.pixels_per_point.get())
+    }
+
+    pub fn window_painter(&self, window: WindowId) -> Painter {
+        let raster = self.window_pixels_per_point(window) / self.inner.pixels_per_point.get();
+        let painter = self.painter();
+        match raster == 1.0 {
+            true => painter,
+            false => Painter::resumed(
+                self.clone(),
+                PainterState {
+                    raster,
+                    ..painter.state()
+                },
+            ),
+        }
+    }
+
     pub fn window_placement(&self, window: WindowId) -> Option<HostPlacement> {
         self.inner
             .windows
@@ -979,6 +1036,13 @@ impl Context {
             WindowReport::Placed { window, placement } => {
                 let known = &mut windows.entry(*window).or_default().placement;
                 known.replace(placement.clone()).as_ref() != Some(placement)
+            }
+            WindowReport::Scaled {
+                window,
+                pixels_per_point,
+            } => {
+                let known = &mut windows.entry(*window).or_default().pixels_per_point;
+                known.replace(*pixels_per_point) != Some(*pixels_per_point)
             }
             WindowReport::Closed(window) => {
                 windows.remove(window);
@@ -1668,6 +1732,7 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
 
 struct Previous {
     pixels_per_point: f32,
+    windows: Vec<(WindowId, f32)>,
     filters: Vec<Filter>,
 }
 

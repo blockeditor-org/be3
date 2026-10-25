@@ -834,6 +834,7 @@ impl State {
             WindowReport::Placed { placement, .. } => self.placements.update(|placements| {
                 placements.insert(surface, WindowPlacement::Host(placement));
             }),
+            WindowReport::Scaled { .. } => {}
             WindowReport::Closed(_) => {
                 for tab in self.state.get_untracked().surface_tabs(surface) {
                     self.close_tab(tab);

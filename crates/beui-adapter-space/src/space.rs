@@ -85,6 +85,7 @@ pub struct Space {
     walking: Vec<Key>,
     modifiers: Modifiers,
     shown: Option<(Shown, WindowOutput)>,
+    scales: Vec<(WindowId, f32)>,
 }
 
 impl Default for Space {
@@ -119,11 +120,40 @@ impl Space {
             walking: Vec::new(),
             modifiers: Modifiers::NONE,
             shown: None,
+            scales: Vec::new(),
         }
     }
 
     pub fn steering(&self) -> bool {
         self.modifiers.ctrl && self.modifiers.shift
+    }
+
+    pub fn scale(&self, window: WindowId) -> Option<f32> {
+        self.scales
+            .iter()
+            .find(|(held, _)| *held == window)
+            .map(|(_, scale)| *scale)
+    }
+
+    fn rescale(&mut self) {
+        for panel in &self.panels {
+            let held = self
+                .scales
+                .iter()
+                .find(|(window, _)| *window == panel.window)
+                .map(|(_, scale)| *scale);
+            let wanted = crate::scale::wanted(panel, &self.head, self.platform);
+            let scale = crate::scale::chosen(held, wanted, panel.size, self.pixels_per_point);
+            if held == Some(scale) {
+                continue;
+            }
+            self.scales.retain(|(window, _)| *window != panel.window);
+            self.scales.push((panel.window, scale));
+            self.reports.push(Incoming::Window(WindowReport::Scaled {
+                window: panel.window,
+                pixels_per_point: scale,
+            }));
+        }
     }
 
     pub fn panel(&self, window: WindowId) -> Option<&Panel> {
@@ -697,6 +727,7 @@ impl Space {
             return;
         }
         self.panels.retain(|panel| panel.window != window);
+        self.scales.retain(|(held, _)| *held != window);
         if let Some(compositor) = &self.compositor {
             compositor.forget(window);
         }
@@ -773,8 +804,10 @@ impl WindowHost for Space {
         for item in incoming.drain(..) {
             self.take(item, &mut out);
         }
-        *incoming = out;
         self.place_carried();
+        self.rescale();
+        out.append(&mut self.reports);
+        *incoming = out;
     }
 
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
@@ -793,6 +826,7 @@ impl WindowHost for Space {
             }
         }
         self.place_carried();
+        self.rescale();
         let animating = self.steering() && !self.walking.is_empty()
             || self.carry.is_some_and(|carry| carry.turning(self.clock));
         let repaint_after = match animating || !self.reports.is_empty() {
@@ -808,7 +842,7 @@ impl WindowHost for Space {
         let mut changed = false;
         for window in &output.windows {
             if self.panel(window.id).is_some() {
-                changed |= compositor.update(window, view.pixels_per_point);
+                changed |= compositor.update(window);
             }
         }
         let shown = Shown {
@@ -867,6 +901,7 @@ impl WindowHost for Space {
             changed: true,
             damage: Region::NOTHING,
             moved: None,
+            pixels_per_point: view.pixels_per_point,
         };
         self.shown = Some((shown, window.clone()));
         Hosted {

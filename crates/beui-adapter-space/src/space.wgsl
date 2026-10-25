@@ -59,6 +59,8 @@ fn floor_fragment(input: FloorOut) -> @location(0) vec4<f32> {
     return vec4<f32>(encode(color), 1.0);
 }
 
+const SHARPEN: f32 = -0.5;
+
 struct Panel {
     model: mat4x4<f32>,
 };
@@ -83,7 +85,7 @@ fn panel_vertex(@builtin(vertex_index) index: u32) -> PanelOut {
 
 @fragment
 fn panel_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    let color = textureSample(panel_texture, panel_sampler, input.uv);
+    let color = textureSampleBias(panel_texture, panel_sampler, input.uv, SHARPEN);
     if !front {
         return vec4<f32>(encode(vec3<f32>(0.05, 0.055, 0.065)), 1.0);
     }
@@ -142,7 +144,9 @@ fn blit_vertex(@builtin(vertex_index) index: u32) -> BlitOut {
 
 @fragment
 fn blit_fragment(input: BlitOut) -> @location(0) vec4<f32> {
-    return textureSample(source, source_sampler, input.uv);
+    let size = vec2<i32>(textureDimensions(source)) - 1;
+    let texel = clamp(vec2<i32>(floor(input.position.xy - blit.rect.xy)), vec2<i32>(0), size);
+    return textureLoad(source, texel, 0);
 }
 
 @vertex

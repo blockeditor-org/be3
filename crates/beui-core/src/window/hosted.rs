@@ -25,7 +25,7 @@ pub(crate) struct Windows {
     requests: Vec<WindowRequest>,
     shown: HashMap<WindowId, Vec2>,
     pub(crate) paintings: Vec<(WindowId, Painting)>,
-    pub(crate) viewport: Option<Rect>,
+    pub(crate) viewport: Option<(WindowId, Rect)>,
 }
 
 impl Default for Windows {
@@ -129,8 +129,21 @@ impl Document {
         Some(Rect::from_min_size(Pos2::ZERO, self.window_size(window)?))
     }
 
-    pub(crate) fn swap_window_viewport(&mut self, viewport: Option<Rect>) -> Option<Rect> {
+    pub(crate) fn swap_window_viewport(
+        &mut self,
+        viewport: Option<(WindowId, Rect)>,
+    ) -> Option<(WindowId, Rect)> {
         std::mem::replace(&mut self.windows.viewport, viewport)
+    }
+
+    pub(crate) fn viewport_window(&self) -> WindowId {
+        self.windows
+            .viewport
+            .map_or(WindowId::MAIN, |(window, _)| window)
+    }
+
+    pub(crate) fn window_viewport(&self, window: WindowId) -> Option<(WindowId, Rect)> {
+        self.window_rect(window).map(|rect| (window, rect))
     }
 
     pub(crate) fn in_window_viewport(&self) -> bool {
@@ -184,6 +197,7 @@ impl Document {
                         self.arena.invalidate_node(node);
                     }
                 }
+                WindowReport::Scaled { .. } => self.arena.invalidate(),
                 WindowReport::Placed { .. } => {}
             }
             if let Some(spec) = node.and_then(|node| self.overlay_window(node)) {
