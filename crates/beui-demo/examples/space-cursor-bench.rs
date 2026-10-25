@@ -145,7 +145,6 @@ mod bench {
             }
         }
 
-
         fn icon(&self) -> CursorIcon {
             let output = self.runner.output().expect("the bench has framed");
             self.space.borrow().cursor_icon(output)
@@ -165,9 +164,11 @@ mod bench {
                     if !seen.iter().any(|(known, _)| *known == icon) {
                         seen.push((icon, at));
                     }
-                    if let Some(&(_, other)) = seen.iter().find(|(known, _)| *known != seen[0].0)
-                    {
-                        println!("icons found {:?}", seen.iter().map(|(icon, _)| *icon).collect::<Vec<_>>());
+                    if let Some(&(_, other)) = seen.iter().find(|(known, _)| *known != seen[0].0) {
+                        println!(
+                            "icons found {:?}",
+                            seen.iter().map(|(icon, _)| *icon).collect::<Vec<_>>()
+                        );
                         return (seen[0].1, other);
                     }
                 }

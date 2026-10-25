@@ -39,5 +39,9 @@ fn switching_the_cursor_icon_keeps_the_cursor_renderer() {
     }
     let (again, larger) = draw(CursorIcon::Default, 2.0);
     assert_eq!(again, renderer, "a new scale keeps the renderer too");
-    assert_eq!(larger, (size.0 * 2, size.1 * 2), "and draws at the new scale");
+    assert_eq!(
+        larger,
+        (size.0 * 2, size.1 * 2),
+        "and draws at the new scale"
+    );
 }
