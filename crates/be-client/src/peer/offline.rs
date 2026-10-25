@@ -136,7 +136,7 @@ impl<S: ObjectStore> Peer<S> {
         let summary = BlockSummary {
             id: creation.block,
             content_type: creation.content_type,
-            access: Access::Edit,
+            access: Access::Manage,
             author: Some(self.account),
             parent: Some(creation.parent),
             head: None,
