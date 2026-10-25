@@ -121,7 +121,7 @@ pub struct BlockGraph {
 
 impl BlockNode {
     fn holds_settings(&self) -> bool {
-        self.is_block_settings() || self.is_edit_kind()
+        holds_settings(self.content_type, self.parent)
     }
 
     pub fn is_block_settings(&self) -> bool {
@@ -141,6 +141,28 @@ impl BlockNode {
     pub fn sets_access(&self) -> bool {
         !self.is_block_settings() && self.grants.keys().any(|account| *account != ANYONE_INSIDE)
     }
+}
+
+pub fn holds_settings(content_type: Uuid, parent: BlockParent) -> bool {
+    (content_type == SETTINGS_TYPE || EDIT_KINDS.contains(&content_type))
+        && matches!(parent, BlockParent::Block(_))
+}
+
+pub fn created_access(
+    content_type: Uuid,
+    parent: BlockParent,
+    parent_access: Access,
+    below_settings: bool,
+) -> Access {
+    let author = Uuid::nil();
+    let viewable = parent.block().is_none() || parent_access.can_view();
+    level_below(
+        &BlockNode::new(content_type, author, parent),
+        author,
+        parent_access,
+        viewable,
+        below_settings,
+    )
 }
 
 fn level_below(

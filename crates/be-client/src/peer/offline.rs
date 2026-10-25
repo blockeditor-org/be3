@@ -183,10 +183,37 @@ impl<S: ObjectStore> Peer<S> {
             }
             BlockParent::Root | BlockParent::Detached => Some(creation.block),
         };
+        let access = match creation.parent {
+            BlockParent::Block(parent) if self.refs.summary(parent).is_some() => {
+                let mut below_settings = false;
+                let mut current = self.refs.summary(parent);
+                let parent_access = current.as_ref().map_or(Access::None, |held| held.access);
+                for _ in 0..256 {
+                    let Some(held) = current else {
+                        break;
+                    };
+                    let Some(up) = held.parent else {
+                        break;
+                    };
+                    if be_graph::holds_settings(held.content_type, up) {
+                        below_settings = true;
+                        break;
+                    }
+                    current = up.block().and_then(|up| self.refs.summary(up));
+                }
+                be_graph::created_access(
+                    creation.content_type,
+                    creation.parent,
+                    parent_access,
+                    below_settings,
+                )
+            }
+            BlockParent::Block(_) | BlockParent::Root | BlockParent::Detached => Access::Manage,
+        };
         let summary = BlockSummary {
             id: creation.block,
             content_type: creation.content_type,
-            access: Access::Manage,
+            access,
             author: Some(self.account),
             parent: Some(creation.parent),
             head: None,
