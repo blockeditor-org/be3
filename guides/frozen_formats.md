@@ -58,8 +58,10 @@ its changes (metadata that points to a block, with `ARTIFACT` now pointing to
 its source; the access model; settings blocks, their `SETTINGS` metadata and
 the `ANYONE_INSIDE` grant on a kind) land together, and then the one
 server with data is wiped and its content re-imported once from a block file.
-Until then they may change saved data incompatibly; afterwards the rules below
-hold again.
+Until then they may change other saved data incompatibly, but not what
+`crates/be-frozen`'s snapshots and fixture hold (none of it carries
+`ARTIFACT` metadata, which only the app writes), so those stay read forever
+throughout; afterwards the rules below hold again for everything.
 
 Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
