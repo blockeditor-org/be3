@@ -127,14 +127,17 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     app.save("canvas.rectangle-save")?;
     app.click("#infinite-canvas.dock.tool.Pen")?;
     let drawing = Instant::now();
-    app.within(LONG, &[
-        "--no-settle",
-        "pen",
-        "draw",
-        &at(0.1, 0.6),
-        &at(0.9, 0.7),
-        &settings.points.to_string(),
-    ])?;
+    app.within(
+        LONG,
+        &[
+            "--no-settle",
+            "pen",
+            "draw",
+            &at(0.1, 0.6),
+            &at(0.9, 0.7),
+            &settings.points.to_string(),
+        ],
+    )?;
     app.until("the line", |tree| tree.matches(SHAPE).count() == 2)?;
     bench::time("canvas.line-draw", drawing.elapsed());
     app.save("canvas.line-save")?;
@@ -148,15 +151,27 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     app.within(LONG, &["clipboard", &text(settings.text_bytes)])?;
     let pasting = Instant::now();
     app.within(LONG, &["--no-settle", "key", "ctrl+v"])?;
-    app.until("the pasted text", |tree| tree.contains("The quick brown fox"))?;
+    app.until("the pasted text", |tree| {
+        tree.contains("The quick brown fox")
+    })?;
     bench::time("text.paste", pasting.elapsed());
     app.save("text.paste-save")?;
     app.paint("text.paint", &settings.out.join("first-text.paint"))?;
     app.close_tab("Text", "text.close")?;
 
     let export = app.export("first.export", &settings.out.join("first.block"))?;
-    let canvas = app.reopen("TreeItem \"Canvas\"", "Canvas", "first.reopened.canvas", &settings.out.join("first-reopened-canvas.paint"))?;
-    let text = app.reopen("TreeItem \"The quick brown fox", "Text", "first.reopened.text", &settings.out.join("first-reopened-text.paint"))?;
+    let canvas = app.reopen(
+        "TreeItem \"Canvas\"",
+        "Canvas",
+        "first.reopened.canvas",
+        &settings.out.join("first-reopened-canvas.paint"),
+    )?;
+    let text = app.reopen(
+        "TreeItem \"The quick brown fox",
+        "Text",
+        "first.reopened.text",
+        &settings.out.join("first-reopened-text.paint"),
+    )?;
     let closing = Instant::now();
     app.close()?;
     bench::time("first.close", closing.elapsed());
@@ -196,8 +211,18 @@ fn second_device(
         app.click("#file-tree.zoom-in")?;
         app.wait("#file-tree.back")?;
     }
-    let canvas = app.reopen("TreeItem \"Canvas\"", "Canvas", "second.reopened.canvas", &settings.out.join("second-reopened-canvas.paint"))?;
-    let text = app.reopen("TreeItem \"The quick brown fox", "Text", "second.reopened.text", &settings.out.join("second-reopened-text.paint"))?;
+    let canvas = app.reopen(
+        "TreeItem \"Canvas\"",
+        "Canvas",
+        "second.reopened.canvas",
+        &settings.out.join("second-reopened-canvas.paint"),
+    )?;
+    let text = app.reopen(
+        "TreeItem \"The quick brown fox",
+        "Text",
+        "second.reopened.text",
+        &settings.out.join("second-reopened-text.paint"),
+    )?;
     let export = app.export("second.export", &settings.out.join("second.block"))?;
     app.close()?;
     Ok(Device {
@@ -435,7 +460,13 @@ impl App {
         Ok(())
     }
 
-    fn reopen(&mut self, row: &str, label: &str, metric: &str, painting: &Path) -> Result<Snapshot, String> {
+    fn reopen(
+        &mut self,
+        row: &str,
+        label: &str,
+        metric: &str,
+        painting: &Path,
+    ) -> Result<Snapshot, String> {
         self.wait(row)?;
         let started = Instant::now();
         self.run(&["--no-settle", "click", row])?;
@@ -453,7 +484,10 @@ impl App {
         self.click(&folder)?;
         self.wait("#file-tree.export")?;
         let started = Instant::now();
-        self.within(LONG, &["save", &path.to_string_lossy(), "#file-tree.export"])?;
+        self.within(
+            LONG,
+            &["save", &path.to_string_lossy(), "#file-tree.export"],
+        )?;
         bench::time(metric, started.elapsed());
         let bytes = std::fs::read(path)
             .map_err(|error| format!("could not read the export {}: {error}", path.display()))?;

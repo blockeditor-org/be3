@@ -68,7 +68,11 @@ impl Server {
             "/auth/login",
             &[("email", EMAIL), ("password", PASSWORD)],
         )?;
-        browser.submit(&format!("/auth?code={code}"), "/auth/approve", &[("code", code)])?;
+        browser.submit(
+            &format!("/auth?code={code}"),
+            "/auth/approve",
+            &[("code", code)],
+        )?;
         Ok(())
     }
 }
@@ -129,7 +133,9 @@ impl Browser {
             .join("&");
         match self.request("POST", action, &body)? {
             (303, _) => Ok(()),
-            (status, page) => Err(format!("the portal answered {action} with {status}: {page}")),
+            (status, page) => Err(format!(
+                "the portal answered {action} with {status}: {page}"
+            )),
         }
     }
 }

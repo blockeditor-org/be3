@@ -62,7 +62,12 @@ impl Suite {
         })
     }
 
-    pub fn run(&self, benchmark: &Benchmark, log: &Path, verbose: bool) -> Result<Vec<Metric>, String> {
+    pub fn run(
+        &self,
+        benchmark: &Benchmark,
+        log: &Path,
+        verbose: bool,
+    ) -> Result<Vec<Metric>, String> {
         let metrics = log.with_extension("metrics");
         let _ = std::fs::remove_file(&metrics);
         let mut command = Command::new(self.dir.join("programs").join(benchmark.program));
