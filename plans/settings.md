@@ -283,7 +283,10 @@ re-import once, and say so in `guides/frozen_formats.md`.
     makes workspaces: with administrators only, a member makes one workspace
     of their own and no more, by creating one or by moving a block to the top
     (`may_add_workspace`; be-client
-    `moving_a_block_to_the_top_follows_who_may_make_workspaces`). History: no prune removes a version younger than
+    `moving_a_block_to_the_top_follows_who_may_make_workspaces`). That one is
+    kept because every account needs it: the app makes My files on opening an
+    organization and puts there what is made or restored outside any
+    workspace. History: no prune removes a version younger than
     the policy's days, and `Peer::prune` keeps them too
     (`RetentionPolicy::keeping_all_within`). Storage quota: objects held by the
     organization's commits and blocks, and an upload past it is refused

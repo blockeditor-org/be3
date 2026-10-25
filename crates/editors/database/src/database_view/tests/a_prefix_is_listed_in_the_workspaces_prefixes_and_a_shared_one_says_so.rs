@@ -10,7 +10,7 @@ use super::*;
 fn a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so() {
     let mut fixture = editor(&[("Title", DatabaseFieldType::String)]);
     let view = fixture.harness.block_id().expect("the view is a block");
-    let (workspace, registry, bugs) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let [workspace, registry, bugs] = [1, 2, 3].map(|id| Uuid::from_u128(0xdb_0000 + id));
     let store = fixture.harness.store();
     let mut held = BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root);
     held.metadata.insert(&PREFIXES, &BlockRef(registry));

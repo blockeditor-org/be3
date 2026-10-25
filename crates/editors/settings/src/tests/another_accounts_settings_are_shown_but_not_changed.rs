@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn another_accounts_settings_are_shown_but_not_changed() {
-    let mut editor = editor_for(Uuid::new_v4());
+    let mut editor = editor_for(Uuid::from_u128(0xacc0));
 
     editor.click("settings.display");
     editor.run();

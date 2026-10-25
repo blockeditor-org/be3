@@ -574,6 +574,64 @@ pub(crate) fn lost_open_kinds(
     Ok(())
 }
 
+pub(crate) struct ViewingBelow {
+    block: Uuid,
+    accounts: Vec<(Uuid, bool, BTreeSet<Uuid>)>,
+}
+
+pub(crate) fn viewing_below(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<ViewingBelow, ServerError> {
+    let mut candidates = graph.viewers(block);
+    for inside in graph.subtree(block) {
+        let Some(node) = graph.get(inside) else {
+            continue;
+        };
+        candidates.insert(node.author);
+        candidates.extend(
+            node.grants
+                .iter()
+                .filter(|(_, level)| level.can_view())
+                .map(|(account, _)| *account),
+        );
+    }
+    candidates.remove(&be_graph::ANYONE_INSIDE);
+    let mut accounts = Vec::new();
+    for account in candidates {
+        let viewed = is_viewer(connection, graph, organization, account, block)?;
+        let kinds = open_kinds_viewed(connection, graph, organization, account, block)?;
+        if viewed || !kinds.is_empty() {
+            accounts.push((account, viewed, kinds));
+        }
+    }
+    Ok(ViewingBelow { block, accounts })
+}
+
+pub(crate) fn lost_below(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    before: ViewingBelow,
+) -> Result<BTreeSet<Uuid>, ServerError> {
+    let mut lost = BTreeSet::new();
+    for (account, viewed, kinds) in before.accounts {
+        if viewed && !is_viewer(connection, graph, organization, account, before.block)? {
+            lost_view(connection, organization, before.block, account)?;
+            lost.insert(account);
+        }
+        for kind in kinds {
+            if !is_viewer(connection, graph, organization, account, kind)? {
+                lost_view(connection, organization, kind, account)?;
+                lost.insert(account);
+            }
+        }
+    }
+    Ok(lost)
+}
+
 pub(crate) fn rotate_escrow_later(
     connection: &Connection,
     organization: Uuid,

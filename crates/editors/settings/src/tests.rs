@@ -31,12 +31,12 @@ fn editor() -> BeuiTest<SettingsApp> {
 }
 
 fn editor_for(account: Uuid) -> BeuiTest<SettingsApp> {
-    let block = Uuid::new_v4();
+    let block = Uuid::from_u128(0x5e77_0001);
     let host = EditorHost::default();
     host.set_account_id(account);
     host.set_block_type(SettingsContent::CONTENT_TYPE);
     host.set_editable(true);
-    host.set_client_id(Uuid::new_v4());
+    host.set_client_id(Uuid::from_u128(0x5e77_0002));
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
     editor.store().add_block(block_editor_beui::BlockInfo::new(
@@ -77,12 +77,8 @@ struct SetUp {
 
 impl SetUp {
     fn new(class: DeviceClass, every_device: DisplaySettings) -> Self {
-        let (settings, profile, shared, client) = (
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-        );
+        let [settings, profile, shared, client] =
+            [1, 2, 3, 4].map(|id| Uuid::from_u128(0x5e77_0100 + id));
         let host = EditorHost::default();
         host.set_editable(true);
         host.set_client_id(client);
@@ -113,7 +109,7 @@ impl SetUp {
         own.apply(&SettingsProfile::set_class(Some(class)));
         let display = class.display_settings();
         if display != DisplaySettings::default() {
-            let here = Uuid::new_v4();
+            let here = Uuid::from_u128(0x5e77_0105);
             own.apply(&SettingsProfile::set_kind(
                 DisplaySettingsContent::CONTENT_TYPE,
                 here,

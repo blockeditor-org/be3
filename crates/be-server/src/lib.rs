@@ -959,8 +959,15 @@ impl Connection {
                 keys,
             } => {
                 let identity = self.identity()?;
-                let before = self.store.set_parent(identity, block, parent, keys).await?;
-                self.reannounce(identity, vec![block], true, before).await;
+                let (before, lost) = self.store.set_parent(identity, block, parent, keys).await?;
+                self.reannounce(identity, vec![block], true, before.clone())
+                    .await;
+                if !lost.is_empty() {
+                    self.key_work_changed(identity.organization, before).await;
+                    for account in lost {
+                        self.evict_sessions(identity.organization, account).await;
+                    }
+                }
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListShared { request } => Ok(ServerMessage::Blocks {

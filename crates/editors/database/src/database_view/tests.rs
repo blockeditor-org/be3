@@ -89,7 +89,7 @@ impl Fixture {
 }
 
 fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
-    let schema = Uuid::new_v4();
+    let schema = Uuid::from_u128(0xdb_1001);
     let mut schema_content = DatabaseSchemaContent::default();
     let ids: Vec<Uuid> = fields
         .iter()
@@ -99,8 +99,8 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
             id
         })
         .collect();
-    let database = Uuid::new_v4();
-    let view = Uuid::new_v4();
+    let database = Uuid::from_u128(0xdb_1002);
+    let view = Uuid::from_u128(0xdb_1003);
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), view);

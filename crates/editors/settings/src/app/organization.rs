@@ -56,7 +56,7 @@ const POLICIES: [Policy<OrganizationPolicies>; 4] = [
     Policy {
         key: "workspaces",
         label: "Who makes workspaces",
-        description: "Each member keeps one workspace of their own either way.",
+        description: "Each member still makes one workspace of their own: My files, where the app keeps what they make outside any workspace.",
         options: &["Every member", "Administrators"],
         get: |policies| {
             index_of(

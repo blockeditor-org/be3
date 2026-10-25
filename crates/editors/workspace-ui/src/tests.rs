@@ -235,11 +235,11 @@ fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uu
 }
 
 fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixture, Uuid) {
-    let workspace = Uuid::new_v4();
-    let opened = Uuid::new_v4();
+    let workspace = Uuid::from_u128(0x3a_0001);
+    let opened = Uuid::from_u128(0x3a_0002);
     let host = EditorHost::default();
     host.set_editable(true);
-    host.set_client_id(Uuid::new_v4());
+    host.set_client_id(Uuid::from_u128(0x3a_0003));
     if profile.is_some() {
         host.set_view_block(Some(workspace));
     }
@@ -335,12 +335,12 @@ fn places(fixture: &mut Fixture) -> Places {
     use block_editor_beui::BlockInfo;
     use block_editor_beui::be_block::BlockContent;
     let places = Places {
-        space: Uuid::new_v4(),
-        trips: Uuid::new_v4(),
-        work: Uuid::new_v4(),
-        q4: Uuid::new_v4(),
-        minutes: Uuid::new_v4(),
-        budget: Uuid::new_v4(),
+        space: Uuid::from_u128(0x3a_0101),
+        trips: Uuid::from_u128(0x3a_0102),
+        work: Uuid::from_u128(0x3a_0103),
+        q4: Uuid::from_u128(0x3a_0104),
+        minutes: Uuid::from_u128(0x3a_0105),
+        budget: Uuid::from_u128(0x3a_0106),
     };
     let block = |id: Uuid, block_type: Uuid, parent: BlockParent, name: &str, children: &[Uuid]| {
         let mut info = BlockInfo::new(id, block_type, parent);

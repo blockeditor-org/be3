@@ -10,12 +10,8 @@ use super::*;
 fn a_template_of_the_workspace_is_copied_into_place() {
     let (mut fixture, _) = editor();
     fixture.test.catalog(catalog());
-    let (workspace, settings, home, template) = (
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-    );
+    let [workspace, settings, home, template] =
+        [1, 2, 3, 4].map(|id| Uuid::from_u128(0x7e_0000 + id));
     let store = fixture.test.store();
     let mut team = BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root);
     team.metadata.insert(&SETTINGS, &BlockRef(settings));
@@ -74,7 +70,7 @@ fn a_template_of_the_workspace_is_copied_into_place() {
     };
     assert_eq!(*source, template);
     assert_eq!(*parent, BlockLocation::Block(workspace.into_bytes()));
-    let copy = Uuid::new_v4();
+    let copy = Uuid::from_u128(0x7e_0005);
     fixture.test.reply(
         *request,
         HostReply::BlocksImported(BlockImport::Imported {

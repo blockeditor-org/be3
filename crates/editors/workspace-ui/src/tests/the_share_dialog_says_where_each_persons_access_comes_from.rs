@@ -10,7 +10,7 @@ use super::*;
 fn the_share_dialog_says_where_each_persons_access_comes_from() {
     let (mut fixture, block) = editor_sized(Some(Vec2::new(900.0, 900.0)));
     let me = fixture.host.account_id();
-    let team = Uuid::new_v4();
+    let team = Uuid::from_u128(0x5a_0001);
     let store = fixture.test.store();
     let mut folder = BlockInfo::new(team, FolderContent::CONTENT_TYPE, BlockParent::Root);
     folder.set_name("Team");
@@ -31,7 +31,7 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
         })
         .expect("opening the share dialog asks who can open the block");
     let person = |name: &str, effective: AccessLevel, source: Uuid| AccessGrant {
-        account: Uuid::new_v4().into_bytes(),
+        account: Uuid::from_u128(0x5a_0100 + u128::from(name.as_bytes()[0])).into_bytes(),
         email: format!("{}@example.org", name.to_lowercase()),
         display_name: name.to_owned(),
         administrator: false,

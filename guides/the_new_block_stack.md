@@ -1729,7 +1729,8 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   only ever a contact's verified key (below). The server refuses to store a
   key sealed to any account but the caller's own and its contacts'.
 - **Rotation.** When an account stops being able to view a block (a grant
-  revoked or left, a contact removed, a member removed), the server records
+  revoked or left, the block moved out from under what it could view, a
+  contact removed, a member removed), the server records
   the block in `rotations`, drops that account's wraps of the block's keys and
   ends its sessions on what it can no longer see (a client must be in a
   session to speak in it). `GetKeyWork` tells a client what it can do about
@@ -1737,8 +1738,8 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   not yet sealed to someone who should have them (`unsealed`), and scope keys
   not yet wrapped under the escrow key (`unescrowed`). `Peer::tend` does all of
   it; the app's worker calls it on connect, on `ContactsChanged`, on
-  `KeyWorkChanged` (sent to a block's audience when a revocation records a
-  rotation) and after its own changes. `Peer::rotate` walks the block's
+  `KeyWorkChanged` (sent to a block's audience when a revocation or move
+  records a rotation) and after its own changes. `Peer::rotate` walks the block's
   subtree and sends one `Rotate`: a new epoch of every scope key in it, each
   wrapped under its parent scope's new (or, above the block, current) key and
   sealed to whoever may still open it (grantees, and the author of a root

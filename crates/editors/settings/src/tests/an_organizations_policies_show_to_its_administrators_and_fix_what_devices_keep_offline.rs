@@ -22,7 +22,7 @@ fn an_organizations_policies_show_to_its_administrators_and_fix_what_devices_kee
     host.set_organization_id(organization);
     host.set_block_type(SettingsContent::CONTENT_TYPE);
     host.set_editable(true);
-    host.set_client_id(Uuid::new_v4());
+    host.set_client_id(Uuid::from_u128(0x0e10));
     let mut editor = BeuiTest::<SettingsApp>::new(OwnedEditor::new(host, own));
     editor.set_size(Vec2::new(720.0, 1400.0));
     let store = editor.store();

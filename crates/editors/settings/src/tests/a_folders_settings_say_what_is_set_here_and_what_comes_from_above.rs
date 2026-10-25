@@ -39,10 +39,10 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
         tags,
         workspace_hotbar,
         hotbar,
-    ] = std::array::from_fn(|_| Uuid::new_v4());
+    ] = std::array::from_fn(|index| Uuid::from_u128(0xf0_0001 + index as u128));
     let host = EditorHost::default();
     host.set_editable(true);
-    host.set_client_id(Uuid::new_v4());
+    host.set_client_id(Uuid::from_u128(0xf0_0100));
     host.set_block_type(SettingsContent::CONTENT_TYPE);
     let mut editor = BeuiTest::<SettingsApp>::new(OwnedEditor::new(host, folder_settings));
     editor.set_size(Vec2::new(720.0, 420.0));

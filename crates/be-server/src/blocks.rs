@@ -609,7 +609,7 @@ impl ServerStore {
         block: Uuid,
         parent: BlockParent,
         keys: KeySet,
-    ) -> Result<BTreeSet<Uuid>, ServerError> {
+    ) -> Result<(BTreeSet<Uuid>, BTreeSet<Uuid>), ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
@@ -631,6 +631,15 @@ impl ServerStore {
                 BlockParent::Root | BlockParent::Detached => {}
             }
             let before = graph.audience(block);
+            let viewing = match parent {
+                BlockParent::Detached => None,
+                _ => Some(crate::keys::viewing_below(
+                    database,
+                    graph,
+                    identity.organization,
+                    block,
+                )?),
+            };
             let transaction = database.unchecked_transaction()?;
             store_keys(
                 graph,
@@ -645,6 +654,12 @@ impl ServerStore {
             )?;
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
+            let lost = match viewing {
+                Some(viewing) => {
+                    crate::keys::lost_below(&transaction, graph, identity.organization, viewing)?
+                }
+                None => BTreeSet::new(),
+            };
             let (kind, parent_id) = encode_parent(parent);
             transaction.execute(
                 "UPDATE blocks SET parent_kind = ?3, parent_id = ?4, version = version + 1
@@ -657,7 +672,7 @@ impl ServerStore {
                 ],
             )?;
             transaction.commit()?;
-            Ok(before)
+            Ok((before, lost))
         })
         .await
     }
@@ -850,8 +865,10 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.set_parent(identity, block, BlockParent::Detached, KeySet::default())
-            .await
+        let (before, _) = self
+            .set_parent(identity, block, BlockParent::Detached, KeySet::default())
+            .await?;
+        Ok(before)
     }
 
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
