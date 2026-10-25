@@ -1,18 +1,11 @@
-use be_block::be_model::BlockRef;
-use be_block::{BlockContent, PREFIXES, PrefixRegistry, PrefixRegistryContent};
-use be_client::Saved;
-use be_graph::{Access, BlockParent};
+use be_block::{BlockContent, PREFIXES, PrefixRegistryContent};
+use be_graph::BlockParent;
 use be_store::ObjectStore;
 use database_types::database::DatabaseContent;
 use uuid::Uuid;
 
-use super::{ATTEMPTS, Tracker};
+use super::Tracker;
 use crate::session::explain;
-
-pub struct Registry {
-    pub owner: Uuid,
-    pub kind: Option<Uuid>,
-}
 
 impl<S: ObjectStore> Tracker<S> {
     async fn registry_of(&self, block: Uuid) -> Result<Option<Uuid>, String> {
@@ -24,101 +17,11 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(metadata.get(&PREFIXES).map(|kind| kind.0))
     }
 
-    pub async fn registry_for(&self, database: Uuid) -> Result<Option<Registry>, String> {
-        let mut current = self.peer.summary(database).await.map_err(explain)?.parent;
-        let mut workspace = None;
-        let mut outermost = None;
-        while let Some(BlockParent::Block(block)) = current {
-            let Ok(summary) = self.peer.summary(block).await else {
-                break;
-            };
-            if !summary.access.can_view() {
-                break;
-            }
-            let metadata = self.peer.metadata(&summary).map_err(explain)?;
-            if let Some(kind) = metadata.get(&PREFIXES) {
-                return Ok(Some(Registry {
-                    owner: block,
-                    kind: Some(kind.0),
-                }));
-            }
-            if summary.content_type == be_block::WORKSPACE_TYPE && workspace.is_none() {
-                workspace = Some(block);
-            }
-            if summary.content_type
-                != database_types::database_view::DatabaseViewContent::CONTENT_TYPE
-            {
-                outermost = Some(block);
-            }
-            current = summary.parent;
-        }
-        Ok(workspace
-            .or(outermost)
-            .map(|owner| Registry { owner, kind: None }))
-    }
-
-    async fn change_registry(&self, kind: Uuid, edit: &be_block::Edit) -> Result<(), String> {
-        for _ in 0..ATTEMPTS {
-            let head = self.peer.remote_head(kind).await.map_err(explain)?;
-            let mut content = match head {
-                Some(_) => self
-                    .peer
-                    .open::<PrefixRegistryContent>(kind)
-                    .await
-                    .map_err(explain)?
-                    .unwrap_or_default(),
-                None => PrefixRegistryContent::default(),
-            };
-            let before = content.root();
-            content.apply(edit);
-            if content.root() == before {
-                return Ok(());
-            }
-            match self
-                .peer
-                .save(kind, &content, head)
-                .await
-                .map_err(explain)?
-            {
-                Saved::Rejected { .. } => continue,
-                Saved::Published(_) | Saved::Unchanged(_) => return Ok(()),
-            }
-        }
-        Err("the database prefixes kept changing while this was being saved; try again".into())
-    }
-
     pub async fn register(&self, database: Uuid, prefix: &str) -> Result<(), String> {
-        let Some(registry) = self.registry_for(database).await? else {
-            return Ok(());
-        };
-        let edit = PrefixRegistry::register(database, Some(prefix));
-        let kind = match registry.kind {
-            Some(kind) => kind,
-            None => {
-                let kind = Uuid::now_v7();
-                self.peer
-                    .create_block(
-                        kind,
-                        PrefixRegistryContent::CONTENT_TYPE,
-                        BlockParent::Block(registry.owner),
-                        &be_block::BlockMetadata::default(),
-                    )
-                    .await
-                    .map_err(explain)?;
-                self.peer
-                    .open_inside(kind, Access::View)
-                    .await
-                    .map_err(explain)?;
-                self.peer
-                    .define(registry.owner, |metadata| {
-                        metadata.insert(&PREFIXES, &BlockRef(kind));
-                    })
-                    .await
-                    .map_err(explain)?;
-                kind
-            }
-        };
-        self.change_registry(kind, &edit).await?;
+        self.peer
+            .register_prefix(database, Some(prefix))
+            .await
+            .map_err(explain)?;
         self.invalidate().await;
         Ok(())
     }
@@ -196,7 +99,7 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(databases)
     }
 
-    async fn lies_below(&self, owner: Option<Uuid>, block: Uuid) -> bool {
+    pub(super) async fn lies_below(&self, owner: Option<Uuid>, block: Uuid) -> bool {
         let Some(owner) = owner else {
             return true;
         };

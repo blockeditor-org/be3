@@ -18,6 +18,7 @@ use crate::tracker::{Assignment, Body, RowView, Tracker};
 
 mod a_choice_option_takes_a_colour_an_icon_and_closes_rows;
 mod a_csv_export_is_imported_as_rows_with_pages;
+mod a_database_moved_to_another_workspace_takes_its_prefix_along;
 mod a_downloaded_block_uploads_as_a_copy_with_new_ids;
 mod a_folder_syncs_with_a_directory;
 mod a_merged_pull_request_closes_rows_without_a_done_status;

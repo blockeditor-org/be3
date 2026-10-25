@@ -55,6 +55,7 @@ be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Step
 be Issues row BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
 be Issues row BE-7K3Q2M page edit       its page in $EDITOR, merged with any change since
 be Issues row BE-7K3Q2M delete
+be 3fa9 move a1f3                       a block and everything in it, into another block
 be 3fa9 delete                          a block and everything in it, to Recently Deleted
 be 3fa9 cat                             a text block, reached directly
 be Issues schema                        columns; each choice with its colour, icon, closed, default
@@ -96,7 +97,10 @@ workspace. There is no search for a prefix beyond them; a prefix no registry lis
 fails, and one that names more than one database says which, so name the database
 instead. `new-database`, `upload`, and the database editor (when its prefix changes or
 it is opened somewhere it is not yet listed) write the database into the nearest
-registry above it, making the workspace's if there is none, and the editor's Display
+registry above it, making the workspace's if there is none. Moving a block
+(`Peer::set_parent`, which `be TARGET move`, `be sync` and the app's moves all go
+through) moves the databases inside it from the registry above its old place to
+the one above its new place. The editor's Display
 menu says when another database there shares the prefix. Field values are matched by name, case
 aside: an option's name for an Enum column, a row's title or id for a Relation.
 `option FIELD OPTION` changes an option the column has, refusing any other

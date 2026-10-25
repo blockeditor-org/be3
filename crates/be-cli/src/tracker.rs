@@ -594,6 +594,31 @@ impl<S: ObjectStore> Tracker<S> {
         }
     }
 
+    pub async fn move_block(&self, entry: &Entry, to: &Entry) -> Result<String, String> {
+        let moved = &self.outermost(entry).await?;
+        let from = self.peer.summary(moved.id).await.map_err(explain)?.parent;
+        let into = BlockParent::Block(to.id);
+        if from == Some(into) {
+            return Ok(format!("{} is already in {}", moved.label(), to.label()));
+        }
+        if self.lies_below(Some(moved.id), to.id).await || moved.id == to.id {
+            return Err(format!("{} cannot move into itself", moved.label()));
+        }
+        self.place(into, moved.id).await?;
+        self.peer.set_parent(moved.id, into).await.map_err(explain)?;
+        if let Some(from @ BlockParent::Block(_)) = from {
+            self.relist(from, ChildChange::Delete(moved.id)).await?;
+        }
+        self.invalidate().await;
+        Ok(format!(
+            "moved {} ({}) into {} ({})",
+            moved.label(),
+            moved.short,
+            to.label(),
+            to.short
+        ))
+    }
+
     pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
         let deleted = &self.outermost(entry).await?;
         match self.peer.summary(deleted.id).await.map_err(explain)?.parent {

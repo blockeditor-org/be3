@@ -32,9 +32,11 @@ const CONTENTS_BLOCKS: usize = 256;
 
 mod import;
 mod offline;
+mod prefixes;
 mod rotation;
 
 pub use import::Imported;
+pub use prefixes::Registry;
 
 #[derive(Clone)]
 pub enum Credentials {
@@ -1731,9 +1733,17 @@ impl<S: ObjectStore> Peer<S> {
         if !self.is_attached() || self.refs.has_structural(block) {
             return self.move_locally(block, parent);
         }
+        let from = match parent {
+            BlockParent::Block(_) => self.summary(block).await.ok().and_then(|held| held.parent),
+            BlockParent::Root | BlockParent::Detached => None,
+        };
         match self.send_parent(block, parent).await {
             Err(error) if offline::unreachable(&error) => self.move_locally(block, parent),
-            moved => moved,
+            Err(error) => Err(error),
+            Ok(()) => {
+                let _ = self.follow_prefixes(block, from, parent).await;
+                Ok(())
+            }
         }
     }
 

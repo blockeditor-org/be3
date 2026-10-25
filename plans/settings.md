@@ -180,8 +180,10 @@ re-import once, and say so in `guides/frozen_formats.md`.
    opened there) and says when another database shares its prefix. Tests:
    be-cli `a_row_id_resolves_through_the_workspaces_prefixes`, database
    `a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so`.
-   Left: a move by `be` or the file tree does not take the database out of the
-   old registry (lookups skip it, since it no longer lies inside).
+   A move (`Peer::set_parent`, used by `be TARGET move`, `be sync` and the
+   app) takes the databases inside the moved block out of the registry above
+   its old place and into the one above its new place (be-cli
+   `a_database_moved_to_another_workspace_takes_its_prefix_along`).
 10. **Tags.** Definitions (name, color) in the workspace's settings. Applying a
     tag is metadata on the block that points to the tag (step 1), so it needs
     Edit on the block. "Every block with tag X" is a `Query::Backrefs` on the

@@ -33,6 +33,7 @@ Commands:
 
 Any block:
   ls | info                           Its children, or where it is and who may change it
+  move TARGET                         Move it, and everything inside it, into TARGET
   delete                              Move it, and everything inside it, to Recently Deleted
   download [FILE]                     Write it, and everything inside it, to one file
                                       (NAME.block unless FILE is given) for `be upload`
@@ -499,6 +500,13 @@ async fn block_verb<S: ObjectStore>(
             "terminal-host needs a live connection; run it as `be TARGET terminal-host`".to_owned(),
         ),
         ("sync", _, _) => sync(tracker, Some(entry.id), invocation).await,
+        ("move", _, _) => {
+            let to = arguments
+                .first()
+                .ok_or_else(|| format!("usage: be {} move TARGET", entry.short))?;
+            let to = tracker.resolve(to).await?;
+            print(tracker.move_block(entry, &to).await?)
+        }
         ("delete", _, _) => print(tracker.delete_block(entry).await?),
         ("download", _, _) => {
             let (top, blocks) = tracker.download(entry).await?;
@@ -654,10 +662,10 @@ async fn block_verb<S: ObjectStore>(
             entry.short,
             entry.kind(),
             match (is_text, database) {
-                (true, _) => "cat, write, append, edit, ls, info, download and delete",
+                (true, _) => "cat, write, append, edit, ls, info, move, download and delete",
                 (false, Some(_)) =>
-                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, download and delete",
-                (false, None) => "ls, info, download and delete",
+                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, move, download and delete",
+                (false, None) => "ls, info, move, download and delete",
             }
         ) + &format!(", not {verb}")),
     }
