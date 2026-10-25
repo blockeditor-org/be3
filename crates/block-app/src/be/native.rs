@@ -1,8 +1,10 @@
 use std::{
-    sync::{Arc, Condvar, Mutex, PoisonError},
+    sync::{Arc, Condvar, PoisonError},
     thread::{self, JoinHandle},
     time::Duration,
 };
+
+use wasi_threads::Mutex;
 
 use be_store::FileStore;
 

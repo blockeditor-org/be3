@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
@@ -456,9 +456,11 @@ fn close_requested(event: &web_sys::Event) {
     let _ = js_sys::Reflect::set(event, &"returnValue".into(), &"".into());
 }
 
+// Woken from any thread, so it takes no lock: the page's thread may not block
+// on one that another thread holds.
 struct Wake {
     woken: AtomicBool,
-    waker: Mutex<Option<std::task::Waker>>,
+    waker: futures_util::task::AtomicWaker,
 }
 
 struct Woken(Arc<Wake>);
@@ -470,9 +472,7 @@ impl Future for Woken {
         if self.0.woken.swap(false, Ordering::AcqRel) {
             return Poll::Ready(());
         }
-        if let Ok(mut waker) = self.0.waker.lock() {
-            *waker = Some(context.waker().clone());
-        }
+        self.0.waker.register(context.waker());
         match self.0.woken.swap(false, Ordering::AcqRel) {
             true => Poll::Ready(()),
             false => Poll::Pending,
@@ -483,7 +483,7 @@ impl Future for Woken {
 fn waker() -> Waker {
     let wake = Arc::new(Wake {
         woken: AtomicBool::new(false),
-        waker: Mutex::new(None),
+        waker: futures_util::task::AtomicWaker::new(),
     });
     let listened = wake.clone();
     wasm_bindgen_futures::spawn_local(async move {
@@ -494,10 +494,7 @@ fn waker() -> Waker {
     });
     Waker::new(move || {
         wake.woken.store(true, Ordering::Release);
-        let waiting = wake.waker.lock().ok().and_then(|mut waker| waker.take());
-        if let Some(waiting) = waiting {
-            waiting.wake();
-        }
+        wake.waker.wake();
     })
 }
 

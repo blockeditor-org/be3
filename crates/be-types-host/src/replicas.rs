@@ -1,8 +1,10 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex},
+    sync::{Arc},
     time::Instant,
 };
+
+use wasi_threads::Mutex;
 
 use be_client::{ClientError, Peer, Saved, Sealed, connection::Answer};
 use be_commit::CommitId;

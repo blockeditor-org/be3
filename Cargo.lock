@@ -764,6 +764,7 @@ dependencies = [
  "text-block-types",
  "tokio",
  "uuid",
+ "wasi-threads",
  "workspace-ui-types",
 ]
 
@@ -796,6 +797,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-tungstenite",
  "uuid",
+ "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -1073,6 +1075,7 @@ dependencies = [
  "pollster",
  "tokio",
  "uuid",
+ "wasi-threads",
 ]
 
 [[package]]
@@ -1206,6 +1209,7 @@ name = "beui-adapter-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "futures-util",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -90,3 +90,26 @@ function threadSpawn(startArgument) {
 }
 
 export { threadSpawn as "thread-spawn" };
+
+// The worker the app's block stack runs in (be-worker.js), started with the
+// first stack and kept for the page's life: what the stack opened there, such
+// as its sockets, belongs to that worker's JavaScript.
+/** @type {Worker | null} */
+let stackWorker = null;
+
+function stackWorkerStart(entry) {
+    if (context === null) {
+        console.error("the block stack was started before bindThreads was called");
+        return;
+    }
+    if (stackWorker === null) {
+        stackWorker = new Worker(new URL("./be-worker.js", import.meta.url), { type: "module" });
+        stackWorker.onerror = (event) => {
+            console.error("the block stack's worker failed", event.message ?? event);
+        };
+        stackWorker.postMessage({ module: context.module, memory: context.memory, files: filesChannel() });
+    }
+    stackWorker.postMessage({ entry: entry >>> 0 });
+}
+
+export { stackWorkerStart as "be-worker-start" };

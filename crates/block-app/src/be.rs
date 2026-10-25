@@ -1,4 +1,6 @@
-use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Condvar, OnceLock, PoisonError};
+
+use wasi_threads::Mutex;
 
 use std::path::PathBuf;
 
@@ -36,7 +38,7 @@ fn refs(config: &Config) -> Result<be_client::RefsDb, String> {
 }
 
 pub(crate) fn refs_in(root: &std::path::Path) -> Result<be_client::RefsDb, String> {
-    static OPEN: std::sync::Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> =
+    static OPEN: Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> =
         Mutex::new(Vec::new());
     let path = root.join("be-refs.sqlite3");
     let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);

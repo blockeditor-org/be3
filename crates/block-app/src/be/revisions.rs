@@ -1,4 +1,6 @@
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, PoisonError};
+
+use wasi_threads::Mutex;
 
 use be_client::Peer;
 use be_commit::CommitId;

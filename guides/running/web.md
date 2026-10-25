@@ -63,6 +63,15 @@ and writes the module's shared memory itself. A worker caller waits on
 Where the origin private file system is unavailable (some private windows),
 files.js answers from memory and nothing survives a reload.
 
+- The block stack (`be::start`) runs in a worker of its own, `web/be-worker.js`, as it
+  runs on a thread natively: a second instance of the module on the page's
+  shared memory, started through the wasm-bindgen glue (with its bare imports
+  rewritten, since a worker has no import map) so that its sockets, timers,
+  fetches and type-module workers are its own. It lives as long as the page.
+  Its channels, `Shared` and `Condvar` are the native ones. The page's thread
+  may never wait on a lock (a browser traps `memory.atomic.wait` there), so a
+  lock the page shares with that worker is `wasi_threads::Mutex`, which spins
+  on wasm, and the beui waker takes no lock.
 - One tab owns the files: the page takes the `block-files` Web Lock before it
   starts the module, and a second tab says it is open in another tab and waits
   for the lock.

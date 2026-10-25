@@ -1,8 +1,10 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, PoisonError},
 };
+
+use wasi_threads::Mutex;
 
 use be_block::{
     BlockContent, BlockMetadata, Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,

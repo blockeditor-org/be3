@@ -900,7 +900,7 @@ waits on one, since every module command and IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
 and every replica it held is opened again from its last head, with the editors
 attached and the messages relayed since its last seal replayed. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
-and `be/web.rs` runs it on the browser's own executor with the same `FileStore`,
+and `be/web.rs` runs it in a web worker of its own with the same `FileStore`,
 whose directory is in the origin private file system (guides/running/web.md).
 
 The app holds one connection per signed-in account and server, in

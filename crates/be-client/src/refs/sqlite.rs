@@ -1,4 +1,6 @@
-use std::{path::Path, sync::Mutex};
+use std::path::Path;
+
+use wasi_threads::Mutex;
 
 use be_store::StoreError;
 use rusqlite::{Connection, params};

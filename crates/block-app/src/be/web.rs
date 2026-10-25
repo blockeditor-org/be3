@@ -1,14 +1,33 @@
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Condvar},
     time::Duration,
 };
 
+use wasi_threads::Mutex;
+
 use be_store::FileStore;
+use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 use super::{
     Config,
     worker::{Inbox, Shared, serve},
 };
+
+// The stack runs in a worker of its own, as it runs on a thread of its own
+// natively: the instance of this module that web/be-worker.js starts against
+// the page's shared memory, with its own JavaScript beside it, so its sockets,
+// timers and fetches are its own and its file calls may wait. Everything it
+// shares with the page is shared memory, as natively. The worker lives as long
+// as the page, and runs every stack started, one after another.
+type Entry = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + Send>;
+
+#[link(wasm_import_module = "wasi")]
+unsafe extern "C" {
+    #[link_name = "be-worker-start"]
+    fn be_worker_start(entry: usize);
+}
 
 pub(super) struct Running;
 
@@ -22,28 +41,46 @@ pub(super) fn spawn(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) -> Running {
-    let directory = config.data_dir.join("be-objects");
-    let store = move || {
-        FileStore::open(&directory)
-            .map_err(|error| format!("the local object store cannot open: {error}"))
-    };
-    wasm_bindgen_futures::spawn_local(serve(config, store, inbox, shared, changed));
+    let entry: Entry = Box::new(move || {
+        Box::pin(async move {
+            let directory = config.data_dir.join("be-objects");
+            let store = move || {
+                FileStore::open(&directory)
+                    .map_err(|error| format!("the local object store cannot open: {error}"))
+            };
+            serve(config, store, inbox, shared, changed).await;
+        })
+    });
+    let entry = Box::into_raw(Box::new(entry)) as usize;
+    // unsafe(ffi)
+    unsafe { be_worker_start(entry) };
     Running
+}
+
+#[wasm_bindgen]
+pub fn be_worker_run(entry: usize) -> js_sys::Promise {
+    wasi_threads::initialize_main_thread();
+    // unsafe(ffi)
+    let entry = unsafe { Box::from_raw(entry as *mut Entry) };
+    wasm_bindgen_futures::future_to_promise(async move {
+        entry().await;
+        Ok(JsValue::UNDEFINED)
+    })
 }
 
 pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(task);
 }
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = setTimeout)]
+    fn set_timeout(handler: &js_sys::Function, milliseconds: f64) -> JsValue;
+}
+
 pub(crate) async fn sleep(duration: Duration) {
-    let Some(window) = web_sys::window() else {
-        return std::future::pending().await;
-    };
     let promise = js_sys::Promise::new(&mut |resolve, _| {
-        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
-            &resolve,
-            duration.as_millis() as i32,
-        );
+        set_timeout(&resolve, duration.as_secs_f64() * 1000.0);
     });
     let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }

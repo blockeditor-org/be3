@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, PoisonError};
+
+use wasi_threads::Mutex;
 use std::time::Instant;
 
 use be_block::LiveEdit;

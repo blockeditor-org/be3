@@ -1,8 +1,10 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    sync::{Arc, Condvar, Mutex, PoisonError},
+    sync::{Arc, Condvar, PoisonError},
     time::{Duration, Instant},
 };
+
+use wasi_threads::Mutex;
 
 use be_block::BlockMetadata;
 use be_client::{ClientError, Credentials, Peer, PeerConfig};

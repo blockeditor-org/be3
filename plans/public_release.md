@@ -61,7 +61,9 @@ anyone else can sign in:
   through WASI file calls that `crates/block-app/web/files.js` answers. One
   tab owns them (a Web Lock), the page asks for persistent storage, and a
   service worker keeps the app so it opens offline.
-- The be stack still runs on the page's thread, so every file call from it
-  spins the page until files.js answers. It belongs in a worker, as natively.
+- Done: the be stack runs in a worker of its own (`web/be-worker.js`), as it
+  runs on a thread natively, sharing memory with the page.
+- An edit made offline in the web app did not survive a reload in a manual
+  run; check it once offline sealing has settled.
 - A service worker keeps every build's files it ever served; nothing prunes
   the old ones.

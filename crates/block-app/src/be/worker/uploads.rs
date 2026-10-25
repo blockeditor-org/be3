@@ -2,8 +2,10 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     rc::Rc,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, PoisonError},
 };
+
+use wasi_threads::Mutex;
 
 use be_client::transfer::Saved;
 use be_graph::BlockParent;

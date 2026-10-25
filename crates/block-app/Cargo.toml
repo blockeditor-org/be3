@@ -184,6 +184,7 @@ web-sys = { version = "0.3", features = [
     "UrlSearchParams",
     "Window",
     "Worker",
+    "WorkerGlobalScope",
     "WorkerOptions",
     "WorkerType",
     "console",

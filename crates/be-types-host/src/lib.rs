@@ -1,4 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+
+use wasi_threads::Mutex;
 
 use be_client::ClientError;
 use be_commit::CommitId;
