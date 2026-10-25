@@ -1,0 +1,15 @@
+[package]
+name = "bench"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "bench"
+path = "src/main.rs"
+
+[lints]
+workspace = true

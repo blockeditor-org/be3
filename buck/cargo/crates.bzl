@@ -3,6 +3,148 @@
 # and buck/cargo/defs.bzl and buck/cargo/third_party.bzl read it.
 
 crates = {
+    "crates/app-bench": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "app-bench",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "app-bench",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/app-tests": {
         "binaries": [],
         "edition": "2024",
@@ -4955,6 +5097,96 @@ crates = {
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/bench": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "bench",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "bench",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "bench",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },

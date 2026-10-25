@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/app-bench",
     "crates/app-tests",
     "crates/be-block",
     "crates/be-cli",
@@ -21,6 +22,7 @@ members = [
     "crates/be-store",
     "crates/be-vcs",
     "crates/be-wayland",
+    "crates/bench",
     "crates/beui",
     "crates/beui-adapter-android",
     "crates/beui-adapter-drm",
