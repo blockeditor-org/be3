@@ -1434,7 +1434,8 @@ impl Document {
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             let verifying = verifying_paint();
-            let previous = verifying.then(|| (self.painting.clone(), self.windows.paintings.clone()));
+            let previous =
+                verifying.then(|| (self.painting.clone(), self.windows.paintings.clone()));
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let cache = self.paint_cache.get_mut();
@@ -1453,7 +1454,8 @@ impl Document {
                         continue;
                     };
                     let held = taken.of(window, viewport);
-                    let (settled, moved) = self.settle_moves(window, &moves, &stale, held, viewport);
+                    let (settled, moved) =
+                        self.settle_moves(window, &moves, &stale, held, viewport);
                     taken.set(window, settled);
                     if let Some(moved) = moved {
                         window_moves.push((window, moved));
@@ -1594,8 +1596,14 @@ impl Document {
         region: Region,
         viewport: Rect,
     ) -> (Region, Option<Moved>) {
-        let moves: Vec<&paint::Move> = moves.iter().filter(|moved| moved.window == window).collect();
-        let stale: Vec<&paint::Stale> = stale.iter().filter(|stale| stale.window == window).collect();
+        let moves: Vec<&paint::Move> = moves
+            .iter()
+            .filter(|moved| moved.window == window)
+            .collect();
+        let stale: Vec<&paint::Stale> = stale
+            .iter()
+            .filter(|stale| stale.window == window)
+            .collect();
         let painting = match window.is_main() {
             true => self.painting.as_slice(),
             false => self
@@ -1609,8 +1617,8 @@ impl Document {
             let visible = moved.viewport.intersect(viewport);
             visible.width().max(0.0) * visible.height().max(0.0)
         };
-        let Some(largest) = (0..moves.len())
-            .max_by(|a, b| shown_area(moves[*a]).total_cmp(&shown_area(moves[*b])))
+        let Some(largest) =
+            (0..moves.len()).max_by(|a, b| shown_area(moves[*a]).total_cmp(&shown_area(moves[*b])))
         else {
             let mut region = region;
             for stale in &stale {

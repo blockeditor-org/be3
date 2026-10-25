@@ -59,7 +59,9 @@ fn with_a_second_window_open_each_windows_scroll_is_copied_in_that_window_alone(
         vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -30.0)))],
     );
     let other = output.window(window).expect("the second window is shown");
-    let moved = other.moved.expect("the second window's scroll is copied in it");
+    let moved = other
+        .moved
+        .expect("the second window's scroll is copied in it");
     assert_eq!(moved.by, vec2(0.0, -30.0));
     assert!(
         window_scroll.contains_rect(moved.to()),

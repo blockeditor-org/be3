@@ -760,7 +760,10 @@ impl Context {
             .zip(window_scales.into_iter().skip(1))
         {
             let (damage, moved) = match rescaled(shown.id, window_scale) {
-                true => (Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)), None),
+                true => (
+                    Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)),
+                    None,
+                ),
                 false => match shown.moved {
                     Some(moved) if whole_pixels(moved.by, window_scale) => {
                         (shown.damage, Some(moved))
@@ -1708,9 +1711,8 @@ impl Context {
 }
 
 fn whole_pixels(by: Vec2, pixels_per_point: f32) -> bool {
-    let whole = |value: f32| {
-        ((value * pixels_per_point).round() - value * pixels_per_point).abs() < 0.01
-    };
+    let whole =
+        |value: f32| ((value * pixels_per_point).round() - value * pixels_per_point).abs() < 0.01;
     whole(by.x) && whole(by.y)
 }
 

@@ -43,7 +43,9 @@ fn a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would()
         compositor.paint_windows();
         compositor.update(scrolled);
         compositor.paint_windows();
-        compositor.read(WindowId::MAIN).expect("the panel reads back")
+        compositor
+            .read(WindowId::MAIN)
+            .expect("the panel reads back")
     };
 
     let mut scrolled = rows(-10.0);
@@ -51,7 +53,10 @@ fn a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would()
         from: Rect::from_min_max(pos2(0.0, 10.0), pos2(SIZE.x, SIZE.y)),
         by: vec2(0.0, -10.0),
     });
-    scrolled.damage = Region::from(Rect::from_min_max(pos2(0.0, SIZE.y - 10.0), pos2(SIZE.x, SIZE.y)));
+    scrolled.damage = Region::from(Rect::from_min_max(
+        pos2(0.0, SIZE.y - 10.0),
+        pos2(SIZE.x, SIZE.y),
+    ));
     let copied = draw(&scrolled);
     let unmoved = draw(&WindowOutput {
         moved: None,
