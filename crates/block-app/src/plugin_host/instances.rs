@@ -2751,6 +2751,30 @@ impl Instances {
                     }));
                 });
             }
+            HostRequest::CopyBlocks { source, parent } => {
+                let source = Uuid::from_bytes(source);
+                let parent = super::graph::parent_of(parent);
+                if !self.can_view(source)
+                    || parent.block().is_some_and(|parent| !self.editable(parent))
+                {
+                    reply(HostReply::BlocksImported(BlockImport::Failed(
+                        "You can't copy that block here.".to_owned(),
+                    )));
+                    return true;
+                }
+                crate::be::export(source, move |exported| {
+                    reply(HostReply::BlocksImported(match exported {
+                        Ok((_, bytes)) => match crate::be::import(&bytes, parent) {
+                            Ok((block, block_type)) => BlockImport::Imported {
+                                block_id: block.into_bytes(),
+                                block_type: block_type.into_bytes(),
+                            },
+                            Err(error) => BlockImport::Failed(error),
+                        },
+                        Err(error) => BlockImport::Failed(error),
+                    }));
+                });
+            }
             HostRequest::PickBlock(filter) => {
                 entry
                     .block_picks

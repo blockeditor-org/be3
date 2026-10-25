@@ -137,15 +137,18 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
         count => format!("On {count} blocks"),
     });
     view! {
-        <List spacing=4.0 @test_id={format!("tags.tag.{tag}")}>
+        <List spacing=0.0>
+        <SettingsRow label={name} description={count}>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <TagDot color={color} size=TextSize::Base />
-                <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(name, rename)}
-                    disabled={locked}
-                    @test_id={format!("tags.tag.{tag}.name")}
-                />
+                <Frame width=110.0>
+                    <TextInput
+                        value={Binding::new(name, rename)}
+                        disabled={locked}
+                        @test_id={format!("tags.tag.{tag}.name")}
+                    />
+                </Frame>
+                <Frame width=100.0>
                 <Select
                     label="Color"
                     options={view! {
@@ -157,6 +160,7 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                     disabled={locked}
                     @test_id={format!("tags.tag.{tag}.color")}
                 />
+                </Frame>
                 <IconButton
                     glyph=ICON_TRASH
                     label="Remove tag"
@@ -165,10 +169,10 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                     on_click={remove}
                 />
             </List>
-            <Text style=TextStyle::CAPTION color=TextColor::Muted>{count}</Text>
-            <ForEach keys={tagged}>|block: Uuid| {
-                view! { <TaggedBlock editor={editor} block={block} /> }
-            }</ForEach>
+        </SettingsRow>
+        <ForEach keys={tagged}>|block: Uuid| {
+            view! { <TaggedBlock editor={editor} block={block} /> }
+        }</ForEach>
         </List>
     }
 }
@@ -188,11 +192,13 @@ fn TaggedBlock(editor: Editor, block: Uuid) -> NodeId {
         }
     };
     view! {
-        <Button
-            label={label}
-            variant=ButtonVariant::Ghost
-            @test_id={format!("tags.block.{block}")}
-            on_click={open}
-        />
+        <SettingsRow label={label} compact=true>
+            <Button
+                label="Open"
+                variant=ButtonVariant::Ghost
+                @test_id={format!("tags.block.{block}")}
+                on_click={open}
+            />
+        </SettingsRow>
     }
 }

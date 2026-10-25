@@ -2,12 +2,12 @@ use beui::Wrap;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
-    SettingsProfileContent, WORKSPACE_TYPE,
+    SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
 };
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_FOLDER_COG, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MONITOR,
-    ICON_MONITOR_SMARTPHONE, ICON_PLUS,
+    ICON_MONITOR_SMARTPHONE, ICON_PLUS, ICON_TAG,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -74,6 +74,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let devices = create_signal(false);
     let here = create_memo(move || !devices.get());
     let away = create_memo(move || devices.get());
+    let own_here = create_memo(move || own.get() && here.get());
     view! {
         <Scroll>
             <Frame padding=PADDING>
@@ -105,6 +106,24 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                     </Show>
                     <Show condition={here}>
                         <Workspaces editor={editor} />
+                    </Show>
+                    <Show condition={own_here}>
+                        <Section
+                            title="Tags"
+                            caption="Your own tags, which only you see. A workspace's tags are in a block's menu in Files."
+                        >
+                            <SettingRow
+                                label="Your tags"
+                                detail="Put them on any block you can edit"
+                                glyph=ICON_TAG
+                                @test_id={"settings.personal-tags"}
+                                on_click={move || {
+                                    if let Some(tags) = editor.personal_tags() {
+                                        editor.host().open_block(tags, TagsContent::CONTENT_TYPE);
+                                    }
+                                }}
+                            />
+                        </Section>
                     </Show>
                     <Show condition={away}>
                         <DevicesAndProfiles

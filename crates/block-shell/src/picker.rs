@@ -73,6 +73,7 @@ pub(crate) enum PickAction {
     UnfoldPlace(TreeKey, bool),
     Link(Uuid, Uuid),
     Import,
+    CopyTemplate(Uuid),
     Create,
     CancelCreation,
     Close,
@@ -203,7 +204,7 @@ impl Pick {
                     None,
                 );
             }
-            PickAction::Import => {}
+            PickAction::Import | PickAction::CopyTemplate(_) => {}
             PickAction::Create => {
                 if let Some(creating) = &mut self.creating {
                     creating.committed = true;

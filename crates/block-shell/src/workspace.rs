@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
-    BlockContent, BlockMetadata, FILES_EDITOR, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
+    BlockContent, BlockMetadata, FILES_EDITOR, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
+    WORKSPACE_TYPE,
 };
 use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
@@ -94,6 +95,7 @@ pub struct Workspace {
     desk: Memo<kept::Desk>,
     held: Signal<bool>,
     panels: Signal<Vec<HostPanel>>,
+    landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
 }
 
@@ -158,7 +160,11 @@ impl Workspace {
             desk,
             held,
             panels,
+            landing_for: create_signal(None),
         };
+        create_effect(move || {
+            workspace.open_landing();
+        });
         let shows = workspace.editor.pushed(Pushed::Shows);
         create_effect(move || {
             shows.get();
@@ -429,11 +435,39 @@ impl Workspace {
             self.show_panel(panel);
         }
         for request in self.host().take_show_requests() {
+            let landing = request.block_type == WORKSPACE_TYPE && request.editor.is_none();
+            self.landing_for.set(landing.then_some(request.block_id));
             self.open(
                 TabItem::new(request.block_id, request.block_type).edited_with(request.editor),
                 request.via,
             );
         }
+    }
+
+    pub(crate) fn templates_for(&self, parent: BlockParent) -> Vec<Uuid> {
+        let Some(block) = parent.block().or_else(|| self.my_files()) else {
+            return Vec::new();
+        };
+        self.editor
+            .resolved_settings::<Home>(block)
+            .with(|home| home.value().templates())
+    }
+
+    fn open_landing(&self) {
+        let Some(owner) = self.landing_for.get() else {
+            return;
+        };
+        let home = self.editor.resolved_settings::<Home>(owner);
+        let Some(landing) = home.with(|home| home.value().landing.map(|landing| landing.0)) else {
+            return;
+        };
+        let Some(info) = self.info(landing).filter(|info| info.access.can_view()) else {
+            return;
+        };
+        untrack(|| {
+            self.landing_for.set(None);
+            self.open(TabItem::new(landing, info.block_type), Some(owner));
+        });
     }
 
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
@@ -694,9 +728,13 @@ impl Workspace {
         let Some(mut held) = self.pick(pick) else {
             return;
         };
-        if let PickAction::Import = action {
+        if let PickAction::Import | PickAction::CopyTemplate(_) = action {
             if held.importing.is_none() {
-                held.importing = Some(self.host().import_blocks(held.import_parent()));
+                let parent = held.import_parent();
+                held.importing = Some(match action {
+                    PickAction::CopyTemplate(template) => self.host().copy_blocks(template, parent),
+                    _ => self.host().import_blocks(parent),
+                });
                 self.resolve(PickOutcome::Open(Box::new(held)));
             }
             return;

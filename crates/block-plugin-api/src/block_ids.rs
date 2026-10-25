@@ -190,6 +190,10 @@ impl EditorMessage {
                 | HostRequest::ReadPlainFile(block_id)
                 | HostRequest::ContactLink { block_id, .. } => existing(block_id),
                 HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
+                HostRequest::CopyBlocks { source, parent } => {
+                    existing(source);
+                    location(parent, &mut existing);
+                }
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
                 | HostRequest::Fetch(_)

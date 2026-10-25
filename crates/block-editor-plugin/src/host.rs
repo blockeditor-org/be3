@@ -1442,6 +1442,13 @@ impl EditorHost {
         self.ask(HostRequest::ImportBlocks(parent.encode()))
     }
 
+    pub fn copy_blocks(&self, source: Uuid, parent: BlockParent) -> u64 {
+        self.ask(HostRequest::CopyBlocks {
+            source: source.into_bytes(),
+            parent: parent.encode(),
+        })
+    }
+
     pub fn take_import(&self, request: u64) -> Option<Result<Option<(Uuid, Uuid)>, String>> {
         let import = match self.take_reply(request)? {
             HostReply::BlocksImported(import) => import,

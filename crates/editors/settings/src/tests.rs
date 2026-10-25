@@ -15,6 +15,7 @@ use crate::app::SettingsApp;
 
 mod a_folders_settings_say_what_is_set_here_and_what_comes_from_above;
 mod a_new_e_paper_tablet_is_set_up_with_only_the_settings_that_differ;
+mod a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on;
 mod another_accounts_settings_are_shown_but_not_changed;
 mod changing_the_kind_of_device_keeps_its_defaults_here;
 mod devices_and_profiles_shows_only_what_a_profile_keeps;

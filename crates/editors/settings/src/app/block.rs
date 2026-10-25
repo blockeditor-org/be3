@@ -1,4 +1,6 @@
-use block_editor_beui::be_block::{ANYONE_INSIDE, BlockContent, SettingsContent, WORKSPACE_TYPE};
+use block_editor_beui::be_block::{
+    ANYONE_INSIDE, BlockContent, EDIT_KINDS, SettingsContent, WORKSPACE_TYPE,
+};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_EXTERNAL_LINK, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
@@ -38,13 +40,21 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
         blocks.watch(BlockQuery::Block(owner)),
         blocks.watch(BlockQuery::Parents(owner)),
     ));
-    let here = settings.project(|settings| {
+    let in_settings = settings.project(|settings| {
         settings
             .root()
             .kinds
             .iter()
             .map(|(kind, block)| (*kind, *block))
             .collect::<Vec<_>>()
+    });
+    let here = create_memo(move || {
+        let mut here: Vec<(Uuid, Uuid)> = EDIT_KINDS
+            .iter()
+            .filter_map(|kind| Some((*kind, editor.edit_kind(owner, *kind)?)))
+            .collect();
+        here.extend(in_settings.get());
+        here
     });
     let kinds_here = create_memo(move || {
         here.get()
@@ -113,8 +123,12 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
                                 .map(|(_, block)| *block)
                         })
                     });
+                    let changes = create_memo(move || match EDIT_KINDS.contains(&kind) {
+                        true => editor.blocks().access(owner).can_edit(),
+                        false => manages.get(),
+                    });
                     view! {
-                        <KindHere editor={editor} kind={kind} block={block} manages={manages} />
+                        <KindHere editor={editor} kind={kind} block={block} manages={changes} />
                     }
                 }</ForEach>
             </SettingsSection>
@@ -231,10 +245,14 @@ fn KindAbove(editor: Editor, kind: Uuid, set: Memo<Option<SetKind>>) -> NodeId {
         })
     });
     let open = move || {
-        if let Some(set) = set.get_untracked() {
-            editor
+        let Some(set) = set.get_untracked() else {
+            return;
+        };
+        match EDIT_KINDS.contains(&kind) {
+            true => editor.host().open_block(set.block, kind),
+            false => editor
                 .host()
-                .open_block(set.settings, SettingsContent::CONTENT_TYPE);
+                .open_block(set.settings, SettingsContent::CONTENT_TYPE),
         }
     };
     view! {

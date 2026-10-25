@@ -1665,6 +1665,10 @@ pub enum HostRequest {
         block_id: [u8; 16],
         access: AccessLevel,
     },
+    CopyBlocks {
+        source: [u8; 16],
+        parent: BlockLocation,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2587,6 +2591,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         HostRequest::ExportBlock(_)
         | HostRequest::ReadPlainFile(_)
         | HostRequest::ImportBlocks(_)
+        | HostRequest::CopyBlocks { .. }
         | HostRequest::ContactLink { .. } => Ok(()),
     }
 }
