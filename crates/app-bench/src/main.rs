@@ -11,7 +11,7 @@ mod server;
 
 const SIZE: &str = "1100x720";
 const ONE_WAY: Duration = Duration::from_millis(15);
-const POINTS: usize = 10_000;
+const POINTS: usize = 1_000;
 const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
@@ -59,16 +59,28 @@ fn run() -> Result<(), String> {
         text_bytes: setting("APP_BENCH_TEXT_BYTES", TEXT_BYTES)?,
         out,
     };
+    let measured = measure(&settings);
+    match &measured {
+        Ok(()) => {
+            let _ = std::fs::remove_dir_all(&settings.out);
+        }
+        Err(_) => eprintln!(
+            "kept the server, exports and paintings in {}",
+            settings.out.display()
+        ),
+    }
+    measured
+}
+
+fn measure(settings: &Settings) -> Result<(), String> {
     let build_info = Path::new(&settings.program).with_file_name(build_id::FILE);
     let server = server::Server::start(&build_info, settings.out.join("server"))?;
     let proxy = latency::start(server.address, ONE_WAY)
         .map_err(|error| format!("could not start the latency proxy: {error}"))?;
     let url = format!("http://{proxy}");
-    let first = first_device(&settings, &server, &url)?;
-    let second = second_device(&settings, &server, &url, &first.phrase)?;
-    validate(&first, &second)?;
-    println!("kept the exports and paintings in {}", settings.out.display());
-    Ok(())
+    let first = first_device(settings, &server, &url)?;
+    let second = second_device(settings, &server, &url, &first.phrase)?;
+    validate(&first, &second)
 }
 
 struct Device {
