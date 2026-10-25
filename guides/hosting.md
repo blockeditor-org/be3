@@ -99,7 +99,9 @@ cannot issue an app session from an unclaimed approval.
   `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
   stays at `/` or `/index.html`, keeping query parameters and fragments, so refreshing
   gets the currently deployed build.
-  Purges the web entry point using the required `BUNNY_API_KEY`. `--skip-server`
+  Uploads the bundle's service worker as `/sw.js` beside it, since a service worker
+  only answers for the addresses below its own and the page lives at `/`.
+  Purges the web entry point and `/sw.js` using the required `BUNNY_API_KEY`. `--skip-server`
   uploads versioned files but leaves both live entry points unchanged.
 
 Versioned directories use the Git tree hash that identifies the build. Existing
@@ -120,7 +122,7 @@ app (they are CDN settings, not files that the uploader can set in storage):
 | --- | --- |
 | `/data/*`, `/`, `/index.html` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
 | `/data/*` | CDN cache TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/web/downloads.html` | Override CDN cache TTL to one hour; send `Cache-Control: no-cache` to browsers |
+| `/`, `/index.html`, `/sw.js`, `/web/downloads.html` | Override CDN cache TTL to one hour; send `Cache-Control: no-cache` to browsers |
 
 The mutable pages stay cached at the edge until deployment purges their exact URLs after uploading replacements. Configure the CDN TTL independently of the browser header, so browsers revalidate while Bunny can serve its cached copy. Deployment checks for the purge key before uploading or swapping the server and fails if a purge fails. Dry runs and `--skip-server` do not require the purge key.
 

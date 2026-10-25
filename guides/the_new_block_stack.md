@@ -900,9 +900,8 @@ waits on one, since every module command and IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
 and every replica it held is opened again from its last head, with the editors
 attached and the messages relayed since its last seal replayed. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
-and `be/web.rs` runs it on the browser's own executor with a `MemoryStore`,
-because there is no file system to keep objects in there and every open fetches
-what it needs.
+and `be/web.rs` runs it on the browser's own executor with the same `FileStore`,
+whose directory is in the origin private file system (guides/running/web.md).
 
 The app holds one connection per signed-in account and server, in
 `crates/block-app/src/link.rs`, and keeps it until it closes. Sign-in hands its
@@ -922,8 +921,8 @@ server, account and organization: each block's local head and last-known remote
 head, the raw `BlockSummary` of every listing (metadata stays sealed), the key
 rows and wraps it was served, its verified contacts and escrow chain, the
 workspace list (`RefsDb::workspaces`), an outbox and an unsent area. It is
-SQLite on native (`RefsDb::open`) and in memory on the web for now; opening it
-is the only platform-specific call. `Peer::cached` builds a peer from it with no
+SQLite on every platform (`RefsDb::open`), in the origin private file system on
+the web. `Peer::cached` builds a peer from it with no
 network, and `Peer::attach` hands it a signed-in connection later (again after
 every reconnect), which opens the organization and refreshes keys and contacts.
 While the connection is down, reads fall back to the cache: `summary`, the
@@ -2002,10 +2001,8 @@ pixel art export regenerate this way.
   deleted block that is still linked and leave the link dangling, so the
   content that links it has to cope with a block that is gone, and it will race
   a new child its parent has not listed yet.
-- The browser peer keeps its objects in memory, so a reload refetches everything
-  and a tab that closes leaves whatever a session held since its last autosave
-  behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what
-  that wants.
+- A tab that closes leaves whatever a session held since its last autosave
+  behind: `flush()` cannot wait there.
 - Uploads (`Command::Import`) wait for a connection; they are not queued in the
   refs database, so an import still uploading when the app quits is lost.
 - Opening a block while connected still joins the session before `Open`, rather

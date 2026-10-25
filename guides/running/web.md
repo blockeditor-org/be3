@@ -51,6 +51,29 @@ commands take their place (`drive` with no command lists them):
 The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in
 the launcher's browser.
 
+## Files and offline
+
+The web build keeps the same files as the native app, under `/block` in the
+origin private file system: `app.sqlite3`, the refs database and `be-objects`.
+The module reaches them through ordinary WASI file calls; `web/wasi.js`
+forwards every call on a descriptor other than the standard streams to
+`web/files.js`, a worker that owns the files' sync access handles and reads
+and writes the module's shared memory itself. A worker caller waits on
+`Atomics.wait`; the page cannot block, so it spins until the answer comes.
+Where the origin private file system is unavailable (some private windows),
+files.js answers from memory and nothing survives a reload.
+
+- One tab owns the files: the page takes the `block-files` Web Lock before it
+  starts the module, and a second tab says it is open in another tab and waits
+  for the lock.
+- `web/sw.js`, a service worker, keeps everything the page fetched from its
+  origin (network first, apart from `/api` and `/auth`), so a page opened once
+  opens again without a network. The deployment uploads it as `/sw.js`
+  (guides/hosting.md).
+- `web-dev --fresh` deletes the browser profile, and the files with it.
+- The app closes its tab when it exits, except when the page is already
+  leaving (a reload), since closing it would stop the reload.
+
 ## Hosted web build
 
 The deployed bundle lives at `https://be3.pfg.pw/data/BUILD/web/index.html`; the

@@ -81,6 +81,7 @@ thread_local! {
     static MIRROR: RefCell<ImeMirror> = RefCell::new(ImeMirror::default());
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
+    static LEAVING: Cell<bool> = const { Cell::new(false) };
     static CLIPBOARD_KEYS: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
     static PINCH: RefCell<Pinch> = RefCell::new(Pinch::default());
@@ -421,7 +422,11 @@ impl Runner {
         if let Some(failure) = self.runner.failure() {
             web_sys::console::error_1(&format!("the app stopped after a panic: {failure}").into());
         }
-        let _ = window.close();
+        // The page is already going away when the app agreed to leave it,
+        // as on a reload, and closing the tab would stop the reload.
+        if !LEAVING.get() {
+            let _ = window.close();
+        }
     }
 }
 
@@ -446,6 +451,7 @@ fn close_requested(event: &web_sys::Event) {
         return;
     };
     if runner.runner.exited() || runner.runner.os_close() {
+        LEAVING.set(true);
         return;
     }
     event.prevent_default();

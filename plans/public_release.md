@@ -16,7 +16,7 @@ using it would. Each item says what "done" looks like.
   path (email, or at least a `be-server` command for the operator), which
   leaves the sealed keys as they are.
 - **Keys in the OS keystore.** Workspace keys and the session token sit in
-  plaintext app state (`app.sqlite3`, or localStorage on web). Done: Keychain,
+  plaintext app state (`app.sqlite3`). Done: Keychain,
   Android Keystore, libsecret or DPAPI, and non-extractable WebCrypto keys in
   IndexedDB on web.
 - **Key rotation.** A workspace has one key for its whole life, and sealed
@@ -56,5 +56,12 @@ anyone else can sign in:
 ## Web offline
 
 - Native and Android are what the daily driver uses.
-- Web offline needs an IndexedDB object store and refs database. `ObjectStore`
-  is synchronous, so that needs an in-memory front with async write-behind.
+- Done: the web build keeps the same files as native, in the origin private
+  file system: `app.sqlite3`, the refs database and the `FileStore` objects,
+  through WASI file calls that `crates/block-app/web/files.js` answers. One
+  tab owns them (a Web Lock), the page asks for persistent storage, and a
+  service worker keeps the app so it opens offline.
+- The be stack still runs on the page's thread, so every file call from it
+  spins the page until files.js answers. It belongs in a worker, as natively.
+- A service worker keeps every build's files it ever served; nothing prunes
+  the old ones.
