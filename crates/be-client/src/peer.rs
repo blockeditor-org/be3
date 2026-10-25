@@ -601,7 +601,7 @@ impl<S: ObjectStore> Peer<S> {
             })
             .await;
         let response = match response {
-            Err(ClientError::Disconnected(_)) => {
+            Err(error) if error.is_unreachable() => {
                 return self.create_locally(Creation {
                     block,
                     content_type,
