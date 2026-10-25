@@ -15,6 +15,8 @@ const POINTS: usize = 10_000;
 const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
+const SHAPE: &str = "#infinite-canvas.entity.";
+const POLL: Duration = Duration::from_millis(5);
 
 fn main() -> ExitCode {
     match run() {
@@ -87,11 +89,15 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     app.run(&["settle"])?;
     app.click("Button \"Add to My files\"")?;
     app.click("MenuItem \"Folder\"")?;
-    app.wait("TreeItem \"Folder\"")?;
+    app.wait("TextInput \"Name\" value=\"Folder\" focused")?;
+    app.run(&["key", "Enter"])?;
+    app.run(&["gone", "TextInput \"Name\""])?;
     let folder = app.row_button("TreeItem \"Folder\"", ".more")?;
     app.click(&folder)?;
     app.click("#file-tree.zoom-in")?;
     app.wait("#file-tree.back")?;
+    app.click("Button \"Close tab\"")?;
+    app.run(&["gone", "Tab \"Folder\""])?;
     app.run(&["hurry", "off"])?;
 
     app.add("Canvas", "canvas")?;
@@ -105,8 +111,10 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     };
     app.click("#infinite-canvas.dock.tool.Rectangle")?;
     app.run(&["--no-settle", "drag", &at(0.2, 0.2), &at(0.4, 0.4)])?;
+    app.until("the rectangle", |tree| tree.matches(SHAPE).count() == 1)?;
     app.save("canvas.rectangle-save")?;
     app.click("#infinite-canvas.dock.tool.Pen")?;
+    let drawing = Instant::now();
     app.within(LONG, &[
         "--no-settle",
         "pen",
@@ -115,6 +123,8 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
         &at(0.9, 0.7),
         &settings.points.to_string(),
     ])?;
+    app.until("the line", |tree| tree.matches(SHAPE).count() == 2)?;
+    bench::time("canvas.line-draw", drawing.elapsed());
     app.save("canvas.line-save")?;
     app.run(&["pen", "leave"])?;
     let canvas = app.paint("canvas.paint", &settings.out.join("first-canvas.paint"))?;
@@ -123,8 +133,11 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     app.add("Text", "text")?;
     app.click("#text.surface")?;
     app.within(LONG, &["clipboard", &text(settings.text_bytes)])?;
+    let pasting = Instant::now();
     app.within(LONG, &["--no-settle", "key", "ctrl+v"])?;
-    app.save("text.paste-and-save")?;
+    app.until("the pasted text", |tree| tree.contains("The quick brown fox"))?;
+    bench::time("text.paste", pasting.elapsed());
+    app.save("text.paste-save")?;
     let text = app.paint("text.paint", &settings.out.join("first-text.paint"))?;
     app.close_tab("Text", "text.close")?;
 
@@ -260,6 +273,20 @@ impl App {
         self.run(&["click", target]).map(drop)
     }
 
+    fn until(&mut self, what: &str, done: impl Fn(&str) -> bool) -> Result<(), String> {
+        let started = Instant::now();
+        loop {
+            let tree = self.run(&["tree"])?;
+            if done(&tree) {
+                return Ok(());
+            }
+            if started.elapsed() > LONG {
+                return Err(format!("{what} did not show within {LONG:?}:\n{tree}"));
+            }
+            std::thread::sleep(POLL);
+        }
+    }
+
     fn shown(&mut self, text: &str) -> Result<bool, String> {
         Ok(self.run(&["tree"])?.contains(text))
     }
@@ -282,7 +309,7 @@ impl App {
         let tree = self.run(&["tree"])?;
         tree.lines()
             .skip_while(|line| !line.contains(row))
-            .take(4)
+            .take(6)
             .find_map(|line| {
                 let id = line.split_whitespace().find(|word| word.starts_with('#'))?;
                 id.ends_with(suffix).then(|| id.to_owned())
@@ -389,8 +416,6 @@ impl App {
         self.run(&["--no-settle", "click", "Button \"Close tab\""])?;
         self.run(&["gone", &format!("Pane \"{label}\"")])?;
         bench::time(metric, started.elapsed());
-        self.run(&["settle"])?;
-        bench::time(&format!("{metric}-settled"), started.elapsed());
         Ok(())
     }
 
@@ -411,11 +436,9 @@ impl App {
         self.click("#file-tree.back")?;
         let folder = self.row_button("TreeItem \"Folder\"", ".more")?;
         self.click(&folder)?;
-        self.click("#file-tree.export")?;
-        let item = "MenuItem \"Block file\"";
-        self.wait(item)?;
+        self.wait("#file-tree.export")?;
         let started = Instant::now();
-        self.within(LONG, &["save", &path.to_string_lossy(), item])?;
+        self.within(LONG, &["save", &path.to_string_lossy(), "#file-tree.export"])?;
         bench::time(metric, started.elapsed());
         let bytes = std::fs::read(path)
             .map_err(|error| format!("could not read the export {}: {error}", path.display()))?;
