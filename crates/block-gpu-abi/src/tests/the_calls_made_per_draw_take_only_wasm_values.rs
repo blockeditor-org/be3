@@ -9,7 +9,10 @@ fn the_calls_made_per_draw_take_only_wasm_values() {
             .map(|(_, arguments, result)| (*arguments, *result))
             .unwrap_or_else(|| panic!("{wanted} is not imported"))
     };
-    assert_eq!(signature("[method]render-pass.set-pipeline"), ("u32, u32", ""));
+    assert_eq!(
+        signature("[method]render-pass.set-pipeline"),
+        ("u32, u32", "")
+    );
     assert_eq!(
         signature("[method]render-pass.set-viewport"),
         ("u32, f32, f32, f32, f32, f32, f32", "")

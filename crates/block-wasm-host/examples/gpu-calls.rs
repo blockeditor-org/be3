@@ -23,7 +23,7 @@ impl Data {
     fn put(&mut self, blob: Vec<u8>) -> (usize, usize) {
         let at = self.bytes.len();
         self.bytes.extend_from_slice(&blob);
-        while self.bytes.len() % 8 != 0 {
+        while !self.bytes.len().is_multiple_of(8) {
             self.bytes.push(0);
         }
         (at + 4096, blob.len())

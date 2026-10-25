@@ -21,7 +21,9 @@ fn a_surface_must_be_attached_before_it_is_acquired() {
         view_formats: &[],
     });
     gpu.attach_surface(0, texture);
-    let acquired = gpu.surface_acquire(surface).expect("the attached surface should be acquired");
+    let acquired = gpu
+        .surface_acquire(surface)
+        .expect("the attached surface should be acquired");
     assert!(gpu.texture_describe(acquired).is_some());
     assert_eq!(gpu.take_error(), None);
 }

@@ -370,7 +370,10 @@ impl Host for Gpu {
         .map(abi::BindGroupLayout)
     }
 
-    fn create_bind_group(&mut self, descriptor: abi::BindGroupDescriptor) -> Option<abi::BindGroup> {
+    fn create_bind_group(
+        &mut self,
+        descriptor: abi::BindGroupDescriptor,
+    ) -> Option<abi::BindGroup> {
         self.create(
             |gpu| &mut gpu.groups,
             |gpu| gpu.try_create_bind_group(&descriptor),
@@ -390,7 +393,11 @@ impl Host for Gpu {
                     .iter()
                     .map(|layout| {
                         layout
-                            .map(|layout| gpu.group_layouts.get(layout.0, "bind group layout").cloned())
+                            .map(|layout| {
+                                gpu.group_layouts
+                                    .get(layout.0, "bind group layout")
+                                    .cloned()
+                            })
                             .transpose()
                     })
                     .collect::<Outcome<Vec<_>>>()?;

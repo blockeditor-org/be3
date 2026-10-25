@@ -4,7 +4,6 @@ use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
-
 use crate::{
     Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads, wake,
 };

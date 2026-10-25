@@ -224,11 +224,13 @@ pub(crate) fn binding_type(value: wgpu::BindingType) -> abi::BindingType {
 
 pub(crate) fn binding_resource(value: &wgpu::BindingResource<'_>) -> abi::BindingResource {
     match value {
-        wgpu::BindingResource::Buffer(binding) => abi::BindingResource::Buffer(abi::BufferBinding {
-            buffer: custom::<Buffer>(binding.buffer.as_custom()).0.handle(),
-            offset: binding.offset,
-            size: size(binding.size),
-        }),
+        wgpu::BindingResource::Buffer(binding) => {
+            abi::BindingResource::Buffer(abi::BufferBinding {
+                buffer: custom::<Buffer>(binding.buffer.as_custom()).0.handle(),
+                offset: binding.offset,
+                size: size(binding.size),
+            })
+        }
         wgpu::BindingResource::Sampler(sampler) => {
             abi::BindingResource::Sampler(custom::<Sampler>(sampler.as_custom()).0.handle())
         }

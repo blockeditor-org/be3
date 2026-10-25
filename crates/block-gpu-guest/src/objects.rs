@@ -169,6 +169,7 @@ fn fetch_limits() -> wgpu::Limits {
     }
 }
 
+// unsafe(ffi)
 impl DeviceInterface for Device {
     fn features(&self) -> wgpu::Features {
         wgpu::Features::empty()
@@ -236,9 +237,9 @@ impl DeviceInterface for Device {
                 })
                 .collect(),
         };
-        DispatchBindGroupLayout::custom(BindGroupLayout::created(
-            gpu::create_bind_group_layout(&descriptor),
-        ))
+        DispatchBindGroupLayout::custom(BindGroupLayout::created(gpu::create_bind_group_layout(
+            &descriptor,
+        )))
     }
 
     fn create_bind_group(&self, desc: &wgpu::BindGroupDescriptor<'_>) -> DispatchBindGroup {
@@ -674,6 +675,7 @@ impl TextureInterface for Texture {
     fn destroy(&self) {}
 }
 
+// unsafe(ffi)
 impl QueueWriteBufferInterface for StagingBuffer {
     fn len(&self) -> usize {
         self.bytes.len()
@@ -684,6 +686,7 @@ impl QueueWriteBufferInterface for StagingBuffer {
     }
 }
 
+// unsafe(ffi)
 impl BufferMappedRangeInterface for MappedRange {
     fn len(&self) -> usize {
         self.bytes.len()

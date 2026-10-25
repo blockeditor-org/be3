@@ -329,7 +329,10 @@ impl Generator {
     }
 
     fn resource_names(&self, resource: TypeId) -> (Ident, String) {
-        let name = self.resolve.types[resource].name.clone().unwrap_or_default();
+        let name = self.resolve.types[resource]
+            .name
+            .clone()
+            .unwrap_or_default();
         (camel(&name), name)
     }
 
@@ -759,7 +762,12 @@ impl Generator {
                                 let value = self.handle_value(resource);
                                 (
                                     quote!(&[#value]),
-                                    words(pointer, length, 4, quote!(|bytes| #value(u32::from_le_bytes(bytes)))),
+                                    words(
+                                        pointer,
+                                        length,
+                                        4,
+                                        quote!(|bytes| #value(u32::from_le_bytes(bytes))),
+                                    ),
                                     quote!(&#name),
                                 )
                             }
