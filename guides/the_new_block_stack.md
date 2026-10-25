@@ -752,8 +752,8 @@ undone.
   tree in the mirror (`Query::Subtree` under `Owner::Version`), re-listing it
   before each operation so every head is current.
 - A replica's owner reconciles when someone publishes past it (`HeadChanged`
-  → `HeadEvent::Moved`), which is what lets a checkout replace the content of a
-  block that someone has open; the worker sends `Moved` with `from_this_device`
+  → `head-moved`), which is what lets a checkout replace the content of a
+  block that someone has open; the worker calls `head-moved` with `from-this-device`
   for what it publishes itself.
 
 ## Running it
@@ -798,12 +798,12 @@ repository and the checkout, which the app reads itself and runs in process
 (`be::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from
 `be::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
-holds that catalog, so a type is known before its module has said `Hello`, and
+holds that catalog, so a type is known before its module's `start` lists it, and
 refuses a plugin that declares a type someone else already has or edits one
 nobody declares. `be::provided` is whether some module will hold a content type,
 which is what the plugin host checks before following a block's content.
 The registry (`be_types_host::modules`, re-exported by `be/types.rs`, which
-lists the app's module sources) holds each module's `Hello`, with every type's blank
+lists the app's module sources) holds the types each module's `start` lists, with every type's blank
 content and its description asked for once at start, answers `be::kind_of` and
 `be::is_known` (frozen, schema fingerprint, blank, which module). Everything else
 about a type, merging, describing, validating bytes, is a request to its module,
@@ -833,14 +833,14 @@ build id changes; when the app becomes offline-first, those will have to stay.
 `be_types_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
 `be/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
 half of every open block's replica: it opens a replica (joins the session,
-watches the block, sends `Open` with the head and `Moved` for a later one), answers
-its commands with the real primitives (`Read`, `Publish` and `Stash` through
-`Peer::publish_encoded` and `stash_encoded`, `Resume`, the lease, relaying
-sealed with the block key, `WakeAt` from the clock), and keeps what it reports
-(`Status`, `Described`, `History`, `Conflict`) in `Shared`. Natively the module
+watches the block, constructs the `replica` with the head and calls `head-moved` for
+a later one), answers its calls with the real primitives (`read`, `publish` and
+`stash` through `Peer::publish_encoded` and `stash_encoded`, `resume-session`, the
+lease, relaying sealed with the block key, `sleep-until` from the clock), and keeps
+what it reports (`report-status`, `described`, `history`, `conflict`) in `Shared`. Natively the module
 runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
 (`WebGuest`), and in the unit tests in process (`InProcess`); the worker never
-waits on one, since every module command and IO answer is an event in its loop.
+waits on one, since every call a module makes and every IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
 and every replica it held is opened again from its last head, with the editors
 attached and the messages relayed since its last seal replayed. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
@@ -1072,7 +1072,7 @@ the `Blocks` handle from `editor.blocks()`.
 A new block's first content travels with it: `CreateBlock` carries the encoded
 content, and the worker creates the block, then writes the content as its first
 commit, before any later command for that block runs. With no content the
-worker writes the type's blank content, which its type module made at `Hello`
+worker writes the type's blank content, which its type module made when it started
 (`Kind::blank`), so a host or plugin that makes a block of a type whose format
 it does not own names only the type's id: `Blocks::create_with(type, None, ..)`
 for the file tree's New workspace, `be::create(.., None)` for My files and a new
@@ -1149,7 +1149,7 @@ content type no module has.
 
 Duplicating a block is `be::duplicate`: it adds the copy to the mirror with the
 source's type, references and metadata (without its artifact source), and the
-worker copies what the source's replica shows (`Request::Content`), or its head
+worker copies what the source's replica shows (its `content`), or its head
 when it is not open, into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor:

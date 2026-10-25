@@ -297,7 +297,10 @@ impl Inner {
         }
     }
 
-    fn ask<T: DeserializeOwned>(&mut self, call: impl FnOnce(&mut Connection) -> Ticket<T>) -> Option<T> {
+    fn ask<T: DeserializeOwned>(
+        &mut self,
+        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+    ) -> Option<T> {
         let ticket = call(&mut self.host);
         self.run();
         let outcome = self.replies.remove(&ticket.op())?;
@@ -874,8 +877,7 @@ impl ContentStore {
                     Some(bytes) => self.seed(id, block_type, bytes.to_vec(), false),
                     None => {
                         let mut inner = self.0.borrow_mut();
-                        if let Some(Ok(bytes)) =
-                            inner.ask(|host| replicas::blank(host, block_type))
+                        if let Some(Ok(bytes)) = inner.ask(|host| replicas::blank(host, block_type))
                         {
                             inner.put(id, block_type, bytes);
                         }

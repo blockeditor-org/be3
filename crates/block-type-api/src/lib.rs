@@ -19,6 +19,7 @@ be_ops_bindgen::generate!({
         "entries": crate::Entries,
     },
     copy: ["uuid", "commit-id", "session-tag"],
+    default: ["plain", "description", "plain-file", "status"],
 });
 
 pub use host::PublishOutcome;
@@ -33,44 +34,3 @@ pub type Entries = BTreeMap<Uuid, Vec<u8>>;
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
 )]
 pub struct SessionTag(pub [u8; 32]);
-
-impl Default for Plain {
-    fn default() -> Self {
-        Plain::None
-    }
-}
-
-impl Default for Description {
-    fn default() -> Self {
-        Self {
-            name: None,
-            derived: Entries::new(),
-            references: Vec::new(),
-        }
-    }
-}
-
-impl Default for PlainFile {
-    fn default() -> Self {
-        Self {
-            bytes: Vec::new(),
-            name: None,
-            extension: String::new(),
-            media_type: String::new(),
-        }
-    }
-}
-
-impl Default for Status {
-    fn default() -> Self {
-        Self {
-            head: None,
-            owner: false,
-            clean: false,
-            owes_seal: false,
-            incompatible: false,
-            diverged: false,
-            unreadable: None,
-        }
-    }
-}

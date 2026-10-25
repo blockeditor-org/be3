@@ -3,8 +3,7 @@ use super::*;
 #[test]
 fn a_picture_file_becomes_an_image_and_back() {
     let module = crate::block_types();
-    let claims =
-        |name: &str| module.claims(name.into(), vec![0x89, b'P', 0], false, false);
+    let claims = |name: &str| module.claims(name.into(), vec![0x89, b'P', 0], false, false);
     assert_eq!(claims("logo.png"), Some(ImageContent::CONTENT_TYPE));
     assert_eq!(claims("logo.paint"), None);
 

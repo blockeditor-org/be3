@@ -12,8 +12,7 @@ use syn::{
     punctuated::Punctuated,
 };
 use wit_parser::{
-    Function, FunctionKind, InterfaceId, Resolve, Type, TypeDefKind, TypeId, TypeOwner,
-    WorldItem,
+    Function, FunctionKind, InterfaceId, Resolve, Type, TypeDefKind, TypeId, TypeOwner, WorldItem,
 };
 
 struct Options {
@@ -21,6 +20,7 @@ struct Options {
     world: String,
     with: BTreeMap<String, syn::Path>,
     copy: BTreeSet<String>,
+    default: BTreeSet<String>,
 }
 
 impl Parse for Options {
@@ -32,6 +32,7 @@ impl Parse for Options {
             world: String::new(),
             with: BTreeMap::new(),
             copy: BTreeSet::new(),
+            default: BTreeSet::new(),
         };
         while !content.is_empty() {
             let key: Ident = content.parse()?;
@@ -52,12 +53,16 @@ impl Parse for Options {
                         }
                     }
                 }
-                "copy" => {
+                "copy" | "default" => {
                     let names;
                     bracketed!(names in content);
                     let names: Punctuated<LitStr, Token![,]> =
                         names.parse_terminated(|input| input.parse(), Token![,])?;
-                    options.copy = names.iter().map(LitStr::value).collect();
+                    let names = names.iter().map(LitStr::value).collect();
+                    match key.to_string().as_str() {
+                        "copy" => options.copy = names,
+                        _ => options.default = names,
+                    }
                 }
                 other => {
                     return Err(syn::Error::new(
@@ -86,10 +91,10 @@ pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 const KEYWORDS: &[&str] = &[
-    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
-    "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move",
-    "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true",
-    "type", "unsafe", "use", "where", "while", "yield", "box", "try", "gen",
+    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
+    "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
+    "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type",
+    "unsafe", "use", "where", "while", "yield", "box", "try", "gen",
 ];
 
 fn snake(name: &str) -> Ident {
@@ -180,7 +185,9 @@ impl Generator {
         let mut guest_imports = TokenStream::new();
         let mut embed_imports = TokenStream::new();
         let callable = |interface: &&InterfaceId| {
-            !generator.resolve.interfaces[**interface].functions.is_empty()
+            !generator.resolve.interfaces[**interface]
+                .functions
+                .is_empty()
         };
         for interface in imports.iter().filter(callable) {
             let module = generator.module_name(*interface);
@@ -394,17 +401,27 @@ impl Generator {
     }
 
     fn derives(&self, id: TypeId) -> TokenStream {
+        let default = match self.type_name(id) {
+            Some(name) if self.options.default.contains(&name) => quote!(Default,),
+            _ => TokenStream::new(),
+        };
         match self.copyable(&Type::Id(id)) {
             true => quote! {
                 #[derive(
-                    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd,
+                    Clone, Copy, Debug, #default Eq, Hash, Ord, PartialEq, PartialOrd,
                     ::serde::Serialize, ::serde::Deserialize,
                 )]
             },
             false => quote! {
-                #[derive(Clone, Debug, Eq, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+                #[derive(
+                    Clone, Debug, #default Eq, PartialEq, ::serde::Serialize, ::serde::Deserialize,
+                )]
             },
         }
+    }
+
+    fn type_name(&self, id: TypeId) -> Option<String> {
+        self.resolve.types[id].name.clone()
     }
 
     fn types_of(
@@ -465,8 +482,13 @@ impl Generator {
                     quote! { #derives pub enum #ident { #(#cases)* } }
                 }
                 TypeDefKind::Enum(cases) => {
-                    let cases = cases.cases.iter().map(|case| camel(&case.name));
-                    quote! { #derives pub enum #ident { #(#cases,)* } }
+                    let first = match self.options.default.contains(&name) {
+                        true => quote!(#[default]),
+                        false => TokenStream::new(),
+                    };
+                    let mut cases = cases.cases.iter().map(|case| camel(&case.name));
+                    let head = cases.next();
+                    quote! { #derives pub enum #ident { #first #head, #(#cases,)* } }
                 }
                 TypeDefKind::Flags(flags) => {
                     if flags.flags.len() > 32 {
@@ -612,7 +634,9 @@ impl Generator {
                 function.kind,
                 FunctionKind::Static(_) | FunctionKind::AsyncStatic(_)
             ) {
-                return Err(format!("{full}: static resource functions are not supported"));
+                return Err(format!(
+                    "{full}: static resource functions are not supported"
+                ));
             }
             let local = function.item_name().to_owned();
             let prefix = match function.kind.resource() {
@@ -685,7 +709,10 @@ impl Generator {
         let mut out = TokenStream::new();
         for method in methods {
             if method.function.kind.resource().is_some() {
-                return Err(format!("{}: imported resources are not supported", method.name));
+                return Err(format!(
+                    "{}: imported resources are not supported",
+                    method.name
+                ));
             }
             let name = snake(method.function.item_name());
             let params = self.params(method)?;
@@ -826,7 +853,10 @@ impl Generator {
         match &method.shape {
             Shape::Notify => Ok(quote!(())),
             Shape::Call(result) => self.optional(result.as_ref()),
-            Shape::Stream(_) => Err(format!("{}: exported streams are not supported", method.name)),
+            Shape::Stream(_) => Err(format!(
+                "{}: exported streams are not supported",
+                method.name
+            )),
         }
     }
 
@@ -895,16 +925,16 @@ impl Generator {
                     arms.push(decode(serve(quote!(guest.#name(#(#names),*)))));
                 }
                 FunctionKind::Constructor(resource) => {
-                    let resource_name = self.resolve.types[resource]
+                    let type_name = self.resolve.types[resource]
                         .name
                         .clone()
                         .unwrap_or_default();
-                    let associated = camel(&resource_name);
-                    let name = format_ident!("new_{}", resource_name.to_snake_case());
+                    let associated = camel(&type_name);
+                    let name = format_ident!("new_{}", type_name.to_snake_case());
                     guest_items.push(quote! {
                         fn #name(&self, resource: ::be_ops::OpId, #(#params),*) -> Self::#associated;
                     });
-                    let bound = format_ident!("Guest{}", camel(&resource_name));
+                    let bound = format_ident!("Guest{}", camel(&type_name));
                     arms.push(decode(quote! {
                         let instance = ::std::rc::Rc::new(guest.#name(started.op, #(#names),*));
                         let closing = ::std::rc::Rc::clone(&instance);
@@ -917,11 +947,11 @@ impl Generator {
                     }));
                 }
                 FunctionKind::Method(resource) | FunctionKind::AsyncMethod(resource) => {
-                    let resource_name = self.resolve.types[resource]
+                    let type_name = self.resolve.types[resource]
                         .name
                         .clone()
                         .unwrap_or_default();
-                    let associated = camel(&resource_name);
+                    let associated = camel(&type_name);
                     let name = snake(method.function.item_name());
                     resource_traits
                         .entry(resource)
@@ -938,7 +968,10 @@ impl Generator {
                     }));
                 }
                 FunctionKind::Static(_) | FunctionKind::AsyncStatic(_) => {
-                    return Err(format!("{}: static functions are not supported", method.name));
+                    return Err(format!(
+                        "{}: static functions are not supported",
+                        method.name
+                    ));
                 }
             }
         }
@@ -1048,7 +1081,10 @@ impl Generator {
                     });
                 }
                 FunctionKind::Static(_) | FunctionKind::AsyncStatic(_) => {
-                    return Err(format!("{}: static functions are not supported", method.name));
+                    return Err(format!(
+                        "{}: static functions are not supported",
+                        method.name
+                    ));
                 }
             }
         }

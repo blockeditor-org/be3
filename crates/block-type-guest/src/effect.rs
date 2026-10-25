@@ -85,9 +85,24 @@ pub(crate) enum Answer {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HeadEvent {
-    Published { token: Token, head: CommitId },
-    Rejected { token: Token, head: Option<CommitId> },
-    Stashed { token: Token, commit: CommitId },
-    Failed { token: Token, error: String },
-    Moved { head: CommitId, from_this_device: bool },
+    Published {
+        token: Token,
+        head: CommitId,
+    },
+    Rejected {
+        token: Token,
+        head: Option<CommitId>,
+    },
+    Stashed {
+        token: Token,
+        commit: CommitId,
+    },
+    Failed {
+        token: Token,
+        error: String,
+    },
+    Moved {
+        head: CommitId,
+        from_this_device: bool,
+    },
 }

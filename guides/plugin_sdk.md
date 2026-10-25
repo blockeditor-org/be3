@@ -101,7 +101,9 @@ and thread-local storage an editor has.
 
 A *pure guest* has only those imports: no gpu, no SDK, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its
-own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way.
+own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way. A
+type module is a pure guest whose frames are be-ops operations, typed by a WIT world
+(guides/type_modules.md, "Operations and WIT").
 
 The host half is `crates/block-guest-host`, which the editor host and anything else that runs a
 guest share:

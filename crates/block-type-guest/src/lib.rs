@@ -8,7 +8,7 @@ use std::{
 use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
-    Change, ChildChange, ClientId, CommitId, Description, Endpoint, EditorId, FileChange, Merged,
+    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Merged,
     Opening, Plain, PlainFile, PublishOutcome, ReplaceChild, ReplicaId, SessionState, TypeInfo,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, Pending, Sender},
@@ -265,10 +265,6 @@ impl Module {
         self.with_kind(content_type, |_| ()).is_some()
     }
 
-    pub fn is_open(&self, replica: ReplicaId) -> bool {
-        self.shared.state.borrow().replicas.contains_key(&replica)
-    }
-
     fn with_kind<R>(&self, content_type: Uuid, run: impl FnOnce(&Registration) -> R) -> Option<R> {
         self.shared
             .types
@@ -370,7 +366,11 @@ impl Module {
         self.run(out);
     }
 
-    fn ask(&self, replica: ReplicaId, request: impl FnOnce(RequestId) -> Input) -> ops::Oneshot<Answer> {
+    fn ask(
+        &self,
+        replica: ReplicaId,
+        request: impl FnOnce(RequestId) -> Input,
+    ) -> ops::Oneshot<Answer> {
         let (answer, answered) = ops::oneshot();
         let id = {
             let mut state = self.shared.state.borrow_mut();
@@ -393,14 +393,12 @@ impl Module {
             .unwrap_or_default()
     }
 
-    fn answer_later<T: 'static>(
+    fn answer_later<T: serde::de::DeserializeOwned + 'static>(
         &self,
         replica: ReplicaId,
         pending: Pending<T>,
         input: impl FnOnce(Result<T, String>) -> Input + 'static,
-    ) where
-        T: serde::de::DeserializeOwned,
-    {
+    ) {
         let module = self.clone();
         let epoch = self.epoch(replica);
         ops::spawn(async move {
@@ -442,9 +440,7 @@ impl Module {
                     ops::with_parent(replica, || host::publish(expected, merging, content));
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {
-                        Ok(PublishOutcome::Published(head)) => {
-                            HeadEvent::Published { token, head }
-                        }
+                        Ok(PublishOutcome::Published(head)) => HeadEvent::Published { token, head },
                         Ok(PublishOutcome::Rejected(head)) => HeadEvent::Rejected { token, head },
                         Err(error) => HeadEvent::Failed { token, error },
                     })
@@ -565,7 +561,7 @@ impl replicas::Guest for Module {
             let module = self.clone();
             ops::spawn(async move {
                 let mut clock = host::clock();
-                while let Some(now) = clock.next().await {
+                while let Some(now) = clock.recv().await {
                     module.tick(now);
                 }
             });
@@ -608,14 +604,22 @@ impl replicas::Guest for Module {
     }
 
     fn to_file(&self, content_type: Uuid, bytes: Vec<u8>) -> Result<Option<PlainFile>, Failure> {
-        match self.with_kind(content_type, |kind| kind.to_file.map(|to_file| to_file(&bytes))) {
+        match self.with_kind(content_type, |kind| {
+            kind.to_file.map(|to_file| to_file(&bytes))
+        }) {
             None => Err(Failure::UnknownType),
             Some(None) => Ok(None),
             Some(Some(file)) => file.map_err(Failure::Malformed),
         }
     }
 
-    fn claims(&self, name: String, first: Vec<u8>, directory: bool, fallback: bool) -> Option<Uuid> {
+    fn claims(
+        &self,
+        name: String,
+        first: Vec<u8>,
+        directory: bool,
+        fallback: bool,
+    ) -> Option<Uuid> {
         self.shared
             .types
             .borrow()
@@ -637,8 +641,10 @@ impl replicas::Guest for Module {
         client: ClientId,
         change: Change,
     ) -> Result<Option<Vec<u8>>, Failure> {
-        self.with_kind(content_type, |kind| apply(kind, bytes.as_deref(), client, change))
-            .ok_or(Failure::UnknownType)?
+        self.with_kind(content_type, |kind| {
+            apply(kind, bytes.as_deref(), client, change)
+        })
+        .ok_or(Failure::UnknownType)?
     }
 }
 
@@ -652,7 +658,8 @@ impl replicas::GuestReplica for OpenReplica {
     }
 
     fn attach(&self, editor: EditorId, editable: bool) {
-        self.module.input(self.id, Input::Attach { editor, editable });
+        self.module
+            .input(self.id, Input::Attach { editor, editable });
     }
 
     fn detach(&self, editor: EditorId) {

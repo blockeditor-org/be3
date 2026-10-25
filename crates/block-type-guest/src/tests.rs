@@ -296,7 +296,11 @@ impl Lone {
     }
 }
 
-fn opening(client: ClientId, head: Option<CommitId>, session: be_protocol::SessionState) -> Opening {
+fn opening(
+    client: ClientId,
+    head: Option<CommitId>,
+    session: be_protocol::SessionState,
+) -> Opening {
     Opening {
         block: BLOCK,
         content_type: Uuid::nil(),
@@ -405,7 +409,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         result
     }
 
-    fn to_replica<R>(&mut self, device: usize, call: impl FnOnce(Replica, &mut Connection) -> R) -> R {
+    fn with_replica<R>(
+        &mut self,
+        device: usize,
+        call: impl FnOnce(Replica, &mut Connection) -> R,
+    ) -> R {
         let replica = self.devices[device]
             .replica
             .expect("the device has the block open");
@@ -441,7 +449,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         if let Some(head) = self.head
             && local != self.head
         {
-            self.to_replica(device, |replica, host| replica.head_moved(host, head, false));
+            self.with_replica(device, |replica, host| {
+                replica.head_moved(host, head, false)
+            });
         }
         self.lease_changed(Some(device));
         self.settle();
@@ -449,19 +459,21 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 
     fn resynchronize(&mut self, device: usize) {
         let session = self.lease.state().clone();
-        self.to_replica(device, |replica, host| replica.lease(host, session, true));
+        self.with_replica(device, |replica, host| replica.lease(host, session, true));
         self.settle();
     }
 
     fn attach(&mut self, device: usize, editor: EditorId, editable: bool) {
         self.editors
             .insert((device, editor), EditorMirror::default());
-        self.to_replica(device, |replica, host| replica.attach(host, editor, editable));
+        self.with_replica(device, |replica, host| {
+            replica.attach(host, editor, editable)
+        });
         self.settle();
     }
 
     fn detach(&mut self, device: usize, editor: EditorId) {
-        self.to_replica(device, |replica, host| replica.detach(host, editor));
+        self.with_replica(device, |replica, host| replica.detach(host, editor));
     }
 
     fn operate(&mut self, device: usize, editor: EditorId, operation: C::Op) {
@@ -478,7 +490,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
-        self.to_replica(device, |replica, host| {
+        self.with_replica(device, |replica, host| {
             replica.message(host, Endpoint::Editor(editor), message.encode())
         });
     }
@@ -491,13 +503,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn change(&mut self, device: usize, change: Change) -> bool {
-        let ticket = self.to_replica(device, |replica, host| replica.change(host, change));
+        let ticket = self.with_replica(device, |replica, host| replica.change(host, change));
         let outcome = self.answered(device, ticket.op());
         ticket.decode(outcome).expect("a change is answered")
     }
 
     fn content(&mut self, device: usize) -> C {
-        let ticket = self.to_replica(device, |replica, host| replica.content(host));
+        let ticket = self.with_replica(device, |replica, host| replica.content(host));
         let outcome = self.answered(device, ticket.op());
         let bytes = ticket
             .decode(outcome)
@@ -524,7 +536,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn close(&mut self, device: usize) {
-        self.to_replica(device, |replica, host| replica.resource_drop(host));
+        self.with_replica(device, |replica, host| replica.resource_drop(host));
         self.settle();
     }
 
@@ -579,7 +591,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             if Some(device) == publisher {
                 continue;
             }
-            self.to_replica(device, |replica, host| replica.head_moved(host, head, false));
+            self.with_replica(device, |replica, host| {
+                replica.head_moved(host, head, false)
+            });
         }
     }
 
@@ -590,7 +604,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 continue;
             }
             let session = session.clone();
-            self.to_replica(device, |replica, host| replica.lease(host, session, false));
+            self.with_replica(device, |replica, host| replica.lease(host, session, false));
         }
     }
 
@@ -829,7 +843,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         if self.deaf.contains(&to) {
             return;
         }
-        self.to_replica(to, |replica, host| {
+        self.with_replica(to, |replica, host| {
             replica.message(host, Endpoint::Peer(from), bytes)
         });
     }

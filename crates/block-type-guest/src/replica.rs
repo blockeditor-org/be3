@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use crate::{
     FromFileFn, Recorder,
-    effect::{Answer, Effect, HeadEvent, RequestId, Token},
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
+    effect::{Answer, Effect, HeadEvent, RequestId, Token},
     wire::Wire,
 };
 

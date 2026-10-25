@@ -22,15 +22,15 @@ should use the same requests rather than writing another mapping.
 - A type's `TypeInfo::plain` says what it is on disk: `Directory` (a folder, and
   a workspace, which is only ever a root), `File`, or `None`. The sync root is
   the block named, and must be a directory.
-- A file's bytes are `Request::ToFile` of its block's content: a text block's
+- A file's bytes are `to-file` of its block's content (guides/type_modules.md): a text block's
   body, the data of an image, PDF, audio or file block (a file block holds any
   bytes, such as `snapshots/*.paint`).
-- A new file on disk becomes a block of the first type that `Request::Claims`
+- A new file on disk becomes a block of the first type that `claims`
   it by its name and first 64 KiB: an image, PDF or audio block by its
   extension (and a PDF's magic), a text block when it is UTF-8 without a NUL
   byte (its language from the extension), and a file block, the fallback that
-  takes any file, otherwise. Its content is `Request::Apply` of `Change::FromFile` on no
-  content, and its references and derived metadata are `Request::Describe`.
+  takes any file, otherwise. Its content is `apply` of `change.from-file` on no
+  content, and its references and derived metadata are `describe`.
   A changed file keeps its block's type: `FromFile` is applied to the content
   it replaces, so a text block keeps its language and indentation. A new
   directory is a block of the type that claims directories (`Claims` with

@@ -8,14 +8,17 @@ use be_client::{ClientError, Peer, Saved};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, ServerMessage, SessionState};
+use block_type_api::ops::DeserializeOwned;
 use block_type_api::{
     ByteRange, Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
     Recipients, ReplicaId, Resume, Status,
-    embed::{exports::replicas::{self, Replica}, host::Call},
+    embed::{
+        exports::replicas::{self, Replica},
+        host::Call,
+    },
     ops::{Connection, OpError, OpId, Outcome, Reply, Ticket},
 };
 use block_type_guest::editor::FromEditor;
-use block_type_api::ops::DeserializeOwned;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
@@ -359,7 +362,7 @@ impl<H: Host> Replicas<H> {
         });
     }
 
-    fn to_replica(&mut self, replica: ReplicaId, call: impl FnOnce(Replica, &mut Connection)) {
+    fn with_replica(&mut self, replica: ReplicaId, call: impl FnOnce(Replica, &mut Connection)) {
         if let Some(open) = self.open.get(&replica) {
             let (module, handle) = (open.module, open.handle);
             self.modules
@@ -372,7 +375,7 @@ impl<H: Host> Replicas<H> {
             return;
         };
         open.replay.push(replayed.clone());
-        self.to_replica(replica, |handle, connection| {
+        self.with_replica(replica, |handle, connection| {
             replayed.send(handle, connection);
         });
     }
@@ -398,7 +401,7 @@ impl<H: Host> Replicas<H> {
             return open.editors.is_empty();
         }
         let idle = open.editors.is_empty();
-        self.to_replica(replica, |handle, connection| {
+        self.with_replica(replica, |handle, connection| {
             handle.detach(connection, editor);
         });
         idle
@@ -446,7 +449,9 @@ impl<H: Host> Replicas<H> {
         if std::mem::replace(&mut open.closing, true) {
             return;
         }
-        self.to_replica(replica, |handle, connection| handle.resource_drop(connection));
+        self.with_replica(replica, |handle, connection| {
+            handle.resource_drop(connection)
+        });
     }
 
     pub fn reopen(&mut self, block: Uuid) {
@@ -460,7 +465,9 @@ impl<H: Host> Replicas<H> {
         if std::mem::replace(&mut open.closing, true) {
             return;
         }
-        self.to_replica(replica, |handle, connection| handle.resource_drop(connection));
+        self.with_replica(replica, |handle, connection| {
+            handle.resource_drop(connection)
+        });
     }
 
     pub fn moved_here(&mut self, block: Uuid, head: CommitId) {
@@ -506,7 +513,7 @@ impl<H: Host> Replicas<H> {
 
     pub fn change_later(&mut self, block: Uuid, change: Change) {
         if let Some((replica, _)) = self.replica_of(block) {
-            self.to_replica(replica, |handle, connection| {
+            self.with_replica(replica, |handle, connection| {
                 handle.change(connection, change);
             });
         }
@@ -603,9 +610,9 @@ impl<H: Host> Replicas<H> {
         {
             Ok(Ok(file)) => Ok(file),
             Ok(Err(block_type_api::Failure::Malformed(error))) => Err(error),
-            Ok(Err(block_type_api::Failure::UnknownType)) => Err(format!(
-                "no type module has the block type {content_type}"
-            )),
+            Ok(Err(block_type_api::Failure::UnknownType)) => {
+                Err(format!("no type module has the block type {content_type}"))
+            }
             Err(error) => Err(format!("the type module answered: {error}")),
         }
     }
@@ -630,9 +637,9 @@ impl<H: Host> Replicas<H> {
         {
             Ok(Ok(bytes)) => Ok(bytes),
             Ok(Err(block_type_api::Failure::Malformed(error))) => Err(error),
-            Ok(Err(block_type_api::Failure::UnknownType)) => Err(format!(
-                "no type module has the block type {content_type}"
-            )),
+            Ok(Err(block_type_api::Failure::UnknownType)) => {
+                Err(format!("no type module has the block type {content_type}"))
+            }
             Err(error) => Err(format!("the type module answered: {error}")),
         }
     }
@@ -706,7 +713,7 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             open.session = session.clone();
-            self.to_replica(replica, |handle, connection| {
+            self.with_replica(replica, |handle, connection| {
                 handle.lease(connection, session, true);
             });
         }
@@ -803,11 +810,14 @@ impl<H: Host> Replicas<H> {
                 head: open.status.head,
                 session,
             };
-            let editors: Vec<(EditorId, bool)> =
-                open.editors.iter().map(|(editor, editable)| (*editor, *editable)).collect();
+            let editors: Vec<(EditorId, bool)> = open
+                .editors
+                .iter()
+                .map(|(editor, editable)| (*editor, *editable))
+                .collect();
             let replay = open.replay.clone();
             let known = open.status.head;
-            self.to_replica(replica, |handle, connection| {
+            self.with_replica(replica, |handle, connection| {
                 handle.reopen(connection, opening);
                 for (editor, editable) in editors {
                     handle.attach(connection, editor, editable);
@@ -851,8 +861,11 @@ impl<H: Host> Replicas<H> {
                 head: open.status.head,
                 session: open.session.clone(),
             };
-            let editors: Vec<(EditorId, bool)> =
-                open.editors.iter().map(|(editor, editable)| (*editor, *editable)).collect();
+            let editors: Vec<(EditorId, bool)> = open
+                .editors
+                .iter()
+                .map(|(editor, editable)| (*editor, *editable))
+                .collect();
             let replay = open.replay.clone();
             let closing = open.closing;
             let Some(handle) = self.modules.call(module, |connection| {
@@ -921,10 +934,9 @@ impl<H: Host> Replicas<H> {
             return false;
         }
         if let Some(replica) = self.contents.remove(&(module, op)) {
-            let (Some(open), Ok(Some(bytes))) = (
-                self.open.get(&replica),
-                outcome.decode::<Option<Vec<u8>>>(),
-            ) else {
+            let (Some(open), Ok(Some(bytes))) =
+                (self.open.get(&replica), outcome.decode::<Option<Vec<u8>>>())
+            else {
                 return false;
             };
             H::content(shared, open.block, open.content_type, bytes);
@@ -1156,7 +1168,7 @@ impl<H: Host> Replicas<H> {
                                     open.reopen = true;
                                     open.closing = true;
                                 }
-                                self.to_replica(replica, |handle, connection| {
+                                self.with_replica(replica, |handle, connection| {
                                     handle.resource_drop(connection);
                                 });
                                 return true;
@@ -1173,9 +1185,7 @@ impl<H: Host> Replicas<H> {
                 let reader = self.open.get(&replica).is_some_and(|open| open.reader);
                 let references = peer.resolve(block, description.references.clone());
                 H::described(shared, block, references, description);
-                if reader
-                    && let Some(open) = self.open.get(&replica)
-                {
+                if reader && let Some(open) = self.open.get(&replica) {
                     let handle = open.handle;
                     if let Some(ticket) = self
                         .modules

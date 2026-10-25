@@ -10,12 +10,12 @@ use std::{
 
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
+use block_type_api::ops::DeserializeOwned;
 use block_type_api::{
     Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
     embed::{exports::replicas, host::Call},
     ops::{Connection, Incoming, OpError, OpId, Outcome, Producer, Reply, Side, Ticket},
 };
-use block_type_api::ops::DeserializeOwned;
 use tokio::sync::Notify;
 use uuid::Uuid;
 
@@ -170,8 +170,13 @@ pub enum Heard {
         parent: Option<OpId>,
         call: Call,
     },
-    Completed { op: OpId, outcome: Outcome },
-    Canceled { op: OpId },
+    Completed {
+        op: OpId,
+        outcome: Outcome,
+    },
+    Canceled {
+        op: OpId,
+    },
 }
 
 pub struct Modules {
@@ -419,11 +424,7 @@ impl Modules {
         }
     }
 
-    pub fn call<R>(
-        &mut self,
-        module: usize,
-        call: impl FnOnce(&mut Connection) -> R,
-    ) -> Option<R> {
+    pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
         self.modules[module].worker.as_ref()?;
         self.advance(module, now_millis());
         let result = call(&mut self.modules[module].connection);
@@ -566,7 +567,6 @@ impl Modules {
                     Incoming::Yielded { .. } => {}
                 }
             }
-            self.flush(module);
             if let Some(failure) = failure {
                 self.fail(module, failure);
                 self.restart(module);

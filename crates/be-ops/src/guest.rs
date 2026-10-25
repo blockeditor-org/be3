@@ -453,7 +453,7 @@ impl<T: DeserializeOwned> Stream<T> {
         self.op
     }
 
-    pub fn next(&mut self) -> Next<'_, T> {
+    pub fn recv(&mut self) -> Next<'_, T> {
         Next { stream: self }
     }
 

@@ -124,10 +124,7 @@ fn a_file_maps_to_a_block_and_back() {
     let binary = claimed(&module, "frame.paint", &[0, 159, 255]).unwrap();
     assert_eq!(binary, FileContent::CONTENT_TYPE);
     let content = from_file(&module, binary, None, "frame.paint", &[0, 159, 255]);
-    assert_eq!(
-        to_file(&module, binary, content).unwrap(),
-        [0, 159, 255]
-    );
+    assert_eq!(to_file(&module, binary, content).unwrap(), [0, 159, 255]);
 
     assert_eq!(
         module.claims("src".into(), Vec::new(), true, false),
@@ -146,8 +143,5 @@ fn a_file_maps_to_a_block_and_back() {
         FolderContent::decode(&folder).unwrap().references(),
         vec![child]
     );
-    assert_eq!(
-        to_file(&module, FolderContent::CONTENT_TYPE, folder),
-        None
-    );
+    assert_eq!(to_file(&module, FolderContent::CONTENT_TYPE, folder), None);
 }

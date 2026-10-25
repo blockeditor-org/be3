@@ -27,7 +27,10 @@ fn an_abandoned_lease_is_claimed() {
         .iter()
         .filter(|call| matches!(call, Call::ClaimLease { .. }))
         .collect();
-    assert!(matches!(claims.as_slice(), [Call::ClaimLease { generation: 4 }]));
+    assert!(matches!(
+        claims.as_slice(),
+        [Call::ClaimLease { generation: 4 }]
+    ));
     replica.lease(&mut lone.host, abandoned(4, 1), false);
     let (again, _) = lone.exchange();
     assert!(
