@@ -16,6 +16,7 @@ pub mod draw;
 pub mod drawing;
 pub mod fade;
 pub mod file_picker;
+pub mod file_saver;
 pub mod filter;
 pub mod flash;
 pub mod font;

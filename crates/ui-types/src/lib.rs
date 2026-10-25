@@ -10,7 +10,7 @@ pub mod window;
 
 pub use clipboard::{PasteKind, Pasted};
 pub use display::{DisplayMode, Rotation};
-pub use files::{FileFilter, FilePick, PickedFile};
+pub use files::{FileFilter, FilePick, FileSave, PickedFile, SavedFile};
 pub use input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,

@@ -1500,7 +1500,6 @@ dependencies = [
 name = "block-app"
 version = "0.1.0"
 dependencies = [
- "ashpd",
  "async-executor",
  "async-io",
  "async-lock",
@@ -1550,7 +1549,6 @@ dependencies = [
  "presentation-types",
  "pulseaudio",
  "reactive",
- "rfd",
  "rodio",
  "rusqlite",
  "serde",

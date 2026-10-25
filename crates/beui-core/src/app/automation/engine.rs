@@ -11,6 +11,7 @@ use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
+use crate::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::Keyboard;
 use crate::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
@@ -81,7 +82,9 @@ Files:
   grab FILE...              drag FILEs in from outside, over where the pointer is; move carries them
   drop [TARGET]             drop the grabbed files; ungrab takes them away again
   upload FILE [TARGET]      answer the file dialog with FILE, clicking TARGET first to open it
-  dismiss                   cancel the open file dialog
+  save FILE [TARGET]        answer the save dialog by writing what it saves to FILE, clicking
+                            TARGET first to open it
+  dismiss                   cancel the oldest open file or save dialog
 Window (headless only, except focus, blur, leave and close):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
@@ -156,6 +159,10 @@ enum Phase {
         file: PathBuf,
         before: String,
     },
+    Saving {
+        file: PathBuf,
+        before: String,
+    },
     Capturing {
         target: Option<String>,
         crop: Option<Rect>,
@@ -195,7 +202,9 @@ pub struct Automation {
     unhurried: bool,
     closing: bool,
     focused: bool,
-    picks: Vec<(FilePickRequest, FilePickAnswer)>,
+    picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
+    saves: Vec<(u64, FileSaveRequest, FileSaveAnswer)>,
+    dialogs: u64,
 }
 
 impl Automation {
@@ -210,6 +219,8 @@ impl Automation {
             closing: false,
             focused: true,
             picks: Vec::new(),
+            saves: Vec::new(),
+            dialogs: 0,
         }
     }
 
@@ -312,7 +323,13 @@ impl Automation {
     }
 
     pub fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
-        self.picks.push((request, answer));
+        self.dialogs += 1;
+        self.picks.push((self.dialogs, request, answer));
+    }
+
+    pub fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        self.dialogs += 1;
+        self.saves.push((self.dialogs, request, answer));
     }
 
     pub fn closed(&mut self, accepted: bool) {
@@ -404,7 +421,7 @@ impl Automation {
         if let Phase::Uploading { file, before } = &mut active.phase {
             let picked = (!self.picks.is_empty()).then(|| self.picks.remove(0));
             match picked {
-                Some((_, answer)) => match std::fs::read(&*file) {
+                Some((_, _, answer)) => match std::fs::read(&*file) {
                     Ok(data) => {
                         let name = file
                             .file_name()
@@ -423,6 +440,28 @@ impl Automation {
                     failed = Some(
                         "no file dialog opened; give upload a TARGET that opens one".to_owned(),
                     );
+                }
+                None => {}
+            }
+        }
+        if let Phase::Saving { file, before } = &mut active.phase {
+            let saved = (!self.saves.is_empty()).then(|| self.saves.remove(0));
+            match saved {
+                Some((_, request, answer)) => match std::fs::write(&*file, &request.file.data) {
+                    Ok(()) => {
+                        answer.send(FileSave::Saved);
+                        active.phase = settling(before);
+                        return;
+                    }
+                    Err(error) => {
+                        let error = format!("could not write {}: {error}", file.display());
+                        answer.send(FileSave::Failed(error.clone()));
+                        failed = Some(error);
+                    }
+                },
+                None if quiet => {
+                    failed =
+                        Some("no save dialog opened; give save a TARGET that opens one".to_owned());
                 }
                 None => {}
             }
@@ -908,12 +947,39 @@ impl Automation {
                     None => Ok(Started::Phase(Phase::Uploading { file, before })),
                 }
             }
-            "dismiss" => {
-                if self.picks.is_empty() {
-                    return Err("no file dialog is open".to_owned());
+            "save" => {
+                let file = PathBuf::from(argument(0)?);
+                let before = view.tree.to_owned();
+                match arguments.get(1) {
+                    Some(target) => {
+                        let at = at(target)?;
+                        Ok(Started::Phase(Phase::Input {
+                            steps: points(self.gestures.click(at, PointerButton::Primary, 1))
+                                .into(),
+                            before: before.clone(),
+                            then: Some(Box::new(Phase::Saving { file, before })),
+                        }))
+                    }
+                    None if self.saves.is_empty() => {
+                        Err("no save dialog is open; give save a TARGET that opens one".to_owned())
+                    }
+                    None => Ok(Started::Phase(Phase::Saving { file, before })),
                 }
-                let (_, answer) = self.picks.remove(0);
-                answer.send(Ok(None));
+            }
+            "dismiss" => {
+                let pick = self.picks.first().map(|(opened, ..)| *opened);
+                let save = self.saves.first().map(|(opened, ..)| *opened);
+                match (pick, save) {
+                    (None, None) => return Err("no file or save dialog is open".to_owned()),
+                    (Some(pick), save) if save.is_none_or(|save| pick < save) => {
+                        let (_, _, answer) = self.picks.remove(0);
+                        answer.send(Ok(None));
+                    }
+                    _ => {
+                        let (_, _, answer) = self.saves.remove(0);
+                        answer.send(FileSave::Cancelled);
+                    }
+                }
                 input(vec![Vec::new()])
             }
             "grab" => {
@@ -1179,7 +1245,7 @@ impl Automation {
             yes(view.window.requests.wants_keyboard),
             yes(view.window.requests.pointer_locked)
         ));
-        for (pick, _) in &self.picks {
+        for (_, pick, _) in &self.picks {
             let filter = &pick.filter;
             text.push_str(&format!(
                 "file dialog open for {} ({})\n",
@@ -1188,6 +1254,14 @@ impl Automation {
                     false => &filter.name,
                 },
                 filter.extensions.join(", ")
+            ));
+        }
+        for (_, save, _) in &self.saves {
+            text.push_str(&format!(
+                "save dialog open for {} ({}, {} bytes)\n",
+                save.file.name,
+                save.file.mime_type,
+                save.file.data.len()
             ));
         }
         text

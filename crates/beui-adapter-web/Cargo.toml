@@ -14,6 +14,7 @@ wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
     "AddEventListenerOptions",
     "Blob",
+    "BlobPropertyBag",
     "Clipboard",
     "ClipboardEvent",
     "CompositionEvent",
@@ -28,6 +29,7 @@ web-sys = { version = "0.3", features = [
     "File",
     "FileList",
     "FocusEvent",
+    "HtmlAnchorElement",
     "HtmlElement",
     "HtmlInputElement",
     "HtmlTextAreaElement",
@@ -43,6 +45,7 @@ web-sys = { version = "0.3", features = [
     "Touch",
     "TouchEvent",
     "TouchList",
+    "Url",
     "WheelEvent",
     "Window",
     "console",

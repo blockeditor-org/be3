@@ -1,12 +1,27 @@
-use std::{fs, path::PathBuf};
+use std::fs;
+use std::path::PathBuf;
 
-use super::{Deliver, SaveResult, SavedFile};
+use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest, SavedFile};
 
-pub(super) fn save(file: SavedFile, deliver: Deliver<SaveResult>) {
-    std::thread::spawn(move || deliver.send(write(file)));
+pub fn open(request: FileSaveRequest, answer: FileSaveAnswer) {
+    let unanswered = answer.clone();
+    let spawned = std::thread::Builder::new()
+        .name("beui-file-saver".into())
+        .spawn(move || {
+            answer.send(match save(&request.file) {
+                Ok(true) => FileSave::Saved,
+                Ok(false) => FileSave::Cancelled,
+                Err(error) => FileSave::Failed(error),
+            });
+        });
+    if let Err(error) = spawned {
+        unanswered.send(FileSave::Failed(format!(
+            "Could not open a save dialog: {error}"
+        )));
+    }
 }
 
-fn write(file: SavedFile) -> SaveResult {
+fn save(file: &SavedFile) -> Result<bool, String> {
     let Some(path) = choose(&file.name)? else {
         return Ok(false);
     };
@@ -28,7 +43,7 @@ fn choose(name: &str) -> Result<Option<PathBuf>, String> {
         Err(error) => error,
     };
     zenity(name).map_err(|zenity| {
-        eprintln!("No file dialog: the portal failed with \"{portal}\", zenity with \"{zenity}\"");
+        eprintln!("No save dialog: the portal failed with \"{portal}\", zenity with \"{zenity}\"");
         "Saving a file needs xdg-desktop-portal with a file chooser backend, such as xdg-desktop-portal-gtk, or zenity. Install either one.".to_owned()
     })
 }

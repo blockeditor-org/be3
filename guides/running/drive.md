@@ -233,7 +233,10 @@ real one:
   the clipboard is the window's own; in a real one it is the system's.
 - A file dialog the app opens waits for drive, in any window while drive is attached:
   `drive upload FILE TARGET` clicks TARGET and answers the dialog it opens with FILE
-  (without TARGET it answers one already open), and `drive dismiss` cancels it.
+  (without TARGET it answers one already open), and `drive dismiss` cancels it. A save
+  dialog waits the same way: `drive save FILE TARGET` clicks TARGET and writes what the
+  dialog saves to FILE, and the app hears it was saved. `drive dismiss` cancels the oldest
+  dialog of either kind, and `drive state` lists the ones open.
 - `drive grab FILE...` drags files in from outside, over the pointer; `drive move` carries
   them, to try what hovering with them shows, `drive drop [TARGET]` drops them and
   `drive ungrab` takes them away again.

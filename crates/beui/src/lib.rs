@@ -34,6 +34,7 @@ pub use beui_core::drawing::Drawing;
 pub use beui_core::file_picker::{
     FileFilter, FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile,
 };
+pub use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest, SavedFile};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
