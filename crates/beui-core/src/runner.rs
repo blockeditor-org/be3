@@ -21,6 +21,7 @@ use crate::input::{Event, Input};
 use crate::renderer::{Loaded, Renderers};
 use crate::window::{WindowId, WindowReport, WindowReports, WindowState};
 
+pub mod environment;
 mod host;
 mod intake;
 

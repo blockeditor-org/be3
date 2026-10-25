@@ -306,7 +306,7 @@ direction:
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
-| `beui-adapter-space` | the VR simulator `WindowHost` that `BEUI_SPACE=1` wraps around a native or headless adapter: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
+| `beui-adapter-space` | the VR simulator `WindowHost` that `BEUI_ADAPTER=space` wraps around a native or headless adapter: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -2696,7 +2696,8 @@ frames.
 
 `RunOptions::automation` hands the runner an `automation::Inbox` of commands
 from a driver (guides/running/drive.md); the native run functions fill it
-from `BEUI_AUTOMATION` and switch to `beui::Headless` for `BEUI_HEADLESS`, and
+from `BEUI_AUTOMATION` and pick their adapter and renderer from `BEUI_ADAPTER`,
+`BEUI_SPACE_ADAPTER` and `BEUI_RENDERER` (`beui_core::runner::environment`), and
 block-app's web build fills it from its `automate` export. The runner keeps the
 accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
 headless plugin do by default and other runners only for a driver) and the action registry's actions, takes
@@ -2880,15 +2881,16 @@ window into a texture of its own and composites them through a `Drawing`
 (`beui::drawing`, whose `Draw::prepare` has the device, queue and an
 encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
 window. The native run functions (`beui::run_with`, `run_on`) wrap their
-adapter in a host when `BEUI_SPACE` is set (`in_space` in
+adapter in a host under `BEUI_ADAPTER=space` (`adapt` in
 `crates/beui/src/window.rs`).
 
 ### Space: the VR simulator host
 
 `crates/beui-adapter-space` is a `WindowHost` that shows an app's windows as
 panels in a first-person 3D scene, a VR simulator that runs on any wgpu adapter.
-`BEUI_SPACE=1` turns it on for any native or headless (`:dev`) run: `in_space`
-wraps the platform adapter in `HostedAdapter { adapter, host: Space::new() }`.
+`BEUI_ADAPTER=space` turns it on for any native or headless (`:dev`) run: `adapt`
+wraps the adapter `BEUI_SPACE_ADAPTER` names (the platform's own by default, or
+`headless`) in `HostedAdapter { adapter, host: Space::new() }`.
 Everything it does is in the host, so no platform adapter knows about it, and
 all its 3D (`glam`) stays in the crate.
 

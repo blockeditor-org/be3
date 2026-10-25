@@ -216,15 +216,15 @@ fn exec(socket: &Path, arguments: &[String], timeout: Duration) -> Result<(), St
                 .to_owned(),
         );
     }
-    let error = std::process::Command::new(program)
+    let mut command = std::process::Command::new(program);
+    command
         .args(arguments)
         .env_remove("WAYLAND_DISPLAY")
-        .env_remove("DISPLAY")
-        .env_remove("BEUI_AUTOMATION")
-        .env_remove("BEUI_HEADLESS")
-        .env_remove("BEUI_HEADLESS_SCREEN")
-        .envs(environment)
-        .exec();
+        .env_remove("DISPLAY");
+    for variable in beui_core::runner::environment::VARIABLES {
+        command.env_remove(variable);
+    }
+    let error = command.envs(environment).exec();
     Err(format!("could not run {program}: {error}"))
 }
 
