@@ -422,8 +422,6 @@ impl Runner {
         if let Some(failure) = self.runner.failure() {
             web_sys::console::error_1(&format!("the app stopped after a panic: {failure}").into());
         }
-        // The page is already going away when the app agreed to leave it,
-        // as on a reload, and closing the tab would stop the reload.
         if !LEAVING.get() {
             let _ = window.close();
         }

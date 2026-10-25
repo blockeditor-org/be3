@@ -27,13 +27,7 @@ pub(super) fn spawn(
         FileStore::open(&directory)
             .map_err(|error| format!("the local object store cannot open: {error}"))
     };
-    wasm_bindgen_futures::spawn_local(serve(
-        config,
-        store,
-        inbox,
-        shared,
-        changed,
-    ));
+    wasm_bindgen_futures::spawn_local(serve(config, store, inbox, shared, changed));
     Running
 }
 
