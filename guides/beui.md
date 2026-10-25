@@ -2784,7 +2784,8 @@ understands (a screen position, a 3D pose), which the app stores and hands
 back unchanged. The host answers with `WindowReport`s pushed as
 `Incoming::Window`: `Resized { window, size }` in points, `Placed { window,
 placement }`, `Closed(window)` and `Focused { window, focused }` (the host's
-window focus, as a window manager's click to focus moves it). The runner applies them before the frame
+window focus, as a window manager moves it on a click or to a window it
+opens). The runner applies them before the frame
 lays out, and `Context::window_size` and `Context::window_placement` read
 them. `Context::opens_windows` says whether anything can open windows; where
 nothing can (every platform adapter on its own), a window is shown inside the
@@ -2837,7 +2838,13 @@ one window never reaches another's nodes at the same coordinates. Focus,
 key routing and tab order stay one across every window, except that a host's
 `Focused { window, focused: false }` takes the focus from a node inside that
 window (remembered per window) and `focused: true` gives it back when nothing
-else has it since. `Document::window_of`
+else has it since. A window with nothing to give back keeps no focus, so the
+app gives it one: a dock window the host focuses (`window_focused` in
+`dock.rs`) focuses its pane and, unless the keyboard is already inside it,
+hands it to the shown tab (`give_keyboard`, the node that tab last had, else
+its first focusable), so a tab floated into a window the host focuses on
+opening takes the keyboard with it, while the main window keeps the remaining
+tab's focus for when it is focused again. `Document::window_of`
 names the window a node is in, `window_rect` its rectangle and `open_windows`
 the windows the host shows. Every window's rectangle starts at the origin, so
 damage is told apart by window: the paint cache files what each root's nodes
@@ -2960,7 +2967,9 @@ all its 3D (`glam`) stays in the crate.
   `OVER_NEARER` nearer for each panel already there, and `AtPointer` puts the
   point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
   in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
-  none, turned to face the viewer (yaw only). `Resize` sets the panel's size,
+  none, turned to face the viewer (yaw only). A window that opens takes the
+  focus (see Focus); a window asked for again keeps its panel and leaves the
+  focus alone. `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer
@@ -3089,8 +3098,13 @@ all its 3D (`glam`) stays in the crate.
   renderer for each icon cost about 30 ms a switch.
 - Focus: like a desktop window manager, focus follows clicks, not the cursor
   (`Space::focused`, the main window's panel at first). A press on a panel's
-  content or its chrome focuses that panel, as does starting to carry it; a
-  press that hits no panel and no chrome focuses none. A change is reported as
+  content or its chrome focuses that panel, as does starting to carry it and
+  opening it (`WindowRequest::Open`), so a window popped out of the dock gets
+  the keys at once; a press that hits no panel and no chrome focuses none.
+  Windows reopened at their saved placements when the app starts are opened
+  like any other, in the order the app asks, so the last one opened has the
+  focus, as a desktop session restoring its windows leaves it with the last
+  one mapped. A change is reported as
   `WindowReport::Focused` (the old window `false`, the new one `true`), so the
   app's document lets go of, and later restores, the keyboard focus inside
   that window. While no panel is focused, key presses and text reach no

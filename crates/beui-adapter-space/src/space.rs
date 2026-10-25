@@ -865,7 +865,8 @@ impl Space {
     }
 
     pub fn open(&mut self, window: WindowId, placement: &WindowPlacement, size: Vec2) {
-        if self.panel(window).is_none() {
+        let opening = self.panel(window).is_none();
+        if opening {
             let pose = match placement {
                 WindowPlacement::Host(placement) => Pose::from_placement(placement),
                 WindowPlacement::Over { window: other, at } => self.over(*other, *at, size),
@@ -888,6 +889,9 @@ impl Space {
             },
         ];
         self.reports.extend(reports.map(Incoming::Window));
+        if opening {
+            self.focus(Some(window));
+        }
     }
 
     pub fn resize_window(&mut self, window: WindowId, size: Vec2) {

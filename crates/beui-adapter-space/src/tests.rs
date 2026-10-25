@@ -36,6 +36,7 @@ mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
 mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
 mod a_window_opened_over_another_sits_where_that_window_would_show_it_a_little_in_front;
+mod a_window_opened_over_the_main_panel_takes_the_focus_and_the_keys;
 mod an_absolute_position_puts_the_cursor_where_its_ray_hits;
 mod clicking_a_panel_or_its_chrome_focuses_it_until_another_or_nothing_is_clicked;
 mod closing_a_window_removes_its_panel;
@@ -212,11 +213,30 @@ fn reports(incoming: &[Incoming]) -> Vec<WindowReport> {
     incoming
         .iter()
         .filter_map(|incoming| match incoming {
-            Incoming::Window(WindowReport::Scaled { .. }) => None,
+            Incoming::Window(WindowReport::Scaled { .. } | WindowReport::Focused { .. }) => None,
             Incoming::Window(report) => Some(report.clone()),
             _ => None,
         })
         .collect()
+}
+
+fn focus_reports(incoming: &[Incoming]) -> Vec<(WindowId, bool)> {
+    incoming
+        .iter()
+        .filter_map(|incoming| match incoming {
+            Incoming::Window(WindowReport::Focused { window, focused }) => {
+                Some((*window, *focused))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn keys(incoming: &[Incoming]) -> usize {
+    delivered(incoming)
+        .iter()
+        .filter(|(_, input)| matches!(input, Input::Key(_)))
+        .count()
 }
 
 fn scaled(incoming: &[Incoming]) -> Vec<(WindowId, f32)> {

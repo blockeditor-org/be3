@@ -834,12 +834,40 @@ impl State {
             WindowReport::Placed { placement, .. } => self.placements.update(|placements| {
                 placements.insert(surface, WindowPlacement::Host(placement));
             }),
+            WindowReport::Focused { focused: true, .. } => self.window_focused(surface),
             WindowReport::Scaled { .. } | WindowReport::Focused { .. } => {}
             WindowReport::Closed(_) => {
                 for tab in self.state.get_untracked().surface_tabs(surface) {
                     self.close_tab(tab);
                 }
             }
+        }
+    }
+
+    fn window_focused(&self, surface: SurfaceId) {
+        let frame = self
+            .windows
+            .value()
+            .borrow()
+            .get(&surface)
+            .and_then(|frame| frame.try_get());
+        if frame.is_none_or(|frame| frame.focus_is_within()) {
+            return;
+        }
+        let leaf = self.state.with_untracked(|state| {
+            state
+                .focused_leaf()
+                .filter(|leaf| state.surface_of(*leaf) == Some(surface))
+                .or_else(|| state.leaves(surface).first().copied())
+        });
+        let Some(leaf) = leaf else {
+            return;
+        };
+        if self.state.with_untracked(|state| state.focused_leaf()) != Some(leaf) {
+            self.edit(|state| state.focus(leaf));
+        }
+        if let Some(tab) = self.state.with_untracked(|state| state.active_tab(leaf)) {
+            self.give_keyboard(tab);
         }
     }
 

@@ -1,33 +1,24 @@
 use super::*;
 
-fn focus_reports(incoming: &[Incoming]) -> Vec<(WindowId, bool)> {
-    incoming
-        .iter()
-        .filter_map(|incoming| match incoming {
-            Incoming::Window(WindowReport::Focused { window, focused }) => {
-                Some((*window, *focused))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn keys(incoming: &[Incoming]) -> usize {
-    delivered(incoming)
-        .iter()
-        .filter(|(_, input)| matches!(input, Input::Key(_)))
-        .count()
-}
-
 #[test]
 fn clicking_a_panel_or_its_chrome_focuses_it_until_another_or_nothing_is_clicked() {
     let (mut space, now) = space();
-    let over = open_ahead(&mut space, now, 0.4);
-    let lit = |space: &Space, window| space.chrome_opacity(window) == 1.0;
     assert_eq!(
         space.focused(),
         Some(WindowId::MAIN),
         "the app starts focused"
+    );
+    let over = open_ahead(&mut space, now, 0.4);
+    let lit = |space: &Space, window| space.chrome_opacity(window) == 1.0;
+    let on_main = screen(&space, main(&space).world(pos2(60.0, 60.0)));
+    send(
+        &mut space,
+        now,
+        [
+            Input::PointerMoved(on_main),
+            button(on_main, true),
+            button(on_main, false),
+        ],
     );
     assert!(lit(&space, WindowId::MAIN) && !lit(&space, over));
 
@@ -49,7 +40,6 @@ fn clicking_a_panel_or_its_chrome_focuses_it_until_another_or_nothing_is_clicked
         "a drag that leaves the panel keeps its chrome lit"
     );
     send(&mut space, now, [button(sky, false)]);
-    let on_main = screen(&space, main(&space).world(pos2(60.0, 60.0)));
     send(&mut space, now, [Input::PointerMoved(on_main)]);
     assert!(
         lit(&space, over) && !lit(&space, WindowId::MAIN),
