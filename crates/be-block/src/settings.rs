@@ -4,8 +4,34 @@ use uuid::Uuid;
 use crate::device_class::DeviceClass;
 use crate::{ChildChange, Root};
 
+pub use crate::resolution::{Resolution, ResolutionLayers, SettingsSource};
+
 pub trait Layered: Root + Clone + Default {
+    const NAME: &'static str;
+    const FOLLOWS: Follows = Follows::Viewer;
+    const RULE: KindRule = KindRule::Default;
+    const VISIBILITY: KindVisibility = KindVisibility::Members;
+
     fn over(&self, lower: &Self) -> Self;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Follows {
+    Block,
+    Viewer,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KindRule {
+    Default,
+    Policy,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum KindVisibility {
+    Inside,
+    #[default]
+    Members,
 }
 
 pub fn layered<R: Layered>(layers: impl IntoIterator<Item = R>) -> R {

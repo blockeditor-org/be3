@@ -1,0 +1,300 @@
+use std::any::{Any, TypeId};
+use std::collections::{BTreeMap, HashMap};
+
+use be_block::be_model::{BlockRef, Document};
+use be_block::{
+    ANYONE_INSIDE, BlockContent, Follows, KindVisibility, Layered, LiveEdit, Resolution,
+    ResolutionLayers, Root, SETTINGS, Settings, SettingsContent,
+};
+use beui::reactive::*;
+use block_plugin_api::AccessLevel;
+use uuid::Uuid;
+
+use super::Editor;
+use crate::root_settings::{RootSettings, layers};
+use crate::{BlockList, BlockParent, BlockQuery};
+
+const MAX_DEPTH: usize = 256;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct OrganizationLayers {
+    pub policy: Option<Uuid>,
+    pub default: Option<Uuid>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SetKind {
+    pub owner: Uuid,
+    pub settings: Uuid,
+    pub block: Uuid,
+}
+
+pub type KindsAbove = BTreeMap<Uuid, SetKind>;
+
+#[derive(Default)]
+pub(super) struct SettingsCache {
+    walks: HashMap<Uuid, [BlockList; 2]>,
+    kinds: HashMap<Uuid, Memo<KindsAbove>>,
+    resolved: HashMap<(Uuid, TypeId), Box<dyn Any>>,
+    created: HashMap<Uuid, Uuid>,
+    created_kinds: HashMap<(Uuid, Uuid), Uuid>,
+}
+
+impl Editor {
+    pub fn organization_layers(&self, kind: Uuid) -> OrganizationLayers {
+        let _ = kind;
+        OrganizationLayers::default()
+    }
+
+    pub fn settings_block(&self, owner: Uuid) -> Option<Uuid> {
+        self.blocks()
+            .info(owner)
+            .and_then(|info| info.metadata.get(&SETTINGS))
+            .map(|found| found.0)
+            .or_else(|| self.state().settings.borrow().created.get(&owner).copied())
+    }
+
+    pub fn settings_owner(&self, settings: Uuid) -> Option<Uuid> {
+        let info = self.blocks().info(settings)?;
+        match (info.block_type == Settings::CONTENT_TYPE, info.parent) {
+            (true, Some(BlockParent::Block(owner))) => Some(owner),
+            _ => None,
+        }
+    }
+
+    pub fn kinds_above(&self, block: Uuid) -> Memo<KindsAbove> {
+        if let Some(found) = self.state().settings.borrow().kinds.get(&block) {
+            return *found;
+        }
+        let editor = *self;
+        let state = self.state();
+        let memo = state._scope.run(|| {
+            let blocks = editor.blocks();
+            let walk = [
+                blocks.watch(BlockQuery::Block(block)),
+                blocks.watch(BlockQuery::Parents(block)),
+            ];
+            state.settings.borrow_mut().walks.insert(block, walk);
+            create_memo(move || editor.walk(block))
+        });
+        state.settings.borrow_mut().kinds.insert(block, memo);
+        memo
+    }
+
+    fn walk(&self, block: Uuid) -> KindsAbove {
+        let blocks = self.blocks();
+        let mut found = KindsAbove::new();
+        let mut current = block;
+        for _ in 0..MAX_DEPTH {
+            let Some(info) = blocks.info(current) else {
+                break;
+            };
+            if !info.access.can_view() {
+                break;
+            }
+            if let Some(settings) = self.settings_block(current) {
+                let kinds = self
+                    .content_of::<SettingsContent>(settings)
+                    .read(|content| content.root().kinds.clone())
+                    .unwrap_or_default();
+                for (kind, set) in kinds.iter() {
+                    found.entry(*kind).or_insert(SetKind {
+                        owner: current,
+                        settings,
+                        block: *set,
+                    });
+                }
+            }
+            let Some(BlockParent::Block(parent)) = info.parent else {
+                break;
+            };
+            current = parent;
+        }
+        found
+    }
+
+    pub fn nearest_settings(&self, block: Uuid, kind: Uuid) -> Memo<Option<SetKind>> {
+        let kinds = self.kinds_above(block);
+        create_memo(move || kinds.with(|kinds| kinds.get(&kind).copied()))
+    }
+
+    pub fn resolved_settings<R>(&self, block: Uuid) -> Memo<Resolution<R>>
+    where
+        R: Layered + PartialEq + 'static,
+        Document<R>: LiveEdit + Clone + Default,
+    {
+        let key = (block, TypeId::of::<R>());
+        if let Some(found) = self
+            .state()
+            .settings
+            .borrow()
+            .resolved
+            .get(&key)
+            .and_then(|found| found.downcast_ref::<Memo<Resolution<R>>>())
+        {
+            return *found;
+        }
+        let editor = *self;
+        let kinds = match R::FOLLOWS {
+            Follows::Block => Some(self.kinds_above(block)),
+            Follows::Viewer => None,
+        };
+        let state = self.state();
+        let memo = state._scope.run(|| {
+            create_memo(move || {
+                let read = |block: Option<Uuid>| -> Option<R> {
+                    let block = block?;
+                    editor
+                        .content_of::<Document<R>>(block)
+                        .read(|content| content.root())
+                        .ok()
+                };
+                let client = editor.host().client_id();
+                let own = RootSettings::default()
+                    .read(&editor)
+                    .map(|held| layers(&editor, &held, R::CONTENT_TYPE, client))
+                    .unwrap_or_default();
+                let organization = editor.organization_layers(R::CONTENT_TYPE);
+                let set = kinds.and_then(|kinds| kinds.with(|kinds| kinds.get(&R::CONTENT_TYPE).copied()));
+                Resolution::resolve(ResolutionLayers {
+                    organization_policy: read(organization.policy),
+                    organization_default: read(organization.default),
+                    block: set.and_then(|set| Some((set.owner, read(Some(set.block))?))),
+                    every_device: read(own.every_device),
+                    this_device: read(own.this_device),
+                })
+            })
+        });
+        state
+            .settings
+            .borrow_mut()
+            .resolved
+            .insert(key, Box::new(memo));
+        memo
+    }
+
+    pub fn effective_settings<R>(&self) -> Memo<R>
+    where
+        R: Layered + PartialEq + 'static,
+        Document<R>: LiveEdit + Clone + Default,
+    {
+        let resolved = self.resolved_settings::<R>(self.block_id());
+        create_memo(move || resolved.with(Resolution::value))
+    }
+
+    pub fn inherited_settings<R>(&self) -> Memo<R>
+    where
+        R: Layered + PartialEq + 'static,
+        Document<R>: LiveEdit + Clone + Default,
+    {
+        let editor = *self;
+        create_memo(move || {
+            let below = RootSettings::default()
+                .read(&editor)
+                .map(|held| {
+                    layers(&editor, &held, R::CONTENT_TYPE, editor.host().client_id())
+                        .below(editor.block_id())
+                })
+                .unwrap_or_default();
+            be_block::layered(below.into_iter().filter_map(|block| {
+                editor
+                    .content_of::<Document<R>>(block)
+                    .read(|content| content.root())
+                    .ok()
+            }))
+        })
+    }
+
+    pub fn ensure_settings_block(&self, owner: Uuid) -> Option<Uuid> {
+        if let Some(found) = untrack(|| self.settings_block(owner)) {
+            return Some(found);
+        }
+        self.create_settings_block(owner, SettingsContent::default())
+    }
+
+    fn create_settings_block(&self, owner: Uuid, content: SettingsContent) -> Option<Uuid> {
+        if !untrack(|| self.blocks().access(owner)).can_manage() {
+            return None;
+        }
+        let blocks = self.blocks();
+        let settings = blocks.create_with(
+            Settings::CONTENT_TYPE,
+            Some(content.encode()),
+            BlockParent::Block(owner),
+            be_block::BlockMetadata::default(),
+        );
+        blocks.define(owner, SETTINGS.definition(Some(&BlockRef(settings))));
+        self.state()
+            .settings
+            .borrow_mut()
+            .created
+            .insert(owner, settings);
+        Some(settings)
+    }
+
+    pub fn ensure_block_kind<R>(&self, owner: Uuid, content: Document<R>) -> Option<Uuid>
+    where
+        R: Layered + 'static,
+        Document<R>: BlockContent,
+    {
+        let kind = R::CONTENT_TYPE;
+        let existing = untrack(|| self.settings_block(owner));
+        let block = Uuid::now_v7();
+        let settings = match existing {
+            Some(settings) => {
+                if let Some(found) = self
+                    .state()
+                    .settings
+                    .borrow()
+                    .created_kinds
+                    .get(&(settings, kind))
+                {
+                    return Some(*found);
+                }
+                let held = self.content_of::<SettingsContent>(settings);
+                let own = untrack(|| held.read(|content| content.root().kind(kind))).ok()?;
+                if let Some(found) = own {
+                    return Some(found);
+                }
+                held.operate(Settings::set_kind(kind, block));
+                settings
+            }
+            None => {
+                let mut content = SettingsContent::default();
+                content.apply(&Settings::set_kind(kind, block));
+                self.create_settings_block(owner, content)?
+            }
+        };
+        self.blocks().create_at(
+            block,
+            kind,
+            Some(content.encode()),
+            BlockParent::Block(settings),
+            be_block::BlockMetadata::default(),
+        );
+        if R::VISIBILITY == KindVisibility::Inside {
+            self.host()
+                .set_access(block, ANYONE_INSIDE, AccessLevel::View);
+        }
+        self.state()
+            .settings
+            .borrow_mut()
+            .created_kinds
+            .insert((settings, kind), block);
+        Some(block)
+    }
+
+    pub fn clear_block_kind(&self, settings: Uuid, kind: Uuid) {
+        let held = self.content_of::<SettingsContent>(settings);
+        let Ok(Some(block)) = untrack(|| held.read(|content| content.root().kind(kind))) else {
+            return;
+        };
+        self.state()
+            .settings
+            .borrow_mut()
+            .created_kinds
+            .remove(&(settings, kind));
+        self.host()
+            .delete_block(block, kind, BlockParent::Block(settings));
+    }
+}

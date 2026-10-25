@@ -311,6 +311,8 @@ impl DisplaySettings {
 }
 
 impl Layered for DisplaySettings {
+    const NAME: &'static str = "Display";
+
     fn over(&self, lower: &Self) -> Self {
         let screens = lower
             .screens

@@ -306,6 +306,8 @@ fn keyboard_name(name: Option<&str>) -> Option<String> {
 }
 
 impl Layered for InputSettings {
+    const NAME: &'static str = "Input";
+
     fn over(&self, lower: &Self) -> Self {
         let pointers = lower
             .pointers

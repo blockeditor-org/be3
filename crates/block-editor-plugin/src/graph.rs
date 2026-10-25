@@ -459,7 +459,17 @@ impl Blocks {
         parent: BlockParent,
         metadata: BlockMetadata,
     ) -> Uuid {
-        let id = Uuid::now_v7();
+        self.create_at(Uuid::now_v7(), block_type, content, parent, metadata)
+    }
+
+    pub fn create_at(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        content: Option<Vec<u8>>,
+        parent: BlockParent,
+        metadata: BlockMetadata,
+    ) -> Uuid {
         self.graph.push(GraphCommand::Create {
             id,
             block_type,

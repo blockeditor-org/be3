@@ -64,6 +64,9 @@ pub const EXECUTABLE: MetaKey<bool> =
 pub const DELETED_FROM: MetaKey<DeletedFrom> =
     MetaKey::defined(0x6be3_6d65_7461_4400_8a1e_6465_6c66_0001, "deleted_from");
 
+pub const SETTINGS: MetaKey<BlockRef> =
+    MetaKey::defined(0x6be3_6d65_7461_5300_8a1e_7365_7474_0001, "settings");
+
 pub const VIEW_EDITOR: MetaKey<Uuid> =
     MetaKey::defined(0x6be3_6d65_7461_5600_8a1e_7669_6577_0001, "view_editor");
 

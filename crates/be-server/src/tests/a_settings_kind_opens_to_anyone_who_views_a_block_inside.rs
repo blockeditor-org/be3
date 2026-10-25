@@ -11,6 +11,7 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
             content_type,
             parent: BlockParent::Block(parent),
             metadata: Vec::new(),
+            references: Vec::new(),
             key,
             keys: KeySet {
                 keys: vec![row(key, block, KeyKind::Data)],

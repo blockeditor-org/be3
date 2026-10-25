@@ -14,6 +14,7 @@ pub mod input_settings;
 pub mod metadata;
 pub mod model;
 pub mod plain;
+pub mod resolution;
 pub mod presence;
 pub mod profile;
 pub mod setting;
@@ -22,6 +23,7 @@ pub mod settling;
 pub mod streamed;
 pub mod version_control;
 
+pub use be_graph::ANYONE_INSIDE;
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
@@ -32,7 +34,7 @@ pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE, Entries,
     ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME, Origin,
-    ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash, VIEW_EDITOR,
+    ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
 pub use profile::{
@@ -41,7 +43,8 @@ pub use profile::{
 };
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
-    Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
+    Follows, KindRule, KindVisibility, Layered, Resolution, ResolutionLayers, Settings,
+    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, layered,
 };
 pub use settling::{Landed, Settling};
 pub use streamed::{
