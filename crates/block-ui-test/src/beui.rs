@@ -954,12 +954,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     self.window = window.window;
                 }
             }
-            Message::Editor(message) => {
-                match &message {
-                    _ => {}
-                }
-                self.sent.push(message);
-            }
+            Message::Editor(message) => self.sent.push(message),
             Message::Error(error) => panic!("the plugin reported an error: {}", error.message),
             _ => {}
         }
