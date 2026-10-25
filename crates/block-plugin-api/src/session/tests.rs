@@ -9,6 +9,7 @@ fn session() -> HostSession {
         "BE3",
         Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
+            render: true,
         }),
         crate::Preferences::default(),
     )

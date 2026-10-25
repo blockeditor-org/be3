@@ -17,6 +17,7 @@ text-editor-core = { path = "../text-editor-core" }
 beui = { path = "../beui" }
 
 [dev-dependencies]
+bench = { path = "../bench" }
 beui-inspector = { path = "../beui-inspector" }
 block-ui-test = { path = "../block-ui-test" }
 

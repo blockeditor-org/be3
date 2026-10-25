@@ -31,9 +31,9 @@ pub use manifest::{
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 pub use ui_types::geometry::{Pos2, Rect, Vec2};
 pub use ui_types::{
-    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Input, Key,
-    KeyChord, Keyboard, Keystroke, Modifiers, PasteKind, Pasted, Pen, PenPhase, PickedFile,
-    PointerButton, ScrollDelta, TouchId, TouchPhase,
+    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, FileSave, ImeEvent, ImeText, Input,
+    Key, KeyChord, Keyboard, Keystroke, Modifiers, PasteKind, Pasted, Pen, PenPhase, PickedFile,
+    PointerButton, SavedFile, ScrollDelta, TouchId, TouchPhase,
 };
 pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
@@ -1705,20 +1705,6 @@ pub enum BlockPick {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SavedFile {
-    pub name: String,
-    pub mime_type: String,
-    pub data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileSave {
-    Saved,
-    Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FetchResult {
     Body(Vec<u8>),
     Failed(String),
@@ -2025,6 +2011,7 @@ pub enum SurfaceSupport {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SurfaceSpec {
     pub format: SurfaceFormat,
+    pub render: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

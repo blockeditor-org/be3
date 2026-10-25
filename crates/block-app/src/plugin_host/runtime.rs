@@ -36,9 +36,6 @@ const FRAME_BUDGET: Duration = Duration::from_millis(8);
 const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 pub(crate) const PACING: &str = "Frame pacing";
 const REMEMBERED_PRESENTS: usize = 16;
-const SURFACE: SurfaceSpec = SurfaceSpec {
-    format: SurfaceFormat::Rgba8Unorm,
-};
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::new());
@@ -1817,7 +1814,11 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session() -> HostSession {
-    HostSession::new(HOST_NAME, Some(SURFACE), host::preferences())
+    let surface = SurfaceSpec {
+        format: SurfaceFormat::Rgba8Unorm,
+        render: presenter::rendered(),
+    };
+    HostSession::new(HOST_NAME, Some(surface), host::preferences())
 }
 
 thread_local! {

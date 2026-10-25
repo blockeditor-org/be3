@@ -262,6 +262,10 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     pub async fn settle(&mut self) {
         loop {
             self.replicas.pump((&self.peer, &self.shared)).await;
+            while self.replicas.relaying() {
+                self.replicas.woken().await;
+                self.replicas.pump((&self.peer, &self.shared)).await;
+            }
             let (frames, errors) = {
                 let mut held = held(&self.shared);
                 (

@@ -267,6 +267,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "app-bench"
+version = "0.1.0"
+dependencies = [
+ "be-drive",
+ "be-server",
+ "bench",
+ "beui-core",
+ "build-id",
+ "paint-snapshot",
+ "tokio",
+]
+
+[[package]]
 name = "app-tests"
 version = "0.1.0"
 dependencies = [
@@ -842,6 +855,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-store",
+ "bench",
  "serde",
  "uuid",
 ]
@@ -1083,10 +1097,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bench"
+version = "0.1.0"
+
+[[package]]
 name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "bench",
  "beui-adapter-android",
  "beui-adapter-headless",
  "beui-adapter-space",
@@ -1258,6 +1277,7 @@ dependencies = [
 name = "beui-demo"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "beui-core",
  "beui-inspector",
@@ -1486,7 +1506,6 @@ dependencies = [
 name = "block-app"
 version = "0.1.0"
 dependencies = [
- "ashpd",
  "async-executor",
  "async-io",
  "async-lock",
@@ -1536,7 +1555,6 @@ dependencies = [
  "presentation-types",
  "pulseaudio",
  "reactive",
- "rfd",
  "rodio",
  "rusqlite",
  "serde",
@@ -4331,6 +4349,7 @@ dependencies = [
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "block-editor-beui",
  "block-ui-test",

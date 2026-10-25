@@ -15,6 +15,7 @@ use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
     CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
@@ -269,6 +270,10 @@ impl Platform for WebPlatform {
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         crate::file_picker::open(request, answer);
+    }
+
+    fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        crate::file_saver::open(request, answer);
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {

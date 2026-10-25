@@ -1,9 +1,12 @@
 use wasm_bindgen::JsCast;
 
-use super::{Deliver, SaveResult, SavedFile};
+use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest, SavedFile};
 
-pub(super) fn save(file: SavedFile, deliver: Deliver<SaveResult>) {
-    deliver.send(download(&file).map(|()| true));
+pub(crate) fn open(request: FileSaveRequest, answer: FileSaveAnswer) {
+    answer.send(match download(&request.file) {
+        Ok(()) => FileSave::Saved,
+        Err(error) => FileSave::Failed(error),
+    });
 }
 
 fn download(file: &SavedFile) -> Result<(), String> {

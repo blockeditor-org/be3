@@ -21,7 +21,10 @@ variables, so a program needs nothing of its own to be driven:
 
 - `BEUI_HEADLESS=WIDTHxHEIGHT[@SCALE]` runs it on `beui::Headless` (crates/beui-adapter-headless),
   which draws offscreen with wgpu and needs no display server. `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT`
-  is the screen a fullscreen window grows to.
+  is the screen a fullscreen window grows to. `BEUI_RENDERER=none` runs it headless with no GPU
+  at all (`beui_core::renderer::NoRenderer`): every frame is laid out and painted as usual, but
+  nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app then
+  gives its plugins surfaces it does not render, so they run their frames without a GPU either.
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
 - `BEUI_SPACE=1` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR simulator
   host"), headless or in a window; `drive shot` takes the 3D view, every other command the app.
@@ -233,7 +236,10 @@ real one:
   the clipboard is the window's own; in a real one it is the system's.
 - A file dialog the app opens waits for drive, in any window while drive is attached:
   `drive upload FILE TARGET` clicks TARGET and answers the dialog it opens with FILE
-  (without TARGET it answers one already open), and `drive dismiss` cancels it.
+  (without TARGET it answers one already open), and `drive dismiss` cancels it. A save
+  dialog waits the same way: `drive save FILE TARGET` clicks TARGET and writes what the
+  dialog saves to FILE, and the app hears it was saved. `drive dismiss` cancels the oldest
+  dialog of either kind, and `drive state` lists the ones open.
 - `drive grab FILE...` drags files in from outside, over the pointer; `drive move` carries
   them, to try what hovering with them shows, `drive drop [TARGET]` drops them and
   `drive ungrab` takes them away again.

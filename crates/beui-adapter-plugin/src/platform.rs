@@ -1,5 +1,6 @@
 use beui_core::clipboard::{PasteAnswer, PasteKind};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::runner::Platform;
 use block_editor_plugin::EditorHost;
 use block_editor_plugin::accesskit::TreeUpdate;
@@ -7,6 +8,7 @@ use block_editor_plugin::accesskit::TreeUpdate;
 pub(crate) struct HostPlatform {
     host: EditorHost,
     picks: Vec<(u64, FilePickAnswer)>,
+    saves: Vec<(u64, FileSaveAnswer)>,
     tree: Option<TreeUpdate>,
 }
 
@@ -15,6 +17,7 @@ impl HostPlatform {
         Self {
             host,
             picks: Vec::new(),
+            saves: Vec::new(),
             tree: None,
         }
     }
@@ -23,11 +26,17 @@ impl HostPlatform {
         self.tree.take()
     }
 
-    pub(crate) fn deliver_picks(&mut self) {
+    pub(crate) fn deliver_file_dialogs(&mut self) {
         for (request, answer) in std::mem::take(&mut self.picks) {
             match self.host.take_pick(request) {
                 Some(pick) => answer.send(pick),
                 None => self.picks.push((request, answer)),
+            }
+        }
+        for (request, answer) in std::mem::take(&mut self.saves) {
+            match self.host.take_save(request) {
+                Some(save) => answer.send(save),
+                None => self.saves.push((request, answer)),
             }
         }
     }
@@ -62,5 +71,10 @@ impl Platform for HostPlatform {
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         let asked = self.host.pick_file(request.filter);
         self.picks.push((asked, answer));
+    }
+
+    fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        let asked = self.host.save_file(request.file);
+        self.saves.push((asked, answer));
     }
 }

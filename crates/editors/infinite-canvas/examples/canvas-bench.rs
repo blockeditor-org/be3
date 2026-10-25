@@ -107,8 +107,9 @@ fn percentile<T: Copy + Ord>(mut values: Vec<T>, share: f64) -> T {
     values[((values.len() - 1) as f64 * share).round() as usize]
 }
 
-fn report(name: &str, frames: &[Frame]) {
+fn report(name: &str, metric: &str, frames: &[Frame]) {
     let wall = |share| percentile(frames.iter().map(|frame| frame.wall).collect(), share);
+    bench::time(&format!("{metric}.p50"), wall(0.5));
     let median = |pick: fn(&Frame) -> Duration| percentile(frames.iter().map(pick).collect(), 0.5);
     let most = |pick: fn(&FramePerformance) -> usize| {
         frames
@@ -388,36 +389,72 @@ fn main() {
         if wanted("open") {
             let started = Instant::now();
             drop(open(count));
-            println!("open {count:>6} shapes        {:>8.2?}", started.elapsed());
+            let took = started.elapsed();
+            bench::time(&format!("{count}-shapes.open"), took);
+            println!("open {count:>6} shapes        {took:>8.2?}");
         }
         if wanted("pan") {
-            report(&format!("pan {count} at 1"), &pan(count, 1.0));
-            report(&format!("pan {count} at 0.1"), &pan(count, 0.1));
+            report(
+                &format!("pan {count} at 1"),
+                &format!("{count}-shapes.pan-at-1"),
+                &pan(count, 1.0),
+            );
+            report(
+                &format!("pan {count} at 0.1"),
+                &format!("{count}-shapes.pan-at-0.1"),
+                &pan(count, 0.1),
+            );
         }
         if wanted("zoom") {
-            report(&format!("zoom {count}"), &zoom(count));
+            report(
+                &format!("zoom {count}"),
+                &format!("{count}-shapes.zoom"),
+                &zoom(count),
+            );
         }
         if wanted("long") {
             let (first, last) = long_ink(count);
-            report(&format!("long ink first {count}"), &first);
-            report(&format!("long ink last {count}"), &last);
+            report(
+                &format!("long ink first {count}"),
+                &format!("{count}-shapes.long-ink-first"),
+                &first,
+            );
+            report(
+                &format!("long ink last {count}"),
+                &format!("{count}-shapes.long-ink-last"),
+                &last,
+            );
         }
         if wanted("drag") {
-            report(&format!("drag {count}"), &drag(count));
+            report(
+                &format!("drag {count}"),
+                &format!("{count}-shapes.drag"),
+                &drag(count),
+            );
         }
         if wanted("ink") {
             let ink = ink(count);
-            report(&format!("ink move {count}"), &ink.moves);
-            report(&format!("ink lift {count}"), &ink.lifts);
+            report(
+                &format!("ink move {count}"),
+                &format!("{count}-shapes.pen-move"),
+                &ink.moves,
+            );
+            report(
+                &format!("ink lift {count}"),
+                &format!("{count}-shapes.pen-lift"),
+                &ink.lifts,
+            );
             let late = ink
                 .frames_to_ink
                 .iter()
                 .filter(|waited| **waited > 0)
                 .count();
+            let worst = ink.frames_to_ink.iter().max().copied().unwrap_or(0);
+            bench::count(&format!("{count}-shapes.frames-to-ink"), worst as u64);
             println!(
                 "ink {count:>6} shapes        {} samples, {late} needed a later frame, worst {} frames after delivery",
                 ink.frames_to_ink.len(),
-                ink.frames_to_ink.iter().max().copied().unwrap_or(0),
+                worst,
             );
         }
     }

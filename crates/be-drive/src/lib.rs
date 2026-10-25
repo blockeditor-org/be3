@@ -121,7 +121,7 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
             .unwrap_or_else(|_| path.clone())
     };
     match arguments.get(first).map(String::as_str) {
-        Some("upload") if arguments.len() > first + 1 => {
+        Some("upload" | "save") if arguments.len() > first + 1 => {
             arguments[first + 1] = absolute(&arguments[first + 1]);
         }
         Some("grab") => {

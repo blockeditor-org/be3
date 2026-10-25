@@ -27,11 +27,7 @@ use super::{
     pieces,
     sent::Sent,
 };
-use crate::{
-    editors::plugin::discovery,
-    host, performance,
-    platform::{SavedFile, http, save_file},
-};
+use crate::{editors::plugin::discovery, host, performance, platform::http};
 
 thread_local! {
     static PRESENCE_WANTED: std::cell::RefCell<std::collections::HashSet<EditorInstanceId>> =
@@ -2653,18 +2649,7 @@ impl Instances {
                 host::pick_file(filter, move |picked| reply(HostReply::FilePicked(picked)));
             }
             HostRequest::SaveFile(file) => {
-                let file = SavedFile {
-                    name: file.name,
-                    mime_type: file.mime_type,
-                    data: file.data,
-                };
-                save_file(file, move |saved| {
-                    reply(HostReply::FileSaved(match saved {
-                        Ok(true) => FileSave::Saved,
-                        Ok(false) => FileSave::Cancelled,
-                        Err(error) => FileSave::Failed(error),
-                    }));
-                });
+                host::save_file(file, move |saved| reply(HostReply::FileSaved(saved)));
             }
             HostRequest::Fetch(url) => {
                 let fetched = move |body: Result<Vec<u8>, String>| {
@@ -2711,18 +2696,12 @@ impl Instances {
                 }
                 crate::be::export(block, move |exported| match exported {
                     Ok((name, data)) => {
-                        let file = SavedFile {
+                        let file = block_plugin_api::SavedFile {
                             name,
                             mime_type: be_client::transfer::MIME_TYPE.to_owned(),
                             data,
                         };
-                        save_file(file, move |saved| {
-                            reply(HostReply::FileSaved(match saved {
-                                Ok(true) => FileSave::Saved,
-                                Ok(false) => FileSave::Cancelled,
-                                Err(error) => FileSave::Failed(error),
-                            }));
-                        });
+                        host::save_file(file, move |saved| reply(HostReply::FileSaved(saved)));
                     }
                     Err(error) => reply(HostReply::FileSaved(FileSave::Failed(error))),
                 });

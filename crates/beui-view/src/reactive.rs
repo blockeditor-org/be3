@@ -329,6 +329,7 @@ pub use crate::component_ref::ComponentRef;
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
 };
+pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::nodes::*;
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};

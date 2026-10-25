@@ -1,7 +1,7 @@
 use block_guest_abi::Flow;
 use block_plugin_api::{ErrorCode, Message, ProtocolError, decode_frame, encode_frame};
 
-use crate::{Waker, runtime::Runtime, wasm::surface};
+use crate::{Waker, runtime::Runtime};
 
 pub struct Editor(Runtime);
 
@@ -25,7 +25,6 @@ impl Editor {
             version,
         } = started;
         let runtime = Runtime::new(apps, &id, &name, &version, Waker::new(move || waker.wake()));
-        surface::initialize().map_err(|error| format!("{name} could not start: {error}"))?;
         post(outbound, vec![runtime.hello()]);
         Ok(Self(runtime))
     }

@@ -20,6 +20,7 @@ import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 public class BeuiActivity extends Activity {
     private static final String LIBRARY_NAME = "android.app.lib_name";
@@ -28,6 +29,7 @@ public class BeuiActivity extends Activity {
     static final int BACK_CANCELLED = 2;
     static final int BACK_INVOKED = 3;
     private static final int PICK_FILE_REQUEST = 0x8E31;
+    private static final int SAVE_FILE_REQUEST = 0x8E32;
     private static final int MAX_FILE_BYTES = 128 * 1024 * 1024;
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
 
@@ -38,6 +40,8 @@ public class BeuiActivity extends Activity {
     private boolean backHandled;
     private Object backCallback;
     private long picking;
+    private long saving;
+    private byte[] savingData;
 
     protected void loadNativeLibrary() {
         try {
@@ -132,8 +136,51 @@ public class BeuiActivity extends Activity {
         }
     }
 
+    void saveFile(long id, String name, String mimeType, byte[] data) {
+        if (saving != 0) BeuiView.nativeFileSaved(saving, false, null);
+        saving = id;
+        savingData = data;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(mimeType.isEmpty() ? "application/octet-stream" : mimeType);
+        intent.putExtra(Intent.EXTRA_TITLE, name);
+        try {
+            startActivityForResult(intent, SAVE_FILE_REQUEST);
+        } catch (Exception error) {
+            saving = 0;
+            savingData = null;
+            BeuiView.nativeFileSaved(id, false, "No app is available to save a file");
+        }
+    }
+
+    private void finishSaving(int result, Intent data) {
+        long id = saving;
+        byte[] bytes = savingData;
+        saving = 0;
+        savingData = null;
+        if (id == 0) return;
+        Uri uri = result == RESULT_OK && data != null ? data.getData() : null;
+        if (uri == null || bytes == null) {
+            BeuiView.nativeFileSaved(id, false, null);
+            return;
+        }
+        new Thread(() -> {
+            try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
+                if (stream == null) throw new IllegalStateException("it could not be opened");
+                stream.write(bytes);
+                BeuiView.nativeFileSaved(id, true, null);
+            } catch (Throwable error) {
+                BeuiView.nativeFileSaved(id, false, "Could not save the file: " + error);
+            }
+        }, "beui-file-saver").start();
+    }
+
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
+        if (request == SAVE_FILE_REQUEST) {
+            finishSaving(result, data);
+            return;
+        }
         if (request != PICK_FILE_REQUEST) {
             super.onActivityResult(request, result, data);
             return;

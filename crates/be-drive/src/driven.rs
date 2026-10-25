@@ -56,6 +56,10 @@ impl Driven {
         })
     }
 
+    pub fn set_timeout(&mut self, timeout: Duration) {
+        self.timeout = timeout;
+    }
+
     pub fn log_report(&self) -> String {
         log_report(&std::fs::read_to_string(&self.log).unwrap_or_default())
     }

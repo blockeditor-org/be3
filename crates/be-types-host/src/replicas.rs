@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use be_client::{ClientError, Peer, Saved};
+use be_client::{ClientError, Peer, Saved, connection::Answer};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, ServerMessage, SessionState};
@@ -33,6 +33,7 @@ pub enum Io {
     Locked {
         replica: ReplicaId,
     },
+    Relayed,
 }
 
 struct Open {
@@ -64,6 +65,7 @@ pub struct Replicas<H: Host> {
     contents: HashMap<RequestId, ReplicaId>,
     replies: HashMap<RequestId, tokio::sync::oneshot::Sender<Reply>>,
     pending: Vec<Io>,
+    relaying: usize,
     changed: bool,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
@@ -84,10 +86,32 @@ impl<H: Host> Replicas<H> {
             contents: HashMap::new(),
             replies: HashMap::new(),
             pending: Vec::new(),
+            relaying: 0,
             changed: false,
             handled: 0,
             host: std::marker::PhantomData,
         }
+    }
+
+    pub fn relaying(&self) -> bool {
+        self.relaying > 0
+    }
+
+    fn relay(&mut self, shared: &Arc<Mutex<H>>, sent: Result<Answer, ClientError>) {
+        let answer = match sent {
+            Ok(answer) => answer,
+            Err(error) => return H::record(shared, error),
+        };
+        self.relaying += 1;
+        let shared = Arc::clone(shared);
+        let io = self.io.clone();
+        H::spawn(async move {
+            if let Err(error) = answer.await {
+                H::record(&shared, error);
+            }
+            let _ = io.send(Io::Relayed);
+            H::wake();
+        });
     }
 
     pub async fn woken(&mut self) {
@@ -686,6 +710,7 @@ impl<H: Host> Replicas<H> {
                     H::set_locked(shared, open.block);
                 }
             }
+            Io::Relayed => self.relaying -= 1,
         }
     }
 
@@ -827,15 +852,11 @@ impl<H: Host> Replicas<H> {
                     }
                     Recipients::One(Endpoint::Host) => false,
                     Recipients::One(Endpoint::Peer(client)) => {
-                        if let Err(error) = peer.relay(block, Some(client), &bytes).await {
-                            H::record(shared, error);
-                        }
+                        self.relay(shared, peer.relay(block, Some(client), &bytes).await);
                         false
                     }
                     Recipients::Peers => {
-                        if let Err(error) = peer.relay(block, None, &bytes).await {
-                            H::record(shared, error);
-                        }
+                        self.relay(shared, peer.relay(block, None, &bytes).await);
                         false
                     }
                 }

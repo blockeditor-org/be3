@@ -60,6 +60,49 @@ pub trait Renderer {
     }
 }
 
+pub struct NoRenderer {
+    size: Vec2,
+}
+
+impl NoRenderer {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            size: Vec2::new(width as f32, height as f32),
+        }
+    }
+}
+
+impl Renderer for NoRenderer {
+    fn name(&self) -> &'static str {
+        "none"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo {
+            rows: vec![(
+                "Renderer",
+                "none: frames are painted but not drawn".to_owned(),
+            )],
+        }
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.size = Vec2::new(width as f32, height as f32);
+    }
+
+    fn physical(&self) -> Option<Vec2> {
+        Some(self.size)
+    }
+
+    fn prepare(&mut self, _output: &WindowOutput, _scale: f32, _background: Color32) -> bool {
+        true
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
+    }
+}
+
 pub struct Loaded {
     pub renderer: Box<dyn Renderer>,
     pub fonts: Option<Box<dyn FontBackend>>,
