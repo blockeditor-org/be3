@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use block_gpu_abi::Handle;
+type Handle = u32;
 
 pub(crate) struct Counter {
     next: Handle,

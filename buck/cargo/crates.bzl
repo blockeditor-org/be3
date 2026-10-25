@@ -10456,7 +10456,8 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10467,7 +10468,8 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10478,7 +10480,8 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10489,7 +10492,8 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10500,7 +10504,8 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10511,7 +10516,8 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10522,7 +10528,8 @@ crates = {
             "wasm32": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10533,7 +10540,8 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10544,7 +10552,8 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//third-party/rust:bincode-1.3.3",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -10571,7 +10580,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10583,7 +10591,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10595,7 +10602,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10607,7 +10613,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10619,7 +10624,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10631,7 +10635,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10643,7 +10646,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10655,7 +10657,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
-                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -10687,7 +10688,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops:be-ops",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -10699,7 +10702,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops:be-ops",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -10711,7 +10716,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops:be-ops",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -10723,7 +10730,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops:be-ops",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -10735,7 +10744,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops:be-ops",
+                ],
                 "test_features": [],
             },
             "wasm32": {
@@ -10759,7 +10770,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops:be-ops",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -10771,7 +10784,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops:be-ops",
+                ],
                 "test_features": [],
             },
         },
@@ -10792,7 +10807,6 @@ crates = {
             "wasm32": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/wasm-dylink:wasm-dylink",
@@ -12338,6 +12352,7 @@ crates = {
                 "examples": {
                     "gpu-calls": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12359,6 +12374,7 @@ crates = {
                     },
                     "instantiate": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12381,6 +12397,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/be-ops:be-ops",
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
@@ -12421,6 +12438,7 @@ crates = {
                 "examples": {
                     "gpu-calls": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12442,6 +12460,7 @@ crates = {
                     },
                     "instantiate": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12464,6 +12483,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/be-ops:be-ops",
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
@@ -12504,6 +12524,7 @@ crates = {
                 "examples": {
                     "gpu-calls": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12525,6 +12546,7 @@ crates = {
                     },
                     "instantiate": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12547,6 +12569,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/be-ops:be-ops",
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
@@ -12587,6 +12610,7 @@ crates = {
                 "examples": {
                     "gpu-calls": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12608,6 +12632,7 @@ crates = {
                     },
                     "instantiate": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12630,6 +12655,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/be-ops:be-ops",
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
@@ -12670,6 +12696,7 @@ crates = {
                 "examples": {
                     "gpu-calls": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12691,6 +12718,7 @@ crates = {
                     },
                     "instantiate": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12713,6 +12741,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/be-ops:be-ops",
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
@@ -12753,6 +12782,7 @@ crates = {
                 "examples": {
                     "gpu-calls": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12774,6 +12804,7 @@ crates = {
                     },
                     "instantiate": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12796,6 +12827,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/be-ops:be-ops",
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
@@ -12836,6 +12868,7 @@ crates = {
                 "examples": {
                     "gpu-calls": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12857,6 +12890,7 @@ crates = {
                     },
                     "instantiate": {
                         "deps": [
+                            "//crates/be-ops:be-ops",
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-guest-abi:block-guest-abi",
@@ -12879,6 +12913,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/be-ops:be-ops",
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",

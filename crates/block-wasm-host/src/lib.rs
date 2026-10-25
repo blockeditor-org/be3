@@ -22,7 +22,7 @@ use std::{
     time::Duration,
 };
 
-use block_gpu_host::{Gpu, calls::Guest};
+use block_gpu_host::Gpu;
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, Instance, Linker, Module, SharedMemory, Store, TypedFunc,
 };
@@ -257,6 +257,8 @@ impl Plugin {
             device: host.devices.open(&host.imports),
             imports: Arc::clone(&host.imports),
             error: None,
+            fatal: None,
+            returned: Vec::new(),
             transport: Default::default(),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
@@ -421,9 +423,13 @@ impl Plugin {
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
-        self.store
-            .data_mut()
-            .gpu(|gpu| gpu.attach_surface(surface, texture));
+        let state = self.store.data_mut();
+        match state.gpu() {
+            Ok(gpu) => gpu.attach_surface(surface, texture),
+            Err(message) => {
+                state.error.get_or_insert(message);
+            }
+        }
     }
 
     pub fn detach_surface(&mut self, surface: u32) {

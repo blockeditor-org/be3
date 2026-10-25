@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use block_gpu_abi as abi;
+use block_gpu_abi::device as abi;
 use block_wasm_host::Host;
 
 const DRAWS: u32 = 100_000;
@@ -36,8 +36,8 @@ fn escaped(bytes: &[u8]) -> String {
 
 fn guest() -> String {
     let mut data = Data { bytes: Vec::new() };
-    let texture = data.put(abi::encode(&abi::TextureDescriptor {
-        label: String::new(),
+    let texture = data.put(be_ops::encode(&abi::TextureDescriptor {
+        label: None,
         size: abi::Extent3d {
             width: 64,
             height: 64,
@@ -50,9 +50,8 @@ fn guest() -> String {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT.bits(),
         view_formats: Vec::new(),
     }));
-    let view = data.put(abi::encode(&abi::TextureViewDescriptor {
-        label: String::new(),
-        texture: 1,
+    let view = data.put(be_ops::encode(&abi::TextureViewDescriptor {
+        label: None,
         format: None,
         dimension: None,
         aspect: abi::TextureAspect::All,
@@ -61,19 +60,19 @@ fn guest() -> String {
         base_array_layer: 0,
         array_layer_count: None,
     }));
-    let module = data.put(abi::encode(&abi::ShaderModuleDescriptor {
-        label: String::new(),
+    let module = data.put(be_ops::encode(&abi::ShaderModuleDescriptor {
+        label: None,
         wgsl: SHADER.into(),
     }));
-    let layout = data.put(abi::encode(&abi::PipelineLayoutDescriptor {
-        label: String::new(),
+    let layout = data.put(be_ops::encode(&abi::PipelineLayoutDescriptor {
+        label: None,
         bind_group_layouts: Vec::new(),
     }));
-    let pipeline = data.put(abi::encode(&abi::RenderPipelineDescriptor {
-        label: String::new(),
-        layout: Some(1),
+    let pipeline = data.put(be_ops::encode(&abi::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(abi::PipelineLayout(1)),
         vertex: abi::VertexState {
-            module: 1,
+            module: abi::ShaderModule(1),
             entry_point: Some("vs_main".into()),
             buffers: Vec::new(),
         },
@@ -93,7 +92,7 @@ fn guest() -> String {
             alpha_to_coverage_enabled: false,
         },
         fragment: Some(abi::FragmentState {
-            module: 1,
+            module: abi::ShaderModule(1),
             entry_point: Some("fs_main".into()),
             targets: vec![Some(abi::ColorTargetState {
                 format: abi::TextureFormat::Rgba8Unorm,
@@ -102,14 +101,13 @@ fn guest() -> String {
             })],
         }),
     }));
-    let encoder = data.put(abi::encode(&abi::CommandEncoderDescriptor {
-        label: String::new(),
+    let encoder = data.put(be_ops::encode(&abi::CommandEncoderDescriptor {
+        label: None,
     }));
-    let pass = data.put(abi::encode(&abi::RenderPassDescriptor {
-        label: String::new(),
-        encoder: 1,
+    let pass = data.put(be_ops::encode(&abi::RenderPassDescriptor {
+        label: None,
         color_attachments: vec![Some(abi::ColorAttachment {
-            view: 1,
+            view: abi::TextureView(1),
             resolve_target: None,
             load: abi::ColorLoadOp::Load,
             store: abi::StoreOp::Store,
@@ -117,33 +115,34 @@ fn guest() -> String {
         })],
         depth_stencil_attachment: None,
     }));
-    let call = |name: &str, (at, length): (usize, usize)| {
-        format!("(drop (call ${name} (i32.const {at}) (i32.const {length})))")
+    let call = |name: &str, this: Option<u32>, (at, length): (usize, usize)| {
+        let this = this.map_or(String::new(), |this| format!("(i32.const {this}) "));
+        format!("(drop (call ${name} {this}(i32.const {at}) (i32.const {length})))")
     };
     let start = [
-        call("create_texture", texture),
-        call("create_texture_view", view),
-        call("create_shader_module", module),
-        call("create_pipeline_layout", layout),
-        call("create_render_pipeline", pipeline),
-        call("create_command_encoder", encoder),
-        call("encoder_begin_render_pass", pass),
+        call("create_texture", None, texture),
+        call("create_texture_view", Some(1), view),
+        call("create_shader_module", None, module),
+        call("create_pipeline_layout", None, layout),
+        call("create_render_pipeline", None, pipeline),
+        call("create_command_encoder", None, encoder),
+        call("encoder_begin_render_pass", Some(1), pass),
     ]
     .join("\n");
     format!(
         r#"(module
             (import "env" "memory" (memory 1 4 shared))
-            (import "be3_gpu" "create_texture" (func $create_texture (param i32 i32) (result i32)))
-            (import "be3_gpu" "create_texture_view" (func $create_texture_view (param i32 i32) (result i32)))
-            (import "be3_gpu" "create_shader_module" (func $create_shader_module (param i32 i32) (result i32)))
-            (import "be3_gpu" "create_pipeline_layout" (func $create_pipeline_layout (param i32 i32) (result i32)))
-            (import "be3_gpu" "create_render_pipeline" (func $create_render_pipeline (param i32 i32) (result i32)))
-            (import "be3_gpu" "create_command_encoder" (func $create_command_encoder (param i32 i32) (result i32)))
-            (import "be3_gpu" "encoder_begin_render_pass" (func $encoder_begin_render_pass (param i32 i32) (result i32)))
-            (import "be3_gpu" "pass_set_pipeline" (func $set_pipeline (param i32 i32)))
-            (import "be3_gpu" "pass_set_viewport" (func $set_viewport (param i32 f32 f32 f32 f32 f32 f32)))
-            (import "be3_gpu" "pass_set_scissor_rect" (func $set_scissor (param i32 i32 i32 i32 i32)))
-            (import "be3_gpu" "pass_draw" (func $draw (param i32 i32 i32 i32 i32)))
+            (import "{GPU}" "create-texture" (func $create_texture (param i32 i32) (result i32)))
+            (import "{GPU}" "[method]texture.create-view" (func $create_texture_view (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "create-shader-module" (func $create_shader_module (param i32 i32) (result i32)))
+            (import "{GPU}" "create-pipeline-layout" (func $create_pipeline_layout (param i32 i32) (result i32)))
+            (import "{GPU}" "create-render-pipeline" (func $create_render_pipeline (param i32 i32) (result i32)))
+            (import "{GPU}" "create-command-encoder" (func $create_command_encoder (param i32 i32) (result i32)))
+            (import "{GPU}" "[method]command-encoder.begin-render-pass" (func $encoder_begin_render_pass (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]render-pass.set-pipeline" (func $set_pipeline (param i32 i32)))
+            (import "{GPU}" "[method]render-pass.set-viewport" (func $set_viewport (param i32 f32 f32 f32 f32 f32 f32)))
+            (import "{GPU}" "[method]render-pass.set-scissor-rect" (func $set_scissor (param i32 i32 i32 i32 i32)))
+            (import "{GPU}" "[method]render-pass.draw" (func $draw (param i32 i32 i32 i32 i32)))
             (data (i32.const 4096) "{data}")
             (global (export "__tls_size") i32 (i32.const 0))
             (global (export "__tls_align") i32 (i32.const 1))
@@ -156,11 +155,12 @@ fn guest() -> String {
                     (call $set_pipeline (i32.const 1) (i32.const 1))
                     (call $set_viewport (i32.const 1) (f32.const 0) (f32.const 0) (f32.const 64) (f32.const 64) (f32.const 0) (f32.const 1))
                     (call $set_scissor (i32.const 1) (i32.const 0) (i32.const 0) (i32.const 32) (i32.const 32))
-                    (call $draw (i32.const 1) (i32.const 0) (i32.const 3) (i32.const 0) (i32.const 1))
+                    (call $draw (i32.const 1) (i32.const 3) (i32.const 1) (i32.const 0) (i32.const 0))
                     (local.set $left (i32.sub (local.get $left) (i32.const 1)))
                     (br_if $draws (local.get $left))))
         )"#,
         data = escaped(&data.bytes),
+        GPU = block_gpu_abi::embed::device::MODULE,
     )
 }
 

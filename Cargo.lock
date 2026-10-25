@@ -1664,7 +1664,8 @@ dependencies = [
 name = "block-gpu-abi"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "be-ops",
+ "be-ops-bindgen",
  "serde",
 ]
 
@@ -1673,7 +1674,6 @@ name = "block-gpu-guest"
 version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
- "serde",
  "wgpu",
 ]
 
@@ -1681,6 +1681,7 @@ dependencies = [
 name = "block-gpu-host"
 version = "0.1.0"
 dependencies = [
+ "be-ops",
  "block-gpu-abi",
  "block-guest-abi",
  "wgpu",
@@ -1690,7 +1691,6 @@ dependencies = [
 name = "block-gpu-shim"
 version = "0.1.0"
 dependencies = [
- "block-gpu-abi",
  "block-gpu-host",
  "block-guest-abi",
  "js-sys",
@@ -1840,6 +1840,7 @@ dependencies = [
 name = "block-wasm-host"
 version = "0.1.0"
 dependencies = [
+ "be-ops",
  "block-gpu-abi",
  "block-gpu-host",
  "block-guest-abi",

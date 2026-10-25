@@ -5,7 +5,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-bincode = "1"
+be-ops = { path = "../be-ops" }
+be-ops-bindgen = { path = "../be-ops-bindgen" }
 serde = { version = "1", features = ["derive"] }
 
 [lints]

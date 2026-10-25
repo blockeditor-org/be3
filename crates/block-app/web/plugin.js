@@ -8,8 +8,10 @@
 // and a real wgpu device in the worker, which draws what the plugin shows into
 // the canvases the page transferred to the worker. The two modules have
 // separate memories, so the shim is handed the plugin's and every import is
-// bound straight to the shim's export of the same name, which reads and writes
-// what a pointer points at in the plugin's memory itself. A preview the plugin
+// bound straight to the shim's export for it, which reads and writes what a
+// pointer points at in the plugin's memory itself: be3_host's under their own
+// names, and each import of the gpu world as `module#name` (be-ops-bindgen's
+// listing of a world's local imports, which the shim exports). A preview the plugin
 // paints leaves the worker as a bitmap of each surface the page exports, and a
 // bitmap another worker painted arrives as a texture the plugin imports.
 //
@@ -29,9 +31,9 @@ function stub(module, name) {
     };
 }
 
-function forward(shim, name) {
-    const call = shim[name];
-    return typeof call === "function" ? call : stub("be3", name);
+function forward(shim, module, name, exported) {
+    const call = shim[exported];
+    return typeof call === "function" ? call : stub(module, name);
 }
 
 const MARK = [0xff, 0xff, 0xff, 0xff];
@@ -134,10 +136,11 @@ function resolve(module, memory, shim, frames) {
             group[wanted.name] = frames[wanted.name];
         } else if (frames.direct.some(([module, name]) => module === wanted.module && name === wanted.name)) {
             group[wanted.name] = frames.forward(`${wanted.module}#${wanted.name}`);
-        } else if (wanted.module === "be3_gpu" || wanted.module === "be3_host") {
-            group[wanted.name] = forward(shim, wanted.name);
+        } else if (wanted.module === "be3_host") {
+            group[wanted.name] = forward(shim, wanted.module, wanted.name, wanted.name);
         } else {
-            group[wanted.name] = stub(wanted.module, wanted.name);
+            const exported = `${wanted.module}#${wanted.name}`;
+            group[wanted.name] = forward(shim, wanted.module, wanted.name, exported);
         }
     }
     return resolved;

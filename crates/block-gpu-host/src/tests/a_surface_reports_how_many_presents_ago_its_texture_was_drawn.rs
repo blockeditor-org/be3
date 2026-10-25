@@ -3,12 +3,13 @@ use super::*;
 #[test]
 fn a_surface_reports_how_many_presents_ago_its_texture_was_drawn() {
     let mut gpu = gpu();
+    let surface = gpu.surface_new(0);
     let mut ages = Vec::new();
     for width in [16, 16, 16, 16, 32, 32, 32] {
-        gpu.configure_surface(0, &configuration(width, 8));
-        gpu.acquire_surface(0);
-        ages.push(gpu.surface_age(0));
-        gpu.present_surface(0);
+        gpu.surface_configure(surface, configuration(width, 8));
+        gpu.surface_acquire(surface);
+        ages.push(gpu.surface_age(surface));
+        gpu.surface_present(surface);
     }
 
     assert_eq!(
