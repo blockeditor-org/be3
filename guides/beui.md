@@ -3115,7 +3115,8 @@ all its 3D (`glam`) stays in the crate.
   one mapped. A change is reported as
   `WindowReport::Focused` (the old window `false`, the new one `true`), so the
   app's document lets go of, and later restores, the keyboard focus inside
-  that window. While no panel is focused, key presses and text reach no
+  that window (a window just opened gets its first focusable, or the dock's
+  tab, see Windows and window hosts). While no panel is focused, key presses and text reach no
   window. Nothing is raised: panels have no stacking order in 3D, only depth.
   Closing the focused panel focuses the main one.
 - Chrome: the host draws and handles controls of its own around every panel
