@@ -2350,11 +2350,14 @@ impl Document {
     }
 
     pub fn viewport_rect(&self) -> Rect {
-        self.windows.viewport.map(|(_, rect)| rect).unwrap_or_else(|| {
-            self.viewport
-                .as_ref()
-                .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
-        })
+        self.windows
+            .viewport
+            .map(|(_, rect)| rect)
+            .unwrap_or_else(|| {
+                self.viewport
+                    .as_ref()
+                    .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
+            })
     }
 
     pub fn pixels_per_point(&self) -> f32 {

@@ -534,9 +534,9 @@ impl Element for OverlayNode {
             return;
         };
         let real = self.window.as_ref().filter(|_| doc.opens_windows());
-        let painter = &painter.ctx().window_painter(
-            real.map_or_else(|| doc.viewport_window(), |window| window.id),
-        );
+        let painter = &painter
+            .ctx()
+            .window_painter(real.map_or_else(|| doc.viewport_window(), |window| window.id));
         if let Some(window) = real {
             let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
             let rect = Rect::from_min_size(Pos2::ZERO, size);

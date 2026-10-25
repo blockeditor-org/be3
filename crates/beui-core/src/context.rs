@@ -751,8 +751,10 @@ impl Context {
             pixels_per_point: main_scale,
         }];
         let shown = std::mem::take(&mut *self.inner.shown_windows.borrow_mut());
-        for ((shown, window), (_, window_scale)) in
-            shown.into_iter().zip(others).zip(window_scales.into_iter().skip(1))
+        for ((shown, window), (_, window_scale)) in shown
+            .into_iter()
+            .zip(others)
+            .zip(window_scales.into_iter().skip(1))
         {
             let damage = match rescaled(shown.id, window_scale) {
                 true => Region::from(Rect::from_min_size(Pos2::ZERO, shown.size)),
