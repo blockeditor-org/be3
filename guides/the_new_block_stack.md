@@ -889,6 +889,36 @@ again, even the same one, drops the connection's watches and listings, so what
 needs the open organization's verified escrow key (inviting, creating an agent)
 goes through the worker's `Peer` rather than opening it.
 
+A `Peer` keeps what it learns in a local refs database (`be_client::refs`,
+`RefsDb`, passed in `PeerConfig::refs`; an in-memory one by default), keyed by
+server, account and organization: each block's local head and last-known remote
+head, the raw `BlockSummary` of every listing (metadata stays sealed), the key
+rows and wraps it was served, its verified contacts and escrow chain, the
+workspace list (`RefsDb::workspaces`), an outbox and an unsent area. It is
+SQLite on native (`RefsDb::open`) and in memory on the web for now; opening it
+is the only platform-specific call. `Peer::cached` builds a peer from it with no
+network, and `Peer::attach` hands it a signed-in connection later (again after
+every reconnect), which opens the organization and refreshes keys and contacts.
+While the connection is down, reads fall back to the cache: `summary`, the
+listings and `read_contents` answer from it on `ClientError::Disconnected`, and
+`open` reads the local head first while it has unpublished commits.
+
+Saving is two steps: `Peer::seal_manifest` writes the commit, records it in the
+outbox and moves the local head, and `publish_sealed` sends it; `publish_manifest`
+does both, and on `Rejected` drops the commit from the outbox since its caller
+retries or merges. A commit whose publish fails offline stays in the outbox, as
+does a `create_block` made offline (`refs::Op::Create`). `Peer::drain` publishes
+the outbox in order once attached and reports, per block, `Drained::Published`,
+`Created`, `Diverged { local, remote }` (left in the outbox for the replica host to
+merge: a publish whose parents include the local commit settles it) or `Unsent`.
+An outbox entry is settled once a published head descends from it. A block
+whose access is refused (on a publish, a create or `summary`), or whose summary
+arrives without edit access, moves its entries to the unsent area
+(`Peer::unsent`, `restore_unsent`, `discard_unsent`); nothing there is ever
+deleted except by `discard_unsent`, and `UnsentBlock::offerable` says the cached
+summary allows editing again. `Peer::pending` counts outbox operations, local
+commits, their blocks and unsent blocks.
+
 ### The graph mirror
 
 The app keeps a mirror of the part of the server's graph something in the app
@@ -1549,7 +1579,8 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   may edit (for a move, the moved subtree), never replacing a sealed row, and a
   key wrapped under a new scope key loses its wraps under the old ones (escrow
   aside). Collecting a block drops its keys.
-- **On the client.** `Peer::signed_in` loads every row it is served and unwraps
+- **On the client.** `Peer::signed_in` loads every row it is served (and keeps it
+  in the refs database, so `Peer::cached` unwraps the same keys offline) and unwraps
   what it can (`KeyBook::absorb`: its own account's rows with the identity
   secret, then key under key). A read that meets an unknown key fetches the rows
   again once, and otherwise fails with `ClientError::Locked`; `Peer::learn`

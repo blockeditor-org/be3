@@ -8,13 +8,15 @@ pub mod connection;
 pub mod contacts;
 pub mod keys;
 pub mod peer;
+pub mod refs;
 pub mod transfer;
 mod transport;
 
 pub use connection::Connection;
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
-pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
+pub use peer::{Credentials, Drained, Peer, PeerConfig, Resolver, Saved, Sealed};
+pub use refs::{PendingCounts, RefsDb, UnsentBlock};
 
 pub fn socket_url(server_url: &str) -> String {
     let base = match server_url.split_once("://") {

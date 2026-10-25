@@ -226,7 +226,7 @@ impl<S: ObjectStore> Peer<S> {
             })
             .collect::<Result<Vec<ByteBuf>, ClientError>>()?;
         let sent = self
-            .connection
+            .connection()
             .send(|request| ClientMessage::PutObjects { request, objects })?;
         Ok(Box::pin(async move {
             match sent.await? {
@@ -239,8 +239,8 @@ impl<S: ObjectStore> Peer<S> {
     fn send_batch(&self, group: Vec<Prepared>) -> Sent<'_> {
         let mut sent = Vec::with_capacity(group.len());
         for ready in group {
-            let created = self.connection.send(ready.create);
-            let published = ready.publish.map(|publish| self.connection.send(publish));
+            let created = self.connection().send(ready.create);
+            let published = ready.publish.map(|publish| self.connection().send(publish));
             sent.push((ready.id, ready.keys, created, published));
         }
         Box::pin(async move {
@@ -282,7 +282,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(_) => return Err(ClientError::Unexpected),
         }
         if let Some(ServerMessage::Published { head, .. }) = published {
-            self.remember(block, head);
+            self.remember(block, head)?;
         }
         Ok(summary)
     }

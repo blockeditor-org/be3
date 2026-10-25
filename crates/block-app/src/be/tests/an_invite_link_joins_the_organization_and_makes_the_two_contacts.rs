@@ -64,7 +64,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
     let peer = runtime.block_on(guest.peer(&url, harness.organization));
     let theirs = runtime
         .block_on(be_client::contacts::contacts(
-            peer.connection(),
+            &peer.connection(),
             peer.account(),
             &guest.phrase.secret(),
         ))

@@ -13,6 +13,8 @@ be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 build-id = { path = "../build-id" }
 futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
 # Only the synchronisation primitives are shared with the browser build: they
 # carry no runtime of their own, and the socket and the executor come from
 # transport/ instead.
@@ -21,6 +23,8 @@ uuid = { version = "1", features = ["serde", "v4", "v7"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 httparse = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+sqlite-schema = { path = "../sqlite-schema" }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "sync", "time"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }

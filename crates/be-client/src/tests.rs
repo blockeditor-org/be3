@@ -12,6 +12,9 @@ use image_block_types::{ImageContent, ImageHeader};
 
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
+mod a_device_that_starts_offline_reads_and_lists_what_it_saved;
+mod edits_sealed_offline_are_published_when_the_device_reconnects;
+mod edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns;
 mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
 mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
@@ -123,7 +126,7 @@ impl Harness {
             "admin@example.com",
         );
         let code = crate::contacts::invite(
-            admin.connection(),
+            &admin.connection(),
             admin.keys().identity(),
             &card,
             admin.organization(),
@@ -134,11 +137,11 @@ impl Harness {
         .await
         .unwrap();
         let theirs = crate::contacts::card(own.account(), own.keys().identity(), email, email);
-        crate::contacts::accept_invitation(own.connection(), own.keys().identity(), &theirs, &code)
+        crate::contacts::accept_invitation(&own.connection(), own.keys().identity(), &theirs, &code)
             .await
             .unwrap();
         crate::contacts::finish_links(
-            admin.connection(),
+            &admin.connection(),
             admin.keys().identity(),
             admin.organization(),
         )
@@ -157,6 +160,49 @@ impl Harness {
         )
         .await
         .unwrap()
+    }
+
+    fn config(&self, like: &Peer<MemoryStore>, refs: &refs::RefsDb) -> PeerConfig {
+        PeerConfig::new(
+            &self.url,
+            like.keys().identity().clone(),
+            Credentials::Token(like.token()),
+        )
+        .organization(Some(like.organization()))
+        .chunker(ChunkerConfig::SMALL)
+        .refs(refs.clone())
+    }
+
+    async fn device(
+        &self,
+        like: &Peer<MemoryStore>,
+        refs: &refs::RefsDb,
+        store: &MemoryStore,
+    ) -> Peer<MemoryStore> {
+        Peer::connect(self.config(like, refs), store.clone())
+            .await
+            .unwrap()
+    }
+
+    fn offline(
+        &self,
+        like: &Peer<MemoryStore>,
+        refs: &refs::RefsDb,
+        store: &MemoryStore,
+    ) -> Peer<MemoryStore> {
+        Peer::cached(self.config(like, refs), like.account(), store.clone()).unwrap()
+    }
+
+    async fn reconnect(&self, peer: &Peer<MemoryStore>, token: String) {
+        let connection = Connection::connect(&self.url).await.unwrap();
+        let be_protocol::ServerMessage::Authenticated { token, .. } = connection
+            .request(|request| be_protocol::ClientMessage::Authenticate { request, token })
+            .await
+            .unwrap()
+        else {
+            panic!("the server did not sign the device in");
+        };
+        peer.attach(connection, token).await.unwrap();
     }
 
     fn database(&self) -> rusqlite::Connection {

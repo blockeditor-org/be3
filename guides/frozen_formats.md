@@ -54,7 +54,7 @@ Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
 the local plugin API, live-session state (operations,
 `LiveEdit::session_state`, relayed messages, presence), and the app's own
-files on a device (`app.sqlite3`, caches).
+files on a device (`app.sqlite3`, the refs database, caches).
 
 Remote human session credentials from before the account portal are intentionally invalidated
 when session metadata is introduced; users sign in again. Account data, password hashes,

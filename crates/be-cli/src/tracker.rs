@@ -325,7 +325,7 @@ impl<S: ObjectStore> Tracker<S> {
             return Ok((None, None));
         };
         if let Some(head) = summary.head {
-            self.peer.remember(block, head);
+            self.peer.remember(block, head).map_err(explain)?;
         }
         Ok((summary.head, bytes))
     }

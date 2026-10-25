@@ -158,7 +158,8 @@ re-import once, and say so in `guides/frozen_formats.md`.
     "Shared with me" is not a workspace. When offline-first is built: on
     losing access, unsent edits move to a local "unsent" area, stashed the way
     `Peer::stash` keeps the losing side of a merge, and are offered back if
-    access returns. Personal accounts never delete anything automatically.
+    access returns (the unsent area exists in be-client: `Peer::unsent`,
+    `restore_unsent`). Personal accounts never delete anything automatically.
     For organization accounts, policy decides what happens to cached content,
     with a grace period for unsent edits. Enforcement on lost machines is for
     MDM, out of scope.

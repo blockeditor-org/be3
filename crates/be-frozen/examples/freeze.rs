@@ -282,7 +282,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     let organization = owner.organization();
     let owner_token = owner.token().to_owned();
     let ServerMessage::Organizations { organizations, .. } =
-        request(owner.connection(), |request| {
+        request(&owner.connection(), |request| {
             ClientMessage::ListOrganizations { request }
         })
         .await?
@@ -308,7 +308,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     )
     .await?;
     let code = be_client::contacts::invite(
-        owner.connection(),
+        &owner.connection(),
         owner.keys().identity(),
         &owner_card,
         organization,
@@ -319,14 +319,14 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .await
     .map_err(text)?;
     be_client::contacts::accept_invitation(
-        editor.connection(),
+        &editor.connection(),
         editor.keys().identity(),
         &card(&editor, scene::EDITOR_NAME, scene::EDITOR_EMAIL),
         &code,
     )
     .await
     .map_err(text)?;
-    be_client::contacts::finish_links(owner.connection(), owner.keys().identity(), organization)
+    be_client::contacts::finish_links(&owner.connection(), owner.keys().identity(), organization)
         .await
         .map_err(text)?;
     owner.refresh_contacts().await.map_err(text)?;
@@ -338,7 +338,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .ok_or("the invitation did not make the editor a contact")?;
 
     let invite_code = be_client::contacts::invite(
-        owner.connection(),
+        &owner.connection(),
         owner.keys().identity(),
         &owner_card,
         organization,
@@ -355,7 +355,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         agent,
         token: agent_token,
         ..
-    } = request(owner.connection(), |request| ClientMessage::CreateAgent {
+    } = request(&owner.connection(), |request| ClientMessage::CreateAgent {
         request,
         organization,
         name: scene::AGENT_NAME.into(),
@@ -375,7 +375,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
-    request(owner.connection(), |request| ClientMessage::PutContact {
+    request(&owner.connection(), |request| ClientMessage::PutContact {
         request,
         contact: agent.account,
         sealed: agent_card.seal_own(owner.keys().identity()),
@@ -611,7 +611,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .await?;
     let friend_token = friend.token().to_owned();
     let link = be_client::contacts::make_link(
-        owner_personal.connection(),
+        &owner_personal.connection(),
         owner_personal.keys().identity(),
         &owner_card,
         None,
@@ -619,7 +619,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .await
     .map_err(text)?;
     be_client::contacts::accept_link(
-        friend.connection(),
+        &friend.connection(),
         friend.keys().identity(),
         &card(&friend, scene::FRIEND_NAME, scene::FRIEND_EMAIL),
         &link,
@@ -627,7 +627,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .await
     .map_err(text)?;
     be_client::contacts::finish_links(
-        owner_personal.connection(),
+        &owner_personal.connection(),
         owner_personal.keys().identity(),
         personal,
     )
@@ -670,7 +670,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .await
         .map_err(text)?;
     let link_code = be_client::contacts::make_link(
-        owner_personal.connection(),
+        &owner_personal.connection(),
         owner_personal.keys().identity(),
         &owner_card,
         Some(&offer),
@@ -679,7 +679,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
 
     let fresh = RecoveryPhrase::generate();
-    let ServerMessage::RecoveryKey { sealed, own, .. } = request(friend.connection(), |request| {
+    let ServerMessage::RecoveryKey { sealed, own, .. } = request(&friend.connection(), |request| {
         ClientMessage::GetRecoveryKey { request }
     })
     .await?
@@ -694,7 +694,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         own,
     )
     .ok_or("the friend's old phrase did not open what was sealed to it")?;
-    request(friend.connection(), |request| {
+    request(&friend.connection(), |request| {
         ClientMessage::SetRecoveryKey {
             request,
             public: fresh.secret().public().0,

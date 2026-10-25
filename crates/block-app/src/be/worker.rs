@@ -879,7 +879,7 @@ async fn approve_pairing(
 
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     let identity = peer.keys().identity();
-    match be_client::contacts::finish_links(peer.connection(), identity, peer.organization()).await
+    match be_client::contacts::finish_links(&peer.connection(), identity, peer.organization()).await
     {
         Ok(finished) => {
             for done in finished {
@@ -971,7 +971,7 @@ async fn invite(
         &config.email,
     );
     let code = be_client::contacts::invite(
-        peer.connection(),
+        &peer.connection(),
         identity,
         &me,
         peer.organization(),
@@ -1060,7 +1060,7 @@ async fn contact(
                     Some((block, access)) => Some(peer.offer(block, access).await?),
                     None => None,
                 };
-                be_client::contacts::make_link(peer.connection(), identity, &me, offer.as_ref())
+                be_client::contacts::make_link(&peer.connection(), identity, &me, offer.as_ref())
                     .await
             }
             .await;
@@ -1075,21 +1075,21 @@ async fn contact(
             );
         }
         ContactCommand::Open { code, reply } => {
-            let opened = be_client::contacts::open_link(peer.connection(), &code)
+            let opened = be_client::contacts::open_link(&peer.connection(), &code)
                 .await
                 .map(|(_, card)| card);
             reply(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Accept { code, reply } => {
             let accepted =
-                be_client::contacts::accept_link(peer.connection(), identity, &me, &code).await;
+                be_client::contacts::accept_link(&peer.connection(), identity, &me, &code).await;
             if accepted.is_ok() {
                 sync_contacts(peer, shared).await;
             }
             reply(accepted.map_err(|error| error.to_string()));
         }
         ContactCommand::Remove(account) => {
-            match be_client::contacts::remove_contact(peer.connection(), account).await {
+            match be_client::contacts::remove_contact(&peer.connection(), account).await {
                 Ok(()) => sync_contacts(peer, shared).await,
                 Err(error) => record(shared, error),
             }

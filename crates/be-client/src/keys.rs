@@ -161,6 +161,10 @@ impl KeyBook {
         self.settle_escrow();
     }
 
+    pub fn escrows(&self) -> Vec<EscrowKey> {
+        self.escrow.lock().unwrap().chain.clone()
+    }
+
     pub fn pinned(&self) -> Option<EscrowKey> {
         self.escrow.lock().unwrap().pinned.clone()
     }

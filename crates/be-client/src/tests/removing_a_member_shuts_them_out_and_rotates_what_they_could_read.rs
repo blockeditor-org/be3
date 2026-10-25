@@ -30,7 +30,14 @@ async fn removing_a_member_shuts_them_out_and_rotates_what_they_could_read() {
 
     admin.remove_member(removed.account()).await.unwrap();
     assert!(
-        removed.summary(note).await.is_err(),
+        removed
+            .connection()
+            .request(|request| be_protocol::ClientMessage::ReadBlock {
+                request,
+                block: note
+            })
+            .await
+            .is_err(),
         "a removed member's open connection kept reading"
     );
     let again = Peer::connect(

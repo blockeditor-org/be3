@@ -129,7 +129,9 @@ Today:
 
 ### Local-first client
 
-- **A local refs database** beside `be-objects` (SQLite on native) holds:
+- **A local refs database** beside `be-objects` (SQLite on native) holds
+  (done in be-client: `be_client::refs`, `Peer::cached`/`attach`, the outbox
+  and `Peer::drain`; the app does not open one yet):
   - each block's local head and last-known remote head;
   - the graph, with its metadata;
   - the workspace list;
@@ -137,7 +139,8 @@ Today:
 - **Opening a block reads the local head first.** Joining the session and
   fetching the remote head happen in the background.
 - **Editing offline seals local commits.**
-  - `commits.write` without publish.
+  - `commits.write` without publish (done: `Peer::seal_manifest`, then
+    `publish_sealed` or `drain`; the replica host still has to use it).
   - On reconnect, `be_session::resume` / `Live::reconcile` decides between
     fast-forward, publish and merge, which is the machinery that already
     exists.

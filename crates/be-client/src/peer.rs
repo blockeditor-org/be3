@@ -8,10 +8,11 @@ use be_commit::{
     Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds, plan_retention,
 };
 use be_graph::{Access, BlockParent};
-use be_keys::RecoverySecret;
+use be_keys::{RecoveryPublic, RecoverySecret};
 use be_protocol::{
-    AccessEntry, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, HistoryEntry, KeyKind,
-    KeySet, Listing, OrganizationRole, ServerMessage, SessionState, WrappedBy,
+    AccessEntry, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, EscrowKey,
+    HistoryEntry, KeyKind, KeySet, Listing, OrganizationKind, OrganizationRole, ServerMessage,
+    SessionState, WrappedBy,
 };
 use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
@@ -20,12 +21,14 @@ use crate::{
     ClientError,
     connection::{Answer, Connection},
     keys::KeyBook,
+    refs::{Creation, Op, Pending, Refs, RefsDb, Scope, Session},
 };
 
 const CARRIED_BYTES: usize = be_protocol::MAX_FRAME_BYTES / 2;
 const CONTENTS_BLOCKS: usize = 256;
 
 mod import;
+mod offline;
 mod rotation;
 
 pub use import::Imported;
@@ -52,6 +55,7 @@ pub struct PeerConfig {
     pub organization: Option<Uuid>,
     pub organization_name: String,
     pub chunker: ChunkerConfig,
+    pub refs: RefsDb,
 }
 
 impl PeerConfig {
@@ -63,7 +67,13 @@ impl PeerConfig {
             organization: None,
             organization_name: "Organization".into(),
             chunker: ChunkerConfig::DEFAULT,
+            refs: RefsDb::memory(),
         }
+    }
+
+    pub fn refs(mut self, refs: RefsDb) -> Self {
+        self.refs = refs;
+        self
     }
 
     pub fn organization(mut self, organization: Option<Uuid>) -> Self {
@@ -93,15 +103,39 @@ impl Saved {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Sealed {
+    Unchanged(CommitId),
+    Sealed(CommitId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Drained {
+    Created {
+        block: Uuid,
+    },
+    Published {
+        block: Uuid,
+        head: CommitId,
+    },
+    Diverged {
+        block: Uuid,
+        local: CommitId,
+        remote: Option<CommitId>,
+    },
+    Unsent {
+        block: Uuid,
+    },
+}
+
 pub struct Peer<S: ObjectStore> {
-    connection: Arc<Connection>,
+    connection: Mutex<Arc<Connection>>,
     commits: CommitStore<S>,
-    token: String,
+    token: Mutex<String>,
     account: Uuid,
     organization: Uuid,
-    role: OrganizationRole,
-    kind: be_protocol::OrganizationKind,
-    heads: Mutex<HashMap<Uuid, CommitId>>,
+    session: Mutex<(OrganizationRole, OrganizationKind)>,
+    refs: Refs,
     resolver: Mutex<Option<Resolver>>,
     keys: KeyBook,
     current: Mutex<HashMap<Uuid, Uuid>>,
@@ -144,6 +178,88 @@ impl<S: ObjectStore> Peer<S> {
                 organizations.first().ok_or(ClientError::Unexpected)?.id
             }
         };
+        let peer = Self::assemble(Connection::offline(), account, organization, config, store)?;
+        peer.attach(connection, token).await?;
+        Ok(peer)
+    }
+
+    pub fn cached(config: PeerConfig, account: Uuid, store: S) -> Result<Self, ClientError> {
+        let Some(organization) = config.organization else {
+            return Err(ClientError::Disconnected(
+                "a workspace is only made with the server".into(),
+            ));
+        };
+        let peer = Self::assemble(Connection::offline(), account, organization, config, store)?;
+        if peer.refs.session().is_none() {
+            return Err(ClientError::Disconnected(format!(
+                "this device has nothing saved for workspace {organization}"
+            )));
+        }
+        Ok(peer)
+    }
+
+    fn assemble(
+        connection: Arc<Connection>,
+        account: Uuid,
+        organization: Uuid,
+        config: PeerConfig,
+        store: S,
+    ) -> Result<Self, ClientError> {
+        let refs = config.refs.scope(Scope {
+            server: config.url.clone(),
+            account,
+            organization,
+        })?;
+        let session = refs.session();
+        let ring = Keyring::new();
+        let keys = KeyBook::new(account, organization, config.identity, ring.clone());
+        keys.set_contacts(
+            refs.contacts()
+                .into_iter()
+                .map(|(account, public)| (account, RecoveryPublic(public))),
+        );
+        if let Some(session) = &session {
+            keys.set_escrows(session.escrows.clone());
+            keys.set_pinned(session.pinned.clone());
+        }
+        keys.absorb(refs.keys());
+        let peer = Self {
+            connection: Mutex::new(connection),
+            commits: CommitStore::new(Vault::new(store, ring).with_chunker(config.chunker)),
+            token: Mutex::new(String::new()),
+            account,
+            organization,
+            session: Mutex::new(session.as_ref().map_or(
+                (OrganizationRole::Editor, OrganizationKind::default()),
+                |session| (session.role, session.kind),
+            )),
+            refs,
+            resolver: Mutex::new(None),
+            keys,
+            current: Mutex::new(HashMap::new()),
+            tried: Mutex::new(HashSet::new()),
+        };
+        for summary in peer.refs.summaries() {
+            if let Some(key) = summary.key {
+                peer.make_current(summary.id, key);
+            }
+        }
+        Ok(peer)
+    }
+
+    pub async fn attach(&self, connection: Arc<Connection>, token: String) -> Result<(), ClientError> {
+        *self.connection.lock().unwrap() = connection;
+        *self.token.lock().unwrap() = token;
+        self.open_session().await
+    }
+
+    pub fn is_attached(&self) -> bool {
+        !self.connection().is_closed()
+    }
+
+    async fn open_session(&self) -> Result<(), ClientError> {
+        let connection = self.connection();
+        let organization = self.organization;
         let response = connection
             .request(|request| ClientMessage::OpenOrganization {
                 request,
@@ -160,7 +276,8 @@ impl<S: ObjectStore> Peer<S> {
         else {
             return Err(ClientError::Unexpected);
         };
-        let verified = crate::contacts::contacts(&connection, account, &config.identity).await?;
+        *self.session.lock().unwrap() = (role, kind);
+        let verified = crate::contacts::contacts(&connection, self.account, self.keys.identity()).await?;
         let ServerMessage::RecoveryKey { public, .. } = connection
             .request(|request| ClientMessage::GetRecoveryKey { request })
             .await?
@@ -171,53 +288,67 @@ impl<S: ObjectStore> Peer<S> {
             connection
                 .request(|request| ClientMessage::SetRecoveryKey {
                     request,
-                    public: config.identity.public().0,
+                    public: self.keys.identity().public().0,
                     sealed: Vec::new(),
                     own: Vec::new(),
                     changes: Vec::new(),
                 })
                 .await?;
         }
-        let ring = Keyring::new();
-        let peer = Self {
-            connection,
-            commits: CommitStore::new(Vault::new(store, ring.clone()).with_chunker(config.chunker)),
-            token,
-            account,
-            organization,
-            role,
-            kind,
-            heads: Mutex::new(HashMap::new()),
-            resolver: Mutex::new(None),
-            keys: KeyBook::new(account, organization, config.identity, ring),
-            current: Mutex::new(HashMap::new()),
-            tried: Mutex::new(HashSet::new()),
-        };
-        peer.keys.set_pinned(crate::contacts::open_pin(
-            peer.keys.identity(),
+        self.keys.set_pinned(crate::contacts::open_pin(
+            self.keys.identity(),
             organization,
             &pinned,
         ));
         let made = escrows.is_empty();
-        peer.keys.set_escrows(escrows);
-        peer.keys.set_contacts(
+        self.keys.set_escrows(escrows);
+        self.adopt_contacts(
             verified
                 .into_iter()
                 .filter_map(|contact| Some((contact.account, contact.public?))),
         );
-        peer.refresh_keys(None).await?;
-        if made
-            && kind == be_protocol::OrganizationKind::Company
-            && role == OrganizationRole::Administrator
-        {
-            let _ = peer.make_escrow().await;
+        self.persist_session()?;
+        self.refresh_keys(None).await?;
+        if made && kind == OrganizationKind::Company && role == OrganizationRole::Administrator {
+            let _ = self.make_escrow().await;
         }
-        peer.save_pin().await?;
-        Ok(peer)
+        self.save_pin().await?;
+        self.persist_session()
     }
 
-    pub fn kind(&self) -> be_protocol::OrganizationKind {
-        self.kind
+    fn persist_session(&self) -> Result<(), ClientError> {
+        let (role, kind) = *self.session.lock().unwrap();
+        Ok(self.refs.set_session(Session {
+            role,
+            kind,
+            escrows: self.keys.escrows(),
+            pinned: self.keys.pinned(),
+        })?)
+    }
+
+    pub(crate) fn adopt_escrows(&self, chain: Vec<EscrowKey>) {
+        self.keys.set_escrows(chain);
+        let _ = self.persist_session();
+    }
+
+    pub(crate) fn adopt_pinned(&self, pinned: Option<EscrowKey>) {
+        self.keys.set_pinned(pinned);
+        let _ = self.persist_session();
+    }
+
+    pub(crate) fn adopt_contacts(&self, verified: impl IntoIterator<Item = (Uuid, RecoveryPublic)>) {
+        let verified: Vec<_> = verified.into_iter().collect();
+        let _ = self.refs.set_contacts(
+            verified
+                .iter()
+                .map(|(account, public)| (*account, public.0))
+                .collect(),
+        );
+        self.keys.set_contacts(verified);
+    }
+
+    pub fn kind(&self) -> OrganizationKind {
+        self.session.lock().unwrap().1
     }
 
     pub fn current_key(&self, block: Uuid) -> Option<Uuid> {
@@ -230,7 +361,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn refresh_keys(&self, blocks: Option<Vec<Uuid>>) -> Result<usize, ClientError> {
         let ServerMessage::Keys { keys, .. } = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::GetKeys {
                 request,
                 blocks: blocks.clone(),
@@ -239,6 +370,7 @@ impl<S: ObjectStore> Peer<S> {
         else {
             return Err(ClientError::Unexpected);
         };
+        self.refs.add_keys(&keys)?;
         let unknown = keys.wrapped.iter().any(|wrap| {
             wrap.wrapped_by == WrappedBy::Account(self.account)
                 && self.keys.contact(wrap.sender).is_none()
@@ -256,6 +388,13 @@ impl<S: ObjectStore> Peer<S> {
     pub fn note(&self, summary: &BlockSummary) {
         if let Some(key) = summary.key {
             self.make_current(summary.id, key);
+        }
+        let _ = self.refs.observe(std::slice::from_ref(summary));
+        let _ = self
+            .refs
+            .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
+        if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
+            let _ = self.refs.move_to_unsent(summary.id, now_milliseconds());
         }
     }
 
@@ -389,27 +528,31 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub fn role(&self) -> OrganizationRole {
-        self.role
+        self.session.lock().unwrap().0
     }
 
-    pub fn token(&self) -> &str {
-        &self.token
+    pub fn token(&self) -> String {
+        self.token.lock().unwrap().clone()
     }
 
     pub fn commits(&self) -> &CommitStore<S> {
         &self.commits
     }
 
-    pub fn connection(&self) -> &Arc<Connection> {
-        &self.connection
+    pub fn connection(&self) -> Arc<Connection> {
+        self.connection.lock().unwrap().clone()
     }
 
     pub fn local_head(&self, block: Uuid) -> Option<CommitId> {
-        self.heads.lock().unwrap().get(&block).copied()
+        self.refs.head(block)
     }
 
-    pub fn remember(&self, block: Uuid, head: CommitId) {
-        self.heads.lock().unwrap().insert(block, head);
+    pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
+        self.refs.remote(block)
+    }
+
+    pub fn remember(&self, block: Uuid, head: CommitId) -> Result<(), ClientError> {
+        Ok(self.refs.set_head(block, head)?)
     }
 
     pub async fn create<C: BlockContent>(&self, parent: BlockParent) -> Result<Uuid, ClientError> {
@@ -436,7 +579,7 @@ impl<S: ObjectStore> Peer<S> {
         let (key, keys) = self.new_keys(block, parent).await?;
         let metadata = self.commits.vault().seal(key, &metadata.encode())?;
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::CreateBlock {
                 request,
                 block,
@@ -446,7 +589,20 @@ impl<S: ObjectStore> Peer<S> {
                 key,
                 keys: keys.clone(),
             })
-            .await?;
+            .await;
+        let response = match response {
+            Err(ClientError::Disconnected(_)) => {
+                return self.create_locally(Creation {
+                    block,
+                    content_type,
+                    parent,
+                    metadata,
+                    key,
+                    keys,
+                });
+            }
+            response => response?,
+        };
         match response {
             ServerMessage::Block { block, .. } => {
                 self.recorded(&keys);
@@ -477,7 +633,7 @@ impl<S: ObjectStore> Peer<S> {
             let Some(head) = summary.head else {
                 let sealed = self.seal_metadata(block, &next).await?;
                 let response = self
-                    .connection
+                    .connection()
                     .request(|request| ClientMessage::SetMetadata {
                         request,
                         block,
@@ -586,15 +742,46 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::ReadBlock { request, block })
-            .await?;
+            .await;
         match response {
-            ServerMessage::Block { block, .. } => {
+            Ok(ServerMessage::Block { block, .. }) => {
                 self.note(&block);
                 Ok(block)
             }
-            _ => Err(ClientError::Unexpected),
+            Ok(_) => Err(ClientError::Unexpected),
+            Err(ClientError::Disconnected(reason)) => self
+                .refs
+                .summary(block)
+                .ok_or(ClientError::Disconnected(reason)),
+            Err(error) => {
+                if offline::lost_access(&error) {
+                    let _ = self.refs.lose_access(block);
+                    let _ = self.move_to_unsent(block);
+                }
+                Err(error)
+            }
+        }
+    }
+
+    async fn listed(
+        &self,
+        listing: Listing,
+        message: impl FnOnce(u64) -> ClientMessage,
+    ) -> Result<Vec<BlockSummary>, ClientError> {
+        match self.connection().request(message).await {
+            Ok(ServerMessage::Blocks { blocks, .. }) => {
+                let _ = self.refs.set_listing(listing, &blocks);
+                let _ = self.refs.observe(&blocks);
+                Ok(blocks)
+            }
+            Ok(_) => Err(ClientError::Unexpected),
+            Err(ClientError::Disconnected(reason)) => self
+                .refs
+                .listing(&listing)
+                .ok_or(ClientError::Disconnected(reason)),
+            Err(error) => Err(error),
         }
     }
 
@@ -609,8 +796,9 @@ impl<S: ObjectStore> Peer<S> {
                 missing.push(*hash);
             }
         }
+        let connection = self.connection();
         let responses = futures_util::future::join_all(missing.iter().map(|hash| {
-            self.connection.request(|request| ClientMessage::GetObject {
+            connection.request(|request| ClientMessage::GetObject {
                 request,
                 hash: *hash,
             })
@@ -631,7 +819,7 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn push(&self, hashes: &[Hash]) -> Result<(), ClientError> {
         self.commits.vault().store().sync()?;
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::MissingObjects {
                 request,
                 hashes: hashes.to_vec(),
@@ -663,7 +851,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(true);
         }
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::GetObject { request, hash })
             .await?;
         let ServerMessage::Object { bytes, .. } = response else {
@@ -704,6 +892,16 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
     ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
+        match self.read_contents_online(blocks).await {
+            Err(ClientError::Disconnected(reason)) => self.read_contents_cached(blocks, reason).await,
+            read => read,
+        }
+    }
+
+    async fn read_contents_online(
+        &self,
+        blocks: &[(Uuid, Option<CommitId>)],
+    ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
         let mut asked = Vec::new();
         for group in blocks.chunks(CONTENTS_BLOCKS) {
             let ids: Vec<Uuid> = group.iter().map(|(id, _)| *id).collect();
@@ -713,7 +911,7 @@ impl<S: ObjectStore> Peer<S> {
                 .filter(|head| self.holds(*head))
                 .collect();
             let answer = self
-                .connection
+                .connection()
                 .send(|request| ClientMessage::ReadContents {
                     request,
                     blocks: ids.clone(),
@@ -767,6 +965,11 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {
+        if let Some(head) = self.local_head(block)
+            && !self.pending_commits(block).is_empty()
+        {
+            return Ok(Some(C::decode(&self.read_at(head).await?)?));
+        }
         let read = self
             .read_contents(&[(block, self.local_head(block))])
             .await?;
@@ -774,7 +977,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         if let Some(head) = summary.head {
-            self.remember(block, head);
+            self.remember(block, head)?;
         }
         Ok(Some(C::decode(&bytes)?))
     }
@@ -960,6 +1163,45 @@ impl<S: ObjectStore> Peer<S> {
         extra_parents: Vec<CommitId>,
         metadata: &BlockMetadata,
     ) -> Result<Saved, ClientError> {
+        let before = self.local_head(block);
+        let commit = match self
+            .seal_manifest(
+                block,
+                manifest,
+                references,
+                expected,
+                time,
+                pinned,
+                extra_parents,
+                metadata,
+            )
+            .await?
+        {
+            Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
+            Sealed::Sealed(commit) => commit,
+        };
+        let saved = self.publish_sealed(block, commit).await?;
+        if let Saved::Rejected { .. } = saved {
+            self.abandon(block, commit)?;
+            if self.local_head(block) == Some(commit) {
+                self.refs.set_head_to(block, before)?;
+            }
+        }
+        Ok(saved)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn seal_manifest(
+        &self,
+        block: Uuid,
+        manifest: Manifest,
+        references: Vec<Uuid>,
+        expected: Option<CommitId>,
+        time: i64,
+        pinned: bool,
+        extra_parents: Vec<CommitId>,
+        metadata: &BlockMetadata,
+    ) -> Result<Sealed, ClientError> {
         let previous = match expected {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
@@ -971,7 +1213,7 @@ impl<S: ObjectStore> Peer<S> {
             && previous.references == references
             && previous.metadata == encoded
         {
-            return Ok(Saved::Unchanged(expected.expect("a previous commit")));
+            return Ok(Sealed::Unchanged(expected.expect("a previous commit")));
         }
         let mut parents: Vec<_> = expected.into_iter().collect();
         let mut chunks = manifest.chunk_hashes();
@@ -979,7 +1221,6 @@ impl<S: ObjectStore> Peer<S> {
             chunks.push(parent.hash());
             chunks.extend(self.commits.get(*parent)?.manifest.chunk_hashes());
         }
-        let merging = !extra_parents.is_empty();
         parents.extend(extra_parents);
         let kind = if parents.len() > 1 {
             be_commit::CommitKind::Merge
@@ -989,13 +1230,58 @@ impl<S: ObjectStore> Peer<S> {
             be_commit::CommitKind::Autosave
         };
         let key = self.sealing_key(block).await?;
-        let commit = Commit::new(manifest.clone(), self.account, time)
+        let commit = Commit::new(manifest, self.account, time)
             .with_parents(parents.clone())
             .with_kind(kind)
             .with_references(references.clone())
             .with_metadata(encoded);
         let id = self.commits.put(key, &commit)?;
+        let sealed = self.commits.vault().seal(key, &metadata.encode())?;
+        self.commits.vault().store().sync()?;
+        self.refs.push(Op::Publish(Pending {
+            block,
+            commit: id,
+            expected,
+            parents,
+            chunks,
+            time,
+            pinned,
+            references,
+            metadata: sealed,
+        }))?;
+        self.refs.set_head(block, id)?;
+        Ok(Sealed::Sealed(id))
+    }
 
+    pub async fn publish_sealed(&self, block: Uuid, commit: CommitId) -> Result<Saved, ClientError> {
+        let Some((sequence, pending)) = self.pending_publish(block, commit) else {
+            return Err(ClientError::MissingObject(commit.hash()));
+        };
+        let saved = self.send_pending(&pending).await?;
+        if let Saved::Published(head) = saved {
+            self.settle(sequence, &pending, head, true)?;
+        }
+        Ok(saved)
+    }
+
+    async fn send_pending(&self, pending: &Pending) -> Result<Saved, ClientError> {
+        let Pending {
+            block,
+            commit: id,
+            expected,
+            ref parents,
+            ref chunks,
+            time,
+            pinned,
+            ref references,
+            ref metadata,
+        } = *pending;
+        let previous = match expected {
+            Some(head) => self.commits.try_get(head)?,
+            None => None,
+        };
+        let manifest = self.commits.get(id)?.manifest;
+        let merging = parents.len() > usize::from(expected.is_some());
         let mut hashes = vec![id.hash()];
         hashes.extend(chunks.iter().copied());
         let mut carried = match merging {
@@ -1005,7 +1291,6 @@ impl<S: ObjectStore> Peer<S> {
         if carried.is_none() {
             self.push(&hashes).await?;
         }
-        let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         let response = loop {
             let publish = |request, objects| ClientMessage::Publish {
                 request,
@@ -1017,13 +1302,13 @@ impl<S: ObjectStore> Peer<S> {
                 time,
                 pinned,
                 references: references.clone(),
-                metadata: sealed.clone(),
+                metadata: metadata.clone(),
                 objects,
             };
             match carried.take() {
                 Some(objects) => {
                     match self
-                        .connection
+                        .connection()
                         .request(|request| publish(request, objects))
                         .await
                     {
@@ -1035,18 +1320,20 @@ impl<S: ObjectStore> Peer<S> {
                 }
                 None => {
                     break self
-                        .connection
+                        .connection()
                         .request(|request| publish(request, Vec::new()))
                         .await?;
                 }
             }
         };
         match response {
-            ServerMessage::Published { head, .. } => {
-                self.remember(block, head);
-                Ok(Saved::Published(head))
+            ServerMessage::Published { head, .. } => Ok(Saved::Published(head)),
+            ServerMessage::Rejected { head, .. } => {
+                if let Some(head) = head {
+                    self.refs.set_remote(block, head)?;
+                }
+                Ok(Saved::Rejected { head })
             }
-            ServerMessage::Rejected { head, .. } => Ok(Saved::Rejected { head }),
             _ => Err(ClientError::Unexpected),
         }
     }
@@ -1088,7 +1375,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(());
         }
         self.push(objects).await?;
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::HoldObjects {
                 request,
                 block,
@@ -1099,14 +1386,14 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn watch(&self, block: Uuid) -> Result<(), ClientError> {
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::Watch { request, block })
             .await?;
         Ok(())
     }
 
     pub async fn unwatch(&self, block: Uuid) -> Result<(), ClientError> {
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::Unwatch { request, block })
             .await?;
         Ok(())
@@ -1187,7 +1474,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn history(&self, block: Uuid) -> Result<Vec<HistoryEntry>, ClientError> {
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::ListHistory { request, block })
             .await?;
         match response {
@@ -1211,7 +1498,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(0);
         }
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::PruneHistory {
                 request,
                 block,
@@ -1229,7 +1516,7 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Detached => KeySet::default(),
             BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent, false).await?,
         };
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::SetParent {
                 request,
                 block,
@@ -1242,6 +1529,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     fn recorded(&self, keys: &KeySet) {
+        let _ = self.refs.add_keys(keys);
         self.keys.record(keys);
         for row in keys.keys.iter().filter(|row| row.kind == KeyKind::Data) {
             self.make_current(row.block, row.id);
@@ -1315,7 +1603,7 @@ impl<S: ObjectStore> Peer<S> {
         if keys.is_empty() {
             return Ok(());
         }
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::PutKeys {
                 request,
                 keys: keys.clone(),
@@ -1399,69 +1687,39 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn shared(&self) -> Result<Vec<BlockSummary>, ClientError> {
-        let response = self
-            .connection
-            .request(|request| ClientMessage::ListShared { request })
-            .await?;
-        match response {
-            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
-            _ => Err(ClientError::Unexpected),
-        }
+        self.listed(Listing::Shared, |request| ClientMessage::ListShared { request })
+            .await
     }
 
     pub async fn children(&self, parent: BlockParent) -> Result<Vec<BlockSummary>, ClientError> {
-        let response = self
-            .connection
-            .request(|request| ClientMessage::ListChildren { request, parent })
-            .await?;
-        match response {
-            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
-            _ => Err(ClientError::Unexpected),
-        }
+        self.listed(Listing::Children(parent), |request| ClientMessage::ListChildren { request, parent })
+            .await
     }
 
     pub async fn deleted(&self) -> Result<Vec<BlockSummary>, ClientError> {
-        let response = self
-            .connection
-            .request(|request| ClientMessage::ListDeleted { request })
-            .await?;
-        match response {
-            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
-            _ => Err(ClientError::Unexpected),
-        }
+        self.listed(Listing::Deleted, |request| ClientMessage::ListDeleted { request })
+            .await
     }
 
     pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::Unlist { request, listing })
             .await?;
         Ok(())
     }
 
     pub async fn backrefs(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        let response = self
-            .connection
-            .request(|request| ClientMessage::ListBackrefs { request, block })
-            .await?;
-        match response {
-            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
-            _ => Err(ClientError::Unexpected),
-        }
+        self.listed(Listing::Backrefs(block), |request| ClientMessage::ListBackrefs { request, block })
+            .await
     }
 
     pub async fn referenced(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        let response = self
-            .connection
-            .request(|request| ClientMessage::ListReferences { request, block })
-            .await?;
-        match response {
-            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
-            _ => Err(ClientError::Unexpected),
-        }
+        self.listed(Listing::References(block), |request| ClientMessage::ListReferences { request, block })
+            .await
     }
 
     pub async fn delete(&self, block: Uuid) -> Result<(), ClientError> {
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::DeleteBlock { request, block })
             .await?;
         Ok(())
@@ -1469,7 +1727,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn collect_detached(&self) -> Result<Vec<Uuid>, ClientError> {
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::CollectDetached { request })
             .await?;
         match response {
@@ -1484,7 +1742,7 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         access: Access,
     ) -> Result<(), ClientError> {
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::SetAccess {
                 request,
                 block,
@@ -1497,7 +1755,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn list_access(&self, block: Uuid) -> Result<Vec<AccessEntry>, ClientError> {
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::ListAccess { request, block })
             .await?;
         match response {
@@ -1508,7 +1766,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn join_session(&self, block: Uuid) -> Result<(ClientId, SessionState), ClientError> {
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::JoinSession { request, block })
             .await?;
         match response {
@@ -1518,7 +1776,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn leave_session(&self, block: Uuid) -> Result<(), ClientError> {
-        self.connection
+        self.connection()
             .request(|request| ClientMessage::LeaveSession { request, block })
             .await?;
         Ok(())
@@ -1530,7 +1788,7 @@ impl<S: ObjectStore> Peer<S> {
         generation: u64,
     ) -> Result<SessionState, ClientError> {
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::ClaimOwnership {
                 request,
                 block,
@@ -1550,7 +1808,7 @@ impl<S: ObjectStore> Peer<S> {
         clean_at: Option<CommitId>,
     ) -> Result<SessionState, ClientError> {
         let response = self
-            .connection
+            .connection()
             .request(|request| ClientMessage::Heartbeat {
                 request,
                 block,
@@ -1572,7 +1830,7 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<Answer, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = self.commits.vault().seal(key, payload)?;
-        self.connection.send(|request| ClientMessage::Relay {
+        self.connection().send(|request| ClientMessage::Relay {
             request,
             block,
             to,

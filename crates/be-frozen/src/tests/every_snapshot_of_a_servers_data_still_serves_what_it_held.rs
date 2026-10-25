@@ -450,7 +450,7 @@ async fn check(snapshot: &Snapshot) {
         "Taker",
         "taker@example.com",
     );
-    let card = contacts::accept_link(taker.connection(), taker.keys().identity(), &me, &code)
+    let card = contacts::accept_link(&taker.connection(), taker.keys().identity(), &me, &code)
         .await
         .unwrap_or_else(|error| panic!("{name}: the pending link no longer opens: {error}"));
     assert_eq!(card.email, scene::OWNER_EMAIL);
@@ -476,7 +476,7 @@ async fn check(snapshot: &Snapshot) {
     );
     let code = InviteCode::parse(snapshot.invite_code).unwrap();
     let invitation =
-        contacts::accept_invitation(invited.connection(), invited.keys().identity(), &me, &code)
+        contacts::accept_invitation(&invited.connection(), invited.keys().identity(), &me, &code)
             .await
             .unwrap_or_else(|error| panic!("{name}: the invitation no longer opens: {error}"));
     assert_eq!(invitation.organization, organization);

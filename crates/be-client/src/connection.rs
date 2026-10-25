@@ -47,6 +47,18 @@ impl Connection {
         Ok(connection)
     }
 
+    pub fn offline() -> Arc<Self> {
+        let (commands, _) = mpsc::unbounded_channel();
+        let (events, _) = broadcast::channel(1);
+        let (_, closed) = watch::channel(true);
+        Arc::new(Self {
+            commands,
+            events,
+            closed,
+            next: AtomicU64::new(0),
+        })
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<ServerMessage> {
         self.events.subscribe()
     }
