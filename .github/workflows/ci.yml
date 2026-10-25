@@ -171,7 +171,7 @@ jobs:
       #
       # This runs whether or not verification passed. A run that failed on one
       # test has still accepted the paintings the others made, and a run that
-      # failed on a clippy warning it could not fix has still formatted the
+      # failed to compile has still formatted the
       # rest, and both of those are worth the push.
       #
       # The files a credential can be in are deleted first rather than left to
