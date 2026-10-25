@@ -891,7 +891,9 @@ impl ServerStore {
                 if !seen.inherited(graph, block).can_edit() {
                     continue;
                 }
-                if kept_for > 0 && newest_version(database, identity.organization, block, None)? > since {
+                if kept_for > 0
+                    && newest_version(database, identity.organization, block, None)? > since
+                {
                     continue;
                 }
                 detached.push(block);

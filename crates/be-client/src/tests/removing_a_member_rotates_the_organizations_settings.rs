@@ -58,7 +58,7 @@ async fn removing_a_member_rotates_the_organizations_settings() {
             .workspace_creation(),
         WhoMay::Administrators
     );
-    workspace(&reopened, "Mine").await;
+    my_files(&reopened).await;
     let second = reopened
         .create_block(
             Uuid::now_v7(),

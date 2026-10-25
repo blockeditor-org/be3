@@ -17,7 +17,9 @@ fn a_move_without_manage_stays_in_its_workspace_and_raises_nothing() {
         (own, editor, BlockParent::Block(workspace)),
         (elsewhere, editor, BlockParent::Root),
     ] {
-        graph.insert(block, BlockNode::new(TYPE, author, parent)).unwrap();
+        graph
+            .insert(block, BlockNode::new(TYPE, author, parent))
+            .unwrap();
     }
     graph.grant(workspace, editor, Access::Edit).unwrap();
     let refusal = |graph: &BlockGraph, block, parent| {
@@ -44,7 +46,12 @@ fn a_move_without_manage_stays_in_its_workspace_and_raises_nothing() {
     assert_eq!(refusal(&graph, document, BlockParent::Detached), None);
     assert_eq!(refusal(&graph, own, BlockParent::Block(elsewhere)), None);
     assert_eq!(
-        graph.move_refusal(document, BlockParent::Block(elsewhere), owner, Access::Manage),
+        graph.move_refusal(
+            document,
+            BlockParent::Block(elsewhere),
+            owner,
+            Access::Manage
+        ),
         None
     );
 }

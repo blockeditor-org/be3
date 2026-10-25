@@ -173,7 +173,11 @@ fn level_below(
     in_settings: bool,
 ) -> Access {
     let granted = node.grants.get(&account).copied().unwrap_or_default();
-    let level = match (in_settings, node.author == account && parent_viewable, parent.can_view()) {
+    let level = match (
+        in_settings,
+        node.author == account && parent_viewable,
+        parent.can_view(),
+    ) {
         (true, _, true) => parent,
         (true, _, false) => granted.min(Access::KnowExists),
         (false, true, _) => Access::Manage,
@@ -592,7 +596,10 @@ impl BlockGraph {
         };
         let mut ungranted = node.clone();
         ungranted.grants.remove(&account);
-        let in_settings = node.parent.block().is_some_and(|parent| self.in_settings(parent));
+        let in_settings = node
+            .parent
+            .block()
+            .is_some_and(|parent| self.in_settings(parent));
         let level = level_below(&ungranted, account, above, parent_viewable, in_settings);
         match !level.can_view() && self.opens_to(id, account) {
             true => Access::View,
@@ -663,9 +670,11 @@ impl BlockGraph {
     }
 
     fn in_settings(&self, id: Uuid) -> bool {
-        std::iter::once(id)
-            .chain(self.ancestors(id))
-            .any(|block| self.blocks.get(&block).is_some_and(BlockNode::holds_settings))
+        std::iter::once(id).chain(self.ancestors(id)).any(|block| {
+            self.blocks
+                .get(&block)
+                .is_some_and(BlockNode::holds_settings)
+        })
     }
 
     fn below_settings(&self, id: Uuid) -> bool {
@@ -864,10 +873,15 @@ impl BlockGraph {
         }
         while let Some((id, level, in_settings)) = stack.pop() {
             raise(&mut levels, id, level);
-            let in_settings = in_settings || self.blocks.get(&id).is_some_and(BlockNode::holds_settings);
+            let in_settings =
+                in_settings || self.blocks.get(&id).is_some_and(BlockNode::holds_settings);
             for child in self.child_ids(id) {
                 if let Some(node) = self.blocks.get(&child) {
-                    stack.push((child, level_below(node, account, level, true, in_settings), in_settings));
+                    stack.push((
+                        child,
+                        level_below(node, account, level, true, in_settings),
+                        in_settings,
+                    ));
                 }
             }
         }

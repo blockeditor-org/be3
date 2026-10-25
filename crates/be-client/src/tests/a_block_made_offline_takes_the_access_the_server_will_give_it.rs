@@ -40,7 +40,10 @@ async fn a_block_made_offline_takes_the_access_the_server_will_give_it() {
         .create::<text_block_types::TextContent>(BlockParent::Block(team))
         .await
         .unwrap();
-    assert_eq!(offline.summary(settings).await.unwrap().access, Access::View);
+    assert_eq!(
+        offline.summary(settings).await.unwrap().access,
+        Access::View
+    );
     assert_eq!(tags.access, Access::Edit);
     assert_eq!(offline.summary(tag).await.unwrap().access, Access::Edit);
     assert_eq!(offline.summary(note).await.unwrap().access, Access::Manage);

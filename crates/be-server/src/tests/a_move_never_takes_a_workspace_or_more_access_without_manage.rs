@@ -34,7 +34,10 @@ async fn a_move_never_takes_a_workspace_or_more_access_without_manage() {
             "an editor moved {block} to {parent:?}: {moved:?}"
         );
     }
-    assert_eq!(owner.read_block(workspace).await.parent, Some(BlockParent::Root));
+    assert_eq!(
+        owner.read_block(workspace).await.parent,
+        Some(BlockParent::Root)
+    );
     assert_eq!(owner.read_block(workspace).await.access, Access::Manage);
     assert_eq!(editor.read_block(document).await.access, Access::Edit);
 

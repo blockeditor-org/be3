@@ -2,10 +2,10 @@ use super::*;
 
 mod a_cycle_is_refused_when_reparenting;
 mod a_detached_subtree_is_pending_deletion;
-mod a_move_without_manage_stays_in_its_workspace_and_raises_nothing;
 mod a_kind_an_editor_changes_hangs_from_its_owner;
 mod a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside;
 mod a_lower_grant_never_reduces_inherited_access;
+mod a_move_without_manage_stays_in_its_workspace_and_raises_nothing;
 mod a_parent_holds_a_child_only_while_it_references_it;
 mod a_parent_knows_its_children_as_the_graph_changes;
 mod a_settings_block_needs_manage_on_its_parent_to_change;
@@ -200,7 +200,11 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
             BlockParent::Root | BlockParent::Detached => (Access::None, true),
         };
         let mut best = node.grants.get(&account).copied().unwrap_or_default();
-        if node.parent.block().is_some_and(|parent| in_settings(graph, parent)) {
+        if node
+            .parent
+            .block()
+            .is_some_and(|parent| in_settings(graph, parent))
+        {
             best = match parent.can_view() {
                 true => parent,
                 false => best.min(Access::KnowExists),
@@ -210,7 +214,10 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
         }
         if node.author == account
             && parent_viewable
-            && !node.parent.block().is_some_and(|parent| in_settings(graph, parent))
+            && !node
+                .parent
+                .block()
+                .is_some_and(|parent| in_settings(graph, parent))
         {
             best = Access::Manage;
         }

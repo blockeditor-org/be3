@@ -22,10 +22,16 @@ fn an_author_keeps_no_more_of_a_settings_kind_than_its_settings() {
         )
         .unwrap();
     graph
-        .insert(kind, BlockNode::new(TYPE, former, BlockParent::Block(settings)))
+        .insert(
+            kind,
+            BlockNode::new(TYPE, former, BlockParent::Block(settings)),
+        )
         .unwrap();
     graph
-        .insert(below, BlockNode::new(TYPE, former, BlockParent::Block(kind)))
+        .insert(
+            below,
+            BlockNode::new(TYPE, former, BlockParent::Block(kind)),
+        )
         .unwrap();
     graph
         .insert(

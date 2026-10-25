@@ -1,6 +1,6 @@
+use block_editor_beui::BlockTypeDescriptor;
 use block_editor_beui::be_block::be_model::BlockRef;
 use block_editor_beui::be_block::{SETTINGS, WORKSPACE_TYPE};
-use block_editor_beui::BlockTypeDescriptor;
 
 use super::*;
 
@@ -45,11 +45,17 @@ fn settings_another_block_holds_are_not_taken_as_its_own() {
     store.add_block(team);
     let mut designs = BlockInfo::new(folder, FOLDER, BlockParent::Block(workspace));
     designs.set_name("Designs");
-    designs.metadata.insert(&SETTINGS, &BlockRef(folder_settings));
+    designs
+        .metadata
+        .insert(&SETTINGS, &BlockRef(folder_settings));
     store.add_block(designs);
     for (id, block_type, parent) in [
         (elsewhere, FOLDER, BlockParent::Root),
-        (decoy, SettingsContent::CONTENT_TYPE, BlockParent::Block(elsewhere)),
+        (
+            decoy,
+            SettingsContent::CONTENT_TYPE,
+            BlockParent::Block(elsewhere),
+        ),
         (decoy_tags, TAGS, BlockParent::Block(decoy)),
         (stray_hotbar, HOTBAR, BlockParent::Block(elsewhere)),
         (

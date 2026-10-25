@@ -262,7 +262,11 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
 
     admin.delete(image_block).await.unwrap();
     assert!(
-        !admin.collect_detached().await.unwrap().contains(&image_block),
+        !admin
+            .collect_detached()
+            .await
+            .unwrap()
+            .contains(&image_block),
         "a deleted block was collected with versions the organization keeps"
     );
 

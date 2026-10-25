@@ -26,6 +26,14 @@ fn a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row() {
         );
         fixture.host.set_blocks(BlockQuery::Block(id), vec![info]);
     };
+    fixture.host.set_blocks(
+        BlockQuery::Block(tags),
+        vec![BlockInfo::new(
+            tags,
+            TagsContent::CONTENT_TYPE,
+            BlockParent::Block(MY_FILES),
+        )],
+    );
     tag(urgent, "Urgent", TagColor::Red);
     tag(later, "Later", TagColor::Blue);
     let mut listed = BlockInfo::new(notes, Uuid::from_u128(1), BlockParent::Block(MY_FILES));
