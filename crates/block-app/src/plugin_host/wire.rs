@@ -672,7 +672,8 @@ impl Wire {
                 self.web_views.remove(&op);
                 self.host_values.remove(&op);
                 if watched {
-                    self.connection.complete(op, Outcome::Err(OpError::Canceled));
+                    self.connection
+                        .complete(op, Outcome::Err(OpError::Canceled));
                 }
                 self.block_types.closed(op);
                 self.preferences.closed(op);
