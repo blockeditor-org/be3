@@ -913,12 +913,6 @@ impl Connection {
                 objects,
             } => {
                 let identity = self.identity()?;
-                self.store
-                    .may_store(
-                        identity,
-                        objects.iter().map(|bytes| Hash::of(bytes)).collect(),
-                    )
-                    .await?;
                 self.store.put_objects(&objects)?;
                 let outcome = self
                     .store

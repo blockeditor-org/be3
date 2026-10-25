@@ -485,6 +485,7 @@ impl ServerStore {
                 )
                 .optional()?;
             if existing.is_none() {
+                self.within_quota(graph, &transaction, identity.organization, &held)?;
                 transaction.execute(
                     "INSERT INTO block_commits
                         (organization_id, block_id, commit_id, parents, time, pinned)
@@ -582,6 +583,7 @@ impl ServerStore {
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let transaction = database.unchecked_transaction()?;
+            self.within_quota(graph, &transaction, identity.organization, &objects)?;
             let organization = identity.organization.to_string();
             let mut fresh = Vec::new();
             for hash in objects {

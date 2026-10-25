@@ -131,6 +131,16 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         .unwrap_err();
     assert_eq!(refused(pruned), ErrorCode::PolicyRefused);
 
+    let early = be_protocol::ByteBuf::from(pseudorandom(64, 6));
+    let early_hash = be_store::Hash::of(&early);
+    admin
+        .connection()
+        .request(|request| ClientMessage::PutObjects {
+            request,
+            objects: vec![early],
+        })
+        .await
+        .unwrap();
     let mut policies = OrganizationPoliciesContent::default();
     policies.apply(&OrganizationPolicies::set_storage_quota(Some(1)));
     let head = admin.summary(block).await.unwrap().head;
@@ -144,6 +154,43 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         .await
         .unwrap_err();
     assert_eq!(refused(over), ErrorCode::OverQuota);
+    let held = admin
+        .connection()
+        .request(|request| ClientMessage::HoldObjects {
+            request,
+            block: image_block,
+            objects: vec![early_hash],
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(
+        refused(held),
+        ErrorCode::OverQuota,
+        "an object uploaded before the quota was held past it"
+    );
+    let current = admin.summary(image_block).await.unwrap().head;
+    let published = admin
+        .connection()
+        .request(|request| ClientMessage::Publish {
+            request,
+            block: image_block,
+            commit: be_commit::CommitId::from_hash(early_hash),
+            expected: current,
+            parents: current.into_iter().collect(),
+            chunks: Vec::new(),
+            time: 0,
+            pinned: false,
+            references: Vec::new(),
+            metadata: Vec::new(),
+            objects: Vec::new(),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(
+        refused(published),
+        ErrorCode::OverQuota,
+        "an object uploaded before the quota was published past it"
+    );
 
     harness.stop().await;
 }

@@ -289,7 +289,7 @@ impl ServerStore {
                 .server_key()
                 .read::<SettingsContent>(connection, self.objects(), graph, organization, settings)?
                 .and_then(|content| content.root().policy(OrganizationPolicies::CONTENT_TYPE))
-                .filter(|block| graph.contains(*block)),
+                .filter(|block| *block != settings && in_settings(graph, organization, *block)),
         };
         let policies = block.map(|block| (block, graph.head(block)));
         if let Some(held) = &held
@@ -413,44 +413,54 @@ impl ServerStore {
         hashes: Vec<Hash>,
     ) -> Result<(), ServerError> {
         self.with_graph(identity.organization, move |graph, connection| {
-            let Some(quota) = self
-                .policies(graph, connection, identity.organization)?
-                .quota()
-            else {
-                return Ok(());
-            };
-            let organization = identity.organization.to_string();
-            let held: i64 = connection.query_row(
-                "SELECT COUNT(*) FROM (
-                    SELECT hash FROM commit_objects WHERE organization_id = ?1
-                    UNION SELECT hash FROM block_objects WHERE organization_id = ?1)",
-                [&organization],
-                |row| row.get(0),
-            )?;
-            let mut fresh = BTreeSet::new();
-            for hash in hashes {
-                let hex = hash.to_hex();
-                let known: bool = connection
-                    .prepare_cached(
-                        "SELECT EXISTS(SELECT 1 FROM commit_objects WHERE organization_id = ?1 AND hash = ?2)
-                         OR EXISTS(SELECT 1 FROM block_objects WHERE organization_id = ?1 AND hash = ?2)",
-                    )?
-                    .query_row(params![organization, hex], |row| row.get(0))?;
-                if !known {
-                    fresh.insert(hex);
-                }
-            }
-            let total = u64::try_from(held).unwrap_or(0) + fresh.len() as u64;
-            match fresh.is_empty() || total <= quota {
-                true => Ok(()),
-                false => Err(ServerError::Refused(
-                    ErrorCode::OverQuota,
-                    format!(
-                        "this organization stores at most {quota} objects, and this would make {total}"
-                    ),
-                )),
-            }
+            self.within_quota(graph, connection, identity.organization, &hashes)
         })
         .await
+    }
+
+    pub(crate) fn within_quota(
+        &self,
+        graph: &BlockGraph,
+        connection: &Connection,
+        organization: Uuid,
+        hashes: &[Hash],
+    ) -> Result<(), ServerError> {
+        let Some(quota) = self.policies(graph, connection, organization)?.quota() else {
+            return Ok(());
+        };
+        let organization = organization.to_string();
+        let mut fresh = BTreeSet::new();
+        for hash in hashes {
+            let hex = hash.to_hex();
+            let known: bool = connection
+                .prepare_cached(
+                    "SELECT EXISTS(SELECT 1 FROM commit_objects WHERE organization_id = ?1 AND hash = ?2)
+                     OR EXISTS(SELECT 1 FROM block_objects WHERE organization_id = ?1 AND hash = ?2)",
+                )?
+                .query_row(params![organization, hex], |row| row.get(0))?;
+            if !known {
+                fresh.insert(hex);
+            }
+        }
+        if fresh.is_empty() {
+            return Ok(());
+        }
+        let held: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM (
+                SELECT hash FROM commit_objects WHERE organization_id = ?1
+                UNION SELECT hash FROM block_objects WHERE organization_id = ?1)",
+            [&organization],
+            |row| row.get(0),
+        )?;
+        let total = u64::try_from(held).unwrap_or(0) + fresh.len() as u64;
+        match total <= quota {
+            true => Ok(()),
+            false => Err(ServerError::Refused(
+                ErrorCode::OverQuota,
+                format!(
+                    "this organization stores at most {quota} objects, and this would make {total}"
+                ),
+            )),
+        }
     }
 }
