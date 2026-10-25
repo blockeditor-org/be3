@@ -1027,11 +1027,15 @@ fn listen(
             }
         }
     })?;
-    on(document_target, "pointerlockerror", |_event: web_sys::Event| {
-        if let Some(refused) = LOCK.with(|lock| lock.borrow_mut().refused()) {
-            push(refused);
-        }
-    })?;
+    on(
+        document_target,
+        "pointerlockerror",
+        |_event: web_sys::Event| {
+            if let Some(refused) = LOCK.with(|lock| lock.borrow_mut().refused()) {
+                push(refused);
+            }
+        },
+    )?;
     on(document_target, "fullscreenchange", {
         let document = document.clone();
         let reports = reports.clone();
