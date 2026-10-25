@@ -1,14 +1,14 @@
 use super::*;
 use crate::plugin_host::EditorBlock;
+use be_block::BlockContent as _;
 use block_plugin_api::{
-    BlockLocation, MetadataEntries, OpenBlock,
     __args::{
         BLOCKS_CREATE_BLOCK_NAME, BlocksCreateBlockArgs, HOST_SERVICES_READ_PLAIN_FILE,
         HostServicesReadPlainFileArgs,
     },
+    BlockLocation, MetadataEntries, OpenBlock,
     ops::{Connection, Incoming, OpId, Outcome, Side, decode, encode},
 };
-use be_block::BlockContent as _;
 use text_block_types::TextContent;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);

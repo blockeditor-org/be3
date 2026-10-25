@@ -13,7 +13,7 @@ use block_type_api::{
     Change, Description, EditorId, Endpoint, Opening, PublishOutcome, Recipients, SessionTag,
     Status,
     embed::{exports::replicas::Replica, host::Call},
-    ops::{Connection, Incoming, OpId, Latest, Outcome, Reply, Side, guest::Executor},
+    ops::{Connection, Incoming, Latest, OpId, Outcome, Reply, Side, guest::Executor},
 };
 use uuid::Uuid;
 

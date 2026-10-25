@@ -339,7 +339,9 @@ impl Connection {
     }
 
     pub fn ready(&self, op: OpId) -> bool {
-        self.served.get(&op).is_none_or(|served| served.window.open())
+        self.served
+            .get(&op)
+            .is_none_or(|served| served.window.open())
     }
 
     pub fn yield_item(&mut self, op: OpId, item: &[u8]) -> Result<(), WouldBlock> {

@@ -14,7 +14,7 @@ use block_type_guest::api::{
         host::Call,
     },
     ops::{
-        Connection, DeserializeOwned, Incoming, OpError, OpId, Outcome, Latest, Side, Ticket,
+        Connection, DeserializeOwned, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket,
         guest::Executor,
     },
 };

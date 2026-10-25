@@ -45,13 +45,13 @@ be_ops_bindgen::generate!({
     own_debug: ["font-face"],
 });
 
+pub use access::AccessLevel;
 pub use accessibility::DescribedAction;
 pub use be_ops as ops;
-pub use access::AccessLevel;
 pub use blocks::{
-    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation,
-    BlockMetadata, BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockMetadata,
+    BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use host_services::{
     AccessGrant, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,

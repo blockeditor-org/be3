@@ -81,7 +81,10 @@ fn a_frame_sent_to_a_replica_is_answered_once_the_host_takes_it_in() {
         })
         .collect();
     assert_eq!(sends.len(), 2, "the host hears both frames in order");
-    assert!(answers.borrow().is_empty(), "nothing is answered before it is taken in");
+    assert!(
+        answers.borrow().is_empty(),
+        "nothing is answered before it is taken in"
+    );
 
     wire.accepted(sends[0]);
     exchange(&mut wire, &guest, &mut heard);

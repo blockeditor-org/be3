@@ -101,7 +101,9 @@ impl crate::WebViewEvent {
         use crate::WebViewEvent::{Address, Failed, Title};
         if matches!(
             (events.last(), &event),
-            (Some(Title(_)), Title(_)) | (Some(Address(_)), Address(_)) | (Some(Failed(_)), Failed(_))
+            (Some(Title(_)), Title(_))
+                | (Some(Address(_)), Address(_))
+                | (Some(Failed(_)), Failed(_))
         ) {
             events.pop();
         }
