@@ -199,17 +199,18 @@ re-import once, and say so in `guides/frozen_formats.md`.
     a hotbar"), and a grid starts from the nearest one until its player
     changes theirs; resetting the hotbar returns to it. Painting:
     `a_manager_gives_the_world_a_hotbar_that_players_start_from`.
-12. **Default editors.** Decided and done: no workspace layer; a block keeps
-    its own preferred editor (`PREFERRED_EDITOR` metadata, chosen from Opens in
-    in a block's menu in Files), which wins over the user's default. Tests:
-    workspace-ui `a_block_opens_in_the_editor_it_keeps_for_itself`, file-tree
-    `opens_in_keeps_an_editor_for_one_block`. Whether these have a workspace layer at all.
+12. **Default editors.** Whether these have a workspace layer at all.
     Editors for one block type are views over the same data, so which one opens
     a block is a viewer preference, and a workspace layer adds a second place
     to look. Where an author's intent matters ("this database is a board"), it
     belongs to that block, the way `plans/canvas.md` keeps a canvas's last
     profile on the document, not to the workspace. Proposal: keep default
     editors user-only, and let a block store its own preferred editor.
+    Decided and done: no workspace layer; a block keeps
+    its own preferred editor (`PREFERRED_EDITOR` metadata, chosen from Opens in
+    in a block's menu in Files), which wins over the user's default. Tests:
+    workspace-ui `a_block_opens_in_the_editor_it_keeps_for_itself`, file-tree
+    `opens_in_keeps_an_editor_for_one_block`.
 13. **Home.** A landing page and pinned blocks for the workspace, and
     templates for new blocks. Done: the `Home` kind (a manager's), set from
     Workspace home in a block's menu in Files and shown in its own editor; the
