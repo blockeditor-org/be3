@@ -17,6 +17,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
             request,
             block,
             metadata: b"sealed before content".to_vec(),
+            references: Vec::new(),
         })
         .await;
     assert!(
@@ -67,6 +68,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
             request,
             block,
             metadata: b"sealed beside content".to_vec(),
+            references: Vec::new(),
         })
         .await;
     assert!(

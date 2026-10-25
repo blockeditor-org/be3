@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use beui_adapter_plugin::PluginSurface;
 use block_editor_plugin::{
-    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Instance, Region,
+    Artifact, EditorHost, EditorRegion, Frame, Instance, Region,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -377,7 +377,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         self.views.artifacts = Some(artifacts);
     }
 
-    fn describe_artifact(&mut self, data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(&mut self, data: &[u8]) -> Result<String, String> {
         A::describe_artifact(data)
     }
 

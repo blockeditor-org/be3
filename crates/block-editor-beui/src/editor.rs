@@ -91,6 +91,10 @@ impl Artifacts {
         self.0.artifact.block_type
     }
 
+    pub fn source(&self) -> Uuid {
+        self.0.artifact.source
+    }
+
     pub fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
         *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
     }

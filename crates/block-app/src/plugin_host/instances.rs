@@ -1332,6 +1332,7 @@ impl Instances {
         block_types: &Arc<block_plugin_api::Catalog>,
         editor: Uuid,
         block: EditorBlock,
+        source: Uuid,
         data: &[u8],
         resync: bool,
     ) -> Vec<Message> {
@@ -1340,7 +1341,7 @@ impl Instances {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
-            let mut entry = Instance::new(InstanceRole::Artifact(editor, block));
+            let mut entry = Instance::new(InstanceRole::Artifact(editor, block, source));
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -1507,12 +1508,13 @@ impl Instances {
                             client_id,
                         })
                     }
-                    InstanceRole::Artifact(editor, block) => {
+                    InstanceRole::Artifact(editor, block, source) => {
                         Message::Editor(EditorMessage::OpenArtifact {
                             instance,
                             editor: editor.into_bytes(),
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
+                            source: source.into_bytes(),
                             account_id,
                             organization_id,
                             client_id,
@@ -2265,9 +2267,7 @@ impl Instances {
                             draft: entry.artifact.draft.as_ref().map(Vec::len),
                             description: entry.artifact.description.as_ref().map(|description| {
                                 match description {
-                                    ArtifactDescription::Described { summary, .. } => {
-                                        summary.clone()
-                                    }
+                                    ArtifactDescription::Described(summary) => summary.clone(),
                                     ArtifactDescription::Unreadable(error) => {
                                         format!("unreadable: {error}")
                                     }

@@ -2113,7 +2113,7 @@ impl BlockApp {
     fn act_on_artifact(&mut self, id: Uuid, action: ArtifactAction) {
         match action {
             ArtifactAction::Regenerate => {
-                let data = artifact_of(id).map(|artifact| artifact.data);
+                let data = artifact_of(id).map(|artifact| artifact.settings);
                 if let (Some(data), Some(session)) =
                     (data, self.dynamic_artifact_sessions.get_mut(&id))
                 {
@@ -2339,6 +2339,7 @@ impl BlockApp {
                 let block_type = self.block_type_of(id).unwrap_or_default();
                 match self.registry.artifact_session(
                     descriptor.source_type,
+                    *descriptor.source,
                     id,
                     block_type,
                     self.client_id,
@@ -2349,7 +2350,7 @@ impl BlockApp {
             }
             let status = session
                 .as_mut()
-                .map(|session| session.poll(&self.registry, &descriptor.data));
+                .map(|session| session.poll(&self.registry, &descriptor.settings));
             if let Some(outcome) = session.as_mut().and_then(|session| session.take_outcome()) {
                 match outcome {
                     Ok(()) => {
@@ -2363,17 +2364,16 @@ impl BlockApp {
             let mut state = block_plugin_api::ArtifactState {
                 block_id: id.into_bytes(),
                 source_type: descriptor.source_type.into_bytes(),
-                source: None,
-                summary: String::new(),
+                source: descriptor.source.into_bytes(),
+                summary: None,
                 error: self.dynamic_artifact_errors.get(&id).cloned(),
                 regenerating: session
                     .as_ref()
                     .is_some_and(|session| session.regenerating()),
             };
             match &status {
-                Some(ArtifactStatus::Described { source, summary }) => {
-                    state.source = Some(source.into_bytes());
-                    state.summary = summary.clone();
+                Some(ArtifactStatus::Described(summary)) => {
+                    state.summary = Some(summary.clone());
                 }
                 Some(ArtifactStatus::Failed(error)) => {
                     state.error = Some(error.clone());
@@ -2420,7 +2420,7 @@ impl BlockApp {
         let draft = self
             .dynamic_artifact_settings
             .entry(id)
-            .or_insert_with(|| descriptor.data.clone());
+            .or_insert_with(|| descriptor.settings.clone());
         surfaces::host(
             SurfaceId::ArtifactSettings,
             Some(session.settings_region(&self.registry)),
@@ -2429,7 +2429,7 @@ impl BlockApp {
             *draft = edited;
         }
         let progress = block_plugin_api::SettingsProgress {
-            changed: *draft != descriptor.data,
+            changed: *draft != descriptor.settings,
             summary: session.summary(draft),
         };
         self.editors
@@ -2450,9 +2450,9 @@ impl BlockApp {
         };
         set_artifact(
             id,
-            Some(be_block::ArtifactSource {
-                source_type: descriptor.source_type,
-                data: data.clone(),
+            Some(be_block::Artifact {
+                settings: data.clone(),
+                ..descriptor
             }),
         );
         if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
@@ -3358,11 +3358,11 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     }
 }
 
-fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
+fn artifact_of(id: Uuid) -> Option<be_block::Artifact> {
     be::node(id)?.metadata.get(&be_block::ARTIFACT)
 }
 
-fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
+fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
     be::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 

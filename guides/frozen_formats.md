@@ -50,6 +50,13 @@ blocks (a clean break agreed with the user: data moved across in block
 files). What `crates/be-frozen`'s snapshots hold, from 2026-10-16 on, is read
 forever.
 
+Section 1 of `plans/settings.md` is a second, one-time break of the same kind:
+its changes (metadata that points to a block, with `ARTIFACT` now pointing to
+its source; the access model; settings blocks) land together, and then the one
+server with data is wiped and its content re-imported once from a block file.
+Until then they may change saved data incompatibly; afterwards the rules below
+hold again.
+
 Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
 the local plugin API, live-session state (operations,

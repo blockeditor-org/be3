@@ -99,6 +99,7 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
             request,
             block: inside,
             metadata: b"sealed name".to_vec(),
+            references: Vec::new(),
         })
         .await;
     assert!(

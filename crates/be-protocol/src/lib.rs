@@ -453,6 +453,7 @@ pub enum ClientMessage {
         parent: BlockParent,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
+        references: Vec<Uuid>,
         key: Uuid,
         keys: KeySet,
     },
@@ -461,6 +462,7 @@ pub enum ClientMessage {
         block: Uuid,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
+        references: Vec<Uuid>,
     },
     Publish {
         request: u64,

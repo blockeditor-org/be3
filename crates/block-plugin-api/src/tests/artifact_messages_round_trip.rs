@@ -8,6 +8,7 @@ fn artifact_messages_round_trip() {
             editor: [6; 16],
             block_id: [1; 16],
             block_type: [2; 16],
+            source: [7; 16],
             account_id: [3; 16],
             organization_id: [4; 16],
             client_id: [5; 16],
@@ -19,10 +20,7 @@ fn artifact_messages_round_trip() {
         }),
         Message::Editor(EditorMessage::ArtifactDescribed {
             instance: EditorInstanceId(3),
-            description: ArtifactDescription::Described {
-                source: [5; 16],
-                summary: "PNG export at 4x".to_owned(),
-            },
+            description: ArtifactDescription::Described("PNG export at 4x".to_owned()),
         }),
         Message::Editor(EditorMessage::ArtifactDescribed {
             instance: EditorInstanceId(3),

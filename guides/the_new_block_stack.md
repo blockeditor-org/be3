@@ -975,13 +975,17 @@ the edit is sealed.
 
 A block's metadata (`be_block::BlockMetadata`) is two maps from a key's UUID to a
 CBOR value: `defined`, what someone chose (a name typed by hand, the
-`ArtifactSource` a dynamic artifact was made from, a checkout copy's `LOCAL_ID`),
+`Artifact` naming the block a dynamic artifact was made from, a checkout copy's `LOCAL_ID`),
 and `derived`, what the content says about itself (`INTRINSIC_NAME`,
 `THUMBHASH`, `SCHEMA`). A key is declared once as a typed constant,
 `MetaKey::defined(id, name)` or `MetaKey::derived(id, name)`, and read and
 written through it (`get`, `insert`, `remove`, or `definition` for a change to
 send), so a new key, including one a third-party block type declares, needs no
-change to the format. `BlockMetadata::name` is `NAME` when someone named the
+change to the format. A value that holds a `be_model::BlockRef` points to that
+block: `BlockMetadata::references` finds every one, and the peer adds them to
+the references it publishes with the block (`Publish`, and `CreateBlock` and
+`SetMetadata` for a block with no content yet), so the graph's backrefs and
+`KnowExists` see them as they see content's. `BlockMetadata::name` is `NAME` when someone named the
 block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
 them through its `name`, `thumbhash` and `artifact`, and set a defined key with
 `Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui

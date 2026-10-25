@@ -804,15 +804,27 @@ impl Connection {
                 content_type,
                 parent,
                 metadata,
+                references,
                 key,
                 keys,
             } => {
                 let identity = self.identity()?;
                 let block = self
                     .store
-                    .create_block(identity, block, content_type, parent, metadata, key, keys)
+                    .create_block(
+                        identity,
+                        block,
+                        content_type,
+                        parent,
+                        metadata,
+                        references,
+                        key,
+                        keys,
+                    )
                     .await?;
-                self.reannounce(identity, vec![block.id], false, BTreeSet::new())
+                let mut announced = vec![block.id];
+                announced.extend(block.references.iter().copied());
+                self.reannounce(identity, announced, false, BTreeSet::new())
                     .await;
                 Ok(ServerMessage::Block { request, block })
             }
@@ -820,10 +832,16 @@ impl Connection {
                 request,
                 block,
                 metadata,
+                references,
             } => {
                 let identity = self.identity()?;
-                let block = self.store.set_metadata(identity, block, metadata).await?;
-                self.reannounce(identity, vec![block.id], false, BTreeSet::new())
+                let (block, relinked) = self
+                    .store
+                    .set_metadata(identity, block, metadata, references)
+                    .await?;
+                let mut announced = vec![block.id];
+                announced.extend(relinked);
+                self.reannounce(identity, announced, false, BTreeSet::new())
                     .await;
                 Ok(ServerMessage::Block { request, block })
             }

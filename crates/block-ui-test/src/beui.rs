@@ -155,7 +155,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             _ => String::new(),
         };
         let artifact = match &adopted {
-            Adopted::Artifacts(artifacts) => Some(artifacts.block_id()),
+            Adopted::Artifacts(artifacts) => Some((artifacts.block_id(), artifacts.source())),
             _ => None,
         };
         let wakes = Arc::new(Wakes::default());
@@ -196,8 +196,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             Kind::Settings => EditorMessage::OpenArtifact {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
-                block_id: artifact.unwrap_or_default().into_bytes(),
+                block_id: artifact.unwrap_or_default().0.into_bytes(),
                 block_type: block_type.into_bytes(),
+                source: artifact.unwrap_or_default().1.into_bytes(),
                 account_id,
                 organization_id,
                 client_id,

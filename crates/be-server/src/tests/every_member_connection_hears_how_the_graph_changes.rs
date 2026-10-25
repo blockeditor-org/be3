@@ -23,6 +23,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
             request,
             block: folder,
             metadata: b"sealed name".to_vec(),
+            references: Vec::new(),
         })
         .await;
     assert!(

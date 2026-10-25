@@ -163,8 +163,8 @@ pub type HeadRead = Result<Option<StoredHead>, String>;
 pub struct ArtifactState {
     pub block_id: Uuid,
     pub source_type: Uuid,
-    pub source: Option<Uuid>,
-    pub summary: String,
+    pub source: Uuid,
+    pub summary: Option<String>,
     pub error: Option<String>,
     pub regenerating: bool,
 }
@@ -196,11 +196,7 @@ impl FocusedBlock {
 pub struct Artifact {
     pub block_id: Uuid,
     pub block_type: Uuid,
-}
-
-pub struct ArtifactDescription {
     pub source: Uuid,
-    pub summary: String,
 }
 
 #[derive(Clone, PartialEq)]

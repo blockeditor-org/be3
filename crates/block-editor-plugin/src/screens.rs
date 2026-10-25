@@ -244,6 +244,7 @@ impl Screens {
                 editor,
                 block_id,
                 block_type,
+                source,
                 account_id,
                 organization_id,
                 client_id,
@@ -256,8 +257,11 @@ impl Screens {
                 session.set_account_id(Uuid::from_bytes(*account_id));
                 session.set_organization_id(Uuid::from_bytes(*organization_id));
                 session.connect_artifact(
-                    Uuid::from_bytes(*block_id),
-                    Uuid::from_bytes(*block_type),
+                    crate::Artifact {
+                        block_id: Uuid::from_bytes(*block_id),
+                        block_type: Uuid::from_bytes(*block_type),
+                        source: Uuid::from_bytes(*source),
+                    },
                     data.clone(),
                 );
             }
@@ -387,7 +391,7 @@ impl Screens {
                             .map(|state| crate::host::ArtifactState {
                                 block_id: Uuid::from_bytes(state.block_id),
                                 source_type: Uuid::from_bytes(state.source_type),
-                                source: state.source.map(Uuid::from_bytes),
+                                source: Uuid::from_bytes(state.source),
                                 summary: state.summary.clone(),
                                 error: state.error.clone(),
                                 regenerating: state.regenerating,

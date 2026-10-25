@@ -1,5 +1,5 @@
 use crate::{
-    ArtifactDescription, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
+    BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
     ChildContent, ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply,
     HostRequest, Message, ShellDialog, VersionCommand,
 };
@@ -90,11 +90,16 @@ impl EditorMessage {
             | Self::ReplaceContent { block_id, .. }
             | Self::DragBlock { block_id, .. }
             | Self::DragOver { block_id, .. }
-            | Self::OpenArtifact { block_id, .. }
             | Self::Define { block_id, .. }
             | Self::VersionStatus { block_id, .. }
             | Self::Head { block_id, .. }
             | Self::Replica { block_id, .. } => existing(block_id),
+            Self::OpenArtifact {
+                block_id, source, ..
+            } => {
+                existing(block_id);
+                existing(source);
+            }
             Self::ShowDialog {
                 block_id, dialog, ..
             } => {
@@ -216,10 +221,7 @@ impl EditorMessage {
                 CreationOutcome::Created(block_id) => existing(block_id),
                 CreationOutcome::Failed(_) => {}
             },
-            Self::ArtifactDescribed { description, .. } => match description {
-                ArtifactDescription::Described { source, .. } => existing(source),
-                ArtifactDescription::Unreadable(_) => {}
-            },
+            Self::ArtifactDescribed { .. } => {}
             Self::WatchArtifacts { blocks, .. }
             | Self::WatchHistory { blocks, .. }
             | Self::WatchHeads { blocks, .. } => {
@@ -228,7 +230,7 @@ impl EditorMessage {
             Self::ArtifactStates { states, .. } => {
                 for state in states {
                     existing(&mut state.block_id);
-                    state.source.iter_mut().for_each(&mut existing);
+                    existing(&mut state.source);
                 }
             }
             Self::HistoryStates { states, .. } => {

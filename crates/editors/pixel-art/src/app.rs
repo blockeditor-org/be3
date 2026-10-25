@@ -9,7 +9,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{
-    ArtifactDescription, Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
+    Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
 };
 use pixel_art_types::PixelColor;
 use pixel_art_types::{PixelArtContent, PixelArtDocument};
@@ -66,10 +66,11 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
         let host = artifacts.host().clone();
         let block_id = artifacts.block_id();
         let block_type = artifacts.block_type();
+        let source = artifacts.source();
         let started = Rc::clone(&regeneration);
         let reported = Rc::clone(&failure);
         artifacts.on_regenerate(move |data| {
-            match artifact::Regeneration::start(&host, block_id, block_type, data) {
+            match artifact::Regeneration::start(&host, block_id, block_type, source, data) {
                 Ok(started_regeneration) => {
                     *started.borrow_mut() = Some(started_regeneration);
                     reported.borrow_mut().take();
@@ -90,7 +91,7 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
         });
     }
 
-    fn describe_artifact(data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(data: &[u8]) -> Result<String, String> {
         artifact::describe(data)
     }
 

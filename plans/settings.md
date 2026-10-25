@@ -26,8 +26,9 @@ user during the work.
   database prefix. `Tracker::find` searches breadth-first from the roots and
   what is shared (`be-cli/src/tracker.rs`). Since #600 a prefix is a label and
   need not be unique.
-- `ARTIFACT` metadata stores its source inline (`ArtifactSource { source_type,
-  data }`, `be-block/src/metadata.rs`) instead of pointing to a block.
+- Metadata can point to a block: a value holding a `BlockRef` is one of the
+  block's references (`BlockMetadata::references`), and `ARTIFACT` points to
+  its source block (`be_block::Artifact { source, source_type, settings }`).
 - "Shared with me" is only a row in the file tree and the picker, filled from
   `ListShared` (`editors/file-tree/src/app/rows.rs`, `block-shell/src/picker.rs`).
   It is not a workspace and has no settings.
@@ -58,7 +59,7 @@ kept as a `.block` file. Block files don't store permissions, so a re-import
 takes the default access. Land every step of this section, wipe the server,
 re-import once, and say so in `guides/frozen_formats.md`.
 
-1. **Metadata that points to a block.** A metadata value type holding a block
+1. **Metadata that points to a block.** (Done.) A metadata value type holding a block
    id, recorded in the graph's `references` so backrefs and `KnowExists` see
    it. `ARTIFACT` points to a block instead of holding its source inline.
    Done: an artifact block is a backref of the block it describes, and

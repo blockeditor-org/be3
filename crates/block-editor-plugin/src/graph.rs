@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
 
-use be_block::{ArtifactSource, BlockMetadata, Definition, Entries};
+use be_block::{BlockMetadata, Definition, Entries};
 use block_plugin_api::{AccessLevel, BlockLocation};
 use reactive::OwnedSignal;
 use uuid::Uuid;
@@ -149,7 +149,7 @@ impl BlockInfo {
         self.metadata.named_by_hand()
     }
 
-    pub fn artifact(&self) -> Option<ArtifactSource> {
+    pub fn artifact(&self) -> Option<be_block::Artifact> {
         self.metadata.get(&be_block::ARTIFACT)
     }
 
@@ -444,7 +444,7 @@ impl Blocks {
         content: &C,
         parent: BlockParent,
         name: Option<String>,
-        artifact: ArtifactSource,
+        artifact: be_block::Artifact,
     ) -> Uuid {
         let mut metadata = BlockMetadata::default();
         metadata.put(&be_block::NAME, name.as_ref());

@@ -343,6 +343,7 @@ impl TestClient {
                 content_type: CONTENT,
                 parent,
                 metadata: Vec::new(),
+                references: Vec::new(),
                 key,
                 keys,
             })

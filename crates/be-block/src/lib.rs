@@ -30,7 +30,7 @@ pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, Them
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
-    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE,
+    ARTIFACT, Artifact, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE,
     Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME,
     Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };

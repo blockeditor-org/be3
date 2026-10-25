@@ -585,6 +585,7 @@ impl<S: ObjectStore> Peer<S> {
         metadata: &BlockMetadata,
     ) -> Result<BlockSummary, ClientError> {
         let (key, keys) = self.new_keys(block, parent).await?;
+        let references = deduplicated(self.resolve(block, metadata.references()));
         let metadata = self.commits.vault().seal(key, &metadata.encode())?;
         let response = self
             .connection()
@@ -594,6 +595,7 @@ impl<S: ObjectStore> Peer<S> {
                 content_type,
                 parent,
                 metadata: metadata.clone(),
+                references: references.clone(),
                 key,
                 keys: keys.clone(),
             })
@@ -640,12 +642,14 @@ impl<S: ObjectStore> Peer<S> {
             }
             let Some(head) = summary.head else {
                 let sealed = self.seal_metadata(block, &next).await?;
+                let references = deduplicated(self.resolve(block, next.references()));
                 let response = self
                     .connection()
                     .request(|request| ClientMessage::SetMetadata {
                         request,
                         block,
                         metadata: sealed.clone(),
+                        references: references.clone(),
                     })
                     .await;
                 match response {
@@ -656,11 +660,14 @@ impl<S: ObjectStore> Peer<S> {
                 }
             };
             let commit = self.load_commit(head).await?;
+            let described = self.resolve(block, current.references());
+            let mut references = commit.references;
+            references.retain(|reference| !described.contains(reference));
             let saved = self
                 .publish_manifest(
                     block,
                     commit.manifest,
-                    commit.references,
+                    references,
                     Some(head),
                     now_milliseconds(),
                     false,
@@ -1088,8 +1095,10 @@ impl<S: ObjectStore> Peer<S> {
         derived: Entries,
         parent: Option<CommitId>,
     ) -> Result<CommitId, ClientError> {
-        let references = deduplicated(self.resolve(block, references));
         let metadata = self.metadata_at(block, parent).await?.with_derived(derived);
+        let mut references = references;
+        references.extend(metadata.references());
+        let references = deduplicated(self.resolve(block, references));
         let key = self.sealing_key(block).await?;
         let manifest = self.commits.vault().write(key, content_type, bytes)?;
         let commit = Commit::new(manifest, self.account, now_milliseconds())
@@ -1216,6 +1225,8 @@ impl<S: ObjectStore> Peer<S> {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
+        let mut references = references;
+        references.extend(self.resolve(block, metadata.references()));
         let references = deduplicated(references);
         let encoded = metadata.encode();
         if let Some(previous) = &previous

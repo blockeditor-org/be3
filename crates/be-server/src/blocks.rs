@@ -157,9 +157,11 @@ impl ServerStore {
         content_type: Uuid,
         parent: BlockParent,
         metadata: Vec<u8>,
+        references: Vec<Uuid>,
         key: Uuid,
         keys: KeySet,
     ) -> Result<BlockSummary, ServerError> {
+        let references = distinct(references);
         self.with_graph(identity.organization, move |graph, database| {
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
@@ -193,6 +195,12 @@ impl ServerStore {
                     metadata,
                 ],
             )?;
+            store_edges(
+                &transaction,
+                &identity.organization.to_string(),
+                block,
+                &references,
+            )?;
             store_keys(
                 graph,
                 &transaction,
@@ -202,6 +210,7 @@ impl ServerStore {
                 |_, owner| owner == block,
             )?;
             transaction.commit()?;
+            graph.set_references(block, &references)?;
             summary(graph, identity, block).ok_or(ServerError::Corrupt)
         })
         .await
@@ -212,7 +221,9 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
         metadata: Vec<u8>,
-    ) -> Result<BlockSummary, ServerError> {
+        references: Vec<Uuid>,
+    ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
+        let references = distinct(references);
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             if let Some(head) = graph.head(block) {
@@ -221,13 +232,22 @@ impl ServerStore {
                     format!("block {block} has content at {head}, so its metadata is published with it"),
                 ));
             }
-            database.execute(
+            let relinked = relinked(graph, block, &references);
+            let organization = identity.organization.to_string();
+            let transaction = database.unchecked_transaction()?;
+            transaction.execute(
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
-                params![identity.organization.to_string(), block.to_string(), metadata],
+                params![organization, block.to_string(), metadata],
             )?;
+            if relinked.is_some() {
+                store_edges(&transaction, &organization, block, &references)?;
+            }
+            transaction.commit()?;
+            graph.set_references(block, &references)?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
-            summary(graph, identity, block).ok_or(ServerError::Corrupt)
+            let summary = summary(graph, identity, block).ok_or(ServerError::Corrupt)?;
+            Ok((summary, relinked.unwrap_or_default()))
         })
         .await
     }
@@ -419,27 +439,13 @@ impl ServerStore {
             if current == Some(commit) {
                 return Ok(PublishOutcome::Published(commit, None));
             }
-            let mut references = references;
-            let mut seen = std::collections::HashSet::new();
-            references.retain(|reference| seen.insert(*reference));
-            let before = graph.references(block);
-            let relinked = before != references;
-            let redescribed = (relinked
+            let references = distinct(references);
+            let relinked = relinked(graph, block, &references);
+            let redescribed = (relinked.is_some()
                 || graph
                     .get(block)
                     .is_some_and(|node| node.metadata != metadata))
-            .then(|| {
-                let added = references
-                    .iter()
-                    .filter(|reference| !before.contains(reference))
-                    .copied()
-                    .collect::<Vec<_>>();
-                before
-                    .into_iter()
-                    .filter(|reference| !references.contains(reference))
-                    .chain(added)
-                    .collect()
-            });
+            .then(|| relinked.clone().unwrap_or_default());
             let transaction = database.unchecked_transaction()?;
             let organization = identity.organization.to_string();
             let existing: Option<i64> = transaction
@@ -492,24 +498,8 @@ impl ServerStore {
                     metadata
                 ],
             )?;
-            if relinked {
-                transaction.execute(
-                    "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
-                    params![organization, block.to_string()],
-                )?;
-                for (position, reference) in references.iter().enumerate() {
-                    transaction.execute(
-                        "INSERT OR IGNORE INTO block_edges
-                            (organization_id, block_id, reference_id, position)
-                         VALUES (?1, ?2, ?3, ?4)",
-                        params![
-                            organization,
-                            block.to_string(),
-                            reference.to_string(),
-                            i64::try_from(position).map_err(|_| ServerError::Corrupt)?
-                        ],
-                    )?;
-                }
+            if relinked.is_some() {
+                store_edges(&transaction, &organization, block, &references)?;
             }
             transaction.commit()?;
             graph.set_references(block, &references)?;
@@ -1166,4 +1156,55 @@ fn encode_parents(parents: &[CommitId]) -> String {
 
 fn decode_parents(parents: &str) -> Result<Vec<CommitId>, ServerError> {
     parents.split_whitespace().map(parse_commit).collect()
+}
+
+fn distinct(mut references: Vec<Uuid>) -> Vec<Uuid> {
+    let mut seen = HashSet::new();
+    references.retain(|reference| seen.insert(*reference));
+    references
+}
+
+fn relinked(graph: &BlockGraph, block: Uuid, references: &[Uuid]) -> Option<Vec<Uuid>> {
+    let before = graph.references(block);
+    if before == references {
+        return None;
+    }
+    let added = references
+        .iter()
+        .filter(|reference| !before.contains(reference))
+        .copied()
+        .collect::<Vec<_>>();
+    Some(
+        before
+            .into_iter()
+            .filter(|reference| !references.contains(reference))
+            .chain(added)
+            .collect(),
+    )
+}
+
+fn store_edges(
+    transaction: &rusqlite::Transaction<'_>,
+    organization: &str,
+    block: Uuid,
+    references: &[Uuid],
+) -> Result<(), ServerError> {
+    transaction.execute(
+        "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
+        params![organization, block.to_string()],
+    )?;
+    for (position, reference) in references.iter().enumerate() {
+        transaction.execute(
+            "INSERT OR IGNORE INTO block_edges
+                (organization_id, block_id, reference_id, position)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                organization,
+                block.to_string(),
+                reference.to_string(),
+                i64::try_from(position).map_err(|_| ServerError::Corrupt)?
+            ],
+        )?;
+    }
+    Ok(())
 }

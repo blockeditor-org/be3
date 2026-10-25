@@ -1107,6 +1107,7 @@ pub enum EditorMessage {
         editor: [u8; 16],
         block_id: [u8; 16],
         block_type: [u8; 16],
+        source: [u8; 16],
         account_id: [u8; 16],
         organization_id: [u8; 16],
         client_id: [u8; 16],
@@ -1357,7 +1358,7 @@ pub enum PerformanceMeasurement {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArtifactDescription {
-    Described { source: [u8; 16], summary: String },
+    Described(String),
     Unreadable(String),
 }
 
@@ -1461,8 +1462,8 @@ pub enum ArtifactAction {
 pub struct ArtifactState {
     pub block_id: [u8; 16],
     pub source_type: [u8; 16],
-    pub source: Option<[u8; 16]>,
-    pub summary: String,
+    pub source: [u8; 16],
+    pub summary: Option<String>,
     pub error: Option<String>,
     pub regenerating: bool,
 }
@@ -2399,7 +2400,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             CreationOutcome::Failed(message) => string(message),
         },
         EditorMessage::ArtifactDescribed { description, .. } => match description {
-            ArtifactDescription::Described { summary, .. } => string(summary),
+            ArtifactDescription::Described(summary) => string(summary),
             ArtifactDescription::Unreadable(message) => string(message),
         },
         EditorMessage::ArtifactRegenerated { outcome, .. } => match outcome {
@@ -2512,7 +2513,9 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
             for state in states {
-                string(&state.summary)?;
+                if let Some(summary) = &state.summary {
+                    string(summary)?;
+                }
                 if let Some(error) = &state.error {
                     string(error)?;
                 }

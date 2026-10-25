@@ -140,6 +140,7 @@ impl<S: ObjectStore> Peer<S> {
         let vault = self.commits.vault();
         let create: Message = Box::new({
             let metadata = vault.seal(key, &block.metadata.encode())?;
+            let references = block.metadata.references();
             let (block, content_type) = (block.id, block.block_type);
             let keys = keys.clone();
             move |request| ClientMessage::CreateBlock {
@@ -148,6 +149,7 @@ impl<S: ObjectStore> Peer<S> {
                 content_type,
                 parent,
                 metadata,
+                references,
                 key,
                 keys,
             }
@@ -162,7 +164,9 @@ impl<S: ObjectStore> Peer<S> {
             });
         };
         let manifest = vault.write(key, block.block_type, content)?;
-        let references = deduplicated(block.references.clone());
+        let mut references = block.references.clone();
+        references.extend(block.metadata.references());
+        let references = deduplicated(references);
         let encoded = block.metadata.encode();
         let commit = Commit::new(manifest.clone(), self.account, now_milliseconds())
             .with_parents(Vec::new())

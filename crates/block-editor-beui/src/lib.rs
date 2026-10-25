@@ -72,7 +72,7 @@ pub trait BeuiApp: 'static {
         creation.create_block()
     }
     fn connect_artifact(_artifacts: &Artifacts) {}
-    fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(_data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())
     }
     #[beui::reactive::component]

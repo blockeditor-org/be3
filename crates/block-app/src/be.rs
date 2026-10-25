@@ -406,6 +406,13 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     let to = Uuid::now_v7();
     let mut metadata = source.metadata.clone();
     metadata.remove(&be_block::ARTIFACT);
+    let described = source.metadata.references();
+    let references: Vec<Uuid> = source
+        .references
+        .iter()
+        .filter(|reference| !described.contains(reference))
+        .copied()
+        .collect();
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
         shared.graph.change(Node {
@@ -414,7 +421,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             author: Some(author),
             parent: Some(be_graph::BlockParent::Detached),
             access: be_graph::Access::Manage,
-            references: source.references.clone(),
+            references,
             metadata: metadata.clone(),
             head: None,
             locked: false,
