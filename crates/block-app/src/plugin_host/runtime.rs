@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -39,6 +39,15 @@ const REMEMBERED_PRESENTS: usize = 16;
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::new());
+    static STEPS: RefCell<BTreeMap<String, beui::FrameTimes>> = const { RefCell::new(BTreeMap::new()) };
+}
+
+pub(crate) fn take_steps() -> Vec<(String, beui::FrameTimes)> {
+    STEPS.with(|steps| {
+        std::mem::take(&mut *steps.borrow_mut())
+            .into_iter()
+            .collect()
+    })
 }
 
 struct Host {
@@ -653,6 +662,16 @@ impl Runtime {
             }
         };
         self.apply(forwarded);
+        let (count, longest) = self.backend.stepped();
+        if count > 0 {
+            STEPS.with(|steps| {
+                steps
+                    .borrow_mut()
+                    .entry(self.plugin.identity.id.clone())
+                    .or_default()
+                    .merge(beui::FrameTimes { count, longest });
+            });
+        }
         if let Some(took) = self.backend.took() {
             let id = &self.plugin.identity.id;
             for (name, duration) in [

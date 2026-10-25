@@ -403,6 +403,10 @@ impl beui::App for Shell {
         plugin_host::request_painting();
     }
 
+    fn other_frames(&mut self) -> Vec<(String, beui::FrameTimes)> {
+        plugin_host::take_steps()
+    }
+
     fn close_requested(&mut self) -> bool {
         self.app.close_requested()
     }

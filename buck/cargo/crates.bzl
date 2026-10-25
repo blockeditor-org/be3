@@ -18,11 +18,14 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
                         "//crates/be-drive:be-drive",
                         "//crates/be-server:be-server",
                         "//crates/bench:bench",
                         "//crates/beui-core:beui-core",
                         "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:tokio-1.52.3",
                     ],
@@ -36,11 +39,14 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
                         "//crates/be-drive:be-drive",
                         "//crates/be-server:be-server",
                         "//crates/bench:bench",
                         "//crates/beui-core:beui-core",
                         "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:tokio-1.52.3",
                     ],
@@ -54,11 +60,14 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
                         "//crates/be-drive:be-drive",
                         "//crates/be-server:be-server",
                         "//crates/bench:bench",
                         "//crates/beui-core:beui-core",
                         "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:tokio-1.52.3",
                     ],
@@ -72,11 +81,14 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
                         "//crates/be-drive:be-drive",
                         "//crates/be-server:be-server",
                         "//crates/bench:bench",
                         "//crates/beui-core:beui-core",
                         "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:tokio-1.52.3",
                     ],
@@ -90,11 +102,14 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
                         "//crates/be-drive:be-drive",
                         "//crates/be-server:be-server",
                         "//crates/bench:bench",
                         "//crates/beui-core:beui-core",
                         "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:tokio-1.52.3",
                     ],
@@ -108,11 +123,14 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
                         "//crates/be-drive:be-drive",
                         "//crates/be-server:be-server",
                         "//crates/bench:bench",
                         "//crates/beui-core:beui-core",
                         "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:tokio-1.52.3",
                     ],
@@ -126,11 +144,14 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
                         "//crates/be-drive:be-drive",
                         "//crates/be-server:be-server",
                         "//crates/bench:bench",
                         "//crates/beui-core:beui-core",
                         "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:tokio-1.52.3",
                     ],

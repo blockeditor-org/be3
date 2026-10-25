@@ -40,8 +40,10 @@ const FRAME_RATES: [VideoFrameRate; 7] = [
 
 pub struct VideoApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for VideoApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -51,7 +53,8 @@ impl block_editor_beui::BeuiApp for VideoApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <VideoPreview editor={editor} />

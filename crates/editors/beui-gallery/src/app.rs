@@ -6,8 +6,10 @@ use block_editor_beui::{Creation, Editor};
 
 pub struct BeuiGalleryApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for BeuiGalleryApp {
-    fn view(_editor: Editor) -> Root {
+    #[component]
+    fn View(_editor: Editor) -> Root {
         view! {
             <Root>
                 <Demo />

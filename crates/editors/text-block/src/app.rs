@@ -24,8 +24,10 @@ use toolbar::{EditorMenu, FormatBar, format_actions};
 
 pub struct TextApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for TextApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <TextEditor editor={editor} />

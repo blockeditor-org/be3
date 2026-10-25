@@ -9,8 +9,10 @@ use ui::CheckoutView;
 
 pub struct CheckoutApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CheckoutApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

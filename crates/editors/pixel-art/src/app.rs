@@ -34,8 +34,10 @@ const TOOLS_WIDTH: f32 = 180.0;
 
 pub struct PixelArtApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for PixelArtApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -45,7 +47,8 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <PixelArtPreview editor={editor} />
@@ -91,7 +94,8 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
         artifact::describe(data)
     }
 
-    fn artifact_settings_view(artifacts: Artifacts) -> NodeId {
+    #[component]
+    fn ArtifactSettings(artifacts: Artifacts) -> NodeId {
         view! {
             <Settings artifacts={artifacts} />
         }

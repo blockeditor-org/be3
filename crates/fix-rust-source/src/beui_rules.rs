@@ -132,14 +132,22 @@ fn attribute_named(node: &impl HasAttrs, name: &str) -> bool {
 fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
     let mut violations = Vec::new();
     for function in tree.syntax().descendants().filter_map(ast::Fn::cast) {
-        if attribute_named(&function, "component") || attribute_named(&function, "test") {
+        if attribute_named(&function, "component") {
+            let block = function.syntax().parent().and_then(|list| list.parent());
+            let unmarked = block.is_some_and(|block| {
+                ast::Trait::cast(block.clone())
+                    .is_some_and(|block| !attribute_named(&block, "component"))
+                    || ast::Impl::cast(block)
+                        .is_some_and(|block| !attribute_named(&block, "component"))
+            });
+            if unmarked {
+                let offset = u32::from(function.syntax().text_range().start()) as usize;
+                let line = source[..offset].matches('\n').count() + 1;
+                violations.push(format!("component method outside a component block: {relative}:{line} a #[component] method needs #[component] on its trait or impl block too"));
+            }
             continue;
         }
-        if function.syntax().ancestors().skip(1).any(|node| {
-            ast::Trait::can_cast(node.kind())
-                || ast::Impl::cast(node)
-                    .is_some_and(|implementation| implementation.trait_().is_some())
-        }) {
+        if attribute_named(&function, "test") {
             continue;
         }
         let uncovered = function
