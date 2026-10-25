@@ -28,5 +28,6 @@ interface plugin {
 
 world editor-plugin {
     import host;
+    import blocks;
     export plugin;
 }

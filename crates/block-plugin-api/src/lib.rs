@@ -15,13 +15,29 @@ be_ops_bindgen::generate!({
         "screen-id": crate::ScreenId,
         "description": crate::Description,
         "child-placements": crate::ChildPlacements,
+        "commit-id": [u8; 32],
+        "metadata-entries": crate::MetadataEntries,
     },
-    copy: ["uuid", "editor-instance-id", "screen-id"],
-    default: ["frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout"],
+    copy: ["uuid", "editor-instance-id", "screen-id", "commit-id"],
+    default: [
+        "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
+        "block-metadata", "artifact-state", "version-status",
+    ],
+    inline: [
+        "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
+        "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
+        "finish-command", "branch-command", "create-branch-command", "resolve-command",
+        "undo-operation-command",
+    ],
     own_debug: ["font-face"],
 });
 
 pub use be_ops as ops;
+pub use blocks::{
+    AccessLevel, ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation,
+    BlockMetadata, BlockQuery, ConflictSide, HostPanel, StoredHead, VersionBranch, VersionChange,
+    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
+};
 pub use types::{
     EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
     Hello, HelloAccepted, InputBatch, Monitor, OpenArtifact, OpenBlock, OpenCreation, Opening,
@@ -262,13 +278,6 @@ pub enum ChildContent {
     ArtifactSettings {
         block_id: [u8; 16],
     },
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum HostPanel {
-    BlockStack,
-    Performance,
-    Plugins,
 }
 
 impl HostPanel {
@@ -1316,53 +1325,12 @@ pub enum CreationOutcome {
     Failed(String),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum BlockLocation {
-    Root,
-    Detached,
-    Block([u8; 16]),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum BlockQuery {
-    Roots,
-    Detached,
-    Shared,
-    Children([u8; 16]),
-    References([u8; 16]),
-    Backrefs([u8; 16]),
-    Parents([u8; 16]),
-    Block([u8; 16]),
-}
-
 pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BlockMetadata {
-    pub defined: MetadataEntries,
-    pub derived: MetadataEntries,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BlockInfo {
-    pub block_id: [u8; 16],
-    pub block_type: [u8; 16],
-    pub author: Option<[u8; 16]>,
-    pub parent: Option<BlockLocation>,
-    pub references: Vec<[u8; 16]>,
-    pub access: AccessLevel,
-    pub metadata: BlockMetadata,
-    pub locked: bool,
-    pub deleted: bool,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum AccessLevel {
-    None,
-    KnowExists,
-    View,
-    #[default]
-    Edit,
+impl Default for AccessLevel {
+    fn default() -> Self {
+        Self::Edit
+    }
 }
 
 impl AccessLevel {
@@ -1389,22 +1357,6 @@ impl AccessLevel {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ArtifactAction {
-    Regenerate,
-    Unlink,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ArtifactState {
-    pub block_id: [u8; 16],
-    pub source_type: [u8; 16],
-    pub source: Option<[u8; 16]>,
-    pub summary: String,
-    pub error: Option<String>,
-    pub regenerating: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WatchedContent {
     pub block_id: [u8; 16],
     pub content_type: [u8; 16],
@@ -1416,149 +1368,6 @@ pub struct HistoryState {
     pub block_id: [u8; 16],
     pub can_undo: bool,
     pub can_redo: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StoredHead {
-    pub commit: [u8; 32],
-    pub content_type: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub bytes: Vec<u8>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum BlockCommand {
-    Share,
-    Leave,
-    Rename {
-        anchor: Option<Rect>,
-    },
-    Undo,
-    Redo,
-    Artifact {
-        action: ArtifactAction,
-    },
-    SimulateAccess {
-        access: AccessLevel,
-    },
-    CloseEditor,
-    Unlink {
-        container: [u8; 16],
-    },
-    Delete {
-        block_type: [u8; 16],
-        source: BlockLocation,
-    },
-    Move {
-        block_type: [u8; 16],
-        source: BlockLocation,
-        destination: [u8; 16],
-        is_reference: bool,
-    },
-    Place {
-        block_type: [u8; 16],
-        parent: [u8; 16],
-        linked: bool,
-    },
-    Restore,
-    AppMenu {
-        anchor: Option<Rect>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum VersionCommand {
-    Adopt {
-        block_id: [u8; 16],
-    },
-    Finish {
-        description: String,
-    },
-    Update,
-    Switch {
-        branch: String,
-    },
-    CreateBranch {
-        name: String,
-    },
-    Merge {
-        branch: String,
-    },
-    NewCheckout {
-        branch: String,
-    },
-    Resolve {
-        block_id: [u8; 16],
-        take: ConflictSide,
-    },
-    Undo {
-        operation: [u8; 16],
-    },
-    Fork,
-    PullUpstream,
-    PushUpstream,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ConflictSide {
-    Base,
-    Ours,
-    Theirs,
-    Merged,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionStatus {
-    pub busy: bool,
-    pub error: Option<String>,
-    pub behind: bool,
-    pub branches: Vec<VersionBranch>,
-    pub changes: Vec<VersionChange>,
-    pub working: Option<VersionCommit>,
-    pub log: Vec<VersionCommit>,
-    pub operations: Vec<VersionOperation>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionOperation {
-    pub id: [u8; 16],
-    pub time: i64,
-    pub author: [u8; 16],
-    pub description: String,
-    pub undone: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionBranch {
-    pub name: String,
-    pub head: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionChange {
-    pub block_id: [u8; 16],
-    pub block_type: [u8; 16],
-    pub name: Option<String>,
-    pub kind: VersionChangeKind,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum VersionChangeKind {
-    Added,
-    Removed,
-    Modified,
-    Moved,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionCommit {
-    pub id: [u8; 32],
-    pub change: [u8; 16],
-    pub parents: Vec<[u8; 32]>,
-    pub author: [u8; 16],
-    pub time: i64,
-    pub message: String,
-    pub conflicted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

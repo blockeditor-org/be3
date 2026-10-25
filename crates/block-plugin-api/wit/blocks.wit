@@ -1,0 +1,241 @@
+package be3:plugin@0.1.0;
+
+/// The blocks an editor reads and changes through its host: the block graph,
+/// a block's content, history and version control, and asks to open blocks.
+interface blocks {
+    use types.{uuid};
+    use be3:ui/types@0.1.0.{rect};
+
+    /// A commit of a block's history: the hash of its content.
+    record commit-id {
+        a: u64,
+        b: u64,
+        c: u64,
+        d: u64,
+    }
+
+    enum access-level {
+        none,
+        know-exists,
+        view,
+        edit,
+    }
+
+    /// Where a block is listed: at the root, detached from every parent, or
+    /// inside a block.
+    variant block-location {
+        root,
+        detached,
+        block(uuid),
+    }
+
+    variant block-query {
+        roots,
+        detached,
+        shared,
+        children(uuid),
+        references(uuid),
+        backrefs(uuid),
+        parents(uuid),
+        block(uuid),
+    }
+
+    /// Metadata keyed by the uuid of its kind, each value its encoded bytes.
+    type metadata-entries = list<tuple<uuid, list<u8>>>;
+
+    record block-metadata {
+        defined: metadata-entries,
+        derived: metadata-entries,
+    }
+
+    record block-info {
+        block-id: uuid,
+        block-type: uuid,
+        author: option<uuid>,
+        parent: option<block-location>,
+        references: list<uuid>,
+        access: access-level,
+        metadata: block-metadata,
+        locked: bool,
+        deleted: bool,
+    }
+
+    enum host-panel {
+        block-stack,
+        performance,
+        plugins,
+    }
+
+    enum artifact-action {
+        regenerate,
+        unlink,
+    }
+
+    record artifact-state {
+        block-id: uuid,
+        source-type: uuid,
+        source: option<uuid>,
+        summary: string,
+        error: option<string>,
+        regenerating: bool,
+    }
+
+    record stored-head {
+        commit: commit-id,
+        content-type: uuid,
+        bytes: list<u8>,
+    }
+
+    record rename-command {
+        anchor: option<rect>,
+    }
+
+    record artifact-command {
+        action: artifact-action,
+    }
+
+    record simulate-access-command {
+        access: access-level,
+    }
+
+    record unlink-command {
+        container: uuid,
+    }
+
+    record delete-command {
+        block-type: uuid,
+        source: block-location,
+    }
+
+    record move-command {
+        block-type: uuid,
+        source: block-location,
+        destination: uuid,
+        is-reference: bool,
+    }
+
+    record place-command {
+        block-type: uuid,
+        parent: uuid,
+        linked: bool,
+    }
+
+    record app-menu-command {
+        anchor: option<rect>,
+    }
+
+    /// What an editor asks the host to do with a block it draws.
+    variant block-command {
+        share,
+        leave,
+        rename(rename-command),
+        undo,
+        redo,
+        artifact(artifact-command),
+        simulate-access(simulate-access-command),
+        close-editor,
+        unlink(unlink-command),
+        delete(delete-command),
+        move(move-command),
+        place(place-command),
+        restore,
+        app-menu(app-menu-command),
+    }
+
+    enum conflict-side {
+        base,
+        ours,
+        theirs,
+        merged,
+    }
+
+    record adopt-command {
+        block-id: uuid,
+    }
+
+    record finish-command {
+        description: string,
+    }
+
+    record branch-command {
+        branch: string,
+    }
+
+    record create-branch-command {
+        name: string,
+    }
+
+    record resolve-command {
+        block-id: uuid,
+        take: conflict-side,
+    }
+
+    record undo-operation-command {
+        operation: uuid,
+    }
+
+    /// What a version control editor asks of the checkout or repository it
+    /// shows.
+    variant version-command {
+        adopt(adopt-command),
+        finish(finish-command),
+        update,
+        switch(branch-command),
+        create-branch(create-branch-command),
+        merge(branch-command),
+        new-checkout(branch-command),
+        resolve(resolve-command),
+        undo(undo-operation-command),
+        fork,
+        pull-upstream,
+        push-upstream,
+    }
+
+    record version-operation {
+        id: uuid,
+        time: s64,
+        author: uuid,
+        description: string,
+        undone: bool,
+    }
+
+    record version-branch {
+        name: string,
+        head: commit-id,
+    }
+
+    enum version-change-kind {
+        added,
+        removed,
+        modified,
+        moved,
+    }
+
+    record version-change {
+        block-id: uuid,
+        block-type: uuid,
+        name: option<string>,
+        kind: version-change-kind,
+    }
+
+    record version-commit {
+        id: commit-id,
+        change: uuid,
+        parents: list<commit-id>,
+        author: uuid,
+        time: s64,
+        message: string,
+        conflicted: bool,
+    }
+
+    record version-status {
+        busy: bool,
+        error: option<string>,
+        behind: bool,
+        branches: list<version-branch>,
+        changes: list<version-change>,
+        working: option<version-commit>,
+        log: list<version-commit>,
+        operations: list<version-operation>,
+    }
+}
