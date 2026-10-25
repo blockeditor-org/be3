@@ -118,7 +118,10 @@ pub(crate) fn DockingPage() -> NodeId {
                     <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "Drag the bar between two panes to resize them, or focus it with Tab \
                          and use the arrow keys. Drag the grip at the start of a pane's bar to move \
-                         the whole pane, or right-click it to move the tabs into a sidebar and back."
+                         the whole pane, or right-click it to move the tabs into a sidebar and back, \
+                         or to show only their icons. Dragging a sidebar's edge on past its \
+                         narrowest shows only icons too, and any drag back the other way shows \
+                         the titles again."
                     </Text>
                     <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                         "Hold Alt while dragging a tab, or right-click one and pop it out, to \
