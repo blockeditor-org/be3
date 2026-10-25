@@ -14,10 +14,11 @@ be_ops_bindgen::generate!({
         "editor-instance-id": crate::EditorInstanceId,
         "screen-id": crate::ScreenId,
         "description": crate::Description,
-        "child-placements": crate::ChildPlacements,
+        "host-window-id": crate::HostWindowId,
         "commit-id": [u8; 32],
         "metadata-entries": crate::MetadataEntries,
         "child-id": crate::ChildId,
+        "tree-id": [u8; 16],
         "web-view-id": crate::WebViewId,
         "interaction-mode": crate::InteractionMode,
         "pan-mode": crate::PanMode,
@@ -31,7 +32,7 @@ be_ops_bindgen::generate!({
         "edits": crate::Edits,
     },
     copy: [
-        "uuid", "editor-instance-id", "screen-id", "commit-id", "child-id", "web-view-id", "interaction-mode",
+        "uuid", "tree-id", "host-window-id", "editor-instance-id", "screen-id", "commit-id", "child-id", "web-view-id", "interaction-mode",
         "pan-mode", "editor-capabilities", "resize-mode", "child-operations", "press",
         "template-category", "edits",
     ],
@@ -39,7 +40,7 @@ be_ops_bindgen::generate!({
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
-        "catalog", "audio-status",
+        "catalog", "audio-status", "child-layer", "child-mode",
     ],
     inline: [
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
@@ -47,14 +48,17 @@ be_ops_bindgen::generate!({
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "artifact-described", "rename-dialog", "creation-options", "chosen-block",
+        "block-child", "creation-child", "artifact-settings-child",
     ],
+    ordered: ["child-content"],
     own_debug: ["font-face"],
 });
 
+pub use accessibility::DescribedAction;
 pub use be_ops as ops;
 pub use blocks::{
     AccessLevel, ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation,
-    BlockMetadata, BlockQuery, ConflictSide, HostPanel, StoredHead, VersionBranch, VersionChange,
+    BlockMetadata, BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use host_services::{
@@ -67,8 +71,9 @@ pub use shell_types::{
     SettingsProgress, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
-    EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
-    Hello, HelloAccepted, InputBatch, Monitor, OpenArtifact, OpenBlock, OpenCreation, Opening,
+    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, EditorRegion, FontFace,
+    FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello, HelloAccepted,
+    HostPanel, InputBatch, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
     PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
     ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
@@ -261,18 +266,9 @@ fn close_submenu(open: &mut Vec<Vec<MenuEntry>>, headings: &mut Vec<MenuHeading>
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
+    #[serde(with = "accesskit_mirror::tree")]
     pub tree: Option<accesskit::TreeUpdate>,
     pub actions: Vec<DescribedAction>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DescribedAction {
-    pub id: String,
-    pub label: String,
-    pub shortcut: Option<String>,
-    pub enabled: bool,
-    pub checked: Option<bool>,
-    pub live: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -328,45 +324,8 @@ impl ScreenLayout {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChildId(pub u64);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChildLayer {
-    #[default]
-    Below,
-    Above,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChildMode {
-    Preview,
-    #[default]
-    Passive,
-    Active,
-    Live,
-    InPlace,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChildContent {
-    Block {
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        view_block: Option<[u8; 16]>,
-        editor: Option<[u8; 16]>,
-    },
-    WebView(WebViewId),
-    Host(HostPanel),
-    Window(HostWindowId),
-    Creation {
-        editor: [u8; 16],
-        template: String,
-    },
-    ArtifactSettings {
-        block_id: [u8; 16],
-    },
-}
 
 impl HostPanel {
     pub const ALL: [Self; 3] = [Self::BlockStack, Self::Performance, Self::Plugins];
@@ -391,37 +350,6 @@ impl ChildContent {
             | Self::ArtifactSettings { .. } => None,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChildPlacement {
-    pub child: ChildId,
-    pub content: ChildContent,
-    pub rect: Rect,
-    pub clip: Rect,
-    pub own_frame: bool,
-    pub top_bar: TopBar,
-    pub corner_radius: f32,
-    pub layer: ChildLayer,
-    pub mode: ChildMode,
-    pub intrinsic: Option<Size>,
-    pub rotation: f32,
-    pub opacity: f32,
-    pub follows_view: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Occluder {
-    pub after: u32,
-    pub rect: Rect,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChildPlacements {
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub children: Vec<ChildPlacement>,
-    pub occluders: Vec<Occluder>,
 }
 
 impl ChildPlacements {

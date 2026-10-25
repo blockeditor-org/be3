@@ -76,6 +76,7 @@ fn region_screen(
     }
 }
 
+mod a_description_keeps_every_kind_of_node_property;
 mod a_frame_says_which_host_state_it_was_laid_out_against;
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_menu_nested_too_deeply_is_refused_while_decoding;

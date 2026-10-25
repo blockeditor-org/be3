@@ -3,15 +3,10 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use types.{editor-instance-id, editor-region, size, uuid};
+    use types.{child-id, editor-instance-id, editor-region, size, uuid, web-view-id};
     use blocks.{block-location};
     use host-services.{block-filter};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
-
-    /// A child an editor placed, numbered by the editor.
-    record child-id {
-        value: u64,
-    }
 
     /// An action of the bar the host draws above a frame or a child.
     enum bar-action {
@@ -311,11 +306,6 @@ interface shell-types {
         error: option<string>,
     }
 
-    /// A web view an editor shows, numbered by the editor.
-    record web-view-id {
-        value: u32,
-    }
-
     variant web-view-event {
         navigate(string),
         finished(string),
@@ -338,12 +328,12 @@ interface shell-types {
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{editor-instance-id, editor-region, size, uuid};
+    use types.{child-id, editor-instance-id, editor-region, size, uuid, web-view-id};
     use blocks.{block-location};
     use shell-types.{
-        artifact-description, audio-command, audio-status, bar-action, catalog, child-id,
+        artifact-description, audio-command, audio-status, bar-action, catalog,
         child-status, focus, menu-item, performance-measurement, stopped, view-change,
-        web-view-event, web-view-id,
+        web-view-event,
     };
 
     /// A value the host publishes under a key, such as its windows or its

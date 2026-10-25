@@ -2,6 +2,7 @@ package be3:plugin@0.1.0;
 
 /// What the host and an editor plugin share.
 interface types {
+    use accessibility.{description};
     use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
 
     /// A block, editor, account or organization id.
@@ -160,13 +161,97 @@ interface types {
         rect: rect,
     }
 
-    /// What a screen describes to assistive technology. Carried in its Rust
-    /// shape until the accessibility interface defines it here.
-    type description = list<u8>;
 
-    /// The children an instance placed in a region. Carried in its Rust shape
-    /// until the children interface defines it here.
-    type child-placements = list<u8>;
+    /// A panel of the host's own that an editor can show or place.
+    enum host-panel {
+        block-stack,
+        performance,
+        plugins,
+    }
+
+    /// A child an editor placed, numbered by the editor.
+    record child-id {
+        value: u64,
+    }
+
+    /// A web view an editor shows, numbered by the editor.
+    record web-view-id {
+        value: u32,
+    }
+
+    /// A window of another program the host shows.
+    record host-window-id {
+        value: u64,
+    }
+
+    enum child-layer {
+        below,
+        above,
+    }
+
+    enum child-mode {
+        passive,
+        preview,
+        active,
+        live,
+        in-place,
+    }
+
+    record block-child {
+        block-id: uuid,
+        block-type: uuid,
+        view-block: option<uuid>,
+        editor: option<uuid>,
+    }
+
+    record creation-child {
+        editor: uuid,
+        template: string,
+    }
+
+    record artifact-settings-child {
+        block-id: uuid,
+    }
+
+    /// What a child an editor placed shows.
+    variant child-content {
+        block(block-child),
+        web-view(web-view-id),
+        host(host-panel),
+        window(host-window-id),
+        creation(creation-child),
+        artifact-settings(artifact-settings-child),
+    }
+
+    record child-placement {
+        child: child-id,
+        content: child-content,
+        rect: rect,
+        clip: rect,
+        own-frame: bool,
+        top-bar: top-bar,
+        corner-radius: f32,
+        layer: child-layer,
+        mode: child-mode,
+        intrinsic: option<size>,
+        rotation: f32,
+        opacity: f32,
+        follows-view: bool,
+    }
+
+    /// A rectangle that hides the children placed before it.
+    record occluder {
+        after: u32,
+        rect: rect,
+    }
+
+    /// The children an instance placed in a region.
+    record child-placements {
+        instance: editor-instance-id,
+        region: editor-region,
+        children: list<child-placement>,
+        occluders: list<occluder>,
+    }
 
     record frame-report {
         screen: screen-id,

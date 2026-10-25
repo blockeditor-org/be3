@@ -3,7 +3,7 @@ package be3:plugin@0.1.0;
 /// The blocks an editor reads and changes through its host: the block graph,
 /// a block's content, history and version control, and asks to open blocks.
 interface blocks {
-    use types.{uuid};
+    use types.{host-panel, uuid};
     use be3:ui/types@0.1.0.{rect};
 
     /// A commit of a block's history: the hash of its content.
@@ -58,12 +58,6 @@ interface blocks {
         metadata: block-metadata,
         locked: bool,
         deleted: bool,
-    }
-
-    enum host-panel {
-        block-stack,
-        performance,
-        plugins,
     }
 
     enum artifact-action {

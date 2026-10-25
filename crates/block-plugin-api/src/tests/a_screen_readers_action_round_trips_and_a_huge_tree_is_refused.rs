@@ -9,8 +9,8 @@ fn a_screen_readers_action_round_trips_and_a_huge_tree_is_refused() {
         target_node: NodeId(1 << 41 | 7),
         data: Some(ActionData::Value("Buy bread".into())),
     };
-    let carried = crate::ops::decode::<accessibility::ActionRequest>(&crate::ops::encode(
-        &accessibility::ActionRequest::from(action.clone()),
+    let carried = crate::ops::decode::<crate::accessibility::ActionRequest>(&crate::ops::encode(
+        &crate::accessibility::ActionRequest::from(action.clone()),
     ))
     .expect("the request decodes");
     assert_eq!(ActionRequest::from(carried), action);
