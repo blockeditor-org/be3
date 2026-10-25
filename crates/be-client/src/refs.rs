@@ -211,6 +211,8 @@ pub struct Creation {
     pub parent: BlockParent,
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
+    #[serde(default)]
+    pub references: Vec<Uuid>,
     pub key: Uuid,
     pub keys: KeySet,
 }

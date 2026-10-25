@@ -139,7 +139,7 @@ impl<S: ObjectStore> Peer<S> {
             author: Some(self.account),
             parent: Some(creation.parent),
             head: None,
-            references: Vec::new(),
+            references: creation.references.clone(),
             metadata: creation.metadata.clone(),
             version: None,
             key: Some(creation.key),
@@ -229,6 +229,7 @@ impl<S: ObjectStore> Peer<S> {
                 content_type: creation.content_type,
                 parent: creation.parent,
                 metadata: creation.metadata.clone(),
+                references: creation.references.clone(),
                 key: creation.key,
                 keys: creation.keys.clone(),
             })

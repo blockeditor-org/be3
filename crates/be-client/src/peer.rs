@@ -607,6 +607,7 @@ impl<S: ObjectStore> Peer<S> {
                     content_type,
                     parent,
                     metadata,
+                    references,
                     key,
                     keys,
                 });

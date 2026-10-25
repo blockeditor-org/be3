@@ -11,6 +11,7 @@ async fn create_settings(client: &mut TestClient, parent: Uuid) -> (Uuid, Server
             content_type: SETTINGS_TYPE,
             parent: BlockParent::Block(parent),
             metadata: Vec::new(),
+            references: Vec::new(),
             key,
             keys: KeySet {
                 keys: vec![row(key, block, KeyKind::Data)],
@@ -27,6 +28,7 @@ async fn set_metadata(client: &mut TestClient, block: Uuid) -> ServerMessage {
             request,
             block,
             metadata: b"changed".to_vec(),
+            references: Vec::new(),
         })
         .await
 }
