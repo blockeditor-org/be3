@@ -11,9 +11,11 @@ block through them (guides/the_new_block_stack.md, "How the app hosts content";
 
 - `crates/block-type-api`: the messages between a host and a type module. No GUI types.
 - `crates/block-type-guest`: the replica library a be-model-based type module links.
-  It is `be_client::Live`, the worker's `Session` (`WithHistory`/`Plain`, seal timing,
-  `seal`/`rekey`) and `be_block::history::History` as one deterministic state machine,
-  and every `Document<R>` and `Blob<K>` works with it unchanged.
+  It holds a block's live session (owner sequencing, follower rebase, takeover, seal
+  timing, `seal`/`rekey`) and its undo stack (`be_block::history::History`) as one
+  deterministic state machine, and every `Document<R>` and `Blob<K>` works with it
+  unchanged. Its `Sim` tests (`src/tests.rs`) are where session behaviour is tested:
+  a simulated host with any number of devices, a lease, commits and editors.
 
 ## The protocol
 
@@ -52,14 +54,15 @@ What the host owes a replica:
 - **Opening.** `Open` carries the head the host just read, the session's lease
   state, the client id and a `SessionTag` (the module's hash). The replica reads the
   head itself (`Read`) and queues everything until it arrives. The host must send
-  `Head { Moved }` for every head that lands after the one in `Open`, since the
-  replica does not reconcile on opening the way `Live::join` did.
+  `Head { Moved }` for every head that lands after the one in `Open` (including the
+  remote head, when `Open` carried a local head it differs from), since the replica
+  does not reconcile on opening.
 - **IO answers.** `Read` -> `Event::Read`, `Publish` -> `HeadEvent::Published` or
   `Rejected { head }` (an unchanged save is `Published` with the same head), `Stash`
   -> `Stashed { commit }`, `Resume` -> `Event::Resumed` (the host fetches both
   histories and runs `be_session::resume`; the replica cannot see history). Each
   carries the `Token` of its command. A replica waits on one answer at a time and
-  queues every other event behind it, as `Live` awaited each request inline.
+  queues every other event behind it.
 - **Publishing.** `Publish { expected, merging, content }` is a compare-and-swap on
   `expected`, whose commit is the first parent. `merging: Some { base, ours }` adds
   `ours` as a second parent and asks the host to merge defined metadata
@@ -83,17 +86,15 @@ What the host owes a replica:
 
 ## Peers
 
-Peers exchange `wire::Wire`, which is be-session's `SessionMessage` encoded exactly
-as `Live` sends it, so a replica and a `be_client::Live` peer share a
-session. A follower sends `Wire::Tag` (its `SessionTag`, on a channel a `Live` peer
-passes over) ahead of each `Catchup`; an owner answers another tag with
-`Wire::Incompatible` and then ignores that peer's submits and catch-ups, and the
-follower marks itself incompatible and diverged, so two builds of a type never edit
-one session. Everything else is `Live`'s behaviour,
-message for message: owner sequencing, follower rebase and `apply_beneath`, the 1 MiB
-relay limit, `Snapshot`/`Sealed`/`reload`, `Replaced`, takeover with
-`Sequencer::continuing`, presence and channel messages. The worker's rules are here
-too: an owner that owes a seal seals `SEAL_INTERVAL` (750 ms) after it started
+Peers exchange `wire::Wire`: be-session's `SessionMessage`, `Tag` and
+`Incompatible`. A follower sends `Tag` (its `SessionTag`) ahead of each `Catchup`;
+an owner answers another tag with `Incompatible` and then ignores that peer's
+submits and catch-ups, and the follower marks itself incompatible and diverged, so
+two builds of a type never edit one session. The session itself is owner
+sequencing, follower rebase and `apply_beneath`, the 1 MiB relay limit (a larger
+edit is published as a commit, and a follower's queued edits are absorbed into
+pieces no larger), `Snapshot`/`Sealed`/`reload`, `Replaced`, takeover with
+`Sequencer::continuing`, presence and channel messages. Its rules: an owner that owes a seal seals `SEAL_INTERVAL` (750 ms) after it started
 owing; a rejected seal reconciles and seals once more; reconcile merges unsaved work
 into whatever it fast-forwards or merges onto and stashes our side when the merge
 conflicts; a head moved from elsewhere reconciles an owner, and one this device

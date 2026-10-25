@@ -270,6 +270,133 @@ impl Drop for Harness {
     }
 }
 
+struct Outside {
+    runtime: tokio::runtime::Runtime,
+    local: tokio::task::LocalSet,
+    session: Option<be_cli::replica::Session<be_store::MemoryStore>>,
+}
+
+struct Seen {
+    count: Option<i64>,
+    presence: Vec<block_type_guest::editor::PeerPresence>,
+}
+
+impl Outside {
+    fn counter(harness: &Harness, block: Uuid) -> Self {
+        let runtime = runtime();
+        let local = tokio::task::LocalSet::new();
+        let config = harness.outside_config();
+        let session = local.block_on(&runtime, async move {
+            let peer = outside_peer(config).await;
+            peer.ensure::<CounterContent>(block, be_graph::BlockParent::Root)
+                .await
+                .expect("the counter is created");
+            be_cli::replica::Session::open(
+                peer,
+                block,
+                CounterContent::CONTENT_TYPE,
+                super::types::sources().await,
+            )
+            .await
+            .expect("the outside peer opens the counter")
+        });
+        Self {
+            runtime,
+            local,
+            session: Some(session),
+        }
+    }
+
+    fn session(&mut self) -> &mut be_cli::replica::Session<be_store::MemoryStore> {
+        self.session
+            .as_mut()
+            .expect("the outside peer has not left")
+    }
+
+    fn peer(&mut self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+        std::sync::Arc::clone(self.session().peer())
+    }
+
+    fn is_owner(&mut self) -> bool {
+        self.session().status().is_some_and(|status| status.owner)
+    }
+
+    fn add(&mut self, by: i64) {
+        self.session()
+            .operate(CounterContent::encode_operation(&Counter::add(by)));
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        local.block_on(runtime, session.settle());
+    }
+
+    fn show(&mut self, kind: Uuid, value: Option<Vec<u8>>) {
+        self.session().show(kind, value);
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        local.block_on(runtime, session.settle());
+    }
+
+    fn seal(&mut self) {
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        local.block_on(runtime, session.seal());
+    }
+
+    fn block_on<F: Future>(&self, future: F) -> F::Output {
+        self.local.block_on(&self.runtime, future)
+    }
+
+    fn leave(&mut self) {
+        let session = self.session.take().expect("the outside peer has not left");
+        self.local.block_on(&self.runtime, session.close());
+    }
+
+    fn until(&mut self, what: &str, ready: impl Fn(&Seen) -> bool) {
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        let reached = local.block_on(runtime, async {
+            tokio::time::timeout(PATIENCE, async {
+                loop {
+                    let seen = Seen {
+                        count: session
+                            .content()
+                            .await
+                            .and_then(|bytes| CounterContent::decode(&bytes).ok())
+                            .map(|counter| counter.root().value()),
+                        presence: session.presence().to_vec(),
+                    };
+                    if ready(&seen) {
+                        return;
+                    }
+                    let woken = session.next().await;
+                    session
+                        .handle(woken)
+                        .await
+                        .expect("the outside peer is still connected");
+                }
+            })
+            .await
+        });
+        assert!(reached.is_ok(), "the outside peer never {what}");
+    }
+}
+
 fn count_of(block: Uuid) -> Option<i64> {
     let held = content(block)?;
     (held.content_type == CounterContent::CONTENT_TYPE)

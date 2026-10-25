@@ -4,7 +4,7 @@ use be_block::blob::{Blob, BlobKind};
 use be_block::{BlockContent, ChildChange, LiveEdit, Root};
 use be_commit::CommitId;
 use be_model::{
-    Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId,
+    Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
 use be_protocol::ClientId;
 use be_session::{Lease, Resume};
@@ -23,18 +23,31 @@ use crate::{
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_file_maps_to_a_block_and_back;
 mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
+mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
+mod a_follower_replaces_the_content_and_the_owner_takes_it;
 mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
+mod a_follower_that_missed_messages_catches_up_once_resynchronized;
+mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
+mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
+mod a_head_written_offline_merges_once_its_replica_opens;
+mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
+mod a_late_joiner_types_where_it_sees_the_caret;
+mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod an_abandoned_lease_is_claimed;
+mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
 mod edits_are_sealed_once_they_rest_for_the_seal_interval;
+mod peer_messages_reach_one_peer_or_all_of_them;
+mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod undo_reverts_only_this_devices_edit;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
@@ -60,6 +73,10 @@ impl Checklist {
 
     fn set_text(item: ObjectId, text: &str) -> Edit {
         ChecklistItem::TEXT.set(item, &text.to_owned()).into()
+    }
+
+    fn remove(item: ObjectId) -> Edit {
+        ModelChange::remove(item).into()
     }
 }
 
@@ -111,6 +128,31 @@ impl Root for Counter {
 }
 
 type CounterContent = Document<Counter>;
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Prose {
+    body: Text,
+}
+
+impl Root for Prose {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7072_6f73_652d_6669_7874_7572_6500_0001);
+}
+
+type ProseContent = Document<Prose>;
+
+fn prose(content: &ProseContent) -> String {
+    content
+        .text(ObjectId::ROOT, Prose::BODY)
+        .map_or_else(String::new, |body| {
+            String::from_utf8_lossy(&body.items()).into_owned()
+        })
+}
+
+fn prose_of(text: &str) -> ProseContent {
+    Document::new(&Prose {
+        body: Text::new(text),
+    })
+}
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Folder {
@@ -172,6 +214,10 @@ fn counter_module() -> Module {
     ])
 }
 
+fn prose_module() -> Module {
+    Module::new(vec![Registration::of::<ProseContent>()])
+}
+
 fn folder_module() -> Module {
     Module::new(vec![Registration::of::<FolderContent>()])
 }
@@ -225,6 +271,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     conflicts: Vec<(usize, CommitId, CommitId, usize)>,
     errors: Vec<(usize, String)>,
     quiet: bool,
+    deaf: BTreeSet<usize>,
+    largest_relay: usize,
     written: u64,
     make: fn() -> Module,
 }
@@ -258,6 +306,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             conflicts: Vec::new(),
             errors: Vec::new(),
             quiet: false,
+            deaf: BTreeSet::new(),
+            largest_relay: 0,
             written: 0,
             make,
         }
@@ -276,6 +326,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn open(&mut self, device: usize) {
+        self.open_at(device, self.head);
+    }
+
+    fn open_at(&mut self, device: usize, local: Option<CommitId>) {
         let client = self.devices[device].client;
         self.devices[device].module = Some((self.make)());
         self.devices[device].released = false;
@@ -291,11 +345,37 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 organization: ORGANIZATION,
                 client,
                 tag: self.devices[device].tag,
-                head: self.head,
+                head: local,
                 session: self.lease.state().clone(),
             },
         ));
+        if let Some(head) = self.head
+            && local != self.head
+        {
+            self.queue.push_back((
+                device,
+                Event::Head {
+                    replica: REPLICA,
+                    event: HeadEvent::Moved {
+                        head,
+                        from_this_device: false,
+                    },
+                },
+            ));
+        }
         self.lease_changed(Some(device));
+        self.settle();
+    }
+
+    fn resynchronize(&mut self, device: usize) {
+        self.queue.push_back((
+            device,
+            Event::Lease {
+                replica: REPLICA,
+                session: self.lease.state().clone(),
+                resynchronize: true,
+            },
+        ));
         self.settle();
     }
 
@@ -667,6 +747,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn relay(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {
+        self.largest_relay = self.largest_relay.max(bytes.len());
+        if self.deaf.contains(&to) {
+            return;
+        }
         self.queue.push_back((
             to,
             Event::Message {
@@ -675,5 +759,30 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 bytes,
             },
         ));
+    }
+}
+
+impl Sim<ProseContent> {
+    fn type_at(&mut self, device: usize, editor: EditorId, at: usize, typed: &str) {
+        let client = self.devices[device].client;
+        let op = self
+            .mirror(device, editor)
+            .text(ObjectId::ROOT, Prose::BODY)
+            .and_then(|body| body.insert(client, at, typed.as_bytes().to_vec()))
+            .expect("there is somewhere to type");
+        self.operate(device, editor, Prose::BODY.edit(ObjectId::ROOT, op).into());
+    }
+
+    fn erase(&mut self, device: usize, editor: EditorId, range: std::ops::Range<usize>) {
+        let op = self
+            .mirror(device, editor)
+            .text(ObjectId::ROOT, Prose::BODY)
+            .and_then(|body| body.delete(range))
+            .expect("there is something to erase");
+        self.operate(device, editor, Prose::BODY.edit(ObjectId::ROOT, op).into());
+    }
+
+    fn typed(&self, device: usize, editor: EditorId) -> String {
+        prose(self.mirror(device, editor))
     }
 }

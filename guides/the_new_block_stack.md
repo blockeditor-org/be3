@@ -60,7 +60,7 @@ be-protocol  the wire format                      client + server
 be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
 be-vcs       snapshot trees, diff, tree merge      client
-be-client    a peer: local store, blocks, Live    client
+be-client    a peer: local store, blocks, relay   client
 be-sync      a folder <-> a directory on disk      client (native)
 be-server    the always-online peer               server
 ```
@@ -385,13 +385,15 @@ polling either.
   unfetched ancestor looks like a divergence.
 - `stream_header` and `stream_range` read a `Streamed` type without the payload.
 
-`Live<S, C>` is a block being edited in a session. The owner sequences and
-broadcasts; a follower applies its own edit immediately, rebases it against
-operations that arrive in between, and reconciles against the owner's echo. It
-keeps `confirmed` (server-ordered) and `visible` (`confirmed` plus pending). `seal` writes a commit, heartbeats
-`clean_at`, and tells the followers with `SessionMessage::Sealed` which commit
-now holds which sequence number. `reconcile` runs the resume decision and merges
-when it has to.
+A block being edited is in a session, which each device holds in its type
+module's replica (`block-type-guest`, guides/type_modules.md); the peer only
+relays, seals and stores for it. The owner sequences and broadcasts; a follower
+applies its own edit immediately, rebases it against operations that arrive in
+between, and reconciles against the owner's echo. A replica keeps `confirmed`
+(server-ordered) and `visible` (`confirmed` plus pending). A seal writes a
+commit, heartbeats `clean_at`, and tells the followers with
+`SessionMessage::Sealed` which commit now holds which sequence number. A
+reconcile runs the resume decision and merges when it has to.
 
 A follower's `head` is only right because of `Sealed`, and ownership depends on
 it being right. A follower that takes over carries on from the head the last
@@ -399,19 +401,18 @@ owner sealed: it keeps the old sequence numbering so the other followers keep
 applying what it accepts, it accepts the operations it had pending as its own,
 and it owes a seal for whatever the old owner accepted after its last one.
 Get the head wrong and the new owner's first save is refused, and the resume
-decision reads its unsaved work as something to fast-forward over. `reconcile`
-now merges unsaved work into anything it fast-forwards or merges onto, and when
+decision reads its unsaved work as something to fast-forward over. A reconcile
+merges unsaved work into anything it fast-forwards or merges onto, and when
 it changes the owner's content outside the operation stream, the next `Sealed`
-tells the followers to reload the head. Only an owner ever seals or reconciles
-in the app's worker: a follower's edits are the owner's to save.
+tells the followers to reload the head. Only an owner ever seals or reconciles:
+a follower's edits are the owner's to save.
 
 A merge that conflicts first writes the owner's unsaved side as a commit of its
-own (`Peer::stash`), so the merge commit has both sides as parents and neither
-is lost, and records a `Conflict` that the worker collects with
-`take_conflicts`. A session message or operation this version cannot decode
-marks the session incompatible. On a follower that also marks it diverged,
-because its copy may now be wrong, and a diverged session refuses to edit or
-seal.
+own (`Command::Stash`), so the merge commit has both sides as parents and neither
+is lost, and reports a `be_types_host::Conflict` to its host. A session message
+or operation this version cannot decode marks the session incompatible. On a
+follower that also marks it diverged, because its copy may now be wrong, and a
+diverged session refuses to edit or seal.
 
 ## Adding a content type
 
@@ -1707,9 +1708,9 @@ What it still decides, and a device trusts it for:
 Presence is what a peer shows the others while it is there - a cursor, a
 selection - and it is never saved. `SessionMessage::Presence { kind, value }`
 carries one kind of it to everyone in the session, sealed like every other
-session message. `Live::set_presence` shows a value (or takes it away with
-`None`) and only sends when it changed, `Live::presence` is what the other peers
-show, keyed by their `ClientId` and the kind, and a peer never sees its own.
+session message. A replica sends a value (or takes it away with `None`) only
+when it changed, keeps what the other peers show keyed by their `ClientId` and
+the kind, and never shows a peer its own.
 When `SessionChanged` names a participant it has not seen, a peer shows that
 participant what it is showing, so a late joiner sees everyone at once; when a
 participant leaves, what it showed is dropped.
@@ -1733,9 +1734,8 @@ Presence is state; a peer message is a message. `SessionMessage::Channel {
 channel, payload }` goes to one participant of a block's session or to all of
 them, sealed with the block's key like every other session message, so the
 server relays what it cannot read. A channel is a uuid naming what the payload
-means. `Live::send_channel(to, channel, payload)` sends one and
-`Live::take_channel` takes what other participants sent, in the order each of
-them sent it. Nothing is kept: a participant that was not in the session never
+means. A participant hears what each of the others sent it in the order they
+sent it, and never hears itself. Nothing is kept: a participant that was not in the session never
 hears it.
 
 A replica hands each editor attached to it the messages that arrived since it

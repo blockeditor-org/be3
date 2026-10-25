@@ -1109,7 +1109,7 @@ impl<H: Host> Replicas<H> {
                 H::conflict(
                     shared,
                     open.block,
-                    be_client::Conflict {
+                    crate::Conflict {
                         ours,
                         theirs,
                         count,

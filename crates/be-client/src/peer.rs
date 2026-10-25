@@ -786,16 +786,7 @@ impl<S: ObjectStore> Peer<S> {
         content: &C,
         expected: Option<CommitId>,
     ) -> Result<Saved, ClientError> {
-        self.save_at(
-            block,
-            content,
-            expected,
-            now_milliseconds(),
-            false,
-            Vec::new(),
-            None,
-        )
-        .await
+        self.save_content(block, content, expected, false).await
     }
 
     pub async fn bookmark<C: BlockContent>(
@@ -806,76 +797,15 @@ impl<S: ObjectStore> Peer<S> {
         label: &str,
     ) -> Result<Saved, ClientError> {
         let _ = label;
-        self.save_at(
-            block,
-            content,
-            expected,
-            now_milliseconds(),
-            true,
-            Vec::new(),
-            None,
-        )
-        .await
+        self.save_content(block, content, expected, true).await
     }
 
-    pub async fn stash<C: BlockContent>(
-        &self,
-        block: Uuid,
-        content: &C,
-        parent: Option<CommitId>,
-    ) -> Result<CommitId, ClientError> {
-        let references =
-            deduplicated(self.resolve(block, content.references_in(self.organization())));
-        let metadata = self
-            .metadata_at(block, parent)
-            .await?
-            .with_derived(derived_metadata(content));
-        let key = self.sealing_key(block).await?;
-        let manifest = self
-            .commits
-            .vault()
-            .write(key, C::CONTENT_TYPE, &content.encode())?;
-        let commit = Commit::new(manifest, self.account, now_milliseconds())
-            .with_parent(parent)
-            .with_references(references)
-            .with_metadata(metadata.encode());
-        let id = self.commits.put(key, &commit)?;
-        let mut objects = vec![id.hash()];
-        objects.extend(commit.manifest.chunk_hashes());
-        self.push(&objects).await?;
-        Ok(id)
-    }
-
-    pub async fn save_merge<C: BlockContent>(
+    async fn save_content<C: BlockContent>(
         &self,
         block: Uuid,
         content: &C,
         expected: Option<CommitId>,
-        parents: Vec<CommitId>,
-        defined: Entries,
-    ) -> Result<Saved, ClientError> {
-        self.save_at(
-            block,
-            content,
-            expected,
-            now_milliseconds(),
-            false,
-            parents,
-            Some(defined),
-        )
-        .await
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn save_at<C: BlockContent>(
-        &self,
-        block: Uuid,
-        content: &C,
-        expected: Option<CommitId>,
-        time: i64,
         pinned: bool,
-        extra_parents: Vec<CommitId>,
-        defined: Option<Entries>,
     ) -> Result<Saved, ClientError> {
         self.save_bytes(
             block,
@@ -884,10 +814,10 @@ impl<S: ObjectStore> Peer<S> {
             content.references_in(self.organization()),
             derived_metadata(content),
             expected,
-            time,
+            now_milliseconds(),
             pinned,
-            extra_parents,
-            defined,
+            Vec::new(),
+            None,
         )
         .await
     }

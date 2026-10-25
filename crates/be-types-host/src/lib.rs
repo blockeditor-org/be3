@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use be_client::{ClientError, Conflict};
+use be_client::ClientError;
 use be_commit::CommitId;
 use be_store::ObjectStore;
 use block_type_api::{Description, EditorId, Status};
@@ -14,6 +14,13 @@ pub use modules::{
     Kind, Modules, Source, in_process, is_known, kind_of, now_millis, plain_of, started, tag_of,
 };
 pub use replicas::{Ctx, HOST_EDITOR, Replicas};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Conflict {
+    pub ours: CommitId,
+    pub theirs: CommitId,
+    pub count: usize,
+}
 
 pub trait Host: Sized + 'static {
     type Store: ObjectStore + 'static;

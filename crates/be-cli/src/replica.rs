@@ -3,11 +3,11 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
-use be_client::{ClientError, Conflict, Peer};
+use be_client::{ClientError, Peer};
 use be_commit::CommitId;
 use be_protocol::{ClientId, ServerMessage};
 use be_store::ObjectStore;
-use be_types_host::{HOST_EDITOR, Replicas, Source};
+use be_types_host::{Conflict, HOST_EDITOR, Replicas, Source};
 use block_type_api::{Description, EditorId, Status};
 use block_type_guest::editor::{FromEditor, PeerMessage, PeerPresence, ToEditor};
 use tokio::sync::{broadcast, watch};
@@ -172,6 +172,30 @@ impl<S: ObjectStore + 'static> Session<S> {
             channel,
             payload,
         });
+    }
+
+    pub fn operate(&mut self, operation: Vec<u8>) {
+        self.say(FromEditor::Operate(operation));
+    }
+
+    pub fn status(&self) -> Option<Status> {
+        self.replicas.status(self.block)
+    }
+
+    pub async fn content(&mut self) -> Option<Vec<u8>> {
+        let content = self
+            .replicas
+            .content((&self.peer, &self.shared), self.block)
+            .await;
+        self.settle().await;
+        content
+    }
+
+    pub async fn seal(&mut self) {
+        self.replicas
+            .seal((&self.peer, &self.shared), self.block, false)
+            .await;
+        self.settle().await;
     }
 
     fn say(&mut self, message: FromEditor) {

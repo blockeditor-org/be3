@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex, PoisonError};
 
-use be_client::{ClientError, Conflict};
+use be_client::ClientError;
 use be_commit::CommitId;
+use be_types_host::Conflict;
 use block_type_api::{Description, EditorId, Status};
 use block_type_guest::editor::ToEditor;
 use uuid::Uuid;

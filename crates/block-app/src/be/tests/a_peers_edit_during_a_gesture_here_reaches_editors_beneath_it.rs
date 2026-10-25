@@ -1,25 +1,10 @@
 use super::*;
 
-use be_client::Live;
-
 #[test]
 fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
     let harness = Harness::start();
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("a test runtime starts");
     let block = Uuid::new_v4();
-    let mut owner = runtime.block_on(async {
-        let outside = harness.outside_peer().await;
-        outside
-            .ensure::<CounterContent>(block, be_graph::BlockParent::Root)
-            .await
-            .expect("the counter is created");
-        Live::<_, CounterContent>::join(std::sync::Arc::clone(&outside), block)
-            .await
-            .expect("the outside peer owns the session")
-    });
+    let mut owner = Outside::counter(&harness, block);
     assert!(owner.is_owner());
 
     harness.connect();
@@ -34,14 +19,9 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
     }
     wait_for_count(block, 3);
 
-    runtime.block_on(async {
-        owner
-            .edit(Counter::add(10))
-            .await
-            .expect("the owner adds before it reads this peer's adds");
-        while owner.content().root().value() != 13 {
-            owner.wait().await.expect("the session is still up");
-        }
+    owner.add(10);
+    owner.until("took this peer's adds after its own", |seen| {
+        seen.count == Some(13)
     });
     wait_until("took the owner's add beneath its own", |shared| {
         counted(shared, block) == Some(13) && shared.unsealed == 0

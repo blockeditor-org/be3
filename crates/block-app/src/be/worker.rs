@@ -5,10 +5,11 @@ use std::{
 };
 
 use be_block::BlockMetadata;
-use be_client::{ClientError, Conflict, Credentials, Peer, PeerConfig};
+use be_client::{ClientError, Credentials, Peer, PeerConfig};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
+use be_types_host::Conflict;
 use block_type_api::{Change, Description, EditorId, Request};
 use block_type_guest::editor::FromEditor;
 use futures_util::future::{Either, select};
