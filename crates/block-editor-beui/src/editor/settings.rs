@@ -35,6 +35,7 @@ pub type KindsAbove = BTreeMap<Uuid, SetKind>;
 #[derive(Default)]
 pub(super) struct SettingsCache {
     walks: HashMap<Uuid, [BlockList; 3]>,
+    held: HashMap<Uuid, BlockList>,
     kinds: HashMap<Uuid, Memo<KindsAbove>>,
     resolved: HashMap<(Uuid, TypeId), Box<dyn Any>>,
     created: HashMap<Uuid, Uuid>,
@@ -155,7 +156,9 @@ impl Editor {
                 break;
             };
             for kind in EDIT_KINDS {
-                if let Some(set) = self.edit_kind(current, kind) {
+                if let Some(set) = self.edit_kind(current, kind)
+                    && self.held_by(set, kind, current)
+                {
                     found.entry(kind).or_insert(SetKind {
                         owner: current,
                         settings: current,
@@ -163,12 +166,17 @@ impl Editor {
                     });
                 }
             }
-            if let Some(settings) = self.settings_block(current) {
+            if let Some(settings) = self.settings_block(current)
+                && self.held_by(settings, Settings::CONTENT_TYPE, current)
+            {
                 let kinds = self
                     .content_of::<SettingsContent>(settings)
                     .read(|content| content.root().kinds.clone())
                     .unwrap_or_default();
                 for (kind, set) in kinds.iter() {
+                    if !self.held_by(*set, *kind, settings) {
+                        continue;
+                    }
                     found.entry(*kind).or_insert(SetKind {
                         owner: current,
                         settings,
@@ -182,6 +190,21 @@ impl Editor {
             current = parent;
         }
         found
+    }
+
+    fn held_by(&self, block: Uuid, block_type: Uuid, parent: Uuid) -> bool {
+        let blocks = self.blocks();
+        if blocks.info(block).is_none() {
+            let state = self.state();
+            let mut cache = state.settings.borrow_mut();
+            if !cache.held.contains_key(&block) {
+                let list = state._scope.run(|| blocks.watch(BlockQuery::Block(block)));
+                cache.held.insert(block, list);
+            }
+        }
+        blocks.info(block).is_some_and(|info| {
+            info.block_type == block_type && info.parent == Some(BlockParent::Block(parent))
+        })
     }
 
     fn open_above(&self, block: Uuid, found: &mut KindsAbove) {
