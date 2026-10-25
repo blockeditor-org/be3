@@ -1,11 +1,27 @@
-load("@root//buck/app:defs.bzl", "app")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/app:defs.bzl", "app", "type_bundle")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 
 cargo_library()
 
-cargo_test()
+# The tests name block types from the editors' manifests, as be does from the
+# bundle it carries.
+cargo_test(
+    env = {"EDITOR_MANIFESTS": "$(location //crates/block-plugin-api:editor-manifests)"},
+)
 
-cargo_binary()
+# be carries every plugin's manifest and type module in its executable, so a
+# release is one file (guides/type_modules.md, "Hosts").
+type_bundle(
+    name = "plugin-types",
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
+)
+
+cargo_binary(
+    env = {
+        "PLUGIN_TYPES": "$(location :plugin-types)",
+    },
+)
 
 # be with its build-info.json file beside it, which it greets the server with:
 # `./scripts/buck run //crates/be-cli:native -- ARGS`.

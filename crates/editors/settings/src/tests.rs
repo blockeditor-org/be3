@@ -35,6 +35,11 @@ fn editor_for(account: Uuid) -> BeuiTest<SettingsApp> {
     host.set_client_id(Uuid::new_v4());
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
+    editor.store().add_block(block_editor_beui::BlockInfo::new(
+        block,
+        SettingsContent::CONTENT_TYPE,
+        block_editor_beui::BlockParent::Root,
+    ));
     editor.hold(None, SettingsContent::default());
     editor.run();
     editor

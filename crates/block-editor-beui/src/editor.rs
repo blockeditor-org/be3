@@ -7,12 +7,13 @@ use be_block::presence::{ChannelKind, PresenceKind};
 use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
-    SettingsProgress, TopBar, WebViewId,
+    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
+    EditorCapabilities, HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry,
+    ResizeMode, SettingsProgress, TopBar, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
+use workspace_ui_types::{EditorViewContent, ViewState};
 
 use crate::{
     BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
@@ -119,12 +120,6 @@ pub struct Drag {
     pub dropped: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RawContent {
-    pub content_type: Uuid,
-    pub bytes: Vec<u8>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChildTarget {
     pub id: Uuid,
@@ -208,6 +203,7 @@ pub struct ChildState {
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
     pub settings: Option<SettingsProgress>,
+    pub preview: ChildPreview,
 }
 
 impl ChildState {
@@ -235,6 +231,7 @@ impl ChildState {
             menu: status.menu,
             creation: status.creation,
             settings: status.settings,
+            preview: status.preview,
         }
     }
 }
@@ -548,24 +545,24 @@ impl Editor {
         self.state().host.view_block()
     }
 
-    pub fn view_content(&self) -> Option<ContentProjection<be_block::EditorViewContent>> {
+    pub fn view_content(&self) -> Option<ContentProjection<EditorViewContent>> {
         self.view_block()
-            .map(|block| self.content_of::<be_block::EditorViewContent>(block))
+            .map(|block| self.content_of::<EditorViewContent>(block))
     }
 
-    pub fn view_state(&self, key: &str) -> Option<be_block::ViewState> {
+    pub fn view_state(&self, key: &str) -> Option<ViewState> {
         self.view_content()?
             .read(|view| view.root().state(key).cloned())
             .ok()
             .flatten()
     }
 
-    pub fn set_view_state(&self, key: &str, state: Option<&be_block::ViewState>) {
+    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
         let Some(view) = self.view_content() else {
             return;
         };
         let client = self.state().host.client_id();
-        let now = be_block::editor_view::now_milliseconds();
+        let now = now_milliseconds();
         let edit = untrack(|| {
             view.read(|held| {
                 let root = held.root();
@@ -597,51 +594,19 @@ impl Editor {
             .create(content, BlockParent::Block(self.state().block))
     }
 
-    pub fn raw_block_content(&self) -> ReadSignal<Option<RawContent>> {
-        let raw = self.raw_content();
-        wait_for(move || match raw.with(Option::is_some) {
+    pub fn stored_head(&self, block: Uuid) -> Memo<crate::HeadRead> {
+        let host = self.state().host.clone();
+        host.watch_head(block);
+        let revision = self.pushed(Pushed::Heads);
+        let read = create_memo(move || {
+            revision.get();
+            host.head(block)
+        });
+        wait_for(move || match read.with(Option::is_some) {
             true => Ok(()),
             false => Err(Pending::Loading),
         });
-        raw
-    }
-
-    fn raw_content(&self) -> ReadSignal<Option<RawContent>> {
-        let state = self.state();
-        let cached = state
-            .contents
-            .projections
-            .borrow()
-            .get(&None)
-            .and_then(|held| held.downcast_ref::<OwnedSignal<Option<RawContent>>>())
-            .map(|owned| owned.read_only());
-        if let Some(read) = cached {
-            return read;
-        }
-        let owned = OwnedSignal::new(None::<RawContent>);
-        let raw = owned.handle();
-        let host = state.host.clone();
-        state.contents.pumps.borrow_mut().insert(
-            None,
-            Rc::new(move || {
-                for update in host.take_content_updates(None) {
-                    match update {
-                        crate::ContentUpdate::Snapshot(content) => raw.set(Some(RawContent {
-                            content_type: content.content_type,
-                            bytes: content.bytes,
-                        })),
-                        crate::ContentUpdate::Operations(_) => host.request_content_resend(None),
-                    }
-                }
-            }),
-        );
-        state.contents.due.borrow_mut().push(None);
-        state
-            .contents
-            .projections
-            .borrow_mut()
-            .insert(None, Box::new(owned));
-        raw.read_only()
+        create_memo(move || read.get().unwrap_or(Ok(None)))
     }
 
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
@@ -1011,6 +976,7 @@ impl Editor {
     {
         let peers = create_signal(Vec::new());
         let host = self.state().host.clone();
+        host.ask_for_peers(None);
         let revision = self.pushed(Pushed::Peers);
         let seen = Cell::new(0);
         create_effect(move || {
@@ -1044,6 +1010,7 @@ impl Editor {
         M: ChannelKind + 'static,
     {
         let host = self.state().host.clone();
+        host.ask_for_peers(None);
         let revision = self.pushed(Pushed::PeerMessages);
         let seen = Cell::new(host.peer_messages_seen());
         create_effect(move || {
@@ -1541,3 +1508,11 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
 
 #[cfg(test)]
 mod tests;
+
+fn now_milliseconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}

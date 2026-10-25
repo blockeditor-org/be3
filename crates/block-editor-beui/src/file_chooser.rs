@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::cell::{OnceCell, RefCell};
 
 use beui::NodeId;
@@ -168,7 +169,7 @@ where
                     <Text
                         style=TextStyle::CAPTION
                         color=TextColor::Danger
-                        wrap=true
+                        wrap=Wrap::Words
                         @test_id={error_id.clone()}
                     >
                         {reason}

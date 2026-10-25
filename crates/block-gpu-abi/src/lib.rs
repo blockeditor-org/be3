@@ -11,9 +11,6 @@ pub use enums::*;
 use serde::{Serialize, de::DeserializeOwned};
 
 pub const GPU_MODULE: &str = "be3_gpu";
-pub const HOST_MODULE: &str = "be3_host";
-pub const HOST_WAKE: &str = "host_wake";
-pub const HOST_PANIC: &str = "host_panic";
 
 pub const ABI_VERSION: u32 = 1;
 
@@ -22,8 +19,6 @@ pub type Handle = u32;
 pub const NULL_HANDLE: Handle = 0;
 
 pub const WHOLE_SIZE: u64 = 0;
-
-pub const NO_MESSAGE: i64 = -1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub enum ResourceKind {

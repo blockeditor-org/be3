@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn an_import_links_rows_to_each_other_by_their_old_ids() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     run(&tracker, "new-database Issues --prefix BE")
         .await
         .unwrap();

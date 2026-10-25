@@ -1,8 +1,8 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::ChecklistContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use checklist_types::ChecklistContent;
 use uuid::Uuid;
 
 mod ui;

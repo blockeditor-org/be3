@@ -1,12 +1,10 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 use block_plugin_api::{Message, PluginManifest, ScreenDamage, decode_frame, encode_frame};
 
-use super::worker::Worker;
 use crate::{editors::plugin::discovery, host};
+use block_guest_host::Worker;
+pub(super) use block_guest_host::{Deadline, StepTime};
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::wasm as platform;
@@ -18,11 +16,10 @@ const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
 
 pub(super) type Frame = platform::Frame;
 
-#[derive(Clone, Copy, Default)]
-pub(super) struct StepTime {
-    pub(super) step: Duration,
-    pub(super) gpu: Duration,
-    pub(super) submit: Duration,
+pub(super) type Picture = platform::Picture;
+
+pub(super) fn release(picture: &Picture) {
+    platform::release(picture);
 }
 
 pub(super) trait ShownFrame {
@@ -31,28 +28,16 @@ pub(super) trait ShownFrame {
     fn damage(&self) -> Option<&[ScreenDamage]>;
 
     fn set_damage(&mut self, damage: Option<Vec<ScreenDamage>>);
-}
 
-#[derive(Clone, Copy)]
-pub(super) struct Deadline {
-    at: Instant,
-}
-
-impl Deadline {
-    pub(super) fn after(budget: Duration) -> Self {
-        Self {
-            at: Instant::now() + budget,
-        }
-    }
-
-    pub(super) fn remaining(self) -> Option<Duration> {
-        self.at.checked_duration_since(Instant::now())
+    fn composited(&self) -> bool {
+        true
     }
 }
 
 pub(super) struct Backend {
     module: Option<String>,
     worker: Option<Worker<platform::Channel>>,
+    mailbox: Option<platform::Mailbox>,
     started: Duration,
     error: Option<String>,
 }
@@ -62,6 +47,7 @@ impl Backend {
         Self {
             module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
             worker: None,
+            mailbox: None,
             started: host::now(),
             error: None,
         }
@@ -77,7 +63,10 @@ impl Backend {
         };
         let waiting = Arc::default();
         match platform::spawn(plugin, module, Arc::clone(&waiting)) {
-            Ok(channel) => self.worker = Some(Worker::new(channel, waiting)),
+            Ok((channel, mailbox)) => {
+                self.worker = Some(Worker::new(channel, waiting));
+                self.mailbox = Some(mailbox);
+            }
             Err(error) => self.error = Some(error),
         }
     }
@@ -167,6 +156,29 @@ impl Backend {
 
     pub(super) fn shutdown(&mut self) {
         self.worker = None;
+        self.mailbox = None;
+    }
+
+    pub(super) fn offer(&mut self, image: u64, picture: &Picture) {
+        if let (Some(worker), Some(mailbox)) = (&mut self.worker, &self.mailbox) {
+            platform::offer(mailbox, &mut worker.channel, image, picture);
+        }
+    }
+
+    pub(super) fn withdraw(&mut self, image: u64) {
+        if let (Some(worker), Some(mailbox)) = (&mut self.worker, &self.mailbox) {
+            platform::withdraw(mailbox, &mut worker.channel, image);
+        }
+    }
+
+    pub(super) fn export(&mut self, surfaces: Vec<u32>) {
+        if let Some(worker) = &mut self.worker {
+            platform::export(&mut worker.channel, surfaces);
+        }
+    }
+
+    pub(super) fn pictures(frame: &Frame, surfaces: &[u32]) -> Vec<(u32, Picture)> {
+        platform::pictures(frame, surfaces)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -197,6 +209,7 @@ impl Backend {
     fn fail(&mut self, failure: String) {
         self.error.get_or_insert(failure);
         self.worker = None;
+        self.mailbox = None;
     }
 }
 

@@ -1,10 +1,8 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::pixel_ray_tracer::{
-    PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE, Point, RayEntity,
-};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Color32, Painter, Pos2, Rect, Vec2, pos2};
+use pixel_ray_tracer_types::{PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE, Point, RayEntity};
 
 const SURFACE_WIDTH: f32 = 1.5;
 const WATER_FILL: Color32 = Color32::from_rgba_unmultiplied(41, 173, 255, 60);

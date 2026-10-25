@@ -1,0 +1,30 @@
+[package]
+name = "block-type-guest"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-commit = { path = "../be-commit", default-features = false }
+be-protocol = { path = "../be-protocol" }
+be-session = { path = "../be-session", default-features = false }
+block-guest-abi = { path = "../block-guest-abi" }
+block-type-api = { path = "../block-type-api" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+# A pure guest has no entropy of its own: ids come from a generator its host
+# seeds (Event::Entropy), behind getrandom's custom backend.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = "0.4"
+rand_chacha = { version = "0.9", default-features = false }
+uuid = { version = "1", features = ["rng-getrandom"] }
+
+[dev-dependencies]
+be-model = { path = "../be-model" }
+be-store = { path = "../be-store" }
+
+[lints]
+workspace = true

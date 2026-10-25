@@ -1,6 +1,5 @@
-use be_block::text::{TextBlock, TextContent};
-
 use super::*;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_page_saved_elsewhere_keeps_both_changes() {
@@ -9,7 +8,7 @@ async fn a_page_saved_elsewhere_keeps_both_changes() {
     let token = owner.token().to_owned();
     let identity = owner.keys().identity().clone();
     let organization = owner.organization();
-    let tracker = Tracker::new(owner);
+    let tracker = Tracker::new(owner, sources());
     run(&tracker, "new-database Issues --prefix BE")
         .await
         .unwrap();

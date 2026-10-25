@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::VecDeque,
-    convert::Infallible,
+    collections::{HashSet, VecDeque},
     rc::Rc,
     sync::{Arc, atomic::AtomicBool},
     time::Duration,
@@ -10,10 +9,7 @@ use std::{
 use wasm_bindgen::{JsCast, prelude::*};
 
 use super::canvases::{Canvases, Placement};
-use crate::plugin_host::{
-    backend::StepTime,
-    worker::{self, Event, Produced, Received},
-};
+use block_guest_host::{Channel, Event, Presented, Produced, Received, StepTime};
 
 const WORKER_SOURCE: &str = r#"
 // The worker one plugin runs in.
@@ -25,9 +21,13 @@ const WORKER_SOURCE: &str = r#"
 // worker. The page steps the plugin the way the native host does: it says
 // "step" with what it has for the plugin, and the worker steps once and answers
 // with what came out. A plugin that wakes between steps says so, so the page
-// steps it again.
+// steps it again. A preview the plugin draws leaves as a bitmap of the surfaces
+// the page asked to export, and a preview of another plugin's arrives as a
+// bitmap the plugin imports as a texture.
 let plugin = null;
 const shown = new Map();
+let exported = [];
+const imports = [];
 
 function fail(error) {
     plugin = null;
@@ -38,7 +38,11 @@ function report(kind, step) {
     const painted = plugin.paint();
     const frames = plugin.collect();
     const [gpu, submit] = plugin.took();
-    self.postMessage({ kind, frames, painted, woken: plugin.woken(), step, gpu, submit });
+    const pictures = plugin.exported();
+    self.postMessage(
+        { kind, frames, painted, pictures, woken: plugin.woken(), step, gpu, submit },
+        pictures.map((picture) => picture.bitmap),
+    );
     const failure = plugin.failure();
     if (failure) {
         fail(failure);
@@ -61,6 +65,9 @@ self.onmessage = async (event) => {
             );
             for (const pending of shown.values()) show(pending);
             shown.clear();
+            plugin.exportSurfaces(exported);
+            for (const [image, bitmap] of imports) plugin.importImage(image, bitmap);
+            imports.length = 0;
             report("ready", 0);
         } else if (data.kind === "step") {
             if (plugin === null) return;
@@ -79,6 +86,18 @@ self.onmessage = async (event) => {
         } else if (data.kind === "forget") {
             if (plugin) plugin.forget(data.id);
             else shown.delete(data.id);
+        } else if (data.kind === "export") {
+            exported = data.surfaces;
+            if (plugin) plugin.exportSurfaces(exported);
+        } else if (data.kind === "import") {
+            if (plugin) plugin.importImage(data.image, data.bitmap);
+            else imports.push([data.image, data.bitmap]);
+        } else if (data.kind === "unimport") {
+            if (plugin) plugin.forgetImage(data.image);
+            else {
+                const at = imports.findIndex(([image]) => image === data.image);
+                if (at >= 0) imports.splice(at, 1);
+            }
         } else if (data.kind === "shutdown") {
             if (plugin) plugin.shutdown();
             self.close();
@@ -91,14 +110,27 @@ self.onmessage = async (event) => {
 
 #[derive(Default)]
 struct Inbox {
-    events: VecDeque<Event<Infallible>>,
+    events: VecDeque<Event<PresentedBitmap>>,
     stopped: bool,
+    woken: bool,
+}
+
+pub(in crate::plugin_host) struct PresentedBitmap {
+    pub(in crate::plugin_host) surface: u32,
+    pub(in crate::plugin_host) bitmap: web_sys::ImageBitmap,
+}
+
+impl Presented for PresentedBitmap {
+    fn surface(&self) -> u32 {
+        self.surface
+    }
 }
 
 pub(in crate::plugin_host) struct WebProtocolAdapter {
     worker: web_sys::Worker,
     inbox: Rc<RefCell<Inbox>>,
     canvases: Canvases,
+    exported: HashSet<u32>,
     _onmessage: Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
 
@@ -117,8 +149,39 @@ impl WebProtocolAdapter {
             worker,
             inbox,
             canvases: Canvases::default(),
+            exported: HashSet::new(),
             _onmessage: onmessage,
         })
+    }
+
+    pub(in crate::plugin_host) fn offer(&self, image: u64, bitmap: &web_sys::ImageBitmap) {
+        let message = js_sys::Object::new();
+        set(&message, "kind", &"import".into());
+        set(&message, "image", &(image as f64).into());
+        set(&message, "bitmap", bitmap);
+        let _ = self.worker.post_message(&message);
+    }
+
+    pub(in crate::plugin_host) fn withdraw(&self, image: u64) {
+        let message = js_sys::Object::new();
+        set(&message, "kind", &"unimport".into());
+        set(&message, "image", &(image as f64).into());
+        let _ = self.worker.post_message(&message);
+    }
+
+    pub(in crate::plugin_host) fn export(&mut self, surfaces: HashSet<u32>) {
+        if self.exported == surfaces {
+            return;
+        }
+        let listed = js_sys::Array::new();
+        for surface in &surfaces {
+            listed.push(&(*surface).into());
+        }
+        self.exported = surfaces;
+        let message = js_sys::Object::new();
+        set(&message, "kind", &"export".into());
+        set(&message, "surfaces", &listed);
+        let _ = self.worker.post_message(&message);
     }
 
     pub(in crate::plugin_host) fn place(
@@ -170,8 +233,8 @@ impl Drop for WebProtocolAdapter {
     }
 }
 
-impl worker::Channel for WebProtocolAdapter {
-    type Presented = Infallible;
+impl Channel for WebProtocolAdapter {
+    type Presented = PresentedBitmap;
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> bool {
         let posted = js_sys::Array::new();
@@ -184,7 +247,11 @@ impl worker::Channel for WebProtocolAdapter {
         self.worker.post_message(&message).is_ok()
     }
 
-    fn receive(&mut self) -> Received<Infallible> {
+    fn take_woken(&mut self) -> bool {
+        std::mem::take(&mut self.inbox.borrow_mut().woken)
+    }
+
+    fn receive(&mut self) -> Received<PresentedBitmap> {
         let mut inbox = self.inbox.borrow_mut();
         match inbox.events.pop_front() {
             Some(event) => Received::Event(event),
@@ -198,13 +265,21 @@ fn milliseconds(data: &JsValue, key: &str) -> Duration {
     Duration::from_secs_f64(get(data, key).as_f64().unwrap_or_default().max(0.0) / 1000.0)
 }
 
-fn produced(data: &JsValue) -> Produced<Infallible> {
+fn produced(data: &JsValue) -> Produced<PresentedBitmap> {
     Produced {
         outbound: js_sys::Array::from(&get(data, "frames"))
             .iter()
             .map(|frame| js_sys::Uint8Array::new(&frame).to_vec())
             .collect(),
-        presented: Vec::new(),
+        presented: js_sys::Array::from(&get(data, "pictures"))
+            .iter()
+            .filter_map(|picture| {
+                Some(PresentedBitmap {
+                    surface: get(&picture, "surface").as_f64()? as u32,
+                    bitmap: get(&picture, "bitmap").dyn_into().ok()?,
+                })
+            })
+            .collect(),
         painted: get(data, "painted").is_truthy(),
         took: StepTime {
             step: milliseconds(data, "step"),
@@ -224,6 +299,7 @@ fn listen(
         let kind = get(&data, "kind").as_string().unwrap_or_default();
         let event = match kind.as_str() {
             "wake" => {
+                inbox.borrow_mut().woken = true;
                 crate::host::wake();
                 return;
             }
@@ -235,9 +311,13 @@ fn listen(
                     .unwrap_or_else(|| "The plugin worker failed.".to_owned()),
             ),
         };
-        let wakes = event.wakes(get(&data, "woken").is_truthy(), &waiting);
-        inbox.borrow_mut().events.push_back(event);
-        if wakes {
+        let woken = get(&data, "woken").is_truthy();
+        let quiet = event.quiet(woken);
+        let mut held = inbox.borrow_mut();
+        held.woken |= woken;
+        held.events.push_back(event);
+        drop(held);
+        if block_guest_host::wakes(quiet, &waiting) {
             crate::host::wake();
         }
     }) as Box<dyn FnMut(web_sys::MessageEvent)>);

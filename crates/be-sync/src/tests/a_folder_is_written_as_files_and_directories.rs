@@ -1,4 +1,6 @@
 use super::*;
+use image_block_types::ImageFile;
+use workspace_ui_types::FileHeader;
 
 #[tokio::test]
 async fn a_folder_is_written_as_files_and_directories() {
@@ -13,7 +15,7 @@ async fn a_folder_is_written_as_files_and_directories() {
         &peer,
         code,
         "logo.png",
-        &ImageContent::from_file("logo.png", png.clone()),
+        &ImageFile::from_file("logo.png", png.clone()),
     )
     .await;
     let painting = vec![0, 159, 146, 150, 255];
@@ -21,7 +23,13 @@ async fn a_folder_is_written_as_files_and_directories() {
         &peer,
         docs,
         "frame.paint",
-        &FileContent::from_file("frame.paint", "application/octet-stream", painting.clone()),
+        &FileContent::new(
+            FileHeader {
+                source_name: "frame.paint".into(),
+                media_type: "application/octet-stream".into(),
+            },
+            painting.clone(),
+        ),
     )
     .await;
     block(&peer, code, "Sketch", &CanvasContent::default()).await;
@@ -53,7 +61,7 @@ async fn a_folder_is_written_as_files_and_directories() {
     assert!(!errors.contains("Sketch"), "{errors}");
     let unexported = read(&checkout, ".be/unexported.txt");
     assert!(
-        unexported.contains("Sketch") && unexported.contains("Canvas"),
+        unexported.contains("Sketch") && unexported.contains("no plain-file form"),
         "{unexported}"
     );
     assert_eq!(report.skipped.len(), 4, "{report}");

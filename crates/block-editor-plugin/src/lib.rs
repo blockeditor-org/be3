@@ -4,6 +4,8 @@ pub use reactive;
 
 mod clock;
 mod content;
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+mod cooldown;
 pub mod editor_session;
 pub mod fonts;
 mod graph;
@@ -13,6 +15,8 @@ mod host;
 mod panes;
 mod plugin;
 mod preferences;
+#[cfg(target_arch = "wasm32")]
+mod previews;
 pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
@@ -23,52 +27,61 @@ mod wasm;
 
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction, AudioOutput,
-    AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation, BlockPick,
-    BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
-    ChildPlacement, ChildStatus, ConflictSide, ContactLinkResult, Contacts, CreationProgress,
-    CursorIcon, DataListing, DescribedAction, Description, DisplayMode, Displays,
-    EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Edits, Epaper,
-    EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact,
-    HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
-    HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
-    ImeArea, IncomingNotification, Input, InputDevices, InteractionMode, Key, KeyChord, LinkBase,
-    Media, MediaLevel, MediaLevels, MediaRequest, MenuCheck, MenuCommand, MenuEntry, MenuPin,
-    MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport,
-    NotificationRequest, NotificationSignal, NotificationUrgency, Notifications, Occluder,
-    PenPhase, PlayerCommand, PointerButton, Power, PowerAction, PowerAvailability, ProgramAction,
-    Programs, RemapState, Remaps, ResizeMode, Revision, Rotation, ScreenLocked, ScreenPlacement,
-    ScrollDelta, SettingsProgress, ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory,
-    TemplateDescriptor, TimedInput, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest,
-    TrayStatus, TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
-    VersionCommit, VersionOperation, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
-    WebViewId, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction,
-    WindowOrigin, WindowRequests,
+    AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction, AudioCommand,
+    AudioOutput, AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport,
+    BlockLocation, BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer,
+    ChildMode, ChildOperations, ChildPlacement, ChildPreview, ChildStatus, ConflictSide,
+    ContactLinkResult, Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction,
+    Description, DisplayMode, Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId,
+    EditorRegion, Edits, Epaper, EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec,
+    HostAction, HostContact, HostDisplay, HostImage, HostInputDevice, HostNotificationAction,
+    HostPanel, HostProgram, HostReply, HostRequest, HostTrayItem, HostValue, HostWindow,
+    HostWindowId, HostWindows, ImeArea, IncomingNotification, Input, InputDevices, InteractionMode,
+    Key, KeyChord, LinkBase, Media, MediaLevel, MediaLevels, MediaRequest, MenuCheck, MenuCommand,
+    MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox,
+    NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
+    Notifications, Occluder, PenPhase, PlayerCommand, PointerButton, Power, PowerAction,
+    PowerAvailability, Press, PreviewImage, ProgramAction, Programs, RemapState, Remaps,
+    ResizeMode, Revision, Rotation, ScreenLocked, ScreenPlacement, ScrollDelta, SettingsProgress,
+    ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput,
+    TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
+    VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, Wifi, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin, WindowRequests,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
 };
+pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
 pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
 pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
-    Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
-    ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    OpenRequest, PeerMessage, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter,
-    PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, SentToPeers,
-    ShowRequest, ShownPresence, Waker,
+    Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker, EditorHost,
+    FileDrop, FileFilter, FileSaver, FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage,
+    PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedBlock,
+    PickedFile, Pushed, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence,
+    StoredHead, Waker,
 };
 pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
+pub use previews::preview_texture;
+#[cfg(target_arch = "wasm32")]
 pub use wgpu;
 
 #[doc(hidden)]
 pub mod __private {
+    #[cfg(target_arch = "wasm32")]
+    pub use block_guest_abi::{Flow, Guest, Waker, guest};
+
+    #[cfg(target_arch = "wasm32")]
+    pub use crate::wasm::Editor;
+
     #[cfg(target_arch = "wasm32")]
     pub struct App {
         name: &'static str,
@@ -89,8 +102,12 @@ pub mod __private {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn start_wasm(manifest: &str, apps: Vec<App>) {
-        crate::wasm::report_panics();
+    pub fn start_wasm(
+        manifest: &str,
+        apps: Vec<App>,
+        waker: Waker,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<Editor, String> {
         let manifest = parsed(manifest);
         let name = &manifest.identity.name;
         let mut declared: Vec<_> = manifest
@@ -116,24 +133,14 @@ pub mod __private {
                 (uuid::Uuid::from_bytes(editor.id), app.open)
             })
             .collect();
-        let identity = &manifest.identity;
-        if let Err(error) =
-            crate::wasm::start(apps, &identity.id, &identity.name, &identity.version)
-        {
-            panic!("{} could not start: {error}", identity.name);
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn step_wasm() {
-        if let Err(error) = crate::wasm::step() {
-            panic!("the plugin could not run a frame: {error}");
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn shutdown_wasm() {
-        crate::wasm::shutdown();
+        let identity = manifest.identity;
+        let started = crate::wasm::Started {
+            apps,
+            id: identity.id,
+            name: identity.name,
+            version: identity.version,
+        };
+        Editor::start(started, waker, outbound)
     }
 
     pub fn parsed(manifest: &str) -> block_plugin_api::PluginManifest {
@@ -151,20 +158,27 @@ macro_rules! platform_entry {
             $crate::__private::initialize_tls(size as usize, align as usize);
         }
 
-        #[unsafe(no_mangle)]
-        pub extern "C" fn plugin_start() {
-            $crate::__private::start_wasm($manifest, $apps);
+        struct PluginGuest($crate::__private::Editor);
+
+        impl $crate::__private::Guest for PluginGuest {
+            fn start(
+                waker: $crate::__private::Waker,
+                outbound: &mut Vec<Vec<u8>>,
+            ) -> Result<Self, String> {
+                $crate::__private::start_wasm($manifest, $apps, waker, outbound).map(PluginGuest)
+            }
+
+            fn step(
+                &mut self,
+                inbound: Vec<Vec<u8>>,
+                woken: bool,
+                outbound: &mut Vec<Vec<u8>>,
+            ) -> Result<$crate::__private::Flow, String> {
+                self.0.step(inbound, woken, outbound)
+            }
         }
 
-        #[unsafe(no_mangle)]
-        pub extern "C" fn plugin_step() {
-            $crate::__private::step_wasm();
-        }
-
-        #[unsafe(no_mangle)]
-        pub extern "C" fn plugin_shutdown() {
-            $crate::__private::shutdown_wasm();
-        }
+        $crate::__private::guest!(PluginGuest);
     };
 }
 

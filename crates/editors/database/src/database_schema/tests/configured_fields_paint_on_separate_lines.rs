@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::database_schema::{
+use database_types::database_schema::{
     DatabaseBlockOptions, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
 };
 

@@ -1,14 +1,15 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasShape,
-    CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextVerticalAlign,
-    CanvasTextWeight,
-};
+use beui::Wrap;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_DROPLET_OFF;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasShape,
+    CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextVerticalAlign,
+    CanvasTextWeight,
+};
 
 use crate::geometry::*;
 
@@ -66,7 +67,7 @@ fn Inspector(state: CanvasState) -> NodeId {
         <List spacing=SPACING>
             <SelectionSummary state={state} />
             <Show condition={empty}>
-                <Text style=TextStyle::CAPTION wrap=true>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                     "Select an object to edit its appearance."
                 </Text>
             </Show>
@@ -135,7 +136,7 @@ fn FrameSection(state: CanvasState) -> NodeId {
                             @test_id={"infinite-canvas.frame.name"}
                         />
                         <Show condition={first}>
-                            <Text style=TextStyle::CAPTION wrap=true>
+                            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                                 "The first frame is what other editors show when they embed this canvas."
                             </Text>
                         </Show>
@@ -278,7 +279,7 @@ fn TransformSection(state: CanvasState) -> NodeId {
         <Accordion title="Transform" open={open}>
             <List spacing=6.0>
                 <Show condition={many}>
-                    <Text style=TextStyle::CAPTION wrap=true>
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                         "Select one object to edit exact transform values."
                     </Text>
                 </Show>
@@ -1165,7 +1166,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         checked={Binding::new(wrap, wrapped)}
                         @test_id={"infinite-canvas.wrap"}
                     />
-                    <Text style=TextStyle::CAPTION wrap=true>
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                         "Resize to wrap; hold Alt while resizing to scale text."
                     </Text>
                 </List>

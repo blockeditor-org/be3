@@ -1,9 +1,10 @@
-use block_editor_beui::be_block::database::DatabaseValue;
+use beui::Wrap;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_PLUS, ICON_SEARCH, ICON_SLIDERS_HORIZONTAL};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::narrow_chrome;
+use database_types::database::DatabaseValue;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
@@ -33,7 +34,11 @@ pub fn ViewHeader(data: Data) -> NodeId {
             <Show condition={failed}>
                 <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Danger wrap=true>
+                        <Text
+                            @sizing=ItemSize::Percent(100.0)
+                            color=TextColor::Danger
+                            wrap=Wrap::Words
+                        >
                             {message}
                         </Text>
                         <Button

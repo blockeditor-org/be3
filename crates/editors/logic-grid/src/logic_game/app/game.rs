@@ -1,13 +1,15 @@
-use block_editor_beui::be_block::{BlockContent, HotbarContent};
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::HotbarContent;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::logic_game::LogicGameOperation;
-use block_editor_beui::be_block::{LogicGridContent, LogicGridDocument, ObjectId};
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{BlockList, BlockParent, BlockQuery, ContentProjection, Editor};
+use logic_grid_types::LogicGameOperation;
+use logic_grid_types::{LogicGridContent, LogicGridDocument};
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
 

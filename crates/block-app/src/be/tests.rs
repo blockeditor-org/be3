@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, Checklist, ChecklistContent, Counter, CounterContent, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
+use checklist_types::{Checklist, ChecklistContent};
+use counter_types::{Counter, CounterContent};
 use uuid::Uuid;
 
 use super::*;
@@ -12,6 +14,7 @@ mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
 mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
+mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_child_moved_into_a_block_is_added_to_its_content;
@@ -30,8 +33,12 @@ mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod a_session_owned_here_follows_a_peer_that_claims_it;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
+#[cfg(not(target_os = "android"))]
+mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
+mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
@@ -42,17 +49,97 @@ mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
 mod revision_history_previews_and_restores_saved_content;
-mod shared_content_folds_the_operations_logged_since_its_snapshot;
-mod shared_content_keeps_unsettled_operations_apart_from_its_snapshot;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_peers_of_one_organization_share_a_counter;
 mod undo_steps_back_through_what_this_peer_did;
 
-const TEST_ORIGIN: u64 = 0;
+struct Editor<C: LiveEdit> {
+    block: Uuid,
+    id: u64,
+    mirror: block_type_guest::editor::EditorMirror<C>,
+    received: Vec<block_type_guest::editor::ToEditor>,
+}
 
-fn operate(block: Uuid, operation: Vec<u8>) {
-    operate_from(block, TEST_ORIGIN, operation);
+impl<C: LiveEdit + Clone + Default> Editor<C> {
+    fn attach(block: Uuid) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        attach(block, C::CONTENT_TYPE, id, true);
+        let mut editor = Self {
+            block,
+            id,
+            mirror: block_type_guest::editor::EditorMirror::default(),
+            received: Vec::new(),
+        };
+        editor.send(block_type_guest::editor::FromEditor::Resend);
+        editor
+    }
+
+    fn send(&mut self, message: block_type_guest::editor::FromEditor) {
+        from_editor(self.block, self.id, &block_type_api::encode_frame(&message));
+    }
+
+    fn pump(&mut self) {
+        for (block, frame) in take_editor_frames(self.id) {
+            if block != self.block {
+                continue;
+            }
+            let Some(message) = unframe(&frame)
+                .and_then(|bytes| block_type_guest::editor::ToEditor::decode(&bytes))
+            else {
+                continue;
+            };
+            self.received.push(message.clone());
+            if let Some(answer) = self.mirror.receive(message) {
+                self.send(answer);
+            }
+        }
+    }
+
+    fn wait(&mut self, what: &str, done: impl Fn(&C) -> bool) {
+        let id = self.id;
+        let deadline = std::time::Instant::now() + PATIENCE;
+        loop {
+            self.pump();
+            if self.mirror.content().is_some_and(&done) {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the editor never {what}: it says {:?}",
+                status().error
+            );
+            wait_for(QUIET / 20, |shared| {
+                shared.editor_frames.contains_key(&id).then_some(())
+            });
+        }
+    }
+
+    fn content(&self) -> &C {
+        self.mirror
+            .content()
+            .expect("the editor was sent its content")
+    }
+
+    fn operate(&mut self, operation: C::Op) {
+        let message = self
+            .mirror
+            .operate(operation)
+            .expect("an editor operates once it has content");
+        self.send(message);
+    }
+
+    fn take_received(&mut self) -> Vec<block_type_guest::editor::ToEditor> {
+        self.pump();
+        std::mem::take(&mut self.received)
+    }
+}
+
+impl<C: LiveEdit> Drop for Editor<C> {
+    fn drop(&mut self) {
+        detach(self.block, self.id);
+    }
 }
 
 const PATIENCE: Duration = Duration::from_secs(20);
@@ -66,11 +153,20 @@ pub(crate) struct Harness {
     token: String,
     organization: Uuid,
     phrase: be_keys::RecoveryPhrase,
+    lease: Duration,
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
 impl Harness {
     pub(crate) fn start() -> Self {
+        Self::leasing(be_server::ServerConfig::OPEN.lease)
+    }
+
+    pub(crate) fn lapsing() -> Self {
+        Self::leasing(Duration::ZERO)
+    }
+
+    fn leasing(lease: Duration) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
@@ -91,8 +187,9 @@ impl Harness {
             display_name: profile.display_name,
             token,
         };
-        let server = platform::start_embedded_server(directory.join("server"))
-            .expect("the embedded block server starts");
+        let server =
+            platform::start_embedded_server_at("127.0.0.1:0", directory.join("server"), lease)
+                .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
         let (account, token, organization) = runtime.block_on(async {
@@ -113,6 +210,7 @@ impl Harness {
             token,
             organization,
             phrase: be_keys::RecoveryPhrase::generate(),
+            lease,
             _one_stack: one_stack,
         }
     }
@@ -130,7 +228,7 @@ impl Harness {
 
     fn start_server(&mut self, address: &str) {
         self.server = Some(
-            platform::start_embedded_server_at(address, self.directory.join("server"))
+            platform::start_embedded_server_at(address, self.directory.join("server"), self.lease)
                 .expect("the embedded block server starts again"),
         );
     }
@@ -184,6 +282,161 @@ impl Drop for Harness {
     fn drop(&mut self) {
         stop();
         let _ = std::fs::remove_dir_all(&self.directory);
+    }
+}
+
+struct Outside {
+    runtime: tokio::runtime::Runtime,
+    local: tokio::task::LocalSet,
+    session: Option<be_cli::replica::Session<be_store::MemoryStore, CounterContent>>,
+}
+
+struct Seen {
+    count: Option<i64>,
+    presence: Vec<block_type_guest::editor::PeerPresence>,
+}
+
+impl Outside {
+    fn counter(harness: &Harness, block: Uuid) -> Self {
+        Self::open(harness, block, true)
+    }
+
+    fn joining(harness: &Harness, block: Uuid) -> Self {
+        Self::open(harness, block, false)
+    }
+
+    fn open(harness: &Harness, block: Uuid, create: bool) -> Self {
+        let runtime = runtime();
+        let local = tokio::task::LocalSet::new();
+        let config = harness.outside_config();
+        let session = local.block_on(&runtime, async move {
+            let peer = outside_peer(config).await;
+            if create {
+                peer.ensure::<CounterContent>(block, be_graph::BlockParent::Root)
+                    .await
+                    .expect("the counter is created");
+            }
+            be_cli::replica::Session::open(peer, block, super::types::sources().await)
+                .await
+                .expect("the outside peer opens the counter")
+        });
+        Self {
+            runtime,
+            local,
+            session: Some(session),
+        }
+    }
+
+    fn session(&mut self) -> &mut be_cli::replica::Session<be_store::MemoryStore, CounterContent> {
+        self.session
+            .as_mut()
+            .expect("the outside peer has not left")
+    }
+
+    fn peer(&mut self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+        std::sync::Arc::clone(self.session().peer())
+    }
+
+    fn is_owner(&mut self) -> bool {
+        self.session().is_owner()
+    }
+
+    fn claim(&mut self) {
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        let reached = local.block_on(runtime, async {
+            tokio::time::timeout(PATIENCE, async {
+                while !session.is_owner() {
+                    session.claim();
+                    let _ = tokio::time::timeout(Duration::from_millis(100), async {
+                        while !session.is_owner() {
+                            let woken = session.next().await;
+                            session
+                                .handle(woken)
+                                .await
+                                .expect("the outside peer is still connected");
+                        }
+                    })
+                    .await;
+                }
+            })
+            .await
+        });
+        assert!(reached.is_ok(), "the outside peer never took the session");
+    }
+
+    fn add(&mut self, by: i64) {
+        self.session().edit(Counter::add(by));
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        local.block_on(runtime, session.settle());
+    }
+
+    fn show(&mut self, kind: Uuid, value: Option<Vec<u8>>) {
+        self.session().show(kind, value);
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        local.block_on(runtime, session.settle());
+    }
+
+    fn seal(&mut self) {
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        local.block_on(runtime, session.seal());
+    }
+
+    fn block_on<F: Future>(&self, future: F) -> F::Output {
+        self.local.block_on(&self.runtime, future)
+    }
+
+    fn leave(&mut self) {
+        let session = self.session.take().expect("the outside peer has not left");
+        self.local.block_on(&self.runtime, session.close());
+    }
+
+    fn until(&mut self, what: &str, ready: impl Fn(&Seen) -> bool) {
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        let reached = local.block_on(runtime, async {
+            tokio::time::timeout(PATIENCE, async {
+                loop {
+                    let seen = Seen {
+                        count: session.content().map(|counter| counter.root().value()),
+                        presence: session.presence().to_vec(),
+                    };
+                    if ready(&seen) {
+                        return;
+                    }
+                    let woken = session.next().await;
+                    session
+                        .handle(woken)
+                        .await
+                        .expect("the outside peer is still connected");
+                }
+            })
+            .await
+        });
+        assert!(reached.is_ok(), "the outside peer never {what}");
     }
 }
 
@@ -252,22 +505,23 @@ fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block::Checkout> {
 
 fn text_of(shared: &Shared, block: Uuid) -> Option<String> {
     let held = shared.blocks.get(&block)?;
-    be_block::TextContent::decode(held.bytes())
+    text_block_types::TextContent::decode(held.bytes())
         .ok()
-        .map(|text| be_block::TextBlock::text(&text))
+        .map(|text| text_block_types::TextBlock::text(&text))
 }
 
 const TYPIST: u64 = 1 << 63 | 7;
 
 fn type_text(block: Uuid, at: usize, text: &str) {
-    let held = content(block).expect("the text block is held");
-    let mut current = be_block::TextContent::decode(held.bytes()).expect("the text block decodes");
-    current
-        .adopt_session_state(held.session())
-        .expect("the text block's session state decodes");
-    let edit = be_block::TextBlock::insert(&current, TYPIST, at, text.as_bytes())
+    let mut editor = Editor::<text_block_types::TextContent>::attach(block);
+    type_into(&mut editor, at, text);
+}
+
+fn type_into(editor: &mut Editor<text_block_types::TextContent>, at: usize, text: &str) {
+    editor.wait("was sent the text", |_| true);
+    let edit = text_block_types::TextBlock::insert(editor.content(), TYPIST, at, text.as_bytes())
         .expect("there is somewhere to type");
-    operate(block, be_block::TextContent::encode_operation(&edit));
+    editor.operate(edit);
 }
 
 fn checkouts(shared: &Shared) -> Vec<Uuid> {
@@ -297,21 +551,21 @@ fn start_versioning(text: &str) -> Versioned {
         Query::Parents(folder),
         Query::Subtree(folder),
     ]);
-    let mut listing = be_block::FolderContent::default();
-    listing.apply(&be_block::Folder::default().add(note));
+    let mut listing = workspace_ui_types::FolderContent::default();
+    listing.apply(&workspace_ui_types::Folder::default().add(note));
     create(
         folder,
-        be_block::FolderContent::CONTENT_TYPE,
+        workspace_ui_types::FolderContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Notes"),
         Some(listing.encode()),
     );
     create(
         note,
-        be_block::TextContent::CONTENT_TYPE,
+        text_block_types::TextContent::CONTENT_TYPE,
         be_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::named("Note"),
-        Some(be_block::TextBlock::of(text).encode()),
+        Some(text_block_types::TextBlock::of(text).encode()),
     );
     create(
         repository,
@@ -480,19 +734,19 @@ fn made_link(offer: Option<(Uuid, be_graph::Access)>) -> be_keys::InviteCode {
 fn written(block: Uuid, text: &str) {
     create(
         block,
-        be_block::TextContent::CONTENT_TYPE,
+        text_block_types::TextContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Plan"),
-        Some(be_block::TextBlock::of(text).encode()),
+        Some(text_block_types::TextBlock::of(text).encode()),
     );
     flush();
 }
 
 async fn read_text(peer: &be_client::Peer<be_store::MemoryStore>, block: Uuid) -> String {
     let text = peer
-        .open::<be_block::TextContent>(block)
+        .open::<text_block_types::TextContent>(block)
         .await
         .expect("the block opens with the keys it was given")
         .expect("the block has content");
-    be_block::TextBlock::text(&text)
+    text_block_types::TextBlock::text(&text)
 }

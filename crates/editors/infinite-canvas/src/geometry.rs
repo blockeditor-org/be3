@@ -1,12 +1,12 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
-    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
-};
 use block_editor_beui::beui::{Pos2, Rect, Vec2, pos2};
 use block_editor_beui::block_ui::{
     EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT,
 };
 use block_editor_beui::{ResizeMode, block_ui};
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
+    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
+};
 use uuid::Uuid;
 
 pub(crate) const MIN_SIZE: f32 = 4.0;
@@ -905,7 +905,7 @@ pub(crate) fn pen_entity(
         seed: entity.style.seed,
         ..style
     };
-    entity.set_world_points(points.into_iter().map(CanvasPathPoint::new).collect());
+    entity.set_drawn_points(points.into_iter().map(CanvasPathPoint::new).collect());
     entity.pressures = pressures;
     entity
 }

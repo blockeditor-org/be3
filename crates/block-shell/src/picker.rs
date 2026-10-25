@@ -1,7 +1,6 @@
 use block_editor_beui::beui::icons::Glyph;
 use std::collections::{HashMap, HashSet};
 
-use block_editor_beui::be_block::{BlockContent, FolderContent};
 use block_editor_beui::beui::Rect;
 use block_editor_beui::beui::icons::{ICON_BOXES, ICON_USERS};
 use block_editor_beui::beui::unstyled::TabId;
@@ -369,7 +368,7 @@ impl Graph {
     }
 
     fn loose(&self) -> Vec<BlockInfo> {
-        shared_with_me(self.roots.clone(), self.shared.clone())
+        shared_with_me(self.shared.clone())
             .into_iter()
             .filter(|block| !block.deleted)
             .collect()
@@ -574,7 +573,7 @@ pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> T
     let shown = |block: &BlockInfo| !block.deleted;
     let enabled = |block: &BlockInfo| {
         block.access.can_view()
-            && !is_workspace(block.block_type)
+            && !is_workspace(block)
             && block
                 .parent
                 .is_some_and(|parent| parent != BlockParent::Detached)
@@ -584,7 +583,7 @@ pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> T
     };
     let detail = |block: &BlockInfo| match Some(block.id) == this {
         true => "This block".to_owned(),
-        false if is_workspace(block.block_type) => String::new(),
+        false if is_workspace(block) => String::new(),
         false => catalog
             .display_name(block.block_type)
             .unwrap_or_default()
@@ -616,14 +615,13 @@ pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> 
         };
     };
     let excluded = pick.excluded();
-    let folder = FolderContent::CONTENT_TYPE;
     let current = place.block();
     let shown = |block: &BlockInfo| {
         let held = Some(block.id) == current;
         !block.deleted
             && (held
                 || (block.access.can_edit()
-                    && (block.block_type == folder || is_workspace(block.block_type))
+                    && (catalog.child_edits(block.block_type).add || is_workspace(block))
                     && !excluded.contains(&block.id)))
     };
     let enabled = |_: &BlockInfo| true;

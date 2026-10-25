@@ -3,15 +3,17 @@ use std::{error::Error, fmt, io};
 pub mod bytes;
 pub mod chunker;
 pub mod hash;
+pub mod manifest;
 pub mod store;
+#[cfg(feature = "vault")]
 pub mod vault;
 
 pub use chunker::{ChunkerConfig, split};
 pub use hash::Hash;
+pub use manifest::{ChunkRef, Manifest, decode_value, encode_value};
 pub use store::{FileStore, MemoryStore, ObjectStore};
-pub use vault::{
-    ChunkRef, ContentKey, Keyring, Manifest, Vault, decode_value, encode_value, sealed_key,
-};
+#[cfg(feature = "vault")]
+pub use vault::{ContentKey, Keyring, Vault, sealed_key};
 
 #[derive(Debug)]
 pub enum StoreError {

@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
 bytemuck = { version = "1", features = ["derive"] }
+logic-grid-types = { path = "types" }
 logicgame = { path = "../../logicgame" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

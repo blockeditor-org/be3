@@ -119,21 +119,35 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ServerConfig {
     pub allow_registration: bool,
     pub allow_login: bool,
     pub local_profiles: bool,
     pub auth_origin: Option<String>,
+    pub lease: Duration,
 }
 
 impl ServerConfig {
+    const CLOSED: Self = Self {
+        allow_registration: false,
+        allow_login: false,
+        local_profiles: false,
+        auth_origin: None,
+        lease: Duration::from_millis(be_session::LEASE_MILLISECONDS.unsigned_abs()),
+    };
+
     pub const OPEN: Self = Self {
         allow_registration: true,
         allow_login: true,
-        local_profiles: false,
-        auth_origin: None,
+        ..Self::CLOSED
     };
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self::CLOSED
+    }
 }
 
 const MAX_CONNECTIONS: usize = 1024;
@@ -173,7 +187,7 @@ pub async fn serve_with_mail(
     let services = Services {
         store: Arc::new(ServerStore::open(data_dir.into())?),
         hub: Arc::new(WatchHub::new()),
-        registry: Arc::new(SessionRegistry::new()),
+        registry: Arc::new(SessionRegistry::new(config.lease)),
         config,
         mail,
         http: Arc::new(http::Sessions::default()),

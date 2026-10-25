@@ -2,8 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::CounterContent;
 use block_plugin_api::BlockQuery;
+use counter_types::CounterContent;
 
 #[derive(Debug, PartialEq, Eq)]
 enum Sent {

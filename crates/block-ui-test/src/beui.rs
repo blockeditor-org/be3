@@ -3,7 +3,8 @@ use beui::{
     Document, Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
     TouchPhase, Vec2,
 };
-use block_editor_beui::be_block::LiveEdit;
+use block_editor_beui::FromEditor;
+use block_editor_beui::be_block::{LiveEdit, Merge};
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
@@ -309,11 +310,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.store.clone()
     }
 
-    pub fn hold<C: LiveEdit>(&mut self, block: Option<Uuid>, content: C) {
+    pub fn hold<C: LiveEdit + Merge + Clone + Default>(&mut self, block: Option<Uuid>, content: C) {
         self.store.hold(block, content);
     }
 
-    pub fn content<C: LiveEdit + Clone>(&self, block: Option<Uuid>) -> C {
+    pub fn content<C: LiveEdit + Merge + Clone + Default>(&self, block: Option<Uuid>) -> C {
         self.store.content(block)
     }
 
@@ -325,7 +326,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.store.holds(block)
     }
 
-    pub fn edit<C: LiveEdit>(&mut self, block: Option<Uuid>, operation: &C::Op) {
+    pub fn edit<C: LiveEdit + Merge + Clone + Default>(
+        &mut self,
+        block: Option<Uuid>,
+        operation: &C::Op,
+    ) {
         self.store.edit::<C>(block, operation);
         self.run();
     }
@@ -636,22 +641,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn set_peers(&mut self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
-        let block = block
-            .or(self.block_id())
-            .expect("this editor has no block of its own; name the block");
-        self.inbox
-            .push(Message::Editor(EditorMessage::PeerPresence {
-                instance: INSTANCE,
-                block_id: block.into_bytes(),
-                peers: peers
-                    .into_iter()
-                    .map(|peer| block_plugin_api::PeerPresence {
-                        client: peer.client,
-                        kind: peer.kind.into_bytes(),
-                        value: peer.value,
-                    })
-                    .collect(),
-            }));
+        self.store.set_presence(
+            block,
+            peers
+                .into_iter()
+                .map(|peer| (peer.client, peer.kind, peer.value))
+                .collect(),
+        );
     }
 
     pub fn receive_from_peer<M: block_editor_beui::be_block::presence::ChannelKind>(
@@ -659,19 +655,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         from: u64,
         message: &M,
     ) {
-        let block = self
-            .block_id()
+        self.block_id()
             .expect("this editor has no block of its own to hear peers on");
-        self.inbox
-            .push(Message::Editor(EditorMessage::PeerMessages {
-                instance: INSTANCE,
-                block_id: block.into_bytes(),
-                messages: vec![block_plugin_api::PeerMessage {
-                    from,
-                    channel: M::ID.into_bytes(),
-                    payload: message.encode(),
-                }],
-            }));
+        self.store
+            .receive_from_peer(None, from, M::ID, message.encode());
     }
 
     pub fn web_view_event(&mut self, web_view: WebViewId, event: block_editor_beui::WebViewEvent) {
@@ -739,6 +726,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             menu: Vec::new(),
             creation: None,
             settings: None,
+            preview: Default::default(),
         });
     }
 
@@ -816,6 +804,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn step(&mut self, events: Vec<Input>) {
+        self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
         inbox.extend(self.store.outgoing(INSTANCE));
         let rect = self.rect();
@@ -1060,6 +1049,13 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn take_audio_commands(&mut self) -> Vec<block_plugin_api::AudioCommand> {
+        self.take_where(|message| match message {
+            EditorMessage::PlayAudio { command, .. } => Some(command.clone()),
+            _ => None,
+        })
+    }
+
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
         self.take_where(|message| match message {
             EditorMessage::ChangeView { change, .. } => Some(*change),
@@ -1142,17 +1138,22 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn take_shown_presence(&mut self) -> Vec<ShownPresence> {
+    fn take_frames<T>(&mut self, pick: impl Fn(Uuid, FromEditor) -> Option<T>) -> Vec<T> {
         self.take_where(|message| match message {
-            EditorMessage::ShowPresence {
-                block_id,
+            EditorMessage::Replica {
+                block_id, frame, ..
+            } => FromEditor::from_frame(frame)
+                .and_then(|frame| pick(Uuid::from_bytes(*block_id), frame)),
+            _ => None,
+        })
+    }
+
+    pub fn take_shown_presence(&mut self) -> Vec<ShownPresence> {
+        self.take_frames(|block, frame| match frame {
+            FromEditor::ShowPresence { kind, value } => Some(ShownPresence {
+                block: Some(block),
                 kind,
                 value,
-                ..
-            } => Some(ShownPresence {
-                block: Some(Uuid::from_bytes(*block_id)),
-                kind: Uuid::from_bytes(*kind),
-                value: value.as_ref().map(|value| value.to_vec()),
             }),
             _ => None,
         })
@@ -1161,13 +1162,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn take_sent_to_peers<M: block_editor_beui::be_block::presence::ChannelKind>(
         &mut self,
     ) -> Vec<(Option<u64>, M)> {
-        self.take_where(|message| match message {
-            EditorMessage::SendToPeers {
+        self.take_frames(|_, frame| match frame {
+            FromEditor::SendToPeers {
                 to,
                 channel,
                 payload,
-                ..
-            } if *channel == M::ID.into_bytes() => M::decode(payload).map(|message| (*to, message)),
+            } if channel == M::ID => M::decode(&payload).map(|message| (to, message)),
             _ => None,
         })
     }

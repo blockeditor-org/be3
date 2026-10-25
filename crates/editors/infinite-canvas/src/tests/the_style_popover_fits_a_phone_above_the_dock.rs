@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{CanvasHue, CanvasTone};
+use infinite_canvas_types::{CanvasHue, CanvasTone};
 
 #[test]
 fn the_style_popover_fits_a_phone_above_the_dock() {

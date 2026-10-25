@@ -397,15 +397,31 @@ which close() checks, so a test that ends without calling it fails too.
   the block a tab shows.
 - record() and snapshot() are a painting as in an editor test (4), named
   snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
-  host's own document with each plugin's painting put where the host composites its surface.
+  host's own document with each plugin's painting put where the host composites its surface,
+  and each preview a plugin shows, which its painting marks with `paint_format::preview_key`,
+  replaced by the painting of the preview it shows. A preview waits out its cooldown before it
+  paints a second change (guides/adding_a_plugin_editor.md, Drawing the block itself), and the
+  clock is stopped, so a test that changes a block and then looks at a preview of it pauses for
+  `PREVIEW_COOLDOWN` first.
   They also fail, as in an editor test, on what the window shows out of bounds (`drive
   overflows`), in the host or in any plugin shown, whatever the crop.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
-  the end of the app's log. A step that times out while the tree shows nothing pending means the
-  app never settled: something asks for a frame every frame.
+  the end of the app's log, after every panic the app logged before it with its message. A step
+  that times out while the tree shows nothing pending means the app never settled: something
+  asks for a frame every frame.
+- buck caches a test that passed, so a flake that shows only under load is reproduced by running
+  the harness on this machine, all the tests at once and as often as needed. Build it with what
+  its `run_env` in crates/app-tests/BUCK names (`./scripts/buck build
+  //crates/app-tests:test-harness //crates/block-app:native //buck/sysroot:amd64-test
+  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`), then run
+  `buck-out/v2/art/root/*/crates/app-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
+  `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
+  `CARGO_MANIFEST_DIR` to crates/app-tests. While a test hangs, `gdb -p PID -batch -ex 'thread
+  apply all bt'` on its block-app shows what every thread waits on. If every thread is parked and the
+  window waits on data, something changed without `host::wake()`: a lost wake, not a deadlock.
 - Each test takes a second or two, most of it the app starting, and they run in parallel. Keep to what only the app can show, and test an
   editor's own behaviour in its own crate.
 

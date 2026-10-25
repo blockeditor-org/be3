@@ -1,12 +1,12 @@
 use block_editor_beui::beui::icons::Glyph;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLook, CanvasPoint, CanvasShape,
-    CanvasStrokeStyle, CanvasStyle,
-};
 use block_editor_beui::beui::{
     Color32, FontId, Image, LineCap, LineJoin, Painter, Pos2, Rect, Stroke, Vec2, pos2,
+};
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLook, CanvasPoint, CanvasShape,
+    CanvasStrokeStyle, CanvasStyle,
 };
 
 use crate::geometry::*;
@@ -165,7 +165,7 @@ impl EntityPaint {
         }
         self.sketch
             .draw_only(painter, color, fill, |part| match part.mark {
-                Mark::Fill(_) => false,
+                Mark::Fill(_) | Mark::Painted(..) => false,
                 Mark::Stroke(..) => part.ink == Ink::Fill || !solid,
             });
         if solid {

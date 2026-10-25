@@ -1,8 +1,9 @@
 use super::*;
-use block_editor_beui::be_block::{BlockContent, CounterContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{
     ChildMode, ChildStatus, EditorCapabilities, EditorRegion, InteractionMode, ResizeMode,
 };
+use counter_types::CounterContent;
 
 #[test]
 fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clicked() {
@@ -40,6 +41,7 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
             menu: Vec::new(),
             creation: None,
             settings: None,
+            preview: Default::default(),
         });
         editor.run();
     };

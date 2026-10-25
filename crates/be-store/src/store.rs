@@ -157,9 +157,7 @@ impl ObjectStore for FileStore {
             fs::create_dir_all(directory)?;
         }
         let temporary = directory.join(format!("{}.partial", uuid::Uuid::new_v4()));
-        let mut file = fs::File::create(&temporary)?;
-        file.write_all(bytes)?;
-        drop(file);
+        fs::File::create(&temporary)?.write_all(bytes)?;
         fs::rename(&temporary, &path)?;
         let mut unsynced = self.unsynced.lock().unwrap_or_else(PoisonError::into_inner);
         if created {

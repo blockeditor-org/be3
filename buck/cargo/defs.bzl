@@ -375,10 +375,11 @@ def cargo_wasm_facts():
         test_features = _per_platform(crate, lambda entry: entry["test_features"]),
     )
 
-# Every editor's package, which is every workspace crate under crates/editors:
-# what the app stages as its plugins.
+# Every editor's package, which is every workspace crate directly under
+# crates/editors: what the app stages as its plugins. A crate further down,
+# such as a plugin's types, belongs to the plugin above it.
 def editor_packages():
-    return sorted([package for package in crates if package.startswith("crates/editors/")])
+    return sorted([package for package in crates if package.startswith("crates/editors/") and package.count("/") == 2])
 
 # Every game's package, which is every workspace crate under
 # crates/tabletop-games/rules: what the games plugin stages as its data.

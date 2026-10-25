@@ -1,12 +1,11 @@
-use block_editor_beui::be_block::pixel_ray_tracer::{
-    PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings,
-};
+use beui::Wrap;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Pressable, SliderScale};
+use pixel_ray_tracer_types::{PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings};
 
 use crate::overlay::palette_color;
 
@@ -22,7 +21,7 @@ pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
             <ForEach keys={Tool::ALL.to_vec()}>|tool: Tool|
                 <ToolButton state tool />
             </ForEach>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                 "Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
             </Text>
         </List>

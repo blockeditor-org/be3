@@ -84,7 +84,7 @@ macro_rules! exported {
 }
 
 abi::gpu_functions!(exported);
-abi::transport_functions!(exported);
+block_guest_abi::transport_functions!(exported);
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]

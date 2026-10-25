@@ -183,7 +183,7 @@ fn take_drag(state: State, drag: Option<Drag>) {
 }
 
 fn paste_image(state: State, file: PickedFile) {
-    let image = block_editor_beui::be_block::ImageContent::from_file(file.name, file.data);
+    let image = image_block_types::ImageFile::from_file(file.name, file.data);
     let source_name = image.header().source_name.clone();
     let id = state.create_image_block(&image);
     state.insert_image_embed(id, &source_name);

@@ -34,10 +34,7 @@ fn a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar() {
         .document()
         .find_test_id("demo.code")
         .expect("the code is shown");
-    let selected = test
-        .document()
-        .api::<beui::unstyled::SelectableState>(region)
-        .selected_text();
+    let selected = selected_text(&mut test, region);
     assert!(
         !selected.is_empty() && !selected.contains(' '),
         "a long press selects one word, not {selected:?}"

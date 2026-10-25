@@ -4,7 +4,7 @@ use std::{
 };
 
 use block_gpu_host::{
-    Gpu,
+    Gpu, Imports,
     calls::{Guest, Transport},
 };
 use wasmtime::SharedMemory;
@@ -41,6 +41,7 @@ pub struct State {
     pub(crate) wasi: WasiP1Ctx,
     pub(crate) memory: SharedMemory,
     pub(crate) device: Device,
+    pub(crate) imports: Imports,
     pub(crate) error: Option<String>,
     pub(crate) transport: Transport,
     pub(crate) threads: Arc<Spawner>,
@@ -130,7 +131,9 @@ impl Guest for State {
     fn gpu<R: Default>(&mut self, call: impl FnOnce(&mut Gpu) -> R) -> R {
         if let Device::Unconnected(connect) = &self.device {
             self.device = match connect() {
-                Ok((device, queue)) => Device::Ready(Box::new(Gpu::new(device, queue))),
+                Ok((device, queue)) => Device::Ready(Box::new(
+                    Gpu::new(device, queue).sharing(Arc::clone(&self.imports)),
+                )),
                 Err(message) => Device::Unavailable(format!(
                     "the plugin used the gpu, and no device could be opened: {message}"
                 )),

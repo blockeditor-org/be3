@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use be_block::plain::{Form, form};
 use be_block::{EXECUTABLE, Entries};
 use be_client::ClientError;
 use be_client::Peer;
@@ -8,6 +7,7 @@ use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::BlockSummary;
 use be_store::ObjectStore;
+use be_types_host::{Plain, plain_of};
 use uuid::Uuid;
 
 use crate::explain;
@@ -33,7 +33,7 @@ pub async fn list<S: ObjectStore>(
     if !top.access.can_view() {
         return Err(format!("this account cannot see {root}"));
     }
-    if form(top.content_type) != Form::Directory {
+    if plain_of(top.content_type) != Plain::Directory {
         return Err("be sync keeps a folder or a workspace in step with a directory".to_owned());
     }
     let mut blocks = BTreeMap::new();
@@ -46,7 +46,7 @@ pub async fn list<S: ObjectStore>(
             if !summary.access.can_view() || (!first && !summary.held) {
                 continue;
             }
-            if form(summary.content_type) == Form::Directory {
+            if plain_of(summary.content_type) == Plain::Directory {
                 directories.push(summary.id);
             }
             let parent = match first {

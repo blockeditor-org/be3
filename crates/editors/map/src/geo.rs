@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
-use block_editor_beui::be_block::map::{MAX_LATITUDE, MapCoordinate, MapRegion};
 use block_editor_beui::beui::{Pos2, Rect};
+use map_types::{MAX_LATITUDE, MapCoordinate, MapRegion};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct MapView {

@@ -7,7 +7,7 @@ use crate::session::{Settings, connect};
 #[tokio::test]
 async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let harness = Harness::start().await;
-    let owner = Tracker::new(harness.owner().await);
+    let owner = Tracker::new(harness.owner().await, sources());
     let board = board(&owner).await;
     let (private, _) = database(
         owner.peer(),
@@ -74,7 +74,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         _ => None,
     })
     .unwrap();
-    let agent = Tracker::new(connect(&settings).await.unwrap());
+    let agent = Tracker::new(connect(&settings).await.unwrap(), sources());
     assert_eq!(agent.find_database("Issues").await.unwrap(), board.database);
     assert!(agent.entry(private).await.is_err());
 

@@ -1,8 +1,8 @@
-use block_editor_beui::be_block::map::{MapColor, MapPoint};
 use block_editor_beui::beui::icons::ICON_MAP_PIN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Pos2, Rect, TextAlign};
+use map_types::{MapColor, MapPoint};
 use uuid::Uuid;
 
 const MARKER_SIZE: TextSize = TextSize::Xl;

@@ -847,6 +847,10 @@ impl Context {
         self.inner.window.borrow_mut().requests.pastes = kinds.to_vec();
     }
 
+    pub fn take_clipboard_keys(&self, keys: bool) {
+        self.inner.window.borrow_mut().requests.clipboard_keys = keys;
+    }
+
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
         self.inner.copy_watchers.borrow_mut().push(Rc::new(watcher));
     }

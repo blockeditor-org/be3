@@ -1,3 +1,4 @@
+use beui::Wrap;
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
 use beui::reactive::*;
 use beui::styled::*;
@@ -86,7 +87,11 @@ fn Header(review: Review) -> NodeId {
                     </Dynamic>
                 </List>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION wrap=true @test_id={"paint_review.detail"}>
+                    <Text
+                        style=TextStyle::CAPTION
+                        wrap=Wrap::Words
+                        @test_id={"paint_review.detail"}
+                    >
                         {detail}
                     </Text>
                 </Show>

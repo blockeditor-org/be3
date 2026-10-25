@@ -1,7 +1,8 @@
 use super::*;
+use workspace_ui_types::FolderContent;
 
-use be_block::{FolderContent, TextBlock, TextContent};
 use be_graph::Access;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with() {

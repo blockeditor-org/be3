@@ -86,23 +86,15 @@ impl EditorMessage {
                 existing(block_id);
                 view_block.iter_mut().for_each(existing);
             }
-            Self::Content { block_id, .. }
-            | Self::ContentOperations { block_id, .. }
-            | Self::Operate { block_id, .. }
-            | Self::Gesture { block_id, .. }
-            | Self::ResendContent { block_id, .. }
-            | Self::SeedContent { block_id, .. }
+            Self::SeedContent { block_id, .. }
             | Self::ReplaceContent { block_id, .. }
-            | Self::ShowPresence { block_id, .. }
-            | Self::PeerPresence { block_id, .. }
-            | Self::SendToPeers { block_id, .. }
-            | Self::PeerMessages { block_id, .. }
             | Self::DragBlock { block_id, .. }
             | Self::DragOver { block_id, .. }
-            | Self::PlayAudio { block_id, .. }
             | Self::OpenArtifact { block_id, .. }
             | Self::Define { block_id, .. }
-            | Self::VersionStatus { block_id, .. } => existing(block_id),
+            | Self::VersionStatus { block_id, .. }
+            | Self::Head { block_id, .. }
+            | Self::Replica { block_id, .. } => existing(block_id),
             Self::ShowDialog {
                 block_id, dialog, ..
             } => {
@@ -190,6 +182,7 @@ impl EditorMessage {
                 | HostRequest::ReleaseRevision(block_id)
                 | HostRequest::ListAccess(block_id)
                 | HostRequest::ExportBlock(block_id)
+                | HostRequest::ReadPlainFile(block_id)
                 | HostRequest::ContactLink { block_id, .. } => existing(block_id),
                 HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
                 HostRequest::PickFile(_)
@@ -211,6 +204,7 @@ impl EditorMessage {
                 | HostReply::RevisionReleased
                 | HostReply::FilePicked(_)
                 | HostReply::FileSaved(_)
+                | HostReply::PlainFileRead(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
@@ -226,7 +220,9 @@ impl EditorMessage {
                 ArtifactDescription::Described { source, .. } => existing(source),
                 ArtifactDescription::Unreadable(_) => {}
             },
-            Self::WatchArtifacts { blocks, .. } | Self::WatchHistory { blocks, .. } => {
+            Self::WatchArtifacts { blocks, .. }
+            | Self::WatchHistory { blocks, .. }
+            | Self::WatchHeads { blocks, .. } => {
                 blocks.iter_mut().for_each(existing);
             }
             Self::ArtifactStates { states, .. } => {
@@ -308,6 +304,7 @@ impl EditorMessage {
             | Self::FileDropLeft { .. }
             | Self::DragAccepted { .. }
             | Self::AudioStatus { .. }
+            | Self::PlayAudio { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
             | Self::WatchHostValue { .. }

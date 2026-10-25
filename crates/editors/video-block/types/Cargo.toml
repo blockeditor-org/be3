@@ -1,0 +1,25 @@
+[package]
+name = "video-block-types"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-block = { path = "../../../be-block" }
+be-model = { path = "../../../be-model" }
+block-type-guest = { path = "../../../block-type-guest" }
+serde = { version = "1", features = ["derive"] }
+uuid = "1"
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
+be-commit = { path = "../../../be-commit", default-features = false }
+
+[features]
+module = []
+
+[lints]
+workspace = true

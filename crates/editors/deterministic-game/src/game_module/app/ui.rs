@@ -1,8 +1,9 @@
-use block_editor_beui::be_block::GameModuleContent;
+use beui::Wrap;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{Editor, FileChooser, Sidebar};
+use deterministic_game_types::GameModuleContent;
 use game_host::Game;
 
 use super::{filter, imported};
@@ -68,7 +69,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                             align=TextAlign::Center
                             color=TextColor::Danger
                             @test_id={"game-module.error"}
-                            wrap=true
+                            wrap=Wrap::Words
                         >
                             {reason}
                         </Text>

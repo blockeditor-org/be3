@@ -1,7 +1,11 @@
-use be_commit::{CommitId, CommitStore};
+use be_commit::CommitId;
+#[cfg(feature = "store")]
+use be_commit::CommitStore;
+#[cfg(feature = "store")]
 use be_store::{ObjectStore, StoreError};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Resume {
     Empty,
     UpToDate,
@@ -18,6 +22,7 @@ pub enum Resume {
     },
 }
 
+#[cfg(feature = "store")]
 pub fn resume<S: ObjectStore>(
     commits: &CommitStore<S>,
     local: Option<CommitId>,

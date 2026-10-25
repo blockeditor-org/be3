@@ -1,5 +1,5 @@
 use block_editor_beui::Fit;
-use block_editor_beui::be_block::CanvasContent;
+use infinite_canvas_types::CanvasContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
@@ -43,10 +43,19 @@ pub struct CanvasApp;
 
 impl block_editor_beui::BeuiApp for CanvasApp {
     fn view(editor: Editor) -> Root {
+        let presented = editor.presenting();
+        let editing = create_memo(move || !presented.get());
         view! {
             <Root>
                 <Loaded>
-                    <CanvasEditor editor={editor} />
+                    <Layers>
+                        <Show condition={editing}>
+                            <CanvasEditor editor={editor} />
+                        </Show>
+                        <Show condition={presented}>
+                            <CanvasPresented editor={editor} />
+                        </Show>
+                    </Layers>
                 </Loaded>
             </Root>
         }
@@ -81,8 +90,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
     let inspected = create_memo(move || {
-        chrome.get()
-            && state.profile.get() == block_editor_beui::be_block::canvas::CanvasProfile::Vector
+        chrome.get() && state.profile.get() == infinite_canvas_types::CanvasProfile::Vector
     });
     let scope = NodeRef::new();
     action_scope(&scope);
@@ -103,6 +111,19 @@ fn CanvasEditor(editor: Editor) -> NodeId {
             <ToolDock state={state} anchor={content} shown={chrome} />
             <ZoomPill state={state} anchor={content} shown={chrome} />
         </List>
+    }
+}
+
+#[component]
+fn CanvasPresented(editor: Editor) -> NodeId {
+    let state = CanvasState::new(editor, true);
+    state.watch();
+    let content = NodeRef::new();
+    editor.content(&content);
+    editor.keep_fitted(|| Some(Fit::Centre));
+    provide_context(canvas_actions(state));
+    view! {
+        <CanvasStage @node_ref=&content state={state} />
     }
 }
 

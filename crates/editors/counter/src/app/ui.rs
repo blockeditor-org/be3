@@ -1,8 +1,9 @@
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::{Counter as CounterModel, CounterContent, ObjectId};
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use counter_types::{Counter as CounterModel, CounterContent};
 
 const PADDING: f32 = 20.0;
 const BUTTON_WIDTH: f32 = 44.0;

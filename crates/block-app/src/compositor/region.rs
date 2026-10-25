@@ -61,6 +61,9 @@ pub(crate) type ChildView =
 pub(crate) struct Occlusion(pub(crate) Memo<Vec<Rect>>);
 
 #[derive(Clone, Copy)]
+struct Presented(Memo<bool>);
+
+#[derive(Clone, Copy)]
 pub(crate) struct PanDrag {
     pub(crate) asked: ReadSignal<u64>,
     pub(crate) pan: Callback<Vec2>,
@@ -181,6 +184,7 @@ pub(crate) fn PluginRegion(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] pan_drag: Option<PanDrag>,
+    #[prop(default = false)] offscreen: bool,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
@@ -190,6 +194,23 @@ pub(crate) fn PluginRegion(
     let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
     let plugin_id = store(plugin_id);
     let block = editor.role.block().map(|block| block.id);
+    let outer = use_context::<Presented>();
+    let presented = create_memo(move || {
+        region != EditorRegion::Preview && outer.is_some_and(|Presented(within)| within.get())
+    });
+    let any = super::any();
+    let presenting = create_memo(move || {
+        any.get();
+        block.is_some_and(|block| {
+            super::editors::editors().with(|open| {
+                open.get(&block)
+                    .is_some_and(crate::editors::PluginEditor::presenting_now)
+            })
+        })
+    });
+    provide_context(Presented(create_memo(move || {
+        presented.get() || presenting.get()
+    })));
     plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
         block_types: &editor.block_types,
@@ -200,6 +221,15 @@ pub(crate) fn PluginRegion(
     });
     let mount = next_mount();
     on_cleanup(move || plugin_host::unmount_region(&plugin_id.value(), instance, region, mount));
+    create_effect(move || {
+        let presented = presented.get();
+        untrack(|| plugin_host::set_presented(&plugin_id.value(), instance, presented));
+    });
+    on_cleanup(move || {
+        if presented.get_untracked() {
+            plugin_host::set_presented(&plugin_id.value(), instance, false);
+        }
+    });
     let revision = super::listen(&plugin_id.value());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let screens = use_screens();
@@ -269,6 +299,27 @@ pub(crate) fn PluginRegion(
             carry(drag);
         }
     });
+    let rect = create_memo(move || state.with(|view| view.rect));
+    let (reports, tick) = super::editors::reports();
+    super::editors::provide_reports(reports);
+    create_effect(move || {
+        tick.get();
+        plugin_host::report_children(
+            &plugin_id.value(),
+            instance,
+            region,
+            super::editors::statuses(&reports),
+        );
+    });
+    if offscreen {
+        return view! {
+            <Layers>
+                <RegionChildren state={state} rect={rect} child_view below=true />
+                <Embed slot={slot} punch=false />
+                <RegionChildren state rect child_view below=false />
+            </Layers>
+        };
+    }
     let frames = create_memo(move || {
         revision.get();
         plugin_host::frames(&plugin_id.value())
@@ -364,6 +415,7 @@ pub(crate) fn PluginRegion(
     let cursor = create_memo(move || state.with(|view| view.cursor.unwrap_or(CursorIcon::Default)));
     let handles_back = create_memo(move || state.with(|view| view.handles_back));
     let pastes = create_memo(move || state.with(|view| view.pastes.clone()));
+    let clipboard_keys = create_memo(move || state.with(|view| view.clipboard_keys));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let shell = super::shell();
     super::intercept::intercept_keys(plugin_id, instance, region, intercepted, move || {
@@ -371,6 +423,7 @@ pub(crate) fn PluginRegion(
     });
     let catcher = NodeRef::new();
     take_keyboard(state, &catcher);
+    focus_when_presenting(presenting, presented, &catcher);
     toggle_keyboard_when_asked(state);
     focus_when_asked(revision, plugin_id, instance, region, &catcher);
     let anchor = NodeRef::new();
@@ -411,18 +464,6 @@ pub(crate) fn PluginRegion(
                 restart: restart.then(|| plugin_id.with(String::clone)),
             })
         })
-    });
-    let rect = create_memo(move || state.with(|view| view.rect));
-    let (reports, tick) = super::editors::reports();
-    super::editors::provide_reports(reports);
-    create_effect(move || {
-        tick.get();
-        plugin_host::report_children(
-            &plugin_id.value(),
-            instance,
-            region,
-            super::editors::statuses(&reports),
-        );
     });
     let steering = StoredCell::new(Steering::IDLE);
     let forward = move |input: ForwardedInput| {
@@ -522,6 +563,7 @@ pub(crate) fn PluginRegion(
                     <Interactive
                         @node_ref={&catcher}
                         focusable=true
+                        press_focus={create_memo(move || !presented.get())}
                         cursor={cursor}
                         ime={ime}
                         ime_keyboard={ime_keyboard}
@@ -529,6 +571,7 @@ pub(crate) fn PluginRegion(
                         ime_cursor={ime_cursor}
                         ime_text={ime_text}
                         pastes={pastes}
+                        clipboard_keys={clipboard_keys}
                         on_forward={forward}
                         hit_at={takes}
                         claim_at={claims}
@@ -580,6 +623,21 @@ fn focus_when_asked(
             if !plugin_host::take_focus_request(&plugin_id.value(), instance, region) {
                 return;
             }
+            if let Some(node) = catcher.try_get() {
+                try_with_document(|document| document.focus_focusable(node));
+            }
+        });
+    });
+}
+
+fn focus_when_presenting(presenting: Memo<bool>, presented: Memo<bool>, catcher: &NodeRef) {
+    let catcher = *catcher;
+    let owns = create_memo(move || presenting.get() && !presented.get());
+    create_effect(move || {
+        if !owns.get() {
+            return;
+        }
+        untrack(|| {
             if let Some(node) = catcher.try_get() {
                 try_with_document(|document| document.focus_focusable(node));
             }

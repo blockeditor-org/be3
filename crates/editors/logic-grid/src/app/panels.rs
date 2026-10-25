@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::cell::Cell;
 
 use beui::reactive::*;
@@ -52,7 +53,9 @@ fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(LABEL_WIDTH)>{label}</Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) wrap=true>{value}</Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
+                {value}
+            </Text>
         </List>
     }
 }
@@ -60,7 +63,7 @@ fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
 #[component]
 fn Problem(content: Prop<String>) -> NodeId {
     view! {
-        <Text style=TextStyle::CAPTION color=TextColor::Danger wrap=true>{content}</Text>
+        <Text style=TextStyle::CAPTION color=TextColor::Danger wrap=Wrap::Words>{content}</Text>
     }
 }
 
@@ -382,7 +385,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                 <Problem content={problem} />
             </Show>
             <Show condition={idle}>
-                <Text style=TextStyle::CAPTION wrap=true>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                     "Run a step to compile and execute the circuit."
                 </Text>
             </Show>

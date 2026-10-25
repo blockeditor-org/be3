@@ -1,3 +1,4 @@
+use beui::Wrap;
 use uuid::Uuid;
 
 use block_editor_beui::Editor;
@@ -22,7 +23,7 @@ const INTRINSIC_WIDTH: f32 = 720.0;
 
 #[component]
 pub fn LogicGameEditor(editor: Editor) -> NodeId {
-    let block = editor.block_content::<block_editor_beui::be_block::LogicGameContent>();
+    let block = editor.block_content::<logic_grid_types::LogicGameContent>();
     let game = Game::watch(editor, block);
     let levels = game.levels();
     let hotbar = game.hotbar();
@@ -147,7 +148,7 @@ fn LevelRow(
                 let goal = goal.clone(); view! {
                     <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
                         <List spacing=ROW_SPACING>
-                            <Text style=TextStyle::CAPTION wrap=true>{goal}</Text>
+                            <Text style=TextStyle::CAPTION wrap=Wrap::Words>{goal}</Text>
                             <Show condition={shows_quiz}>
                                 <BinaryAddition editor={editor} block={block} />
                             </Show>

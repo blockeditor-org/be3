@@ -31,6 +31,7 @@ fn a_restarted_plugin_hears_its_childrens_statuses_again() {
         menu: Vec::new(),
         creation: None,
         settings: None,
+        preview: Default::default(),
     };
     assert_eq!(
         statuses_sent(&instances.set_child_statuses(INSTANCE, REGION, vec![status.clone()])),

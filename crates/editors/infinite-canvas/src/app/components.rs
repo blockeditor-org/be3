@@ -1,7 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
 
-use block_editor_beui::be_block::database::DatabaseValue;
-use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -10,6 +8,8 @@ use block_editor_beui::block_ui::database::DatabaseValueChange;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::{DatabaseValueEditor, RowValues, ValueLabels};
 use block_editor_beui::node_anchor;
+use database_types::database::DatabaseValue;
+use database_types::database_schema::DatabaseSchemaContent;
 use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};

@@ -3,10 +3,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight,
-};
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
@@ -17,6 +14,7 @@ use block_editor_beui::beui::{
     Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
 };
 use block_editor_beui::{FileSaver, SavedFile};
+use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
 use uuid::Uuid;
 
 use crate::geometry::{TEXT_INSET, entity_bounds};
@@ -27,6 +25,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use image_block_types::ImageContent;
 
 pub(crate) const PADDING: f32 = 16.0;
 pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];
@@ -490,12 +489,9 @@ fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera:
     }
 }
 
-fn entity_corner(
-    entity: &CanvasEntity,
-    at: f32,
-) -> block_editor_beui::be_block::canvas::CanvasPoint {
+fn entity_corner(entity: &CanvasEntity, at: f32) -> infinite_canvas_types::CanvasPoint {
     let transform = entity.transform;
-    block_editor_beui::be_block::canvas::CanvasPoint::new(
+    infinite_canvas_types::CanvasPoint::new(
         transform.center.x + transform.size.x * at,
         transform.center.y + transform.size.y * at,
     )
@@ -682,6 +678,11 @@ fn svg_entity(
             Mark::Fill(path) => out.push_str(&format!(
                 "<path d=\"{}\"{}/>\n",
                 path_data(path),
+                paint("fill", color)
+            )),
+            Mark::Painted(painted, offset) => out.push_str(&format!(
+                "<path d=\"{}\"{}/>\n",
+                path_data(&painted.path().translated(*offset)),
                 paint("fill", color)
             )),
             Mark::Stroke(path, stroke) => out.push_str(&format!(

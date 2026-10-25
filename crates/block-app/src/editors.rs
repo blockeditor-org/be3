@@ -1,13 +1,11 @@
 pub(crate) mod plugin;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use be_block::BlockContent;
 use be_graph::Access;
 use block_plugin_api::{EditorManifest, Edits, PluginManifest, TemplateCategory};
 use uuid::Uuid;
 
-pub(crate) use crate::block_label::BlockLabel;
 use crate::surfaces::HostedRegion;
 
 pub(crate) use self::plugin::PluginEditor;
@@ -125,6 +123,13 @@ pub(crate) struct TemplateEntry {
     create: CreateOptions,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Opened {
+    pub(crate) id: Uuid,
+    pub(crate) block_type: Uuid,
+    pub(crate) view_block: Option<Uuid>,
+}
+
 struct RegisteredEditor {
     id: Uuid,
     edits: Edits,
@@ -134,11 +139,11 @@ struct RegisteredEditor {
 }
 
 impl RegisteredEditor {
-    fn edits(&self, block_type: Uuid) -> bool {
+    fn edits(&self, opened: Opened) -> bool {
         match self.edits {
-            Edits::Type(edited) => Uuid::from_bytes(edited) == block_type,
+            Edits::Type(edited) => Uuid::from_bytes(edited) == opened.block_type,
             Edits::Any => true,
-            Edits::Nothing => block_type == be_block::EditorViewContent::CONTENT_TYPE,
+            Edits::Nothing => opened.view_block == Some(opened.id),
         }
     }
 
@@ -150,6 +155,7 @@ impl RegisteredEditor {
 pub struct EditorRegistry {
     editors: Vec<RegisteredEditor>,
     templates: Vec<TemplateEntry>,
+    types: HashMap<Uuid, block_plugin_api::BlockTypeDescriptor>,
     plugin_block_types: Arc<block_plugin_api::Catalog>,
 }
 
@@ -162,6 +168,7 @@ impl EditorRegistry {
         let mut registry = Self {
             editors: Vec::new(),
             templates: Vec::new(),
+            types: plugin::discovery::block_types(&manifests),
             plugin_block_types: Arc::default(),
         };
         for manifest in manifests {
@@ -170,7 +177,11 @@ impl EditorRegistry {
             }
         }
         registry.plugin_block_types = Arc::new(block_plugin_api::Catalog {
-            types: registry.block_types(),
+            types: {
+                let mut types: Vec<_> = registry.types.values().cloned().collect();
+                types.sort_by_key(|descriptor| descriptor.block_type);
+                types
+            },
             templates: registry
                 .templates
                 .iter()
@@ -196,28 +207,6 @@ impl EditorRegistry {
                 .collect(),
         });
         registry
-    }
-
-    fn block_types(&self) -> Vec<block_plugin_api::BlockTypeDescriptor> {
-        be_block::BLOCK_TYPES
-            .iter()
-            .filter(|block_type| {
-                self.editors
-                    .iter()
-                    .any(|editor| editor.edits == Edits::Type(block_type.content_type.into_bytes()))
-            })
-            .map(|block_type| block_plugin_api::BlockTypeDescriptor {
-                block_type: block_type.content_type.into_bytes(),
-                display_name: block_type.name.to_owned(),
-                color: Some(block_type.color),
-                icon_codepoint: block_type.icon.to_owned(),
-                children: block_plugin_api::ChildOperations {
-                    add: block_type.children.add,
-                    delete: block_type.children.delete,
-                    replace: block_type.children.replace,
-                },
-            })
-            .collect()
     }
 
     pub(super) fn plugin_block_types(&self) -> &Arc<block_plugin_api::Catalog> {
@@ -253,12 +242,10 @@ impl EditorRegistry {
         }
     }
 
-    pub fn display_name(&self, block_type: Uuid) -> Option<&'static str> {
-        be_block::block_type(block_type).map(|block_type| block_type.name)
-    }
-
-    pub fn icon(&self, block_type: Uuid) -> Option<&'static str> {
-        be_block::block_type(block_type).map(|block_type| block_type.icon)
+    pub fn display_name(&self, block_type: Uuid) -> Option<&str> {
+        self.types
+            .get(&block_type)
+            .map(|block_type| block_type.display_name.as_str())
     }
 
     fn default_editor(&self, block_type: Uuid) -> Option<&RegisteredEditor> {
@@ -319,25 +306,26 @@ impl EditorRegistry {
         )
     }
 
-    fn choice(&self, editor: Uuid, block_type: Uuid) -> Option<&RegisteredEditor> {
+    fn choice(&self, editor: Uuid, opened: Opened) -> Option<&RegisteredEditor> {
         self.editors
             .iter()
-            .find(|registered| registered.id == editor && registered.edits(block_type))
+            .find(|registered| registered.id == editor && registered.edits(opened))
     }
 
-    pub(crate) fn edits(&self, editor: Uuid, block_type: Uuid) -> bool {
-        self.choice(editor, block_type).is_some()
+    pub(crate) fn edits(&self, editor: Uuid, opened: Opened) -> bool {
+        self.choice(editor, opened).is_some()
     }
 
-    pub(crate) fn open_with(
-        &self,
-        id: Uuid,
-        block_type: Uuid,
-        editor: Option<Uuid>,
-    ) -> PluginEditor {
-        match editor.and_then(|editor| self.choice(editor, block_type)) {
+    pub(crate) fn open_with(&self, opened: Opened, editor: Option<Uuid>) -> PluginEditor {
+        let Opened {
+            id,
+            block_type,
+            view_block,
+        } = opened;
+        match editor.and_then(|editor| self.choice(editor, opened)) {
             Some(choice) => choice.open(id, block_type),
             None => self.open(id, block_type),
         }
+        .viewed_by(view_block)
     }
 }

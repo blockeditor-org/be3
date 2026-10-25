@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn two_databases_may_share_a_prefix_and_each_resolves_its_own_rows() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let peer = tracker.peer();
     let mut made = Vec::new();
     for name in ["First", "Second"] {

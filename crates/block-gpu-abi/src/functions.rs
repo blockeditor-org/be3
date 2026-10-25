@@ -66,17 +66,8 @@ macro_rules! gpu_functions {
             fn surface_present(surface: u32);
             fn surface_release(surface: u32);
             fn texture_describe(texture: u32, pointer: u32, capacity: u32) -> u32;
+            fn texture_import(image: u64) -> u32;
             fn error_take(pointer: u32, capacity: u32) -> u32;
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! transport_functions {
-    ($callback:path) => {
-        $callback! {
-            fn host_send(pointer: u32, length: u32);
-            fn host_receive(pointer: u32, capacity: u32) -> i64;
         }
     };
 }

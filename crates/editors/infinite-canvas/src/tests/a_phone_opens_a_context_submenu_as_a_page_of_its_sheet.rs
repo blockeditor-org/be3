@@ -29,7 +29,7 @@ fn a_phone_opens_a_context_submenu_as_a_page_of_its_sheet() {
     editor.run();
     assert_eq!(
         editor.content::<CanvasContent>(None).root().grid.shown(),
-        Some(block_editor_beui::be_block::canvas::CanvasGridSpacing::Large),
+        Some(infinite_canvas_types::CanvasGridSpacing::Large),
         "a row on the page runs its action"
     );
 }

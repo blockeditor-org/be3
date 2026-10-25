@@ -33,6 +33,7 @@ pub enum Shape {
     Map,
     Grid,
     Latest,
+    Series { accepts: fn(&[u8]) -> bool },
 }
 
 pub fn no_migration(_format: u32, _root: &mut Stored) {}
@@ -96,6 +97,7 @@ impl Kind {
                 Shape::Map => "map".to_owned(),
                 Shape::Grid => "grid".to_owned(),
                 Shape::Latest => "latest".to_owned(),
+                Shape::Series { .. } => "series".to_owned(),
             };
             let critical = if property.critical { " critical" } else { "" };
             lines.insert(format!("property {path}: {shape}{critical}"));

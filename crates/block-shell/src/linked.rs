@@ -1,5 +1,5 @@
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::{BlockContent, EditorViewContent};
+use block_editor_beui::be_block::VIEW_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_UNLINK};
 use block_editor_beui::beui::reactive::*;
@@ -145,7 +145,7 @@ fn places(backrefs: &Refs) -> Refs {
         list: backrefs
             .list
             .iter()
-            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE && !block.deleted)
+            .filter(|block| !block.metadata.contains(&VIEW_EDITOR) && !block.deleted)
             .cloned()
             .collect(),
     }

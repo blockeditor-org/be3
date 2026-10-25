@@ -131,6 +131,7 @@ scalar! {
     fn surface_age(surface: u32) -> u32 => surface_age;
     fn surface_present(surface: u32) => present_surface;
     fn surface_release(surface: u32) => detach_surface;
+    fn texture_import(image: u64) -> u32 => import_texture;
 }
 
 pub fn device_limits(guest: &mut impl Guest, pointer: u32, capacity: u32) -> u32 {
@@ -229,7 +230,7 @@ pub fn host_send(guest: &mut impl Guest, pointer: u32, length: u32) {
 
 pub fn host_receive(guest: &mut impl Guest, pointer: u32, capacity: u32) -> i64 {
     let Some(needed) = guest.transport().inbox.front().map(Vec::len) else {
-        return abi::NO_MESSAGE;
+        return block_guest_abi::NO_MESSAGE;
     };
     if needed as u32 > capacity {
         return needed as i64;

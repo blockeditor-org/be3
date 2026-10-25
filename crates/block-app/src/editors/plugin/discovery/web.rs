@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use super::Plugins;
 
 pub(crate) async fn load() {
     let plugins = super::discover(|path| crate::platform::http::get(path, Vec::new())).await;
-    super::PLUGINS.with(|cell| *cell.borrow_mut() = Some(Arc::new(plugins)));
+    super::install(plugins);
 }
 
 pub(super) fn scan() -> Plugins {

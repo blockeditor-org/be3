@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{BeuiDemoContent, BlockContent};
+use beui_gallery_types::BeuiDemoContent;
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{Creation, EditorHost, GraphCommand, OwnedEditor};
 use block_ui_test::BeuiTest;

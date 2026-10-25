@@ -1,8 +1,8 @@
 use block_editor_beui::beui::styled::Root;
 use std::time::Duration;
 
+use audio_block_types::{AudioContent, AudioFile};
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
@@ -73,6 +73,6 @@ pub(crate) fn guess_media_type(source_name: &str) -> &'static str {
 pub(crate) fn decode(file: PickedFile) -> Result<AudioContent, String> {
     let PickedFile { name, data } = file;
     let media_type = guess_media_type(&name);
-    AudioContent::from_file(name.clone(), media_type, data)
+    AudioFile::from_file(name.clone(), media_type, data)
         .map_err(|error| format!("Could not import {name}: {error}"))
 }

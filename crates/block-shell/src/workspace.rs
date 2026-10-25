@@ -1,11 +1,12 @@
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
-    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, MY_FILES, Recents,
-    ViewState, WorkspaceContent,
+    BlockContent, BlockMetadata, FILES_EDITOR, Recents, VIEW_EDITOR,
 };
+use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 
 use block_editor_beui::beui::icons::ICON_APP_WINDOW;
 use block_editor_beui::beui::reactive::*;
@@ -560,12 +561,7 @@ impl Workspace {
         self.top()
             .0
             .into_iter()
-            .filter(|block| {
-                block.block_type == WorkspaceContent::CONTENT_TYPE
-                    && block.parent == Some(BlockParent::Root)
-                    && block.author == Some(account)
-                    && block.metadata.get(&MY_FILES) == Some(true)
-            })
+            .filter(|block| block_editor_beui::sections::is_my_files(block, account))
             .map(|block| block.id)
             .min()
     }
@@ -801,9 +797,9 @@ impl Workspace {
         let profile = self.editor.view_block()?;
         Some(self.blocks().create_with(
             EditorViewContent::CONTENT_TYPE,
-            Some(EditorView::document(editor, content).encode()),
+            Some(EditorView::document(content).encode()),
             BlockParent::Block(profile),
-            block_editor_beui::be_block::BlockMetadata::default(),
+            BlockMetadata::view(editor, None),
         ))
     }
 
@@ -1129,12 +1125,7 @@ impl Workspace {
             })
             .or_else(|| {
                 (item.block_type == EditorViewContent::CONTENT_TYPE)
-                    .then(|| {
-                        self.editor
-                            .content_of::<EditorViewContent>(item.id)
-                            .read(|view| view.root().editor)
-                            .ok()
-                    })
+                    .then(|| self.info(item.id)?.metadata.get(&VIEW_EDITOR))
                     .flatten()
                     .filter(|editor| !editor.is_nil())
             })
@@ -1283,16 +1274,17 @@ impl Workspace {
     pub(crate) fn create_in(&self, parent: BlockParent) {
         self.sheet.set(PhoneSheet::Closed);
         self.error.set(None);
-        let parent = match parent {
-            BlockParent::Root | BlockParent::Detached => self
-                .my_files()
-                .map_or(BlockParent::Root, BlockParent::Block),
-            parent => parent,
+        let container = match parent {
+            BlockParent::Block(id) => Some(id),
+            BlockParent::Root | BlockParent::Detached => self.my_files(),
         };
-        let excluded = match parent {
-            BlockParent::Block(id) => vec![id.into_bytes()],
-            BlockParent::Root | BlockParent::Detached => Vec::new(),
+        let Some(container) = container else {
+            self.error
+                .set(Some("Your files are still loading".to_owned()));
+            return;
         };
+        let parent = BlockParent::Block(container);
+        let excluded = vec![container.into_bytes()];
         let workspace = *self;
         let inner = self.state.value();
         inner.own_pick_tab.set(inner.layout.shown());
@@ -1316,25 +1308,15 @@ impl Workspace {
                         return;
                     }
                 };
-                let container = match parent {
-                    BlockParent::Block(id) => Some(id),
-                    BlockParent::Root | BlockParent::Detached => None,
-                };
                 if !picked.placed {
-                    match container {
-                        Some(id) => workspace.host().place_block(
-                            picked.id,
-                            picked.block_type,
-                            id,
-                            picked.linked,
-                        ),
-                        None if !picked.linked => {
-                            workspace.blocks().set_parent(picked.id, BlockParent::Root);
-                        }
-                        None => {}
-                    }
+                    workspace.host().place_block(
+                        picked.id,
+                        picked.block_type,
+                        container,
+                        picked.linked,
+                    );
                 }
-                workspace.open(TabItem::new(picked.id, picked.block_type), container);
+                workspace.open(TabItem::new(picked.id, picked.block_type), Some(container));
                 if !picked.linked {
                     workspace.open_rename(picked.id, None, None);
                 }

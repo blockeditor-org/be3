@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 be-block = { path = "../be-block" }
 block-plugin-api = { path = "../block-plugin-api" }
+block-type-guest = { path = "../block-type-guest" }
 block-ui = { path = "../block-ui" }
 lucide = { path = "../lucide" }
 geometry = { path = "../geometry" }
@@ -23,10 +24,13 @@ uuid = { version = "1", features = ["v7"] }
 # own tests drive it through. The device reaches a plugin's ui framework through
 # the Instance trait; this crate draws nothing itself.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-block-gpu-abi = { path = "../block-gpu-abi" }
+block-guest-abi = { path = "../block-guest-abi" }
 block-gpu-guest = { path = "../block-gpu-guest" }
 wasi-threads = { path = "../wasi-threads" }
 wgpu = { version = "29", default-features = false, features = ["custom", "std", "web", "wgsl"] }
+
+[dev-dependencies]
+checklist-types = { path = "../editors/checklist/types" }
 
 [lints]
 workspace = true
