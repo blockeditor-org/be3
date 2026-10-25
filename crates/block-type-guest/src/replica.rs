@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use be_block::{Landed, LiveEdit, Merge, Settling};
 use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, SessionState};
-use be_session::{Follower, KeptEdits, OpId, Resume, Sequencer, SessionMessage, SessionOp};
+use be_session::{
+    Follower, Inherited, KeptEdits, OpId, Resume, Sequencer, SessionMessage, SessionOp,
+};
 use block_type_api::{
     Change, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, ReplicaId, Reply,
     RequestId, SessionTag, Status, Token, Written,
@@ -74,6 +76,7 @@ pub(crate) enum Input {
         result: Result<Resume, String>,
     },
     Close,
+    Claim,
     Change {
         id: RequestId,
         change: Change,
@@ -540,6 +543,7 @@ where
                 }
                 self.flush();
             }
+            Input::Claim => self.claim(),
             Input::Close => {
                 self.jobs.push_front(Job::Release);
                 self.jobs.push_front(Job::Seal {
@@ -1227,6 +1231,7 @@ where
             self.op_heads = vec![self.base];
         }
         if let Role::Follower(_) = &self.role {
+            self.catching_up = true;
             self.greet();
         }
         self.claim_if_abandoned();
@@ -1776,11 +1781,11 @@ where
                 self.journal(Journaled::Applied(operation), None);
                 self.broadcast(&SessionMessage::Accepted { op });
             }
-            SessionMessage::Accepted { op } => {
-                if !self.catching_up || self.is_owner() {
-                    self.apply_accepted(&op);
-                }
-            }
+            SessionMessage::Accepted { op } => match self.role {
+                Role::Owner(_) => self.inherit_accepted(&op),
+                Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
+                Role::Follower(_) => {}
+            },
             SessionMessage::Catchup { since } => {
                 let Role::Owner(sequencer) = &self.role else {
                     return;
@@ -1993,19 +1998,37 @@ where
         self.send(owner, &message);
     }
 
+    fn inherit_accepted(&mut self, op: &SessionOp) {
+        let Role::Owner(sequencer) = &mut self.role else {
+            return;
+        };
+        let inherited = sequencer.inherit(op);
+        if matches!(inherited, Inherited::Renumbered | Inherited::Unnumbered) {
+            sequencer.carry_unsealed();
+            self.reload = true;
+        }
+        if matches!(inherited, Inherited::Duplicate | Inherited::Renumbered) {
+            return;
+        }
+        let Ok(operation) = C::decode_operation(&op.payload) else {
+            return self.unreadable_message();
+        };
+        self.confirmed.apply(&operation);
+        self.visible.apply(&operation);
+        self.journal(Journaled::Applied(operation), None);
+    }
+
     fn apply_accepted(&mut self, op: &SessionOp) {
-        if let Role::Follower(follower) = &self.role
-            && (op.sequence <= follower.applied() || self.awaiting.is_some())
-        {
+        let Role::Follower(follower) = &self.role else {
+            return;
+        };
+        if op.sequence <= follower.applied() || self.awaiting.is_some() {
             return;
         }
         let Ok(operation) = C::decode_operation(&op.payload) else {
             return self.unreadable_message();
         };
         let Role::Follower(follower) = &mut self.role else {
-            self.confirmed.apply(&operation);
-            self.visible.apply(&operation);
-            self.journal(Journaled::Applied(operation), None);
             return;
         };
         let unchanged = follower.is_mine(op.id)
@@ -2091,12 +2114,19 @@ where
             self.show_presence_to(client);
         }
         self.claim_if_abandoned();
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
         if !owner_changed {
             return;
         }
+        let follower = match &mut self.role {
+            Role::Owner(_) if self.state.is_owner(self.client) => return,
+            Role::Owner(sequencer) => {
+                let sequence = sequencer.sequence();
+                self.role = Role::Follower(Follower::continuing(self.client, sequence));
+                self.reload = false;
+                return;
+            }
+            Role::Follower(follower) => follower,
+        };
         let replacement = self.awaiting.take().filter(|_| self.replacing);
         self.replacing = false;
         if !self.state.is_owner(self.client) {
@@ -2123,6 +2153,10 @@ where
         let pending = follower.take_pending();
         let mut sequencer =
             Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed));
+        if std::mem::take(&mut self.catching_up) {
+            sequencer.carry_unsealed();
+            self.reload = true;
+        }
         let mut accepted = Vec::new();
         for (id, payload) in pending {
             let Ok(operation) = C::decode_operation(&payload) else {
@@ -2180,6 +2214,17 @@ where
                 }
             }
         }
+    }
+
+    fn claim(&mut self) {
+        if !self.loaded || self.catching_up || self.is_owner() {
+            return;
+        }
+        self.claimed = Some(self.state.generation);
+        self.out.push(Command::ClaimLease {
+            replica: self.id,
+            generation: self.state.generation,
+        });
     }
 
     fn claim_if_abandoned(&mut self) {

@@ -1,61 +1,91 @@
-use beui::{Key, Modifiers};
+use beui::{Key, KeyPress};
+use terminal_types::TerminalKey;
 
-const LETTERS: [Key; 26] = [
-    Key::A,
-    Key::B,
-    Key::C,
-    Key::D,
-    Key::E,
-    Key::F,
-    Key::G,
-    Key::H,
-    Key::I,
-    Key::J,
-    Key::K,
-    Key::L,
-    Key::M,
-    Key::N,
-    Key::O,
-    Key::P,
-    Key::Q,
-    Key::R,
-    Key::S,
-    Key::T,
-    Key::U,
-    Key::V,
-    Key::W,
-    Key::X,
-    Key::Y,
-    Key::Z,
-];
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TerminalInput {
+    Key(TerminalKey),
+    Paste(String),
+}
 
-pub fn key_bytes(key: Key, modifiers: Modifiers) -> Option<Vec<u8>> {
-    if modifiers.ctrl && modifiers.shift {
+pub fn key_event(press: KeyPress) -> Option<TerminalKey> {
+    let modifiers = press.modifiers;
+    if press.key.is_modifier() || press.key.is_media() || press.key == Key::BrowserBack {
         return None;
     }
-    if modifiers.shift && key == Key::Tab {
-        return Some(b"\x1b[Z".to_vec());
+    if modifiers.ctrl && modifiers.shift && matches!(press.key, Key::C | Key::V) {
+        return None;
     }
-    if modifiers.ctrl
-        && let Some(letter) = LETTERS.iter().position(|candidate| *candidate == key)
-    {
-        return Some(vec![letter as u8 + 1]);
+    if !modifiers.ctrl && !modifiers.alt && !modifiers.logo && types_text(press.key) {
+        return None;
     }
-    let sequence: &[u8] = match key {
-        Key::Enter => b"\r",
-        Key::Backspace => b"\x7f",
-        Key::Tab => b"\t",
-        Key::Escape => b"\x1b",
-        Key::ArrowUp => b"\x1b[A",
-        Key::ArrowDown => b"\x1b[B",
-        Key::ArrowRight => b"\x1b[C",
-        Key::ArrowLeft => b"\x1b[D",
-        Key::Home => b"\x1b[H",
-        Key::End => b"\x1b[F",
-        Key::Delete => b"\x1b[3~",
-        Key::PageUp => b"\x1b[5~",
-        Key::PageDown => b"\x1b[6~",
-        _ => return None,
-    };
-    Some(sequence.to_vec())
+    Some(TerminalKey {
+        key: press.key,
+        modifiers,
+        text: String::new(),
+        pressed: press.pressed,
+    })
+}
+
+pub fn text_event(text: &str) -> TerminalKey {
+    TerminalKey {
+        key: Key::Unidentified,
+        modifiers: beui::Modifiers::NONE,
+        text: text.to_owned(),
+        pressed: true,
+    }
+}
+
+fn types_text(key: Key) -> bool {
+    matches!(
+        key,
+        Key::A
+            | Key::B
+            | Key::C
+            | Key::D
+            | Key::E
+            | Key::F
+            | Key::G
+            | Key::H
+            | Key::I
+            | Key::J
+            | Key::K
+            | Key::L
+            | Key::M
+            | Key::N
+            | Key::O
+            | Key::P
+            | Key::Q
+            | Key::R
+            | Key::S
+            | Key::T
+            | Key::U
+            | Key::V
+            | Key::W
+            | Key::X
+            | Key::Y
+            | Key::Z
+            | Key::Zero
+            | Key::One
+            | Key::Two
+            | Key::Three
+            | Key::Four
+            | Key::Five
+            | Key::Six
+            | Key::Seven
+            | Key::Eight
+            | Key::Nine
+            | Key::Backtick
+            | Key::Minus
+            | Key::Plus
+            | Key::BracketLeft
+            | Key::BracketRight
+            | Key::Backslash
+            | Key::Semicolon
+            | Key::Quote
+            | Key::Comma
+            | Key::Period
+            | Key::Slash
+            | Key::Space
+            | Key::Unidentified
+    )
 }

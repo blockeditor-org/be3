@@ -6,8 +6,8 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::color::{Color32, format_hex};
-use crate::font::TextAlign;
 use crate::font::{FontFamily, FontId, Galley, TextLayout};
+use crate::font::{TextAlign, Wrap};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
 
@@ -124,12 +124,13 @@ pub enum TextPart {
     Inline(NodeId),
     Anchored(NodeId),
     Gap(f32),
+    Break,
 }
 
 impl ChildItem for TextPart {
     fn node(&self) -> Option<NodeId> {
         match self {
-            TextPart::Span(_) | TextPart::Gap(_) => None,
+            TextPart::Span(_) | TextPart::Gap(_) | TextPart::Break => None,
             TextPart::Inline(node) | TextPart::Anchored(node) => Some(*node),
         }
     }
@@ -149,6 +150,7 @@ enum Entry {
     Span(SpanHandle, u64),
     Inline(Vec2, Option<Rc<str>>),
     Gap(f32),
+    Break,
 }
 
 impl PartialEq for Entry {
@@ -161,6 +163,7 @@ impl PartialEq for Entry {
                 left == right && stands == other
             }
             (Entry::Gap(left), Entry::Gap(right)) => left == right,
+            (Entry::Break, Entry::Break) => true,
             _ => false,
         }
     }
@@ -280,7 +283,7 @@ pub struct TextStyle {
     pub color: Color32,
     pub horizontal: TextAlign,
     pub vertical: TextAlign,
-    pub wrap: bool,
+    pub wrap: Wrap,
     pub clip: bool,
     pub underline: bool,
     pub ellipsis: bool,
@@ -297,7 +300,7 @@ pub struct TextNode {
     color: Color32,
     horizontal: TextAlign,
     vertical: TextAlign,
-    wrap: bool,
+    wrap: Wrap,
     clip: bool,
     underline: bool,
     ellipsis: bool,
@@ -332,6 +335,7 @@ enum Flow<'a> {
     Span(Ref<'a, SpanContent>),
     Inline(usize, Vec2, &'a str),
     Gap(f32),
+    Break,
 }
 
 impl TextNode {
@@ -346,7 +350,7 @@ impl TextNode {
                         && seen(content.color.unwrap_or(self.color))
                 }
                 TextPart::Inline(_) => true,
-                TextPart::Anchored(_) | TextPart::Gap(_) => false,
+                TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => false,
             });
         (shown && !self.content.is_empty()).then_some(&self.content)
     }
@@ -358,7 +362,7 @@ impl TextNode {
                 TextPart::Span(span) if span.content().icon.is_some() => {}
                 TextPart::Span(span) => content.push_str(&span.content().text),
                 TextPart::Inline(_) => content.push_str(OBJECT),
-                TextPart::Anchored(_) | TextPart::Gap(_) => {}
+                TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {}
             }
         }
         self.content = content;
@@ -406,6 +410,7 @@ impl TextNode {
                         .clone(),
                 )),
                 TextPart::Gap(width) => entries.push(Entry::Gap(*width)),
+                TextPart::Break => entries.push(Entry::Break),
                 TextPart::Anchored(_) => {}
             }
         }
@@ -413,7 +418,7 @@ impl TextNode {
     }
 
     fn wrap_width(&self, available_width: f32) -> f32 {
-        if self.wrap {
+        if self.wrap != Wrap::Off {
             available_width.max(0.0)
         } else {
             f32::INFINITY
@@ -454,6 +459,7 @@ impl TextNode {
                 padding: self.padding,
                 style: self.style(),
                 hang: self.hang,
+                anywhere: self.wrap == Wrap::Anywhere,
             },
             line_height: self.line_height,
             scale: ctx.pixels_per_point(),
@@ -491,6 +497,7 @@ impl TextNode {
                         Flow::Inline(inline - 1, *size, text.as_deref().unwrap_or(OBJECT))
                     }
                     Entry::Gap(width) => Flow::Gap(*width),
+                    Entry::Break => Flow::Break,
                 })
                 .collect()
         };
@@ -519,6 +526,7 @@ impl TextNode {
                     text,
                 },
                 Flow::Gap(width) => Piece::Gap(*width),
+                Flow::Break => Piece::Break,
             })
             .collect();
         let mut galleys = self.galleys.borrow_mut();
@@ -549,7 +557,7 @@ impl TextNode {
     }
 
     fn truncates(&self) -> bool {
-        self.ellipsis && !self.wrap
+        self.ellipsis && self.wrap == Wrap::Off
     }
 
     fn fitted(&self, painter: &Painter, layout: Rc<RichLayout>, rect: Rect) -> Rc<RichLayout> {
@@ -617,7 +625,7 @@ impl TextNode {
             .flat_map(|shaped| &shaped.entries)
             .map(|entry| match entry {
                 Entry::Span(span, _) => Some(span.clone()),
-                Entry::Inline(..) | Entry::Gap(_) => None,
+                Entry::Inline(..) | Entry::Gap(_) | Entry::Break => None,
             })
             .collect();
         let mut at = 0;
@@ -631,7 +639,7 @@ impl TextNode {
                     Entry::Span(span, _) if span.content().icon.is_some() => 0,
                     Entry::Span(span, _) => span.content().text.len(),
                     Entry::Inline(_, text) => text.as_deref().unwrap_or(OBJECT).len(),
-                    Entry::Gap(_) => 0,
+                    Entry::Gap(_) | Entry::Break => 0,
                 };
                 at += len;
                 at - len..at
@@ -854,7 +862,8 @@ impl Element for TextNode {
         .filter_map(|(on, name)| on.then_some(name))
         .collect();
         let overflow: Vec<&str> = [
-            (self.wrap, "wrap"),
+            (self.wrap == Wrap::Words, "wrap"),
+            (self.wrap == Wrap::Anywhere, "wrap-anywhere"),
             (self.clip, "clip"),
             (self.ellipsis, "ellipsis"),
         ]
@@ -930,7 +939,7 @@ impl Document {
             color,
             horizontal: TextAlign::Start,
             vertical: TextAlign::Start,
-            wrap: false,
+            wrap: Wrap::Off,
             clip: false,
             underline: false,
             ellipsis: false,
@@ -1042,7 +1051,7 @@ impl Document {
         }
     }
 
-    pub fn set_text_wrap(&mut self, text: NodeOf<TextNode>, wrap: bool) {
+    pub fn set_text_wrap(&mut self, text: NodeOf<TextNode>, wrap: Wrap) {
         if self.arena.get_as::<TextNode>(text).wrap != wrap {
             self.arena.get_mut_as::<TextNode>(text).wrap = wrap;
         }

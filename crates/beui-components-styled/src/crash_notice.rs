@@ -1,4 +1,5 @@
 use crate::frame::Frame;
+use beui_core::font::Wrap;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -40,7 +41,7 @@ pub fn CrashNotice(
                         size=TextSize::Sm
                         color=TextColor::Muted
                         align=TextAlign::Center
-                        wrap=true
+                        wrap=Wrap::Words
                     >
                         {detail}
                     </Text>

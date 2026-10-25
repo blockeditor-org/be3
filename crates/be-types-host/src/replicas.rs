@@ -556,6 +556,18 @@ impl<H: Host> Replicas<H> {
         self.replica_of(block).map(|(_, open)| open.status.clone())
     }
 
+    pub fn session(&self, block: Uuid) -> Option<(ClientId, &SessionState)> {
+        self.replica_of(block)
+            .map(|(_, open)| (open.client, &open.session))
+    }
+
+    pub fn claim(&mut self, block: Uuid) {
+        if let Some((replica, open)) = self.replica_of(block) {
+            let module = open.module;
+            self.modules.send(module, vec![Event::Claim { replica }]);
+        }
+    }
+
     pub async fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &ServerMessage) {
         match event {
             ServerMessage::SessionChanged { block, state } => {

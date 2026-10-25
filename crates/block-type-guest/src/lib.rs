@@ -309,6 +309,7 @@ impl Module {
                 result,
             } => self.input(replica, Input::Resumed { token, result }, &mut out),
             Event::Close { replica } => self.input(replica, Input::Close, &mut out),
+            Event::Claim { replica } => self.input(replica, Input::Claim, &mut out),
             Event::Request { id, request } => self.request(id, request, &mut out),
         }
         self.replicas.retain(|_, replica| !replica.released());

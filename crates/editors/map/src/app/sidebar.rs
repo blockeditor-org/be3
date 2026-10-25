@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
@@ -271,7 +272,7 @@ fn PointList(state: MapState) -> NodeId {
         <List spacing=6.0>
             <Text>"Points of interest"</Text>
             <Show condition={empty}>
-                <Text style=TextStyle::CAPTION wrap=true color={hint}>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words color={hint}>
                     "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
                 </Text>
             </Show>

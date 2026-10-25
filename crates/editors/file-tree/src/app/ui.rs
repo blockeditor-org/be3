@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::collections::HashSet;
 
 use block_editor_beui::BlockParent;
@@ -361,7 +362,7 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
                 style=TextStyle::PARAGRAPH
                 color=TextColor::Default
                 @test_id={format!("file-tree.inspect.{named}")}
-                wrap=true
+                wrap=Wrap::Words
             >
                 {value}
             </Text>

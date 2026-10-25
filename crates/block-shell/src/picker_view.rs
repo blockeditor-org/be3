@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LINK,
@@ -552,7 +553,7 @@ fn SurfaceHeader(
                         variant=ButtonVariant::Ghost
                         on_click={move || act.call(PickAction::Stage(Stage::Menu))}
                     />
-                    <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE wrap=true>
+                    <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE wrap=Wrap::Words>
                         {title}
                     </Text>
                 </List>

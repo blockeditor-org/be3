@@ -33,8 +33,11 @@ mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod a_session_owned_here_follows_a_peer_that_claims_it;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
+#[cfg(not(target_os = "android"))]
+mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_made_across_a_takeover_is_kept;
@@ -150,11 +153,20 @@ pub(crate) struct Harness {
     token: String,
     organization: Uuid,
     phrase: be_keys::RecoveryPhrase,
+    lease: Duration,
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
 impl Harness {
     pub(crate) fn start() -> Self {
+        Self::leasing(be_server::ServerConfig::OPEN.lease)
+    }
+
+    pub(crate) fn lapsing() -> Self {
+        Self::leasing(Duration::ZERO)
+    }
+
+    fn leasing(lease: Duration) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
@@ -175,8 +187,9 @@ impl Harness {
             display_name: profile.display_name,
             token,
         };
-        let server = platform::start_embedded_server(directory.join("server"))
-            .expect("the embedded block server starts");
+        let server =
+            platform::start_embedded_server_at("127.0.0.1:0", directory.join("server"), lease)
+                .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
         let (account, token, organization) = runtime.block_on(async {
@@ -197,6 +210,7 @@ impl Harness {
             token,
             organization,
             phrase: be_keys::RecoveryPhrase::generate(),
+            lease,
             _one_stack: one_stack,
         }
     }
@@ -214,7 +228,7 @@ impl Harness {
 
     fn start_server(&mut self, address: &str) {
         self.server = Some(
-            platform::start_embedded_server_at(address, self.directory.join("server"))
+            platform::start_embedded_server_at(address, self.directory.join("server"), self.lease)
                 .expect("the embedded block server starts again"),
         );
     }
@@ -274,7 +288,7 @@ impl Drop for Harness {
 struct Outside {
     runtime: tokio::runtime::Runtime,
     local: tokio::task::LocalSet,
-    session: Option<be_cli::replica::Session<be_store::MemoryStore>>,
+    session: Option<be_cli::replica::Session<be_store::MemoryStore, CounterContent>>,
 }
 
 struct Seen {
@@ -284,22 +298,27 @@ struct Seen {
 
 impl Outside {
     fn counter(harness: &Harness, block: Uuid) -> Self {
+        Self::open(harness, block, true)
+    }
+
+    fn joining(harness: &Harness, block: Uuid) -> Self {
+        Self::open(harness, block, false)
+    }
+
+    fn open(harness: &Harness, block: Uuid, create: bool) -> Self {
         let runtime = runtime();
         let local = tokio::task::LocalSet::new();
         let config = harness.outside_config();
         let session = local.block_on(&runtime, async move {
             let peer = outside_peer(config).await;
-            peer.ensure::<CounterContent>(block, be_graph::BlockParent::Root)
+            if create {
+                peer.ensure::<CounterContent>(block, be_graph::BlockParent::Root)
+                    .await
+                    .expect("the counter is created");
+            }
+            be_cli::replica::Session::open(peer, block, super::types::sources().await)
                 .await
-                .expect("the counter is created");
-            be_cli::replica::Session::open(
-                peer,
-                block,
-                CounterContent::CONTENT_TYPE,
-                super::types::sources().await,
-            )
-            .await
-            .expect("the outside peer opens the counter")
+                .expect("the outside peer opens the counter")
         });
         Self {
             runtime,
@@ -308,7 +327,7 @@ impl Outside {
         }
     }
 
-    fn session(&mut self) -> &mut be_cli::replica::Session<be_store::MemoryStore> {
+    fn session(&mut self) -> &mut be_cli::replica::Session<be_store::MemoryStore, CounterContent> {
         self.session
             .as_mut()
             .expect("the outside peer has not left")
@@ -319,12 +338,39 @@ impl Outside {
     }
 
     fn is_owner(&mut self) -> bool {
-        self.session().status().is_some_and(|status| status.owner)
+        self.session().is_owner()
+    }
+
+    fn claim(&mut self) {
+        let Self {
+            runtime,
+            local,
+            session,
+        } = self;
+        let session = session.as_mut().expect("the outside peer has not left");
+        let reached = local.block_on(runtime, async {
+            tokio::time::timeout(PATIENCE, async {
+                while !session.is_owner() {
+                    session.claim();
+                    let _ = tokio::time::timeout(Duration::from_millis(100), async {
+                        while !session.is_owner() {
+                            let woken = session.next().await;
+                            session
+                                .handle(woken)
+                                .await
+                                .expect("the outside peer is still connected");
+                        }
+                    })
+                    .await;
+                }
+            })
+            .await
+        });
+        assert!(reached.is_ok(), "the outside peer never took the session");
     }
 
     fn add(&mut self, by: i64) {
-        self.session()
-            .operate(CounterContent::encode_operation(&Counter::add(by)));
+        self.session().edit(Counter::add(by));
         let Self {
             runtime,
             local,
@@ -375,11 +421,7 @@ impl Outside {
             tokio::time::timeout(PATIENCE, async {
                 loop {
                     let seen = Seen {
-                        count: session
-                            .content()
-                            .await
-                            .and_then(|bytes| CounterContent::decode(&bytes).ok())
-                            .map(|counter| counter.root().value()),
+                        count: session.content().map(|counter| counter.root().value()),
                         presence: session.presence().to_vec(),
                     };
                     if ready(&seen) {

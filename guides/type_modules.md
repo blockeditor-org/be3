@@ -75,7 +75,9 @@ What the host owes a replica:
 - **The lease.** `Lease { session, resynchronize }` whenever the server's session
   state changes (`resynchronize` after the host fell behind the broadcast).
   `ReportClean` is the heartbeat with `clean_at`; `ClaimLease` is sent once per
-  generation when the owner is gone from the participants. On `Close` the replica
+  generation when the owner is gone from the participants, and when the host
+  sends `Claim` (a lapsed lease, taken by a terminal host) once the replica has
+  caught up. An owner told another client holds the lease becomes a follower. On `Close` the replica
   seals what it owes and answers `Release`, after which the host leaves the session;
   events for it until then still go to it.
 - **Relaying.** `Send { to }` is opaque bytes for `One(Peer)`, `Peers` (every other

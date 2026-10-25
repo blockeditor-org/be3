@@ -15,7 +15,7 @@ use beui_core::node::{NodeId, NodeOf};
 use beui_core::rich::{SpanBackground, TextCaret, TextGlyph, TextMark};
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
-use beui_core::font::TextAlign;
+use beui_core::font::{TextAlign, Wrap};
 use beui_macros::component;
 
 #[component]
@@ -25,7 +25,7 @@ pub fn Text(
     #[prop(default = Color32::WHITE)] color: Prop<Color32>,
     #[prop(default = None)] align: Prop<Option<TextAlign>>,
     #[prop(default = None)] vertical_align: Prop<Option<TextAlign>>,
-    #[prop(default = false)] wrap: Prop<bool>,
+    #[prop(default = Wrap::Off)] wrap: Prop<Wrap>,
     #[prop(default = false)] clip: Prop<bool>,
     #[prop(default = false)] underline: Prop<bool>,
     #[prop(default = false)] ellipsis: Prop<bool>,
@@ -95,6 +95,7 @@ pub fn Text(
 pub enum TextChild {
     Span(Span),
     Gap(Gap),
+    Break(Break),
     Item(TextItem),
 }
 
@@ -107,6 +108,7 @@ impl ChildValue for TextChild {
         match self {
             Self::Span(value) => value.finish_component(component, scope),
             Self::Gap(value) => value.finish_component(component, scope),
+            Self::Break(value) => value.finish_component(component, scope),
             Self::Item(value) => value.finish_component(component, scope),
         }
     }
@@ -125,6 +127,7 @@ impl SlotChild for TextChild {
             ),
             TextChild::Item(item) => item.store(),
             TextChild::Gap(gap) => TextPart::Gap(gap.width),
+            TextChild::Break(_) => TextPart::Break,
         }
     }
 }
@@ -137,6 +140,7 @@ impl SlotHost<TextChild> for TextHost {
             TextChild::Span(span) => TextPart::Span(span.bind(self.0)),
             TextChild::Item(item) => item.store(),
             TextChild::Gap(gap) => TextPart::Gap(gap.width),
+            TextChild::Break(_) => TextPart::Break,
         }
     }
 
@@ -454,4 +458,25 @@ pub fn TextItem(
         });
     }
     TextItem::new(item.id(), anchored)
+}
+
+pub struct Break {}
+
+impl ChildValue for Break {}
+
+#[component]
+pub fn Break() -> Break {
+    Break {}
+}
+
+impl IntoChild<TextChild> for Break {
+    fn into_child(self) -> TextChild {
+        TextChild::Break(self)
+    }
+}
+
+impl IntoSegment<TextChild> for Break {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::One(TextChild::Break(self))
+    }
 }

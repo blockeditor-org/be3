@@ -25,8 +25,8 @@ block-ui = { path = "../block-ui" }
 build-id = { path = "../build-id" }
 database-types = { path = "../editors/database/types" }
 futures-util = "0.3"
-ghostty-vt = { path = "../ghostty-vt" }
 portable-pty = "0.9"
+terminal-emulator = { path = "../terminal-emulator" }
 serde_json = "1"
 terminal-types = { path = "../editors/terminal/types" }
 text-block-types = { path = "../editors/text-block/types" }

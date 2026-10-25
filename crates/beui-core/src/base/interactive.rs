@@ -57,6 +57,7 @@ pub struct InteractiveNode {
     pub drawing_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub inhibits_shortcuts: bool,
+    pub clipboard_keys: bool,
     pub forwards_wheel: bool,
     pub claim_modifiers: Option<Modifiers>,
     pub claim_at: Callback<(Pos2, Modifiers), bool>,
@@ -114,6 +115,7 @@ impl InteractiveNode {
             drawing_at: Callback::empty(),
             on_forward: Callback::empty(),
             inhibits_shortcuts: false,
+            clipboard_keys: false,
             forwards_wheel: true,
             claim_modifiers: None,
             claim_at: Callback::empty(),
@@ -564,6 +566,34 @@ impl Document {
                 .touch_mut_as::<InteractiveNode>(id)
                 .inhibits_shortcuts = inhibits;
         }
+    }
+
+    pub fn set_interactive_clipboard_keys(&mut self, id: NodeOf<InteractiveNode>, keys: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).clipboard_keys != keys {
+            self.arena
+                .touch_mut_as::<InteractiveNode>(id)
+                .clipboard_keys = keys;
+        }
+    }
+
+    pub fn clipboard_keys(&self) -> bool {
+        let mut current = self.focused.filter(|focused| self.arena.contains(*focused));
+        for _ in 0..crate::node::ANCESTOR_LIMIT {
+            let Some(id) = current else {
+                return false;
+            };
+            let claims = self
+                .arena
+                .get(id)
+                .as_any()
+                .downcast_ref::<InteractiveNode>()
+                .is_some_and(|node| node.clipboard_keys);
+            if claims {
+                return true;
+            }
+            current = self.arena.parent(id);
+        }
+        false
     }
 
     pub fn set_interactive_forwards_wheel(&mut self, id: NodeOf<InteractiveNode>, forwards: bool) {

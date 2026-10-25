@@ -1222,7 +1222,7 @@ impl Tools for InspectorTools {
                 None => Some(Box::new(Inspector::new(ctx))),
             };
         }
-        if chord_pressed(ctx, InputKey::C) {
+        if chord_pressed(ctx, InputKey::C) && !document.clipboard_keys() {
             self.inspector
                 .get_or_insert_with(|| Box::new(Inspector::new(ctx)))
                 .toggle_picking();
