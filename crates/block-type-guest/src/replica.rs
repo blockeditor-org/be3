@@ -1964,7 +1964,8 @@ where
     fn replaced(&mut self, head: CommitId) {
         if self.is_owner() {
             let taken = self.base == Some(head) && self.is_clean();
-            let reached = self.reached == Some(head) && (self.base != Some(head) || self.is_clean());
+            let reached =
+                self.reached == Some(head) && (self.base != Some(head) || self.is_clean());
             if !taken && !reached {
                 self.read(vec![Some(head)], Then::Replacement);
             }

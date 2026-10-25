@@ -36,9 +36,9 @@ mod a_late_joiner_types_where_it_sees_the_caret;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_peer_running_another_build_is_refused;
+mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
 mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
-mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
@@ -578,10 +578,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 
     fn kept(&self, unsaved: impl Fn(&C) -> bool) -> bool {
         let head = self.head.expect("there is a head");
-        self.ancestors(head)
-            .into_iter()
-            .skip(1)
-            .any(|commit| C::decode(&self.commits[&commit].bytes).is_ok_and(|content| unsaved(&content)))
+        self.ancestors(head).into_iter().skip(1).any(|commit| {
+            C::decode(&self.commits[&commit].bytes).is_ok_and(|content| unsaved(&content))
+        })
     }
 
     fn ancestors(&self, from: CommitId) -> Vec<CommitId> {
