@@ -15,7 +15,8 @@ else may still change freely.
   metadata and current data key, commits (with the time the server received
   each, `block_commits.received`, 0 before it was recorded), grants, invitations, contact links,
   contacts and key changes, the `keys` and `wrapped_keys` rows, pinned escrow
-  keys, pending rotations and agents, and the server's own account
+  keys, pending rotations and agents, which edit kinds were ever opened to
+  anyone inside (`opened_kinds`), and the server's own account
   (`server_account`: its account id and the secret of the key that blocks
   shared with the server are sealed to).
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,

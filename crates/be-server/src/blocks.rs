@@ -932,6 +932,10 @@ impl ServerStore {
                     params![organization, block.to_string()],
                 )?;
                 transaction.execute(
+                    "DELETE FROM opened_kinds WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization, block.to_string()],
+                )?;
+                transaction.execute(
                     "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
                     params![organization, block.to_string()],
                 )?;
@@ -974,7 +978,8 @@ impl ServerStore {
                             node.is_edit_kind()
                                 && node.author == identity.account
                                 && !node.grants.contains_key(&ANYONE_INSIDE)
-                        }) =>
+                        })
+                        && !was_opened(database, identity.organization, block)? =>
                 {
                     require_edit(graph, &visibility(identity), block)?;
                 }
@@ -1179,12 +1184,24 @@ fn open_or_close_inside(
         be_graph::ANYONE_INSIDE,
         access,
     )?;
+    if access > Access::None {
+        database.execute(
+            "INSERT OR IGNORE INTO opened_kinds (organization_id, block_id) VALUES (?1, ?2)",
+            params![organization.to_string(), kind.to_string()],
+        )?;
+    }
     for account in viewed {
         if !crate::keys::is_viewer(database, graph, organization, account, kind)? {
             crate::keys::lost_view(database, organization, kind, account)?;
         }
     }
     Ok(())
+}
+
+fn was_opened(database: &Connection, organization: Uuid, kind: Uuid) -> Result<bool, ServerError> {
+    Ok(database
+        .prepare_cached("SELECT 1 FROM opened_kinds WHERE organization_id = ?1 AND block_id = ?2")?
+        .exists(params![organization.to_string(), kind.to_string()])?)
 }
 
 pub(crate) fn write_grant(

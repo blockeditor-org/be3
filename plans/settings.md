@@ -146,7 +146,8 @@ re-import once, and say so in `guides/frozen_formats.md`.
    metadata key each (`be_block::edit_kind_key`), so they inherit Edit like
    any child and the server needs no pointer it can't read; `level_below`
    caps one at its parent's access, and the editor who makes one opens it inside
-   as it is made (only a manager changes that later). Below a settings block or
+   as it is made, once (`opened_kinds` on the server; only a manager changes
+   it later). Below a settings block or
    an edit kind, a block has exactly its parent's access: no author bonus and no
    grant raises it (be-graph `an_author_keeps_no_more_of_a_settings_kind_than_its_settings`). Test:
    be-server `an_editor_changes_the_prefixes_and_tags_but_no_other_kind`. Dropping the

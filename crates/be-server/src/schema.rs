@@ -129,6 +129,12 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, block_id, account_id)
     );
 
+    CREATE TABLE opened_kinds (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id)
+    );
+
     CREATE TABLE block_commits (
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,

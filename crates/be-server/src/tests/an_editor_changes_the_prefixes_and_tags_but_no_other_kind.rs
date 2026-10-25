@@ -67,6 +67,11 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
         );
         let closed = owner.grant(kind, ANYONE_INSIDE, Access::None).await;
         assert!(matches!(closed, ServerMessage::Ok { .. }), "{closed:?}");
+        let reopened = editor.grant(kind, ANYONE_INSIDE, Access::View).await;
+        assert!(
+            refused_as(&reopened, ErrorCode::PermissionDenied),
+            "an editor reopened a kind a manager closed: {reopened:?}"
+        );
         let shared = editor
             .grant(kind, Uuid::from_u128(0x5e), Access::View)
             .await;
