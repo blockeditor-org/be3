@@ -1,5 +1,3 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_library")
 
-cargo_library()
-
-cargo_test()
+cargo_library(resources = glob(["wit/*.wit"]))

@@ -12,15 +12,15 @@ fn undo_reverts_only_this_devices_edit() {
     sim.operate(1, 1, add("theirs"));
     sim.settle();
     assert_eq!(sim.devices[0].history, (true, false));
-    assert_eq!(sim.change(0, Change::Undo), Reply::Changed(true));
+    assert!(sim.change(0, Change::Undo));
     for device in 0..2 {
         assert_eq!(texts(&sim.content(device)), ["theirs"]);
         assert_eq!(texts(sim.mirror(device, 1)), ["theirs"]);
     }
     assert_eq!(sim.devices[0].history, (false, true));
-    assert_eq!(sim.change(0, Change::Redo), Reply::Changed(true));
+    assert!(sim.change(0, Change::Redo));
     let mut both = texts(&sim.content(1));
     both.sort();
     assert_eq!(both, ["mine", "theirs"]);
-    assert_eq!(sim.change(0, Change::Redo), Reply::Changed(false));
+    assert!(!sim.change(0, Change::Redo));
 }

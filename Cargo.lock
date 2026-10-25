@@ -904,6 +904,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-ops"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "be-ops-bindgen"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "wit-parser 0.254.0",
+]
+
+[[package]]
 name = "be-protocol"
 version = "0.1.0"
 dependencies = [
@@ -1730,11 +1750,12 @@ name = "block-type-api"
 version = "0.1.0"
 dependencies = [
  "be-commit",
+ "be-ops",
+ "be-ops-bindgen",
  "be-protocol",
  "be-session",
- "be-store",
- "postcard",
  "serde",
+ "serde_bytes",
  "uuid",
 ]
 

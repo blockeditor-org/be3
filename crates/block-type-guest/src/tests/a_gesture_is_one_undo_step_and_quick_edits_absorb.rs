@@ -22,7 +22,7 @@ fn a_gesture_is_one_undo_step_and_quick_edits_absorb() {
     sim.settle();
     assert_eq!(texts(&sim.content(0)), ["f"]);
     let mut seen = Vec::new();
-    while sim.change(0, Change::Undo) == Reply::Changed(true) {
+    while sim.change(0, Change::Undo) {
         seen.push(texts(&sim.content(0)));
     }
     assert_eq!(

@@ -6,14 +6,13 @@ license.workspace = true
 
 [dependencies]
 be-commit = { path = "../be-commit", default-features = false }
+be-ops = { path = "../be-ops" }
+be-ops-bindgen = { path = "../be-ops-bindgen" }
 be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session", default-features = false }
-postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
 uuid = { version = "1", features = ["serde", "v4"] }
-
-[dev-dependencies]
-be-store = { path = "../be-store" }
 
 [lints]
 workspace = true

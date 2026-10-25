@@ -1,0 +1,61 @@
+package be3:block-type@0.1.0;
+
+/// What a type module asks of its host. A call made for a replica has that
+/// replica as its parent, so the host knows which block it is about, and it is
+/// canceled when the replica ends.
+interface host {
+    use types.{
+        byte-range, commit-id, description, merging, recipients, resume, status, written,
+    };
+
+    /// The frame clock in milliseconds. The module starts it once; the host
+    /// yields the time whenever it moved, ahead of any other frame. The module
+    /// never reads a clock of its own, so a test moves time by yielding.
+    clock: func() -> stream<u64>;
+
+    /// Resolves once the clock reached `at`, after the host yielded that time.
+    /// The module cancels it when it wants to wake at another time.
+    sleep-until: async func(at: u64);
+
+    read: async func(commit: commit-id, range: option<byte-range>) -> result<list<u8>, string>;
+
+    /// A compare-and-swap on `expected`, whose commit is the first parent. An
+    /// unchanged save answers `published` with the same head.
+    publish: async func(
+        expected: option<commit-id>,
+        merging: option<merging>,
+        content: written,
+    ) -> result<publish-outcome, string>;
+
+    variant publish-outcome {
+        published(commit-id),
+        rejected(option<commit-id>),
+    }
+
+    /// Writes a commit that moves no head.
+    stash: async func(parent: option<commit-id>, content: written) -> result<commit-id, string>;
+
+    /// The host fetches both histories and runs `be_session::resume`.
+    resume-session: async func(local: option<commit-id>) -> result<resume, string>;
+
+    /// Sent once per generation when the owner is gone from the participants.
+    claim-lease: func(generation: u64);
+
+    /// The owner's heartbeat.
+    report-clean: func(generation: u64, clean-at: option<commit-id>);
+
+    /// Opaque bytes for a peer, every peer, an editor or the host.
+    send: func(to: recipients, bytes: list<u8>);
+
+    report-status: func(status: status);
+
+    /// After the visible content changed, for the graph mirror.
+    described: func(description: description);
+
+    history: func(can-undo: bool, can-redo: bool);
+
+    /// A merge kept both sides.
+    conflict: func(ours: commit-id, theirs: commit-id, count: u32);
+
+    error: func(message: string);
+}

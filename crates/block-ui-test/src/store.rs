@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use be_store::Hash;
@@ -7,8 +7,16 @@ use block_editor_beui::be_block::{LiveEdit, Merge, Undo};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use block_plugin_api::{BlockCommand, EditorInstanceId, EditorMessage, Message, StoredHead};
 use block_type_guest::api::{
-    Change, ClientId, Command, CommitId, EditorId, Endpoint, Event, HeadEvent, Recipients,
-    ReplicaId, Reply, Request, RequestId, Resume, SessionState, SessionTag,
+    Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome, Recipients, Resume,
+    SessionState, SessionTag,
+    embed::{
+        exports::replicas::{self, Replica},
+        host::Call,
+    },
+    ops::{
+        Connection, DeserializeOwned, Incoming, OpError, OpId, Outcome, Producer, Side, Ticket,
+        guest::Executor,
+    },
 };
 use block_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
 use block_type_guest::wire::Wire;
@@ -31,7 +39,7 @@ fn every_type() -> Vec<Registration> {
 struct Block {
     content_type: Uuid,
     head: Option<CommitId>,
-    replica: Option<ReplicaId>,
+    replica: Option<Replica>,
     written: Vec<Vec<u8>>,
     unapplied: Vec<Vec<u8>>,
     followed: Vec<ToEditor>,
@@ -60,17 +68,18 @@ struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
     module: Module,
+    executor: Executor,
+    host: Connection,
+    clock: Option<Producer<u64>>,
     now: u64,
-    replicas: BTreeMap<ReplicaId, Uuid>,
-    next_replica: ReplicaId,
+    replicas: BTreeMap<OpId, Uuid>,
     commits: BTreeMap<CommitId, Vec<u8>>,
     next_commit: u64,
     blocks: BTreeMap<Uuid, Block>,
     attached: BTreeMap<Uuid, BTreeSet<EditorId>>,
     presence: BTreeMap<Uuid, BTreeMap<(ClientId, Uuid), Vec<u8>>>,
     outbox: Vec<(Uuid, EditorId, Vec<u8>)>,
-    replies: BTreeMap<RequestId, Reply>,
-    next_request: RequestId,
+    replies: BTreeMap<OpId, Outcome>,
     elsewhere: u64,
     reverted: Option<Vec<Vec<u8>>>,
     seeded: Vec<SeededContent>,
@@ -86,13 +95,16 @@ struct Inner {
 
 impl Default for Inner {
     fn default() -> Self {
-        Self {
+        let module = Module::new(every_type());
+        let mut inner = Self {
             own: None,
             organization: Uuid::nil(),
-            module: Module::new(every_type()),
+            executor: module.executor(),
+            module,
+            host: Connection::new(Side::Host),
+            clock: None,
             now: 0,
             replicas: BTreeMap::new(),
-            next_replica: 1,
             commits: BTreeMap::new(),
             next_commit: 0,
             blocks: BTreeMap::new(),
@@ -100,7 +112,6 @@ impl Default for Inner {
             presence: BTreeMap::new(),
             outbox: Vec::new(),
             replies: BTreeMap::new(),
-            next_request: 0,
             elsewhere: 0,
             reverted: None,
             seeded: Vec::new(),
@@ -112,7 +123,9 @@ impl Default for Inner {
             watched_queries: Vec::new(),
             answered: BTreeMap::new(),
             deferred: None,
-        }
+        };
+        inner.ask(|host| replicas::start(host, vec![0; 32]));
+        inner
     }
 }
 
@@ -135,26 +148,67 @@ impl Inner {
         commit
     }
 
-    fn run(&mut self, event: Event) {
-        let mut queue = VecDeque::from([event]);
+    fn run(&mut self) {
         let mut handled = 0;
-        while let Some(event) = queue.pop_front() {
+        loop {
+            let frames = self.host.take_outbound();
+            if frames.is_empty() {
+                return;
+            }
             handled += 1;
             assert!(handled < 100_000, "the block's replica never settled");
-            for command in self.module.handle(event) {
-                self.act(command, &mut queue);
+            let mut outbound = Vec::new();
+            self.executor
+                .step(frames, &mut outbound)
+                .expect("the replica's frames decode");
+            for frame in outbound {
+                self.host
+                    .receive(&frame)
+                    .expect("the replica's frames decode");
+            }
+            while let Some(event) = self.host.next_event() {
+                self.heard(event);
             }
         }
     }
 
-    fn act(&mut self, command: Command, queue: &mut VecDeque<Event>) {
-        match command {
-            Command::Send {
-                replica,
+    fn heard(&mut self, event: Incoming) {
+        match event {
+            Incoming::Started(started) => {
+                let parent = started.parent;
+                if let Some(call) = Call::accept(&mut self.host, started) {
+                    let block = parent.and_then(|parent| self.replicas.get(&parent).copied());
+                    self.act(block, call);
+                }
+            }
+            Incoming::Completed { op, outcome } => match self.replicas.remove(&op) {
+                Some(block) => {
+                    if let Some(held) = self.blocks.get_mut(&block)
+                        && held.replica.map(Replica::op) == Some(op)
+                    {
+                        held.replica = None;
+                    }
+                }
+                None => {
+                    self.replies.insert(op, outcome);
+                }
+            },
+            Incoming::Canceled { op } => self.host.complete(op, Outcome::Err(OpError::Canceled)),
+            Incoming::Yielded { .. } => {}
+        }
+    }
+
+    fn act(&mut self, block: Option<Uuid>, call: Call) {
+        match call {
+            Call::Clock { stream } => {
+                stream.send(&mut self.host, &self.now);
+                self.clock = Some(stream);
+            }
+            Call::Send {
                 to: Recipients::One(Endpoint::Editor(editor)),
                 bytes,
             } => {
-                let Some(&block) = self.replicas.get(&replica) else {
+                let Some(block) = block else {
                     return;
                 };
                 if editor != STORE {
@@ -180,23 +234,18 @@ impl Inner {
                     held.followed.push(message);
                 }
             }
-            Command::Send { .. } => {}
-            Command::Publish {
-                replica,
-                token,
+            Call::Publish {
+                reply,
                 expected,
                 content,
                 ..
             } => {
-                let Some(&block) = self.replicas.get(&replica) else {
-                    return;
+                let Some(block) = block else {
+                    return reply.fail(&mut self.host, OpError::Canceled);
                 };
                 let head = self.blocks.get(&block).and_then(|held| held.head);
                 if expected != head {
-                    return queue.push_back(Event::Head {
-                        replica,
-                        event: HeadEvent::Rejected { token, head },
-                    });
+                    return reply.send(&mut self.host, &Ok(PublishOutcome::Rejected(head)));
                 }
                 let unchanged = head.is_some_and(|head| self.commits[&head] == content.bytes);
                 let head = match (unchanged, head) {
@@ -206,47 +255,23 @@ impl Inner {
                 if let Some(held) = self.blocks.get_mut(&block) {
                     held.head = Some(head);
                 }
-                queue.push_back(Event::Head {
-                    replica,
-                    event: HeadEvent::Published { token, head },
-                });
+                reply.send(&mut self.host, &Ok(PublishOutcome::Published(head)));
             }
-            Command::Stash {
-                replica,
-                token,
-                content,
-                ..
-            } => {
+            Call::Stash { reply, content, .. } => {
                 let commit = self.write(content.bytes);
-                queue.push_back(Event::Head {
-                    replica,
-                    event: HeadEvent::Stashed { token, commit },
-                });
+                reply.send(&mut self.host, &Ok(commit));
             }
-            Command::Read {
-                replica,
-                token,
-                commit,
-                ..
-            } => queue.push_back(Event::Read {
-                replica,
-                token,
-                result: self
+            Call::Read { reply, commit, .. } => {
+                let result = self
                     .commits
                     .get(&commit)
                     .cloned()
-                    .ok_or_else(|| "no such commit".to_owned()),
-            }),
-            Command::Resume {
-                replica,
-                token,
-                local,
-                ..
-            } => {
-                let head = self
-                    .replicas
-                    .get(&replica)
-                    .and_then(|block| self.blocks.get(block))
+                    .ok_or_else(|| "no such commit".to_owned());
+                reply.send(&mut self.host, &result);
+            }
+            Call::ResumeSession { reply, local } => {
+                let head = block
+                    .and_then(|block| self.blocks.get(&block))
                     .and_then(|held| held.head);
                 let resume = match (local, head) {
                     (None, None) => Resume::Empty,
@@ -254,51 +279,34 @@ impl Inner {
                     (_, Some(head)) => Resume::FastForward { to: head },
                     (Some(local), None) => Resume::Publish { from: local },
                 };
-                queue.push_back(Event::Resumed {
-                    replica,
-                    token,
-                    result: Ok(resume),
-                });
+                reply.send(&mut self.host, &Ok(resume));
             }
-            Command::Described {
-                replica,
-                description,
-            } => {
-                if let Some(held) = self
-                    .replicas
-                    .get(&replica)
-                    .and_then(|block| self.blocks.get_mut(block))
-                {
+            Call::Described { description } => {
+                if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block)) {
                     held.references = Some(description.references);
                 }
             }
-            Command::Reply { id, reply } => {
-                self.replies.insert(id, reply);
-            }
-            Command::Release { replica } => {
-                if let Some(block) = self.replicas.remove(&replica)
-                    && let Some(held) = self.blocks.get_mut(&block)
-                    && held.replica == Some(replica)
-                {
-                    held.replica = None;
-                }
-            }
-            Command::Hello { .. }
-            | Command::ClaimLease { .. }
-            | Command::ReportClean { .. }
-            | Command::WakeAt { .. }
-            | Command::Status { .. }
-            | Command::History { .. }
-            | Command::Conflict { .. }
-            | Command::Error { .. } => {}
+            Call::SleepUntil { .. }
+            | Call::Send { .. }
+            | Call::ClaimLease { .. }
+            | Call::ReportClean { .. }
+            | Call::ReportStatus { .. }
+            | Call::History { .. }
+            | Call::Conflict { .. }
+            | Call::Error { .. } => {}
         }
     }
 
-    fn request(&mut self, request: Request) -> Reply {
-        self.next_request += 1;
-        let id = self.next_request;
-        self.run(Event::Request { id, request });
-        self.replies.remove(&id).unwrap_or(Reply::Unknown)
+    fn ask<T: DeserializeOwned>(&mut self, call: impl FnOnce(&mut Connection) -> Ticket<T>) -> Option<T> {
+        let ticket = call(&mut self.host);
+        self.run();
+        let outcome = self.replies.remove(&ticket.op())?;
+        ticket.decode(outcome).ok()
+    }
+
+    fn on_replica(&mut self, replica: Replica, call: impl FnOnce(Replica, &mut Connection)) {
+        call(replica, &mut self.host);
+        self.run();
     }
 
     fn open(&mut self, block: Uuid) {
@@ -309,27 +317,27 @@ impl Inner {
         if held.replica.is_some() || !self.module.knows(held.content_type) {
             return;
         }
-        let replica = self.next_replica;
-        self.next_replica += 1;
-        held.replica = Some(replica);
         let (content_type, head) = (held.content_type, held.head);
         let unapplied = std::mem::take(&mut held.unapplied);
         held.followed.clear();
-        self.replicas.insert(replica, block);
-        self.run(Event::Open {
-            replica,
-            block,
-            content_type,
-            organization,
-            client: THIS_DEVICE,
-            tag: TAG,
-            head,
-            session: session(),
-        });
-        self.run(Event::Attach {
-            replica,
-            editor: STORE,
-            editable: false,
+        let replica = Replica::new(
+            &mut self.host,
+            Opening {
+                block,
+                content_type,
+                organization,
+                client: THIS_DEVICE,
+                tag: TAG,
+                head,
+                session: session(),
+            },
+        );
+        if let Some(held) = self.blocks.get_mut(&block) {
+            held.replica = Some(replica);
+        }
+        self.replicas.insert(replica.op(), block);
+        self.on_replica(replica, |replica, host| {
+            replica.attach(host, STORE, false);
         });
         let presence: Vec<((ClientId, Uuid), Vec<u8>)> = self
             .presence
@@ -356,10 +364,8 @@ impl Inner {
             .map(|held| held.iter().copied().collect())
             .unwrap_or_default();
         for editor in editors {
-            self.run(Event::Attach {
-                replica,
-                editor,
-                editable: true,
+            self.on_replica(replica, |replica, host| {
+                replica.attach(host, editor, true);
             });
         }
         for operation in unapplied {
@@ -371,8 +377,8 @@ impl Inner {
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
         };
-        self.run(Event::Close { replica });
-        self.replicas.remove(&replica);
+        self.on_replica(replica, |replica, host| replica.resource_drop(host));
+        self.replicas.remove(&replica.op());
         if let Some(held) = self.blocks.get_mut(&block) {
             held.replica = None;
         }
@@ -380,14 +386,13 @@ impl Inner {
 
     fn peer_said(
         &mut self,
-        replica: ReplicaId,
+        replica: Replica,
         client: ClientId,
         message: be_session::SessionMessage,
     ) {
-        self.run(Event::Message {
-            replica,
-            from: Endpoint::Peer(client),
-            bytes: Wire::Session(message).encode(),
+        let bytes = Wire::Session(message).encode();
+        self.on_replica(replica, |replica, host| {
+            replica.message(host, Endpoint::Peer(client), bytes);
         });
     }
 
@@ -428,7 +433,7 @@ impl Inner {
 
     fn change(&mut self, block: Uuid, change: Change) {
         if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
-            self.request(Request::Change { replica, change });
+            self.ask(|host| replica.change(host, change));
         }
     }
 
@@ -465,10 +470,8 @@ impl Inner {
             return false;
         }
         if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
-            self.run(Event::Attach {
-                replica,
-                editor,
-                editable: true,
+            self.on_replica(replica, |replica, host| {
+                replica.attach(host, editor, true);
             });
         }
         true
@@ -483,7 +486,7 @@ impl Inner {
             removed,
             self.blocks.get(&block).and_then(|held| held.replica),
         ) {
-            self.run(Event::Detach { replica, editor });
+            self.on_replica(replica, |replica, host| replica.detach(host, editor));
         }
     }
 
@@ -511,16 +514,14 @@ impl Inner {
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
         };
-        let event = Event::Message {
-            replica,
-            from: Endpoint::Editor(editor),
-            bytes: frame,
+        let send = move |inner: &mut Self| {
+            inner.on_replica(replica, |replica, host| {
+                replica.message(host, Endpoint::Editor(editor), frame);
+            });
         };
         match message {
-            FromEditor::Gesture(Gesture::Cancel) => {
-                self.reverting(block, |inner| inner.run(event));
-            }
-            _ => self.run(event),
+            FromEditor::Gesture(Gesture::Cancel) => self.reverting(block, send),
+            _ => send(self),
         }
     }
 }
@@ -568,14 +569,14 @@ impl ContentStore {
     }
 
     pub fn register(&self, registrations: impl IntoIterator<Item = Registration>) {
-        let mut inner = self.0.borrow_mut();
+        let inner = self.0.borrow_mut();
         for registration in registrations {
             inner.module.register(registration.without_undo());
         }
     }
 
     fn know<C: LiveEdit + Merge + Clone + Default>(&self) {
-        let mut inner = self.0.borrow_mut();
+        let inner = self.0.borrow_mut();
         if !inner.module.knows(C::CONTENT_TYPE) {
             inner.module.register(Registration::of::<C>());
         }
@@ -599,7 +600,11 @@ impl ContentStore {
         let mut inner = self.0.borrow_mut();
         if now > inner.now {
             inner.now = now;
-            inner.run(Event::Tick { now });
+            if let Some(clock) = inner.clock.take() {
+                clock.send(&mut inner.host, &now);
+                inner.clock = Some(clock);
+            }
+            inner.run();
         }
     }
 
@@ -869,9 +874,9 @@ impl ContentStore {
                     Some(bytes) => self.seed(id, block_type, bytes.to_vec(), false),
                     None => {
                         let mut inner = self.0.borrow_mut();
-                        if let Reply::Blank(bytes) = inner.request(Request::Blank {
-                            content_type: block_type,
-                        }) {
+                        if let Some(Ok(bytes)) =
+                            inner.ask(|host| replicas::blank(host, block_type))
+                        {
                             inner.put(id, block_type, bytes);
                         }
                     }
@@ -923,10 +928,7 @@ impl ContentStore {
         let held = inner.blocks.get(&block)?;
         let content_type = held.content_type;
         let bytes = match held.replica {
-            Some(replica) => match inner.request(Request::Content { replica }) {
-                Reply::Content(bytes) => bytes,
-                _ => return None,
-            },
+            Some(replica) => inner.ask(|host| replica.content(host))??,
             None => inner.commits[&held.head?].clone(),
         };
         Some((content_type, bytes))

@@ -1,0 +1,1084 @@
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+};
+
+use heck::{ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
+use proc_macro2::{Span, TokenStream};
+use quote::{format_ident, quote};
+use syn::{
+    Ident, LitStr, Token, braced, bracketed,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+};
+use wit_parser::{
+    Function, FunctionKind, InterfaceId, Resolve, Type, TypeDefKind, TypeId, TypeOwner,
+    WorldItem,
+};
+
+struct Options {
+    path: String,
+    world: String,
+    with: BTreeMap<String, syn::Path>,
+    copy: BTreeSet<String>,
+}
+
+impl Parse for Options {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        braced!(content in input);
+        let mut options = Options {
+            path: String::new(),
+            world: String::new(),
+            with: BTreeMap::new(),
+            copy: BTreeSet::new(),
+        };
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "path" => options.path = content.parse::<LitStr>()?.value(),
+                "world" => options.world = content.parse::<LitStr>()?.value(),
+                "with" => {
+                    let mapped;
+                    braced!(mapped in content);
+                    while !mapped.is_empty() {
+                        let name: LitStr = mapped.parse()?;
+                        mapped.parse::<Token![:]>()?;
+                        let path: syn::Path = mapped.parse()?;
+                        options.with.insert(name.value(), path);
+                        if !mapped.is_empty() {
+                            mapped.parse::<Token![,]>()?;
+                        }
+                    }
+                }
+                "copy" => {
+                    let names;
+                    bracketed!(names in content);
+                    let names: Punctuated<LitStr, Token![,]> =
+                        names.parse_terminated(|input| input.parse(), Token![,])?;
+                    options.copy = names.iter().map(LitStr::value).collect();
+                }
+                other => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        format!("unknown option `{other}`"),
+                    ));
+                }
+            }
+            if !content.is_empty() {
+                content.parse::<Token![,]>()?;
+            }
+        }
+        Ok(options)
+    }
+}
+
+#[proc_macro]
+pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let options = syn::parse_macro_input!(input as Options);
+    match Generator::run(options) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => syn::Error::new(Span::call_site(), error)
+            .to_compile_error()
+            .into(),
+    }
+}
+
+const KEYWORDS: &[&str] = &[
+    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
+    "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move",
+    "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true",
+    "type", "unsafe", "use", "where", "while", "yield", "box", "try", "gen",
+];
+
+fn snake(name: &str) -> Ident {
+    let name = name.to_snake_case();
+    match KEYWORDS.contains(&name.as_str()) {
+        true => Ident::new_raw(&name, Span::call_site()),
+        false => Ident::new(&name, Span::call_site()),
+    }
+}
+
+fn camel(name: &str) -> Ident {
+    Ident::new(&name.to_upper_camel_case(), Span::call_site())
+}
+
+fn shouty(name: &str) -> Ident {
+    Ident::new(&name.to_shouty_snake_case(), Span::call_site())
+}
+
+fn fnv(name: &str) -> u32 {
+    let mut hash: u32 = 0x811c_9dc5;
+    for byte in name.bytes() {
+        hash ^= byte as u32;
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+    hash
+}
+
+struct Generator {
+    resolve: Resolve,
+    options: Options,
+    methods: BTreeMap<u32, String>,
+}
+
+enum Shape {
+    Notify,
+    Call(Option<Type>),
+    Stream(Option<Type>),
+}
+
+struct Method<'a> {
+    function: &'a Function,
+    name: String,
+    constant: Ident,
+    args: Ident,
+    params: Vec<(Ident, Type)>,
+    shape: Shape,
+}
+
+impl Generator {
+    fn run(options: Options) -> Result<TokenStream, String> {
+        let root = std::env::var("CARGO_MANIFEST_DIR")
+            .map_err(|_| "CARGO_MANIFEST_DIR is not set".to_owned())?;
+        let path = PathBuf::from(root).join(&options.path);
+        let mut resolve = Resolve::new();
+        let (package, _) = resolve
+            .push_dir(&path)
+            .map_err(|error| format!("{}: {error:#}", path.display()))?;
+        let world = resolve
+            .select_world(&[package], Some(&options.world))
+            .map_err(|error| format!("{error:#}"))?;
+        let mut generator = Generator {
+            resolve,
+            options,
+            methods: BTreeMap::new(),
+        };
+        let world = generator.resolve.worlds[world].clone();
+        let interfaces = |items: &wit_parser::IndexMap<_, WorldItem>| {
+            items
+                .values()
+                .filter_map(|item| match item {
+                    WorldItem::Interface { id, .. } => Some(*id),
+                    _ => None,
+                })
+                .collect::<Vec<InterfaceId>>()
+        };
+        let imports = interfaces(&world.imports);
+        let exports = interfaces(&world.exports);
+        for interface in imports.iter().chain(&exports) {
+            generator.register(*interface)?;
+        }
+        let generator = generator;
+        let mut types = TokenStream::new();
+        let mut defined = BTreeSet::new();
+        for interface in imports.iter().chain(&exports) {
+            generator.types_of(*interface, &mut defined, &mut types)?;
+        }
+        let mut args = TokenStream::new();
+        let mut guest_imports = TokenStream::new();
+        let mut embed_imports = TokenStream::new();
+        let callable = |interface: &&InterfaceId| {
+            !generator.resolve.interfaces[**interface].functions.is_empty()
+        };
+        for interface in imports.iter().filter(callable) {
+            let module = generator.module_name(*interface);
+            let methods = generator.methods(*interface)?;
+            args.extend(generator.args(&module, &methods));
+            let guest = generator.guest_import(&module, &methods)?;
+            let embed = generator.embed_import(&module, &methods);
+            guest_imports.extend(quote! { pub mod #module { #guest } });
+            embed_imports.extend(quote! { pub mod #module { #embed } });
+        }
+        let mut guest_exports = TokenStream::new();
+        let mut embed_exports = TokenStream::new();
+        let mut bounds = Vec::new();
+        let mut dispatches = Vec::new();
+        for interface in exports.iter().filter(callable) {
+            let module = generator.module_name(*interface);
+            let methods = generator.methods(*interface)?;
+            args.extend(generator.args(&module, &methods));
+            let guest = generator.guest_export(*interface, &module, &methods)?;
+            let embed = generator.embed_export(*interface, &module, &methods)?;
+            guest_exports.extend(quote! { pub mod #module { #guest } });
+            embed_exports.extend(quote! { pub mod #module { #embed } });
+            bounds.push(quote! { exports::#module::Guest });
+            dispatches.push(quote! {
+                if let ::core::option::Option::Some(served) =
+                    exports::#module::dispatch(&guest, resources, started.clone())
+                {
+                    return served;
+                }
+            });
+        }
+        Ok(quote! {
+            #types
+
+            #[doc(hidden)]
+            pub mod __args {
+                #args
+            }
+
+            pub mod guest {
+                #guest_imports
+
+                pub mod exports {
+                    #guest_exports
+                }
+
+                pub fn executor<G: #(#bounds)+*>(guest: G) -> ::be_ops::guest::Executor {
+                    let guest = ::std::rc::Rc::new(guest);
+                    ::be_ops::guest::Executor::new(::std::boxed::Box::new(
+                        move |resources, started| {
+                            #(#dispatches)*
+                            ::be_ops::guest::Serve::Done(::be_ops::Outcome::Err(
+                                ::be_ops::OpError::Unsupported,
+                            ))
+                        },
+                    ))
+                }
+            }
+
+            pub mod embed {
+                #embed_imports
+
+                pub mod exports {
+                    #embed_exports
+                }
+            }
+        })
+    }
+
+    fn module_name(&self, interface: InterfaceId) -> Ident {
+        snake(
+            self.resolve.interfaces[interface]
+                .name
+                .as_deref()
+                .unwrap_or("world"),
+        )
+    }
+
+    fn mapped(&self, id: TypeId) -> Option<&syn::Path> {
+        let name = self.resolve.types[id].name.as_ref()?;
+        self.options.with.get(name)
+    }
+
+    fn target(&self, mut id: TypeId) -> TypeId {
+        loop {
+            let def = &self.resolve.types[id];
+            match def.kind {
+                TypeDefKind::Type(Type::Id(next)) if self.mapped(id).is_none() => id = next,
+                _ => return id,
+            }
+        }
+    }
+
+    fn ty(&self, ty: &Type) -> Result<TokenStream, String> {
+        Ok(match ty {
+            Type::Bool => quote!(bool),
+            Type::U8 => quote!(u8),
+            Type::U16 => quote!(u16),
+            Type::U32 => quote!(u32),
+            Type::U64 => quote!(u64),
+            Type::S8 => quote!(i8),
+            Type::S16 => quote!(i16),
+            Type::S32 => quote!(i32),
+            Type::S64 => quote!(i64),
+            Type::Char => quote!(char),
+            Type::String => quote!(::std::string::String),
+            Type::F32 | Type::F64 | Type::ErrorContext => {
+                return Err(format!("{ty:?} is not supported over be-ops"));
+            }
+            Type::Id(id) => {
+                let id = self.target(*id);
+                if let Some(path) = self.mapped(id) {
+                    return Ok(quote!(#path));
+                }
+                let def = &self.resolve.types[id];
+                if let (Some(name), TypeOwner::Interface(owner)) = (&def.name, def.owner) {
+                    let module = self.module_name(owner);
+                    let name = camel(name);
+                    return Ok(quote!(crate::#module::#name));
+                }
+                match &def.kind {
+                    TypeDefKind::Option(inner) => {
+                        let inner = self.ty(inner)?;
+                        quote!(::core::option::Option<#inner>)
+                    }
+                    TypeDefKind::Result(result) => {
+                        let ok = self.optional(result.ok.as_ref())?;
+                        let err = self.optional(result.err.as_ref())?;
+                        quote!(::core::result::Result<#ok, #err>)
+                    }
+                    TypeDefKind::List(inner) => {
+                        let inner = self.ty(inner)?;
+                        quote!(::std::vec::Vec<#inner>)
+                    }
+                    TypeDefKind::Tuple(tuple) => {
+                        let types = tuple
+                            .types
+                            .iter()
+                            .map(|ty| self.ty(ty))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        quote!((#(#types,)*))
+                    }
+                    other => return Err(format!("{other:?} is not supported here")),
+                }
+            }
+        })
+    }
+
+    fn optional(&self, ty: Option<&Type>) -> Result<TokenStream, String> {
+        match ty {
+            Some(ty) => self.ty(ty),
+            None => Ok(quote!(())),
+        }
+    }
+
+    fn is_bytes(&self, ty: &Type) -> bool {
+        let Type::Id(id) = ty else {
+            return false;
+        };
+        let id = self.target(*id);
+        if self.mapped(id).is_some() {
+            return false;
+        }
+        match &self.resolve.types[id].kind {
+            TypeDefKind::List(Type::U8) => true,
+            TypeDefKind::Option(inner) if self.resolve.types[id].name.is_none() => {
+                matches!(inner, Type::Id(inner) if matches!(
+                    self.resolve.types[self.target(*inner)].kind,
+                    TypeDefKind::List(Type::U8)
+                ) && self.mapped(self.target(*inner)).is_none())
+            }
+            _ => false,
+        }
+    }
+
+    fn bytes_attribute(&self, ty: &Type) -> TokenStream {
+        match self.is_bytes(ty) {
+            true => quote!(#[serde(with = "::serde_bytes")]),
+            false => TokenStream::new(),
+        }
+    }
+
+    fn copyable(&self, ty: &Type) -> bool {
+        match ty {
+            Type::String => false,
+            Type::Id(id) => {
+                let id = self.target(*id);
+                let def = &self.resolve.types[id];
+                if self.mapped(id).is_some() {
+                    return def
+                        .name
+                        .as_ref()
+                        .is_some_and(|name| self.options.copy.contains(name));
+                }
+                match &def.kind {
+                    TypeDefKind::Enum(_) | TypeDefKind::Flags(_) => true,
+                    TypeDefKind::Record(record) => {
+                        record.fields.iter().all(|field| self.copyable(&field.ty))
+                    }
+                    TypeDefKind::Variant(variant) => variant
+                        .cases
+                        .iter()
+                        .all(|case| case.ty.as_ref().is_none_or(|ty| self.copyable(ty))),
+                    TypeDefKind::Tuple(tuple) => tuple.types.iter().all(|ty| self.copyable(ty)),
+                    TypeDefKind::Option(inner) | TypeDefKind::Type(inner) => self.copyable(inner),
+                    _ => false,
+                }
+            }
+            _ => true,
+        }
+    }
+
+    fn derives(&self, id: TypeId) -> TokenStream {
+        match self.copyable(&Type::Id(id)) {
+            true => quote! {
+                #[derive(
+                    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd,
+                    ::serde::Serialize, ::serde::Deserialize,
+                )]
+            },
+            false => quote! {
+                #[derive(Clone, Debug, Eq, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+            },
+        }
+    }
+
+    fn types_of(
+        &self,
+        interface: InterfaceId,
+        defined: &mut BTreeSet<InterfaceId>,
+        out: &mut TokenStream,
+    ) -> Result<(), String> {
+        if !defined.insert(interface) {
+            return Ok(());
+        }
+        let mut items = TokenStream::new();
+        let owned = self.resolve.interfaces[interface].types.clone();
+        for (name, id) in owned {
+            let def = &self.resolve.types[id];
+            if let TypeDefKind::Type(Type::Id(target)) = def.kind
+                && let TypeOwner::Interface(other) = self.resolve.types[target].owner
+                && other != interface
+            {
+                self.types_of(other, defined, out)?;
+                continue;
+            }
+            if self.options.with.contains_key(&name) {
+                continue;
+            }
+            let ident = camel(&name);
+            let derives = self.derives(id);
+            items.extend(match &def.kind {
+                TypeDefKind::Record(record) => {
+                    let fields = record
+                        .fields
+                        .iter()
+                        .map(|field| {
+                            let name = snake(&field.name);
+                            let ty = self.ty(&field.ty)?;
+                            let bytes = self.bytes_attribute(&field.ty);
+                            Ok(quote! { #bytes pub #name: #ty, })
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    quote! { #derives pub struct #ident { #(#fields)* } }
+                }
+                TypeDefKind::Variant(variant) => {
+                    let cases = variant
+                        .cases
+                        .iter()
+                        .map(|case| {
+                            let name = camel(&case.name);
+                            Ok(match &case.ty {
+                                Some(ty) => {
+                                    let bytes = self.bytes_attribute(ty);
+                                    let ty = self.ty(ty)?;
+                                    quote! { #name(#bytes #ty), }
+                                }
+                                None => quote! { #name, },
+                            })
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    quote! { #derives pub enum #ident { #(#cases)* } }
+                }
+                TypeDefKind::Enum(cases) => {
+                    let cases = cases.cases.iter().map(|case| camel(&case.name));
+                    quote! { #derives pub enum #ident { #(#cases,)* } }
+                }
+                TypeDefKind::Flags(flags) => {
+                    if flags.flags.len() > 32 {
+                        return Err(format!("{name} has more than 32 flags"));
+                    }
+                    let constants = flags.flags.iter().enumerate().map(|(index, flag)| {
+                        let flag = shouty(&flag.name);
+                        let bit = 1u32 << index;
+                        quote! { pub const #flag: Self = Self(#bit); }
+                    });
+                    quote! {
+                        #derives
+                        pub struct #ident(u32);
+
+                        impl #ident {
+                            #(#constants)*
+
+                            pub const fn empty() -> Self {
+                                Self(0)
+                            }
+
+                            pub const fn contains(self, other: Self) -> bool {
+                                self.0 & other.0 == other.0
+                            }
+                        }
+
+                        impl ::core::ops::BitOr for #ident {
+                            type Output = Self;
+
+                            fn bitor(self, other: Self) -> Self {
+                                Self(self.0 | other.0)
+                            }
+                        }
+                    }
+                }
+                TypeDefKind::Resource => TokenStream::new(),
+                TypeDefKind::Type(_)
+                | TypeDefKind::Option(_)
+                | TypeDefKind::Result(_)
+                | TypeDefKind::List(_)
+                | TypeDefKind::Tuple(_) => {
+                    let ty = self.anonymous(&def.kind)?;
+                    quote! { pub type #ident = #ty; }
+                }
+                other => return Err(format!("{name}: {other:?} is not supported over be-ops")),
+            });
+        }
+        let module = self.module_name(interface);
+        out.extend(quote! {
+            pub mod #module {
+                #items
+            }
+        });
+        Ok(())
+    }
+
+    fn anonymous(&self, kind: &TypeDefKind) -> Result<TokenStream, String> {
+        match kind {
+            TypeDefKind::Type(ty) => self.ty(ty),
+            TypeDefKind::Option(inner) => {
+                let inner = self.ty(inner)?;
+                Ok(quote!(::core::option::Option<#inner>))
+            }
+            TypeDefKind::Result(result) => {
+                let ok = self.optional(result.ok.as_ref())?;
+                let err = self.optional(result.err.as_ref())?;
+                Ok(quote!(::core::result::Result<#ok, #err>))
+            }
+            TypeDefKind::List(inner) => {
+                let inner = self.ty(inner)?;
+                Ok(quote!(::std::vec::Vec<#inner>))
+            }
+            TypeDefKind::Tuple(tuple) => {
+                let types = tuple
+                    .types
+                    .iter()
+                    .map(|ty| self.ty(ty))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(quote!((#(#types,)*)))
+            }
+            other => Err(format!("{other:?} is not supported here")),
+        }
+    }
+
+    fn register(&mut self, interface: InterfaceId) -> Result<(), String> {
+        let id = self
+            .resolve
+            .id_of(interface)
+            .ok_or("an interface of the world has no name")?;
+        for key in self.resolve.interfaces[interface].functions.keys() {
+            let full = format!("{id}#{key}");
+            if let Some(other) = self.methods.insert(fnv(&full), full.clone()) {
+                return Err(format!("{full} and {other} hash to the same method id"));
+            }
+        }
+        Ok(())
+    }
+
+    fn methods(&self, interface: InterfaceId) -> Result<Vec<Method<'_>>, String> {
+        let id = self
+            .resolve
+            .id_of(interface)
+            .ok_or("an interface of the world has no name")?;
+        let module = self.module_name(interface).to_string();
+        let mut methods = Vec::new();
+        let interface = &self.resolve.interfaces[interface];
+        for (key, function) in &interface.functions {
+            let full = format!("{id}#{key}");
+            let skip = matches!(
+                function.kind,
+                FunctionKind::Method(_) | FunctionKind::AsyncMethod(_)
+            ) as usize;
+            let params = function
+                .params
+                .iter()
+                .skip(skip)
+                .map(|param| (snake(&param.name), param.ty))
+                .collect();
+            let stream = match function.result {
+                Some(Type::Id(result)) => match &self.resolve.types[result].kind {
+                    TypeDefKind::Stream(item) => Some(*item),
+                    TypeDefKind::Future(_) => {
+                        return Err(format!("{full}: future<T> is not supported yet"));
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            let result = match function.kind {
+                FunctionKind::Constructor(_) => None,
+                _ => function.result,
+            };
+            let shape = match (stream, function.kind.is_async(), result) {
+                (Some(item), false, _) => Shape::Stream(item),
+                (Some(_), true, _) => {
+                    return Err(format!("{full}: a stream is returned by a plain func"));
+                }
+                (None, true, result) => Shape::Call(result),
+                (None, false, None) => Shape::Notify,
+                (None, false, Some(result)) => Shape::Call(Some(result)),
+            };
+            if matches!(
+                function.kind,
+                FunctionKind::Static(_) | FunctionKind::AsyncStatic(_)
+            ) {
+                return Err(format!("{full}: static resource functions are not supported"));
+            }
+            let local = function.item_name().to_owned();
+            let prefix = match function.kind.resource() {
+                Some(resource) => format!(
+                    "{}_",
+                    self.resolve.types[resource]
+                        .name
+                        .as_deref()
+                        .unwrap_or("resource")
+                ),
+                None => String::new(),
+            };
+            let local = match function.kind {
+                FunctionKind::Constructor(_) => format!("{prefix}new"),
+                _ => format!("{prefix}{local}"),
+            };
+            methods.push(Method {
+                function,
+                name: full,
+                constant: shouty(&format!("{module}_{local}")),
+                args: camel(&format!("{module}_{local}_args")),
+                params,
+                shape,
+            });
+        }
+        Ok(methods)
+    }
+
+    fn args(&self, _module: &Ident, methods: &[Method<'_>]) -> TokenStream {
+        let mut out = TokenStream::new();
+        for method in methods {
+            let constant = &method.constant;
+            let name = &method.name;
+            let args = &method.args;
+            let fields = method.params.iter().map(|(name, ty)| {
+                let bytes = self.bytes_attribute(ty);
+                let ty = self.ty(ty).unwrap_or_else(|error| {
+                    syn::Error::new(Span::call_site(), error).to_compile_error()
+                });
+                quote! { #bytes pub #name: #ty, }
+            });
+            out.extend(quote! {
+                pub const #constant: ::be_ops::MethodId = ::be_ops::method_id(#name);
+
+                #[derive(::serde::Serialize, ::serde::Deserialize)]
+                pub struct #args { #(#fields)* }
+            });
+        }
+        out
+    }
+
+    fn params(&self, method: &Method<'_>) -> Result<Vec<TokenStream>, String> {
+        method
+            .params
+            .iter()
+            .map(|(name, ty)| {
+                let ty = self.ty(ty)?;
+                Ok(quote!(#name: #ty))
+            })
+            .collect()
+    }
+
+    fn construct(method: &Method<'_>) -> TokenStream {
+        let args = &method.args;
+        let names = method.params.iter().map(|(name, _)| name);
+        quote!(crate::__args::#args { #(#names),* })
+    }
+
+    fn guest_import(&self, _module: &Ident, methods: &[Method<'_>]) -> Result<TokenStream, String> {
+        let mut out = TokenStream::new();
+        for method in methods {
+            if method.function.kind.resource().is_some() {
+                return Err(format!("{}: imported resources are not supported", method.name));
+            }
+            let name = snake(method.function.item_name());
+            let params = self.params(method)?;
+            let constant = &method.constant;
+            let args = Self::construct(method);
+            out.extend(match &method.shape {
+                Shape::Notify => quote! {
+                    pub fn #name(#(#params),*) {
+                        ::be_ops::guest::notify(crate::__args::#constant, &#args)
+                    }
+                },
+                Shape::Call(result) => {
+                    let result = self.optional(result.as_ref())?;
+                    quote! {
+                        pub fn #name(#(#params),*) -> ::be_ops::guest::Pending<#result> {
+                            ::be_ops::guest::call(crate::__args::#constant, &#args)
+                        }
+                    }
+                }
+                Shape::Stream(item) => {
+                    let item = self.optional(item.as_ref())?;
+                    quote! {
+                        pub fn #name(#(#params),*) -> ::be_ops::guest::Stream<#item> {
+                            ::be_ops::guest::stream(crate::__args::#constant, &#args)
+                        }
+                    }
+                }
+            });
+        }
+        Ok(out)
+    }
+
+    fn embed_import(&self, _module: &Ident, methods: &[Method<'_>]) -> TokenStream {
+        let mut cases = Vec::new();
+        let mut arms = Vec::new();
+        for method in methods {
+            let case = camel(method.function.item_name());
+            let constant = &method.constant;
+            let args = &method.args;
+            let fields: Vec<TokenStream> = method
+                .params
+                .iter()
+                .map(|(name, ty)| {
+                    let ty = self.ty(ty).unwrap_or_else(|error| {
+                        syn::Error::new(Span::call_site(), error).to_compile_error()
+                    });
+                    quote!(#name: #ty)
+                })
+                .collect();
+            let names: Vec<&Ident> = method.params.iter().map(|(name, _)| name).collect();
+            let (field, value, notify) = match &method.shape {
+                Shape::Notify => (None, None, true),
+                Shape::Call(result) => {
+                    let result = self.optional(result.as_ref()).unwrap_or_else(|error| {
+                        syn::Error::new(Span::call_site(), error).to_compile_error()
+                    });
+                    (
+                        Some(quote!(reply: ::be_ops::Reply<#result>)),
+                        Some(quote!(reply: ::be_ops::Reply::new(op))),
+                        false,
+                    )
+                }
+                Shape::Stream(item) => {
+                    let item = self.optional(item.as_ref()).unwrap_or_else(|error| {
+                        syn::Error::new(Span::call_site(), error).to_compile_error()
+                    });
+                    (
+                        Some(quote!(stream: ::be_ops::Producer<#item>)),
+                        Some(quote!(stream: ::be_ops::Producer::new(op))),
+                        false,
+                    )
+                }
+            };
+            let field = field.into_iter();
+            let value = value.into_iter();
+            cases.push(quote! { #case { #(#field,)* #(#fields,)* } });
+            let complete = match notify {
+                true => quote! {
+                    connection.complete(op, ::be_ops::Outcome::returned(&()));
+                },
+                false => TokenStream::new(),
+            };
+            arms.push(quote! {
+                crate::__args::#constant => {
+                    match ::be_ops::decode::<crate::__args::#args>(&started.args) {
+                        ::core::option::Option::Some(crate::__args::#args { #(#names),* }) => {
+                            #complete
+                            Call::#case { #(#value,)* #(#names,)* }
+                        }
+                        ::core::option::Option::None => {
+                            connection.complete(
+                                op,
+                                ::be_ops::Outcome::Err(::be_ops::OpError::Unsupported),
+                            );
+                            return ::core::option::Option::None;
+                        }
+                    }
+                }
+            });
+        }
+        quote! {
+            #[derive(Debug)]
+            pub enum Call {
+                #(#cases,)*
+            }
+
+            impl Call {
+                pub fn accept(
+                    connection: &mut ::be_ops::Connection,
+                    started: ::be_ops::Started,
+                ) -> ::core::option::Option<Self> {
+                    let op = started.op;
+                    ::core::option::Option::Some(match started.method {
+                        #(#arms)*
+                        _ => {
+                            connection.complete(
+                                op,
+                                ::be_ops::Outcome::Err(::be_ops::OpError::Unsupported),
+                            );
+                            return ::core::option::Option::None;
+                        }
+                    })
+                }
+            }
+        }
+    }
+
+    fn resources(&self, interface: InterfaceId) -> Vec<(TypeId, String)> {
+        self.resolve.interfaces[interface]
+            .types
+            .iter()
+            .filter(|(_, id)| matches!(self.resolve.types[**id].kind, TypeDefKind::Resource))
+            .map(|(name, id)| (*id, name.clone()))
+            .collect()
+    }
+
+    fn result_of(&self, method: &Method<'_>) -> Result<TokenStream, String> {
+        match &method.shape {
+            Shape::Notify => Ok(quote!(())),
+            Shape::Call(result) => self.optional(result.as_ref()),
+            Shape::Stream(_) => Err(format!("{}: exported streams are not supported", method.name)),
+        }
+    }
+
+    fn guest_export(
+        &self,
+        interface: InterfaceId,
+        _module: &Ident,
+        methods: &[Method<'_>],
+    ) -> Result<TokenStream, String> {
+        let resources = self.resources(interface);
+        let mut guest_items = Vec::new();
+        let mut resource_traits = BTreeMap::<TypeId, Vec<TokenStream>>::new();
+        let mut arms = Vec::new();
+        for (id, name) in &resources {
+            let associated = camel(name);
+            let bound = format_ident!("Guest{}", camel(name));
+            guest_items.push(quote! { type #associated: #bound; });
+            resource_traits.entry(*id).or_default();
+        }
+        for method in methods {
+            let params = self.params(method)?;
+            let names: Vec<&Ident> = method.params.iter().map(|(name, _)| name).collect();
+            let constant = &method.constant;
+            let args = &method.args;
+            let result = self.result_of(method)?;
+            let asynchronous = method.function.kind.is_async();
+            let signature_result = match (asynchronous, &method.shape) {
+                (true, _) => quote!(-> impl ::core::future::Future<Output = #result> + 'static),
+                (false, Shape::Notify) => TokenStream::new(),
+                (false, _) => quote!(-> #result),
+            };
+            let notify = matches!(method.shape, Shape::Notify);
+            let serve = |call: TokenStream| match asynchronous {
+                false if notify => quote! {
+                    #call;
+                    ::be_ops::guest::Serve::Done(::be_ops::Outcome::returned(&()))
+                },
+                true => quote! {
+                    let future = #call;
+                    ::be_ops::guest::Serve::Later(::std::boxed::Box::pin(async move {
+                        ::be_ops::Outcome::returned(&future.await)
+                    }))
+                },
+                false => quote! {
+                    ::be_ops::guest::Serve::Done(::be_ops::Outcome::returned(&#call))
+                },
+            };
+            let decode = |body: TokenStream| {
+                quote! {
+                    crate::__args::#constant => ::core::option::Option::Some(
+                        match ::be_ops::decode::<crate::__args::#args>(&started.args) {
+                            ::core::option::Option::Some(crate::__args::#args { #(#names),* }) => {
+                                #body
+                            }
+                            ::core::option::Option::None => ::be_ops::guest::Serve::Done(
+                                ::be_ops::Outcome::Err(::be_ops::OpError::Unsupported),
+                            ),
+                        },
+                    ),
+                }
+            };
+            match method.function.kind {
+                FunctionKind::Freestanding | FunctionKind::AsyncFreestanding => {
+                    let name = snake(method.function.item_name());
+                    guest_items.push(quote! { fn #name(&self, #(#params),*) #signature_result; });
+                    arms.push(decode(serve(quote!(guest.#name(#(#names),*)))));
+                }
+                FunctionKind::Constructor(resource) => {
+                    let resource_name = self.resolve.types[resource]
+                        .name
+                        .clone()
+                        .unwrap_or_default();
+                    let associated = camel(&resource_name);
+                    let name = format_ident!("new_{}", resource_name.to_snake_case());
+                    guest_items.push(quote! {
+                        fn #name(&self, resource: ::be_ops::OpId, #(#params),*) -> Self::#associated;
+                    });
+                    let bound = format_ident!("Guest{}", camel(&resource_name));
+                    arms.push(decode(quote! {
+                        let instance = ::std::rc::Rc::new(guest.#name(started.op, #(#names),*));
+                        let closing = ::std::rc::Rc::clone(&instance);
+                        ::be_ops::guest::Serve::Resource {
+                            instance,
+                            on_drop: ::std::boxed::Box::new(move || {
+                                ::std::boxed::Box::pin(#bound::on_drop(&*closing))
+                            }),
+                        }
+                    }));
+                }
+                FunctionKind::Method(resource) | FunctionKind::AsyncMethod(resource) => {
+                    let resource_name = self.resolve.types[resource]
+                        .name
+                        .clone()
+                        .unwrap_or_default();
+                    let associated = camel(&resource_name);
+                    let name = snake(method.function.item_name());
+                    resource_traits
+                        .entry(resource)
+                        .or_default()
+                        .push(quote! { fn #name(&self, #(#params),*) #signature_result; });
+                    let call = serve(quote!(this.#name(#(#names),*)));
+                    arms.push(decode(quote! {
+                        match resources.get::<G::#associated>(started.parent) {
+                            ::core::option::Option::Some(this) => { #call }
+                            ::core::option::Option::None => ::be_ops::guest::Serve::Done(
+                                ::be_ops::Outcome::Err(::be_ops::OpError::Canceled),
+                            ),
+                        }
+                    }));
+                }
+                FunctionKind::Static(_) | FunctionKind::AsyncStatic(_) => {
+                    return Err(format!("{}: static functions are not supported", method.name));
+                }
+            }
+        }
+        let traits = resource_traits.into_iter().map(|(id, items)| {
+            let name = self.resolve.types[id].name.clone().unwrap_or_default();
+            let bound = format_ident!("Guest{}", camel(&name));
+            quote! {
+                pub trait #bound: 'static {
+                    #(#items)*
+
+                    fn on_drop(&self) -> impl ::core::future::Future<Output = ()> + 'static;
+                }
+            }
+        });
+        Ok(quote! {
+            pub trait Guest: 'static {
+                #(#guest_items)*
+            }
+
+            #(#traits)*
+
+            pub fn dispatch<G: Guest>(
+                guest: &::std::rc::Rc<G>,
+                resources: &::be_ops::guest::Resources<'_>,
+                started: ::be_ops::Started,
+            ) -> ::core::option::Option<::be_ops::guest::Serve> {
+                let _ = (guest, resources);
+                match started.method {
+                    #(#arms)*
+                    _ => ::core::option::Option::None,
+                }
+            }
+        })
+    }
+
+    fn host_returns(method: &Method<'_>, result: &TokenStream) -> (TokenStream, TokenStream) {
+        match method.shape {
+            Shape::Notify => (TokenStream::new(), quote!(let _ = op;)),
+            _ => (
+                quote!(-> ::be_ops::Ticket<#result>),
+                quote!(::be_ops::Ticket::new(op)),
+            ),
+        }
+    }
+
+    fn embed_export(
+        &self,
+        interface: InterfaceId,
+        _module: &Ident,
+        methods: &[Method<'_>],
+    ) -> Result<TokenStream, String> {
+        let mut free = Vec::new();
+        let mut impls = BTreeMap::<TypeId, Vec<TokenStream>>::new();
+        for (id, _) in self.resources(interface) {
+            impls.entry(id).or_default();
+        }
+        for method in methods {
+            let params = self.params(method)?;
+            let constant = &method.constant;
+            let args = Self::construct(method);
+            let result = self.result_of(method)?;
+            match method.function.kind {
+                FunctionKind::Freestanding | FunctionKind::AsyncFreestanding => {
+                    let name = snake(method.function.item_name());
+                    let (returns, wrap) = Self::host_returns(method, &result);
+                    free.push(quote! {
+                        pub fn #name(
+                            connection: &mut ::be_ops::Connection,
+                            #(#params),*
+                        ) #returns {
+                            let op = connection.start(
+                                ::core::option::Option::None,
+                                crate::__args::#constant,
+                                ::be_ops::encode(&#args),
+                            );
+                            #wrap
+                        }
+                    });
+                }
+                FunctionKind::Constructor(resource) => {
+                    impls.entry(resource).or_default().push(quote! {
+                        pub fn new(connection: &mut ::be_ops::Connection, #(#params),*) -> Self {
+                            Self(connection.start(
+                                ::core::option::Option::None,
+                                crate::__args::#constant,
+                                ::be_ops::encode(&#args),
+                            ))
+                        }
+                    });
+                }
+                FunctionKind::Method(resource) | FunctionKind::AsyncMethod(resource) => {
+                    let name = snake(method.function.item_name());
+                    let (returns, wrap) = Self::host_returns(method, &result);
+                    impls.entry(resource).or_default().push(quote! {
+                        pub fn #name(
+                            self,
+                            connection: &mut ::be_ops::Connection,
+                            #(#params),*
+                        ) #returns {
+                            let op = connection.start(
+                                ::core::option::Option::Some(self.0),
+                                crate::__args::#constant,
+                                ::be_ops::encode(&#args),
+                            );
+                            #wrap
+                        }
+                    });
+                }
+                FunctionKind::Static(_) | FunctionKind::AsyncStatic(_) => {
+                    return Err(format!("{}: static functions are not supported", method.name));
+                }
+            }
+        }
+        let resources = impls.into_iter().map(|(id, items)| {
+            let name = camel(&self.resolve.types[id].name.clone().unwrap_or_default());
+            quote! {
+                #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+                pub struct #name(::be_ops::OpId);
+
+                impl #name {
+                    #(#items)*
+
+                    pub fn from_op(op: ::be_ops::OpId) -> Self {
+                        Self(op)
+                    }
+
+                    pub fn op(self) -> ::be_ops::OpId {
+                        self.0
+                    }
+
+                    pub fn resource_drop(self, connection: &mut ::be_ops::Connection) {
+                        connection.cancel(self.0);
+                    }
+                }
+            }
+        });
+        Ok(quote! {
+            #(#free)*
+
+            #(#resources)*
+        })
+    }
+}

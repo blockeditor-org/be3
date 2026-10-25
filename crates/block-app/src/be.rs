@@ -280,7 +280,7 @@ fn api_child(change: be_block::ChildChange) -> block_type_api::ChildChange {
         be_block::ChildChange::Add(child) => block_type_api::ChildChange::Add(child),
         be_block::ChildChange::Delete(child) => block_type_api::ChildChange::Delete(child),
         be_block::ChildChange::Replace { old, new } => {
-            block_type_api::ChildChange::Replace { old, new }
+            block_type_api::ChildChange::Replace(block_type_api::ReplaceChild { old, new })
         }
     }
 }
