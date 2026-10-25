@@ -55,13 +55,4 @@ fn block_commands_round_trip() {
             message
         );
     }
-    let message = Message::Editor(EditorMessage::DragBlock {
-        instance: EditorInstanceId(6),
-        block_id: [1; 16],
-        block_type: [2; 16],
-    });
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
 }

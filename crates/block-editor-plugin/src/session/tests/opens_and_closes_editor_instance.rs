@@ -17,13 +17,12 @@ fn opens_and_closes_editor_instance() {
         editable: true,
     }));
     assert_eq!(opened, Vec::new());
-    let resized = session.receive(Message::Editor(block_plugin_api::EditorMessage::Resized {
-        instance,
-        size: block_plugin_api::Size {
-            width: 10.0,
-            height: 10.0,
+    let resized = session.receive(Message::Editor(
+        block_plugin_api::EditorMessage::ShowPanel {
+            instance,
+            panel: block_plugin_api::HostPanel::Plugins,
         },
-    }));
+    ));
     assert_eq!(resized, Vec::new());
     assert_eq!(session.state(), State::Running);
     let closed = session.receive(Message::Editor(block_plugin_api::EditorMessage::Close {
@@ -31,13 +30,12 @@ fn opens_and_closes_editor_instance() {
     }));
     assert_eq!(closed, Vec::new());
     assert_eq!(session.state(), State::Running);
-    let stray = session.receive(Message::Editor(block_plugin_api::EditorMessage::Resized {
-        instance,
-        size: block_plugin_api::Size {
-            width: 10.0,
-            height: 10.0,
+    let stray = session.receive(Message::Editor(
+        block_plugin_api::EditorMessage::ShowPanel {
+            instance,
+            panel: block_plugin_api::HostPanel::Plugins,
         },
-    }));
+    ));
     assert!(matches!(stray.as_slice(), [Message::Error(_)]));
     assert_eq!(session.state(), State::Failed);
 }

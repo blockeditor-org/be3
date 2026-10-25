@@ -88,8 +88,6 @@ impl EditorMessage {
             }
             Self::SeedContent { block_id, .. }
             | Self::ReplaceContent { block_id, .. }
-            | Self::DragBlock { block_id, .. }
-            | Self::DragOver { block_id, .. }
             | Self::OpenArtifact { block_id, .. }
             | Self::Define { block_id, .. }
             | Self::VersionStatus { block_id, .. }
@@ -110,10 +108,6 @@ impl EditorMessage {
             Self::SetAccess { block_id, .. } => existing(block_id),
             Self::OpenBlock { block_id, via, .. } | Self::ShowBlock { block_id, via, .. } => {
                 existing(block_id);
-                via.iter_mut().for_each(existing);
-            }
-            Self::Focused { block_id, via, .. } | Self::FocusChanged { block_id, via, .. } => {
-                block_id.iter_mut().for_each(&mut existing);
                 via.iter_mut().for_each(existing);
             }
             Self::WatchContent { blocks, .. } => {
@@ -289,19 +283,7 @@ impl EditorMessage {
                     | VersionCommand::PushUpstream => {}
                 }
             }
-            Self::EditabilityChanged { .. }
-            | Self::ViewChanged { .. }
-            | Self::ChangeView { .. }
-            | Self::Present { .. }
-            | Self::PresentingChanged { .. }
-            | Self::Resized { .. }
-            | Self::LeaveFrame { .. }
-            | Self::Stopped { .. }
-            | Self::Close { .. }
-            | Self::DragLeft { .. }
-            | Self::FileDrop { .. }
-            | Self::FileDropLeft { .. }
-            | Self::DragAccepted { .. }
+            Self::Close { .. }
             | Self::AudioStatus { .. }
             | Self::PlayAudio { .. }
             | Self::WebViewCommand { .. }
@@ -317,15 +299,7 @@ impl EditorMessage {
             | Self::ArtifactEdited { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactRegenerated { .. }
-            | Self::Presence { .. }
-            | Self::ChildReplaced { .. }
-            | Self::ChildFocused { .. }
-            | Self::CopyText { .. }
-            | Self::CopyImage { .. }
-            | Self::Paste { .. }
-            | Self::AspectRatio { .. }
-            | Self::IntrinsicSize { .. }
-            | Self::Performance { .. } => {}
+            | Self::ChildReplaced { .. } => {}
         }
     }
 }

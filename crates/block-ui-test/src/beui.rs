@@ -468,13 +468,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.show(view, scale, band, rect.min);
         }
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::ViewChanged {
-                instance: INSTANCE,
-                view,
-                scale,
-            },
-        )));
+        self.call(|editor, connection| editor.view_changed(connection, view, scale));
     }
 
     pub fn move_view(&mut self, change: ViewChange) {
@@ -486,15 +480,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::DragOver {
-                instance: INSTANCE,
-                region: self.region(),
-                pos: position,
-                block_id: block_id.into_bytes(),
-                block_type: block_type.into_bytes(),
-                dropped,
-            })));
+        let drag = block_plugin_api::shell_types::DragOver {
+            region: self.region(),
+            pos: position,
+            block_id: block_id.into_bytes(),
+            block_type: block_type.into_bytes(),
+            dropped,
+        };
+        self.call(|editor, connection| editor.drag_over(connection, drag));
     }
 
     pub fn with_size(mut self, size: Vec2) -> Self {
@@ -626,23 +619,16 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::Presence {
-                instance: INSTANCE,
-                visible,
-            })));
+        self.call(|editor, connection| editor.presence(connection, visible));
         self.run();
     }
 
     pub fn resize(&mut self, size: Vec2) {
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::Resized {
-                instance: INSTANCE,
-                size: block_plugin_api::Size {
-                    width: size.x,
-                    height: size.y,
-                },
-            })));
+        let size = block_plugin_api::Size {
+            width: size.x,
+            height: size.y,
+        };
+        self.call(|editor, connection| editor.resized(connection, size));
         self.run();
     }
 
@@ -860,12 +846,14 @@ impl<A: BeuiApp> BeuiTest<A> {
         let rect = self.rect();
         let band = self.band(rect);
         let intrinsic = self.intrinsic;
-        if let Some(message) = self
+        if let Some((view, scale)) = self
             .viewport
             .as_mut()
             .and_then(|viewport| viewport.place(band, rect.min, intrinsic))
         {
-            inbox.push(Inbound::Message(message));
+            inbox.push(
+                self.framed(|editor, connection| editor.view_changed(connection, view, scale)),
+            );
         }
         self.clock += FRAME_INTERVAL;
         if !events.is_empty() {
@@ -918,13 +906,14 @@ impl<A: BeuiApp> BeuiTest<A> {
         let drawn = self
             .frame
             .is_none_or(|frame| frame.chrome == FrameChrome::Drawn);
-        if let Some(viewport) = &mut self.viewport {
-            viewport.settle(&mut self.sent, band, rect.min, intrinsic, drawn);
-            self.inbox.extend(
-                viewport
-                    .place(band, rect.min, intrinsic)
-                    .map(Inbound::Message),
-            );
+        let placed = self.viewport.as_mut().and_then(|viewport| {
+            viewport.settle(&mut self.calls, band, rect.min, intrinsic, drawn);
+            viewport.place(band, rect.min, intrinsic)
+        });
+        if let Some((view, scale)) = placed {
+            let framed =
+                self.framed(|editor, connection| editor.view_changed(connection, view, scale));
+            self.inbox.push(framed);
         }
     }
 
@@ -954,10 +943,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             Message::Editor(message) => {
                 self.store.receive(&message);
                 match &message {
-                    EditorMessage::LeaveFrame { .. } => self.exited = true,
-                    EditorMessage::IntrinsicSize { size, .. } => {
-                        self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
-                    }
                     EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
                     _ => {}
                 }
@@ -969,10 +954,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn call(&mut self, call: impl FnOnce(Editor, &mut Connection)) {
+        let framed = self.framed(call);
+        self.inbox.push(framed);
+    }
+
+    fn framed(&mut self, call: impl FnOnce(Editor, &mut Connection)) -> Inbound {
         let editor = self.editor.expect("the test opened its editor");
         call(editor, &mut self.connection);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        Inbound::Frames(self.connection.take_outbound())
     }
 
     fn hear(&mut self) {
@@ -991,9 +980,17 @@ impl<A: BeuiApp> BeuiTest<A> {
                     called.name
                 );
             };
-            if let ShellCall::Menu { items, .. } = &call {
-                self.menu = MenuEntry::nest(items.clone())
-                    .unwrap_or_else(|error| panic!("the plugin sent a menu it may not: {error}"));
+            match &call {
+                ShellCall::Menu { items, .. } => {
+                    self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
+                        panic!("the plugin sent a menu it may not: {error}")
+                    });
+                }
+                ShellCall::LeaveFrame { .. } => self.exited = true,
+                ShellCall::IntrinsicSize { size, .. } => {
+                    self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
+                }
+                _ => {}
             }
             self.calls.push(call);
         }
@@ -1021,15 +1018,15 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_copied_text(&mut self) -> Vec<String> {
-        self.take_where(|message| match message {
-            EditorMessage::CopyText { text, .. } => Some(text.clone()),
+        self.take_calls(|call| match call {
+            ShellCall::CopyText { text, .. } => Some(text.clone()),
             _ => None,
         })
     }
 
     pub fn take_copied_images(&mut self) -> Vec<Vec<u8>> {
-        self.take_where(|message| match message {
-            EditorMessage::CopyImage { png, .. } => Some(png.clone()),
+        self.take_calls(|call| match call {
+            ShellCall::CopyImage { png, .. } => Some(png.clone()),
             _ => None,
         })
     }
@@ -1158,8 +1155,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
-        self.take_where(|message| match message {
-            EditorMessage::ChangeView { change, .. } => Some(*change),
+        self.take_calls(|call| match call {
+            ShellCall::ChangeView { change, .. } => Some(*change),
             _ => None,
         })
     }
@@ -1283,8 +1280,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_drag_accepted(&mut self) -> Option<bool> {
-        self.take_where(|message| match message {
-            EditorMessage::DragAccepted { accepted, .. } => Some(*accepted),
+        self.take_calls(|call| match call {
+            ShellCall::DragAccepted { accepted, .. } => Some(*accepted),
             _ => None,
         })
         .pop()
@@ -1491,7 +1488,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn pinch(&mut self, pos: Pos2, factor: f32) {
         let anchor = Pos2::ZERO + (pos - self.rect().min);
-        self.sent.push(EditorMessage::ChangeView {
+        self.calls.push(ShellCall::ChangeView {
             instance: INSTANCE,
             change: ViewChange::Zoom {
                 factor,
@@ -1783,7 +1780,12 @@ impl Viewport {
         })
     }
 
-    fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
+    fn place(
+        &mut self,
+        region: Rect,
+        origin: Pos2,
+        intrinsic: Option<Vec2>,
+    ) -> Option<(Rect, f32)> {
         let size = self.content(region, intrinsic) * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
@@ -1792,24 +1794,20 @@ impl Viewport {
             return None;
         }
         self.sent = Some(sent);
-        Some(Message::Editor(EditorMessage::ViewChanged {
-            instance: INSTANCE,
-            view,
-            scale: self.zoom,
-        }))
+        Some(sent)
     }
 
     fn settle(
         &mut self,
-        sent: &mut Vec<EditorMessage>,
+        sent: &mut Vec<ShellCall>,
         region: Rect,
         origin: Pos2,
         intrinsic: Option<Vec2>,
         drawn: bool,
     ) {
         let mut changes = Vec::new();
-        sent.retain(|message| match message {
-            EditorMessage::ChangeView { change, .. } => {
+        sent.retain(|call| match call {
+            ShellCall::ChangeView { change, .. } => {
                 changes.push(*change);
                 false
             }

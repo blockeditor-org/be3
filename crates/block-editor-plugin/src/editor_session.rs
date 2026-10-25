@@ -368,15 +368,9 @@ impl EditorSession {
         let mut messages = Vec::new();
         let instance = self.instance;
         for (group, measurements) in self.host.take_performance() {
-            messages.push(Message::Editor(EditorMessage::Performance {
-                instance,
-                group,
-                measurements,
-            }));
+            shell::performance(instance, group, measurements);
         }
-        for message in self.stopped_messages() {
-            messages.push(Message::Editor(message));
-        }
+        self.report_stopped();
         for command in self.host.take_graph_commands() {
             messages.push(Message::Editor(match command {
                 crate::GraphCommand::Create {
@@ -439,29 +433,23 @@ impl EditorSession {
             }));
         }
         if let Some(accepted) = self.host.take_drag_accepted() {
-            messages.push(Message::Editor(EditorMessage::DragAccepted {
-                instance,
-                accepted,
-            }));
+            shell::drag_accepted(instance, accepted);
         }
         let intrinsic = self.app.intrinsic_size();
         if intrinsic != self.intrinsic {
             self.intrinsic = intrinsic;
-            messages.push(Message::Editor(EditorMessage::IntrinsicSize {
+            shell::intrinsic_size(
                 instance,
-                size: intrinsic.map(|size| Size {
+                intrinsic.map(|size| Size {
                     width: size.x,
                     height: size.y,
                 }),
-            }));
+            );
         }
         let aspect_ratio = self.app.aspect_ratio();
         if aspect_ratio != self.aspect_ratio {
             self.aspect_ratio = aspect_ratio;
-            messages.push(Message::Editor(EditorMessage::AspectRatio {
-                instance,
-                ratio: aspect_ratio,
-            }));
+            shell::aspect_ratio(instance, aspect_ratio);
         }
         if let Some(ready) = self.host.take_creation_ready() {
             messages.push(Message::Editor(EditorMessage::CreationReady {
@@ -505,7 +493,7 @@ impl EditorSession {
             }
         }
         if self.host.take_leave_frame() {
-            messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
+            shell::leave_frame(instance);
         }
         for action in self.host.take_bar_actions() {
             shell::run_bar_action(instance, action);
@@ -565,13 +553,13 @@ impl EditorSession {
             }));
         }
         for text in self.host.take_copied_text() {
-            messages.push(Message::Editor(EditorMessage::CopyText { instance, text }));
+            shell::copy_text(instance, text);
         }
         for png in self.host.take_copied_images() {
-            messages.push(Message::Editor(EditorMessage::CopyImage { instance, png }));
+            shell::copy_image(instance, png);
         }
         if self.host.take_paste_request() {
-            messages.push(Message::Editor(EditorMessage::Paste { instance }));
+            shell::paste(instance);
         }
         for (request_id, replaced) in std::mem::take(&mut self.replacements) {
             messages.push(Message::Editor(EditorMessage::ChildReplaced {
@@ -631,16 +619,10 @@ impl EditorSession {
             }));
         }
         for presenting in self.host.take_present_requests() {
-            messages.push(Message::Editor(EditorMessage::Present {
-                instance,
-                presenting,
-            }));
+            shell::present(instance, presenting);
         }
         for change in self.host.take_view_changes() {
-            messages.push(Message::Editor(EditorMessage::ChangeView {
-                instance,
-                change,
-            }));
+            shell::change_view(instance, change);
         }
         for open in self.host.take_opens() {
             messages.push(Message::Editor(EditorMessage::OpenBlock {
@@ -652,11 +634,7 @@ impl EditorSession {
             }));
         }
         for (block_id, block_type) in self.host.take_block_drags() {
-            messages.push(Message::Editor(EditorMessage::DragBlock {
-                instance,
-                block_id: block_id.into_bytes(),
-                block_type: block_type.into_bytes(),
-            }));
+            shell::drag_block(instance, block_id.into_bytes(), block_type.into_bytes());
         }
         for (block_id, command) in self.host.take_block_commands() {
             messages.push(Message::Editor(EditorMessage::BlockCommand {
@@ -673,12 +651,14 @@ impl EditorSession {
             }));
         }
         if let Some(focused) = self.host.take_focus_report() {
-            messages.push(Message::Editor(EditorMessage::Focused {
+            shell::focused(
                 instance,
-                block_id: focused.block_id.map(Uuid::into_bytes),
-                block_type: focused.block_type.into_bytes(),
-                via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
-            }));
+                block_plugin_api::shell_types::Focus {
+                    block_id: focused.block_id.map(Uuid::into_bytes),
+                    block_type: focused.block_type.into_bytes(),
+                    via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
+                },
+            );
         }
         if let Some(blocks) = self.host.take_artifact_watch() {
             messages.push(Message::Editor(EditorMessage::WatchArtifacts {
@@ -724,21 +704,14 @@ impl EditorSession {
         windows
     }
 
-    fn stopped_messages(&mut self) -> Vec<EditorMessage> {
-        let instance = self.instance;
-        let mut messages = Vec::new();
+    fn report_stopped(&mut self) {
         for (region, state) in &mut self.regions {
             if let Some(stopped) = &state.stopped
                 && !std::mem::replace(&mut state.reported_stopped, true)
             {
-                messages.push(EditorMessage::Stopped {
-                    instance,
-                    region: *region,
-                    stopped: stopped.clone(),
-                });
+                shell::region_stopped(self.instance, *region, stopped.clone());
             }
         }
-        messages
     }
 
     fn frame_reports(&mut self) -> Vec<FrameReport> {

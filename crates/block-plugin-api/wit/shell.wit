@@ -3,7 +3,8 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use be3:ui/types@0.1.0.{key-chord};
+    use types.{editor-region, uuid};
+    use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
     /// A child an editor placed, numbered by the editor.
     record child-id {
@@ -58,12 +59,82 @@ interface shell-types {
         depth: u32,
         kind: menu-item-kind,
     }
+
+    /// A block dragged over the editor, where, and whether it was dropped there.
+    record drag-over {
+        region: editor-region,
+        pos: pos2,
+        block-id: uuid,
+        block-type: uuid,
+        dropped: bool,
+    }
+
+    record dropped-file {
+        name: string,
+        data: list<u8>,
+    }
+
+    /// Files dragged over the editor from outside the app.
+    record file-drop {
+        region: editor-region,
+        pos: pos2,
+        files: list<dropped-file>,
+        dropped: bool,
+    }
+
+    variant performance-measurement {
+        duration(performance-duration),
+        count(performance-count),
+    }
+
+    record performance-duration {
+        name: string,
+        nanoseconds: u64,
+    }
+
+    record performance-count {
+        name: string,
+        count: u64,
+    }
+
+    variant stopped {
+        closed,
+        failed(string),
+    }
+
+    variant fit-area {
+        %world,
+        centre,
+        rect(rect),
+    }
+
+    record view-zoom {
+        factor: f32,
+        anchor: option<pos2>,
+    }
+
+    variant view-change {
+        pan(vec2),
+        zoom(view-zoom),
+        keep-fitted(option<fit-area>),
+        fit,
+        pan-drag,
+    }
+
+    /// The block an editor's focus is in, and the blocks it is shown through.
+    record focus {
+        block-id: option<uuid>,
+        block-type: uuid,
+        via: list<uuid>,
+    }
 }
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{editor-instance-id};
-    use shell-types.{bar-action, child-id, menu-item};
+    use types.{editor-instance-id, editor-region, size, uuid};
+    use shell-types.{
+        bar-action, child-id, focus, menu-item, performance-measurement, stopped, view-change,
+    };
 
     /// The editor's menu, replacing the one it sent before.
     menu: func(instance: editor-instance-id, items: list<menu-item>);
@@ -73,4 +144,46 @@ interface shell {
 
     /// The editor picked a command of a child's menu.
     child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string);
+
+    copy-text: func(instance: editor-instance-id, text: string);
+
+    /// A PNG for the clipboard.
+    copy-image: func(instance: editor-instance-id, png: list<u8>);
+
+    /// The editor asks for the clipboard; it arrives as input.
+    paste: func(instance: editor-instance-id);
+
+    /// The editor starts dragging a block out of itself.
+    drag-block: func(instance: editor-instance-id, block-id: uuid, block-type: uuid);
+
+    /// Whether the editor takes the block dragged over it.
+    drag-accepted: func(instance: editor-instance-id, accepted: bool);
+
+    /// The width over height the editor keeps, when it keeps one.
+    aspect-ratio: func(instance: editor-instance-id, ratio: option<f32>);
+
+    /// The size the editor's content wants, when it has one.
+    intrinsic-size: func(instance: editor-instance-id, size: option<size>);
+
+    /// Measurements for the host's performance panel.
+    performance: func(
+        instance: editor-instance-id,
+        group: string,
+        measurements: list<performance-measurement>,
+    );
+
+    /// The editor asks to leave the frame it is shown in.
+    leave-frame: func(instance: editor-instance-id);
+
+    /// The editor stopped drawing a region, closed or failed.
+    region-stopped: func(instance: editor-instance-id, region: editor-region, stopped: stopped);
+
+    /// The editor asks to be presented full screen, or no longer.
+    present: func(instance: editor-instance-id, presenting: bool);
+
+    /// The editor asks the host to move its view.
+    change-view: func(instance: editor-instance-id, change: view-change);
+
+    /// Where the editor's focus is now.
+    focused: func(instance: editor-instance-id, focus: focus);
 }

@@ -14,7 +14,6 @@ use uuid::Uuid;
 use crate::{
     Waker,
     editor_session::{EditorSession, Open},
-    host::BlockDrag,
 };
 
 pub(crate) type Opener = Open;
@@ -261,11 +260,6 @@ impl Screens {
                     data.clone(),
                 );
             }
-            Message::Editor(EditorMessage::Resized { instance, size }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.resized(geometry::vec2(size.width, size.height));
-                }
-            }
             Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_audio(status.clone());
@@ -284,11 +278,6 @@ impl Screens {
             Message::Editor(EditorMessage::CommitCreation { instance }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
                     session.commit_creation();
-                }
-            }
-            Message::Editor(EditorMessage::EditabilityChanged { instance, editable }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_editable(*editable);
                 }
             }
             Message::Editor(EditorMessage::Replica {
@@ -327,20 +316,6 @@ impl Screens {
                     return false;
                 };
                 session.fail_blocks(crate::BlockQuery::decode(*query), error.clone());
-            }
-            Message::Editor(EditorMessage::FocusChanged {
-                instance,
-                block_id,
-                block_type,
-                via,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_focused_block(crate::host::FocusedBlock {
-                        block_id: block_id.map(Uuid::from_bytes),
-                        block_type: Uuid::from_bytes(*block_type),
-                        via: via.iter().copied().map(Uuid::from_bytes).collect(),
-                    });
-                }
             }
             Message::Editor(EditorMessage::ShowBlock {
                 instance,
@@ -396,26 +371,6 @@ impl Screens {
                     );
                 }
             }
-            Message::Editor(EditorMessage::PresentingChanged {
-                instance,
-                presenting,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_presenting(*presenting);
-                }
-            }
-            Message::Editor(EditorMessage::Presence { instance, visible }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.presence_visible(*visible);
-                }
-            }
-            Message::Editor(EditorMessage::ChildFocused {
-                instance, child, ..
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.child_focused(*child);
-                }
-            }
             Message::Editor(EditorMessage::ReplaceChild {
                 instance,
                 request_id,
@@ -428,15 +383,6 @@ impl Screens {
                         Uuid::from_bytes(*old),
                         Uuid::from_bytes(*new),
                     );
-                }
-            }
-            Message::Editor(EditorMessage::ViewChanged {
-                instance,
-                view,
-                scale,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_view(*view, *scale);
                 }
             }
             Message::Editor(EditorMessage::PickRequested {
@@ -525,26 +471,6 @@ impl Screens {
                     session.set_block_types(Rc::clone(&self.block_types));
                 }
             }
-            Message::Editor(EditorMessage::DragOver {
-                instance,
-                region,
-                pos,
-                block_id,
-                block_type,
-                dropped,
-            }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_drag(Some((
-                        *region,
-                        BlockDrag {
-                            position: *pos,
-                            block_id: Uuid::from_bytes(*block_id),
-                            block_type: Uuid::from_bytes(*block_type),
-                            dropped: *dropped,
-                        },
-                    )));
-                }
-            }
             Message::Editor(EditorMessage::Replied {
                 instance,
                 request_id,
@@ -575,40 +501,6 @@ impl Screens {
                     if let Some(session) = self.sessions.get(&instance) {
                         session.set_child_statuses(statuses);
                     }
-                }
-            }
-            Message::Editor(EditorMessage::DragLeft { instance }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_drag(None);
-                }
-            }
-            Message::Editor(EditorMessage::FileDrop {
-                instance,
-                region,
-                pos,
-                files,
-                dropped,
-            }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_files(Some((
-                        *region,
-                        crate::host::FileDrop {
-                            position: *pos,
-                            files: files
-                                .iter()
-                                .map(|file| crate::PickedFile {
-                                    name: file.name.clone(),
-                                    data: file.data.clone(),
-                                })
-                                .collect(),
-                            dropped: *dropped,
-                        },
-                    )));
-                }
-            }
-            Message::Editor(EditorMessage::FileDropLeft { instance }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_files(None);
                 }
             }
             _ => return false,

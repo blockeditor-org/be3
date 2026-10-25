@@ -13,7 +13,7 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
             false,
         )
     };
-    let xs = |messages: &[Message]| -> Vec<f32> {
+    let xs = |messages: &[Outbound]| -> Vec<f32> {
         input_events(messages)
             .iter()
             .filter_map(|event| match event {

@@ -160,6 +160,21 @@ impl Wire {
                 child,
                 action,
             } => editor.child_bar(connection, region, child, action),
+            EditorCall::ChildFocused { region, child } => {
+                editor.child_focused(connection, region, child)
+            }
+            EditorCall::SetEditable(editable) => editor.set_editable(connection, editable),
+            EditorCall::ViewChanged { view, scale } => editor.view_changed(connection, view, scale),
+            EditorCall::PresentingChanged(presenting) => {
+                editor.presenting_changed(connection, presenting)
+            }
+            EditorCall::Presence(visible) => editor.presence(connection, visible),
+            EditorCall::FocusChanged(focus) => editor.focus_changed(connection, focus),
+            EditorCall::Resized(size) => editor.resized(connection, size),
+            EditorCall::DragOver(drag) => editor.drag_over(connection, drag),
+            EditorCall::DragLeft => editor.drag_left(connection),
+            EditorCall::FileDrop(drop) => editor.file_drop(connection, drop),
+            EditorCall::FileDropLeft => editor.file_drop_left(connection),
         }
     }
 

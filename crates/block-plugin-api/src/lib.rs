@@ -29,7 +29,7 @@ be_ops_bindgen::generate!({
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
-        "undo-operation-command",
+        "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
     ],
     own_debug: ["font-face"],
 });
@@ -41,7 +41,8 @@ pub use blocks::{
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use shell_types::{
-    BarAction, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin,
+    BarAction, DroppedFile, FitArea, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind,
+    MenuPin, PerformanceMeasurement, Stopped, ViewChange,
 };
 pub use types::{
     EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
@@ -852,10 +853,6 @@ pub enum EditorMessage {
         client_id: [u8; 16],
         editable: bool,
     },
-    EditabilityChanged {
-        instance: EditorInstanceId,
-        editable: bool,
-    },
 
     WatchContent {
         instance: EditorInstanceId,
@@ -874,35 +871,6 @@ pub enum EditorMessage {
         content_type: [u8; 16],
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
-    },
-    ViewChanged {
-        instance: EditorInstanceId,
-        view: Rect,
-        scale: f32,
-    },
-    ChangeView {
-        instance: EditorInstanceId,
-        change: ViewChange,
-    },
-    Present {
-        instance: EditorInstanceId,
-        presenting: bool,
-    },
-    PresentingChanged {
-        instance: EditorInstanceId,
-        presenting: bool,
-    },
-    Resized {
-        instance: EditorInstanceId,
-        size: Size,
-    },
-    LeaveFrame {
-        instance: EditorInstanceId,
-    },
-    Stopped {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        stopped: Stopped,
     },
     Close {
         instance: EditorInstanceId,
@@ -961,61 +929,12 @@ pub enum EditorMessage {
         access: AccessLevel,
     },
 
-    Focused {
-        instance: EditorInstanceId,
-        block_id: Option<[u8; 16]>,
-        block_type: [u8; 16],
-        via: Vec<[u8; 16]>,
-    },
-
-    FocusChanged {
-        instance: EditorInstanceId,
-        block_id: Option<[u8; 16]>,
-        block_type: [u8; 16],
-        via: Vec<[u8; 16]>,
-    },
-
-    DragBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-    },
-
     BlockCommand {
         instance: EditorInstanceId,
         block_id: [u8; 16],
         command: BlockCommand,
     },
 
-    DragOver {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        pos: Pos2,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        dropped: bool,
-    },
-
-    DragLeft {
-        instance: EditorInstanceId,
-    },
-
-    FileDrop {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        pos: Pos2,
-        files: Vec<DroppedFile>,
-        dropped: bool,
-    },
-
-    FileDropLeft {
-        instance: EditorInstanceId,
-    },
-
-    DragAccepted {
-        instance: EditorInstanceId,
-        accepted: bool,
-    },
     Request {
         instance: EditorInstanceId,
         request_id: u64,
@@ -1141,10 +1060,6 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         head: Result<Option<StoredHead>, String>,
     },
-    Presence {
-        instance: EditorInstanceId,
-        visible: bool,
-    },
     ReplaceChild {
         instance: EditorInstanceId,
         request_id: u64,
@@ -1156,36 +1071,7 @@ pub enum EditorMessage {
         request_id: u64,
         replaced: bool,
     },
-    ChildFocused {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        child: ChildId,
-    },
-    CopyText {
-        instance: EditorInstanceId,
-        text: String,
-    },
-    CopyImage {
-        instance: EditorInstanceId,
-        png: Vec<u8>,
-    },
-    Paste {
-        instance: EditorInstanceId,
-    },
-    AspectRatio {
-        instance: EditorInstanceId,
-        ratio: Option<f32>,
-    },
 
-    IntrinsicSize {
-        instance: EditorInstanceId,
-        size: Option<Size>,
-    },
-    Performance {
-        instance: EditorInstanceId,
-        group: String,
-        measurements: Vec<PerformanceMeasurement>,
-    },
     WatchBlocks {
         instance: EditorInstanceId,
         queries: Vec<BlockQuery>,
@@ -1241,17 +1127,9 @@ impl EditorMessage {
     pub fn instance(&self) -> EditorInstanceId {
         match self {
             Self::Open { instance, .. }
-            | Self::EditabilityChanged { instance, .. }
             | Self::WatchContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
-            | Self::ViewChanged { instance, .. }
-            | Self::ChangeView { instance, .. }
-            | Self::Present { instance, .. }
-            | Self::PresentingChanged { instance, .. }
-            | Self::Resized { instance, .. }
-            | Self::LeaveFrame { instance, .. }
-            | Self::Stopped { instance, .. }
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
@@ -1261,15 +1139,7 @@ impl EditorMessage {
             | Self::HostAction { instance, .. }
             | Self::ShowDialog { instance, .. }
             | Self::SetAccess { instance, .. }
-            | Self::Focused { instance, .. }
-            | Self::FocusChanged { instance, .. }
-            | Self::DragBlock { instance, .. }
             | Self::BlockCommand { instance, .. }
-            | Self::DragOver { instance, .. }
-            | Self::DragLeft { instance, .. }
-            | Self::FileDrop { instance, .. }
-            | Self::FileDropLeft { instance, .. }
-            | Self::DragAccepted { instance, .. }
             | Self::Request { instance, .. }
             | Self::Replied { instance, .. }
             | Self::PlayAudio { instance, .. }
@@ -1295,16 +1165,8 @@ impl EditorMessage {
             | Self::HistoryStates { instance, .. }
             | Self::WatchHeads { instance, .. }
             | Self::Head { instance, .. }
-            | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
-            | Self::ChildFocused { instance, .. }
-            | Self::CopyText { instance, .. }
-            | Self::CopyImage { instance, .. }
-            | Self::Paste { instance }
-            | Self::AspectRatio { instance, .. }
-            | Self::IntrinsicSize { instance, .. }
-            | Self::Performance { instance, .. }
             | Self::WatchBlocks { instance, .. }
             | Self::Blocks { instance, .. }
             | Self::BlocksFailed { instance, .. }
@@ -1316,12 +1178,6 @@ impl EditorMessage {
             | Self::Replica { instance, .. } => *instance,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PerformanceMeasurement {
-    Duration { name: String, nanoseconds: u64 },
-    Count { name: String, count: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1508,13 +1364,6 @@ pub enum WebViewEvent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DroppedFile {
-    pub name: String,
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AudioCommand {
     Load(AudioSource),
     Toggle,
@@ -1639,19 +1488,9 @@ impl EditorMessage {
             | Self::OpenCreation { .. }
             | Self::OpenArtifact { .. }
             | Self::Close { .. }
-            | Self::Resized { .. }
-            | Self::EditabilityChanged { .. }
-            | Self::ViewChanged { .. }
-            | Self::PresentingChanged { .. }
-            | Self::Presence { .. }
-            | Self::FocusChanged { .. }
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
             | Self::ShowDialog { .. }
-            | Self::DragOver { .. }
-            | Self::DragLeft { .. }
-            | Self::FileDrop { .. }
-            | Self::FileDropLeft { .. }
             | Self::Replied { .. }
             | Self::AudioStatus { .. }
             | Self::WebViewEvent { .. }
@@ -1663,22 +1502,14 @@ impl EditorMessage {
             | Self::HistoryStates { .. }
             | Self::Head { .. }
             | Self::ReplaceChild { .. }
-            | Self::ChildFocused { .. }
             | Self::Blocks { .. }
             | Self::BlocksFailed { .. }
             | Self::HostValue { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
-            | Self::Focused { .. }
-            | Self::DragBlock { .. }
             | Self::BlockCommand { .. }
-            | Self::DragAccepted { .. }
             | Self::Request { .. }
             | Self::PlayAudio { .. }
-            | Self::ChangeView { .. }
-            | Self::Present { .. }
-            | Self::LeaveFrame { .. }
-            | Self::Stopped { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
@@ -1692,15 +1523,9 @@ impl EditorMessage {
             | Self::WatchHistory { .. }
             | Self::WatchHeads { .. }
             | Self::ChildReplaced { .. }
-            | Self::CopyText { .. }
-            | Self::CopyImage { .. }
-            | Self::Paste { .. }
-            | Self::AspectRatio { .. }
-            | Self::IntrinsicSize { .. }
             | Self::WatchContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
-            | Self::Performance { .. }
             | Self::WatchBlocks { .. }
             | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
@@ -1722,22 +1547,6 @@ impl fmt::Debug for FontFace {
             .field("bytes", &self.data.len())
             .finish()
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum ViewChange {
-    Pan(Vec2),
-    Zoom { factor: f32, anchor: Option<Pos2> },
-    KeepFitted(Option<FitArea>),
-    Fit,
-    PanDrag,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum FitArea {
-    World,
-    Centre,
-    Rect(Rect),
 }
 
 impl FitArea {
@@ -1769,12 +1578,6 @@ pub struct ProtocolError {
     pub request_id: Option<u64>,
     pub code: ErrorCode,
     pub message: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Stopped {
-    Closed,
-    Failed(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2010,18 +1813,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             BlockPick::Failed(error) => string(error),
             BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
         },
-        EditorMessage::Performance {
-            group,
-            measurements,
-            ..
-        } => {
-            string(group)?;
-            collection(measurements.len())?;
-            strings(measurements.iter().map(|measurement| match measurement {
-                PerformanceMeasurement::Duration { name, .. }
-                | PerformanceMeasurement::Count { name, .. } => name,
-            }))
-        }
         EditorMessage::CreationBlock { outcome, .. } => match outcome {
             CreationOutcome::Created(_) => Ok(()),
             CreationOutcome::Failed(message) => string(message),
@@ -2039,21 +1830,10 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         | EditorMessage::ArtifactSettings { data, .. }
         | EditorMessage::ArtifactEdited { data, .. }
         | EditorMessage::RegenerateArtifact { data, .. } => descriptor(data),
-        EditorMessage::FileDrop { files, .. } => {
-            collection(files.len())?;
-            for file in files {
-                string(&file.name)?;
-                blob(&file.data)?;
-            }
-            Ok(())
-        }
         EditorMessage::AudioStatus { status, .. } => match &status.error {
             Some(message) => string(message),
             None => Ok(()),
         },
-        EditorMessage::Focused { via, .. } | EditorMessage::FocusChanged { via, .. } => {
-            collection(via.len())
-        }
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
@@ -2147,8 +1927,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::CopyImage { png, .. } => blob(png),
         EditorMessage::WatchHostValue { key, .. } => string(key),
         EditorMessage::HostValue {
             key, value: bytes, ..

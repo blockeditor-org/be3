@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use block_plugin_api::{
     BarAction, ChildId, EditorInstanceId, EditorMessage, EditorRegion, FrameCommit, Message,
-    Opening, ScreenRequest, ScreenSet, encode_frame,
+    Opening, Rect, ScreenRequest, ScreenSet, Size, encode_frame,
     guest::{
         exports::plugin::{Guest, GuestEditor},
         host,
@@ -11,6 +11,7 @@ use block_plugin_api::{
         OpId,
         guest::{Executor, Sender, oneshot, spawn},
     },
+    shell_types::{DragOver, FileDrop, Focus},
 };
 
 use crate::editor_session::EditorSession;
@@ -201,6 +202,93 @@ impl GuestEditor for OpenEditor {
         self.wire.call(self.instance, move |session| {
             session.child_bar_action(child, action)
         });
+    }
+
+    fn child_focused(&self, _region: EditorRegion, child: ChildId) {
+        self.wire
+            .call(self.instance, move |session| session.child_focused(child));
+    }
+
+    fn set_editable(&self, editable: bool) {
+        self.wire
+            .call(self.instance, move |session| session.set_editable(editable));
+    }
+
+    fn view_changed(&self, view: Rect, scale: f32) {
+        self.wire
+            .call(self.instance, move |session| session.set_view(view, scale));
+    }
+
+    fn presenting_changed(&self, presenting: bool) {
+        self.wire.call(self.instance, move |session| {
+            session.set_presenting(presenting)
+        });
+    }
+
+    fn presence(&self, visible: bool) {
+        self.wire.call(self.instance, move |session| {
+            session.presence_visible(visible)
+        });
+    }
+
+    fn focus_changed(&self, focus: Focus) {
+        self.wire.call(self.instance, move |session| {
+            session.set_focused_block(crate::host::FocusedBlock {
+                block_id: focus.block_id.map(uuid::Uuid::from_bytes),
+                block_type: uuid::Uuid::from_bytes(focus.block_type),
+                via: focus.via.into_iter().map(uuid::Uuid::from_bytes).collect(),
+            })
+        });
+    }
+
+    fn resized(&self, size: Size) {
+        self.wire.call(self.instance, move |session| {
+            session.resized(geometry::vec2(size.width, size.height))
+        });
+    }
+
+    fn drag_over(&self, drag: DragOver) {
+        self.wire.call(self.instance, move |session| {
+            session.set_drag(Some((
+                drag.region,
+                crate::host::BlockDrag {
+                    position: drag.pos,
+                    block_id: uuid::Uuid::from_bytes(drag.block_id),
+                    block_type: uuid::Uuid::from_bytes(drag.block_type),
+                    dropped: drag.dropped,
+                },
+            )))
+        });
+    }
+
+    fn drag_left(&self) {
+        self.wire
+            .call(self.instance, move |session| session.set_drag(None));
+    }
+
+    fn file_drop(&self, drop: FileDrop) {
+        self.wire.call(self.instance, move |session| {
+            session.set_files(Some((
+                drop.region,
+                crate::host::FileDrop {
+                    position: drop.pos,
+                    files: drop
+                        .files
+                        .into_iter()
+                        .map(|file| crate::PickedFile {
+                            name: file.name,
+                            data: file.data,
+                        })
+                        .collect(),
+                    dropped: drop.dropped,
+                },
+            )))
+        });
+    }
+
+    fn file_drop_left(&self) {
+        self.wire
+            .call(self.instance, move |session| session.set_files(None));
     }
 
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {

@@ -21,7 +21,7 @@ use super::{
     BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
-    calls::{self, EditorCall, Outbound},
+    calls::{self, BlockIds, EditorCall, Outbound},
     heads::{HeadReads, Heads},
     host_values::{Published, Watched},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
@@ -620,7 +620,7 @@ impl NextScreens {
 }
 
 impl Instances {
-    pub(super) fn translate(&self, message: &mut Message, inward: bool) {
+    pub(super) fn translate(&self, message: &mut impl BlockIds, inward: bool) {
         let mut carries = false;
         message.visit_block_ids(&mut |_, _, _| carries = true);
         if !carries {
@@ -1136,7 +1136,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         input: &beui::ForwardedInput,
-    ) -> (Vec<Message>, bool) {
+    ) -> (Vec<Outbound>, bool) {
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1165,7 +1165,12 @@ impl Instances {
             .report
             .as_ref()
             .is_some_and(|report| report.every_sample);
-        let mut messages = screen.input.forward(input, id, zoom, every_sample);
+        let mut messages: Vec<Outbound> = screen
+            .input
+            .forward(input, id, zoom, every_sample)
+            .into_iter()
+            .map(Outbound::from)
+            .collect();
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));
         let revoked =
@@ -1246,7 +1251,7 @@ impl Instances {
         self.entries.get(&instance)?.reported_size
     }
 
-    pub(super) fn resized(&mut self, instance: EditorInstanceId, size: Vec2) -> Vec<Message> {
+    pub(super) fn resized(&mut self, instance: EditorInstanceId, size: Vec2) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
@@ -1256,13 +1261,13 @@ impl Instances {
             return Vec::new();
         }
         entry.reported_size = Some(size);
-        vec![Message::Editor(EditorMessage::Resized {
+        vec![Outbound::Editor(
             instance,
-            size: Size {
+            EditorCall::Resized(Size {
                 width: size.x,
                 height: size.y,
-            },
-        })]
+            }),
+        )]
     }
 
     pub(super) fn take_bar_actions(
@@ -1535,10 +1540,7 @@ impl Instances {
                 let visible = presence_wanted(instance);
                 if visible && entry.presence_visible != Some(true) {
                     entry.presence_visible = Some(true);
-                    opened.push(Outbound::from(Message::Editor(EditorMessage::Presence {
-                        instance,
-                        visible,
-                    })));
+                    opened.push(Outbound::Editor(instance, EditorCall::Presence(visible)));
                 }
             }
             opened.append(&mut entry.deferred);
@@ -1555,9 +1557,10 @@ impl Instances {
                 let editable = crate::be::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
-                    opened.push(Outbound::from(Message::Editor(
-                        EditorMessage::EditabilityChanged { instance, editable },
-                    )));
+                    opened.push(Outbound::Editor(
+                        instance,
+                        EditorCall::SetEditable(editable),
+                    ));
                 }
             }
             opened.extend(
@@ -1597,24 +1600,22 @@ impl Instances {
                     }
                     None => (None, [0; 16]),
                 };
-                opened.push(Outbound::from(Message::Editor(
-                    EditorMessage::FocusChanged {
-                        instance,
+                opened.push(Outbound::Editor(
+                    instance,
+                    EditorCall::FocusChanged(block_plugin_api::shell_types::Focus {
                         block_id,
                         block_type,
                         via: focus.via.iter().map(|id| id.into_bytes()).collect(),
-                    },
-                )));
+                    }),
+                ));
             }
             let presenting = entry.presenting || entry.presented;
             if presenting != entry.reported_presenting {
                 entry.reported_presenting = presenting;
-                opened.push(Outbound::from(Message::Editor(
-                    EditorMessage::PresentingChanged {
-                        instance,
-                        presenting,
-                    },
-                )));
+                opened.push(Outbound::Editor(
+                    instance,
+                    EditorCall::PresentingChanged(presenting),
+                ));
             }
             let mut reported = Vec::new();
             entry.host_values.report(
@@ -1627,13 +1628,13 @@ impl Instances {
             if entry.view != entry.reported_view {
                 entry.reported_view = entry.view;
                 if let Some(view) = entry.view {
-                    opened.push(Outbound::from(Message::Editor(
-                        EditorMessage::ViewChanged {
-                            instance,
+                    opened.push(Outbound::Editor(
+                        instance,
+                        EditorCall::ViewChanged {
                             view: view.rect,
                             scale: view.scale,
                         },
-                    )));
+                    ));
                 }
             }
             screens.extend(regions);
@@ -1645,9 +1646,8 @@ impl Instances {
         let configures = messages.iter().any(|message| {
             matches!(
                 message,
-                Outbound::Message(
-                    Message::Screens(_) | Message::Editor(EditorMessage::ViewChanged { .. })
-                )
+                Outbound::Message(Message::Screens(_))
+                    | Outbound::Editor(_, EditorCall::ViewChanged { .. })
             )
         });
         if !configures {
@@ -1656,22 +1656,15 @@ impl Instances {
         self.serial += 1;
         let serial = self.serial;
         for message in messages {
-            let Outbound::Message(message) = message else {
-                continue;
-            };
             match message {
-                Message::Screens(set) => {
+                Outbound::Message(Message::Screens(set)) => {
                     for request in &set.screens {
                         if let Some(screen) = self.screen_by_id(request.screen) {
                             screen.scales.push(serial, request.metrics.scale_factor);
                         }
                     }
                 }
-                Message::Editor(EditorMessage::ViewChanged {
-                    instance,
-                    view,
-                    scale,
-                }) => {
+                Outbound::Editor(instance, EditorCall::ViewChanged { view, scale }) => {
                     if let Some(entry) = self.entries.get_mut(instance) {
                         entry.views.push(
                             serial,
@@ -1762,7 +1755,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         event: Option<BlockDragEvent>,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
@@ -1775,19 +1768,21 @@ impl Instances {
                 if event.dropped {
                     entry.drag_accepted = false;
                 }
-                vec![Message::Editor(EditorMessage::DragOver {
+                vec![Outbound::Editor(
                     instance,
-                    region,
-                    pos: event.position,
-                    block_id: event.drag.block_id.into_bytes(),
-                    block_type: event.drag.block_type.into_bytes(),
-                    dropped: event.dropped,
-                })]
+                    EditorCall::DragOver(block_plugin_api::shell_types::DragOver {
+                        region,
+                        pos: event.position,
+                        block_id: event.drag.block_id.into_bytes(),
+                        block_type: event.drag.block_type.into_bytes(),
+                        dropped: event.dropped,
+                    }),
+                )]
             }
             None if screen.dragging => {
                 screen.dragging = false;
                 entry.drag_accepted = false;
-                vec![Message::Editor(EditorMessage::DragLeft { instance })]
+                vec![Outbound::Editor(instance, EditorCall::DragLeft)]
             }
             None => Vec::new(),
         }
@@ -1798,7 +1793,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         event: Option<FileDropEvent>,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
@@ -1808,17 +1803,19 @@ impl Instances {
         match event {
             Some(event) => {
                 screen.file_dropping = !event.dropped;
-                vec![Message::Editor(EditorMessage::FileDrop {
+                vec![Outbound::Editor(
                     instance,
-                    region,
-                    pos: event.position,
-                    files: event.files,
-                    dropped: event.dropped,
-                })]
+                    EditorCall::FileDrop(block_plugin_api::shell_types::FileDrop {
+                        region,
+                        pos: event.position,
+                        files: event.files,
+                        dropped: event.dropped,
+                    }),
+                )]
             }
             None if screen.file_dropping => {
                 screen.file_dropping = false;
-                vec![Message::Editor(EditorMessage::FileDropLeft { instance })]
+                vec![Outbound::Editor(instance, EditorCall::FileDropLeft)]
             }
             None => Vec::new(),
         }
@@ -2440,7 +2437,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         visible: bool,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
@@ -2448,10 +2445,7 @@ impl Instances {
             return Vec::new();
         }
         entry.presence_visible = Some(visible);
-        vec![Message::Editor(EditorMessage::Presence {
-            instance,
-            visible,
-        })]
+        vec![Outbound::Editor(instance, EditorCall::Presence(visible))]
     }
 
     pub(super) fn child_bar_actions(
@@ -2798,8 +2792,21 @@ impl Instances {
             .get(&instance)
             .and_then(|entry| entry.role.block())
             .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
-        if preview && !matches!(&call, ShellCall::Menu { .. }) {
+        if preview
+            && !matches!(
+                &call,
+                ShellCall::Menu { .. }
+                    | ShellCall::Focused { .. }
+                    | ShellCall::ChangeView { .. }
+                    | ShellCall::RegionStopped { .. }
+                    | ShellCall::CopyText { .. }
+                    | ShellCall::CopyImage { .. }
+            )
+        {
             return false;
+        }
+        if let ShellCall::Present { presenting, .. } = call {
+            return self.set_presenting(instance, presenting);
         }
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
@@ -2811,6 +2818,83 @@ impl Instances {
                 Err(_) => return false,
             },
             ShellCall::ChildMenuPick { child, id, .. } => entry.child_menu_picks.push((child, id)),
+            ShellCall::CopyText { text, .. } => {
+                host::copy_text(text);
+                return false;
+            }
+            ShellCall::CopyImage { png, .. } => {
+                host::copy_image(png);
+                return false;
+            }
+            ShellCall::Paste { .. } => {
+                host::request_paste();
+                return false;
+            }
+            ShellCall::DragBlock {
+                block_id,
+                block_type,
+                ..
+            } => entry.block_drags.push(BlockDrag {
+                block_id: Uuid::from_bytes(block_id),
+                block_type: Uuid::from_bytes(block_type),
+            }),
+            ShellCall::DragAccepted { accepted, .. } => {
+                let changed = entry.drag_accepted != accepted;
+                entry.drag_accepted = accepted;
+                return changed;
+            }
+            ShellCall::AspectRatio { ratio, .. } => {
+                let changed = entry.aspect_ratio != ratio;
+                entry.aspect_ratio = ratio;
+                return changed;
+            }
+            ShellCall::IntrinsicSize { size, .. } => {
+                let intrinsic = size.map(|size| vec2(size.width, size.height));
+                let changed = entry.intrinsic != intrinsic;
+                entry.intrinsic = intrinsic;
+                return changed;
+            }
+            ShellCall::Performance {
+                group,
+                measurements,
+                ..
+            } => {
+                for measurement in measurements {
+                    match measurement {
+                        PerformanceMeasurement::Duration { name, nanoseconds } => {
+                            performance::record_group_duration(
+                                &group,
+                                &name,
+                                std::time::Duration::from_nanos(nanoseconds),
+                            );
+                        }
+                        PerformanceMeasurement::Count { name, count } => {
+                            performance::record_group_count(&group, &name, count);
+                        }
+                    }
+                }
+                return false;
+            }
+            ShellCall::LeaveFrame { .. } => entry.leaving = true,
+            ShellCall::RegionStopped {
+                region, stopped, ..
+            } => {
+                let Some(screen) = entry.screens.get_mut(&region) else {
+                    return false;
+                };
+                screen.stopped = Some(stopped);
+            }
+            ShellCall::ChangeView { change, .. } => entry.view_changes.push(change),
+            ShellCall::Focused { focus, .. } => entry.focus_reports.push(Focus {
+                block: focus.block_id.map(|block_id| {
+                    (
+                        Uuid::from_bytes(block_id),
+                        Uuid::from_bytes(focus.block_type),
+                    )
+                }),
+                via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
+            }),
+            ShellCall::Present { .. } => return false,
         }
         true
     }
@@ -2831,11 +2915,6 @@ impl Instances {
                     | EditorMessage::WatchHeads { .. }
                     | EditorMessage::WatchArtifacts { .. }
                     | EditorMessage::WatchHostValue { .. }
-                    | EditorMessage::Focused { .. }
-                    | EditorMessage::ChangeView { .. }
-                    | EditorMessage::Stopped { .. }
-                    | EditorMessage::CopyText { .. }
-                    | EditorMessage::CopyImage { .. }
                     | EditorMessage::WebViewCommand { .. }
                     | EditorMessage::Request {
                         request: HostRequest::Fetch(_)
@@ -2920,22 +2999,6 @@ impl Instances {
                 });
                 true
             }
-            EditorMessage::Focused {
-                instance,
-                block_id,
-                block_type,
-                via,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.focus_reports.push(Focus {
-                    block: block_id
-                        .map(|block_id| (Uuid::from_bytes(block_id), Uuid::from_bytes(block_type))),
-                    via: via.into_iter().map(Uuid::from_bytes).collect(),
-                });
-                true
-            }
             EditorMessage::WatchHistory { instance, blocks } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -2959,20 +3022,6 @@ impl Instances {
                     return false;
                 };
                 entry.artifact_watch = Some(blocks.into_iter().map(Uuid::from_bytes).collect());
-                true
-            }
-            EditorMessage::DragBlock {
-                instance,
-                block_id,
-                block_type,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.block_drags.push(BlockDrag {
-                    block_id: Uuid::from_bytes(block_id),
-                    block_type: Uuid::from_bytes(block_type),
-                });
                 true
             }
             EditorMessage::BlockCommand {
@@ -3118,14 +3167,6 @@ impl Instances {
                 }
                 false
             }
-            EditorMessage::DragAccepted { instance, accepted } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let changed = entry.drag_accepted != accepted;
-                entry.drag_accepted = accepted;
-                changed
-            }
             EditorMessage::PlayAudio { instance, command } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -3173,27 +3214,6 @@ impl Instances {
                     CreationOutcome::Failed(error) => Err(error),
                 });
                 true
-            }
-            EditorMessage::CopyText { instance, text } => {
-                if !self.entries.contains_key(&instance) {
-                    return false;
-                }
-                host::copy_text(text);
-                false
-            }
-            EditorMessage::CopyImage { instance, png } => {
-                if !self.entries.contains_key(&instance) {
-                    return false;
-                }
-                host::copy_image(png);
-                false
-            }
-            EditorMessage::Paste { instance } => {
-                if !self.entries.contains_key(&instance) {
-                    return false;
-                }
-                host::request_paste();
-                false
             }
             EditorMessage::ChildReplaced {
                 instance,
@@ -3245,77 +3265,6 @@ impl Instances {
                     RegenerationOutcome::Failed(error) => Err(error),
                 });
                 true
-            }
-            EditorMessage::Present {
-                instance,
-                presenting,
-            } => self.set_presenting(instance, presenting),
-            EditorMessage::Stopped {
-                instance,
-                region,
-                stopped,
-            } => {
-                let Some(screen) = self
-                    .entries
-                    .get_mut(&instance)
-                    .and_then(|entry| entry.screens.get_mut(&region))
-                else {
-                    return false;
-                };
-                screen.stopped = Some(stopped);
-                true
-            }
-            EditorMessage::LeaveFrame { instance } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.leaving = true;
-                true
-            }
-            EditorMessage::ChangeView { instance, change } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.view_changes.push(change);
-                true
-            }
-            EditorMessage::AspectRatio { instance, ratio } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let changed = entry.aspect_ratio != ratio;
-                entry.aspect_ratio = ratio;
-                changed
-            }
-            EditorMessage::IntrinsicSize { instance, size } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let intrinsic = size.map(|size| vec2(size.width, size.height));
-                let changed = entry.intrinsic != intrinsic;
-                entry.intrinsic = intrinsic;
-                changed
-            }
-            EditorMessage::Performance {
-                instance,
-                group,
-                measurements,
-            } if self.entries.contains_key(&instance) => {
-                for measurement in measurements {
-                    match measurement {
-                        PerformanceMeasurement::Duration { name, nanoseconds } => {
-                            performance::record_group_duration(
-                                &group,
-                                &name,
-                                std::time::Duration::from_nanos(nanoseconds),
-                            );
-                        }
-                        PerformanceMeasurement::Count { name, count } => {
-                            performance::record_group_count(&group, &name, count);
-                        }
-                    }
-                }
-                false
             }
             _ => false,
         }

@@ -77,11 +77,15 @@ fn moved(pos: Pos2) -> beui::Forwarded {
     }
 }
 
-fn input_events(messages: &[Message]) -> Vec<Input> {
+fn input_events<T: Clone + Into<Outbound>>(messages: &[T]) -> Vec<Input> {
     messages
         .iter()
+        .cloned()
+        .map(Into::into)
         .filter_map(|message| match message {
-            Message::Input(batch) => Some(batch.events.iter().map(|event| event.input.clone())),
+            Outbound::Message(Message::Input(batch)) => {
+                Some(batch.events.into_iter().map(|event| event.input))
+            }
             _ => None,
         })
         .flatten()

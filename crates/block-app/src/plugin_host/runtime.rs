@@ -23,7 +23,7 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
-    calls::{Heard, Outbound},
+    calls::{EditorCall, Heard, Outbound},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
@@ -856,7 +856,8 @@ impl Runtime {
         for answer in answers {
             let mut message = match answer {
                 Answer::Message(message) => message,
-                Answer::Shell(call) => {
+                Answer::Shell(mut call) => {
+                    self.instances.translate(&mut call, true);
                     changed |= self.instances.shell_call(call);
                     continue;
                 }
@@ -944,9 +945,7 @@ impl Runtime {
         self.offer_previews(&messages);
         let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
-            if let Outbound::Message(message) = message {
-                self.instances.translate(message, false);
-            }
+            self.instances.translate(message, false);
         }
         self.queued.extend(self.instances.gate(messages));
         self.deliver();
@@ -1112,11 +1111,10 @@ pub(crate) fn report_child_focus(
     child: block_plugin_api::ChildId,
 ) {
     with(plugin_id, |runtime| {
-        runtime.send(vec![Message::Editor(EditorMessage::ChildFocused {
+        runtime.send(vec![Outbound::Editor(
             instance,
-            region,
-            child,
-        })]);
+            EditorCall::ChildFocused { region, child },
+        )]);
     });
 }
 

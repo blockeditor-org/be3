@@ -1,6 +1,8 @@
 use block_plugin_api::{
-    BarAction, ChildId, EditorInstanceId, EditorMessage, EditorRegion, Message,
+    BarAction, BlockIdRole, ChildId, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect,
+    Size,
     embed::shell::Call as ShellCall,
+    shell_types::{DragOver, FileDrop, Focus},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -17,6 +19,23 @@ pub(super) enum EditorCall {
         child: ChildId,
         action: BarAction,
     },
+    ChildFocused {
+        region: EditorRegion,
+        child: ChildId,
+    },
+    SetEditable(bool),
+    ViewChanged {
+        view: Rect,
+        scale: f32,
+    },
+    PresentingChanged(bool),
+    Presence(bool),
+    FocusChanged(Focus),
+    Resized(Size),
+    DragOver(DragOver),
+    DragLeft,
+    FileDrop(FileDrop),
+    FileDropLeft,
 }
 
 impl From<Message> for Outbound {
@@ -75,6 +94,66 @@ pub(super) fn instance_of(call: &ShellCall) -> EditorInstanceId {
     match call {
         ShellCall::Menu { instance, .. }
         | ShellCall::RunBarAction { instance, .. }
-        | ShellCall::ChildMenuPick { instance, .. } => *instance,
+        | ShellCall::ChildMenuPick { instance, .. }
+        | ShellCall::CopyText { instance, .. }
+        | ShellCall::CopyImage { instance, .. }
+        | ShellCall::Paste { instance }
+        | ShellCall::DragBlock { instance, .. }
+        | ShellCall::DragAccepted { instance, .. }
+        | ShellCall::AspectRatio { instance, .. }
+        | ShellCall::IntrinsicSize { instance, .. }
+        | ShellCall::Performance { instance, .. }
+        | ShellCall::LeaveFrame { instance }
+        | ShellCall::RegionStopped { instance, .. }
+        | ShellCall::Present { instance, .. }
+        | ShellCall::ChangeView { instance, .. }
+        | ShellCall::Focused { instance, .. } => *instance,
+    }
+}
+
+pub(super) type Visit<'a> = dyn FnMut(EditorInstanceId, BlockIdRole, &mut [u8; 16]) + 'a;
+
+pub(super) trait BlockIds {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>);
+}
+
+impl BlockIds for Message {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
+        Message::visit_block_ids(self, visit);
+    }
+}
+
+fn focus_ids(instance: EditorInstanceId, focus: &mut Focus, visit: &mut Visit<'_>) {
+    if let Some(block_id) = &mut focus.block_id {
+        visit(instance, BlockIdRole::Existing, block_id);
+    }
+    for block_id in &mut focus.via {
+        visit(instance, BlockIdRole::Existing, block_id);
+    }
+}
+
+impl BlockIds for Outbound {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
+        match self {
+            Self::Message(message) => message.visit_block_ids(visit),
+            Self::Editor(instance, EditorCall::FocusChanged(focus)) => {
+                focus_ids(*instance, focus, visit);
+            }
+            Self::Editor(instance, EditorCall::DragOver(drag)) => {
+                visit(*instance, BlockIdRole::Existing, &mut drag.block_id);
+            }
+            Self::Editor(..) => {}
+        }
+    }
+}
+
+impl BlockIds for ShellCall {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
+        let instance = instance_of(self);
+        match self {
+            Self::DragBlock { block_id, .. } => visit(instance, BlockIdRole::Existing, block_id),
+            Self::Focused { focus, .. } => focus_ids(instance, focus, visit),
+            _ => {}
+        }
     }
 }
