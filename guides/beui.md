@@ -2075,8 +2075,10 @@ which asks the host with `WindowRequest::Resize`; either way the dock writes the
 `Resized` reports into the window's rect (less the grips) and keeps each
 `Placed` report's `HostPlacement` in memory, handing it back as
 `WindowPlacement::Host` when the window opens again (after the dock was
-stacked, say). A window opened with no placement kept opens `Beside` the main
-window. Each window holds its own drop target, and drop targets are resolved
+stacked, say). A window opened with no placement kept (floated from a tab's
+menu, or dropped on the main window where no pane takes it) opens `Over` the
+window the dock is in, at the corner it would be drawn at there, grips
+included, so a host can put it where it sits in the dock. Each window holds its own drop target, and drop targets are resolved
 in the window the `DragPoint` names, in that window's coordinates
 (`stacked_at` takes the window), so a tab dragged from one window onto
 another's bar or pane lands there. A tab or pane dropped where no window is (a
@@ -2760,7 +2762,8 @@ placement, size }`, `BeginMove(window)`, `BeginResize(window, WindowEdge)`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
-`Beside(window)`, or `Host(HostPlacement)`: a value only the host
+`Over { window, at }` (its top-left corner at `at` in that window's points, where
+the app would draw it inside that window), or `Host(HostPlacement)`: a value only the host
 understands (a screen position, a 3D pose), which the app stores and hands
 back unchanged. The host answers with `WindowReport`s pushed as
 `Incoming::Window`: `Resized { window, size }` in points, `Placed { window,
@@ -2905,9 +2908,10 @@ all its 3D (`glam`) stays in the crate.
   `Window` is a real window here. `Space::request` handles each of the frame's
   `WindowRequest`s. `Open` adds a panel at the size asked for and reports
   `Resized` and `Placed` the next frame: `Host` decodes the pose (a placement
-  another host wrote opens at the pointer instead), `Beside(id)` puts it right
-  of that panel (and of any panel already there), tops level, `BESIDE_GAP`
-  apart, and `AtPointer` puts the
+  another host wrote opens at the pointer instead), `Over { window, at }` puts
+  its top-left corner on that panel's point `at` (in its points) and
+  `OVER_NEARER` (3 cm) in front of it, facing the same way, a further
+  `OVER_NEARER` nearer for each panel already there, and `AtPointer` puts the
   point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
   in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
   none, turned to face the viewer (yaw only). `Resize` sets the panel's size,

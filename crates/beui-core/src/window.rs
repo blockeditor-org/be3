@@ -3,7 +3,7 @@ pub(crate) mod hosted;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::color::Color32;
-use crate::geometry::Vec2;
+use crate::geometry::{Pos2, Vec2};
 
 pub use ui_types::window::WindowRequests;
 
@@ -151,10 +151,10 @@ impl Default for WindowId {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct HostPlacement(pub String);
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum WindowPlacement {
     AtPointer,
-    Beside(WindowId),
+    Over { window: WindowId, at: Pos2 },
     Host(HostPlacement),
 }
 

@@ -167,7 +167,9 @@ impl Windows {
         let placement = match placement {
             WindowPlacement::Host(placement) => placement.clone(),
             WindowPlacement::AtPointer => HostPlacement("at the pointer".to_owned()),
-            WindowPlacement::Beside(window) => HostPlacement(format!("beside {}", window.raw())),
+            WindowPlacement::Over { window, at } => {
+                HostPlacement(format!("over {} at {} {}", window.raw(), at.x, at.y))
+            }
         };
         self.open.retain(|window| window.id != id);
         self.open.push(HostedWindow {

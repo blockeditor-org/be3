@@ -806,10 +806,21 @@ impl State {
         });
     }
 
-    fn placement(&self, surface: SurfaceId) -> WindowPlacement {
-        self.placements
+    fn placement(&self, surface: SurfaceId, parent: WindowId) -> WindowPlacement {
+        if let Some(placement) = self
+            .placements
             .with(|placements| placements.get(&surface).cloned())
-            .unwrap_or(WindowPlacement::Beside(WindowId::MAIN))
+        {
+            return placement;
+        }
+        let rect = self
+            .state
+            .with(|state| state.window_rect(surface))
+            .unwrap_or(Rect::ZERO);
+        WindowPlacement::Over {
+            window: parent,
+            at: self.rect.get().min + rect.min.to_vec2() - Vec2::splat(HANDLE_REACH),
+        }
     }
 
     fn window_reported(&self, surface: SurfaceId, report: WindowReport) {
@@ -2870,7 +2881,8 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .unwrap_or_default()
     });
     let window_title = create_memo(move || Some(title.get()));
-    let placement = create_memo(move || dock.placement(surface));
+    let parent = use_window().map_or(WindowId::MAIN, |window| window.id);
+    let placement = create_memo(move || dock.placement(surface, parent));
     let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
     let vacant = create_memo(move || contents.with(Vec::is_empty));
     let close = ClickCallback::new(move || {

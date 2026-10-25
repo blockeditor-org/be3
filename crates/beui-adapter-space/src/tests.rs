@@ -24,7 +24,7 @@ mod a_released_panel_turns_to_face_the_viewer;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
 mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
-mod a_window_opened_beside_another_sits_to_its_right;
+mod a_window_opened_over_another_sits_where_that_window_would_show_it_a_little_in_front;
 mod closing_a_window_removes_its_panel;
 mod holding_ctrl_and_shift_steers_the_head;
 mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
@@ -33,7 +33,7 @@ mod motion_a_driver_sends_turns_the_head_while_steering;
 mod moving_a_window_carries_its_panel;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
-mod windows_opened_beside_the_same_one_line_up_to_its_right;
+mod windows_opened_over_the_same_spot_stack_toward_the_viewer;
 
 const PLATFORM: Vec2 = vec2(800.0, 600.0);
 

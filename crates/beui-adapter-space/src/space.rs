@@ -18,7 +18,7 @@ use glam::{Quat, Vec3};
 
 use crate::carry::{Carry, NEAREST};
 use crate::head::{Head, Ray};
-use crate::panel::{Hit, POINTS_PER_METRE, Panel, Pose, pick};
+use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{Compositor, Frame, PanelFrame};
 use crate::resize::Resize;
 
@@ -29,7 +29,7 @@ const FILLED: f32 = 0.8;
 pub const OPEN_DISTANCE: f32 = 1.0;
 pub const OPEN_NEARER: f32 = 0.1;
 pub const OPEN_GRAB: Pos2 = pos2(24.0, 16.0);
-pub const BESIDE_GAP: f32 = 0.05;
+pub const OVER_NEARER: f32 = 0.03;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Cursor {
@@ -601,7 +601,7 @@ impl Space {
         if self.panel(window).is_none() {
             let pose = match placement {
                 WindowPlacement::Host(placement) => Pose::from_placement(placement),
-                WindowPlacement::Beside(other) => self.beside(*other, size),
+                WindowPlacement::Over { window: other, at } => self.over(*other, *at, size),
                 WindowPlacement::AtPointer => None,
             }
             .unwrap_or_else(|| self.at_pointer(size));
@@ -660,34 +660,36 @@ impl Space {
         panel.pose
     }
 
-    fn beside(&self, other: WindowId, size: Vec2) -> Option<Pose> {
+    fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<Pose> {
         let other = self.panel(other)?;
-        let metres = glam::Vec2::new(size.x, size.y) / POINTS_PER_METRE;
+        let mut panel = Panel {
+            window: WindowId::MAIN,
+            pose: other.pose,
+            size,
+        };
+        let corner = other.offset(at);
         let local = |panel: &Panel| {
             other.pose.rotation.inverse() * (panel.pose.position - other.pose.position)
         };
-        let top = other.metres().y / 2.0;
-        let mut left = other.metres().x / 2.0 + BESIDE_GAP;
+        let half = panel.metres() / 2.0;
+        let centre = corner + Vec3::new(half.x, -half.y, 0.0);
+        let mut depth = OVER_NEARER;
         for _ in 0..self.panels.len() {
-            let blocking = self.panels.iter().find(|panel| {
-                let at = local(panel);
-                let half = panel.metres() / 2.0;
-                at.z.abs() < 0.01
-                    && at.x + half.x > left
-                    && at.x - half.x < left + metres.x
-                    && at.y + half.y > top - metres.y
-                    && at.y - half.y < top
+            let stacked = self.panels.iter().any(|placed| {
+                let at = local(placed);
+                let reach = placed.metres() / 2.0 + half;
+                (at.z - depth).abs() < OVER_NEARER / 2.0
+                    && (at.x - centre.x).abs() < reach.x
+                    && (at.y - centre.y).abs() < reach.y
             });
-            let Some(blocking) = blocking else {
+            if !stacked {
                 break;
-            };
-            left = local(blocking).x + blocking.metres().x / 2.0 + BESIDE_GAP;
+            }
+            depth += OVER_NEARER;
         }
-        let shift = Vec3::new(left + metres.x / 2.0, top - metres.y / 2.0, 0.0);
-        Some(Pose {
-            position: other.pose.position + other.pose.rotation * shift,
-            rotation: other.pose.rotation,
-        })
+        panel.pose.position =
+            other.pose.position + other.pose.rotation * (centre + Vec3::Z * depth);
+        Some(panel.pose)
     }
 
     pub fn close(&mut self, window: WindowId) {
