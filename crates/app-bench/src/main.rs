@@ -127,7 +127,8 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     bench::time("canvas.line-draw", drawing.elapsed());
     app.save("canvas.line-save")?;
     app.run(&["pen", "leave"])?;
-    let canvas = app.paint("canvas.paint", &settings.out.join("first-canvas.paint"))?;
+    app.click("#infinite-canvas.dock.tool.Select")?;
+    app.paint("canvas.paint", &settings.out.join("first-canvas.paint"))?;
     app.close_tab("Canvas", "canvas.close")?;
 
     app.add("Text", "text")?;
@@ -138,10 +139,12 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     app.until("the pasted text", |tree| tree.contains("The quick brown fox"))?;
     bench::time("text.paste", pasting.elapsed());
     app.save("text.paste-save")?;
-    let text = app.paint("text.paint", &settings.out.join("first-text.paint"))?;
+    app.paint("text.paint", &settings.out.join("first-text.paint"))?;
     app.close_tab("Text", "text.close")?;
 
     let export = app.export("first.export", &settings.out.join("first.block"))?;
+    let canvas = app.reopen("TreeItem \"Canvas\"", "Canvas", "first.reopened.canvas", &settings.out.join("first-reopened-canvas.paint"))?;
+    let text = app.reopen("TreeItem \"The quick brown fox", "Text", "first.reopened.text", &settings.out.join("first-reopened-text.paint"))?;
     let closing = Instant::now();
     app.close()?;
     bench::time("first.close", closing.elapsed());
@@ -170,7 +173,7 @@ fn second_device(
     bench::time("second.recover", recovering.elapsed());
     let opening = Instant::now();
     app.click("Button \"Personal\"")?;
-    app.wait("Pane \"Files\"")?;
+    app.within(LONG, &["wait", "Pane \"Files\""])?;
     app.run(&["settle"])?;
     bench::time("second.open-organization", opening.elapsed());
     bench::time("second.total", started.elapsed());
@@ -181,8 +184,8 @@ fn second_device(
         app.click("#file-tree.zoom-in")?;
         app.wait("#file-tree.back")?;
     }
-    let canvas = app.reopen("Canvas", "reopened.canvas", &settings.out.join("second-canvas.paint"))?;
-    let text = app.reopen("Text", "reopened.text", &settings.out.join("second-text.paint"))?;
+    let canvas = app.reopen("TreeItem \"Canvas\"", "Canvas", "second.reopened.canvas", &settings.out.join("second-reopened-canvas.paint"))?;
+    let text = app.reopen("TreeItem \"The quick brown fox", "Text", "second.reopened.text", &settings.out.join("second-reopened-text.paint"))?;
     let export = app.export("second.export", &settings.out.join("second.block"))?;
     app.close()?;
     Ok(Device {
@@ -364,9 +367,9 @@ impl App {
     }
 
     fn recover(&mut self, phrase: &[String]) -> Result<(), String> {
-        self.click("#recovery.phrase")?;
+        self.click("TextInput \"Recovery phrase\"")?;
         self.run(&["type", &phrase.join(" ")])?;
-        self.click("#recovery.confirm")?;
+        self.click("Button \"Unlock\"")?;
         self.wait("Button \"Personal\"")
     }
 
@@ -405,9 +408,10 @@ impl App {
             Ok(_) => return Err("paint answered with something other than a painting".to_owned()),
             Err(error) => return Err(self.failed(&["paint", BLOCK], &error)),
         };
-        std::fs::write(path, &bytes)
+        let snapshot = Painting::decode(&bytes).and_then(Snapshot::of_painting)?;
+        std::fs::write(path, snapshot.encode()?)
             .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-        Painting::decode(&bytes).and_then(Snapshot::of_painting)
+        Ok(snapshot)
     }
 
     fn close_tab(&mut self, label: &str, metric: &str) -> Result<(), String> {
@@ -419,11 +423,10 @@ impl App {
         Ok(())
     }
 
-    fn reopen(&mut self, label: &str, metric: &str, painting: &Path) -> Result<Snapshot, String> {
-        let row = format!("TreeItem \"{label}\"");
-        self.wait(&row)?;
+    fn reopen(&mut self, row: &str, label: &str, metric: &str, painting: &Path) -> Result<Snapshot, String> {
+        self.wait(row)?;
         let started = Instant::now();
-        self.run(&["--no-settle", "click", &row])?;
+        self.run(&["--no-settle", "click", row])?;
         self.wait(&format!("Pane \"{label}\""))?;
         self.run(&["gone", "#editor.loading"])?;
         bench::time(&format!("{metric}-open"), started.elapsed());
