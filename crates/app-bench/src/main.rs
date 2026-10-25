@@ -11,7 +11,7 @@ mod server;
 
 const SIZE: &str = "1100x720";
 const ONE_WAY: Duration = Duration::from_millis(15);
-const POINTS: usize = 1_000;
+const POINTS: usize = 10_000;
 const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
@@ -138,7 +138,13 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
             &settings.points.to_string(),
         ],
     )?;
-    app.until("the line", |tree| tree.matches(SHAPE).count() == 2)?;
+    let end = canvas.0 + canvas.2 * 0.9 - 2.0;
+    app.until("the whole line", |tree| {
+        tree.lines()
+            .filter(|line| line.contains(SHAPE))
+            .filter_map(right_edge)
+            .any(|right| right >= end)
+    })?;
     bench::time("canvas.line-draw", drawing.elapsed());
     app.save("canvas.line-save")?;
     app.run(&["pen", "leave"])?;
@@ -502,6 +508,14 @@ impl App {
         let driven = self.driven.take().expect("the app is still open");
         driven.close()
     }
+}
+
+fn right_edge(line: &str) -> Option<f32> {
+    let (_, place) = line.split_once(" at ")?;
+    let (at, size) = place.split_once(" size ")?;
+    let x: f32 = at.split(',').next()?.parse().ok()?;
+    let width: f32 = size.split(['x', ' ']).next()?.parse().ok()?;
+    Some(x + width)
 }
 
 fn value(line: &str) -> Option<String> {

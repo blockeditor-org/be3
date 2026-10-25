@@ -19,7 +19,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   round trip takes 30 ms more. It signs a first device in through the portal, as a person's
   browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
   canvas and a text block from the files' New menu, draws a rectangle and a pen line of
-  `APP_BENCH_POINTS` samples (1,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints
+  `APP_BENCH_POINTS` samples (10,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints
   and closes each, exports the folder as a .block file and closes the app. A second device,
   with data of its own, signs in, unlocks with the recovery phrase, reopens both blocks,
   paints them and exports the folder again. It fails unless both exports are identical and
