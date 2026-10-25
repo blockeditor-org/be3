@@ -1088,9 +1088,11 @@ block open. The replica publishes the new content as a commit based on the head 
 knows, retrying on the newer head a rejection names, so the bytes go through the
 chunked upload rather than the session. An owner that replaces settles on that
 commit and tells its followers to reload; a follower sends the owner
-`SessionMessage::Replaced { head }`, and the owner reloads from that head,
-reapplies whatever it had sequenced but not sealed, and seals, so a header edit
-made while someone was replacing the file is not lost. The image, audio and PDF
+`SessionMessage::Replaced { head }`, and the owner takes that content. The
+replacement wins outright: whatever a replica had not saved when the replacement
+reached it is written as a stash commit that becomes a parent of a later head, so
+it stays in the block's history, and nothing is replayed on top
+(guides/type_modules.md, "Peers"). The image, audio and PDF
 editors' "replace" buttons and the pixel art export's regeneration all go this
 way. `content_file_creation::<C>` is the creation view that makes a block of a
 file type from the file the user picks.

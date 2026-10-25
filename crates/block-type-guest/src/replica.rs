@@ -122,6 +122,12 @@ enum Job<C> {
     Replace {
         content: C,
         reply: Option<RequestId>,
+        outright: bool,
+    },
+    Keep {
+        commit: CommitId,
+        base: Option<CommitId>,
+        attempts: u8,
     },
     Release,
 }
@@ -146,9 +152,10 @@ enum Then {
         sequence: u64,
         state: Vec<u8>,
     },
-    Replacement {
+    Absorb {
         head: CommitId,
     },
+    Replacement,
     FastForward {
         to: CommitId,
     },
@@ -172,17 +179,31 @@ enum AfterPublish<C> {
         content: C,
         attempts: u8,
         reply: Option<RequestId>,
+        outright: bool,
+        merging: Option<Merging>,
     },
     Merged {
         value: C,
     },
+    Kept {
+        commit: CommitId,
+        base: Option<CommitId>,
+        attempts: u8,
+    },
 }
 
-struct AfterStash<C> {
-    value: C,
-    expected: CommitId,
-    base: Option<CommitId>,
-    count: usize,
+enum AfterStash<C> {
+    Merge {
+        value: C,
+        expected: CommitId,
+        base: Option<CommitId>,
+        count: usize,
+    },
+    Replace {
+        content: C,
+        reply: Option<RequestId>,
+    },
+    Keep,
 }
 
 enum Wait<C> {
@@ -239,6 +260,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     owes_since: Option<u64>,
     sealing: bool,
     claimed: Option<u64>,
+    replaced_at: u64,
+    reached: Option<CommitId>,
+    awaiting: Option<CommitId>,
     loaded: bool,
     released: bool,
     reported: Reported,
@@ -349,6 +373,9 @@ where
             owes_since: None,
             sealing: false,
             claimed: None,
+            replaced_at: 0,
+            reached: None,
+            awaiting: None,
             loaded: false,
             released: false,
             reported: Reported::default(),
@@ -379,7 +406,16 @@ where
             Job::Input(input) => self.handle(input),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
-            Job::Replace { content, reply } => self.replace(content, reply),
+            Job::Replace {
+                content,
+                reply,
+                outright,
+            } => self.replace(content, reply, outright),
+            Job::Keep {
+                commit,
+                base,
+                attempts,
+            } => self.keep(commit, base, attempts),
             Job::Release => self.release(),
         }
     }
@@ -617,11 +653,16 @@ where
                 self.sealed = sequence;
                 self.flush();
             }
-            Then::Replacement { head } => {
+            Then::Absorb { head } => {
                 self.replacement(head, next());
                 self.flush();
             }
+            Then::Replacement => {
+                self.history.clear();
+                self.replace(next(), None, true);
+            }
             Then::FastForward { to } => {
+                self.reached = Some(to);
                 self.confirmed = next();
                 self.replace_visible(self.confirmed.clone());
                 self.reload = true;
@@ -641,7 +682,7 @@ where
                         self.stash(
                             base,
                             content,
-                            AfterStash {
+                            AfterStash::Merge {
                                 value,
                                 expected: to,
                                 base,
@@ -674,7 +715,7 @@ where
                         self.stash(
                             Some(ours),
                             content,
-                            AfterStash {
+                            AfterStash::Merge {
                                 value,
                                 expected: theirs,
                                 base,
@@ -798,17 +839,7 @@ where
                 self.rejected(then, head);
             }
             (Some(Wait::Stash { then, .. }), HeadEvent::Stashed { commit, .. }) => {
-                self.conflict(commit, then.expected, then.count);
-                let content = self.written(&then.value);
-                self.publish(
-                    Some(then.expected),
-                    Some(Merging {
-                        base: then.base,
-                        ours: commit,
-                    }),
-                    content,
-                    AfterPublish::Merged { value: then.value },
-                );
+                self.stashed(then, commit);
             }
             (waiting, HeadEvent::Failed { error, .. }) => {
                 let reply = match waiting {
@@ -821,6 +852,10 @@ where
                     }
                     Some(Wait::Publish {
                         then: AfterPublish::Replace { reply, .. },
+                        ..
+                    })
+                    | Some(Wait::Stash {
+                        then: AfterStash::Replace { reply, .. },
                         ..
                     }) => reply.map(|id| (id, Reply::Changed(false))),
                     _ => None,
@@ -845,26 +880,99 @@ where
                     self.reply(id, Reply::Sealed);
                 }
             }
-            AfterPublish::Replace { content, reply, .. } => {
+            AfterPublish::Replace {
+                content,
+                reply,
+                outright,
+                ..
+            } => {
                 let Some(head) = head else {
                     return;
                 };
-                if self.is_owner() {
-                    self.confirmed = content;
-                    self.replace_visible(self.confirmed.clone());
-                    self.reload = true;
-                    self.settle_at(head);
-                } else {
-                    self.unsent.clear();
-                    self.replace_visible(content);
-                    let owner = self.state.owner;
-                    self.send(owner, &SessionMessage::Replaced { head });
+                match (&mut self.role, outright) {
+                    (Role::Owner(sequencer), true) => {
+                        let sequence = sequencer.sequence() + 1;
+                        self.role = Role::Owner(Sequencer::continuing(Some(head), sequence, 0));
+                        self.replaced_at = sequence;
+                        self.confirmed = content;
+                        self.replace_visible(self.confirmed.clone());
+                        self.reload = true;
+                        self.broadcast(&SessionMessage::Replaced { head });
+                        self.settle_at(head);
+                    }
+                    (Role::Owner(_), false) => {
+                        self.confirmed = content;
+                        self.replace_visible(self.confirmed.clone());
+                        self.reload = true;
+                        self.settle_at(head);
+                    }
+                    (Role::Follower(follower), true) => {
+                        follower.take_pending();
+                        self.unsent.clear();
+                        self.in_flight = 0;
+                        self.covered = true;
+                        self.awaiting = Some(head);
+                        self.confirmed = content.clone();
+                        self.replace_visible(content);
+                        let owner = self.state.owner;
+                        self.send(owner, &SessionMessage::Replaced { head });
+                    }
+                    (Role::Follower(_), false) => {
+                        self.unsent.clear();
+                        self.replace_visible(content);
+                        let owner = self.state.owner;
+                        self.send(owner, &SessionMessage::Moved { head });
+                    }
                 }
                 if let Some(id) = reply {
                     self.reply(id, Reply::Changed(true));
                 }
             }
             AfterPublish::Merged { value } => self.take_merged(value, head),
+            AfterPublish::Kept { .. } => {
+                if let Some(head) = head {
+                    self.settle_at(head);
+                }
+            }
+        }
+    }
+
+    fn stashed(&mut self, then: AfterStash<C>, commit: CommitId) {
+        match then {
+            AfterStash::Merge {
+                value,
+                expected,
+                base,
+                count,
+            } => {
+                self.conflict(commit, expected, count);
+                let content = self.written(&value);
+                self.publish(
+                    Some(expected),
+                    Some(Merging { base, ours: commit }),
+                    content,
+                    AfterPublish::Merged { value },
+                );
+            }
+            AfterStash::Replace { content, reply } => {
+                let merging = Merging {
+                    base: self.base,
+                    ours: commit,
+                };
+                self.publish_replacement(content, reply, true, Some(merging), self.base, 0);
+            }
+            AfterStash::Keep => {
+                let base = self.base;
+                if let Role::Follower(follower) = &mut self.role {
+                    follower.take_pending();
+                }
+                self.unsent.clear();
+                self.in_flight = 0;
+                self.covered = true;
+                self.rebuild_visible();
+                let owner = self.state.owner;
+                self.send(owner, &SessionMessage::Kept { commit, base });
+            }
         }
     }
 
@@ -890,6 +998,8 @@ where
                 content,
                 attempts,
                 reply,
+                outright,
+                merging,
             } => {
                 if attempts + 1 >= REPLACE_ATTEMPTS {
                     self.error(
@@ -900,19 +1010,24 @@ where
                     }
                     return;
                 }
-                let written = self.written(&content);
-                self.publish(
-                    head,
-                    None,
-                    written,
-                    AfterPublish::Replace {
-                        content,
-                        attempts: attempts + 1,
-                        reply,
-                    },
-                );
+                self.publish_replacement(content, reply, outright, merging, head, attempts + 1);
             }
             AfterPublish::Merged { value } => self.take_merged(value, None),
+            AfterPublish::Kept {
+                commit,
+                base,
+                attempts,
+            } => {
+                if attempts + 1 >= REPLACE_ATTEMPTS {
+                    return self.error("an edit a follower kept could not be saved");
+                }
+                self.jobs.push_front(Job::Keep {
+                    commit,
+                    base,
+                    attempts: attempts + 1,
+                });
+                self.jobs.push_front(Job::Reconcile);
+            }
         }
     }
 
@@ -1049,6 +1164,7 @@ where
             self.jobs.push_front(Job::Replace {
                 content: self.visible.clone(),
                 reply: None,
+                outright: false,
             });
             return true;
         }
@@ -1064,7 +1180,9 @@ where
                 self.confirmed.apply(&operation);
                 self.broadcast(&SessionMessage::Accepted { op });
             }
-            Role::Follower(follower) if follower.pending() > 0 || !self.unsent.is_empty() => {
+            Role::Follower(follower)
+                if follower.pending() > 0 || !self.unsent.is_empty() || self.awaiting.is_some() =>
+            {
                 let size = payload.len();
                 let leftover = match self.unsent.back_mut() {
                     Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
@@ -1131,6 +1249,7 @@ where
                     self.jobs.push_front(Job::Replace {
                         content,
                         reply: None,
+                        outright: true,
                     });
                 }
             }
@@ -1196,6 +1315,7 @@ where
         self.jobs.push_front(Job::Replace {
             content,
             reply: Some(id),
+            outright: true,
         });
     }
 
@@ -1436,6 +1556,8 @@ where
                 SessionMessage::Submit { .. }
                     | SessionMessage::Catchup { .. }
                     | SessionMessage::Replaced { .. }
+                    | SessionMessage::Moved { .. }
+                    | SessionMessage::Kept { .. }
             )
         {
             return;
@@ -1445,6 +1567,9 @@ where
                 let Role::Owner(sequencer) = &mut self.role else {
                     return;
                 };
+                if base < self.replaced_at {
+                    return;
+                }
                 let Ok(operation) = C::decode_operation(&payload) else {
                     return self.unreadable_message();
                 };
@@ -1512,11 +1637,21 @@ where
                 }
                 self.snapshot_ops(sealed, sequence, ops, applied);
             }
-            SessionMessage::Replaced { head } => {
+            SessionMessage::Replaced { head } => self.replaced(head),
+            SessionMessage::Moved { head } => {
                 if !self.is_owner() || self.base == Some(head) {
                     return;
                 }
-                self.read(vec![Some(head)], Then::Replacement { head });
+                self.read(vec![Some(head)], Then::Absorb { head });
+            }
+            SessionMessage::Kept { commit, base } => {
+                if self.is_owner() {
+                    self.jobs.push_front(Job::Keep {
+                        commit,
+                        base,
+                        attempts: 0,
+                    });
+                }
             }
             SessionMessage::Presence { kind, value } => {
                 if from == self.client {
@@ -1545,6 +1680,12 @@ where
                 let Role::Follower(follower) = &self.role else {
                     return;
                 };
+                if let Some(awaiting) = self.awaiting {
+                    if awaiting != head {
+                        return;
+                    }
+                    self.awaiting = None;
+                }
                 if reload.is_none() && follower.applied() != sequence {
                     return self.greet();
                 }
@@ -1628,7 +1769,7 @@ where
         let Role::Follower(follower) = &mut self.role else {
             return;
         };
-        if follower.pending() > 0 {
+        if follower.pending() > 0 || self.awaiting.is_some() {
             return;
         }
         let Some((operation, _, weight)) = self.unsent.pop_front() else {
@@ -1642,7 +1783,7 @@ where
 
     fn apply_accepted(&mut self, op: &SessionOp) {
         if let Role::Follower(follower) = &self.role
-            && op.sequence <= follower.applied()
+            && (op.sequence <= follower.applied() || self.awaiting.is_some())
         {
             return;
         }
@@ -1744,6 +1885,7 @@ where
         if !owner_changed {
             return;
         }
+        self.awaiting = None;
         if !self.state.is_owner(self.client) {
             let applied = follower.applied();
             let resubmit = follower.resynchronize(applied);
@@ -1815,8 +1957,42 @@ where
         }
         if from_this_device {
             let owner = self.state.owner;
-            self.send(owner, &SessionMessage::Replaced { head });
+            self.send(owner, &SessionMessage::Moved { head });
         }
+    }
+
+    fn replaced(&mut self, head: CommitId) {
+        if self.is_owner() {
+            let taken = self.base == Some(head) && self.is_clean();
+            let reached = self.reached == Some(head) && (self.base != Some(head) || self.is_clean());
+            if !taken && !reached {
+                self.read(vec![Some(head)], Then::Replacement);
+            }
+            return;
+        }
+        let awaited = self.awaiting.replace(head).is_some();
+        self.history.clear();
+        if !awaited && !self.is_clean() {
+            let content = self.written(&self.visible);
+            self.stash(self.base, content, AfterStash::Keep);
+        }
+    }
+
+    fn keep(&mut self, commit: CommitId, base: Option<CommitId>, attempts: u8) {
+        if !self.is_owner() {
+            return;
+        }
+        let content = self.written(&self.confirmed);
+        self.publish(
+            self.base,
+            Some(Merging { base, ours: commit }),
+            content,
+            AfterPublish::Kept {
+                commit,
+                base,
+                attempts,
+            },
+        );
     }
 
     fn reconcile(&mut self) {
@@ -1885,7 +2061,7 @@ where
         );
     }
 
-    fn replace(&mut self, content: C, reply: Option<RequestId>) {
+    fn replace(&mut self, content: C, reply: Option<RequestId>, outright: bool) {
         if self.diverged {
             self.error(DIVERGED);
             if let Some(id) = reply {
@@ -1893,15 +2069,36 @@ where
             }
             return;
         }
+        if outright && !self.is_clean() {
+            let kept = match self.role {
+                Role::Owner(_) => self.written(&self.confirmed),
+                Role::Follower(_) => self.written(&self.visible),
+            };
+            return self.stash(self.base, kept, AfterStash::Replace { content, reply });
+        }
+        self.publish_replacement(content, reply, outright, None, self.base, 0);
+    }
+
+    fn publish_replacement(
+        &mut self,
+        content: C,
+        reply: Option<RequestId>,
+        outright: bool,
+        merging: Option<Merging>,
+        expected: Option<CommitId>,
+        attempts: u8,
+    ) {
         let written = self.written(&content);
         self.publish(
-            self.base,
-            None,
+            expected,
+            merging,
             written,
             AfterPublish::Replace {
                 content,
-                attempts: 0,
+                attempts,
                 reply,
+                outright,
+                merging,
             },
         );
     }

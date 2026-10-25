@@ -95,13 +95,28 @@ submits and catch-ups, and the follower marks itself incompatible and diverged, 
 two builds of a type never edit one session. The session itself is owner
 sequencing, follower rebase and `apply_beneath`, the 1 MiB relay limit (a larger
 edit is published as a commit, and a follower's queued edits are absorbed into
-pieces no larger), `Snapshot`/`Sealed`/`reload`, `Replaced`, takeover with
+pieces no larger), `Snapshot`/`Sealed`/`reload`, `Replaced`, `Moved`, `Kept`, takeover with
 `Sequencer::continuing`, presence and channel messages. Its rules: an owner that owes a seal seals `SEAL_INTERVAL` (750 ms) after it started
 owing; a rejected seal reconciles and seals once more; reconcile merges unsaved work
 into whatever it fast-forwards or merges onto and stashes our side when the merge
 conflicts; a head moved from elsewhere reconciles an owner, and one this device
-published outside the session (`from_this_device`) sends a follower's owner
-`Replaced`.
+published outside the session (`from_this_device`), or a follower's edit too large
+to relay, sends a follower's owner `Moved`, which it reloads with its unsealed
+operations on top.
+
+A whole-content replacement (`Change::Replace`, `FromFile`, `FromEditor::Replace`)
+wins outright. The replica that does it first stashes what it has not saved (an
+owner's unsealed content, a follower's unconfirmed edits) and publishes the
+replacement with that stash as a second parent. An owner that replaced moves its
+sequence on by one and drops any `Submit` based before it, and sends its followers
+`Replaced`; a follower that still had unconfirmed edits stashes them and sends the
+commit to the owner as `Kept`, which the owner publishes as the second parent of a
+seal. A follower that replaced sends the owner `Replaced`, and the owner, unless it
+already took that head with nothing unsaved, publishes the replacement's content
+again on top of whatever it holds, the same way, so a reconcile that merged its
+unsaved work into the replacement first is overruled. A follower waiting on an
+owner's replacement holds its edits back and ignores operations and seals until the
+owner's `Sealed` for that head. Every editor is sent a snapshot of the replacement.
 
 ## Editors are endpoints
 

@@ -45,6 +45,13 @@ pub enum SessionMessage {
     Replaced {
         head: CommitId,
     },
+    Moved {
+        head: CommitId,
+    },
+    Kept {
+        commit: CommitId,
+        base: Option<CommitId>,
+    },
     Presence {
         kind: uuid::Uuid,
         value: Option<Vec<u8>>,

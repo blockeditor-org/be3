@@ -8,7 +8,7 @@ fn a_follower_replaces_the_content_and_the_owner_takes_it() {
     sim.attach(0, 1, true);
     sim.attach(1, 1, true);
     sim.operate(0, 1, add("before"));
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.settle();
     let mut replacement = ChecklistContent::default();
     let (item, created) = Checklist::add("after");
     replacement.apply(&created);
@@ -16,6 +16,7 @@ fn a_follower_replaces_the_content_and_the_owner_takes_it() {
     sim.settle();
     assert!(!sim.devices[1].status.owner);
     assert_eq!(texts(&sim.head_content()), ["after"]);
+    assert!(sim.kept(|content| texts(content).contains(&"before".to_owned())));
     for device in 0..2 {
         assert_eq!(texts(&sim.content(device)), ["after"]);
         assert_eq!(texts(sim.mirror(device, 1)), ["after"]);
