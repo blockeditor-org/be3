@@ -186,7 +186,7 @@ impl Space {
                 self.rescaling.retain(|(waiting, ..)| *waiting != window);
             }
             self.scales.retain(|(held, _)| *held != window);
-        self.rescaling.retain(|(waiting, ..)| *waiting != window);
+            self.rescaling.retain(|(waiting, ..)| *waiting != window);
             self.scales.push((window, scale));
             self.reports.push(Incoming::Window(WindowReport::Scaled {
                 window,

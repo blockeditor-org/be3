@@ -6,7 +6,9 @@ fn damage_far_apart_stays_in_separate_regions() {
     damage.add(WindowId::MAIN, rect(10.0, 10.0, 20.0, 20.0));
     damage.add(WindowId::MAIN, rect(40.0, 5.0, 50.0, 30.0));
     damage.add(WindowId::MAIN, Rect::NOTHING);
-    let region = damage.take().of(WindowId::MAIN, rect(0.0, 0.0, 100.0, 100.0));
+    let region = damage
+        .take()
+        .of(WindowId::MAIN, rect(0.0, 0.0, 100.0, 100.0));
 
     assert_eq!(
         region.rects(),

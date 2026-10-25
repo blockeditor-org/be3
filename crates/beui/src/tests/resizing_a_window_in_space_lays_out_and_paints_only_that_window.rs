@@ -29,7 +29,11 @@ fn resizing_a_window_in_space_lays_out_and_paints_only_that_window() {
     let main_nodes = {
         let document = space.document.borrow();
         let (_, main_tab) = space.tab(dock, "Tab 1");
-        assert!(document.window_of(dock_tab(&document, dock, "Tab 1")).is_main());
+        assert!(
+            document
+                .window_of(dock_tab(&document, dock, "Tab 1"))
+                .is_main()
+        );
         main_tab
     };
 

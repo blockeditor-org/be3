@@ -10,5 +10,11 @@ fn taking_the_damage_clips_it_and_starts_again() {
         damage.take().of(WindowId::MAIN, viewport).rects(),
         [rect(0.0, 50.0, 60.0, 100.0)]
     );
-    assert!(damage.take().of(WindowId::MAIN, viewport).rects().is_empty());
+    assert!(
+        damage
+            .take()
+            .of(WindowId::MAIN, viewport)
+            .rects()
+            .is_empty()
+    );
 }

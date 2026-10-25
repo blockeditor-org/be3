@@ -7,7 +7,9 @@ fn damage_close_together_is_drawn_as_one_region() {
     damage.add(WindowId::MAIN, rect(50.0, 50.0, 90.0, 90.0));
     damage.add(WindowId::MAIN, rect(50.0, 0.0, 90.0, 40.0));
     damage.add(WindowId::MAIN, rect(0.0, 50.0, 40.0, 90.0));
-    let region = damage.take().of(WindowId::MAIN, rect(0.0, 0.0, 100.0, 100.0));
+    let region = damage
+        .take()
+        .of(WindowId::MAIN, rect(0.0, 0.0, 100.0, 100.0));
 
     assert_eq!(
         region.rects(),

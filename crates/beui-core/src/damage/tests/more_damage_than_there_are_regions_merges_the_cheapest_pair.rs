@@ -8,7 +8,9 @@ fn more_damage_than_there_are_regions_merges_the_cheapest_pair() {
         damage.add(WindowId::MAIN, rect(left, 0.0, left + 5.0, 5.0));
     }
     damage.add(WindowId::MAIN, rect(6.0, 0.0, 10.0, 5.0));
-    let region = damage.take().of(WindowId::MAIN, rect(0.0, 0.0, 100.0, 100.0));
+    let region = damage
+        .take()
+        .of(WindowId::MAIN, rect(0.0, 0.0, 100.0, 100.0));
 
     assert_eq!(
         region.rects(),

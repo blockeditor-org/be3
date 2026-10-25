@@ -115,7 +115,11 @@ mod bench {
             self.runner.present();
             let present = started.elapsed();
             let changed = self.runner.output().map_or(0, |output| {
-                output.windows.iter().filter(|window| window.changed).count()
+                output
+                    .windows
+                    .iter()
+                    .filter(|window| window.changed)
+                    .count()
             });
             let latest = self.app().document.performance().latest;
             Timed {
@@ -144,7 +148,10 @@ mod bench {
 
         fn on_screen(&self, window: WindowId, pos: Pos2) -> Pos2 {
             let space = self.space.borrow();
-            let point = space.panel(window).expect("the window has a panel").world(pos);
+            let point = space
+                .panel(window)
+                .expect("the window has a panel")
+                .world(pos);
             let clip = space.head.view_projection(PLATFORM).project_point3(point);
             Pos2::new(
                 (clip.x + 1.0) / 2.0 * PLATFORM.x,

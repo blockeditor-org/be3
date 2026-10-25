@@ -402,7 +402,9 @@ impl PaintCache {
         let below = self.reads_below(&display);
         let old = self.entries.remove(&id);
         match &old {
-            None => self.damage.add(self.window, absolute(display.bounds, placement.own)),
+            None => self
+                .damage
+                .add(self.window, absolute(display.bounds, placement.own)),
             Some(old) => self.reconcile(old, placement.own, &display),
         }
         match recorded.deadline {
@@ -461,7 +463,8 @@ impl PaintCache {
                     if let Some(held) = &held {
                         stale(&mut self.stale, before.drawn(held));
                     }
-                    self.damage.add(self.window, absolute(after.drawn(&drawing).0, now));
+                    self.damage
+                        .add(self.window, absolute(after.drawn(&drawing).0, now));
                 }
             }
         }
@@ -528,7 +531,8 @@ impl PaintCache {
                 );
             }
             for band in mask.fade.bands() {
-                self.damage.add(self.window, absolute(after.place(mask.path, band), now));
+                self.damage
+                    .add(self.window, absolute(after.place(mask.path, band), now));
             }
         }
         for scroll in &after.scrolls {

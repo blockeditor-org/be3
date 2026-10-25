@@ -25,7 +25,11 @@ fn a_resized_panel_keeps_its_renderer_and_draws_at_the_new_size() {
     for step in 1..=3 {
         let size = vec2(200.0 + step as f32 * 30.0, 150.0 + step as f32 * 10.0);
         let (again, texture) = draw(size);
-        assert_eq!(texture, (size.x as u32, size.y as u32), "drawn at its new size");
+        assert_eq!(
+            texture,
+            (size.x as u32, size.y as u32),
+            "drawn at its new size"
+        );
         assert_eq!(
             again, renderer,
             "by the renderer it had, which keeps its pipelines and glyph atlases \

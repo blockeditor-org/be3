@@ -4,7 +4,9 @@ use super::*;
 fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resized() {
     let (mut space, now) = space();
     let window = open_ahead(&mut space, now, 1.0);
-    let held = space.scale(window).expect("a new panel is drawn at once at its scale");
+    let held = space
+        .scale(window)
+        .expect("a new panel is drawn at once at its scale");
     let rescaled = |sent: &[Incoming]| {
         scaled(sent)
             .into_iter()
@@ -37,7 +39,11 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
 
     let mut now = settled;
     let grip = centre() + vec2(100.0, 75.0);
-    send(&mut space, now, [Input::PointerMoved(grip), button(grip, true)]);
+    send(
+        &mut space,
+        now,
+        [Input::PointerMoved(grip), button(grip, true)],
+    );
     space.request(&WindowRequest::BeginResize(window, WindowEdge::BottomRight));
     space.head.position.z += 3.0;
     for step in 1..=20 {
@@ -55,7 +61,11 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
     send(&mut space, now, [button(grip, false)]);
     assert_eq!(space.resize, None);
     assert!(rescaled(&send(&mut space, now, [])).is_empty());
-    let sent = send(&mut space, later(now, crate::scale::SETTLE.as_secs_f32() + 0.01), []);
+    let sent = send(
+        &mut space,
+        later(now, crate::scale::SETTLE.as_secs_f32() + 0.01),
+        [],
+    );
     let farther = space.scale(window).expect("the panel has a scale");
     assert!(farther < nearer);
     assert_eq!(
