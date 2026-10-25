@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{Arc},
+    sync::Arc,
     time::Instant,
 };
 

@@ -15,14 +15,9 @@ use super::{
     worker::{Inbox, Shared, serve},
 };
 
-// The stack runs in a worker of its own, as it runs on a thread of its own
-// natively: the instance of this module that web/be-worker.js starts against
-// the page's shared memory, with its own JavaScript beside it, so its sockets,
-// timers and fetches are its own and its file calls may wait. Everything it
-// shares with the page is shared memory, as natively. The worker lives as long
-// as the page, and runs every stack started, one after another.
 type Entry = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + Send>;
 
+// unsafe(ffi)
 #[link(wasm_import_module = "wasi")]
 unsafe extern "C" {
     #[link_name = "be-worker-start"]
@@ -60,7 +55,7 @@ pub(super) fn spawn(
 #[wasm_bindgen]
 pub fn be_worker_run(entry: usize) -> js_sys::Promise {
     wasi_threads::initialize_main_thread();
-    // unsafe(ffi)
+    // unsafe(memory)
     let entry = unsafe { Box::from_raw(entry as *mut Entry) };
     wasm_bindgen_futures::future_to_promise(async move {
         entry().await;

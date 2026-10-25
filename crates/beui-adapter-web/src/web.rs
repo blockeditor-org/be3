@@ -3,8 +3,8 @@ use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
@@ -456,8 +456,6 @@ fn close_requested(event: &web_sys::Event) {
     let _ = js_sys::Reflect::set(event, &"returnValue".into(), &"".into());
 }
 
-// Woken from any thread, so it takes no lock: the page's thread may not block
-// on one that another thread holds.
 struct Wake {
     woken: AtomicBool,
     waker: futures_util::task::AtomicWaker,

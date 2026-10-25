@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 use std::sync::{Arc, PoisonError};
 
-use wasi_threads::Mutex;
 use std::time::Instant;
+use wasi_threads::Mutex;
 
 use be_block::LiveEdit;
 use be_client::{ClientError, Peer};

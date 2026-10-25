@@ -38,8 +38,7 @@ fn refs(config: &Config) -> Result<be_client::RefsDb, String> {
 }
 
 pub(crate) fn refs_in(root: &std::path::Path) -> Result<be_client::RefsDb, String> {
-    static OPEN: Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> =
-        Mutex::new(Vec::new());
+    static OPEN: Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> = Mutex::new(Vec::new());
     let path = root.join("be-refs.sqlite3");
     let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some((_, refs)) = open.iter().find(|(held, _)| *held == path) {

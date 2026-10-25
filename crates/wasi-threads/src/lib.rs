@@ -33,10 +33,6 @@ pub fn initialize_main_thread_storage(size: usize, align: usize) {
     }
 }
 
-// std's Mutex, except that on wasm a contended lock spins instead of waiting.
-// A browser does not let the page's thread wait (memory.atomic.wait traps
-// there), so a lock the page shares with a worker thread, such as the app's
-// block stack, has to be this one. Elsewhere it is std's, unchanged.
 #[derive(Default)]
 pub struct Mutex<T: ?Sized>(std::sync::Mutex<T>);
 

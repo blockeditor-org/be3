@@ -24,7 +24,6 @@ pub(crate) async fn run(
     url: String,
     headers: Vec<(&'static str, String)>,
 ) -> Result<Vec<u8>, String> {
-
     let js_headers = web_sys::Headers::new()
         .map_err(|error| format!("failed to build request headers: {}", describe(&error)))?;
     for (key, value) in &headers {
