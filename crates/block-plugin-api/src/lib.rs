@@ -37,14 +37,15 @@ be_ops_bindgen::generate!({
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
-        "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter",
+        "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
+        "catalog",
     ],
     inline: [
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "artifact-described", "rename-dialog",
+        "artifact-described", "rename-dialog", "creation-options",
     ],
     own_debug: ["font-face"],
 });
