@@ -225,6 +225,64 @@ is either a styled component that doesn't exist yet, or a custom face that
 should become a styled component. This is the largest item. Do it after §1-4,
 which remove some of those imports on their own.
 
+## 7. Styled components take design tokens, not raw values
+
+Text already takes tokens: `TextSize`, `Weight`, `Family`, `TextColor`. The
+rest of the styled layer still takes raw values. Outside beui, about 205 files
+use styled. Between them they have about 740 `spacing=`, 180 `padding=`, 33
+`Radius::custom`, 56 `ColorRole::Custom` and 17 `TextColor::Custom`, plus
+about 190 private `*_SPACING`, `*_PADDING`, `*_INSET` and `*_MARGIN` consts.
+Styled has about 190 of those consts of its own.
+
+- **Spacing tokens.** Add a `Space` scale, named like `Radius` and `TextSize`.
+  It resolves through `Density`, so compact and comfortable layouts come from
+  the tokens instead of from each component (`Tree` has its own `Metrics` for
+  this today). The values in use are 0, 2, 4, 6, 8, 10 and 12, then a long
+  tail of 14, 16, 18, 20 and 24. **(ask)** The scale's steps, and whether to
+  snap 10, 14 and 18 to their neighbours. Snapping changes a lot of
+  paintings.
+- **Styled `Frame`.**
+  - `padding` takes `Space`, on all sides or on each side.
+  - `border` width and offset take tokens: hairline, focus ring and focus
+    ring offset. `FocusRing`'s `offset` uses the same token.
+  - `Radius::Custom` goes. Add the radii it's covering for: the 7px toolbar
+    and tab radius, and the "Md plus 2" focus-ring radii, which become one
+    derived token.
+  - `width` and `height` keep `Extent` for fill, fraction, intrinsic and
+    at-most. **(ask)** What happens to fixed pixel lengths (about 30 raw, more
+    through consts)? Recommendation: control and picture sizes become size
+    tokens (`TextSize::icon_px` already exists for icons). Lengths that are
+    content stay lengths: a thumbnail, a board cell, a canvas.
+- **Styled `List` and `Grid`.** Styled re-exports the base `List` and `Grid`
+  unchanged, so `spacing` is raw. This is the biggest case, with about 740
+  uses. Add styled versions whose spacing takes `Space`, and stop
+  re-exporting the base ones. Do the same for `Gap` and `Spacer` widths in
+  styled `Text`.
+- **Complete `ColorRole`.** `ColorRole::Custom(theme.dim.get())` exists
+  because the theme has colours that have no role: `danger_fill` and its
+  hover and active, `danger_soft`, `on_danger`, `dim`, `scrim`, `scrim_soft`,
+  `scrim_strong`, `control_outline` and `knob_outline`. Add them, so code
+  never reads a theme colour to hand back as a custom one. Do the same for
+  `TextColor`.
+- **Colours from content.** **(ask)** After that, `Custom` is mostly colours
+  from content: a user's tag colour, a remote cursor, a presentation
+  background, a chart series, a colour swatch. Recommendation: keep one
+  variant for those, named for what it is (for example `ColorRole::Content`),
+  and allow it only for colours that come from data.
+- **Component props in pixels** move to tokens:
+  - Size tokens or a named size: `Dialog`'s `width`, `Popover`'s
+    `max_width`, `MenuPopup`'s `min_width`, `Calendar`'s `width`,
+    `Select`'s `width`, `Spinner`'s `width` (merged into `Progress`) and
+    `Separator`'s `length`.
+  - `Space`: `Tree`'s `spacing` and `padding`, and `styled::Stack`'s
+    `spacing`.
+- **Inside styled too.** Rewrite the private consts in styled (button and
+  row paddings, gaps, focus offsets) in tokens. Tokens that styled itself
+  doesn't use aren't real.
+- **The types enforce it.** Once styled props take token types, a raw `8.0`
+  doesn't compile, and no lint is needed. Unstyled and base components keep
+  taking concrete values, as the design principles say.
+
 ## Order
 
 1. §1's `Modal`, `Dialog` and `EveryScreen`, then the §3 moves that depend on
@@ -239,6 +297,11 @@ which remove some of those imports on their own.
    change.
 7. §1 `Toasts`, §2 tree menus and TextInput, §1's low-priority items.
 8. §5, then §6.
+
+§7 is independent of the rest. Make its token types and the styled `Frame`,
+`List` and `Grid` early, before §6. That way crates moved onto styled in §6
+are written in tokens once, and nobody goes back to change them. Then migrate
+the remaining callers one crate at a time.
 
 Each step adds or updates paintings for what it changes. It also keeps
 beui-demo in step: removed components leave the demo, and new ones join it.
