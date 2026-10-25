@@ -63,6 +63,11 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   app's own work. On lavapipe `present` is mostly the software rasterizer; judge
   `frame`. In October 2026 a resize step's `frame` was 7 to 9 ms, after 90 to 100 ms
   while each window built a new `Renderer` (pipelines, glyph atlases) for every new size.
+- `//crates/beui-demo:example-space-cursor-bench` runs the demo in the VR simulator the
+  same way, finds two points of the main panel whose cursor icons differ, and moves the
+  pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
+  over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
+  after 32 ms while the cursor sprite built a new `Renderer` for every icon.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
 - Both beui benches run their frames through the real `Runner`, with no automation (so no
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A

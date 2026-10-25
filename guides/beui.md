@@ -3084,7 +3084,9 @@ all its 3D (`glam`) stays in the crate.
   icon with `beui_core::drawn_cursor::paint`, the same drawing the inspector's
   mouse simulation shows on a touchscreen, through a `Context` of its own with
   only the icon font, and the compositor draws it into a texture like a window
-  only when the icon or the scale changes.
+  only when the icon or the scale changes, under a `WindowId` of its own. A new
+  icon repaints into the same texture with the same renderer; building a
+  renderer for each icon cost about 30 ms a switch.
 - Focus: like a desktop window manager, focus follows clicks, not the cursor
   (`Space::focused`, the main window's panel at first). A press on a panel's
   content or its chrome focuses that panel, as does starting to carry it; a

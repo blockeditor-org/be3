@@ -24,3 +24,6 @@ cargo_example("open-bench")
 
 # Times resizing a space panel: `./scripts/buck run -m release //crates/beui-demo:example-space-resize-bench`.
 cargo_example("space-resize-bench")
+
+# Times switching the space cursor's icon: `./scripts/buck run -m release //crates/beui-demo:example-space-cursor-bench`.
+cargo_example("space-cursor-bench")

@@ -1121,7 +1121,6 @@ impl WindowHost for Space {
         }
         let icon = self.cursor_icon(output);
         if self.sprite.changed(icon, view.pixels_per_point) {
-            compositor.forget(self.sprite.window);
             let sprite = self.sprite.paint(icon, view.pixels_per_point);
             changed |= compositor.update(&sprite);
         }
@@ -1421,4 +1420,13 @@ fn edge_point(edge: WindowEdge, size: Vec2) -> Pos2 {
         Left | Right => size.y / 2.0,
     };
     pos2(x, y)
+}
+
+#[cfg(test)]
+impl Space {
+    pub(crate) fn cursor_drawn(&self) -> Option<(u64, (u32, u32))> {
+        let compositor = self.compositor.as_ref()?;
+        compositor.paint_windows();
+        compositor.drawn(self.sprite.window)
+    }
 }
