@@ -93,11 +93,13 @@ into a new unstyled component, then rebuild the styled one on top of it.
 - **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
-  ranking functions. Put everything else Launcher has in a new crate shared
-  by linux-desktop and be-launcher (they share no crate besides beui today).
-  That includes the program items, the "Run 'query'" row and the icons,
-  and the crate is where code both of them need from now on goes. Both
-  crates depend on it instead of on `styled::Launcher`.
+  ranking functions. Move everything else Launcher has into linux-desktop,
+  next to `ProgramLauncher` (`editors/linux-desktop/src/app/launcher.rs`),
+  the only product user: the program items, the "Run 'query'" row and the
+  icons. be-launcher's `Launcher` is its own pull request list and doesn't
+  use `styled::Launcher`. Move the launcher tests in `beui/src/tests`
+  that test linux-desktop behaviour along with it; tests of the palette and
+  ranking stay in beui.
   `plans/command_palette.md` also builds on `styled::CommandPalette`, so keep
   the two plans in step.
 - **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
