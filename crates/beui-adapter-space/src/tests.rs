@@ -14,6 +14,8 @@ use crate::head::Head;
 use crate::panel::{Panel, Pose};
 
 mod a_carried_panel_follows_the_cursor_and_the_head;
+mod a_carried_panel_is_in_front_of_the_others_until_scrolled_away;
+mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
 mod a_miss_leaves_the_panel;
 mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;

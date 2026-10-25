@@ -30,6 +30,7 @@ pub struct Frame {
     pub up: Vec3,
     pub cursor: Option<(Vec3, f32)>,
     pub panels: Vec<PanelFrame>,
+    pub lifted: Option<WindowId>,
 }
 
 #[repr(C)]
@@ -85,6 +86,7 @@ struct Pipelines {
     format: wgpu::TextureFormat,
     floor: wgpu::RenderPipeline,
     panel: wgpu::RenderPipeline,
+    lifted: wgpu::RenderPipeline,
     cursor: wgpu::RenderPipeline,
     blit: wgpu::RenderPipeline,
 }
@@ -226,6 +228,7 @@ fn uniform_buffer(device: &wgpu::Device, label: &str, size: usize) -> wgpu::Buff
     })
 }
 
+#[derive(Clone, Copy)]
 struct Stage<'a> {
     label: &'a str,
     vertex: &'a str,
@@ -241,6 +244,15 @@ fn pipeline(
     device: &wgpu::Device,
     shader: &wgpu::ShaderModule,
     stage: Stage,
+) -> wgpu::RenderPipeline {
+    pipeline_comparing(device, shader, stage, wgpu::CompareFunction::LessEqual)
+}
+
+fn pipeline_comparing(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    stage: Stage,
+    compare: wgpu::CompareFunction,
 ) -> wgpu::RenderPipeline {
     let layouts: Vec<Option<&wgpu::BindGroupLayout>> =
         stage.layouts.iter().copied().map(Some).collect();
@@ -265,7 +277,7 @@ fn pipeline(
         depth_stencil: stage.depth.map(|write| wgpu::DepthStencilState {
             format: DEPTH,
             depth_write_enabled: Some(write),
-            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            depth_compare: Some(compare),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -388,23 +400,29 @@ impl Gpu {
             depth: Some(true),
             blend: None,
         };
+        let panel = Stage {
+            label: "space panel",
+            vertex: "panel_vertex",
+            fragment: "panel_fragment",
+            layouts: &[&self.scene_layout, &self.texture_layout],
+            format,
+            samples: SAMPLES,
+            depth: Some(true),
+            blend: None,
+        };
         self.target = None;
         self.pipelines = Some(Pipelines {
             format,
             floor: pipeline(device, shader, scene),
-            panel: pipeline(
+            panel: pipeline(device, shader, panel),
+            lifted: pipeline_comparing(
                 device,
                 shader,
                 Stage {
-                    label: "space panel",
-                    vertex: "panel_vertex",
-                    fragment: "panel_fragment",
-                    layouts: &[&self.scene_layout, &self.texture_layout],
-                    format,
-                    samples: SAMPLES,
-                    depth: Some(true),
-                    blend: None,
+                    label: "space lifted panel",
+                    ..panel
                 },
+                wgpu::CompareFunction::Always,
             ),
             cursor: pipeline(
                 device,
@@ -717,13 +735,17 @@ impl Gpu {
         pass.set_bind_group(0, &self.scene_group, &[]);
         pass.set_pipeline(&pipelines.floor);
         pass.draw(0..4, 0..1);
-        pass.set_pipeline(&pipelines.panel);
-        for panel in &frame.panels {
-            if let Some(drawn) = self.panels.get(&panel.window)
-                && drawn.painted
-            {
-                pass.set_bind_group(1, &drawn.group, &[]);
-                pass.draw(0..4, 0..1);
+        let lifted = |panel: &&PanelFrame| Some(panel.window) == frame.lifted;
+        let (above, below): (Vec<&PanelFrame>, _) = frame.panels.iter().partition(lifted);
+        for (pipeline, panels) in [(&pipelines.panel, below), (&pipelines.lifted, above)] {
+            pass.set_pipeline(pipeline);
+            for panel in panels {
+                if let Some(drawn) = self.panels.get(&panel.window)
+                    && drawn.painted
+                {
+                    pass.set_bind_group(1, &drawn.group, &[]);
+                    pass.draw(0..4, 0..1);
+                }
             }
         }
         if frame.cursor.is_some() {

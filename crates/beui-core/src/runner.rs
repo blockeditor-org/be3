@@ -504,7 +504,7 @@ impl Runner {
         let view = HostView {
             platform: physical,
             pixels_per_point: scale,
-            now: self.context.now(),
+            now: self.context.frame_time(),
         };
         if let Some(host) = &mut self.host {
             host.input(&mut self.intake.incoming, &view);
@@ -565,7 +565,7 @@ impl Runner {
         self.context.set_seen(seen);
         self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;
-        let mut output = self.context.run_with(events, |context| {
+        let mut output = self.context.run_with(events, view.now, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
         if self.publishing_accessibility {

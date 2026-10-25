@@ -595,10 +595,13 @@ impl Context {
         self.inner.now.set(now);
     }
 
-    fn begin_frame(&self, events: Vec<Event>) {
+    pub(crate) fn frame_time(&self) -> Instant {
+        self.inner.clock.get().unwrap_or_else(Instant::now)
+    }
+
+    fn begin_frame(&self, events: Vec<Event>, now: Instant) {
         self.inner.in_frame.set(true);
         self.inner.woken.set(false);
-        let now = self.inner.clock.get().unwrap_or_else(Instant::now);
         self.inner.now.set(now);
         self.apply_pixels_per_point();
         self.inner.repaint.set(false);
@@ -768,11 +771,16 @@ impl Context {
     }
 
     pub fn run(&self, frame: impl FnOnce(&Self)) -> FrameOutput {
-        self.run_with(Vec::new(), frame)
+        self.run_with(Vec::new(), self.frame_time(), frame)
     }
 
-    pub(crate) fn run_with(&self, events: Vec<Event>, frame: impl FnOnce(&Self)) -> FrameOutput {
-        self.begin_frame(events);
+    pub(crate) fn run_with(
+        &self,
+        events: Vec<Event>,
+        now: Instant,
+        frame: impl FnOnce(&Self),
+    ) -> FrameOutput {
+        self.begin_frame(events, now);
         frame(self);
         self.end_frame()
     }

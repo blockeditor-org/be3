@@ -18,7 +18,7 @@ use glam::{Quat, Vec3};
 
 use crate::carry::{Carry, NEAREST};
 use crate::head::{Head, Ray};
-use crate::panel::{POINTS_PER_METRE, Panel, Pose, pick};
+use crate::panel::{Hit, POINTS_PER_METRE, Panel, Pose, pick};
 use crate::render::{Compositor, Frame, PanelFrame};
 use crate::resize::Resize;
 
@@ -57,6 +57,7 @@ struct Shown {
     platform: Vec2,
     head: Head,
     panels: Vec<Panel>,
+    lifted: Option<WindowId>,
     cursor: Option<Vec3>,
 }
 
@@ -69,6 +70,7 @@ pub struct Space {
     platform: Vec2,
     pixels_per_point: f32,
     now: Option<Instant>,
+    clock: Option<Instant>,
     cursor: Option<Cursor>,
     hovered: Option<WindowId>,
     last: Option<(WindowId, Pos2)>,
@@ -102,6 +104,7 @@ impl Space {
             platform: Vec2::ZERO,
             pixels_per_point: 1.0,
             now: None,
+            clock: None,
             cursor: None,
             hovered: None,
             last: None,
@@ -131,6 +134,19 @@ impl Space {
         self.panels.iter_mut().find(|panel| panel.window == window)
     }
 
+    pub fn lifted(&self) -> Option<WindowId> {
+        self.carry
+            .filter(Carry::lifted)
+            .map(|carry| carry.window)
+    }
+
+    pub fn pick(&self, ray: Ray) -> Option<Hit> {
+        self.lifted()
+            .and_then(|window| self.panel(window))
+            .and_then(|panel| panel.hit(ray))
+            .or_else(|| pick(&self.panels, ray))
+    }
+
     pub fn cursor_ray(&self) -> Option<Ray> {
         match self.cursor? {
             Cursor::Platform(at) => Some(self.head.ray(self.platform, at.to_vec2())),
@@ -147,7 +163,7 @@ impl Space {
     pub fn cursor_point(&self) -> Option<Vec3> {
         match self.cursor? {
             Cursor::Platform(at) => {
-                pick(&self.panels, self.head.ray(self.platform, at.to_vec2())).map(|hit| hit.point)
+                self.pick(self.head.ray(self.platform, at.to_vec2())).map(|hit| hit.point)
             }
             Cursor::Window(window, pos) => self.panel(window).map(|panel| panel.world(pos)),
         }
@@ -318,7 +334,7 @@ impl Space {
 
     fn point(&mut self, input: Input, at: Pos2, out: &mut Vec<Incoming>) {
         let ray = self.head.ray(self.platform, at.to_vec2());
-        match pick(&self.panels, ray) {
+        match self.pick(ray) {
             Some(hit) => {
                 self.hovered = Some(hit.window);
                 self.last = Some((hit.window, hit.pos));
@@ -366,7 +382,7 @@ impl Space {
             return;
         }
         match pressed {
-            true => match pick(&self.panels, ray) {
+            true => match self.pick(ray) {
                 Some(hit) => {
                     self.hovered = Some(hit.window);
                     if self.pressed == 0 {
@@ -385,7 +401,7 @@ impl Space {
                 let Some(window) = self.captured.filter(|_| self.pressed > 0) else {
                     return;
                 };
-                match pick(&self.panels, ray) {
+                match self.pick(ray) {
                     Some(hit) => {
                         self.hovered = Some(hit.window);
                         self.last = Some((hit.window, hit.pos));
@@ -507,7 +523,7 @@ impl Space {
                 .map_or(panel.pose.position, |hit| hit.point),
             _ => panel.pose.position,
         };
-        self.carry = Some(Carry::begin(panel, &self.head, grab));
+        self.carry = Some(Carry::begin(panel, &self.head, grab, self.clock));
         self.grip(window);
     }
 
@@ -703,11 +719,11 @@ impl Space {
         let Some(carry) = self.carry.take() else {
             return;
         };
-        let head = self.head;
+        let (head, now) = (self.head, self.clock);
         let Some(panel) = self.panel_mut(carry.window) else {
             return;
         };
-        carry.place(&head, panel);
+        carry.place(&head, panel, now);
         panel.face(head.position);
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
@@ -716,11 +732,11 @@ impl Space {
     }
 
     fn place_carried(&mut self) {
-        let head = self.head;
+        let (head, now) = (self.head, self.clock);
         if let Some(carry) = self.carry
             && let Some(panel) = self.panel_mut(carry.window)
         {
-            carry.place(&head, panel);
+            carry.place(&head, panel, now);
         }
     }
 
@@ -750,6 +766,7 @@ impl WindowHost for Space {
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
         self.platform = view.platform;
         self.pixels_per_point = view.pixels_per_point;
+        self.clock = Some(view.now);
         self.walk(view.now);
         let mut out = std::mem::take(&mut self.reports);
         self.open_main(&mut out);
@@ -763,6 +780,7 @@ impl WindowHost for Space {
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
         self.platform = view.platform;
         self.pixels_per_point = view.pixels_per_point;
+        self.clock = Some(view.now);
         for request in &output.window_requests {
             self.request(request);
         }
@@ -775,7 +793,8 @@ impl WindowHost for Space {
             }
         }
         self.place_carried();
-        let animating = self.steering() && !self.walking.is_empty();
+        let animating = self.steering() && !self.walking.is_empty()
+            || self.carry.is_some_and(|carry| carry.turning(self.clock));
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
             false => Duration::MAX,
@@ -796,6 +815,7 @@ impl WindowHost for Space {
             platform: view.platform,
             head: self.head,
             panels: self.panels.clone(),
+            lifted: self.lifted(),
             cursor: self.cursor_point(),
         };
         let size = view.platform / view.pixels_per_point;
@@ -832,6 +852,7 @@ impl WindowHost for Space {
                     model: panel.model(),
                 })
                 .collect(),
+            lifted: shown.lifted,
         };
         let rect = Rect::from_min_size(Pos2::ZERO, size);
         let window = WindowOutput {

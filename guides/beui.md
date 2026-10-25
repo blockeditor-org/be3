@@ -2868,7 +2868,9 @@ points:
   frame (the platform's input and a driver's), before the app sees it: it may
   rewrite, drop or add entries, name each pointer event's window in that
   window's coordinates, and push `WindowReport`s. `HostView` is the platform
-  window's size in physical pixels, the pixels per point and the frame's time.
+  window's size in physical pixels, the pixels per point and the frame's time:
+  the runner reads the clock once, before `input`, and the app's frame and
+  `frame` see that same time (`Context::now`).
 - `frame(&FrameOutput, &HostView) -> Hosted` after the app's frame: it reads
   each window's output and requests and returns the one `WindowOutput` the
   platform window shows, which the runner hands to the platform
@@ -2937,12 +2939,21 @@ all its 3D (`glam`) stays in the crate.
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around
   the viewer the panel turns with it, by the ray's change of yaw about the
-  grabbed point, so a panel that faced the viewer goes on facing them
-  (`Carry::aim`); steering turns it with the head instead. Scroll changes the distance and does
-  not reach the app; the app sees no pointer moves meanwhile. Letting go of the
+  grabbed point (`Carry::aim`); steering turns it with the head instead. From
+  the moment it is grabbed it also turns, over `TURN_SECONDS` of
+  `HostView::now` (smoothstep, `carry::Turn`), from that carried rotation
+  to facing the viewer from its centre (yaw only, about the grabbed point:
+  `carry::facing`), and then keeps facing them, so letting go turns it no
+  further. Scroll changes the distance and does
+  not reach the app; the app sees no pointer moves meanwhile. While it is no
+  farther than where it was picked up (`Carry::lifted`, `Space::lifted`), the
+  carried panel draws over every other panel whatever their depth, and the
+  cursor's ray picks it first (`Space::pick`); scrolled farther than that, depth
+  orders it like any other, so pushing it away puts it behind a nearer panel.
+  Letting go of the
   button that was down when it began (or, if none was, the next click) ends it:
-  the app gets that release where it grabbed, the panel turns to face the viewer
-  (yaw only), and the host reports `WindowReport::Placed` with the pose as
+  the app gets that release where it grabbed, the panel faces the viewer
+  (yaw only; only a carry let go mid-turn still turns), and the host reports `WindowReport::Placed` with the pose as
   `space X Y Z QX QY QZ QW` (`Pose::placement`, `Pose::from_placement`). Poses
   live in memory.
 - Resize: on `WindowRequest::BeginResize(window, edge)` (`resize::Resize`)
@@ -2956,7 +2967,8 @@ all its 3D (`glam`) stays in the crate.
   `beui_renderer_wgpu::Renderer` into a mipmapped texture, only when that
   window's output changed, sampled with trilinear and anisotropic filtering;
   then a 4x multisampled, depth-tested pass draws a floor grid, the panels
-  (their backs grey; nearer panels hide farther ones by depth) and a cursor
+  (their backs grey; nearer panels hide farther ones by depth, except a lifted
+  carried panel, drawn last with its depth test off) and a cursor
   disc where the ray meets a panel, and a
   `Drawing` blits it into the platform window. A frame is composed again only
   when the head, a panel, the cursor or a window's output changed.
