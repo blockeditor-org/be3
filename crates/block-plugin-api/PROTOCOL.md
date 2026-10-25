@@ -39,7 +39,16 @@ whose `next` answers with the latest value once it changed; a change made while
 the plugin does not ask is kept, folded into the ones after it, until it does.
 Input is one of them: batches for one screen that the plugin has not taken yet
 merge, a run of pointer moves or pixel scrolls folding into its last unless the
-screen asked for every sample, everything else kept in order.
+screen asked for every sample, everything else kept in order. A watch answered
+with a list of events has a merge rule that keeps it bounded: show requests keep
+each request once, at its latest place; web-view events fold a title, address or
+failure into one of its own kind just before it and keep at most 256.
+
+The host handles the calls a plugin makes in the order it made them, whatever
+interface each belongs to: one heard while the host draws a frame waits for the
+next frame together with every call after it, so a `create-block` is done before
+a `read-plain-file` or `pick-block` the plugin made after it. Only what a frame
+itself carries (its layout, `frame-needed`, paintings) is taken at once.
 
 The accepted handshake carries the theme the host is drawn in, which is what
 a plugin's own interface follows, so an editor looks the same as the app it is
@@ -87,7 +96,8 @@ because the host opens a fresh one for every runtime.
 
 An editor instance reaches the content of its blocks through `blocks`'
 `replica` resources: frames the host relays unread, in order and
-back-pressured, between the instance and the block's replica
+back-pressured both ways (a stream window to the editor, a window of unanswered
+`send`s from it), between the instance and the block's replica
 (guides/the_new_block_stack.md, "Content on the plugin protocol").
 
 A plugin may edit several block types, and every opening of an

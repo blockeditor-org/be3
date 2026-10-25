@@ -991,8 +991,11 @@ are endpoints"), and everything about a block's content crosses through a
 `replica` resource the editor opens for each block it holds: its own, the first
 time it sends that block a frame, and each block it watches. `replica.frames()` is
 a `stream<list<u8>>` of every frame the host relays to the editor, in order and
-back-pressured by be-ops credits, and `replica.send(frame)` is a direct call for
-each frame the editor sends. A frame is one `block_type_api::encode_frame` of a
+back-pressured by be-ops credits (the host leaves frames with the session while the
+editor's window is full), and `replica.send(frame)` is an `async func` for each frame
+the editor sends, which the host answers once it has taken the frame in; the editor
+keeps no more than a window of frames unanswered and leaves the rest in its
+`EditorHost` until answers come. A frame is one `block_type_api::encode_frame` of a
 `block_type_guest::editor::ToEditor` (host to plugin) or `FromEditor` (plugin to
 host) (`ToEditor::frame`, `from_frame`), and the host relays it unread between the
 instance and the block's replica.

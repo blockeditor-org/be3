@@ -30,7 +30,7 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
 
 - `crates/be-ops`: the kernel. A `Connection` (one per side, `Side::Host` or
   `Side::Guest`) has five frames: `Start { op, parent, method, args }`,
-  `Yield { op, item }`, `Complete { op, outcome }`, `Cancel { op }` and `Credit`. Either side
+  `Yield { op, item }`, `Complete { op, outcome }`, `Cancel { op }` and `Credit { op, items, bytes }`. Either side
   starts ops, and an op id carries the starting side in its top bit. Every op ends
   with exactly one `Complete`, also after a `Cancel`, which is a request: the callee
   answers `Err(Canceled)` or the real result. An op started with a parent is canceled
@@ -48,12 +48,19 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   into the same `Incoming::Completed` an op ends with, and a sync import the guest made
   arrives as `Incoming::Called`. An empty result is `()`, and a sync func with no
   result is sent with `notify_direct`, which asks for no answer back.
-  A stream is back-pressured: the side serving it may send `STREAM_WINDOW` items
-  ahead, and `Frame::Credit { op, items }` from the consumer allows more. Beyond that
-  `yield_item` (`Producer::send`) holds items in the connection (`Producer::waiting`
-  counts them, for a producer that would rather fold them), and a successful end waits
-  behind them. The guest executor's `Stream` grants credit as its task takes items; a
-  host consuming a stream calls `Connection::credit` itself.
+  A stream is back-pressured by a `Window` of items and bytes: the side serving it
+  may send while `STREAM_WINDOW` items and `STREAM_WINDOW_BYTES` bytes are not used
+  up (an item larger than what is left still goes while any is left), and
+  `Frame::Credit` from the consumer gives back what it took. The connection holds
+  nothing back: out of credit, `Producer::send` (`Connection::yield_item`) answers
+  `WouldBlock` and sends nothing, so the producer stops taking from its own source and
+  keeps the item, `Producer::ready` asks first, and `Incoming::Credited { op }` says
+  when room came back. A latest-value stream wraps its producer in `Latest<T>`, which
+  keeps only the newest value it could not send and sends it on `credited`. The guest
+  executor's `Stream` grants credit as its task takes items; a host consuming a stream
+  calls `Connection::credit` itself. The other way, an import whose items the guest
+  produces is an `async func` per item that the host answers once it has taken the
+  item in, and the guest keeps no more than a `Window` of them unanswered.
   `be_ops::guest` is the guest's single-threaded executor: `Executor::step` takes the
   host's items, runs every task they wake until none is ready, and returns the items
   to send, so a step is deterministic and handles one item completely before the next.
