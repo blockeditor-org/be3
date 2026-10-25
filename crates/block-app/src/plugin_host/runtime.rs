@@ -1689,6 +1689,16 @@ pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: b
     });
 }
 
+pub(crate) fn set_presented(plugin_id: &str, instance: EditorInstanceId, presented: bool) {
+    with(plugin_id, |runtime| {
+        if runtime.instances.set_presented(instance, presented) {
+            runtime.pacing.needed = true;
+            mark(plugin_id);
+            host::request_repaint();
+        }
+    });
+}
+
 pub(crate) fn set_presence_visible(plugin_id: &str, instance: EditorInstanceId, visible: bool) {
     super::instances::want_presence(instance, visible);
     with(plugin_id, |runtime| {

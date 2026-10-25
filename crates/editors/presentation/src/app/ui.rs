@@ -33,10 +33,6 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
     let theme = use_theme();
     let editing = create_memo(move || !presenting.get());
-    let mode = create_memo(move || match presenting.get() {
-        true => ChildMode::Preview,
-        false => ChildMode::Live,
-    });
     let background = create_memo(move || match presenting.get() {
         true => Color32::BLACK,
         false => theme.background.get(),
@@ -62,7 +58,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             editor={editor}
                             slides={slides}
                             selected={slides.selected()}
-                            mode={mode}
+                            mode=ChildMode::Live
                             own_frame={editing}
                             fit={presenting}
                             report_size=true
